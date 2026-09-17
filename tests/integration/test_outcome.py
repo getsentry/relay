@@ -19,6 +19,14 @@ RELAY_ROOT = Path(__file__).parent.parent.parent
 HOUR_MILLISEC = 1000 * 3600
 
 
+def _align_time():
+    """
+    Sleep until we're at the start of the next second.  Useful for tests where bucketing of things
+    happen on the second boundary.
+    """
+    time.sleep(1 - (time.time() % 1))
+
+
 def _disable_quota(project_config, event_type="error", reason="rate_limited"):
     project_config["config"]["quotas"] = [
         {
@@ -684,6 +692,8 @@ def test_outcomes_aggregate_inbound_filters(
 
     outcomes_consumer = outcomes_consumer()
 
+    _align_time()
+
     # Send empty body twice
     _send_event(relay)
     _send_event(relay)
@@ -919,13 +929,6 @@ def test_profile_outcomes(
 
     outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
-
-    metrics = [
-        m
-        for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "c:spans/usage@none" and m["tags"].get("is_segment") == "true"
-    ]
-    assert sum(metric["value"] for metric in metrics) == 2
 
     assert profiles_consumer.get_profile()
     assert profiles_consumer.get_profile()

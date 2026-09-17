@@ -4,6 +4,7 @@ use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
+use sentry_arroyo::backends::kafka::producer::ProducerContext as ArroyoProducerContext;
 
 use crate::statsd::{KafkaCounters, KafkaGauges};
 
@@ -73,15 +74,20 @@ where
 }
 
 /// Kafka client and producer context that logs statistics and producer errors.
-#[derive(Debug)]
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
+    /// Delegate statistics to Arroyo when `processing.use_arroyo` is enabled.
+    arroyo_statistics: Option<ArroyoProducerContext>,
 }
 
 impl Context {
-    pub fn new(producer_name: String) -> Self {
-        Self { producer_name }
+    pub fn new(producer_name: String, use_arroyo: bool) -> Self {
+        Self {
+            arroyo_statistics: use_arroyo
+                .then(|| ArroyoProducerContext::new(producer_name.clone())),
+            producer_name,
+        }
     }
 
     pub fn producer_name(&self) -> &str {
@@ -139,6 +145,11 @@ impl ClientContext for Context {
     ///
     /// This method is only called if `statistics.interval.ms` is configured.
     fn stats(&self, statistics: rdkafka::Statistics) {
+        if let Some(context) = &self.arroyo_statistics {
+            context.stats(statistics);
+            return;
+        }
+
         let producer_name = self.producer_name.as_str();
 
         relay_statsd::metric!(
@@ -310,3 +321,56 @@ impl ProducerContext for Context {
 /// The wrapper type around the kafka [`rdkafka::producer::ThreadedProducer`] with our own
 /// [`Context`].
 pub type ThreadedProducer = rdkafka::producer::ThreadedProducer<Context>;
+
+#[cfg(test)]
+mod tests {
+    use rdkafka::ClientContext;
+    use rdkafka::statistics::{Broker, Statistics};
+    use relay_statsd::with_capturing_test_client;
+
+    use super::Context;
+
+    #[test]
+    fn test_statistics_backend() {
+        for use_arroyo in [false, true] {
+            let context = Context::new("test-producer".to_owned(), use_arroyo);
+            let statistics = Statistics {
+                msg_cnt: 42,
+                brokers: [(
+                    "broker-id".to_owned(),
+                    Broker {
+                        name: "broker-name".to_owned(),
+                        state: "UP".to_owned(),
+                        outbuf_cnt: 7,
+                        ..Default::default()
+                    },
+                )]
+                .into(),
+                ..Default::default()
+            };
+
+            let metrics = with_capturing_test_client(|| context.stats(statistics));
+            let (prefix, broker_metric, broker_tag) = if use_arroyo {
+                (
+                    "arroyo.producer.librdkafka.",
+                    "broker_outbuf_requests",
+                    "broker_id:broker-id",
+                )
+            } else {
+                (
+                    "kafka.stats.",
+                    "broker.outbuf.requests",
+                    "broker_name:broker-name",
+                )
+            };
+
+            assert!(metrics.contains(&format!(
+                "{prefix}message_count:42|g|#producer_name:test-producer"
+            )));
+            assert!(metrics.contains(&format!(
+                "{prefix}{broker_metric}:7|g|#{broker_tag},producer_name:test-producer"
+            )));
+            assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
+        }
+    }
+}

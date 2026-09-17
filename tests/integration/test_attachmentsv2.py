@@ -178,6 +178,64 @@ def test_standalone_attachment_store(
     assert stored.metadata.content_type == "text/plain"
 
 
+def test_standalone_attachment_attribute_meta_store(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    items_consumer,
+    objectstore,
+):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
+    ]
+    project_config["config"]["piiConfig"] = {
+        "rules": {"strip_ips": {"type": "ip", "redaction": {"method": "remove"}}},
+        "applications": {"**": ["strip_ips"]},
+    }
+
+    objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    attachment_metadata = create_attachment_metadata()
+    attachment_metadata["attributes"] = {
+        "user.ip": {"type": "string", "value": "192.168.1.1"},
+        "safe.attribute": {"type": "string", "value": "keep this"},
+    }
+    attachment_body = b"This is some mock attachment content"
+    metadata_bytes = json.dumps(attachment_metadata, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    combined_payload = metadata_bytes + attachment_body
+
+    envelope = create_attachment_envelope(project_config)
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            headers={
+                "content_type": "application/vnd.sentry.trace-attachment",
+                "meta_length": len(metadata_bytes),
+                "length": len(combined_payload),
+                "type": "attachment",
+            },
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    attributes = items_consumer.get_item()["attributes"]
+    assert attributes["safe.attribute"] == {"stringValue": "keep this"}
+    assert attributes["user.ip"] == {"stringValue": ""}
+    assert attributes["sentry._meta.fields.attributes.user.ip"] == {
+        "stringValue": '{"meta":{"value":{"":{"rem":[["strip_ips","x",0,0]],"len":11}}}}'
+    }
+    stored = objectstore.get(attachment_metadata["attachment_id"])
+    assert stored.payload.read() == attachment_body
+
+
 @pytest.mark.parametrize(
     "invalid_headers,quantity,reason",
     [

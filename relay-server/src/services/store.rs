@@ -12,6 +12,8 @@ use bytes::Bytes;
 use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use relay_base_schema::events::EventType;
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
+use sentry::protocol::SpanId;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
 use uuid::Uuid;
@@ -62,6 +64,8 @@ pub enum StoreError {
     NoEventId,
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+    #[error("invalid span id: {0}")]
+    InvalidSpanId(#[from] hex::FromHexError),
 }
 
 impl OutcomeError for StoreError {
@@ -76,6 +80,7 @@ impl OutcomeError for StoreError {
             StoreError::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            StoreError::InvalidSpanId(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
@@ -87,7 +92,7 @@ struct Producer {
 
 impl Producer {
     pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder();
+        let mut client_builder = KafkaClient::builder(config.use_arroyo());
 
         for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
@@ -692,6 +697,22 @@ impl StoreService {
         };
 
         message.try_accept(|span| {
+            // Temporary validation of the segment ID.
+            if let Some(segment_id) = span
+                .item
+                .attributes
+                .value()
+                .and_then(|a| a.get_value(SENTRY__SEGMENT__ID))
+                .and_then(|v| v.as_str())
+            {
+                // This will trigger an error log in handle_message.
+                let _: SpanId = segment_id.parse().inspect_err(|_| {
+                    relay_log::configure_scope(|scope| {
+                        scope.set_tag("sentry_project_id", scoping.project_id);
+                    });
+                })?;
+            }
+
             let item = Annotated::new(span.item);
             let message = KafkaMessage::SpanV2 {
                 routing_key: span.routing_key,
@@ -1114,21 +1135,16 @@ impl StoreService {
             MetricNamespace::Outcomes => {
                 return self.send_metric_based_outcome(message);
             }
+            MetricNamespace::Spans | MetricNamespace::Transactions => {
+                // Generic metrics (spans/transactions) are no longer ingested.
+                return Ok(());
+            }
             MetricNamespace::Unsupported => {
                 relay_log::error!(
                     metric_message.name = message.name.as_ref(),
                     "store service dropping unknown metric usecase"
                 );
                 return Ok(());
-            }
-
-            MetricNamespace::Spans | MetricNamespace::Transactions => {
-                if let Some(global_config) = self.global_config.current()
-                    && global_config.options.generic_metrics_disabled
-                {
-                    return Ok(());
-                }
-                KafkaTopic::MetricsGeneric
             }
         };
 

@@ -27,8 +27,9 @@ def test_invalid_kafka_config_should_fail(mini_sentry, relay_with_processing):
     assert "profiles" in error.lower()
 
 
-def test_invalid_topics_raise_error(mini_sentry, relay_with_processing):
-    options = {"processing": {"kafka_validate_topics": True}}
+@pytest.mark.parametrize("use_arroyo", [False, True], ids=["rdkafka", "arroyo"])
+def test_invalid_topics_raise_error(mini_sentry, relay_with_processing, use_arroyo):
+    options = {"processing": {"kafka_validate_topics": True, "use_arroyo": use_arroyo}}
 
     relay = relay_with_processing(options=options, wait_health_check=False)
     assert relay.wait_for_exit() != 0
