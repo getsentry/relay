@@ -1364,7 +1364,7 @@ mod tests {
             let mut invocation = script.prepare_invoke();
 
             let mut key = key.clone();
-            if dims == EMPTY_DIMENSIONS {
+            if dims != EMPTY_DIMENSIONS {
                 key += ":hash";
             }
 
