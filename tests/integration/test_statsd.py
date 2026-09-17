@@ -1,7 +1,8 @@
 import socket
 
 
-def test_arroyo_application_tag(relay_with_processing, processing_config):
+def test_arroyo_application_tag(mini_sentry, relay_with_processing, processing_config):
+    mini_sentry.add_full_project_config(42)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as statsd:
         statsd.bind(("127.0.0.1", 0))
         statsd.settimeout(30)
@@ -9,22 +10,25 @@ def test_arroyo_application_tag(relay_with_processing, processing_config):
         options = processing_config(
             {
                 "processing": {"use_arroyo": True},
-                "metrics": {"statsd": f"{host}:{port}"},
+                "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
             }
         )
         options["processing"]["kafka_config"].append(
             {"name": "statistics.interval.ms", "value": "1000"}
         )
-        relay_with_processing(options=options)
+        relay = relay_with_processing(options=options)
+        relay.send_event(42)
 
-        seen_arroyo = False
-        seen_relay = False
-        while not (seen_arroyo and seen_relay):
+        metrics = {
+            "relay.arroyo.producer.librdkafka.message_count",
+            "relay.processing.event.enqueued",
+        }
+        while metrics:
             for metric in statsd.recv(65535).decode().splitlines():
+                name = metric.partition(":")[0]
                 tags = metric.partition("|#")[2].split("|", 1)[0].split(",")
-                if metric.startswith("sentry.relay.arroyo."):
+                if name == "relay.arroyo.producer.librdkafka.message_count":
                     assert "application:relay" in tags
-                    seen_arroyo = True
-                elif metric.startswith("sentry.relay.server.starting:"):
+                elif name == "relay.processing.event.enqueued":
                     assert not any(tag.startswith("application:") for tag in tags)
-                    seen_relay = True
+                metrics.discard(name)
