@@ -40,6 +40,9 @@ use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
+/// Header advertising the maximum/recommended chunk size to clients.
+pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
+
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
@@ -206,7 +209,7 @@ async fn handle_post(
     if upload_chunk_size > 0 {
         response
             .headers_mut()
-            .insert(tus::UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+            .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
     }
 
     Ok(response)
