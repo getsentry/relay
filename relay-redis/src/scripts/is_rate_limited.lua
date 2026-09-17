@@ -33,6 +33,8 @@
 -- whether or not the item was *rejected* based on the provided limit.
 local NUM_KEYS = 2
 local NUM_ARGS = 6
+local EMPTY_DIMENSIONS = '_'
+
 assert(#KEYS % NUM_KEYS == 0, "there must be 2 keys per quota")
 assert(#ARGV % NUM_ARGS == 0, "there must be 6 args per quota")
 assert(#KEYS / NUM_KEYS == #ARGV / NUM_ARGS, "incorrect number of keys and arguments provided")
@@ -60,16 +62,22 @@ for i = 0, num_quotas - 1 do
     local over_accept_once = ARGV[v + 3]
     local dims_key = ARGV[v + 4]
     local cardinality_limit = tonumber(ARGV[v + 5])
-
-    local main_value = redis.call('HGET', redis_keys[i + 1], dims_key)
+    local main_value = 0
     local rejected = false
 
-    if not main_value then
-        -- If we see a new key, check to see if we have sufficient cardinality for it
-        if cardinality_limit >= 0 then
-            rejected = redis.call('HLEN', redis_keys[i + 1]) >= cardinality_limit
+    if dims_key == EMPTY_DIMENSIONS then
+        -- Handle dimensionless buckets the usual way.
+        main_value = redis.call('GET', redis_keys[i + 1]) or 0
+    else
+        -- Dimensioned buckets
+        main_value = redis.call('HGET', redis_keys[i + 1], dims_key)
+        if not main_value then
+            -- If we see a new key, check to see if we have sufficient cardinality for it
+            if cardinality_limit >= 0 then
+                rejected = redis.call('HLEN', redis_keys[i + 1]) >= cardinality_limit
+            end
+            main_value = 0
         end
-        main_value = 0
     end
 
     local refund_value = refund_values[i + 1] or 0
@@ -106,8 +114,14 @@ if not failed then
         local dims = ARGV[v + 4]
 
         if quantity > 0 then
-            if redis.call('HINCRBY', redis_keys[i + 1], dims, quantity) == quantity then
-                redis.call('EXPIREAT', redis_keys[i + 1], expiry)
+            if dims == EMPTY_DIMENSIONS then
+                if redis.call('INCRBY', redis_keys[i + 1], quantity) == quantity then
+                    redis.call('EXPIREAT', redis_keys[i + 1], expiry)
+                end
+            else
+                if redis.call('HINCRBY', redis_keys[i + 1], dims, quantity) == quantity then
+                    redis.call('EXPIREAT', redis_keys[i + 1], expiry)
+                end
             end
 
             -- Adjust the consumed value with the just increased quantity.
