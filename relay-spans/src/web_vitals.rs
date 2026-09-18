@@ -1,5 +1,6 @@
 use relay_conventions::attributes::{
-    BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__VALUE,
+    BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__WEB_VITAL__CLS__VALUE,
+    BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__VALUE,
     BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
     BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
     BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
@@ -26,7 +27,9 @@ const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "ui.interaction.press",
 ];
 
-const COMMON_ATTRIBUTES: [&str; 9] = [
+const COMMON_ATTRIBUTES: [&str; 11] = [
+    BROWSER__NAVIGATION__TYPE,
+    BROWSER__NAVIGATION__ID,
     SENTRY__PAGELOAD__SPAN_ID,
     SENTRY__ORIGIN,
     SENTRY__SEGMENT__NAME,
@@ -170,5 +173,54 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         None
     } else {
         Some(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_protocol::{Annotated, SerializableAnnotated};
+
+    use super::*;
+
+    #[test]
+    fn test_lcp_attributes() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
+                    "browser.navigation.type": {"type": "string", "value": "soft-navigation"},
+                    "browser.navigation.id": {"type": "integer", "value": 2},
+                    "unrelated": {"type": "string", "value": "dropped"}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 1);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&metrics[0].attributes), @r#"
+        {
+          "browser.navigation.id": {
+            "type": "integer",
+            "value": 2
+          },
+          "browser.navigation.type": {
+            "type": "string",
+            "value": "soft-navigation"
+          },
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          }
+        }
+        "#);
     }
 }
