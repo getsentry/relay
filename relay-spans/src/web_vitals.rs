@@ -1,10 +1,9 @@
 use relay_conventions::attributes::{
-    BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__WEB_VITAL__CLS__REPORT_EVENT,
-    BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__VALUE,
+    BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__WEB_VITAL__CLS__VALUE,
+    BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__VALUE,
     BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
     BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
-    BROWSER__WEB_VITAL__LCP__REPORT_EVENT, BROWSER__WEB_VITAL__LCP__SIZE,
-    BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
+    BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
     SENTRY__METRIC__SOURCE, SENTRY__ORIGIN, SENTRY__PAGELOAD__SPAN_ID, SENTRY__PLATFORM,
     SENTRY__RELEASE, SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME,
@@ -54,7 +53,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
             BROWSER__WEB_VITAL__LCP__SIZE,
             BROWSER__WEB_VITAL__LCP__LOAD_TIME,
             BROWSER__WEB_VITAL__LCP__RENDER_TIME,
-            BROWSER__WEB_VITAL__LCP__REPORT_EVENT,
             "score.lcp",
             "score.weight.lcp",
             "score.ratio.lcp",
@@ -64,12 +62,7 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         attribute_value: BROWSER__WEB_VITAL__CLS__VALUE,
         name: "browser.web_vital.cls",
         unit: MetricUnit::None,
-        attribute_keys: &[
-            BROWSER__WEB_VITAL__CLS__REPORT_EVENT,
-            "score.cls",
-            "score.weight.cls",
-            "score.ratio.cls",
-        ],
+        attribute_keys: &["score.cls", "score.weight.cls", "score.ratio.cls"],
     },
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__INP__VALUE,
@@ -200,7 +193,6 @@ mod tests {
                 "attributes": {
                     "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
                     "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
-                    "browser.web_vital.lcp.report_event": {"type": "string", "value": "navigation"},
                     "browser.navigation.type": {"type": "string", "value": "soft-navigation"},
                     "browser.navigation.id": {"type": "integer", "value": 2},
                     "unrelated": {"type": "string", "value": "dropped"}
@@ -223,10 +215,6 @@ mod tests {
           "browser.navigation.type": {
             "type": "string",
             "value": "soft-navigation"
-          },
-          "browser.web_vital.lcp.report_event": {
-            "type": "string",
-            "value": "navigation"
           },
           "sentry.metric.source": {
             "type": "string",
