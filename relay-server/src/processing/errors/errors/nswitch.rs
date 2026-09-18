@@ -51,6 +51,7 @@ impl SentryError for Nswitch {
                 event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
                 attachments,
                 user_reports,
+                unprocessable: vec![],
                 error: Self::Forward { dying_message },
                 metrics,
                 fully_normalized: false,
@@ -95,6 +96,7 @@ impl SentryError for Nswitch {
             event: Box::new(event),
             attachments,
             user_reports,
+            unprocessable: dying_message.session_updates,
             error: Self::Process {},
             metrics,
             fully_normalized: false,
@@ -178,6 +180,7 @@ fn merge_events_inner(
 struct ExpandedDyingMessage {
     event: Option<Item>,
     attachments: Vec<Item>,
+    session_updates: Vec<Item>,
 }
 
 /// Parses DyingMessage contents and updates the envelope.
@@ -250,6 +253,7 @@ fn expand_dying_message_from_envelope_items(
 
     let event = utils::take_item_of_type(&mut items, ItemType::Event);
     let attachments = utils::take_items_of_type(&mut items, ItemType::Attachment);
+    let session_updates = utils::take_items_of_type(&mut items, ItemType::Session);
 
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.
@@ -259,7 +263,11 @@ fn expand_dying_message_from_envelope_items(
         );
     }
 
-    Ok(ExpandedDyingMessage { event, attachments })
+    Ok(ExpandedDyingMessage {
+        event,
+        attachments,
+        session_updates,
+    })
 }
 
 fn decompress_data(

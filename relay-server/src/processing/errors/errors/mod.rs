@@ -118,6 +118,7 @@ macro_rules! gen_error_kind {
                             event: p.event,
                             attachments: p.attachments,
                             user_reports: p.user_reports,
+                            unprocessable: p.unprocessable,
                             error: p.error.into(),
                             metrics: p.metrics,
                             fully_normalized: p.fully_normalized,
@@ -201,6 +202,8 @@ pub struct Expansion<T> {
     pub attachments: Vec<Item>,
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<Item>,
+    /// Additional items extracted from the error that need to be processed in a separate pass.
+    pub unprocessable: Vec<Item>,
     /// The custom error data.
     pub error: T,
     /// Metrics about the error/event.
