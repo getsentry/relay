@@ -60,6 +60,9 @@ use crate::mock::MockRecorder;
 
 mod mock;
 
+/// Custom namespaces which are never prefixed.
+const CUSTOM_NAMESPACES: &[&str] = &["arroyo.", "datadog.dogstatsd.client."];
+
 #[doc(hidden)]
 pub mod _metrics {
     pub use ::metrics::*;
@@ -132,7 +135,7 @@ pub fn init(config: MetricsConfig) -> Result<(), Error> {
 
     // Router decides if metrics go through the prefix layer or directly to the DogStatsD recorder.
     let mut router = RouterBuilder::from_recorder(prefix_layer);
-    for namespace in ["arroyo.", "datadog.dogstatsd.client."] {
+    for namespace in CUSTOM_NAMESPACES {
         router.add_route(MetricKindMask::ALL, namespace, Arc::clone(&recorder));
     }
 
