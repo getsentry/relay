@@ -159,14 +159,6 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
-            "outcomes": {
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "bucket_interval": 1,
-                    "flush_interval": 0,
-                },
-            },
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,

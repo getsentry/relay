@@ -1419,12 +1419,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// The maximum number of outcomes that are batched before being sent
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_size: usize,
-    /// The maximum time interval (in milliseconds) that an outcome may be batched
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_interval: u64,
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
@@ -1434,8 +1428,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            batch_size: 1000,
-            batch_interval: 500,
             source: None,
         }
     }
@@ -2310,16 +2302,6 @@ impl ConfigSnapshot {
             return EmitOutcomes::AsOutcomes;
         }
         self.inner.values.outcomes.emit_outcomes
-    }
-
-    /// Returns the maximum number of outcomes that are batched before being sent
-    pub fn outcome_batch_size(&self) -> usize {
-        self.inner.values.outcomes.batch_size
-    }
-
-    /// Returns the maximum interval that an outcome may be batched
-    pub fn outcome_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.inner.values.outcomes.batch_interval)
     }
 
     /// The originating source of the outcome

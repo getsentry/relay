@@ -14,15 +14,7 @@ import pytest
 from .consts import Outcome
 
 TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
+    "outcomes": {"emit_outcomes": True},
     "aggregator": {
         "bucket_interval": 1,
         "initial_delay": 0,

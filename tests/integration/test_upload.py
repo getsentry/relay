@@ -746,16 +746,7 @@ def test_upload_minidump_opt_in(
     if opted_in:
         features.append("projects:relay-minidump-uploads")
 
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            }
-        },
-    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     headers = {
         "Tus-Resumable": "1.0.0",

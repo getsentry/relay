@@ -571,10 +571,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         {
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
-                "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
+                "source": "downstream-layer"
             }
         },
     )
