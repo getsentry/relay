@@ -4448,6 +4448,7 @@ dependencies = [
  "relay-server",
  "relay-statsd",
  "reqwest",
+ "sentry_arroyo",
  "uuid",
 ]
 
@@ -5709,9 +5710,9 @@ dependencies = [
 
 [[package]]
 name = "sentry_arroyo"
-version = "2.44.0"
+version = "2.44.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e009b8cb35c0ccb43b0bc86db7bbb253aad9e530b23e9dae42e391b5cad5acad"
+checksum = "665b862f3ac6675144a67082121f7bc4cfcb1fe83cba8ef2a943560f2fdffcc6"
 dependencies = [
  "chrono",
  "coarsetime",
