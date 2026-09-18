@@ -17,7 +17,7 @@
 **Internal**:
 
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
-- Add an opt-in Arroyo Kafka producer backend for processing mode, enabled with `processing.use_arroyo`. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396))
+- Add an opt-in Arroyo Kafka producer backend for processing mode, enabled with `processing.use_arroyo`. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397))
 
 ## 26.9.0
 
