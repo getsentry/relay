@@ -192,7 +192,7 @@ mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::{BucketMetadata, BucketValue, UnixTimestamp};
-    use relay_quotas::QuotaScope;
+    use relay_quotas::{GroupBy, QuotaScope};
     use relay_system::Addr;
 
     use super::*;
@@ -207,6 +207,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: GroupBy::default(),
         }]
     }
 

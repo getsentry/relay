@@ -30,6 +30,7 @@
 
 **Features**:
 
+- Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 - Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
 - Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))

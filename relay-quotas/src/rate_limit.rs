@@ -569,11 +569,12 @@ fn inherited_categories(category: &DataCategory) -> &'static [DataCategory] {
 
 #[cfg(test)]
 mod tests {
+
     use smallvec::smallvec;
 
     use super::*;
-    use crate::MetricNamespaceScoping;
     use crate::quota::DataCategory;
+    use crate::{GroupBy, MetricNamespaceScoping};
 
     #[test]
     fn test_parse_retry_after() {
@@ -639,6 +640,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -650,6 +652,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
     }
 
@@ -672,6 +675,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -683,6 +687,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
     }
 
@@ -705,6 +710,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -716,6 +722,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
     }
 
@@ -740,12 +747,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+            dimensions: Arc::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: Arc::default(),
         }));
 
         let general_rate_limit = RateLimit {
@@ -760,12 +769,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: Arc::default(),
         }));
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
     }
 
@@ -790,6 +801,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -801,6 +813,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         }));
     }
 
@@ -1117,6 +1130,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            group_by: GroupBy::default(),
         }];
 
         assert!(
@@ -1170,6 +1184,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         });
 
         // Check that the error limit is applied
@@ -1221,6 +1236,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let quotas = &[Quota {
@@ -1232,6 +1248,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            group_by: GroupBy::default(),
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, &item_scoping);
