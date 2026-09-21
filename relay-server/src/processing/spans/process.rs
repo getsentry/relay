@@ -288,6 +288,7 @@ fn normalize_span(
             headers.dsc().and_then(|dsc| dsc.sample_rate),
         );
         eap::normalize_pipeline_attributes(&mut span.attributes, ingress, Some(&Pipeline::SpanV2));
+        utils::ingest_path::normalize_relay_ingest_path(&mut span.attributes, ctx.config);
     };
 
     if let Annotated(None, meta) = span {
@@ -517,7 +518,7 @@ mod tests {
         {
           "sentry.description": {
             "type": "string",
-            "value": "secret123"
+            "value": "[Filtered]"
           },
           "sentry.release": {
             "type": "string",
@@ -536,6 +537,21 @@ mod tests {
             "value": "[Filtered]"
           },
           "_meta": {
+            "sentry.description": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "url.path": {
               "value": {
                 "": {

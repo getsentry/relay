@@ -168,6 +168,7 @@ fn normalize_trace_metric(
             eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
         }
         eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
+        utils::ingest_path::normalize_relay_ingest_path(&mut metric_value.attributes, ctx.config);
     };
 
     if let Annotated(None, meta) = metric {
