@@ -69,7 +69,7 @@
 
 - Avoid writing trace attachment attribute metadata twice. ([#6373](https://github.com/getsentry/relay/pull/6373))
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
-- Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
+- Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 
 **Internal**:
 
