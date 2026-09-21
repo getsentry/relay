@@ -88,6 +88,7 @@ impl EqCondition {
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
             (Some(Val::HexId(f)), Value::String(val)) => f.match_str(val),
+            (Some(Val::IpAddr(f)), Value::String(val)) => val.parse::<IpAddr>() == Ok(f),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }
@@ -277,8 +278,9 @@ impl<'de> Deserialize<'de> for IpNetworks {
 
 /// A condition that checks whether an IP address lies in any of the given networks.
 ///
-/// The field must hold an IPv4 or IPv6 address as a string. Each entry in `value` is a single
-/// address or a CIDR range; the condition matches if the address is contained in any of them.
+/// The field must hold an IPv4 or IPv6 address, either as [`Val::IpAddr`] or as a string. Each
+/// entry in `value` is a single address or a CIDR range; the condition matches if the address is
+/// contained in any of them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CidrCondition {
     /// Path of the field that holds the IP address.
@@ -302,10 +304,16 @@ impl CidrCondition {
     where
         T: Getter + ?Sized,
     {
-        match instance.get_value(self.name.as_str()) {
-            Some(Val::String(s)) => s.parse::<IpAddr>().is_ok_and(|ip| self.value.contains(ip)),
-            _ => false,
-        }
+        let ip = match instance.get_value(self.name.as_str()) {
+            Some(Val::IpAddr(ip)) => ip,
+            Some(Val::String(s)) => match s.parse() {
+                Ok(ip) => ip,
+                Err(_) => return false,
+            },
+            _ => return false,
+        };
+
+        self.value.contains(ip)
     }
 }
 
@@ -967,6 +975,7 @@ mod tests {
         environment: String,
         user_segment: String,
         user_ip: String,
+        client_ip: IpAddr,
         exceptions: Vec<Exception>,
     }
 
@@ -980,6 +989,7 @@ mod tests {
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
                 "user.ip" => self.user_ip.as_str().into(),
+                "client_ip" => self.client_ip.into(),
                 _ => {
                     return None;
                 }
@@ -1003,6 +1013,7 @@ mod tests {
             environment: "debug".to_owned(),
             user_segment: "vip".to_owned(),
             user_ip: "10.1.2.3".to_owned(),
+            client_ip: "2001:db8::1".parse().unwrap(),
             exceptions: vec![
                 Exception {
                     name: "NullPointerException".to_owned(),
@@ -1299,6 +1310,20 @@ mod tests {
         assert!(!RuleCondition::cidr("trace.user.ip", Vec::<String>::new()).matches(&trace));
         assert!(!RuleCondition::cidr("trace.missing", "10.0.0.0/8").matches(&trace));
         assert!(!RuleCondition::cidr("trace.release", "10.0.0.0/8").matches(&trace));
+
+        assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
+        assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
+        assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
+    }
+
+    #[test]
+    fn test_eq_condition_ip_addr() {
+        let trace = mock_trace();
+
+        assert!(RuleCondition::eq("trace.client_ip", "2001:db8::1").matches(&trace));
+        assert!(RuleCondition::eq("trace.client_ip", "2001:db8:0::1").matches(&trace));
+        assert!(!RuleCondition::eq("trace.client_ip", "2001:db8::2").matches(&trace));
+        assert!(!RuleCondition::eq("trace.client_ip", "not-an-ip").matches(&trace));
     }
 
     #[test]

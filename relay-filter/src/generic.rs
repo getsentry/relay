@@ -4,7 +4,6 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
-use std::cell::OnceCell;
 use std::iter::FusedIterator;
 use std::net::IpAddr;
 
@@ -24,25 +23,12 @@ const CLIENT_IP_PATH: &str = "envelope.client_ip";
 struct WithClientIp<'a, F> {
     item: &'a F,
     client_ip: Option<IpAddr>,
-    client_ip_str: OnceCell<String>,
-}
-
-impl<'a, F> WithClientIp<'a, F> {
-    fn new(item: &'a F, client_ip: Option<IpAddr>) -> Self {
-        Self {
-            item,
-            client_ip,
-            client_ip_str: OnceCell::new(),
-        }
-    }
 }
 
 impl<F: Getter> Getter for WithClientIp<'_, F> {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         if path == CLIENT_IP_PATH {
-            let client_ip = self.client_ip?;
-            let s = self.client_ip_str.get_or_init(|| client_ip.to_string());
-            return Some(Val::String(s));
+            return self.client_ip.map(Val::IpAddr);
         }
 
         self.item.get_value(path)
@@ -88,7 +74,7 @@ pub(crate) fn should_filter<F: Getter>(
     project_filters: &GenericFiltersConfig,
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
-    let item = WithClientIp::new(item, client_ip);
+    let item = WithClientIp { item, client_ip };
     let filters = merge_generic_filters(
         project_filters,
         global_filters,
