@@ -22,13 +22,14 @@ def v1_transaction_envelope(*payloads: dict, data: dict) -> Envelope:
                         "start_timestamp": spans[0]["start_timestamp"],
                         "spans": spans,
                         "contexts": {
+                            "browser": {"name": "Chrome", "type": "browser"},
                             "trace": {
                                 "op": "pageload",
                                 "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
                                 "span_id": "968cff94913ebb07",
                                 "sentry.origin": "manual",
                                 "data": data,
-                            }
+                            },
                         },
                         "transaction": "pageload",
                         "environment": "production",
@@ -127,12 +128,13 @@ def test_v1_transaction(
                     "boolValue": True
                 },
                 "sentry.value": {"doubleValue": 100.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
@@ -161,12 +163,13 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 200.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
@@ -197,12 +200,13 @@ def test_v1_transaction(
                 "sentry._internal.cooccuring.name.browser.web_vital.inp": {
                     "boolValue": True
                 },
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "a6f029fbe0e2389a"},
-                "sentry.payload_size_bytes": {"intValue": "209"},
+                "sentry.payload_size_bytes": {"intValue": "227"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
@@ -232,10 +236,11 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 400.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
@@ -267,10 +272,11 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 500.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "176"},
+                "sentry.payload_size_bytes": {"intValue": "194"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.timestamp_precise": {
