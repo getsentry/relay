@@ -1,4 +1,4 @@
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Breadcrumb, Event, Values};
 use relay_protocol::{Annotated, Array, Object};
 
@@ -7,7 +7,7 @@ use crate::services::processor::ProcessingError;
 use crate::utils::rmp;
 
 pub fn event_from_attachments(
-    config: &Config,
+    config: &ConfigSnapshot,
     event_item: Option<Item>,
     breadcrumbs_item1: Option<Item>,
     breadcrumbs_item2: Option<Item>,
@@ -59,7 +59,7 @@ pub fn event_from_attachments(
 }
 
 fn extract_attached_event(
-    config: &Config,
+    config: &ConfigSnapshot,
     item: Option<Item>,
 ) -> Result<Annotated<Event>, ProcessingError> {
     let item = match item {
@@ -83,7 +83,7 @@ fn extract_attached_event(
 }
 
 fn parse_msgpack_breadcrumbs(
-    config: &Config,
+    config: &ConfigSnapshot,
     item: Option<Item>,
 ) -> Result<Array<Breadcrumb>, ProcessingError> {
     let mut breadcrumbs = Array::new();
@@ -117,14 +117,18 @@ fn parse_msgpack_breadcrumbs(
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_config::Config;
 
     use crate::envelope::{ContentType, ItemType};
 
     use super::*;
+
+    fn config() -> ConfigSnapshot {
+        Config::default().current()
+    }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();
@@ -161,7 +165,7 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item1")]);
 
         // NOTE: using (Some, None) here:
-        let result = event_from_attachments(&Config::default(), None, Some(item), None);
+        let result = event_from_attachments(&config(), None, Some(item), None);
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -176,7 +180,7 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item2")]);
 
         // NOTE: using (None, Some) here:
-        let result = event_from_attachments(&Config::default(), None, None, Some(item));
+        let result = event_from_attachments(&config(), None, None, Some(item));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -191,7 +195,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
         let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -206,7 +210,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -224,7 +228,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -240,8 +244,7 @@ mod tests {
         let item2 = create_breadcrumbs_item(&[]);
         let item3 = create_breadcrumbs_item(&[]);
 
-        let result =
-            event_from_attachments(&Config::default(), Some(item1), Some(item2), Some(item3));
+        let result = event_from_attachments(&config(), Some(item1), Some(item2), Some(item3));
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
@@ -262,12 +265,12 @@ mod tests {
     fn test_msgpack_deep_nesting_is_rejected() {
         // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.
         let payload = deeply_nested_msgpack_event(200_000);
-        assert!(payload.len() < Config::default().max_event_size());
+        assert!(payload.len() < config().max_event_size());
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::MsgPack, payload);
 
-        let result = extract_attached_event(&Config::default(), Some(item));
+        let result = extract_attached_event(&config(), Some(item));
 
         assert!(
             matches!(result, Err(ProcessingError::InvalidMsgpack(_))),

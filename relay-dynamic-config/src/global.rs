@@ -177,6 +177,16 @@ pub struct Options {
     )]
     pub attachment_inline_limit: usize,
 
+    /// The desired chunk size for TUS uploads.
+    ///
+    /// Will be communicated to the client if the value is non-zero.
+    #[serde(
+        rename = "relay.upload-chunk.size",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub upload_chunk_size: usize,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

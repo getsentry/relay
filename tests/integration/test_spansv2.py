@@ -11,6 +11,7 @@ from .test_dynamic_sampling import add_sampling_config
 import uuid
 import json
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -168,54 +169,20 @@ def test_spansv2_basic(
         "project_id": 42,
     }
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -401,40 +368,6 @@ def test_spansv2_trimming_basic(
         "project_id": 42,
     }
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
 
 @pytest.mark.parametrize(
     "span",
@@ -501,8 +434,8 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": "Sampled:0",
         },
@@ -585,8 +518,8 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         *(
             [
                 {
-                    "category": 12,
-                    "outcome": 2,
+                    "category": DataCategory.SPAN,
+                    "outcome": Outcome.RATE_LIMITED,
                     "quantity": 1,
                     "reason": "rate_limit_exceeded",
                 }
@@ -595,8 +528,8 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             else []
         ),
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 2,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.RATE_LIMITED,
             "quantity": 1,
             "reason": "rate_limit_exceeded",
         },
@@ -788,84 +721,20 @@ def test_spansv2_ds_sampled(
         assert span["attributes"]["sentry.dsc.transaction"]["value"] == "tx_from_root"
         assert span["attributes"]["sentry.dsc.project_id"]["value"] == "43"
 
-    assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
         },
@@ -928,54 +797,22 @@ def test_spansv2_ds_root_in_different_org(
 
     relay.send_envelope(project_id, envelope)
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -1128,15 +965,15 @@ def test_spanv2_inbound_filters(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 1,  # Filtered
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1188,16 +1025,16 @@ def test_spans_v2_multiple_containers_not_allowed(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "too_large:span",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "too_large:span",
         },
@@ -1258,16 +1095,16 @@ def test_spans_v2_dsc_validations(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
@@ -1762,38 +1599,38 @@ def test_invalid_spans(mini_sentry, relay):
     outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
     assert outcomes == [
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
@@ -1841,14 +1678,14 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
-                "category": DataCategory.SPAN.value,
-                "outcome": 3,
+                "category": DataCategory.SPAN,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },
             {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "outcome": 3,
+                "category": DataCategory.SPAN_INDEXED,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },

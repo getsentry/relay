@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 use serde::Deserialize;
@@ -32,7 +32,7 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         Ok(Some(read_field_into_item(field, item, config).await?))
     }
@@ -46,7 +46,7 @@ async fn multipart_to_envelope(
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let items = utils::multipart_items(
         multipart,
-        state.config(),
+        &state.config(),
         AttachmentsAttachmentStrategy,
         &meta,
         state.outcome_aggregator(),
@@ -76,7 +76,7 @@ pub async fn handle(
     Ok(StatusCode::CREATED)
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle)
         .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
         .route_layer(DefaultBodyLimit::disable())

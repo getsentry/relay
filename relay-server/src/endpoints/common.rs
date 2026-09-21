@@ -8,7 +8,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use relay_config::{Config, RelayMode};
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::{DataCategory, RateLimits};
 use relay_statsd::metric;
@@ -437,10 +437,12 @@ pub async fn handle_managed_envelope(
         )));
     };
 
+    let config = state.config();
+
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
-    utils::remove_unknown_items(state.config(), &mut envelope);
+    utils::remove_unknown_items(&config, &mut envelope);
 
     let event_id = envelope.event_id();
     if envelope.is_empty() {
@@ -466,7 +468,7 @@ pub async fn handle_managed_envelope(
         });
     }
 
-    if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
+    if let Err(offender) = utils::check_envelope_size_limits(&config, &envelope) {
         return Err(envelope.reject_err((
             Outcome::Invalid(DiscardReason::ItemTooLarge(offender)),
             BadStoreRequest::ItemTooLarge(offender),
@@ -548,7 +550,7 @@ pub async fn upload_stream<S, E>(
     stream: S,
     content_type: Option<String>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
@@ -577,7 +579,7 @@ async fn upload_stream_inner<S, E>(
     stream: S,
     content_type: Option<String>,
     item: &mut Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,

@@ -2,7 +2,7 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
@@ -67,7 +67,7 @@ async fn handle(
     Ok(TextResponse(id))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle)
         .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
         .route_layer(axum::middleware::from_fn(middlewares::content_length))

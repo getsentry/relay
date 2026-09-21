@@ -4,6 +4,25 @@
 
 **Breaking Changes**:
 
+- Stop producing generic metrics (spans/transactions metric buckets) to Kafka and remove the
+  `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
+  unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
+
+**Features**:
+
+- Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
+- Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
+- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
+
+**Internal**:
+
+- Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
+- Add an opt-in Arroyo Kafka producer backend for processing mode, enabled with `processing.use_arroyo`. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397))
+
+## 26.9.0
+
+**Breaking Changes**:
+
 - Stop accepting the deprecated Expect-CT, HPKP, and Expect-Staple security reports and remove their
   event types and event schema fields. Such reports are now rejected at ingest with an `invalid`
   outcome (`security_report_type`), including events which an older upstream Relay already classified
@@ -11,29 +30,40 @@
 
 **Features**:
 
+- Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
 - Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 - Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
 - Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))
 - Include the environment in the cron check-in routing key so a monitor's environments no longer share a single Kafka partition. ([#6331](https://github.com/getsentry/relay/pull/6331))
+- Set the `titleId` tag on all PlayStation events. ([#6352](https://github.com/getsentry/relay/pull/6352))
 
 **Bug Fixes**:
 
+- Bump symbolic so Unreal crash parsing no longer pre-allocates from untrusted counts. ([#6347](https://github.com/getsentry/relay/pull/6347))
 - Don't trim metadata on the top frame when slimming stacktraces. ([#6340](https://github.com/getsentry/relay/pull/6340))
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 - Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
+- Use async instead of sync decompression in minidump endpoint. ([#6341](https://github.com/getsentry/relay/pull/6341))
 - Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
+- Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
+- Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
+- PII scrub cookies individually if sent as a list or string. ([#6380](https://github.com/getsentry/relay/pull/6380))
+- Enforce `max_event_size` limit on form data. ([#6384](https://github.com/getsentry/relay/pull/6384))
 
 **Internal**:
 
+- Avoid writing trace attachment attribute metadata twice. ([#6373](https://github.com/getsentry/relay/pull/6373))
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
 
 **Internal**:
 
 - Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
+- Update sentry-conventions to 0.23.0. `db.query.text` is now scrubbed automatically instead of only via explicit path selectors, the `navigation.*` attributes backfill into `router.navigation.*`, and span names and descriptions are now inferred for `browser`, `cache`, `faas`, `function`, and `graphql` operations. ([#6368](https://github.com/getsentry/relay/pull/6368))
+- Accept the `organizations:relay-automatic-json-expansion` feature flag from project configs, which will control whether attributes containing a JSON object are expanded into a key-value list on EAP items. ([#6372](https://github.com/getsentry/relay/pull/6372))(#6372)
 
 ## 26.8.0
 

@@ -7,20 +7,24 @@ use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use relay_base_schema::events::EventType;
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
+use sentry::protocol::{Attachment, SpanId};
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
@@ -62,6 +66,8 @@ pub enum StoreError {
     NoEventId,
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+    #[error("invalid span id: {0}")]
+    InvalidSpanId(#[from] hex::FromHexError),
 }
 
 impl OutcomeError for StoreError {
@@ -76,6 +82,7 @@ impl OutcomeError for StoreError {
             StoreError::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            StoreError::InvalidSpanId(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
@@ -86,8 +93,8 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Config) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder();
+    pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
+        let mut client_builder = KafkaClient::builder(config.use_arroyo());
 
         for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
@@ -433,6 +440,7 @@ pub struct StoreService {
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
     producer: Producer,
+    last_span_report: Mutex<Instant>, // used to debounce expensive instrumentation.
 }
 
 impl StoreService {
@@ -442,13 +450,14 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
-        let producer = Producer::create(&config)?;
+        let producer = Producer::create(&config.current())?;
         Ok(Self {
             pool,
             config,
             global_config,
             metric_outcomes,
             producer,
+            last_span_report: Instant::now().into(),
         })
     }
 
@@ -569,7 +578,7 @@ impl StoreService {
             retention,
         } = message;
 
-        let batch_size = self.config.metrics_max_batch_size_bytes();
+        let batch_size = self.config.current().metrics_max_batch_size_bytes();
         let mut error = None;
 
         let global_config = self.global_config.current().unwrap_or_default();
@@ -692,6 +701,34 @@ impl StoreService {
         };
 
         message.try_accept(|span| {
+            // Temporary validation of the segment ID.
+            if let Some(segment_id) = span
+                .item
+                .attributes
+                .value()
+                .and_then(|a| a.get_value(SENTRY__SEGMENT__ID))
+                .and_then(|v| v.as_str())
+                && let Err(e) = segment_id.parse::<SpanId>()
+            {
+                relay_log::configure_scope(|scope| {
+                    scope.set_tag("sentry_project_id", scoping.project_id);
+                    if let Ok(mut last_report) = self.last_span_report.try_lock() {
+                        let now = Instant::now();
+                        if (now.saturating_duration_since(*last_report)) > Duration::from_secs(1) {
+                            *last_report = now;
+                            if let Ok(json) = Annotated::new(span.item).to_json() {
+                                scope.add_attachment(Attachment {
+                                    buffer: json.into_bytes(),
+                                    filename: "span.json".to_owned(),
+                                    content_type: Some("application/json".to_owned()),
+                                    ty: None,
+                                });
+                            }
+                        }
+                    }
+                });
+                return Err(e.into());
+            }
             let item = Annotated::new(span.item);
             let message = KafkaMessage::SpanV2 {
                 routing_key: span.routing_key,
@@ -950,9 +987,10 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
+        let config = self.config.current();
         let location = SignedLocation::<Final>::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
-            .verify(Utc::now(), &self.config)
+            .verify(Utc::now(), &config)
             .map_err(|_| StoreError::InvalidAttachmentRef)?;
 
         let store_key = location.key;
@@ -982,7 +1020,7 @@ impl StoreService {
 
         let payload = item.payload();
         let size = item.len();
-        let max_chunk_size = self.config.attachment_chunk_size();
+        let max_chunk_size = self.config.current().attachment_chunk_size();
 
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)
@@ -1113,6 +1151,10 @@ impl StoreService {
             MetricNamespace::Outcomes => {
                 return self.send_metric_based_outcome(message);
             }
+            MetricNamespace::Spans | MetricNamespace::Transactions => {
+                // Generic metrics (spans/transactions) are no longer ingested.
+                return Ok(());
+            }
             MetricNamespace::Unsupported => {
                 relay_log::error!(
                     metric_message.name = message.name.as_ref(),
@@ -1120,7 +1162,6 @@ impl StoreService {
                 );
                 return Ok(());
             }
-            _ => KafkaTopic::MetricsGeneric,
         };
 
         let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);

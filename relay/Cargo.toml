@@ -4,14 +4,14 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.8.0"
+version = "26.9.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
 
 [features]
 default = []
-processing = ["relay-server/processing", "dep:relay-kafka"]
+processing = ["relay-server/processing", "dep:relay-kafka", "dep:sentry_arroyo"]
 crash-handler = ["relay-log/crash-handler"]
 
 [lints]
@@ -30,6 +30,7 @@ relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
 relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
+sentry_arroyo = { workspace = true, optional = true }
 uuid = { workspace = true }
 reqwest = { workspace = true, features = ["gzip", "native-tls-vendored"] }
 mimalloc = { workspace = true, features = ["v3", "override", "debug_in_debug"] }

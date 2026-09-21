@@ -1,4 +1,4 @@
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::integrations::Integration;
@@ -12,9 +12,9 @@ use crate::statsd::RelayCounters;
 /// an `Err` containing the offending item type, in which case the envelope should be discarded
 /// and a `413 Payload Too Large` response should be given.
 ///
-/// Each envelope item is checked against its limits defined in the [`Config`].
+/// Each envelope item is checked against its limits defined in the [`ConfigSnapshot`].
 pub fn check_envelope_size_limits(
-    config: &Config,
+    config: &ConfigSnapshot,
     envelope: &Envelope,
 ) -> Result<(), DiscardItemType> {
     // TODO(#6249 / RELAY-272): These limits are built from the old `limits` config,
@@ -211,7 +211,7 @@ impl Limit {
 ///
 /// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
 /// known items will be retained.
-pub fn remove_unknown_items(config: &Config, envelope: &mut Managed<Box<Envelope>>) {
+pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<Envelope>>) {
     if config.accept_unknown_items() {
         return;
     }

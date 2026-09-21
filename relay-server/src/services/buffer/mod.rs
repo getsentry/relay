@@ -11,7 +11,7 @@ use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{Config, EnvelopeSpoolPartitioning};
+use relay_config::{Config, ConfigSnapshot, EnvelopeSpoolPartitioning};
 use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
@@ -96,7 +96,7 @@ impl PartitionedEnvelopeBuffer {
         outcome_aggregator: Addr<TrackOutcome>,
         services: &dyn ServiceSpawn,
     ) -> Arc<Self> {
-        let partitioning = Partitioning::new(config.spool_partitioning());
+        let partitioning = Partitioning::new(config.current().spool_partitioning());
 
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -375,14 +375,14 @@ impl EnvelopeBufferService {
     }
 
     fn memory_ready(&self) -> bool {
-        self.memory_stat.memory().used_percent()
-            <= self.config.spool_max_backpressure_memory_percent()
+        let config = self.config.current();
+        self.memory_stat.memory().used_percent() <= config.spool_max_backpressure_memory_percent()
     }
 
     /// Tries to pop an envelope for a ready project.
     async fn try_pop(
         partition_tag: &str,
-        config: &Config,
+        config: &ConfigSnapshot,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
     ) -> Result<Duration, EnvelopeBufferError> {
@@ -597,7 +597,7 @@ impl EnvelopeBufferService {
     }
 }
 
-fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
+fn is_expired(last_received_at: DateTime<Utc>, config: &ConfigSnapshot) -> bool {
     (Utc::now() - last_received_at)
         .to_std()
         .is_ok_and(|age| age > config.spool_envelopes_max_age())
@@ -607,17 +607,19 @@ impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        let config = self.config.clone();
-        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
+        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), self.config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
 
-        let mut buffer =
-            PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
-                .await
-                .expect("failed to start the envelope buffer service");
+        let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+            self.partition_id,
+            &self.config.current(),
+            memory_checker,
+        )
+        .await
+        .expect("failed to start the envelope buffer service");
 
         buffer.initialize().await;
 
@@ -650,6 +652,7 @@ impl Service for EnvelopeBufferService {
                 partition_id = &partition_tag
             );
             let mut sleep = DEFAULT_SLEEP;
+            let config = self.config.current();
 
             tokio::select! {
                 // NOTE: we do not select a bias here.
@@ -1043,7 +1046,9 @@ mod tests {
         let mut envelope = new_managed_envelope(false, "foo");
         envelope.envelope_mut().meta_mut().set_received_at(
             Utc::now()
-                - chrono::Duration::seconds(2 * config.spool_envelopes_max_age().as_secs() as i64),
+                - chrono::Duration::seconds(
+                    2 * config.current().spool_envelopes_max_age().as_secs() as i64,
+                ),
         );
         addr.send(EnvelopeBuffer::Push(envelope));
 

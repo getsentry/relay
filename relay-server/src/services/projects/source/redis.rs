@@ -1,5 +1,5 @@
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_redis::{AsyncRedisClient, RedisError};
 use relay_statsd::metric;
 use std::fmt::Debug;
@@ -64,10 +64,12 @@ impl RedisProjectSource {
         revision: Revision,
     ) -> Result<SourceProjectState, RedisProjectError> {
         let mut connection = self.redis.get_connection().await?;
+        let config = self.config.current();
+
         // Only check for the revision if we were passed a revision.
         if let Some(revision) = revision.as_str() {
             let current_revision: Option<String> = cmd("GET")
-                .arg(self.get_redis_rev_key(key))
+                .arg(get_redis_rev_key(&config, key))
                 .query_async(&mut connection)
                 .await
                 .map_err(RedisError::Redis)?;
@@ -85,7 +87,7 @@ impl RedisProjectSource {
         }
 
         let raw_response_opt: Option<Vec<u8>> = cmd("GET")
-            .arg(self.get_redis_project_config_key(key))
+            .arg(get_redis_project_config_key(&config, key))
             .query_async(&mut connection)
             .await
             .map_err(RedisError::Redis)?;
@@ -121,16 +123,16 @@ impl RedisProjectSource {
             Ok(SourceProjectState::New(response))
         }
     }
+}
 
-    fn get_redis_project_config_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
-        format!("{prefix}:{key}")
-    }
+fn get_redis_project_config_key(config: &ConfigSnapshot, key: ProjectKey) -> String {
+    let prefix = config.projectconfig_cache_prefix();
+    format!("{prefix}:{key}")
+}
 
-    fn get_redis_rev_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
-        format!("{prefix}:{key}.rev")
-    }
+fn get_redis_rev_key(config: &ConfigSnapshot, key: ProjectKey) -> String {
+    let prefix = config.projectconfig_cache_prefix();
+    format!("{prefix}:{key}.rev")
 }
 
 #[cfg(test)]

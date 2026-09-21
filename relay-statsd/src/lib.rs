@@ -51,12 +51,17 @@
 //! ```
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
 use metrics_exporter_dogstatsd::{AggregationMode, BuildError, DogStatsDBuilder};
+use metrics_util::MetricKindMask;
+use metrics_util::layers::{Layer, PrefixLayer, RouterBuilder};
 
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::mock::MockRecorder;
 
 mod mock;
+
+/// Custom namespaces which are never prefixed.
+const CUSTOM_NAMESPACES: &[&str] = &["arroyo.", "datadog.dogstatsd.client."];
 
 #[doc(hidden)]
 pub mod _metrics {
@@ -66,7 +71,7 @@ pub mod _metrics {
 /// Client configuration used for initialization of the metrics sub-system.
 #[derive(Debug)]
 pub struct MetricsConfig {
-    /// Prefix which is appended to all metric names.
+    /// Prefix which is appended to all metric names, except for DogStatsD and Arroyo metrics.
     pub prefix: String,
     /// Host of the metrics upstream.
     pub host: String,
@@ -117,14 +122,24 @@ pub fn init(config: MetricsConfig) -> Result<(), Error> {
         .with_aggregation_mode(AggregationMode::Aggressive)
         .send_histograms_as_distributions(true)
         .with_histogram_sampling(true)
-        .set_global_prefix(config.prefix)
         .with_global_labels(default_labels);
 
     if let Some(buffer_size) = config.buffer_size {
         statsd = statsd.with_maximum_payload_length(buffer_size)?;
     };
 
-    statsd.install()?;
+    let recorder = Arc::new(statsd.build()?);
+
+    // Metrics routed through this layer have the configured prefix prepended.
+    let prefix_layer = PrefixLayer::new(config.prefix).layer(Arc::clone(&recorder));
+
+    // Router decides if metrics go through the prefix layer or directly to the DogStatsD recorder.
+    let mut router = RouterBuilder::from_recorder(prefix_layer);
+    for namespace in CUSTOM_NAMESPACES {
+        router.add_route(MetricKindMask::ALL, namespace, Arc::clone(&recorder));
+    }
+
+    metrics::set_global_recorder(router.build()).map_err(|_| BuildError::FailedToInstall)?;
 
     Ok(())
 }

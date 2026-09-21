@@ -1,6 +1,6 @@
 #!/bin/bash
 
-checks-githubactions-checkruns \
+checks-githubactions-checkruns2 \
     getsentry/relay \
     "${GO_REVISION_RELAY_REPO}" \
     "Integration Tests" \

@@ -50,11 +50,9 @@ impl Forward for ReplaysOutput {
     ) -> Result<(), Rejected<()>> {
         let Self(replay) = self;
 
-        let event_id = replay.headers.event_id().ok_or_else(|| {
-            replay
-                .reject_err(crate::processing::replays::Error::NoEventId)
-                .map(drop)
-        })?;
+        let Some(event_id) = replay.headers.event_id() else {
+            return Err(replay.reject_err(super::Error::NoEventId).map(drop));
+        };
 
         let ctx = store::Context {
             event_id,

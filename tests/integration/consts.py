@@ -1,3 +1,22 @@
+from enum import IntEnum
+
+
+class Outcome(IntEnum):
+    """
+    The numerical identifier of the outcome category.
+
+    Mirrors the definition in: relay-server/src/services/outcome/mod.rs
+    """
+
+    ACCEPTED = 0
+    FILTERED = 1
+    RATE_LIMITED = 2
+    INVALID = 3
+    ABUSE = 4
+    CLIENT_DISCARD = 5
+    CARDINALITY_LIMITED = 6
+
+
 # Minimum supported version for generic metrics extraction by Relay.
 METRICS_EXTRACTION_MIN_SUPPORTED_VERSION = 4
 

@@ -92,7 +92,7 @@ def test_unknown_item(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "d2132d31b39445f1938d7e21b6bf0ec4"})
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
@@ -120,7 +120,7 @@ def test_drop_unknown_item(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "d2132d31b39445f1938d7e21b6bf0ec4"})
     envelope.add_item(Item(payload=PayloadRef(bytes=b"something"), type="attachment"))
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")

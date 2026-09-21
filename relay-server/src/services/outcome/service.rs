@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_quotas::{DataCategory, Scoping};
@@ -88,9 +88,10 @@ impl OutcomeProducerService {
 
     fn handle_message(&self, message: TrackOutcome) {
         send_outcome_metric(&message);
+        let config = self.config.current();
         self.aggregator.send(MergeBuckets {
             project_key: message.scoping.project_key,
-            buckets: vec![outcome::metric::to_metric(&message, &self.config)],
+            buckets: vec![outcome::metric::to_metric(&message, &config)],
         })
     }
 }
@@ -123,7 +124,7 @@ pub struct ClientReportOutcomeProducerService {
 }
 
 impl ClientReportOutcomeProducerService {
-    pub fn new(config: &Config, processor: Addr<EnvelopeProcessor>) -> Self {
+    pub fn new(config: &ConfigSnapshot, processor: Addr<EnvelopeProcessor>) -> Self {
         let agg = &config
             .aggregator_config_for(MetricNamespace::Outcomes)
             .aggregator;

@@ -13,17 +13,19 @@ def test_standalone_user_report(
     relay = relay_with_processing()
     mini_sentry.add_full_project_config(project_id)
 
+    event_id = "4cec9f3e1f214073b816e0f4de5f59b1"
+
     report_payload = {
         "name": "Josh",
         "email": "",
         "comments": "I'm having fun",
-        "event_id": "4cec9f3e1f214073b816e0f4de5f59b1",
+        "event_id": event_id,
     }
 
-    relay.send_user_report(
-        project_id,
-        report_payload,
-    )
+    envelope = Envelope(headers={"event_id": event_id})
+    envelope.add_item(Item(PayloadRef(json=report_payload), type="user_report"))
+
+    relay.send_envelope(project_id, envelope)
 
     report = attachments_consumer.get_user_report(timeout=5)
     assert json.loads(report["payload"]) == report_payload

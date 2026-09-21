@@ -16,11 +16,13 @@
 )]
 #![warn(missing_docs)]
 
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::{EventId, TraceId};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
@@ -29,7 +31,7 @@ const SLUG_LENGTH: usize = 50;
 /// Maximum length of environment names.
 const ENVIRONMENT_LENGTH: usize = 64;
 
-/// Error returned from [`process_check_in`].
+/// Error returned during monitor normalization/processing.
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessCheckInError {
     /// Failed to deserialize the payload.
@@ -43,6 +45,10 @@ pub enum ProcessCheckInError {
     /// Environment name was invalid.
     #[error("the environment is invalid")]
     InvalidEnvironment,
+
+    /// Relay error (somehow, an envelope was missing a check-in).
+    #[error("envelope missing a check-in")]
+    MissingCheckIn,
 }
 
 /// Describes the status of the incoming CheckIn.
@@ -115,6 +121,10 @@ pub struct MonitorConfig {
     /// [0]: https://github.com/getsentry/sentry/blob/3644f5c4f2a99073bf925181b5237a6e05c1d6c2/src/sentry/utils/actor.py#L17
     #[serde(default, skip_serializing_if = "Option::is_none")]
     owner: Option<String>,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// The trace context sent with a check-in.
@@ -122,6 +132,10 @@ pub struct MonitorConfig {
 pub struct CheckInTrace {
     /// Trace-ID of the check-in.
     trace_id: TraceId,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// Any contexts sent in the check-in payload.
@@ -130,6 +144,10 @@ pub struct CheckInContexts {
     /// Trace context sent with a check-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<CheckInTrace>,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// The monitor check-in payload.
@@ -162,27 +180,14 @@ pub struct CheckIn {
     /// Only supports trace for now.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contexts: Option<CheckInContexts>,
-}
 
-/// The result from calling process_check_in
-pub struct ProcessedCheckInResult {
-    /// The routing key to be used for the check-in payload.
-    ///
-    /// Important to help ensure monitor check-ins are processed in order by routing check-ins from
-    /// the same monitor to the same place.
-    pub routing_hint: Uuid,
-
-    /// The JSON payload of the processed check-in.
-    pub payload: Vec<u8>,
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// Normalizes a monitor check-in payload.
-pub fn process_check_in(
-    payload: &[u8],
-    project_id: ProjectId,
-) -> Result<ProcessedCheckInResult, ProcessCheckInError> {
-    let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
-
+pub fn normalize(check_in: &mut CheckIn) -> Result<(), ProcessCheckInError> {
     // Missed status cannot be ingested, this is computed on the server.
     if check_in.status == CheckInStatus::Missed {
         check_in.status = CheckInStatus::Unknown;
@@ -202,6 +207,11 @@ pub fn process_check_in(
         return Err(ProcessCheckInError::InvalidEnvironment);
     }
 
+    Ok(())
+}
+
+/// Produce a routing hint UUID from a checkin and project id.
+pub fn routing_hint(check_in: &CheckIn, project_id: &ProjectId) -> Uuid {
     static NAMESPACE: OnceLock<Uuid> = OnceLock::new();
     let namespace = NAMESPACE
         .get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/crons/#did"));
@@ -217,8 +227,7 @@ pub fn process_check_in(
     // https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/models.py
     // We translate empty environments to `production`. This needs to be consistent here or we can
     // end up with checkins for the same monitor/env routed to different partitions.
-    //
-    // Only the routing key is normalized here, the payload is forwarded untouched.
+
     let slug = &check_in.monitor_slug;
     let environment = match check_in.environment.as_deref() {
         Some(environment) if !environment.is_empty() => environment,
@@ -226,12 +235,7 @@ pub fn process_check_in(
     };
     let routing_key = format!("{project_id}:{slug}:{environment}");
 
-    let routing_hint = Uuid::new_v5(namespace, routing_key.as_bytes());
-
-    Ok(ProcessedCheckInResult {
-        routing_hint,
-        payload: serde_json::to_vec(&check_in)?,
-    })
+    Uuid::new_v5(namespace, routing_key.as_bytes())
 }
 
 fn trim_slug(slug: &mut String) {
@@ -353,18 +357,13 @@ mod tests {
     #[test]
     fn process_simple() {
         let json = r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#;
-
-        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
+        let check_in = serde_json::from_str(json).unwrap();
+        let rh = routing_hint(&check_in, &ProjectId::new(1));
 
         // The routing_hint should be consistent for the (project_id, monitor_slug, environment)
         let expected_uuid = Uuid::parse_str("9aa99731-a8e3-5594-9f00-c3e8a62c2b11").unwrap();
 
-        if let Ok(processed_result) = result {
-            assert_eq!(String::from_utf8(processed_result.payload).unwrap(), json);
-            assert_eq!(processed_result.routing_hint, expected_uuid);
-        } else {
-            panic!("Failed to process check-in")
-        }
+        assert_eq!(rh, expected_uuid);
     }
 
     #[test]
@@ -373,9 +372,8 @@ mod tests {
             let json = format!(
                 r#"{{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","environment":"{env}","status":"ok"}}"#
             );
-            process_check_in(json.as_bytes(), ProjectId::new(1))
-                .unwrap()
-                .routing_hint
+            let check_in = serde_json::from_str(&json).unwrap();
+            routing_hint(&check_in, &ProjectId::new(1))
         };
 
         // The consumer groups on (project, slug, environment) and only guarantees order within a
@@ -397,9 +395,8 @@ mod tests {
                 ),
                 None => r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#.to_owned(),
             };
-            process_check_in(json.as_bytes(), ProjectId::new(1))
-                .unwrap()
-                .routing_hint
+            let check_in = serde_json::from_str(&json).unwrap();
+            routing_hint(&check_in, &ProjectId::new(1))
         };
 
         // Sentry resolves all three to the same monitor environment, so they have to share a
@@ -415,8 +412,9 @@ mod tests {
           "monitor_slug": "",
           "status": "in_progress"
         }"#;
+        let mut check_in = serde_json::from_str(json).unwrap();
 
-        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
+        let result = normalize(&mut check_in);
         assert!(matches!(result, Err(ProcessCheckInError::EmptySlug)));
     }
 
@@ -428,8 +426,9 @@ mod tests {
           "status": "in_progress",
           "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
         }"#;
+        let mut check_in = serde_json::from_str(json).unwrap();
 
-        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
+        let result = normalize(&mut check_in);
         assert!(matches!(
             result,
             Err(ProcessCheckInError::InvalidEnvironment)

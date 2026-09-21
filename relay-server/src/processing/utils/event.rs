@@ -9,7 +9,7 @@ use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::{
@@ -62,7 +62,7 @@ pub fn finalize<'a>(
     event: &mut Annotated<Event>,
     attachments: impl Iterator<Item = &'a Item>,
     metrics: &mut Metrics,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<(), ProcessingError> {
     let inner_event = match event.value_mut() {
         Some(event) => event,

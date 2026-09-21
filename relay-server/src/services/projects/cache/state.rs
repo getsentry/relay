@@ -8,6 +8,7 @@ use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
+use relay_config::ConfigSnapshot;
 use relay_quotas::CachedRateLimits;
 use relay_statsd::metric;
 
@@ -39,7 +40,7 @@ pub struct ProjectStore {
 }
 
 impl ProjectStore {
-    pub fn new(config: &relay_config::Config) -> Self {
+    pub fn new(config: &ConfigSnapshot) -> Self {
         Self {
             config: Config::new(config),
             shared: Default::default(),
@@ -266,7 +267,7 @@ struct Config {
 }
 
 impl Config {
-    fn new(config: &relay_config::Config) -> Self {
+    fn new(config: &ConfigSnapshot) -> Self {
         let expiry = config.project_cache_expiry();
         let grace_period = config.project_grace_period();
 
@@ -935,6 +936,8 @@ struct ExpiryTime(Instant);
 mod tests {
     use std::time::Duration;
 
+    use relay_config::Config;
+
     use super::*;
 
     async fn collect_evicted(store: &mut ProjectStore) -> Vec<ProjectKey> {
@@ -961,7 +964,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::new(&Default::default());
+        let mut store = ProjectStore::new(&Config::default().current());
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
         assert_eq!(fetch.project_key(), project_key);
@@ -1003,13 +1006,14 @@ mod tests {
     async fn test_store_fetch_pending_does_not_replace_state() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1036,13 +1040,14 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1075,13 +1080,14 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1114,13 +1120,14 @@ mod tests {
     async fn test_store_evict_projects_stale() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1144,13 +1151,14 @@ mod tests {
     async fn test_store_no_eviction_during_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1189,14 +1197,15 @@ mod tests {
     async fn test_store_refresh() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1238,14 +1247,15 @@ mod tests {
     async fn test_store_refresh_overtaken_by_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1278,14 +1288,15 @@ mod tests {
     async fn test_store_refresh_during_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();

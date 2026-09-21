@@ -32,7 +32,7 @@ impl ProjectCacheHandle {
         // Always trigger a fetch after retrieving the project to make sure the state is up to date.
         self.fetch(project_key);
 
-        Project::new(project, &self.config)
+        Project::new(project, self.config.current())
     }
 
     /// Awaits until the given project state becomes ready (enabled or disabled).
@@ -77,7 +77,7 @@ impl ProjectCacheHandle {
             let change_listener = project.outdated();
             if !project.project_state().is_pending() {
                 drop(change_listener);
-                return Project::new(project, &self.config);
+                return Project::new(project, self.config.current());
             }
             change_listener.await;
         }
@@ -107,8 +107,10 @@ impl fmt::Debug for ProjectCacheHandle {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::services::projects::project::ProjectState;
+    use relay_config::Config;
+
+    use super::*;
 
     impl ProjectCacheHandle {
         /// Creates a new [`ProjectCacheHandle`] for testing only.
@@ -117,7 +119,7 @@ mod test {
         pub fn for_test() -> Self {
             Self {
                 shared: Default::default(),
-                config: Default::default(),
+                config: Arc::new(Config::default()),
                 service: Addr::dummy(),
                 project_changes: broadcast::channel(999_999).0,
             }

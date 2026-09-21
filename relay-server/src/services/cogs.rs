@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_system::{Addr, FromMessage, Interface, Service};
 
 use crate::statsd::RelayCounters;
@@ -24,7 +24,7 @@ pub struct CogsService {
 }
 
 impl CogsService {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &ConfigSnapshot) -> Self {
         Self {
             relay_resource_id: config.cogs_relay_resource_id().to_owned(),
         }
@@ -73,7 +73,7 @@ pub struct CogsServiceRecorder {
 
 impl CogsServiceRecorder {
     /// Creates a new recorder forwarding messages to [`CogsService`].
-    pub fn new(config: &Config, addr: Addr<CogsReport>) -> Self {
+    pub fn new(config: &ConfigSnapshot, addr: Addr<CogsReport>) -> Self {
         Self {
             addr,
             max_size: config.cogs_max_queue_size(),
@@ -102,6 +102,8 @@ impl CogsRecorder for CogsServiceRecorder {
 mod tests {
     use std::time::Duration;
 
+    use relay_config::Config;
+
     use super::*;
 
     #[test]
@@ -113,7 +115,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let recorder = CogsServiceRecorder::new(&config, addr.clone());
+        let recorder = CogsServiceRecorder::new(&config.current(), addr.clone());
 
         for _ in 0..5 {
             recorder.record(CogsMeasurement {

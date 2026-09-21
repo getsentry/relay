@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.30
+
+- Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
+
+## 0.9.29
+
+### New Features ✨
+
+- (flags) Raise context limit to 128 KiB by @jjbayer in [#6310](https://github.com/getsentry/relay/pull/6310)
+
+### Other
+
+- release: 0.9.28 by @getsentry-bot in [98bda2b8](https://github.com/getsentry/relay/commit/98bda2b8cf204907a4569e257f824e579ba4af74)
+
 ## 0.9.28
 
 ### Features

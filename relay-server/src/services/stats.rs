@@ -143,7 +143,7 @@ impl RelayStats {
     }
 
     async fn upstream_status(&self) {
-        if self.config.relay_mode() == RelayMode::Managed
+        if self.config.current().relay_mode() == RelayMode::Managed
             && let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await
         {
             metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
@@ -225,7 +225,12 @@ impl Service for RelayStats {
     type Interface = ();
 
     async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
-        let Some(mut ticker) = self.config.metrics_periodic_interval().map(interval) else {
+        let Some(mut ticker) = self
+            .config
+            .current()
+            .metrics_periodic_interval()
+            .map(interval)
+        else {
             return;
         };
 

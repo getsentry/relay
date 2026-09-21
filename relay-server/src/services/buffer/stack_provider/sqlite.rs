@@ -1,6 +1,7 @@
 use std::error::Error;
+use std::time::Duration;
 
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::caching::CachingEnvelopeStack;
@@ -17,6 +18,7 @@ use crate::{EnvelopeStack, SqliteEnvelopeStack};
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     batch_size_bytes: usize,
+    flush_timeout: Option<Duration>,
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,
@@ -24,12 +26,16 @@ pub struct SqliteStackProvider {
 
 #[warn(dead_code)]
 impl SqliteStackProvider {
-    /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+    /// Creates a new [`SqliteStackProvider`] from the provided [`ConfigSnapshot`].
+    pub async fn new(
+        partition_id: u8,
+        config: &ConfigSnapshot,
+    ) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
+            flush_timeout: config.spool_envelopes_flush_timeout(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
             partition_id,
             ephemeral: config.spool_ephemeral(),
@@ -80,6 +86,7 @@ impl StackProvider for SqliteStackProvider {
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
+            self.flush_timeout,
         );
 
         CachingEnvelopeStack::new(inner)
@@ -164,7 +171,9 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let mut stack_provider = SqliteStackProvider::new(0, &config).await.unwrap();
+        let mut stack_provider = SqliteStackProvider::new(0, &config.current())
+            .await
+            .unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();

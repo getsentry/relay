@@ -5,7 +5,7 @@ use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::{Deserialize, Serialize};
@@ -111,6 +111,10 @@ impl FormDataWriter {
     pub fn into_inner(self) -> Vec<u8> {
         self.data
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 }
 
 /// Iterates through serialized form data written with `FormDataWriter`.
@@ -182,7 +186,7 @@ pub trait AttachmentStrategy {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
 }
 
@@ -203,23 +207,27 @@ pub fn read_bytes_into_item(
     item
 }
 
+async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
+    let mut buf = Vec::new();
+    StreamReader::new(field.map_err(io::Error::other))
+        .take((limit) as u64)
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+    Ok(buf)
+}
+
 pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<Managed<Item>, multer::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
     let field_name = field.name().map(String::from);
     let limit = config.max_attachment_size();
-    let mut buf = Vec::new();
-    StreamReader::new(field.map_err(io::Error::other))
-        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
-        .read_to_end(&mut buf)
-        .await
-        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
-    let bytes = Bytes::from(buf);
+    let bytes = Bytes::from(read_field_data(field, limit + 1).await?); // Extra byte needed to determine if limit was exceeded.
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
@@ -246,7 +254,7 @@ pub async fn read_field_into_item(
 
 pub async fn multipart_items(
     mut multipart: Multipart<'static>,
-    config: &Config,
+    config: &ConfigSnapshot,
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
@@ -291,10 +299,20 @@ pub async fn multipart_items(
                 }
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
+            // Since the FormData ends up in an event use the event size limit.
+            let limit = config.max_event_size();
+            // Extra byte needed to determine if limit was exceeded.
+            let data = read_field_data(field, limit + 1).await?;
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
-            let string = field.text().await?;
+            let string = String::from_utf8_lossy(&data);
             form_data.append(&field_name, &string);
+
+            if form_data.len() > limit {
+                return Err(items
+                    .reject_err(BadStoreRequest::ItemTooLarge(DiscardItemType::FormData))
+                    .into());
+            }
         } else {
             relay_log::trace!("multipart content without name or file_name");
         }
@@ -329,6 +347,8 @@ pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, Ba
 #[cfg(test)]
 mod tests {
     use std::convert::Infallible;
+
+    use relay_config::Config;
 
     use super::*;
 
@@ -426,7 +446,8 @@ mod tests {
                 "max_attachment_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
@@ -434,7 +455,7 @@ mod tests {
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
-                config: &Config,
+                config: &ConfigSnapshot,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
@@ -474,12 +495,13 @@ mod tests {
 
         let stream = futures::stream::once(async move { Ok::<_, Infallible>(data) });
 
-        let config = &Config::from_json_value(serde_json::json!({
+        let config = Config::from_json_value(serde_json::json!({
             "limits": {
                 "max_attachments_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
@@ -489,7 +511,7 @@ mod tests {
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
-                config: &Config,
+                config: &ConfigSnapshot,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
@@ -501,7 +523,7 @@ mod tests {
 
         let result = multipart_items(
             multipart,
-            config,
+            &config,
             MockAttachmentStrategy,
             &mock_request_meta(),
             &Addr::dummy(),

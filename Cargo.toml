@@ -160,6 +160,7 @@ minidumper-child = "0.4.1"
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
+metrics-util = { version = "0.20", default-features = false }
 num-traits = "0.2"
 num_cpus = "1"
 objectstore-client = { version = "0.2" }
@@ -186,7 +187,7 @@ rand_pcg = "0.9"
 # Downgraded versions for rdkafka and rdkafka-sys to fix librdkafka 2.12 regression
 # https://github.com/confluentinc/librdkafka/issues/5301
 rdkafka = "=0.38"
-rdkafka-sys = "=4.9.0+2.10.0"
+rdkafka-sys = "=4.9.0" # +2.10.0
 redis = { version = "1", default-features = false }
 matchit = "0.8"
 regex = "1"
@@ -204,6 +205,7 @@ sentry = { version = "0.48", default-features = false, features = [
     "panic",
     "transport",
 ] }
+sentry_arroyo = "2.44.1"
 sentry-core = "0.48"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [
@@ -213,7 +215,7 @@ sentry-types = "0.41"
 sentry_protos = "0.7"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1"
-serde-vars = "0.3"
+serde-vars = "0.4"
 serde_bytes = "0.11"
 serde_json = "1"
 serde_path_to_error = "0.1"
@@ -227,8 +229,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { version = "14.0.0-alpha.2", default-features = false }
-symbolic-unreal = { version = "14.0.0-alpha.2", default-features = false }
+symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
+symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"

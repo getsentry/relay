@@ -516,7 +516,7 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@d91c0db327059826ded066cdda9d03ee2e467904
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -529,7 +529,7 @@ jobs:
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@d91c0db327059826ded066cdda9d03ee2e467904
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -581,7 +581,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: Configure docker
         run: |
@@ -604,7 +604,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@d91c0db327059826ded066cdda9d03ee2e467904
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -615,7 +615,7 @@ jobs:
           google_ar: true
           google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
           google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          google_service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -648,7 +648,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v3"
@@ -695,7 +695,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: Configure docker
         run: |
