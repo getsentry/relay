@@ -590,6 +590,10 @@ pub enum RelayTimers {
     /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
     ///
     /// Contains the time it takes to pack multiple envelopes into a single memory blob.
+    ///
+    /// This metric is tagged with:
+    /// - `partition_id`
+    /// - `reason`: "size" or "timeout".
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
     BufferSqlWrite,
@@ -757,10 +761,6 @@ pub enum RelayCounters {
     EnvelopeSizeLimited,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
-    /// Number of envelopes spool to disk.
-    BufferSpooledEnvelopes,
-    /// Number of envelopes unspooled from disk.
-    BufferUnspooledEnvelopes,
     /// Number of project changed updates received by the buffer.
     BufferProjectChangedEvent,
     /// Number of times one or more projects of an envelope were pending when trying to pop
@@ -1036,8 +1036,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::EnvelopeSizeLimited => "envelope.rejected.size",
             RelayCounters::BufferTryPop => "buffer.try_pop",
-            RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
-            RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
             RelayCounters::BufferProjectPending => "buffer.project_pending",
             RelayCounters::BufferServiceLoopIteration => "buffer.service_loop_iteration",

@@ -11,7 +11,7 @@ use crate::services::buffer::envelope_store::sqlite::{
     DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
     SqliteEnvelopeStoreError,
 };
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::RelayTimers;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -75,17 +75,21 @@ impl SqliteEnvelopeStack {
     }
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
-    fn should_spool_to_disk(&self) -> bool {
+    ///
+    /// Returns the reason why the batch should be spooled.
+    fn should_spool_to_disk(&self) -> Option<&'static str> {
         let batch_size = self.batch.iter().map(|e| e.len()).sum::<usize>();
         if batch_size > self.batch_size_bytes.get() {
-            return true;
+            return Some("size");
         }
 
-        if let Some(timeout) = self.flush_timeout {
-            return self.last_flush.elapsed() > timeout;
+        if let Some(timeout) = self.flush_timeout
+            && self.last_flush.elapsed() > timeout
+        {
+            return Some("timeout");
         }
 
-        false
+        None
     }
 
     /// Spools to disk a batch of envelopes from the `batch`.
@@ -93,16 +97,11 @@ impl SqliteEnvelopeStack {
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
+    async fn spool_to_disk(&mut self, why: &'static str) -> Result<(), SqliteEnvelopeStackError> {
         let batch = std::mem::take(&mut self.batch);
         let Ok(batch) = DatabaseBatch::try_from(batch) else {
             return Ok(());
         };
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64,
-            partition_id = &self.partition_tag
-        );
 
         // When early return here, we are acknowledging that the elements that we popped from
         // the buffer are lost in case of failure. We are doing this on purpose, since if we were
@@ -111,6 +110,7 @@ impl SqliteEnvelopeStack {
         relay_statsd::metric!(
             timer(RelayTimers::BufferSpool),
             partition_id = &self.partition_tag,
+            reason = why,
             {
                 self.envelope_store
                     .insert_batch(batch)
@@ -149,10 +149,6 @@ impl SqliteEnvelopeStack {
             None => self.check_disk = false,
         }
 
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferUnspooledEnvelopes) += self.batch.len() as u64,
-            partition_id = &self.partition_tag
-        );
         Ok(())
     }
 
@@ -172,8 +168,8 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
-        if self.should_spool_to_disk() {
-            self.spool_to_disk().await?;
+        if let Some(reason) = self.should_spool_to_disk() {
+            self.spool_to_disk(reason).await?;
         }
 
         let encoded_envelope = relay_statsd::metric!(
@@ -212,7 +208,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 
     async fn flush(mut self) {
-        if let Err(e) = self.spool_to_disk().await {
+        if let Err(e) = self.spool_to_disk("flush").await {
             relay_log::error!(error = &e as &dyn std::error::Error, "flush error");
         }
     }
