@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.30
+
+- Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
+
 ## 0.9.29
 
 ### New Features ✨

@@ -101,7 +101,7 @@ async fn upload_context<'a>(
 
     let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
         project_config.get_quotas(),
-        scoping.item(DataCategory::Attachment),
+        &scoping.item(DataCategory::Attachment),
     );
 
     match project_config.has_feature(Feature::PlaystationUploads)

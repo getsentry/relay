@@ -986,6 +986,12 @@ pub struct EnvelopeSpool {
     ///
     /// Defaults to 10 KiB.
     pub batch_size_bytes: ByteSize,
+    /// Time after which a batch is flushed, regardless of batch size.
+    ///
+    /// The age of the batch is only checked when a new envelope comes in, but in practice this
+    /// has the desired effect: High-volume projects always form full batches, low-volume batches
+    /// flush individual envelopes to keep memory usage low.
+    pub flush_timeout_secs: Option<u64>,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -1062,6 +1068,7 @@ impl Default for EnvelopeSpool {
             partitions: NonZeroU8::new(1).unwrap(),
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
+            flush_timeout_secs: None,
         }
     }
 }
@@ -1143,6 +1150,8 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
+    /// Whether to use Arroyo's KafkaProducer. Defaults to `false`.
+    pub use_arroyo: bool,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1207,6 +1216,7 @@ impl Default for Processing {
             max_secs_in_future: 60,                  // 1 minute
             max_session_secs_in_past: 5 * 24 * 3600, // 5 days
             kafka_config: Vec::new(),
+            use_arroyo: false,
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
@@ -2488,6 +2498,16 @@ impl ConfigSnapshot {
             .as_bytes()
     }
 
+    /// Time after which a batch of envelopes is flushed to disk, regardless of its size.
+    pub fn spool_envelopes_flush_timeout(&self) -> Option<Duration> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .flush_timeout_secs
+            .map(Duration::from_secs)
+    }
+
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
         Duration::from_secs(self.inner.values.spool.envelopes.max_envelope_delay_secs)
@@ -2794,6 +2814,11 @@ impl ConfigSnapshot {
     /// Whether to validate the topics against Kafka.
     pub fn kafka_validate_topics(&self) -> bool {
         self.inner.values.processing.kafka_validate_topics
+    }
+
+    /// Whether to use Arroyo's KafkaProducer.
+    pub fn use_arroyo(&self) -> bool {
+        self.inner.values.processing.use_arroyo
     }
 
     /// All unused but configured topic assignments.

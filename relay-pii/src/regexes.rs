@@ -106,6 +106,7 @@ pub fn get_regex_for_rule_type(
         RuleType::UrlAuth => smallvec![(v, &*URL_AUTH_REGEX, ReplaceBehavior::replace_group(1))],
         RuleType::UsSsn => smallvec![(v, &*US_SSN_REGEX, ReplaceBehavior::replace_match())],
         RuleType::Userpath => smallvec![(v, &*PATH_REGEX, ReplaceBehavior::replace_group(1))],
+        RuleType::Cookies => smallvec![(kv, &*COOKIE_REGEX, ReplaceBehavior::replace_group(1))],
 
         // These ought to have been resolved in CompiledConfig
         RuleType::Alias(_) | RuleType::Multiple(_) | RuleType::Unknown(_) => smallvec![],
@@ -143,6 +144,40 @@ macro_rules! regex {
 }
 
 pub static ANYTHING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(".*").unwrap());
+
+pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
+    // Common session cookie names for popular web frameworks
+    "sentrysid", // Sentry default session cookie name
+    "sudo",      // Sentry default sudo cookie name
+    "su",        // Sentry superuser cookie name
+    "session",
+    "__session",
+    "sessionid",
+    "user_session",
+    "symfony",
+    "phpsessid",
+    "fasthttpsessionid",
+    "mysession",
+    "irissessionid",
+    "_vercel_jwt",
+    // Common CSRF/XSRF cookie names for popular web frameworks
+    "csrf",
+    "xsrf",
+    "_xsrf",
+    "_csrf",
+    "csrf-token",
+    "csrf_token",
+    "xsrf-token",
+    "xsrf_token",
+    "fastcsrf",
+    "_iris_csrf",
+];
+
+static COOKIE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    let variants = SENSITIVE_COOKIE_NAMES.join("|");
+    let r = format!("(?i)\\b(?:(?:{variants})(?:__\\d+)?)=([^;]+)");
+    Regex::new(&r).unwrap()
+});
 
 regex!(
     IMEI_REGEX,

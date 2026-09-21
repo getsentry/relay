@@ -296,23 +296,23 @@ enum RelayDataCategory {
   /**
    * Transaction profiles for backend platforms.
    *
-   * This is an extension of [`Self::Profile`], but additional discriminates on the profile
+   * This is an extension of [`Self::Profile`], but additionally discriminates on the profile
    * platform, see also [`Self::ProfileUi`].
    *
    * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
    *
-   * SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms'.
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms".
    */
   RELAY_DATA_CATEGORY_PROFILE_BACKEND = 35,
   /**
    * Transaction profiles for ui platforms.
    *
-   * This is an extension of [`Self::Profile`], but additional discriminates on the profile
+   * This is an extension of [`Self::Profile`], but additionally discriminates on the profile
    * platform, see also [`Self::ProfileBackend`].
    *
    * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
    *
-   * SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms'.
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
    */
   RELAY_DATA_CATEGORY_PROFILE_UI = 36,
   /**
@@ -321,6 +321,14 @@ enum RelayDataCategory {
    * This is the category for trace metrics for which we store total bytes for users.
    */
   RELAY_DATA_CATEGORY_TRACE_METRIC_BYTE = 37,
+  /**
+   * Snapshot image
+   *
+   * Counts images accepted by the preprod snapshot upload API.
+   *
+   * SDK rate limiting behavior: ignore.
+   */
+  RELAY_DATA_CATEGORY_SNAPSHOT_IMAGE = 38,
   /**
    * Any other data category not known by this Relay.
    */
@@ -898,11 +906,6 @@ struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *val
  * Normalize a project config.
  */
 struct RelayStr relay_normalize_project_config(const struct RelayStr *value);
-
-/**
- * Normalize a cardinality limit config.
- */
-struct RelayStr normalize_cardinality_limit_config(const struct RelayStr *value);
 
 /**
  * Normalize a global config.

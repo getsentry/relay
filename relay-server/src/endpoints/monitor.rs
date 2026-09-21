@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::constants::DEFAULT_CHECK_IN_CLIENT;
 use axum::extract::{DefaultBodyLimit, Path, Query, Request};
 use axum::http::StatusCode;
@@ -49,6 +51,7 @@ async fn handle(
             duration: query.duration,
             monitor_config: None,
             contexts: None,
+            other: BTreeMap::default(),
         }
     };
 
