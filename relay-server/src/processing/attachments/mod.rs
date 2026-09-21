@@ -4,16 +4,17 @@ use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
+};
 use crate::processing::utils::attachments;
 use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
-use crate::statsd::RelayCounters;
-use crate::utils::client_name_tag;
 
 mod forward;
 mod process;
+mod validate;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -95,26 +96,7 @@ impl processing::Processor for AttachmentProcessor {
         mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
-        let has_event_id = attachments.headers.event_id().is_some();
-
-        // Temporary counter to figure out which SDKs are still sending standalone attachments.
-        relay_statsd::metric!(
-            counter(RelayCounters::StandaloneAttachment) += 1,
-            sdk = client_name_tag(attachments.headers.meta().client_name()),
-            has_event_id = has_event_id.to_string()
-        );
-
-        if !has_event_id {
-            relay_log::info!(
-                sdk = attachments.headers.meta().client().unwrap_or("unknown"),
-                project_id = ?attachments
-                    .headers
-                    .meta()
-                    .project_id(),
-                "attachment without EventId"
-            );
-            return Err(attachments.reject_err(Error::NoEventId));
-        }
+        validate::validate(&attachments).reject(&attachments)?;
 
         attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
 
