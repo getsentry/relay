@@ -980,6 +980,11 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
+    /// Number of items discarded by dynamic sampling on untrusted relays, reported via client reports.
+    ///
+    /// This metric is tagged with:
+    /// - `category`: the data category of the discarded items.
+    SamplingDroppedExternal,
     /// How often a call to the upload endpoint was rejected because of the global kill switch.
     ///
     /// This is intended as a temporary metric to debug 503 flakiness.
@@ -1079,6 +1084,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingProjectUnresolved => "sampling.project_unresolved",
             RelayCounters::SamplingDecision => "sampling.decision",
+            RelayCounters::SamplingDroppedExternal => "sampling.dropped_external",
             RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
             RelayCounters::UploadUpload => "upload.upload",
