@@ -117,6 +117,7 @@ def test_forward_patch(
 
     assert response.status_code == expected_status_code, response.text
 
+
 @pytest.mark.parametrize(
     "header,value,expected_status_code,expected_detail",
     [
@@ -187,6 +188,7 @@ def test_invalid_headers(
     assert response.status_code == expected_status_code, response.text
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert response.json() == {"detail": expected_detail}
+
 
 def test_post_retries(mini_sentry, relay, project_config):
     """POST (create) requests forwarded to the upstream are retried.
@@ -303,10 +305,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail":
-            "expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ,
+        "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=None",
     }
 
 
@@ -588,10 +587,7 @@ def test_upload_with_deferred_length(
     else:
         assert response.status_code == 400
         assert response.json() == {
-            "detail":
-                "expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ,
+            "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=Some(2)",
         }
 
 
