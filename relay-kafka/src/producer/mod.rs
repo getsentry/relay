@@ -7,9 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use rdkafka::ClientConfig;
-use rdkafka::message::{Header, ToBytes};
-use rdkafka::producer::{BaseRecord, Producer as _};
+use rdkafka::message::Header;
+use rdkafka::producer::BaseRecord;
 use relay_statsd::metric;
 use sentry_arroyo::backends::ProducerError;
 use sentry_arroyo::backends::kafka::config::KafkaConfig;
@@ -25,7 +24,7 @@ use crate::producer::utils::KafkaHeaders;
 use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
 
 mod utils;
-use utils::{Context, ThreadedProducer};
+use utils::Context;
 
 #[cfg(debug_assertions)]
 mod schemas;
@@ -39,13 +38,9 @@ pub type Key = u128;
 /// Kafka producer errors.
 #[derive(Error, Debug)]
 pub enum ClientError {
-    /// Failed to send a kafka message.
-    #[error("failed to send kafka message")]
-    SendFailed(#[source] rdkafka::error::KafkaError),
-
     /// Failed to send a Kafka message using Arroyo.
     #[error("failed to send kafka message")]
-    ArroyoSendFailed(#[source] ProducerError),
+    SendFailed(#[source] ProducerError),
 
     /// Failed to find configured producer for the requested kafka topic.
     #[error("failed to find producer for the requested kafka topic")]
@@ -72,17 +67,9 @@ pub enum ClientError {
     #[error("no kafka configuration for topic")]
     MissingTopic,
 
-    /// Failed to fetch the metadata of Kafka.
-    #[error("failed to fetch the metadata of Kafka")]
-    MetadataFetchError(rdkafka::error::KafkaError),
-
-    /// Failed to validate the topic.
-    #[error("failed to validate the topic with name {0}: {1:?}")]
-    TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
-
     /// Failed to validate the topic using Arroyo.
     #[error("failed to validate the topic with name {0}: {1}")]
-    ArroyoTopicError(String, #[source] rdkafka::error::KafkaError),
+    TopicError(String, #[source] rdkafka::error::KafkaError),
 
     /// Failed to encode the protobuf into the buffer
     /// because the buffer is too small.
@@ -161,7 +148,9 @@ impl TopicProducers {
     /// Validates the topic by fetching the metadata of the topic directly from Kafka.
     fn validate_topic(&self) -> Result<(), ClientError> {
         for tp in &self.producers {
-            tp.producer.validate_topic(&tp.topic_name)?;
+            tp.producer
+                .validate_topic(Topic::new(&tp.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+                .map_err(|error| ClientError::TopicError(tp.topic_name.clone(), error))?;
         }
 
         Ok(())
@@ -170,67 +159,8 @@ impl TopicProducers {
 
 struct TopicProducer {
     pub topic_name: String,
-    pub producer: Arc<ProducerBackend>,
+    pub producer: Arc<ArroyoKafkaProducer<Context>>,
     pub rate_limiter: Option<KafkaRateLimits>,
-}
-
-/// Producer selected by `processing.use_arroyo`.
-enum ProducerBackend {
-    Rdkafka(ThreadedProducer),
-    Arroyo(ArroyoKafkaProducer<Context>),
-}
-
-impl ProducerBackend {
-    fn context(&self) -> &Context {
-        match self {
-            Self::Rdkafka(producer) => producer.context(),
-            Self::Arroyo(producer) => producer.context(),
-        }
-    }
-
-    fn in_flight_count(&self) -> i32 {
-        match self {
-            Self::Rdkafka(producer) => producer.in_flight_count(),
-            Self::Arroyo(producer) => producer.in_flight_count(),
-        }
-    }
-
-    fn send<K, P>(&self, record: BaseRecord<'_, K, P>) -> Result<(), ClientError>
-    where
-        K: ToBytes + ?Sized,
-        P: ToBytes + ?Sized,
-    {
-        match self {
-            Self::Rdkafka(producer) => producer
-                .send(record)
-                .map_err(|(error, _)| ClientError::SendFailed(error)),
-            Self::Arroyo(producer) => producer
-                .produce_record(record)
-                .map_err(ClientError::ArroyoSendFailed),
-        }
-    }
-
-    fn validate_topic(&self, topic_name: &str) -> Result<(), ClientError> {
-        match self {
-            Self::Rdkafka(producer) => {
-                let metadata = producer
-                    .client()
-                    .fetch_metadata(Some(topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
-                    .map_err(ClientError::MetadataFetchError)?;
-
-                for topic in metadata.topics() {
-                    if let Some(error) = topic.error() {
-                        return Err(ClientError::TopicError(topic.name().to_owned(), error));
-                    }
-                }
-            }
-            Self::Arroyo(producer) => producer
-                .validate_topic(Topic::new(topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
-                .map_err(|error| ClientError::ArroyoTopicError(topic_name.to_owned(), error))?,
-        }
-
-        Ok(())
-    }
 }
 
 /// Single kafka producer config with assigned topic.
@@ -335,14 +265,17 @@ impl Producer {
             );
         });
 
-        producer.send(record).inspect_err(|_| {
-            metric!(
-                counter(KafkaCounters::ProducerEnqueueError) += 1,
-                variant = variant,
-                topic = topic_name,
-                producer_name = producer_name
-            );
-        })?;
+        producer
+            .produce_record(record)
+            .map_err(ClientError::SendFailed)
+            .inspect_err(|_| {
+                metric!(
+                    counter(KafkaCounters::ProducerEnqueueError) += 1,
+                    variant = variant,
+                    topic = topic_name,
+                    producer_name = producer_name
+                );
+            })?;
 
         Ok(topic_name)
     }
@@ -372,7 +305,7 @@ impl fmt::Debug for Producer {
             .collect();
         f.debug_struct("Producer")
             .field("topic_names", &topic_names)
-            .field("producers", &"<ThreadedProducers>")
+            .field("producers", &"<KafkaProducers>")
             .finish_non_exhaustive()
     }
 }
@@ -386,9 +319,9 @@ pub struct KafkaClient {
 }
 
 impl KafkaClient {
-    /// Creates a builder using Arroyo when `use_arroyo` is enabled.
-    pub fn builder(use_arroyo: bool) -> KafkaClientBuilder {
-        KafkaClientBuilder::new(use_arroyo)
+    /// Creates a Kafka client builder.
+    pub fn builder() -> KafkaClientBuilder {
+        KafkaClientBuilder::new()
     }
 
     /// Sends message to the provided Kafka topic.
@@ -439,18 +372,14 @@ impl KafkaClient {
 /// Helper structure responsible for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
-    reused_producers: BTreeMap<Option<String>, Arc<ProducerBackend>>,
+    reused_producers: BTreeMap<Option<String>, Arc<ArroyoKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
-    use_arroyo: bool,
 }
 
 impl KafkaClientBuilder {
-    /// Creates an empty builder using Arroyo when `use_arroyo` is enabled.
-    pub fn new(use_arroyo: bool) -> Self {
-        Self {
-            use_arroyo,
-            ..Self::default()
-        }
+    /// Creates an empty Kafka client builder.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Adds topic configuration to the current [`KafkaClientBuilder`], which in return assigns
@@ -499,25 +428,14 @@ impl KafkaClientBuilder {
                     .or_else(|| config_name.clone())
                     .unwrap_or_else(|| "unknown".to_owned());
 
-                let context = Context::new(producer_name, self.use_arroyo);
-                let producer = if self.use_arroyo {
-                    let params = config_params
-                        .iter()
-                        .map(|param| (param.name.clone(), param.value.clone()))
-                        .collect();
-                    let config = KafkaConfig::new_config(Vec::new(), Some(params));
-                    ArroyoKafkaProducer::new_with_context(config, context)
-                        .map(ProducerBackend::Arroyo)
-                } else {
-                    let mut config = ClientConfig::new();
-                    for param in *config_params {
-                        config.set(&param.name, &param.value);
-                    }
-                    config
-                        .create_with_context(context)
-                        .map(ProducerBackend::Rdkafka)
-                }
-                .map_err(ClientError::InvalidConfig)?;
+                let context = Context::new(producer_name);
+                let params = config_params
+                    .iter()
+                    .map(|param| (param.name.clone(), param.value.clone()))
+                    .collect();
+                let config = KafkaConfig::new_config(Vec::new(), Some(params));
+                let producer = ArroyoKafkaProducer::new_with_context(config, context)
+                    .map_err(ClientError::InvalidConfig)?;
                 let producer = Arc::new(producer);
 
                 self.reused_producers
@@ -555,7 +473,6 @@ impl KafkaClientBuilder {
 impl fmt::Debug for KafkaClientBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KafkaClientBuilder")
-            .field("use_arroyo", &self.use_arroyo)
             .field("reused_producers", &"<CachedProducers>")
             .field("producers", &self.producers)
             .finish()

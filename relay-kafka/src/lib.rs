@@ -10,7 +10,7 @@
 //!     use relay_kafka::{KafkaClient, KafkaTopic};
 //!
 //!     // Get the builder.
-//!     let mut builder = KafkaClient::builder(false);
+//!     let mut builder = KafkaClient::builder();
 //!
 //!     // Then one can add different configs per topic.
 //!     builder = builder.add_kafka_topic_config(KafkaTopic::Events, &kafka_config_events).unwrap();

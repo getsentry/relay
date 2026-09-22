@@ -107,11 +107,9 @@ pub fn init_metrics(config: &ConfigSnapshot) -> Result<()> {
     };
 
     #[cfg(feature = "processing")]
-    if config.use_arroyo() {
-        sentry_arroyo::metrics::configure_scope(|scope| {
-            scope.set_tag("application", "relay");
-        })?;
-    }
+    sentry_arroyo::metrics::configure_scope(|scope| {
+        scope.set_tag("application", "relay");
+    })?;
 
     let mut default_tags = config.metrics_default_tags().clone();
     if let Some(hostname_tag) = config.metrics_hostname_tag()
