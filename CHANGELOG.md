@@ -14,6 +14,10 @@
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
 
+**Bug Fixes**:
+
+- Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
+
 **Internal**:
 
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
