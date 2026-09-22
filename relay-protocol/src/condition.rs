@@ -2,11 +2,12 @@
 //!
 //! The root type is [`RuleCondition`].
 
+use std::collections::BTreeSet;
 use std::net::IpAddr;
 
 use ipnetwork::IpNetwork;
 use relay_pattern::{CaseInsensitive, TypedPatterns};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{Getter, Val};
@@ -238,12 +239,12 @@ impl IntoStrings for Vec<String> {
     }
 }
 
-/// A list of IP addresses and CIDR ranges.
+/// A set of IP addresses and CIDR ranges.
 ///
-/// Serialized as a list of strings such as `"10.0.0.1"` or `"10.0.0.0/8"`. Entries that do not
-/// parse as an address or a range are dropped while deserializing.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct IpNetworks(Vec<IpNetwork>);
+/// Serialized as a list of strings such as `"10.0.0.1"` or `"10.0.0.0/8"`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct IpNetworks(BTreeSet<IpNetwork>);
 
 impl IpNetworks {
     /// Returns `true` if any of the networks contains the address.
@@ -252,27 +253,9 @@ impl IpNetworks {
     }
 }
 
-impl<S: AsRef<str>> FromIterator<S> for IpNetworks {
-    fn from_iter<I: IntoIterator<Item = S>>(iter: I) -> Self {
-        Self(
-            iter.into_iter()
-                .filter_map(|entry| entry.as_ref().parse().ok())
-                .collect(),
-        )
-    }
-}
-
-impl Serialize for IpNetworks {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_seq(self.0.iter().map(IpNetwork::to_string))
-    }
-}
-
-impl<'de> Deserialize<'de> for IpNetworks {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(Vec::<String>::deserialize(deserializer)?
-            .into_iter()
-            .collect())
+impl FromIterator<IpNetwork> for IpNetworks {
+    fn from_iter<I: IntoIterator<Item = IpNetwork>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 
@@ -293,10 +276,16 @@ pub struct CidrCondition {
 
 impl CidrCondition {
     /// Creates a condition that matches addresses inside one or more networks.
+    ///
+    /// Entries that do not parse as an address or a CIDR range are ignored.
     pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self {
             name: field.into(),
-            value: value.into_strings().into_iter().collect(),
+            value: value
+                .into_strings()
+                .iter()
+                .filter_map(|entry| entry.parse().ok())
+                .collect(),
         }
     }
 
@@ -1049,7 +1038,7 @@ mod tests {
             {
                 "op":"cidr",
                 "name": "field_ip",
-                "value": ["10.0.0.0/8","192.168.1.1","not-an-ip"]
+                "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32"]
             },
             {
                 "op":"not",
@@ -1327,17 +1316,12 @@ mod tests {
     }
 
     #[test]
-    fn test_cidr_condition_ignores_invalid_entries() {
-        let condition: RuleCondition = serde_json::from_str(
+    fn test_cidr_condition_rejects_invalid_entries() {
+        let result = serde_json::from_str::<RuleCondition>(
             r#"{"op": "cidr", "name": "trace.user.ip", "value": ["garbage", "10.0.0.0/8"]}"#,
-        )
-        .unwrap();
-
-        assert!(condition.matches(&mock_trace()));
-        assert_eq!(
-            serde_json::to_string(&condition).unwrap(),
-            r#"{"op":"cidr","name":"trace.user.ip","value":["10.0.0.0/8"]}"#
         );
+
+        assert!(result.is_err());
     }
 
     #[test]

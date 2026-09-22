@@ -27,11 +27,10 @@ struct WithClientIp<'a, F> {
 
 impl<F: Getter> Getter for WithClientIp<'_, F> {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        if path == CLIENT_IP_PATH {
-            return self.client_ip.map(Val::IpAddr);
+        match path {
+            CLIENT_IP_PATH => self.client_ip.map(Val::IpAddr),
+            other => self.item.get_value(other),
         }
-
-        self.item.get_value(path)
     }
 
     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
