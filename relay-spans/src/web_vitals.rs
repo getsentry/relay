@@ -77,8 +77,10 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.inp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
+            // TODO: use the conventions constants once the submodule includes
+            // getsentry/sentry-conventions#641.
             "browser.web_vital.inp.target",
-            "browser.web_vital.inp.type",
+            "browser.web_vital.inp.interaction_type",
             "score.inp",
             "score.weight.inp",
             "score.ratio.inp",
@@ -224,6 +226,48 @@ mod tests {
             attributes.get_value(BROWSER__NAME).and_then(|v| v.as_str()),
             Some("Safari")
         );
+    }
+
+    #[test]
+    fn test_inp_attributes() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "name": "Click",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "ui.interaction.click"},
+                    "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
+                    "browser.web_vital.inp.target": {"type": "string", "value": "body > button#submit"},
+                    "browser.web_vital.inp.interaction_type": {"type": "string", "value": "click"}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 1);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&metrics[0].attributes), @r#"
+        {
+          "browser.web_vital.inp.interaction_type": {
+            "type": "string",
+            "value": "click"
+          },
+          "browser.web_vital.inp.target": {
+            "type": "string",
+            "value": "body > button#submit"
+          },
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          }
+        }
+        "#);
     }
 
     #[test]
