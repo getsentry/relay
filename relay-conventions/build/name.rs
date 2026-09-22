@@ -111,7 +111,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
                     Val::U64(u) => write!(f, "{u}"),
                     Val::F64(fl) => write!(f, "{fl}"),
                     Val::String(s) => f.write_str(s),
-                    Val::HexId(_) | Val::Array(_) | Val::Object(_) => Ok(()),
+                    Val::HexId(_) | Val::IpAddr(_) | Val::Array(_) | Val::Object(_) => Ok(()),
                 }
             }
         }

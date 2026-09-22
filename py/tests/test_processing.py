@@ -244,6 +244,13 @@ def test_validate_rule_condition():
     sentry_relay.validate_rule_condition(condition)
 
 
+def test_validate_cidr_condition():
+    condition = (
+        '{"op": "cidr", "name": "envelope.client_ip", "value": ["10.0.0.0/8", "::1"]}'
+    )
+    sentry_relay.validate_rule_condition(condition)
+
+
 def test_invalid_sampling_condition():
     """
     Tests that invalid conditions are caught
