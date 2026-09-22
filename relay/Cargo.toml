@@ -11,7 +11,7 @@ publish = false
 
 [features]
 default = []
-processing = ["relay-server/processing", "dep:relay-kafka"]
+processing = ["relay-server/processing", "dep:relay-kafka", "dep:sentry_arroyo"]
 crash-handler = ["relay-log/crash-handler"]
 
 [lints]
@@ -30,6 +30,7 @@ relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
 relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
+sentry_arroyo = { workspace = true, optional = true }
 uuid = { workspace = true }
 reqwest = { workspace = true, features = ["gzip", "native-tls-vendored"] }
 mimalloc = { workspace = true, features = ["v3", "override", "debug_in_debug"] }

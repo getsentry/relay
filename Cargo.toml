@@ -160,6 +160,7 @@ minidumper-child = "0.4.1"
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
+metrics-util = { version = "0.20", default-features = false }
 num-traits = "0.2"
 num_cpus = "1"
 objectstore-client = { version = "0.2" }
@@ -204,7 +205,7 @@ sentry = { version = "0.48", default-features = false, features = [
     "panic",
     "transport",
 ] }
-sentry_arroyo = "2.44.0"
+sentry_arroyo = "2.44.1"
 sentry-core = "0.48"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [
