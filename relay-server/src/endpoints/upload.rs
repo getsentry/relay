@@ -83,7 +83,7 @@ impl IntoResponse for Error {
         }
 
         let status = match self {
-            Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::Tus(error) => return error.into_response(),
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {

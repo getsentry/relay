@@ -8,13 +8,16 @@
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
+use axum::response::IntoResponse;
 use data_encoding::BASE64;
-use http::HeaderValue;
 use http::header::AsHeaderName;
+use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder};
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -46,10 +49,34 @@ pub enum Error {
     InvalidMetadata(#[from] serde_json::Error),
 }
 
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        let body = ApiErrorResponse::from_error(&self);
+
+        match self {
+            Error::Version(_) => (
+                StatusCode::PRECONDITION_FAILED,
+                [(TUS_VERSION_NAME, TUS_VERSION)],
+                body,
+            )
+                .into_response(),
+            _ => (StatusCode::BAD_REQUEST, body).into_response(),
+        }
+    }
+}
+
 /// TUS protocol header for the protocol version.
 ///
-/// See <https://tus.io/protocols/resumable-upload#tus-version>.
+/// See <https://tus.io/protocols/resumable-upload#tus-resumable>.
 pub const TUS_RESUMABLE: &str = "Tus-Resumable";
+
+/// TUS protocol header for the protocol versions supported by the Server.
+///
+/// See <https://tus.io/protocols/resumable-upload#tus-version>
+pub const TUS_VERSION_NAME: &str = "Tus-Version";
+
+/// TUS protocol version supported by this endpoint.
+pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 
 /// TUS protocol header for supported extensions.
 ///
@@ -58,9 +85,6 @@ const TUS_EXTENSION: &str = "Tus-Extension";
 
 const SUPPORTED_EXTENSIONS: HeaderValue =
     HeaderValue::from_static("creation,creation-defer-length");
-
-/// TUS protocol version supported by this endpoint.
-pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 
 /// TUS protocol header for the total upload length.
 ///

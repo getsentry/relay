@@ -164,10 +164,10 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: (missing)",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: (missing)"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: (missing)",
     }
 
 
@@ -188,10 +188,10 @@ def test_upload_unsupported_tus_version(
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: 0.2.0"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: 0.2.0",
     }
 
 
@@ -233,14 +233,10 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": (
-            "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ),
-        "causes": [
+        "detail":
             "expected Upload-Length or Upload-Defer-Length=1, "
             "got Upload-Length=None, Upload-Defer-Length=None"
-        ],
+        ,
     }
 
 
@@ -522,14 +518,10 @@ def test_upload_with_deferred_length(
     else:
         assert response.status_code == 400
         assert response.json() == {
-            "detail": (
-                "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ),
-            "causes": [
+            "detail":
                 "expected Upload-Length or Upload-Defer-Length=1, "
                 "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ],
+            ,
         }
 
 
