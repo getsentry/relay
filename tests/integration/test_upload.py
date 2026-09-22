@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from flask import Response
+from flask import Response, request
 import pytest
 
 from sentry_relay.auth import SecretKey
@@ -631,6 +631,35 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         failure
     )
     assert response.status_code == 500
+
+
+def test_objectstore_upload_uncompressed(
+    mini_sentry, relay_with_processing, project_config
+):
+    mini_sentry.allow_chunked = True
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    uploads = []
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def upload(scope, key):
+        uploads.append((request.headers.get("Content-Encoding"), request.get_data()))
+        return {"key": key}
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+
+    response = upload_something(relay, project_id, project_key)
+
+    assert response.status_code == 204, response.text
+    assert uploads == [(None, b"hello world")]
 
 
 def test_objectstore_timeout(
