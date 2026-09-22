@@ -61,7 +61,11 @@ impl IntoResponse for Error {
             )
                 .into_response(),
             Error::UploadOffset(Some(_)) => (StatusCode::CONFLICT, body).into_response(),
-            _ => (StatusCode::BAD_REQUEST, body).into_response(),
+            Error::ContentType { .. } => (StatusCode::UNSUPPORTED_MEDIA_TYPE, body).into_response(),
+            Error::UploadLength { .. }
+            | Error::InvalidMetadataBase64(_)
+            | Error::InvalidMetadata(_)
+            | Error::UploadOffset(_) => (StatusCode::BAD_REQUEST, body).into_response(),
         }
     }
 }

@@ -117,30 +117,75 @@ def test_forward_patch(
 
     assert response.status_code == expected_status_code, response.text
 
-def test_invalid_offset(
-    mini_sentry, relay, dummy_upload
+@pytest.mark.parametrize(
+    "header,value,expected_status_code,expected_detail",
+    [
+        pytest.param(
+            "Upload-Offset",
+            "10",
+            409,
+            "expected Upload-Offset: 0, got: Some(10)",
+            id="offset mismatch",
+        ),
+        pytest.param(
+            "Upload-Offset",
+            None,
+            400,
+            "expected Upload-Offset: 0, got: None",
+            id="offset missing",
+        ),
+        pytest.param(
+            "Content-Type",
+            "application/octet-stream",
+            415,
+            "expected Content-Type: application/offset+octet-stream, "
+            "got: application/octet-stream",
+            id="wrong content type",
+        ),
+        pytest.param(
+            "Content-Type",
+            None,
+            415,
+            "expected Content-Type: application/offset+octet-stream, got: ",
+            id="missing content type",
+        ),
+    ],
+)
+def test_invalid_headers(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    header,
+    value,
+    expected_status_code,
+    expected_detail,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
 
-    data = b"hello world"
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Content-Type": "application/offset+octet-stream",
+        "Upload-Offset": "0",
+    }
+    if value is None:
+        del headers[header]
+    else:
+        headers[header] = value
+
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
             DUMMY_UPLOAD_LOCATION,
             mini_sentry.get_dsn_public_key(project_id),
         ),
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Content-Type": "application/offset+octet-stream",
-            "Upload-Offset": "10",
-        },
-        data=data,
+        headers=headers,
+        data=b"hello world",
     )
 
-    assert response.status_code == 409
-    assert response.json() == {"detail":"expected Upload-Offset: 0, got: Some(10)"}
+    assert response.status_code == expected_status_code, response.text
+    assert response.json() == {"detail": expected_detail}
 
 def test_post_retries(mini_sentry, relay, project_config):
     """POST (create) requests forwarded to the upstream are retried.
