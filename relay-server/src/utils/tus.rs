@@ -235,9 +235,16 @@ pub fn add_upload_headers(builder: &mut RequestBuilder) {
 /// Prepares the required TUS response headers.
 pub fn response_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(TUS_RESUMABLE, TUS_VERSION);
     headers.insert(TUS_EXTENSION, SUPPORTED_EXTENSIONS);
     headers
+}
+
+/// Layer that stamps the `Tus-Resumable` header onto every response.
+///
+/// The TUS protocol requires this header on every response (except for responses to
+/// `OPTIONS` requests).
+pub fn resumable_header_layer() -> SetResponseHeaderLayer<HeaderValue> {
+    SetResponseHeaderLayer::overriding(HeaderName::from_static("tus-resumable"), TUS_VERSION)
 }
 
 /// Extracts the sentry metadata payload from the `Upload-Metadata` header.
