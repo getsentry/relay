@@ -2,8 +2,12 @@
 //!
 //! The root type is [`RuleCondition`].
 
+use std::collections::BTreeSet;
+use std::net::IpAddr;
+
+use ipnetwork::IpNetwork;
 use relay_pattern::{CaseInsensitive, TypedPatterns};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::{Getter, Val};
@@ -85,6 +89,7 @@ impl EqCondition {
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
             (Some(Val::HexId(f)), Value::String(val)) => f.match_str(val),
+            (Some(Val::IpAddr(f)), Value::String(val)) => val.parse::<IpAddr>() == Ok(f),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }
@@ -231,6 +236,82 @@ impl IntoStrings for Vec<&'_ str> {
 impl IntoStrings for Vec<String> {
     fn into_strings(self) -> Vec<String> {
         self
+    }
+}
+
+/// A set of IP addresses and CIDR ranges.
+///
+/// Serialized as a list of strings such as `"10.0.0.1"` or `"10.0.0.0/8"`. Entries that do not
+/// parse as an address or a range are skipped while deserializing, like invalid glob patterns.
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[serde(transparent)]
+pub struct IpNetworks(BTreeSet<IpNetwork>);
+
+impl IpNetworks {
+    /// Returns `true` if any of the networks contains the address.
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        self.0.iter().any(|network| network.contains(ip))
+    }
+}
+
+impl<S: AsRef<str>> FromIterator<S> for IpNetworks {
+    fn from_iter<I: IntoIterator<Item = S>>(iter: I) -> Self {
+        Self(
+            iter.into_iter()
+                .filter_map(|entry| entry.as_ref().parse().ok())
+                .collect(),
+        )
+    }
+}
+
+impl<'de> Deserialize<'de> for IpNetworks {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Vec::<String>::deserialize(deserializer)?
+            .into_iter()
+            .collect())
+    }
+}
+
+/// A condition that checks whether an IP address lies in any of the given networks.
+///
+/// The field must hold an IPv4 or IPv6 address, either as [`Val::IpAddr`] or as a string. Each
+/// entry in `value` is a single address or a CIDR range; the condition matches if the address is
+/// contained in any of them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CidrCondition {
+    /// Path of the field that holds the IP address.
+    pub name: String,
+    /// IP addresses and CIDR ranges to check against.
+    ///
+    /// Note that this cannot be a single value, it must be a list of values.
+    pub value: IpNetworks,
+}
+
+impl CidrCondition {
+    /// Creates a condition that matches addresses inside one or more networks.
+    ///
+    /// Entries that do not parse as an address or a CIDR range are skipped.
+    pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self {
+            name: field.into(),
+            value: value.into_strings().into_iter().collect(),
+        }
+    }
+
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let ip = match instance.get_value(self.name.as_str()) {
+            Some(Val::IpAddr(ip)) => ip,
+            Some(Val::String(s)) => match s.parse() {
+                Ok(ip) => ip,
+                Err(_) => return false,
+            },
+            _ => return false,
+        };
+
+        self.value.contains(ip)
     }
 }
 
@@ -482,6 +563,17 @@ pub enum RuleCondition {
     /// ```
     Glob(GlobCondition),
 
+    /// A condition that checks whether an IP address lies in any of the given networks.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::cidr("obj.ip", &["10.0.0.0/8", "192.168.1.1"][..]);
+    /// ```
+    Cidr(CidrCondition),
+
     /// Combines multiple conditions using logical OR.
     ///
     /// # Example
@@ -617,6 +709,21 @@ impl RuleCondition {
     /// ```
     pub fn glob(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Glob(GlobCondition::new(field, value))
+    }
+
+    /// Creates a condition that matches IP addresses inside one or more networks.
+    ///
+    /// Each entry is a single address or a CIDR range. Entries that do not parse are ignored.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::cidr("obj.ip", &["10.0.0.0/8", "192.168.1.1"][..]);
+    /// ```
+    pub fn cidr(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self::Cidr(CidrCondition::new(field, value))
     }
 
     /// Creates a condition that applies `>`.
@@ -779,7 +886,8 @@ impl RuleCondition {
             | RuleCondition::Gt(_)
             | RuleCondition::Lt(_)
             | RuleCondition::Eq(_)
-            | RuleCondition::Glob(_) => true,
+            | RuleCondition::Glob(_)
+            | RuleCondition::Cidr(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -801,6 +909,7 @@ impl RuleCondition {
             RuleCondition::Gt(condition) => condition.matches(value),
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
+            RuleCondition::Cidr(condition) => condition.matches(value),
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
@@ -863,6 +972,8 @@ mod tests {
         release: String,
         environment: String,
         user_segment: String,
+        user_ip: String,
+        client_ip: IpAddr,
         exceptions: Vec<Exception>,
     }
 
@@ -875,6 +986,8 @@ mod tests {
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
+                "user.ip" => self.user_ip.as_str().into(),
+                "client_ip" => self.client_ip.into(),
                 _ => {
                     return None;
                 }
@@ -897,6 +1010,8 @@ mod tests {
             release: "1.1.1".to_owned(),
             environment: "debug".to_owned(),
             user_segment: "vip".to_owned(),
+            user_ip: "10.1.2.3".to_owned(),
+            client_ip: "2001:db8::1".parse().unwrap(),
             exceptions: vec![
                 Exception {
                     name: "NullPointerException".to_owned(),
@@ -928,6 +1043,11 @@ mod tests {
                 "op":"glob",
                 "name": "field_3",
                 "value": ["1.2.*","2.*"]
+            },
+            {
+                "op":"cidr",
+                "name": "field_ip",
+                "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32","not-an-ip"]
             },
             {
                 "op":"not",
@@ -1003,6 +1123,14 @@ mod tests {
             value: [
               "1.2.*",
               "2.*",
+            ],
+          ),
+          CidrCondition(
+            op: "cidr",
+            name: "field_ip",
+            value: [
+              "10.0.0.0/8",
+              "192.168.1.1/32",
             ],
           ),
           NotCondition(
@@ -1163,6 +1291,51 @@ mod tests {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(condition.matches(&trace), "{failure_name}");
         }
+    }
+
+    #[test]
+    fn test_cidr_condition() {
+        let trace = mock_trace();
+
+        assert!(RuleCondition::cidr("trace.user.ip", "10.0.0.0/8").matches(&trace));
+        assert!(RuleCondition::cidr("trace.user.ip", "10.1.2.3").matches(&trace));
+        assert!(
+            RuleCondition::cidr("trace.user.ip", &["192.168.0.0/16", "10.1.0.0/16"][..])
+                .matches(&trace)
+        );
+        assert!(!RuleCondition::cidr("trace.user.ip", "192.168.0.0/16").matches(&trace));
+        assert!(!RuleCondition::cidr("trace.user.ip", "2001:db8::/32").matches(&trace));
+        assert!(!RuleCondition::cidr("trace.user.ip", Vec::<String>::new()).matches(&trace));
+        assert!(!RuleCondition::cidr("trace.missing", "10.0.0.0/8").matches(&trace));
+        assert!(!RuleCondition::cidr("trace.release", "10.0.0.0/8").matches(&trace));
+
+        assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
+        assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
+        assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
+    }
+
+    #[test]
+    fn test_eq_condition_ip_addr() {
+        let trace = mock_trace();
+
+        assert!(RuleCondition::eq("trace.client_ip", "2001:db8::1").matches(&trace));
+        assert!(RuleCondition::eq("trace.client_ip", "2001:db8:0::1").matches(&trace));
+        assert!(!RuleCondition::eq("trace.client_ip", "2001:db8::2").matches(&trace));
+        assert!(!RuleCondition::eq("trace.client_ip", "not-an-ip").matches(&trace));
+    }
+
+    #[test]
+    fn test_cidr_condition_skips_invalid_entries() {
+        let condition: RuleCondition = serde_json::from_str(
+            r#"{"op": "cidr", "name": "trace.user.ip", "value": ["garbage", "10.0.0.0/8"]}"#,
+        )
+        .unwrap();
+
+        assert!(condition.matches(&mock_trace()));
+        assert_eq!(
+            serde_json::to_string(&condition).unwrap(),
+            r#"{"op":"cidr","name":"trace.user.ip","value":["10.0.0.0/8"]}"#
+        );
     }
 
     #[test]
