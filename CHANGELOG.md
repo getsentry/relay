@@ -20,6 +20,7 @@
 
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
+- Copy the INP interaction type to the INP web vital metric. ([#6410](https://github.com/getsentry/relay/pull/6410))
 
 **Internal**:
 
