@@ -60,6 +60,7 @@ impl IntoResponse for Error {
                 body,
             )
                 .into_response(),
+            Error::UploadOffset(Some(_)) => (StatusCode::CONFLICT, body).into_response(),
             _ => (StatusCode::BAD_REQUEST, body).into_response(),
         }
     }

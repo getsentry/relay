@@ -117,6 +117,30 @@ def test_forward_patch(
 
     assert response.status_code == expected_status_code, response.text
 
+def test_invalid_offset(
+    mini_sentry, relay, dummy_upload
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    data = b"hello world"
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Upload-Offset": "10",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail":"expected Upload-Offset: 0, got: Some(10)"}
 
 def test_post_retries(mini_sentry, relay, project_config):
     """POST (create) requests forwarded to the upstream are retried.
