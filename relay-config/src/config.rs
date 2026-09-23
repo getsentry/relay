@@ -1086,6 +1086,9 @@ pub struct Spool {
 #[serde(default)]
 pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
+    ///
+    /// Relay instances that receive the full project config have full access to quota config
+    /// and perform dynamic sampling.
     pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     pub project_expiry: u32,
