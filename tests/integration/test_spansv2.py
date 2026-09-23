@@ -34,6 +34,53 @@ def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Enve
     return envelope
 
 
+def test_spansv2_broken_segment_id(mini_sentry, relay):
+    """Verify the outcome emitted for a malformed segment ID."""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    trace_id = uuid.uuid4().hex
+    ts = datetime.now(timezone.utc).timestamp()
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts,
+            "end_timestamp": ts + 0.5,
+            "trace_id": trace_id,
+            "span_id": uuid.uuid4().hex[:16],
+            "is_segment": True,
+            "name": "broken segment ID",
+            "status": "ok",
+            "attributes": {
+                "sentry.segment.id": {"type": "string", "value": "[phone]bf9"},
+            },
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+    ]
+
+    assert mini_sentry.captured_envelopes.empty()
+
+
 def test_spansv2_basic(
     mini_sentry,
     relay,
