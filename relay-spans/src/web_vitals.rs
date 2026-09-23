@@ -1,7 +1,8 @@
 use relay_conventions::attributes::{
     BROWSER__NAME, BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__VERSION,
-    BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__VALUE,
-    BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
+    BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE,
+    BROWSER__WEB_VITAL__INP__INTERACTION_TYPE, BROWSER__WEB_VITAL__INP__TARGET,
+    BROWSER__WEB_VITAL__INP__VALUE, BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
     BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
     BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
@@ -77,10 +78,8 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.inp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
-            // TODO: use the conventions constants once the submodule includes
-            // getsentry/sentry-conventions#641.
-            "browser.web_vital.inp.target",
-            "browser.web_vital.inp.interaction_type",
+            BROWSER__WEB_VITAL__INP__TARGET,
+            BROWSER__WEB_VITAL__INP__INTERACTION_TYPE,
             "score.inp",
             "score.weight.inp",
             "score.ratio.inp",
