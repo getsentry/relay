@@ -258,7 +258,7 @@ fn normalize_span(
         // normalize_sentry_op must be called before normalize_span_category
         // because category derivation depends on having the sentry.op attribute
         // available.
-        validate_segment_id(&mut span.attributes)?;
+        validate_segment_id(&span.attributes)?;
         eap::normalize_sentry_op(&mut span.attributes);
         if settings.clear_web_vital_segment_info {
             eap::normalize_web_vital_span_segment(span);
