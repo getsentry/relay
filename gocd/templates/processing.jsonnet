@@ -11,6 +11,7 @@ local pipedream_config = {
     's4s2',
     'de',
     'us',
+    'customer-1',
     'customer-2',
   ],
   materials: {
