@@ -6,7 +6,7 @@ use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
 use sentry_arroyo::backends::kafka::producer::ProducerContext as ArroyoProducerContext;
 
-use crate::statsd::{KafkaCounters, KafkaGauges};
+use crate::statsd::KafkaCounters;
 
 /// A thin wrapper around [`OwnedHeaders`].
 ///
@@ -77,66 +77,20 @@ where
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
-    /// Delegate statistics to Arroyo when `processing.use_arroyo` is enabled.
-    arroyo_statistics: Option<ArroyoProducerContext>,
+    /// Delegate statistics to Arroyo.
+    arroyo_statistics: ArroyoProducerContext,
 }
 
 impl Context {
-    pub fn new(producer_name: String, use_arroyo: bool) -> Self {
+    pub fn new(producer_name: String) -> Self {
         Self {
-            arroyo_statistics: use_arroyo
-                .then(|| ArroyoProducerContext::new(producer_name.clone())),
+            arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
         }
     }
 
     pub fn producer_name(&self) -> &str {
         &self.producer_name
-    }
-
-    /// A helper to emit a broker state gauge.
-    ///
-    /// Each state is represented as a distinct gauge with a specific state tag,
-    /// since gauges do not self-clear this helper resets all known states to zero
-    /// on every emission.
-    ///
-    /// Note:
-    ///  - This implementation does relay on the list of brokers being static.
-    ///  - This implementation only considers known broker state values.
-    fn emit_broker_state(&self, broker: &rdkafka::statistics::Broker) {
-        const KAFKA_BROKER_STATES: &[&str] = &[
-            // Documented in the `rdkafka` crate:
-            "INIT",
-            "DOWN",
-            "CONNECT",
-            "AUTH",
-            "APIVERSION_QUERY",
-            "AUTH_HANDSHAKE",
-            "UP",
-            "UPDATE",
-            // In the C `rdkafka` source:
-            "TRY_CONNECT",
-            "SSL_HANDSHAKE",
-            "AUTH_LEGACY",
-            "AUTH_REQ",
-            "REAUTH",
-        ];
-
-        // Not gonna catch all cases, but better than nothing and shows the intention,
-        // all possible states must be defined in `KAFKA_BROKER_STATES`.
-        debug_assert!(
-            KAFKA_BROKER_STATES.contains(&broker.state.as_str()),
-            "Kafka broker state not in known list of states"
-        );
-
-        for state in KAFKA_BROKER_STATES {
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerState) = u64::from(*state == broker.state),
-                broker_name = &broker.name,
-                producer_name = &self.producer_name,
-                state = *state
-            );
-        }
     }
 }
 
@@ -145,136 +99,7 @@ impl ClientContext for Context {
     ///
     /// This method is only called if `statistics.interval.ms` is configured.
     fn stats(&self, statistics: rdkafka::Statistics) {
-        if let Some(context) = &self.arroyo_statistics {
-            context.stats(statistics);
-            return;
-        }
-
-        let producer_name = self.producer_name.as_str();
-
-        relay_statsd::metric!(
-            gauge(KafkaGauges::ReplyQueue) = statistics.replyq,
-            producer_name = producer_name
-        );
-        relay_statsd::metric!(
-            gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
-            producer_name = producer_name
-        );
-        relay_statsd::metric!(
-            gauge(KafkaGauges::MessageCountMax) = statistics.msg_max,
-            producer_name = producer_name
-        );
-        relay_statsd::metric!(
-            gauge(KafkaGauges::MessageSize) = statistics.msg_size,
-            producer_name = producer_name
-        );
-        relay_statsd::metric!(
-            gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max,
-            producer_name = producer_name
-        );
-        relay_statsd::metric!(
-            gauge(KafkaGauges::TxMsgs) = statistics.txmsgs as u64,
-            producer_name = producer_name
-        );
-
-        for (_, broker) in statistics.brokers {
-            self.emit_broker_state(&broker);
-
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerOutboundBufferRequests) = broker.outbuf_cnt as u64,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerOutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerWaitResponseRequests) = broker.waitresp_cnt,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            if let Some(connects) = broker.connects {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerConnects) = connects as u64,
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            if let Some(disconnects) = broker.disconnects {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerDisconnects) = disconnects as u64,
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            if broker.txidle >= 0 {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerTxIdle) = (broker.txidle / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            if broker.rxidle >= 0 {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRxIdle) = (broker.rxidle / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerRequestTimeouts) = broker.req_timeouts,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            if let Some(int_latency) = broker.int_latency {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            if let Some(outbuf_latency) = broker.outbuf_latency {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            if let Some(rtt) = broker.rtt {
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-                relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000),
-                    broker_name = &broker.name,
-                    producer_name = producer_name
-                );
-            }
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTx) = broker.tx,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTxBytes) = broker.txbytes,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-        }
+        self.arroyo_statistics.stats(statistics);
     }
 }
 
@@ -318,10 +143,6 @@ impl ProducerContext for Context {
     }
 }
 
-/// The wrapper type around the kafka [`rdkafka::producer::ThreadedProducer`] with our own
-/// [`Context`].
-pub type ThreadedProducer = rdkafka::producer::ThreadedProducer<Context>;
-
 #[cfg(test)]
 mod tests {
     use rdkafka::ClientContext;
@@ -332,45 +153,33 @@ mod tests {
 
     #[test]
     fn test_statistics_backend() {
-        for use_arroyo in [false, true] {
-            let context = Context::new("test-producer".to_owned(), use_arroyo);
-            let statistics = Statistics {
-                msg_cnt: 42,
-                brokers: [(
-                    "broker-id".to_owned(),
-                    Broker {
-                        name: "broker-name".to_owned(),
-                        state: "UP".to_owned(),
-                        outbuf_cnt: 7,
-                        ..Default::default()
-                    },
-                )]
-                .into(),
-                ..Default::default()
-            };
+        let context = Context::new("test-producer".to_owned());
+        let statistics = Statistics {
+            msg_cnt: 42,
+            brokers: [(
+                "broker-id".to_owned(),
+                Broker {
+                    name: "broker-name".to_owned(),
+                    state: "UP".to_owned(),
+                    outbuf_cnt: 7,
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
 
-            let metrics = with_capturing_test_client(|| context.stats(statistics));
-            let (prefix, broker_metric, broker_tag) = if use_arroyo {
-                (
-                    "arroyo.producer.librdkafka.",
-                    "broker_outbuf_requests",
-                    "broker_id:broker-id",
-                )
-            } else {
-                (
-                    "kafka.stats.",
-                    "broker.outbuf.requests",
-                    "broker_name:broker-name",
-                )
-            };
+        let metrics = with_capturing_test_client(|| context.stats(statistics));
+        let prefix = "arroyo.producer.librdkafka.";
+        let broker_metric = "broker_outbuf_requests";
+        let broker_tag = "broker_id:broker-id";
 
-            assert!(metrics.contains(&format!(
-                "{prefix}message_count:42|g|#producer_name:test-producer"
-            )));
-            assert!(metrics.contains(&format!(
-                "{prefix}{broker_metric}:7|g|#{broker_tag},producer_name:test-producer"
-            )));
-            assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
-        }
+        assert!(metrics.contains(&format!(
+            "{prefix}message_count:42|g|#producer_name:test-producer"
+        )));
+        assert!(metrics.contains(&format!(
+            "{prefix}{broker_metric}:7|g|#{broker_tag},producer_name:test-producer"
+        )));
+        assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
     }
 }
