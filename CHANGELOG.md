@@ -19,7 +19,6 @@
 **Bug Fixes**:
 
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
-- Add the browser name and version, and the INP element and interaction type, to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 
 **Internal**:
