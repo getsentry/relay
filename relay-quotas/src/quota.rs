@@ -171,13 +171,15 @@ impl ItemScoping {
     pub fn dimensions_as_string(&self, quota: &Quota) -> Cow<'static, str> {
         let mut result = String::new();
 
-        for dim in quota.group_by.dimensions.iter() {
-            if let Some((key, val)) = self.dimensions.get_key_value(dim) {
-                let mut hasher = fnv::FnvHasher::with_key(1);
-                val.hash(&mut hasher);
-                let h = &hasher.finish();
+        if let Some(group_by) = &quota.group_by {
+            for dim in group_by.dimensions.iter() {
+                if let Some((key, val)) = self.dimensions.get_key_value(dim) {
+                    let mut hasher = fnv::FnvHasher::with_key(1);
+                    val.hash(&mut hasher);
+                    let h = &hasher.finish();
 
-                write!(&mut result, ":{key}:{h}").expect("should be infallible");
+                    write!(&mut result, ":{key}:{h}").expect("should be infallible");
+                }
             }
         }
 
@@ -198,9 +200,10 @@ impl ItemScoping {
     }
 
     /// Checks wether this item matches all of the supplied quota's dimensions.
-    pub(crate) fn matches_dimensions(&self, group_by: &GroupBy) -> bool {
-        group_by
-            .dimensions
+    pub(crate) fn matches_dimensions(&self, group_by: &Option<GroupBy>) -> bool {
+        let Some(gb) = group_by else { return true };
+
+        gb.dimensions
             .iter()
             .all(|dim| self.dimensions.contains_key(dim))
     }
@@ -555,12 +558,8 @@ pub struct Quota {
     pub reason_code: Option<ReasonCode>,
 
     /// The optional list of additional dimensions that this quota will be counted by.
-    #[serde(default, skip_serializing_if = "is_default_group_by")]
-    pub group_by: GroupBy,
-}
-
-fn is_default_group_by(gb: &GroupBy) -> bool {
-    *gb == GroupBy::default()
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_by: Option<GroupBy>,
 }
 
 /// The dimensions that a quota can key on--this is for things like monitors, that require even
@@ -588,8 +587,8 @@ impl Default for GroupBy {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum Dimension {
-    /// The environment used for an item.
-    Environment = 1,
+    /// The environment used for an monitor check-in.
+    CheckInEnvironment = 1,
 
     /// The slug used in a monitor check-in.
     CheckInSlug = 2,
@@ -604,9 +603,9 @@ pub enum Dimension {
 impl fmt::Display for Dimension {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Dimension::Environment => f.write_str("env"),
-            Dimension::CheckInSlug => f.write_str("slug"),
-            Dimension::Unknown => f.write_str("unk"),
+            Dimension::CheckInEnvironment => f.write_str("check_in.environment"),
+            Dimension::CheckInSlug => f.write_str("check_in.slug"),
+            Dimension::Unknown => f.write_str("unknown"),
         }
     }
 }
@@ -618,15 +617,21 @@ impl Quota {
     ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
-    ///  - The dimensions contain Unknown.
+    ///  - The dimensions contain Unknown, or are empty.
     pub fn is_valid(&self) -> bool {
         if self.namespace == Some(MetricNamespace::Unsupported) {
             return false;
         }
 
-        for dim in self.group_by.dimensions.iter() {
-            if *dim == Dimension::Unknown {
+        if let Some(group_by) = &self.group_by {
+            if group_by.dimensions.is_empty() {
                 return false;
+            }
+
+            for dim in group_by.dimensions.iter() {
+                if *dim == Dimension::Unknown {
+                    return false;
+                }
             }
         }
 
@@ -901,7 +906,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.is_valid());
@@ -918,7 +923,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(!quota.is_valid());
@@ -935,7 +940,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.is_valid());
@@ -952,7 +957,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -970,7 +975,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -988,7 +993,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1015,7 +1020,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -1042,7 +1047,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1081,7 +1086,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -1108,7 +1113,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1147,7 +1152,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1186,7 +1191,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1237,7 +1242,7 @@ mod tests {
             window: Some(60),
             reason_code: None,
             namespace: None,
-            group_by: dimensions,
+            group_by: Some(dimensions),
         }
     }
 
@@ -1266,7 +1271,8 @@ mod tests {
     fn test_quota_valid_dimensions() {
         let quota = dimensioned_quota(GroupBy {
             max_cardinality: 100,
-            dimensions: BTreeSet::from([Dimension::CheckInSlug, Dimension::Environment]).into(),
+            dimensions: BTreeSet::from([Dimension::CheckInSlug, Dimension::CheckInEnvironment])
+                .into(),
         });
 
         assert!(quota.is_valid());
@@ -1283,20 +1289,31 @@ mod tests {
     }
 
     #[test]
+    fn test_quota_empty_dimension() {
+        let quota = dimensioned_quota(GroupBy {
+            max_cardinality: 999,
+            dimensions: BTreeSet::default().into(),
+        });
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
     fn test_quota_matches_dimensions() {
         let quota = dimensioned_quota(GroupBy {
             max_cardinality: 999,
-            dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+            dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                .into(),
         });
 
         // Exactly the required dimensions, in either order.
         assert!(quota.matches(&dimensioned_scoping(Some(&[
-            (Dimension::Environment, "prod"),
+            (Dimension::CheckInEnvironment, "prod"),
             (Dimension::CheckInSlug, "cron1"),
         ]))));
         assert!(quota.matches(&dimensioned_scoping(Some(&[
             (Dimension::CheckInSlug, "cron1"),
-            (Dimension::Environment, "prod"),
+            (Dimension::CheckInEnvironment, "prod"),
         ]))));
 
         // A subset of the required dimensions does not match.
@@ -1317,7 +1334,7 @@ mod tests {
         // A quota without dimensions applies to every item, dimensioned or not.
         assert!(quota.matches(&dimensioned_scoping(None)));
         assert!(quota.matches(&dimensioned_scoping(Some(&[
-            (Dimension::Environment, "prod"),
+            (Dimension::CheckInEnvironment, "prod"),
             (Dimension::CheckInSlug, "cron1"),
         ]))));
     }
@@ -1326,11 +1343,12 @@ mod tests {
     fn test_dimensions_as_string() {
         let quota = dimensioned_quota(GroupBy {
             max_cardinality: 999,
-            dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+            dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                .into(),
         });
 
         let key = dimensioned_scoping(Some(&[
-            (Dimension::Environment, "prod"),
+            (Dimension::CheckInEnvironment, "prod"),
             (Dimension::CheckInSlug, "cron1"),
         ]))
         .dimensions_as_string(&quota);
@@ -1339,7 +1357,7 @@ mod tests {
         let parts = key.split(':').collect::<Vec<_>>();
         assert_eq!(parts.len(), 5);
         assert_eq!(parts[0], "");
-        assert_eq!(parts[1], Dimension::Environment.to_string());
+        assert_eq!(parts[1], Dimension::CheckInEnvironment.to_string());
         assert_eq!(parts[3], Dimension::CheckInSlug.to_string());
         assert!(parts[2].parse::<u64>().is_ok());
         assert!(parts[4].parse::<u64>().is_ok());
@@ -1358,7 +1376,7 @@ mod tests {
         assert_eq!(
             dimensioned_scoping(Some(&[
                 (Dimension::CheckInSlug, "cron1"),
-                (Dimension::Environment, "prod"),
+                (Dimension::CheckInEnvironment, "prod"),
             ]))
             .dimensions_as_string(&quota),
             expected
@@ -1372,7 +1390,8 @@ mod tests {
             dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
         };
 
-        let dimensioned_item = dimensioned_scoping(Some(&[(Dimension::Environment, "prod")]));
+        let dimensioned_item =
+            dimensioned_scoping(Some(&[(Dimension::CheckInEnvironment, "prod")]));
 
         // Neither side having dimensions, or only one side having them, collapses to the
         // single "no dimensions" bucket.
@@ -1405,7 +1424,7 @@ mod tests {
             "window": 42,
             "groupBy": {
                 "maxCardinality": 100,
-                "dimensions": ["checkInSlug", "environment"]
+                "dimensions": ["checkInSlug", "checkInEnvironment"]
             }
         }"#;
 
@@ -1421,13 +1440,13 @@ mod tests {
           limit: Some(4711),
           window: Some(42),
           namespace: None,
-          groupBy: GroupBy(
+          groupBy: Some(GroupBy(
             maxCardinality: 100,
             dimensions: [
-              environment,
+              checkInEnvironment,
               checkInSlug,
             ],
-          ),
+          )),
         )
         "#);
 
@@ -1458,13 +1477,13 @@ mod tests {
           limit: Some(4711),
           window: Some(42),
           namespace: None,
-          groupBy: GroupBy(
+          groupBy: Some(GroupBy(
             maxCardinality: 999,
             dimensions: [
               unknown,
               checkInSlug,
             ],
-          ),
+          )),
         )
         "#);
 

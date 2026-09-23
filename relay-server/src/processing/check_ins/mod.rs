@@ -200,7 +200,7 @@ impl CountRateLimited for Managed<ExpandedCheckIn> {
     fn dimensions(&self) -> Option<Arc<BTreeMap<Dimension, String>>> {
         let dims = [
             (
-                relay_quotas::Dimension::Environment,
+                relay_quotas::Dimension::CheckInEnvironment,
                 self.check_in.environment.clone().unwrap_or_default(),
             ),
             (
@@ -256,7 +256,7 @@ mod tests {
             check_in.dimensions(),
             Some(
                 BTreeMap::from([
-                    (Dimension::Environment, "production".to_owned()),
+                    (Dimension::CheckInEnvironment, "production".to_owned()),
                     (Dimension::CheckInSlug, "my-monitor".to_owned()),
                 ])
                 .into()
@@ -283,7 +283,7 @@ mod tests {
             check_in.dimensions(),
             Some(
                 BTreeMap::from([
-                    (Dimension::Environment, String::new()),
+                    (Dimension::CheckInEnvironment, String::new()),
                     (Dimension::CheckInSlug, "my-monitor".to_owned()),
                 ])
                 .into()
