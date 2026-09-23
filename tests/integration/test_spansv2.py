@@ -787,6 +787,7 @@ def test_spansv2_ds_root_in_different_org(
             "span_id": "eee19b7ec3c1b175",
             "is_segment": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
         trace_info={
