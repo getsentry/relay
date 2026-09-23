@@ -964,7 +964,7 @@ impl ObjectstoreServiceInner {
             } => {
                 let UploadRef { key, upload_id: _ } = upload_ref;
 
-                let request = session.put_stream(body.boxed()).key(key);
+                let request = session.put_stream(body.boxed()).key(key).compress(None);
                 let response = request
                     .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                         u64::from(retention) * 24,

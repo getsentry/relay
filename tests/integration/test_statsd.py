@@ -9,7 +9,6 @@ def test_metrics_prefix(mini_sentry, relay_with_processing, processing_config):
         host, port = statsd.getsockname()
         options = processing_config(
             {
-                "processing": {"use_arroyo": True},
                 "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
             }
         )
@@ -40,7 +39,6 @@ def test_arroyo_application_tag(mini_sentry, relay_with_processing, processing_c
         host, port = statsd.getsockname()
         options = processing_config(
             {
-                "processing": {"use_arroyo": True},
                 "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
             }
         )

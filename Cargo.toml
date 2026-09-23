@@ -142,7 +142,7 @@ hyper = "1"
 hyper-util = { version = "0.1", features = ["tokio"] }
 indexmap = "2"
 insta = { version = "1", features = ["json", "redactions", "ron"] }
-ipnetwork = "0.21"
+ipnetwork = { version = "0.21", features = ["serde"] }
 itertools = "0.14"
 json-forensics = "0.1"
 libc = "0.2"

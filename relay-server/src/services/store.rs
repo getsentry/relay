@@ -94,7 +94,7 @@ struct Producer {
 
 impl Producer {
     pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder(config.use_arroyo());
+        let mut client_builder = KafkaClient::builder();
 
         for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;

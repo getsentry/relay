@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
+use std::net::IpAddr;
 use std::{fmt, str};
 
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
@@ -401,6 +402,8 @@ pub enum Val<'a> {
     String(&'a str),
     /// A hexadecimal ID (UUID, span ID, &c).
     HexId(HexId<'a>),
+    /// An IPv4 or IPv6 address.
+    IpAddr(IpAddr),
     /// An array of annotated values.
     Array(Arr<'a>),
     /// A mapping of strings to annotated values.
@@ -505,6 +508,12 @@ impl<'a> From<&'a Uuid> for Val<'a> {
     }
 }
 
+impl From<IpAddr> for Val<'_> {
+    fn from(value: IpAddr) -> Self {
+        Self::IpAddr(value)
+    }
+}
+
 impl<'a, T> From<&'a T> for Val<'a>
 where
     Val<'a>: From<T>,
@@ -544,6 +553,7 @@ impl PartialEq for Val<'_> {
             (Self::F64(l0), Self::F64(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::HexId(l0), Self::HexId(r0)) => l0 == r0,
+            (Self::IpAddr(l0), Self::IpAddr(r0)) => l0 == r0,
             (Self::Array(_), Self::Array(_)) => false,
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,

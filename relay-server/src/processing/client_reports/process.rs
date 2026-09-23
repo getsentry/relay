@@ -15,6 +15,7 @@ use crate::processing::client_reports::{
 };
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
+use crate::statsd::RelayCounters;
 
 /// Parses serialized client reports and extracts their outcomes.
 ///
@@ -127,6 +128,13 @@ fn emit_outcome(
         relay_log::trace!(?outcome_type, reason, "invalid outcome");
         Error::InvalidOutcome
     })?;
+
+    if matches!(outcome, Outcome::FilteredSampling(_)) {
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingDroppedExternal) += quantity,
+            category = category.name(),
+        );
+    }
 
     outcome_aggregator.send(TrackOutcome {
         // If we get to this point, the unwrap should not be used anymore, since we know by
