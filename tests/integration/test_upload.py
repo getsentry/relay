@@ -118,6 +118,78 @@ def test_forward_patch(
     assert response.status_code == expected_status_code, response.text
 
 
+@pytest.mark.parametrize(
+    "header,value,expected_status_code,expected_detail",
+    [
+        pytest.param(
+            "Upload-Offset",
+            "10",
+            409,
+            "expected Upload-Offset: 0, got: Some(10)",
+            id="offset mismatch",
+        ),
+        pytest.param(
+            "Upload-Offset",
+            None,
+            400,
+            "expected Upload-Offset: 0, got: None",
+            id="offset missing",
+        ),
+        pytest.param(
+            "Content-Type",
+            "application/octet-stream",
+            415,
+            "expected Content-Type: application/offset+octet-stream, "
+            "got: application/octet-stream",
+            id="wrong content type",
+        ),
+        pytest.param(
+            "Content-Type",
+            None,
+            415,
+            "expected Content-Type: application/offset+octet-stream, got: ",
+            id="missing content type",
+        ),
+    ],
+)
+def test_invalid_headers(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    header,
+    value,
+    expected_status_code,
+    expected_detail,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Content-Type": "application/offset+octet-stream",
+        "Upload-Offset": "0",
+    }
+    if value is None:
+        del headers[header]
+    else:
+        headers[header] = value
+
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
+        headers=headers,
+        data=b"hello world",
+    )
+
+    assert response.status_code == expected_status_code, response.text
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.json() == {"detail": expected_detail}
+
+
 def test_post_retries(mini_sentry, relay, project_config):
     """POST (create) requests forwarded to the upstream are retried.
 
@@ -164,10 +236,10 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: (missing)",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: (missing)"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: (missing)",
     }
 
 
@@ -188,10 +260,10 @@ def test_upload_unsupported_tus_version(
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: 0.2.0"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: 0.2.0",
     }
 
 
@@ -233,14 +305,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": (
-            "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ),
-        "causes": [
-            "expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ],
+        "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=None",
     }
 
 
@@ -522,14 +587,7 @@ def test_upload_with_deferred_length(
     else:
         assert response.status_code == 400
         assert response.json() == {
-            "detail": (
-                "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ),
-            "causes": [
-                "expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ],
+            "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=Some(2)",
         }
 
 
