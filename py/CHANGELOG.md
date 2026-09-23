@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.9.31
 
-- Add the `CIDR` rule condition for generic inbound filters. ([#6374](https://github.com/getsentry/relay/pull/6374)) 
+- Add the `CIDR` rule condition for generic inbound filters. ([#6374](https://github.com/getsentry/relay/pull/6374))
 
 ## 0.9.30
 
