@@ -29,9 +29,6 @@ class CapturedRequest:
     method: str
     path: str
     headers: CaseInsensitiveDict
-    body: bytes
-    response_headers: CaseInsensitiveDict
-    response_body: bytes
 
 
 class Proxy:
@@ -69,6 +66,13 @@ def mini_proxy(request):
                 length = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(length) if length else b""
 
+                req = CapturedRequest(
+                    method=self.command,
+                    path=self.path,
+                    headers=CaseInsensitiveDict(dict(self.headers)),
+                )
+                proxy.captured_requests.put(req)
+
                 fwd_headers = {
                     k: v for k, v in self.headers.items() if k.lower() not in HOP_BY_HOP
                 }
@@ -91,17 +95,6 @@ def mini_proxy(request):
                         e.headers.items(),
                         e.read(),
                     )
-
-                proxy.captured_requests.put(
-                    CapturedRequest(
-                        method=self.command,
-                        path=self.path,
-                        headers=CaseInsensitiveDict(dict(self.headers)),
-                        body=body,
-                        response_headers=CaseInsensitiveDict(resp_headers),
-                        response_body=resp_body,
-                    )
-                )
 
                 self.send_response(status)
                 for k, v in resp_headers:

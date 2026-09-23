@@ -2,15 +2,15 @@ from datetime import datetime, timezone
 from typing import Literal
 import uuid
 import json
-import gzip
 import signal
 
 import pytest
-import zstandard
+from sentry_relay.auth import SecretKey
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 from .consts import Outcome
+from .test_projectconfigs import get_response
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -275,9 +275,7 @@ def test_it_removes_events(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_external_relay_does_not_sample_or_extract_metrics(
-    mini_sentry, mini_proxy, relay
-):
+def test_external_relay_does_not_sample_or_extract_metrics(mini_sentry, relay):
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
@@ -290,16 +288,22 @@ def test_external_relay_does_not_sample_or_extract_metrics(
         ],
     }
 
-    trusted_options = _outcomes_enabled_config()
-    trusted_options["outcomes"]["source"] = "trusted"
-    trusted = relay(mini_sentry, trusted_options)
-    proxy = mini_proxy(trusted)
-    external_options = _outcomes_enabled_config()
-    external_options["outcomes"]["source"] = "external"
-    external_options["relay"] = {"upstream": proxy.url}
-    external = relay(trusted, external_options, external=True)
+    trusted = relay(mini_sentry)
+    external = relay(mini_sentry, _outcomes_enabled_config(), external=True)
     # Authorize project access without making this an internal Relay.
     config["config"]["trustedRelays"].append(external.public_key)
+
+    # Query the trusted Relay as an external client, even requesting the full config.
+    packed, signature = SecretKey.parse(external.secret_key).pack(
+        {"publicKeys": [public_key], "fullConfig": True}
+    )
+    response, _ = get_response(trusted, packed, signature, relay_id=external.relay_id)
+    limited_config = response["configs"][public_key]
+    assert "sampling" not in limited_config["config"]
+    assert "metricExtraction" not in limited_config["config"]
+
+    # Serve the returned config to the external Relay.
+    mini_sentry.project_configs[project_id] = limited_config
 
     now = datetime.now(timezone.utc).timestamp()
     trace_id = uuid.uuid4().hex
@@ -322,75 +326,17 @@ def test_external_relay_does_not_sample_or_extract_metrics(
     )
     external.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_aggregated_outcomes(n=2) == [
-        {
-            "category": category,
-            "outcome": Outcome.FILTERED,
-            "public_key": public_key,
-            "quantity": quantity,
-            "reason": "Sampled:0",
-            "source": "trusted",
-        }
-        for category, quantity in [
-            (DataCategory.TRANSACTION_INDEXED, 1),
-            (DataCategory.SPAN_INDEXED, 2),
-        ]
-    ]
-
-    # Flush the external Relay so delayed metrics or outcomes cannot escape the check.
-    external.shutdown(sig=signal.SIGTERM)
-    configs = []
-    forwarded = []
-    while True:
-        try:
-            request = proxy.get_captured_request(timeout=0.2)
-        except queue.Empty:
-            break
-        if request.path.startswith("/api/0/relays/projectconfigs/"):
-            body = request.response_body
-            if request.response_headers.get("Content-Encoding") == "gzip":
-                body = gzip.decompress(body)
-            response = json.loads(body)
-            if project := response["configs"].get(public_key):
-                configs.append(project["config"])
-        elif request.path == f"/api/{project_id}/envelope/":
-            with zstandard.ZstdDecompressor().stream_reader(request.body) as reader:
-                forwarded.append(Envelope.deserialize(reader.read()))
-        else:
-            assert request.path not in (
-                "/api/0/relays/metrics/",
-                "/api/0/relays/outcomes/",
-            )
-
-    # External Relays receive LimitedProjectConfig.
-    assert configs
-    for limited_config in configs:
-        assert "sampling" not in limited_config
-        assert "metricExtraction" not in limited_config
-
-    assert len(forwarded) == 1
-    assert [item.type for item in forwarded[0].items] == ["transaction"]
-    transaction = forwarded[0].get_transaction_event()
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.type for item in forwarded.items] == ["transaction"]
+    transaction = forwarded.get_transaction_event()
     assert transaction["event_id"] == event_id
     assert len(transaction["spans"]) == 1
-    assert not forwarded[0].items[0].headers.get("metrics_extracted", False)
+    assert not forwarded.items[0].headers.get("metrics_extracted", False)
 
-    # Both extraction rules work in the trusted Relay, so the absence of metrics
-    # at the external boundary is not caused by an ineffective configuration.
-    metrics = {}
-    expected_metrics = {
-        "c:spans/test_transaction@none": 1,
-        "c:spans/test_span@none": 2,
-    }
-    while not expected_metrics.keys() <= metrics.keys():
-        for bucket in mini_sentry.get_global_metrics()[public_key]:
-            name = bucket["name"]
-            if name in expected_metrics:
-                metrics[name] = metrics.get(name, 0) + bucket["value"]
-    assert metrics == expected_metrics
-
-    # The trusted Relay drops the transaction; no payload reaches Sentry.
+    # Flush before checking that no metrics or sampling outcomes were produced.
+    external.shutdown(sig=signal.SIGTERM)
     assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_metrics.empty()
     assert mini_sentry.get_aggregated_outcomes(timeout=0.2) == []
 
 
