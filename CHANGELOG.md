@@ -23,6 +23,7 @@
 
 **Internal**:
 
+- Update sentry-conventions to 0.24.0. Adds the `browser.web_vital.inp.target` and `browser.web_vital.inp.interaction_type` attributes, the `react_native.*` module attributes that the `turbo_module.*` ones now backfill into, and span name and description inference for `ui` operations. ([#6418](https://github.com/getsentry/relay/pull/6418))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
