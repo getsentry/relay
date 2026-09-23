@@ -4545,6 +4545,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-redis",
+ "sentry_arroyo",
  "serde",
  "serde-vars",
  "serde_json",
@@ -5716,8 +5717,7 @@ dependencies = [
 [[package]]
 name = "sentry_arroyo"
 version = "2.44.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "665b862f3ac6675144a67082121f7bc4cfcb1fe83cba8ef2a943560f2fdffcc6"
+source = "git+https://github.com/getsentry/arroyo?branch=reloading-producer-context#f72aee1e481059e6f05a9ff6c1ce3ac54d891cf3"
 dependencies = [
  "chrono",
  "coarsetime",

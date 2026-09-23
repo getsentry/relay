@@ -205,7 +205,7 @@ sentry = { version = "0.48", default-features = false, features = [
     "panic",
     "transport",
 ] }
-sentry_arroyo = "2.44.1"
+sentry_arroyo = { git = "https://github.com/getsentry/arroyo", branch = "reloading-producer-context" }
 sentry-core = "0.48"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use relay_config::Config;
+#[cfg(feature = "processing")]
+use relay_kafka::KafkaClient;
 use relay_system::{Receiver, Service};
 
 use crate::statsd::RelayCounters;
@@ -8,11 +10,40 @@ use crate::statsd::RelayCounters;
 /// Service which watches for configuration changes and reloads the config.
 pub struct ConfigReloadService {
     config: Arc<Config>,
+    /// The store's Kafka client, when this Relay produces to Kafka.
+    ///
+    /// Topics using the reloading producer take their new broker settings from here; see
+    /// `processing.reloading_producer_topics`. Everything else picks them up on restart.
+    #[cfg(feature = "processing")]
+    kafka_client: Option<Arc<KafkaClient>>,
 }
 
 impl ConfigReloadService {
-    pub fn new(config: Arc<Config>) -> Self {
-        Self { config }
+    pub fn new(
+        config: Arc<Config>,
+        #[cfg(feature = "processing")] kafka_client: Option<Arc<KafkaClient>>,
+    ) -> Self {
+        Self {
+            config,
+            #[cfg(feature = "processing")]
+            kafka_client,
+        }
+    }
+
+    /// Hands the reloaded Kafka config to producers that can swap their client.
+    #[cfg(feature = "processing")]
+    fn push_kafka_config(&self) {
+        let Some(client) = &self.kafka_client else {
+            return;
+        };
+
+        match self.config.current().kafka_config_blob() {
+            Ok(blob) => client.push_kafka_config(&blob),
+            Err(error) => relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "could not build the kafka config blob",
+            ),
+        }
     }
 
     async fn handle_reload(&mut self) {
@@ -34,7 +65,12 @@ impl ConfigReloadService {
             }
             Ok(Ok(true)) => {
                 relay_statsd::metric!(counter(RelayCounters::ConfigReload) += 1);
-                relay_log::info!("configuration reloaded!")
+                relay_log::info!("configuration reloaded!");
+                // `reload` reports any reloadable change, so this also fires for one that
+                // left the Kafka config alone. Arroyo compares the resolved config and
+                // ignores a push that changes nothing, so a redundant one is harmless.
+                #[cfg(feature = "processing")]
+                self.push_kafka_config();
             }
             Ok(Ok(false)) => (),
         }
@@ -115,7 +151,11 @@ health:
 
         let config = Arc::new(Config::from_path(dir.path()).unwrap());
 
-        let service = ConfigReloadService::new(config.clone());
+        let service = ConfigReloadService::new(
+            config.clone(),
+            #[cfg(feature = "processing")]
+            None,
+        );
         service.start_detached();
 
         write_config_atomic(dir.path(), "2000");
@@ -136,7 +176,11 @@ health:
 
         let config = Arc::new(Config::from_path(dir.path()).unwrap());
 
-        let service = ConfigReloadService::new(config.clone());
+        let service = ConfigReloadService::new(
+            config.clone(),
+            #[cfg(feature = "processing")]
+            None,
+        );
         service.start_detached();
 
         std::fs::write(&ref_file, b"2000").unwrap();

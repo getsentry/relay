@@ -3,10 +3,12 @@ import os
 import queue
 import socket
 import threading
+import time
 import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+import yaml
 from sentry_relay.consts import DataCategory
 
 import pytest
@@ -1197,3 +1199,93 @@ def test_error_with_type_transaction_fixed_by_inference_even_if_only_feature_fla
     ingested, _ = events_consumer.get_event(timeout=7)
     assert ingested["type"] == "error"
     events_consumer.assert_empty()
+
+
+def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
+    mini_sentry, relay_with_processing, events_consumer, processing_config
+):
+    """
+    Rewriting `kafka_config` must replace the Kafka client underneath a running Relay, without
+    interrupting produce.
+
+    This is the whole point of the feature: with a static client the config change is simply
+    ignored until a restart, so the test asserts the swap actually happened rather than just
+    that events still arrive.
+    """
+    events_consumer = events_consumer()
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as statsd:
+        statsd.bind(("127.0.0.1", 0))
+        statsd.settimeout(60)
+        host, port = statsd.getsockname()
+
+        options = processing_config(
+            {
+                "relay": {"config_reload_interval": 1},
+                "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
+                "processing": {
+                    "reloading_producer_topics": ["ingest-events"],
+                    # Swap as soon as the config lands, instead of spreading it out.
+                    "reloading_producer_jitter_secs": 0,
+                },
+            }
+        )
+        relay = relay_with_processing(options=options)
+        mini_sentry.add_full_project_config(42)
+
+        # Produce once before the change, so a swap that breaks the client is distinguishable
+        # from one that never worked.
+        before = f"before reload {uuid.uuid4()}"
+        relay.send_event(42, {"message": before})
+        event, _ = events_consumer.get_event()
+        assert event["logentry"]["formatted"] == before
+
+        # Add a harmless producer setting. It resolves to a different config, which is what
+        # makes this a reload rather than a no-op, while still pointing at the same broker.
+        options["processing"]["kafka_config"] = options["processing"]["kafka_config"] + [
+            {"name": "message.timeout.ms", "value": "300000"}
+        ]
+        relay.config_dir.join("config.yml").write(yaml.dump(options))
+
+        # The swap is not synchronous: Relay re-reads the file, pushes the config, and Arroyo
+        # probes a broker before installing. Keep producing until the generation gauge reports
+        # a swap, which also proves produce keeps working the whole way through.
+        #
+        # The gauge rides along with produce metrics, which are debounced to once a second, so
+        # this has to keep sending rather than wait on a quiet socket.
+        statsd.settimeout(2)
+        deadline = time.monotonic() + 60
+        swapped = False
+
+        while not swapped:
+            assert time.monotonic() < deadline, "timed out waiting for the client to swap"
+
+            message = f"after reload {uuid.uuid4()}"
+            relay.send_event(42, {"message": message})
+            # Consume as we go, otherwise the unread events fail `assert_empty` at teardown.
+            events_consumer.get_event(timeout=5)
+
+            try:
+                datagram = statsd.recv(65535).decode()
+            except TimeoutError:
+                continue
+
+            for metric in datagram.splitlines():
+                name, _, rest = metric.partition(":")
+                if (
+                    name == "relay.kafka.reload_generation"
+                    and float(rest.partition("|")[0]) >= 1
+                ):
+                    swapped = True
+                    break
+
+        # The client that replaced the original one has to actually produce.
+        message = f"after swap {uuid.uuid4()}"
+        relay.send_event(42, {"message": message})
+
+        deadline = time.monotonic() + 30
+        while True:
+            assert time.monotonic() < deadline, "no event arrived after the swap"
+            event, _ = events_consumer.get_event(timeout=5)
+            if event["logentry"]["formatted"] == message:
+                break

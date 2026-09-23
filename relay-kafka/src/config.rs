@@ -306,7 +306,7 @@ impl TopicAssignment {
 }
 
 /// A name value pair of Kafka config parameter.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct KafkaConfigParam {
     /// Name of the Kafka config parameter.
     pub name: String,
