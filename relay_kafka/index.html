@@ -6,7 +6,7 @@ broker.</p>
 <div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code>    <span class="kw">use </span>relay_kafka::{KafkaClient, KafkaTopic};
 
     <span class="comment">// Get the builder.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>builder = KafkaClient::builder(<span class="bool-val">false</span>);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>builder = KafkaClient::builder();
 
     <span class="comment">// Then one can add different configs per topic.
     </span>builder = builder.add_kafka_topic_config(KafkaTopic::Events, <span class="kw-2">&amp;</span>kafka_config_events).unwrap();
