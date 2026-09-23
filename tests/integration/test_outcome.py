@@ -1344,6 +1344,7 @@ def test_span_outcomes(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     outcomes_consumer,
     num_intermediate_relays,
 ):
@@ -1384,21 +1385,24 @@ def test_span_outcomes(
         },
     }
 
-    # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(config)
+    # The innermost Relay needs to be in processing mode and trust the PoP Relay.
+    pop_credentials = relay_credentials()
+    upstream = relay_with_processing(config, static_credentials=pop_credentials)
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
         config = deepcopy(config)
         if i == 0:
             # Emulate a PoP Relay
+            credentials = pop_credentials
             config["outcomes"]["source"] = "pop-relay"
             config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
+            credentials = None
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
-        upstream = relay(upstream, config)
+        upstream = relay(upstream, config, credentials=credentials)
 
     def make_envelope(transaction_name):
         payload = _get_event_payload("transaction")
