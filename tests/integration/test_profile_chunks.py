@@ -106,6 +106,7 @@ def test_profile_chunk_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config["cache"]["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"

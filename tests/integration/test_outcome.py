@@ -824,12 +824,11 @@ def test_profile_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config["cache"]["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
-        # Only the PoP Relay requests the full config needed for dynamic sampling.
-        config["cache"] = {"project_request_full_config": i == 0}
         upstream = relay(upstream, config)
 
     with open(
@@ -1394,13 +1393,11 @@ def test_span_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
-            config["http"] = {"global_metrics": True}
+            config["cache"]["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
-        # Only the PoP Relay requests the full config needed for dynamic sampling.
-        config["cache"] = {"project_request_full_config": i == 0}
         upstream = relay(upstream, config)
 
     def make_envelope(transaction_name):
