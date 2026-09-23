@@ -13,6 +13,7 @@
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
+- Disable dynamic sampling and metrics extraction in Managed relays. For users with a dynamic sampling rate < 1, this increases the outgoing request volume of the Managed relay. ([#6413](https://github.com/getsentry/relay/pull/6413))
 
 **Internal**:
 
