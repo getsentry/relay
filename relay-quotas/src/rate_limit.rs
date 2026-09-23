@@ -573,8 +573,8 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
+    use crate::MetricNamespaceScoping;
     use crate::quota::DataCategory;
-    use crate::{GroupBy, MetricNamespaceScoping};
 
     #[test]
     fn test_parse_retry_after() {
@@ -1130,7 +1130,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         assert!(
@@ -1248,7 +1248,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, &item_scoping);

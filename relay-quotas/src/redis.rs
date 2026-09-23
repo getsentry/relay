@@ -220,7 +220,11 @@ impl<'a> RedisQuota<'a> {
     /// for some set of dimensions. If we don't have any dimensions, than all values will hash
     /// to the same bucket, so we can just say the cardinality is 1 in that case.
     pub fn max_dimensions_cardinality(&self) -> u32 {
-        self.group_by.max_cardinality
+        if let Some(group_by) = &self.group_by {
+            group_by.max_cardinality
+        } else {
+            1
+        }
     }
 
     /// Returns a [`cache::Quota`] built from this [`RedisQuota`].
@@ -551,7 +555,7 @@ mod tests {
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
-                group_by: GroupBy::default(),
+                group_by: None,
             },
             Quota {
                 id: Some("42".into()),
@@ -562,7 +566,7 @@ mod tests {
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
                 namespace: None,
-                group_by: GroupBy::default(),
+                group_by: None,
             },
         ];
 
@@ -611,7 +615,7 @@ mod tests {
                 window: Some(600),
                 reason_code: Some(ReasonCode::new(format!("ns: {namespace:?}"))),
                 namespace,
-                group_by: GroupBy::default(),
+                group_by: None,
             }
         };
 
@@ -682,7 +686,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -735,7 +739,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -800,7 +804,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -886,7 +890,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
                 namespace: None,
-                group_by: GroupBy::default(),
+                group_by: None,
             },
             Quota {
                 id: Some("q1".into()),
@@ -897,7 +901,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
                 namespace: None,
-                group_by: GroupBy::default(),
+                group_by: None,
             },
         ];
 
@@ -951,7 +955,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -1004,7 +1008,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -1038,7 +1042,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -1069,7 +1073,7 @@ mod tests {
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -1413,7 +1417,7 @@ mod tests {
         assert_eq!(result[0].consumed, 1);
 
         // All buckets live in the same hash, under the same expiry.
-        let mut fields: Vec<(String, i64)> = conn.hgetall(&key).await.unwrap();
+        let mut fields: Vec<(String, i64)> = conn.hgetall(&(key.clone() + ":hash")).await.unwrap();
         fields.sort();
         assert_eq!(
             fields,
@@ -1584,7 +1588,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -1645,7 +1649,7 @@ mod tests {
             window: Some(window),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: GroupBy::default(),
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -1725,9 +1729,13 @@ mod tests {
                 namespace: None,
                 group_by: GroupBy {
                     max_cardinality: 999,
-                    dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug])
-                        .into(),
-                },
+                    dimensions: BTreeSet::from([
+                        Dimension::CheckInEnvironment,
+                        Dimension::CheckInSlug,
+                    ])
+                    .into(),
+                }
+                .into(),
             },
             Quota {
                 id: Some(format!("test_quota_wont_go_over{}", uuid::Uuid::new_v4()).into()),
@@ -1738,7 +1746,7 @@ mod tests {
                 window: Some(60),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
-                group_by: GroupBy::default(),
+                group_by: None,
             },
         ];
 
@@ -1752,7 +1760,7 @@ mod tests {
             },
             namespace: MetricNamespaceScoping::None,
             dimensions: BTreeMap::from([
-                (Dimension::Environment, "us".to_owned()),
+                (Dimension::CheckInEnvironment, "us".to_owned()),
                 (Dimension::CheckInSlug, "cron1".to_owned()),
             ])
             .into(),
@@ -1805,7 +1813,7 @@ mod tests {
     }
 
     /// Builds a project-scoped monitor quota with the passed dimensions and limit.
-    fn monitor_quota(limit: u64, dimensions: GroupBy) -> Quota {
+    fn monitor_quota(limit: u64, group_by: GroupBy) -> Quota {
         Quota {
             id: Some(format!("test_dimensions_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
@@ -1815,7 +1823,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: dimensions,
+            group_by: Some(group_by),
         }
     }
 
@@ -1845,7 +1853,8 @@ mod tests {
             1,
             GroupBy {
                 max_cardinality: 999,
-                dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
             },
         )];
 
@@ -1855,15 +1864,15 @@ mod tests {
         // gets the full limit of 1 for itself.
         let distinct = [
             [
-                (Dimension::Environment, "prod"),
+                (Dimension::CheckInEnvironment, "prod"),
                 (Dimension::CheckInSlug, "cron1"),
             ],
             [
-                (Dimension::Environment, "prod"),
+                (Dimension::CheckInEnvironment, "prod"),
                 (Dimension::CheckInSlug, "cron2"),
             ],
             [
-                (Dimension::Environment, "dev"),
+                (Dimension::CheckInEnvironment, "dev"),
                 (Dimension::CheckInSlug, "cron1"),
             ],
         ];
@@ -1915,11 +1924,11 @@ mod tests {
         // The quota only keys on the slug, so these two items share a bucket despite their
         // differing environments.
         let prod = monitor_scoping(&[
-            (Dimension::Environment, "prod"),
+            (Dimension::CheckInEnvironment, "prod"),
             (Dimension::CheckInSlug, "cron1"),
         ]);
         let dev = monitor_scoping(&[
-            (Dimension::Environment, "dev"),
+            (Dimension::CheckInEnvironment, "dev"),
             (Dimension::CheckInSlug, "cron1"),
         ]);
 
@@ -1984,7 +1993,8 @@ mod tests {
             1,
             GroupBy {
                 max_cardinality: 999,
-                dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
             },
         )];
 
