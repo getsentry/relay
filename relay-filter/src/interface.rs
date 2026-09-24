@@ -1,8 +1,8 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
 use relay_conventions::attributes::{
-    BROWSER__NAME, BROWSER__VERSION, CLIENT__ADDRESS, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
-    URL__FULL, USER_AGENT__ORIGINAL, SENTRY__IS_LOCALHOST
+    BROWSER__NAME, BROWSER__VERSION, CLIENT__ADDRESS, SENTRY__IS_LOCALHOST, SENTRY__RELEASE,
+    SENTRY__SEGMENT__NAME, URL__FULL, USER_AGENT__ORIGINAL,
 };
 use url::Url;
 
@@ -240,10 +240,24 @@ macro_rules! impl_for_attributes {
     ($ty:ty) => {
         impl Filterable for $ty {
             fn ip_addr(&self) -> Option<&str> {
-                let is_localhost = self.attributes.value()?.get_value(SENTRY__IS_LOCALHOST).and_then(|v|v.as_bool());
+                let attributes = self.attributes.value()?;
+
+                // If the SDK indicates this really is a local host request, use this information
+                // to provide the IP to filter on.
+                let is_localhost = attributes
+                    .get_value(SENTRY__IS_LOCALHOST)
+                    .and_then(|v| v.as_bool());
                 if let Some(true) = is_localhost {
                     return Some("127.0.0.1");
                 }
+
+                // Otherwise fall back to the more generic client address.
+                //
+                // This may be inferred from Relay (even for requests happening on localhost),
+                // and therefor is just the fallback.
+                //
+                // This may happen for example for single page applications running in the browser,
+                // they really are on `localhost` but Relay infers the internet ip address.
                 self.attributes
                     .value()?
                     .get_value(CLIENT__ADDRESS)?
