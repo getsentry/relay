@@ -316,6 +316,7 @@ impl Service {
                 use crate::services::objectstore::UploadRef;
                 let config = config.current();
 
+                // TODO: Do we really need the key creation here?
                 // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
                 #[cfg(debug_assertions)]
@@ -328,7 +329,10 @@ impl Service {
                 } = project.scoping;
 
                 let (key, upload_id) = match length {
-                    None | Some(0) => (key, None), // multipart does not allow empty uploads
+                    // If the create has a `Upload-Defer-Length: 1` than skip going to object store.
+                    // This is because objectstore requires us to know the size of a resumable upload
+                    // when creating it (which we don't).
+                    None => (key, None),
                     Some(length) => {
                         let UploadRef {
                             key,
@@ -392,6 +396,8 @@ impl Service {
                     other,
                 } = location.verify(received, &config)?;
 
+                // TODO: Maybe need to assert that if length is none so must upload_id.
+
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
@@ -409,8 +415,12 @@ impl Service {
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
-                // FIXME: This is not correct yet
-                let length = Final(byte_counter.get());
+                // FIXME: This is hacky rather move it into the object-store service.
+                let (offset, length) = if let Some(length) = length.0 {
+                    (upload_ref.offset, Final(length))
+                } else {
+                    (byte_counter.get(), Final(byte_counter.get()))
+                };
 
                 Ok(StreamResult {
                     location: Location {
@@ -421,7 +431,7 @@ impl Service {
                         other,
                     }
                     .try_sign(&config)?,
-                    offset: upload_ref.offset,
+                    offset,
                 })
             }
         }
@@ -516,6 +526,8 @@ pub struct Location<L> {
     pub length: L,
     // FIXME: Decide on weather we want to rename this
     /// Identifies the upload in case the created location has a resumable upload assigned to it.
+    ///
+    /// Note that if Defer-Length-1 than this is always None.
     pub upload_id: Option<String>,
     pub other: UploadParams,
 }

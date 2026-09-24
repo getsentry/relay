@@ -971,6 +971,7 @@ impl ObjectstoreServiceInner {
                         Duration::from_hours(retention_hours.into()),
                     ));
                 }
+                // Note: This is fine since it can't be hit from external relays.
                 if let Some(key) = key {
                     request = request.key(key);
                 }
@@ -1020,7 +1021,9 @@ impl ObjectstoreServiceInner {
                     }
 
                     None => {
-                        let request = session.put_stream(body.boxed()).key(key).compress(None);
+                        // Note: We don't use the key we already have here (since that one is a dummy).
+                        // Instead let objectstore make a new one for us and communicate that one back.
+                        let request = session.put_stream(body.boxed()).compress(None);
                         let response = request
                             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                                 u64::from(retention) * 24,
@@ -1031,7 +1034,7 @@ impl ObjectstoreServiceInner {
                         Ok(UploadRef {
                             key: response.key,
                             session_token: None,
-                            offset: 0, // FIXME: Get the correct value here
+                            offset: 0, // FIXME: Should be the length of the entire one-shotted stream.
                         })
                     }
                 }
