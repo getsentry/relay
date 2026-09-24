@@ -836,18 +836,18 @@ def test_graceful_shutdown(mini_sentry, relay):
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
 
     past_timestamp = timestamp - 1000 + 30
-    metrics_payload = f"spans/past:42|c|T{past_timestamp}"
+    metrics_payload = f"sessions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     future_timestamp = timestamp + 30
-    metrics_payload = f"spans/future:17|c|T{future_timestamp}"
+    metrics_payload = f"sessions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
     relay.process.send_signal(signal.SIGTERM)
 
     time.sleep(0.1)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"spans/now:666|c|T{timestamp}"
+    metrics_payload = f"sessions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
@@ -872,14 +872,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": time_within_delta(past_timestamp, timedelta(seconds=1)),
             "width": 1,
-            "name": "c:spans/past@none",
+            "name": "c:sessions/past@none",
             "value": 42.0,
             "type": "c",
         },
         {
             "timestamp": time_within_delta(future_timestamp, timedelta(seconds=1)),
             "width": 1,
-            "name": "c:spans/future@none",
+            "name": "c:sessions/future@none",
             "value": 17.0,
             "type": "c",
         },
