@@ -2,7 +2,7 @@
 //! the implementation for [`Event`].
 use relay_conventions::attributes::{
     BROWSER__NAME, BROWSER__VERSION, CLIENT__ADDRESS, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
-    URL__FULL, USER_AGENT__ORIGINAL,
+    URL__FULL, USER_AGENT__ORIGINAL, SENTRY__IS_LOCALHOST
 };
 use url::Url;
 
@@ -240,6 +240,10 @@ macro_rules! impl_for_attributes {
     ($ty:ty) => {
         impl Filterable for $ty {
             fn ip_addr(&self) -> Option<&str> {
+                let is_localhost = self.attributes.value()?.get_value(SENTRY__IS_LOCALHOST).and_then(|v|v.as_bool());
+                if let Some(true) = is_localhost {
+                    return Some("127.0.0.1");
+                }
                 self.attributes
                     .value()?
                     .get_value(CLIENT__ADDRESS)?
