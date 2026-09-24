@@ -379,8 +379,8 @@ fn validate_timestamps(span: &SpanV2) -> Result<()> {
 /// Rejects invalid segment IDs.
 ///
 /// The segment ID is not a top-level field, so it not guaranteed to contain a valid span ID.
-
-Validate it here so that downstream consumers don't have to.
+///
+/// Validate it here so that downstream consumers don't have to.
 /// relies on it being a valid span ID.
 fn validate_segment_id(attributes: &Annotated<Attributes>) -> Result<()> {
     let Some(attributes) = attributes.value() else {
