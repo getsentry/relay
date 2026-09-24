@@ -665,9 +665,6 @@ def test_transaction_metrics_extraction_external_relays(mini_sentry, relay):
     assert len(payload) == 4
 
     by_name = {m["name"]: m for m in payload}
-    count_metric = by_name["c:spans/count_per_root_project@none"]
-    assert count_metric["tags"]["transaction"] == "root_transaction"
-    assert count_metric["value"] == 1.0
     usage_metric = by_name["c:spans/usage@none"]
     assert usage_metric["value"] == 1.0
 

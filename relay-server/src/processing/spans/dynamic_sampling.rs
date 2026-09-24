@@ -260,10 +260,6 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
 /// segment, an additional tag is added, indicating if the segment span was created from a
 /// transaction. Currently this processing pipeline is never used for transaction spans and is
 /// therefor this tag is always `false`.
-///
-/// The `c:spans/count_per_root_project@none` metric is incremented for each span and added to the
-/// *sampling project*. The metric is tagged with dynamic sampling information, `decision`,
-/// `target_project_id`, `transaction` (from the trace root) and `is_segment`.
 fn create_metrics(spans: &[ExpandedSpan], sampling_decision: SamplingDecision) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
 

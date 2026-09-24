@@ -444,20 +444,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     assert mini_sentry.get_metrics() == [
         {
             "metadata": matches_any(),
-            "name": "c:spans/count_per_root_project@none",
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-            "width": 1,
-        },
-        {
-            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -537,19 +523,6 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
 
     if rate_limit == DataCategory.SPAN_INDEXED:
         assert mini_sentry.get_metrics() == [
-            {
-                "metadata": matches_any(),
-                "name": "c:spans/count_per_root_project@none",
-                "tags": {
-                    "decision": "keep",
-                    "is_segment": "true",
-                    "target_project_id": "42",
-                },
-                "timestamp": time_within_delta(),
-                "type": "c",
-                "value": 1.0,
-                "width": 1,
-            },
             {
                 "metadata": matches_any(),
                 "name": "c:spans/usage@none",
@@ -795,7 +768,6 @@ def test_spansv2_ds_root_in_different_org(mini_sentry, relay):
     metrics = mini_sentry.get_global_metrics()
     assert set(metrics) == {public_key}
     assert {bucket["name"]: bucket["value"] for bucket in metrics[public_key]} == {
-        "c:spans/count_per_root_project@none": 1,
         "c:spans/usage@none": 1,
     }
     assert mini_sentry.captured_envelopes.empty()
