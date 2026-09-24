@@ -5,10 +5,12 @@ use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
 use relay_config::ConfigSnapshot;
 use relay_event_normalization::eap::{Ingress, Pipeline};
-use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
+use relay_event_schema::protocol::{
+    Event, Measurement, Measurements, RelayInfo, Span, SpanV2, TraceContext,
+};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Array, Empty};
 use relay_sampling::DynamicSamplingContext;
 
 pub fn extract_from_event(
@@ -27,6 +29,7 @@ pub fn extract_from_event(
     let Some(event) = event.value() else {
         return Vec::new();
     };
+    let event_ingest_path = event.ingest_path.value();
 
     let Some(transaction_span) = processing::transactions::extraction::extract_segment_span(
         event,
@@ -70,6 +73,8 @@ pub fn extract_from_event(
 
             results.push(make_span_item(
                 new_span,
+                event_ingest_path,
+                config,
                 client_sample_rate,
                 server_sample_rate,
             ));
@@ -78,6 +83,8 @@ pub fn extract_from_event(
 
     results.push(make_span_item(
         transaction_span,
+        event_ingest_path,
+        config,
         client_sample_rate,
         server_sample_rate,
     ));
@@ -87,6 +94,8 @@ pub fn extract_from_event(
 
 fn make_span_item(
     mut span: Span,
+    event_ingest_path: Option<&Array<RelayInfo>>,
+    config: &Config,
     client_sample_rate: Option<f64>,
     server_sample_rate: Option<f64>,
 ) -> Result<Annotated<SpanV2>, ()> {
@@ -123,6 +132,11 @@ fn make_span_item(
             &mut span.attributes,
             Some(&Ingress::Legacy),
             Some(&Pipeline::Transaction),
+        );
+        processing::utils::ingest_path::normalize_relay_ingest_path_from_event(
+            &mut span.attributes,
+            event_ingest_path,
+            config,
         );
 
         span

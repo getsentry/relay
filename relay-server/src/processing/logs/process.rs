@@ -185,6 +185,7 @@ fn normalize_log(
         }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
         eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress), None);
+        utils::ingest_path::normalize_relay_ingest_path(&mut log.attributes, ctx.config);
     }
 
     if let Annotated(None, meta) = log {

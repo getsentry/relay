@@ -2,6 +2,7 @@ pub mod attachments;
 pub mod dsc;
 pub mod dynamic_sampling;
 pub mod event;
+pub mod ingest_path;
 pub mod normalize;
 #[cfg(feature = "processing")]
 pub mod store;
