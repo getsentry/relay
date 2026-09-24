@@ -33,7 +33,7 @@ def make_dying_message(*items) -> bytes:
     # Payload size
     out.write(payload_size.to_bytes(2, byteorder="big"))
     # Payload
-    out.write(payload_writer.read())
+    out.write(payload)
 
     return out.getvalue()
 
