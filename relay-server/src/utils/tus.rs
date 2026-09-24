@@ -512,7 +512,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(None))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]
@@ -520,9 +520,9 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("512"));
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("-512"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(Some(512)))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]
