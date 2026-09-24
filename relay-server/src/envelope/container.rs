@@ -32,6 +32,10 @@ pub enum ContainerParseError {
         expected: Option<u32>,
         actual: usize,
     },
+    /// The item container specified length does not match the amount of items contained in the
+    /// container.
+    #[error("container deserialization exceeded operations limit {limit}")]
+    LimitExceeded { limit: usize },
     /// The container is malformed and cannot be deserialized.
     #[error("failed to deserialize item container: {0}")]
     Deserialize(#[from] serde_json::Error),
@@ -250,7 +254,7 @@ impl<T: ContainerItem> ItemContainer<T> {
     ///
     /// This function also validates metadata of the container, specifically the content type
     /// and amount of contained items.
-    pub fn parse(item: &Item) -> Result<Self, ContainerParseError> {
+    pub fn parse(item: &Item, max_ops: usize) -> Result<Self, ContainerParseError> {
         if item.content_type() != Some(T::CONTENT_TYPE) {
             return Err(ContainerParseError::MismatchedContentType {
                 expected: T::CONTENT_TYPE,
@@ -268,7 +272,12 @@ impl<T: ContainerItem> ItemContainer<T> {
         let payload = item.payload();
         // Currently we assume every payload is JSON, but in the future we may allow other formats.
         let mut de = serde_json::Deserializer::from_slice(&payload);
-        let container = Self::deserialize(&mut de)?;
+        let container = Self::deserialize(&mut de, max_ops).map_err(|e| match e {
+            relay_serialization::serde::Error::LimitExceeded(limit) => {
+                ContainerParseError::LimitExceeded { limit }
+            }
+            relay_serialization::serde::Error::Serde(e) => ContainerParseError::Deserialize(e),
+        })?;
 
         if Some(container.items.len()) != item.item_count().map(|u| u as usize) {
             return Err(ContainerParseError::MismatchedLength {
@@ -304,7 +313,10 @@ impl<T: ContainerItem> ItemContainer<T> {
         item.ty() == &T::ITEM_TYPE && item.content_type() == Some(T::CONTENT_TYPE)
     }
 
-    fn deserialize<'de, D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<'de, D: de::Deserializer<'de>>(
+        deserializer: D,
+        max_ops: usize,
+    ) -> Result<Self, relay_serialization::serde::Error<D::Error>> {
         struct TryMetadata<T: ContainerItem>(Result<T::Metadata, InvalidMetadata>);
 
         impl<'de, T> Deserialize<'de> for TryMetadata<T>
@@ -340,7 +352,7 @@ impl<T: ContainerItem> ItemContainer<T> {
         let Layout {
             items,
             metadata: TryMetadata(metadata),
-        } = Layout::<T>::deserialize(deserializer)?;
+        } = relay_serialization::serde::deserialize(deserializer, max_ops)?;
 
         Ok(Self { items, metadata })
     }
@@ -477,7 +489,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(2));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::MismatchedLength {
                 expected: Some(2),
                 actual: 1
@@ -495,7 +507,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::MismatchedContentType {
                 expected: ContentType::LogContainer,
                 actual: Some(ContentType::Json),
@@ -513,7 +525,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::MismatchedItemType {
                 expected: ItemType::Log,
                 actual: ItemType::Span,
@@ -531,7 +543,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::MismatchedContentType {
                 expected: ContentType::LogContainer,
                 actual: None,
@@ -550,7 +562,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::Deserialize(_))
         ));
     }
@@ -565,7 +577,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
         assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item),
+            ItemContainer::<TestLog>::parse(&item, usize::MAX),
             Err(ContainerParseError::Deserialize(_))
         ));
     }
@@ -581,7 +593,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(1));
 
-        let container = ItemContainer::<TestLog>::parse(&item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
         assert_debug_snapshot!(container, @r#"
         ItemContainer {
             metadata: Err(
@@ -606,7 +618,7 @@ mod tests {
         container.write_to(&mut new_item).unwrap();
 
         // The invalid value was not persisted and now metadata serializes as default.
-        let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&new_item, usize::MAX).unwrap();
         assert_debug_snapshot!(container, @r#"
         ItemContainer {
             metadata: Ok(
@@ -640,7 +652,7 @@ mod tests {
 
         assert_eq!(item.item_count(), Some(2));
 
-        let container = ItemContainer::<TestLog>::parse(&item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
         assert_debug_snapshot!(container, @r#"
         ItemContainer {
             metadata: Ok(
@@ -681,11 +693,11 @@ mod tests {
         )))
         .unwrap();
 
-        let container = ItemContainer::<TestLog>::parse(&item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
         let mut new_item = Item::new(ItemType::Log);
         container.write_to(&mut new_item).unwrap();
 
-        let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&new_item, usize::MAX).unwrap();
         assert_debug_snapshot!(container, @r#"
         ItemContainer {
             metadata: Ok(
@@ -724,11 +736,11 @@ mod tests {
         )))
         .unwrap();
 
-        let container = ItemContainer::<TestLog>::parse(&item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
         let mut new_item = Item::new(ItemType::Log);
         container.write_to(&mut new_item).unwrap();
 
-        let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
+        let container = ItemContainer::<TestLog>::parse(&new_item, usize::MAX).unwrap();
         assert_debug_snapshot!(container, @r#"
         ItemContainer {
             metadata: Ok(

@@ -657,6 +657,12 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
+    /// The maximum number of operations that can occur in a span expansion.
+    pub max_expanded_log_operations: usize,
+    /// The maximum number of operations that can occur in a span expansion.
+    pub max_expanded_span_operations: usize,
+    /// The maximum number of operations that can occur in a trace metric expansion.
+    pub max_expanded_trace_metric_operations: usize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum amount of standalone transaction spans per envelope.
@@ -751,6 +757,9 @@ impl Default for Limits {
             max_profile_size: ByteSize::mebibytes(50),
             max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(2),
+            max_expanded_log_operations: 3_000_000,
+            max_expanded_span_operations: 3_000_000,
+            max_expanded_trace_metric_operations: 3_000_000,
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
@@ -2574,6 +2583,24 @@ impl ConfigSnapshot {
     /// Returns the maximum payload size of a log in bytes.
     pub fn max_log_size(&self) -> usize {
         self.inner.values.limits.max_log_size.as_bytes()
+    }
+
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_log_operations(&self) -> usize {
+        self.inner.values.limits.max_expanded_log_operations
+    }
+
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_span_operations(&self) -> usize {
+        self.inner.values.limits.max_expanded_span_operations
+    }
+
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_trace_metric_operations(&self) -> usize {
+        self.inner
+            .values
+            .limits
+            .max_expanded_trace_metric_operations
     }
 
     /// Returns the maximum payload size of a span in bytes.

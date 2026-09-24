@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
 use crate::extractors::RequestTrust;
 use crate::managed::Rejected;
 use crate::processing::logs::{
@@ -17,7 +17,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
+pub fn expand(
+    logs: Managed<SerializedLogs>,
+    max_ops: usize,
+) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
     let trust = logs.headers.meta().request_trust();
 
     logs.try_map(|logs, records| {
@@ -42,7 +45,7 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
         };
 
         let (settings, logs) = match items {
-            LogItems::Container(item) => expand_log_container(&item, trust)?,
+            LogItems::Container(item) => expand_log_container(&item, trust, max_ops)?,
             LogItems::Integration(item) => {
                 logs::integrations::expand(item, records, &headers).unwrap_or_default()
             }
@@ -89,11 +92,18 @@ pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
 fn expand_log_container(
     item: &Item,
     trust: RequestTrust,
+    max_ops: usize,
 ) -> Result<(Settings, ContainerItems<OurLog>)> {
-    let (metadata, mut logs) = ItemContainer::parse(item)
+    let (metadata, mut logs) = ItemContainer::parse(item, max_ops)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
-            Error::Invalid(DiscardReason::InvalidJson)
+
+            match err {
+                ContainerParseError::LimitExceeded { limit: _ } => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                _ => Error::Invalid(DiscardReason::InvalidJson),
+            }
         })?
         .into_parts();
 
@@ -237,6 +247,23 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn test_expand_log_container_operations_limit() {
+        let payload = r#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"foobar","attributes":{}}]}"#;
+
+        let mut item = Item::new(crate::envelope::ItemType::Log);
+        item.set_payload_with_item_count(crate::envelope::ContentType::LogContainer, payload, 1);
+
+        // With a sufficient budget the container parses.
+        assert!(expand_log_container(&item, RequestTrust::Untrusted, usize::MAX).is_ok());
+
+        // With a budget of a single operation the container is rejected.
+        assert!(matches!(
+            expand_log_container(&item, RequestTrust::Untrusted, 1),
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
+        ));
+    }
 
     #[test]
     fn test_scrub_log_base_fields() {

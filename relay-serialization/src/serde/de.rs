@@ -377,6 +377,7 @@ impl<'de, A: SeqAccess<'de>> SeqAccess<'de> for MeteredSeqAccess<'_, A> {
         &mut self,
         seed: T,
     ) -> Result<Option<T::Value>, Self::Error> {
+        self.meter.spend(cost::UNIT)?;
         let element = self.inner.next_element_seed(MeteredSeed {
             meter: self.meter,
             inner: seed,
@@ -403,6 +404,8 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for MeteredMapAccess<'_, A> {
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
+        self.meter.spend(cost::UNIT)?;
+
         let key = self.inner.next_key_seed(MeteredSeed {
             meter: self.meter,
             inner: seed,
@@ -415,6 +418,8 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for MeteredMapAccess<'_, A> {
         &mut self,
         seed: Va,
     ) -> Result<Va::Value, Self::Error> {
+        self.meter.spend(cost::UNIT)?;
+
         self.inner.next_value_seed(MeteredSeed {
             meter: self.meter,
             inner: seed,
