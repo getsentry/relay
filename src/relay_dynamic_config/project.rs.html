@@ -193,120 +193,116 @@
 <a href=#193 id=193 data-nosnippet>193</a>    </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
 <a href=#194 id=194 data-nosnippet>194</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"TrimmingConfigs::is_empty"</span>)]
 <a href=#195 id=195 data-nosnippet>195</a>    </span><span class="kw">pub </span>trimming: TrimmingConfigs,
-<a href=#196 id=196 data-nosnippet>196</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#197 id=197 data-nosnippet>197</a>    </span><span class="kw">pub </span>sampling: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;SamplingConfig&gt;&gt;,
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"SessionMetricsConfig::is_disabled"</span>)]
-<a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
-<a href=#200 id=200 data-nosnippet>200</a>    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"skip_metrics_extraction"</span>)]
-<a href=#201 id=201 data-nosnippet>201</a>    </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionConfig&gt;,
-<a href=#202 id=202 data-nosnippet>202</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
-<a href=#203 id=203 data-nosnippet>203</a>    </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"SessionMetricsConfig::is_disabled"</span>)]
+<a href=#197 id=197 data-nosnippet>197</a>    </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
+<a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#201 id=201 data-nosnippet>201</a>    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
+<a href=#202 id=202 data-nosnippet>202</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#203 id=203 data-nosnippet>203</a>    </span><span class="kw">pub </span>breakdowns_v2: <span class="prelude-ty">Option</span>&lt;BreakdownsConfig&gt;,
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#205 id=205 data-nosnippet>205</a>    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#207 id=207 data-nosnippet>207</a>    </span><span class="kw">pub </span>breakdowns_v2: <span class="prelude-ty">Option</span>&lt;BreakdownsConfig&gt;,
-<a href=#208 id=208 data-nosnippet>208</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#209 id=209 data-nosnippet>209</a>    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;PerformanceScoreConfig&gt;,
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"FeatureSet::is_empty"</span>)]
-<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="kw">pub </span>features: FeatureSet,
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
-<a href=#213 id=213 data-nosnippet>213</a>    </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as "sanitized".
-<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_false"</span>)]
-<a href=#216 id=216 data-nosnippet>216</a>    </span><span class="kw">pub </span>tx_name_ready: bool,
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="doccomment">/// Span description renaming rules.
-<a href=#218 id=218 data-nosnippet>218</a>    ///
-<a href=#219 id=219 data-nosnippet>219</a>    /// These are currently not used by Relay, and only here to be forwarded to old
-<a href=#220 id=220 data-nosnippet>220</a>    /// relays that might still need them.
-<a href=#221 id=221 data-nosnippet>221</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
-<a href=#223 id=223 data-nosnippet>223</a>}
-<a href=#224 id=224 data-nosnippet>224</a>
-<a href=#225 id=225 data-nosnippet>225</a><span class="doccomment">/// Per-Category settings for retention policy.
-<a href=#226 id=226 data-nosnippet>226</a></span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-<a href=#227 id=227 data-nosnippet>227</a></span><span class="kw">pub struct </span>RetentionConfig {
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="doccomment">/// Standard / full fidelity retention policy in days.
-<a href=#229 id=229 data-nosnippet>229</a>    </span><span class="kw">pub </span>standard: u16,
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="doccomment">/// Downsampled retention policy in days.
-<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">pub </span>downsampled: <span class="prelude-ty">Option</span>&lt;u16&gt;,
-<a href=#233 id=233 data-nosnippet>233</a>}
-<a href=#234 id=234 data-nosnippet>234</a>
-<a href=#235 id=235 data-nosnippet>235</a><span class="doccomment">/// Settings for retention policy.
-<a href=#236 id=236 data-nosnippet>236</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-<a href=#237 id=237 data-nosnippet>237</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
-<a href=#238 id=238 data-nosnippet>238</a></span><span class="kw">pub struct </span>RetentionsConfig {
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="doccomment">/// Retention settings for logs.
-<a href=#240 id=240 data-nosnippet>240</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">pub </span>log: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="doccomment">/// Retention settings for spans.
-<a href=#243 id=243 data-nosnippet>243</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#244 id=244 data-nosnippet>244</a>    </span><span class="kw">pub </span>span: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="doccomment">/// Retention settings for metrics.
-<a href=#246 id=246 data-nosnippet>246</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#247 id=247 data-nosnippet>247</a>    </span><span class="kw">pub </span>trace_metric: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
-<a href=#248 id=248 data-nosnippet>248</a>    <span class="doccomment">/// Retention settings for attachments.
-<a href=#249 id=249 data-nosnippet>249</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#250 id=250 data-nosnippet>250</a>    </span><span class="kw">pub </span>trace_attachment: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
-<a href=#251 id=251 data-nosnippet>251</a>}
-<a href=#252 id=252 data-nosnippet>252</a>
-<a href=#253 id=253 data-nosnippet>253</a><span class="kw">impl </span>RetentionsConfig {
-<a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span><span class="self">Self </span>{
-<a href=#256 id=256 data-nosnippet>256</a>            log,
-<a href=#257 id=257 data-nosnippet>257</a>            span,
-<a href=#258 id=258 data-nosnippet>258</a>            trace_metric,
-<a href=#259 id=259 data-nosnippet>259</a>            trace_attachment,
-<a href=#260 id=260 data-nosnippet>260</a>        } = <span class="self">self</span>;
+<a href=#205 id=205 data-nosnippet>205</a>    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;PerformanceScoreConfig&gt;,
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"FeatureSet::is_empty"</span>)]
+<a href=#207 id=207 data-nosnippet>207</a>    </span><span class="kw">pub </span>features: FeatureSet,
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
+<a href=#209 id=209 data-nosnippet>209</a>    </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as "sanitized".
+<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_false"</span>)]
+<a href=#212 id=212 data-nosnippet>212</a>    </span><span class="kw">pub </span>tx_name_ready: bool,
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="doccomment">/// Span description renaming rules.
+<a href=#214 id=214 data-nosnippet>214</a>    ///
+<a href=#215 id=215 data-nosnippet>215</a>    /// These are currently not used by Relay, and only here to be forwarded to old
+<a href=#216 id=216 data-nosnippet>216</a>    /// relays that might still need them.
+<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#218 id=218 data-nosnippet>218</a>    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
+<a href=#219 id=219 data-nosnippet>219</a>}
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a><span class="doccomment">/// Per-Category settings for retention policy.
+<a href=#222 id=222 data-nosnippet>222</a></span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+<a href=#223 id=223 data-nosnippet>223</a></span><span class="kw">pub struct </span>RetentionConfig {
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="doccomment">/// Standard / full fidelity retention policy in days.
+<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">pub </span>standard: u16,
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="doccomment">/// Downsampled retention policy in days.
+<a href=#227 id=227 data-nosnippet>227</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">pub </span>downsampled: <span class="prelude-ty">Option</span>&lt;u16&gt;,
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="doccomment">/// Settings for retention policy.
+<a href=#232 id=232 data-nosnippet>232</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+<a href=#233 id=233 data-nosnippet>233</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
+<a href=#234 id=234 data-nosnippet>234</a></span><span class="kw">pub struct </span>RetentionsConfig {
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="doccomment">/// Retention settings for logs.
+<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#237 id=237 data-nosnippet>237</a>    </span><span class="kw">pub </span>log: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="doccomment">/// Retention settings for spans.
+<a href=#239 id=239 data-nosnippet>239</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub </span>span: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="doccomment">/// Retention settings for metrics.
+<a href=#242 id=242 data-nosnippet>242</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#243 id=243 data-nosnippet>243</a>    </span><span class="kw">pub </span>trace_metric: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="doccomment">/// Retention settings for attachments.
+<a href=#245 id=245 data-nosnippet>245</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#246 id=246 data-nosnippet>246</a>    </span><span class="kw">pub </span>trace_attachment: <span class="prelude-ty">Option</span>&lt;RetentionConfig&gt;,
+<a href=#247 id=247 data-nosnippet>247</a>}
+<a href=#248 id=248 data-nosnippet>248</a>
+<a href=#249 id=249 data-nosnippet>249</a><span class="kw">impl </span>RetentionsConfig {
+<a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span><span class="self">Self </span>{
+<a href=#252 id=252 data-nosnippet>252</a>            log,
+<a href=#253 id=253 data-nosnippet>253</a>            span,
+<a href=#254 id=254 data-nosnippet>254</a>            trace_metric,
+<a href=#255 id=255 data-nosnippet>255</a>            trace_attachment,
+<a href=#256 id=256 data-nosnippet>256</a>        } = <span class="self">self</span>;
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a>        log.is_none() &amp;&amp; span.is_none() &amp;&amp; trace_metric.is_none() &amp;&amp; trace_attachment.is_none()
+<a href=#259 id=259 data-nosnippet>259</a>    }
+<a href=#260 id=260 data-nosnippet>260</a>}
 <a href=#261 id=261 data-nosnippet>261</a>
-<a href=#262 id=262 data-nosnippet>262</a>        log.is_none() &amp;&amp; span.is_none() &amp;&amp; trace_metric.is_none() &amp;&amp; trace_attachment.is_none()
-<a href=#263 id=263 data-nosnippet>263</a>    }
-<a href=#264 id=264 data-nosnippet>264</a>}
-<a href=#265 id=265 data-nosnippet>265</a>
-<a href=#266 id=266 data-nosnippet>266</a><span class="doccomment">/// Per-category settings for item trimming.
-<a href=#267 id=267 data-nosnippet>267</a></span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-<a href=#268 id=268 data-nosnippet>268</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
-<a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">pub struct </span>TrimmingConfig {
-<a href=#270 id=270 data-nosnippet>270</a>    <span class="doccomment">/// The maximum size in bytes above which an item should be trimmed.
-<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="kw">pub </span>max_size: u32,
-<a href=#272 id=272 data-nosnippet>272</a>}
-<a href=#273 id=273 data-nosnippet>273</a>
-<a href=#274 id=274 data-nosnippet>274</a><span class="doccomment">/// Settings for item trimming.
-<a href=#275 id=275 data-nosnippet>275</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-<a href=#276 id=276 data-nosnippet>276</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
-<a href=#277 id=277 data-nosnippet>277</a></span><span class="kw">pub struct </span>TrimmingConfigs {
-<a href=#278 id=278 data-nosnippet>278</a>    <span class="doccomment">/// Trimming settings for spans.
-<a href=#279 id=279 data-nosnippet>279</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">pub </span>span: <span class="prelude-ty">Option</span>&lt;TrimmingConfig&gt;,
-<a href=#281 id=281 data-nosnippet>281</a>}
-<a href=#282 id=282 data-nosnippet>282</a>
-<a href=#283 id=283 data-nosnippet>283</a><span class="kw">impl </span>TrimmingConfigs {
-<a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span><span class="self">Self </span>{ span } = <span class="self">self</span>;
-<a href=#286 id=286 data-nosnippet>286</a>        span.is_none()
-<a href=#287 id=287 data-nosnippet>287</a>    }
+<a href=#262 id=262 data-nosnippet>262</a><span class="doccomment">/// Per-category settings for item trimming.
+<a href=#263 id=263 data-nosnippet>263</a></span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+<a href=#264 id=264 data-nosnippet>264</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
+<a href=#265 id=265 data-nosnippet>265</a></span><span class="kw">pub struct </span>TrimmingConfig {
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="doccomment">/// The maximum size in bytes above which an item should be trimmed.
+<a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">pub </span>max_size: u32,
+<a href=#268 id=268 data-nosnippet>268</a>}
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a><span class="doccomment">/// Settings for item trimming.
+<a href=#271 id=271 data-nosnippet>271</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+<a href=#272 id=272 data-nosnippet>272</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
+<a href=#273 id=273 data-nosnippet>273</a></span><span class="kw">pub struct </span>TrimmingConfigs {
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="doccomment">/// Trimming settings for spans.
+<a href=#275 id=275 data-nosnippet>275</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#276 id=276 data-nosnippet>276</a>    </span><span class="kw">pub </span>span: <span class="prelude-ty">Option</span>&lt;TrimmingConfig&gt;,
+<a href=#277 id=277 data-nosnippet>277</a>}
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a><span class="kw">impl </span>TrimmingConfigs {
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span><span class="self">Self </span>{ span } = <span class="self">self</span>;
+<a href=#282 id=282 data-nosnippet>282</a>        span.is_none()
+<a href=#283 id=283 data-nosnippet>283</a>    }
+<a href=#284 id=284 data-nosnippet>284</a>}
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a><span class="kw">fn </span>is_false(value: <span class="kw-2">&amp;</span>bool) -&gt; bool {
+<a href=#287 id=287 data-nosnippet>287</a>    !<span class="kw-2">*</span>value
 <a href=#288 id=288 data-nosnippet>288</a>}
 <a href=#289 id=289 data-nosnippet>289</a>
-<a href=#290 id=290 data-nosnippet>290</a><span class="kw">fn </span>is_false(value: <span class="kw-2">&amp;</span>bool) -&gt; bool {
-<a href=#291 id=291 data-nosnippet>291</a>    !<span class="kw-2">*</span>value
-<a href=#292 id=292 data-nosnippet>292</a>}
+<a href=#290 id=290 data-nosnippet>290</a><span class="attr">#[cfg(test)]
+<a href=#291 id=291 data-nosnippet>291</a></span><span class="kw">mod </span>tests {
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a><span class="attr">#[cfg(test)]
-<a href=#295 id=295 data-nosnippet>295</a></span><span class="kw">mod </span>tests {
-<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="attr">#[test]
-<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">fn </span>graduated_feature_flag_gets_inserted() {
-<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_config = ProjectConfig::default();
-<a href=#301 id=301 data-nosnippet>301</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
-<a href=#302 id=302 data-nosnippet>302</a>            <span class="macro">assert!</span>(!project_config.features.has(<span class="kw-2">*</span>feature));
-<a href=#303 id=303 data-nosnippet>303</a>        }
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>        project_config.sanitize(<span class="bool-val">false</span>);
-<a href=#306 id=306 data-nosnippet>306</a>
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
-<a href=#308 id=308 data-nosnippet>308</a>            <span class="macro">assert!</span>(project_config.features.has(<span class="kw-2">*</span>feature));
-<a href=#309 id=309 data-nosnippet>309</a>        }
-<a href=#310 id=310 data-nosnippet>310</a>    }
-<a href=#311 id=311 data-nosnippet>311</a>}
+<a href=#294 id=294 data-nosnippet>294</a>    <span class="attr">#[test]
+<a href=#295 id=295 data-nosnippet>295</a>    </span><span class="kw">fn </span>graduated_feature_flag_gets_inserted() {
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_config = ProjectConfig::default();
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
+<a href=#298 id=298 data-nosnippet>298</a>            <span class="macro">assert!</span>(!project_config.features.has(<span class="kw-2">*</span>feature));
+<a href=#299 id=299 data-nosnippet>299</a>        }
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>        project_config.sanitize(<span class="bool-val">false</span>);
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
+<a href=#304 id=304 data-nosnippet>304</a>            <span class="macro">assert!</span>(project_config.features.has(<span class="kw-2">*</span>feature));
+<a href=#305 id=305 data-nosnippet>305</a>        }
+<a href=#306 id=306 data-nosnippet>306</a>    }
+<a href=#307 id=307 data-nosnippet>307</a>}
 </code></pre></div></section></main></body></html>
