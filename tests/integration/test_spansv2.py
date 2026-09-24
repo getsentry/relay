@@ -741,42 +741,25 @@ def test_spansv2_ds_sampled(
     ]
 
 
-def test_spansv2_ds_root_in_different_org(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    spans_consumer,
-    metrics_consumer,
-):
-    """
-    The test asserts that traces where the root originates from a different Sentry organization,
-    correctly uses the dynamic sampling rules of the current project and emits the count_per_root metric
-    into the current project.
-    """
-    outcomes_consumer = outcomes_consumer()
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
+def test_spansv2_ds_root_in_different_org(mini_sentry, relay):
+    """A trace root in another org uses the current project's sampling rules and metrics."""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
-    sampling_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     sampling_config["organizationId"] = 99
     add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
-    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
-    relay = relay(relay_with_processing(options=config), options=config)
+    relay = relay(
+        mini_sentry,
+        options={
+            **TEST_CONFIG,
+            "cache": {"project_request_full_config": True},
+            "http": {"global_metrics": True},
+        },
+    )
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -787,6 +770,7 @@ def test_spansv2_ds_root_in_different_org(
             "span_id": "eee19b7ec3c1b175",
             "is_segment": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
         trace_info={
@@ -797,29 +781,24 @@ def test_spansv2_ds_root_in_different_org(
 
     relay.send_envelope(project_id, envelope)
 
-    assert outcomes_consumer.get_outcomes(n=2) == [
+    public_key = project_config["publicKeys"][0]["publicKey"]
+    assert mini_sentry.get_aggregated_outcomes(n=1) == [
         {
             "category": DataCategory.SPAN_INDEXED,
-            "key_id": 123,
-            "org_id": 1,
+            "public_key": public_key,
             "outcome": Outcome.FILTERED,
-            "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": Outcome.ACCEPTED,
-            "project_id": 42,
-            "quantity": 1,
-            "timestamp": time_within_delta(),
         },
     ]
 
-    spans_consumer.assert_empty()
+    metrics = mini_sentry.get_global_metrics()
+    assert set(metrics) == {public_key}
+    assert {bucket["name"]: bucket["value"] for bucket in metrics[public_key]} == {
+        "c:spans/count_per_root_project@none": 1,
+        "c:spans/usage@none": 1,
+    }
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(

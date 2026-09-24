@@ -15,6 +15,7 @@
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
 - Add a `cidr` rule condition that matches IP addresses against a list of addresses and CIDR ranges, and expose the envelope's client IP to generic inbound filters as `envelope.client_ip`. ([#6374](https://github.com/getsentry/relay/pull/6374))
 - Copy the browser navigation type and id to web vital metrics. ([#6401](https://github.com/getsentry/relay/pull/6401))
+- Disable dynamic sampling and metrics extraction in Managed relays. For users with a dynamic sampling rate < 1, this increases the outgoing request volume of the Managed relay. ([#6413](https://github.com/getsentry/relay/pull/6413))
 
 **Bug Fixes**:
 
