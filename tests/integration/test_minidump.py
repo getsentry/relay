@@ -1055,6 +1055,52 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
+    "params",
+    [[("A", "x" * 20)], [("A", "x" * 10), ("B", "x" * 10)]],
+    ids=["single", "combined"],
+)
+def test_form_data_size_limit(mini_sentry, relay, params):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"max_event_size": 20},
+            "outcomes": {"emit_outcomes": True},
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")],
+        params=params,
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:form_data",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:form_data",
+            "quantity": 12,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:form_data",
+            "quantity": 1,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
     "config_fetch,upload_minidump",
     [
         (False, True),  # if the option is not set we don't check the features
@@ -1270,16 +1316,7 @@ def test_minidump_objectstore_errors(
             status=400,
         )
 
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            }
-        },
-    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     relay.send_minidump(
         project_id=project_id,
@@ -1370,16 +1407,7 @@ def test_minidump_objectstore_uploads_rate_limits(
         ]
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            }
-        },
-    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     response = relay.send_minidump(
         project_id=project_id,
@@ -1576,11 +1604,7 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
                 "max_attachment_size": len(attachment_content) - 1,
                 "max_attachments_size": 1000 * 1024 * 1024,
             },
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            },
+            "outcomes": {"emit_outcomes": True},
         },
     )
 
@@ -1629,16 +1653,7 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         return Response("nope", status=400)
 
     mini_sentry.fail_on_relay_error = False
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            }
-        },
-    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     response = relay.send_minidump(
         project_id=project_id,
@@ -1784,11 +1799,7 @@ def test_minidump_upload_exceeds_max_upload_size(mini_sentry, relay, dummy_uploa
         mini_sentry,
         options={
             "limits": {"max_upload_size": 100},
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            },
+            "outcomes": {"emit_outcomes": True},
         },
     )
 

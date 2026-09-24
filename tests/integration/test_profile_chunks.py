@@ -14,15 +14,7 @@ RELAY_ROOT = Path(__file__).parent.parent.parent
 
 
 TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
+    "outcomes": {"emit_outcomes": True},
     "aggregator": {
         "bucket_interval": 1,
         "initial_delay": 0,
@@ -114,6 +106,7 @@ def test_profile_chunk_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"

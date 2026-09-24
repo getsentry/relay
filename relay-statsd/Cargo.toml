@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "High-level StatsD metric client for internal measurements"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.8.0"
+version = "26.9.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -17,6 +17,7 @@ relay-log = { workspace = true }
 
 metrics = { workspace = true }
 metrics-exporter-dogstatsd = { workspace = true }
+metrics-util = { workspace = true, features = ["layer-router"] }
 
 [features]
 default = []

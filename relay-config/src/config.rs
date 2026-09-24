@@ -986,6 +986,12 @@ pub struct EnvelopeSpool {
     ///
     /// Defaults to 10 KiB.
     pub batch_size_bytes: ByteSize,
+    /// Time after which a batch is flushed, regardless of batch size.
+    ///
+    /// The age of the batch is only checked when a new envelope comes in, but in practice this
+    /// has the desired effect: High-volume projects always form full batches, low-volume batches
+    /// flush individual envelopes to keep memory usage low.
+    pub flush_timeout_secs: Option<u64>,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -1062,6 +1068,7 @@ impl Default for EnvelopeSpool {
             partitions: NonZeroU8::new(1).unwrap(),
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
+            flush_timeout_secs: None,
         }
     }
 }
@@ -1079,6 +1086,9 @@ pub struct Spool {
 #[serde(default)]
 pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
+    ///
+    /// Relay instances that receive the full project config have full access to quota config
+    /// and perform dynamic sampling.
     pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     pub project_expiry: u32,
@@ -1409,12 +1419,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// The maximum number of outcomes that are batched before being sent
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_size: usize,
-    /// The maximum time interval (in milliseconds) that an outcome may be batched
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_interval: u64,
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
@@ -1424,8 +1428,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            batch_size: 1000,
-            batch_interval: 500,
             source: None,
         }
     }
@@ -2302,16 +2304,6 @@ impl ConfigSnapshot {
         self.inner.values.outcomes.emit_outcomes
     }
 
-    /// Returns the maximum number of outcomes that are batched before being sent
-    pub fn outcome_batch_size(&self) -> usize {
-        self.inner.values.outcomes.batch_size
-    }
-
-    /// Returns the maximum interval that an outcome may be batched
-    pub fn outcome_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.inner.values.outcomes.batch_interval)
-    }
-
     /// The originating source of the outcome
     pub fn outcome_source(&self) -> Option<&str> {
         self.inner.values.outcomes.source.as_deref()
@@ -2486,6 +2478,16 @@ impl ConfigSnapshot {
             .envelopes
             .batch_size_bytes
             .as_bytes()
+    }
+
+    /// Time after which a batch of envelopes is flushed to disk, regardless of its size.
+    pub fn spool_envelopes_flush_timeout(&self) -> Option<Duration> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .flush_timeout_secs
+            .map(Duration::from_secs)
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.

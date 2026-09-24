@@ -40,16 +40,21 @@ use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
+/// Header advertising the maximum/recommended chunk size to clients.
+pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
+
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
+        .route_layer(tus::resumable_header_layer())
 }
 
 pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     patch(handle_patch)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
+        .route_layer(tus::resumable_header_layer())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -80,7 +85,7 @@ impl IntoResponse for Error {
         }
 
         let status = match self {
-            Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::Tus(error) => return error.into_response(),
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -196,9 +201,15 @@ async fn handle_post(
     })?;
 
     let mut response = location.into_response();
-    response
-        .headers_mut()
-        .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
+
+    // Communicate desired chunk size to the client, if set.
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+    let upload_chunk_size = global_config.options.upload_chunk_size;
+    if upload_chunk_size > 0 {
+        response
+            .headers_mut()
+            .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+    }
 
     Ok(response)
 }
@@ -277,9 +288,6 @@ async fn handle_patch(
             .into_header_value()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
-    response
-        .headers_mut()
-        .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     response
         .headers_mut()
         .insert(tus::UPLOAD_OFFSET, upload_offset.into());

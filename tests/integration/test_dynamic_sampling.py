@@ -2,13 +2,15 @@ from datetime import datetime, timezone
 from typing import Literal
 import uuid
 import json
+import signal
 
 import pytest
+from sentry_relay.auth import SecretKey
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
-from .asserts import time_within_delta
 from .consts import Outcome
+from .test_projectconfigs import get_response
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -271,6 +273,71 @@ def test_it_removes_events(mini_sentry, relay):
         },
     ]
     assert mini_sentry.captured_envelopes.empty()
+
+
+def test_external_relay_does_not_sample_or_extract_metrics(mini_sentry, relay):
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    config["config"]["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
+            {"category": "transaction", "mri": "c:spans/test_transaction@none"},
+            {"category": "span", "mri": "c:spans/test_span@none"},
+        ],
+    }
+
+    trusted = relay(mini_sentry)
+    external = relay(mini_sentry, _outcomes_enabled_config(), external=True)
+    # Authorize project access without making this an internal Relay.
+    config["config"]["trustedRelays"].append(external.public_key)
+
+    # Query the trusted Relay as an external client, even requesting the full config.
+    packed, signature = SecretKey.parse(external.secret_key).pack(
+        {"publicKeys": [public_key], "fullConfig": True}
+    )
+    response, _ = get_response(trusted, packed, signature, relay_id=external.relay_id)
+    limited_config = response["configs"][public_key]
+    assert "sampling" not in limited_config["config"]
+    assert "metricExtraction" not in limited_config["config"]
+
+    # Serve the returned config to the external Relay.
+    mini_sentry.project_configs[project_id] = limited_config
+
+    now = datetime.now(timezone.utc).timestamp()
+    trace_id = uuid.uuid4().hex
+    envelope, _, event_id = _create_transaction_envelope(
+        public_key,
+        trace_id=trace_id,
+        event_id=uuid.uuid4().hex,
+        start_timestamp=now - 1,
+        timestamp=now,
+        spans=[
+            {
+                "trace_id": trace_id,
+                "span_id": "b" * 16,
+                "parent_span_id": "FA90FDEAD5F74052",
+                "op": "db",
+                "start_timestamp": now - 0.5,
+                "timestamp": now,
+            }
+        ],
+    )
+    external.send_envelope(project_id, envelope)
+
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.type for item in forwarded.items] == ["transaction"]
+    transaction = forwarded.get_transaction_event()
+    assert transaction["event_id"] == event_id
+    assert len(transaction["spans"]) == 1
+    assert not forwarded.items[0].headers.get("metrics_extracted", False)
+
+    # Flush before checking that no metrics or sampling outcomes were produced.
+    external.shutdown(sig=signal.SIGTERM)
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_metrics.empty()
+    assert mini_sentry.get_aggregated_outcomes(timeout=0.2) == []
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
@@ -1208,7 +1275,7 @@ def test_dsc_normalization(
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
     # Expected results based on the parameters
-    expected_tx, expected_project_id, expected_root_org_id = {
+    expected_tx, expected_project_id, _ = {
         # DSC with tx + same org
         ("dsc_with_tx", "same_org", "tx"): ("/dsc/", sampling_project_id, org_id),
         ("dsc_with_tx", "same_org", "v2"): ("/dsc/", sampling_project_id, org_id),
@@ -1254,13 +1321,10 @@ def test_dsc_normalization(
     )
 
     relay.send_envelope(project_id, envelope)
-    metrics = metrics_consumer.get_metrics(with_headers=False)
-    metrics = [m for m in metrics if "count_per_root_project" in m["name"]]
     spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
 
     if dsc == "no_dsc" and span_type == "v2":
         assert len(spans) == 0
-        assert len(metrics) == 0
         return
 
     def get_dsc_attr(attr: str, span_id: str):
@@ -1283,41 +1347,6 @@ def test_dsc_normalization(
     assert get_dsc_attr("transaction", child_id_2) == expected_tx
     assert get_dsc_attr("project_id", child_id_2) == str(expected_project_id)
     assert get_dsc_attr("trace_id", child_id_2) == trace_id
-
-    assert metrics == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": expected_root_org_id,
-            "project_id": expected_project_id,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": str(project_id),
-                **({"transaction": expected_tx} if expected_tx else {}),
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 2.0,
-        },
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": expected_root_org_id,
-            "project_id": expected_project_id,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": str(project_id),
-                **({"transaction": expected_tx} if expected_tx else {}),
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
 
 @pytest.mark.parametrize(

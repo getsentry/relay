@@ -117,13 +117,8 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
 
 /// Normalizes a V2 span's [`SENTRY__DESCRIPTION`] attribute.
 ///
-/// For now, this tries the following steps, in order:
-/// - backfill from the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
-/// - backfill from the span's [`DB__QUERY__TEXT`] attribute if it exists
-/// - backfill a combination of the span's [`HTTP__REQUEST__METHOD`] and
-///   [`URL__FULL`] attributes, if they both exists.
-///
-/// In the future, this logic will be partly moved to and extended in `sentry-conventions`.
+/// If the span has no description, this will attempt to synthesize one from its
+/// attributes using [derive_description_for_v2_span].
 pub fn normalize_sentry_description(
     attributes: &mut Annotated<Attributes>,
     name: &Annotated<String>,

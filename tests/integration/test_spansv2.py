@@ -34,6 +34,53 @@ def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Enve
     return envelope
 
 
+def test_spansv2_broken_segment_id(mini_sentry, relay):
+    """Verify the outcome emitted for a malformed segment ID."""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    trace_id = uuid.uuid4().hex
+    ts = datetime.now(timezone.utc).timestamp()
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts,
+            "end_timestamp": ts + 0.5,
+            "trace_id": trace_id,
+            "span_id": uuid.uuid4().hex[:16],
+            "is_segment": True,
+            "name": "broken segment ID",
+            "status": "ok",
+            "attributes": {
+                "sentry.segment.id": {"type": "string", "value": "[phone]bf9"},
+            },
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+    ]
+
+    assert mini_sentry.captured_envelopes.empty()
+
+
 def test_spansv2_basic(
     mini_sentry,
     relay,
@@ -168,40 +215,6 @@ def test_spansv2_basic(
         "organization_id": 1,
         "project_id": 42,
     }
-
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
@@ -401,40 +414,6 @@ def test_spansv2_trimming_basic(
         "organization_id": 1,
         "project_id": 42,
     }
-
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
 
 @pytest.mark.parametrize(
@@ -789,70 +768,6 @@ def test_spansv2_ds_sampled(
         assert span["attributes"]["sentry.dsc.transaction"]["value"] == "tx_from_root"
         assert span["attributes"]["sentry.dsc.project_id"]["value"] == "43"
 
-    assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION,
@@ -873,42 +788,25 @@ def test_spansv2_ds_sampled(
     ]
 
 
-def test_spansv2_ds_root_in_different_org(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    spans_consumer,
-    metrics_consumer,
-):
-    """
-    The test asserts that traces where the root originates from a different Sentry organization,
-    correctly uses the dynamic sampling rules of the current project and emits the count_per_root metric
-    into the current project.
-    """
-    outcomes_consumer = outcomes_consumer()
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
+def test_spansv2_ds_root_in_different_org(mini_sentry, relay):
+    """A trace root in another org uses the current project's sampling rules and metrics."""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
-    sampling_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     sampling_config["organizationId"] = 99
     add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
-    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
-    relay = relay(relay_with_processing(options=config), options=config)
+    relay = relay(
+        mini_sentry,
+        options={
+            **TEST_CONFIG,
+            "cache": {"project_request_full_config": True},
+            "http": {"global_metrics": True},
+        },
+    )
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -919,6 +817,7 @@ def test_spansv2_ds_root_in_different_org(
             "span_id": "eee19b7ec3c1b175",
             "is_segment": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
         trace_info={
@@ -929,61 +828,24 @@ def test_spansv2_ds_root_in_different_org(
 
     relay.send_envelope(project_id, envelope)
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
-    assert outcomes_consumer.get_outcomes(n=2) == [
+    public_key = project_config["publicKeys"][0]["publicKey"]
+    assert mini_sentry.get_aggregated_outcomes(n=1) == [
         {
             "category": DataCategory.SPAN_INDEXED,
-            "key_id": 123,
-            "org_id": 1,
+            "public_key": public_key,
             "outcome": Outcome.FILTERED,
-            "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": Outcome.ACCEPTED,
-            "project_id": 42,
-            "quantity": 1,
-            "timestamp": time_within_delta(),
         },
     ]
 
-    spans_consumer.assert_empty()
+    metrics = mini_sentry.get_global_metrics()
+    assert set(metrics) == {public_key}
+    assert {bucket["name"]: bucket["value"] for bucket in metrics[public_key]} == {
+        "c:spans/count_per_root_project@none": 1,
+        "c:spans/usage@none": 1,
+    }
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(

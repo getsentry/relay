@@ -1039,7 +1039,7 @@ impl EnvelopeProcessorService {
 
         for namespace in namespaces {
             let limits = rate_limits
-                .check_with_quotas(project_info.get_quotas(), scoping.metric_bucket(namespace));
+                .check_with_quotas(project_info.get_quotas(), &scoping.metric_bucket(namespace));
 
             if limits.is_limited() {
                 let rejected;
@@ -1092,7 +1092,7 @@ impl EnvelopeProcessorService {
             let item_scoping = scoping.metric_bucket(namespace);
 
             let limits = match rate_limiter
-                .is_rate_limited(quotas, item_scoping, quantity, false)
+                .is_rate_limited(quotas, &item_scoping, quantity, false)
                 .await
             {
                 Ok(limits) => limits,
@@ -1155,7 +1155,7 @@ impl EnvelopeProcessorService {
 
             if let Some(count) = count {
                 match rate_limiter
-                    .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                    .is_rate_limited(quotas, &scoping.item(category), count, over_accept_once)
                     .await
                 {
                     Ok(limits) => {

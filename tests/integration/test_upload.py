@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from flask import Response
+from flask import Response, request
 import pytest
 
 from sentry_relay.auth import SecretKey
@@ -59,6 +59,29 @@ def test_forward_create(
     assert response.status_code == expected_status_code, response.text
 
 
+@pytest.mark.parametrize("upload_chunk_size", [0, 1_000_000_000])
+def test_header(mini_sentry, relay, dummy_upload, upload_chunk_size):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.upload-chunk.size"] = upload_chunk_size
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    if upload_chunk_size != 0:
+        assert int(response.headers["Upload-Chunk-Size"]) == upload_chunk_size
+    else:
+        assert "Upload-Chunk-Size" not in response.headers
+
+
 @pytest.mark.parametrize(
     "killswitched,expected_status_code",
     [
@@ -93,6 +116,78 @@ def test_forward_patch(
     )
 
     assert response.status_code == expected_status_code, response.text
+
+
+@pytest.mark.parametrize(
+    "header,value,expected_status_code,expected_detail",
+    [
+        pytest.param(
+            "Upload-Offset",
+            "10",
+            409,
+            "expected Upload-Offset: 0, got: Some(10)",
+            id="offset mismatch",
+        ),
+        pytest.param(
+            "Upload-Offset",
+            None,
+            400,
+            "expected Upload-Offset: 0, got: None",
+            id="offset missing",
+        ),
+        pytest.param(
+            "Content-Type",
+            "application/octet-stream",
+            415,
+            "expected Content-Type: application/offset+octet-stream, "
+            "got: application/octet-stream",
+            id="wrong content type",
+        ),
+        pytest.param(
+            "Content-Type",
+            None,
+            415,
+            "expected Content-Type: application/offset+octet-stream, got: ",
+            id="missing content type",
+        ),
+    ],
+)
+def test_invalid_headers(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    header,
+    value,
+    expected_status_code,
+    expected_detail,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Content-Type": "application/offset+octet-stream",
+        "Upload-Offset": "0",
+    }
+    if value is None:
+        del headers[header]
+    else:
+        headers[header] = value
+
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
+        headers=headers,
+        data=b"hello world",
+    )
+
+    assert response.status_code == expected_status_code, response.text
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.json() == {"detail": expected_detail}
 
 
 def test_post_retries(mini_sentry, relay, project_config):
@@ -141,10 +236,10 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: (missing)",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: (missing)"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: (missing)",
     }
 
 
@@ -165,10 +260,10 @@ def test_upload_unsupported_tus_version(
         data=b"hello",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 412
+    assert response.headers["Tus-Version"] == "1.0.0"
     assert response.json() == {
-        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0",
-        "causes": ["expected Tus-Resumable: 1.0.0, got: 0.2.0"],
+        "detail": "expected Tus-Resumable: 1.0.0, got: 0.2.0",
     }
 
 
@@ -210,14 +305,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": (
-            "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ),
-        "causes": [
-            "expected Upload-Length or Upload-Defer-Length=1, "
-            "got Upload-Length=None, Upload-Defer-Length=None"
-        ],
+        "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=None",
     }
 
 
@@ -499,14 +587,7 @@ def test_upload_with_deferred_length(
     else:
         assert response.status_code == 400
         assert response.json() == {
-            "detail": (
-                "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ),
-            "causes": [
-                "expected Upload-Length or Upload-Defer-Length=1, "
-                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
-            ],
+            "detail": "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length=None, Upload-Defer-Length=Some(2)",
         }
 
 
@@ -608,6 +689,35 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         failure
     )
     assert response.status_code == 500
+
+
+def test_objectstore_upload_uncompressed(
+    mini_sentry, relay_with_processing, project_config
+):
+    mini_sentry.allow_chunked = True
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    uploads = []
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def upload(scope, key):
+        uploads.append((request.headers.get("Content-Encoding"), request.get_data()))
+        return {"key": key}
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+
+    response = upload_something(relay, project_id, project_key)
+
+    assert response.status_code == 204, response.text
+    assert uploads == [(None, b"hello world")]
 
 
 def test_objectstore_timeout(
@@ -723,16 +833,7 @@ def test_upload_minidump_opt_in(
     if opted_in:
         features.append("projects:relay-minidump-uploads")
 
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            }
-        },
-    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     headers = {
         "Tus-Resumable": "1.0.0",

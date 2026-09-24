@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanId, SpanV2};
+use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
@@ -257,6 +258,7 @@ fn normalize_span(
         // normalize_sentry_op must be called before normalize_span_category
         // because category derivation depends on having the sentry.op attribute
         // available.
+        validate_segment_id(&span.attributes)?;
         eap::normalize_sentry_op(&mut span.attributes);
         if settings.clear_web_vital_segment_info {
             eap::normalize_web_vital_span_segment(span);
@@ -372,6 +374,28 @@ fn validate_timestamps(span: &SpanV2) -> Result<()> {
         (Some(start), Some(end)) if start <= end => Ok(()),
         _ => Err(Error::Invalid(DiscardReason::Timestamp)),
     }
+}
+
+/// Rejects invalid segment IDs.
+///
+/// The segment ID is not a top-level field, so it not guaranteed to contain a valid span ID.
+///
+/// Validate it here so that downstream consumers don't have to.
+/// relies on it being a valid span ID.
+fn validate_segment_id(attributes: &Annotated<Attributes>) -> Result<()> {
+    let Some(attributes) = attributes.value() else {
+        return Ok(());
+    };
+    let Some(value) = attributes.get_value(SENTRY__SEGMENT__ID) else {
+        return Ok(());
+    };
+    let Some(value) = value.as_str() else {
+        return Err(Error::Invalid(DiscardReason::InvalidSpan));
+    };
+    let _: SpanId = value
+        .parse()
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidSpan))?;
+    Ok(())
 }
 
 /// Applies PII scrubbing to individual spans.

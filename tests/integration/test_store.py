@@ -289,6 +289,7 @@ def test_processing(
     relay_with_processing,
     events_consumer,
     transactions_consumer,
+    processing_config,
     event_type,
 ):
     """
@@ -300,7 +301,8 @@ def test_processing(
     else:
         events_consumer = transactions_consumer()
 
-    relay = relay_with_processing()
+    options = processing_config()
+    relay = relay_with_processing(options=options)
     project_id = 42
     mini_sentry.add_full_project_config(42)
 
@@ -552,13 +554,10 @@ def test_enforce_bucket_rate_limits(
         for i in range(metric_bucket_limit)
     ]
 
-    # Send as many metrics as the quota allows.
+    # Generic metrics are no longer produced to Kafka.
     relay.send_metrics_buckets(project_id, buckets)
-    metrics_consumer.get_metrics(n=metric_bucket_limit)
-
-    # Send metrics again, at this point the quota is exhausted.
     relay.send_metrics_buckets(project_id, buckets)
-    metrics_consumer.assert_empty()
+    assert metrics_consumer.poll(timeout=2) is None
 
 
 def test_processing_quota_transaction_indexing(
@@ -611,10 +610,8 @@ def test_processing_quota_transaction_indexing(
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
-    assert len(list(metrics_consumer.get_metrics())) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    assert len(list(metrics_consumer.get_metrics())) > 0
     outcomes_consumer.assert_rate_limited(
         "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
     )

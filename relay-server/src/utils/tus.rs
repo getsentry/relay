@@ -8,13 +8,16 @@
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
+use axum::response::IntoResponse;
 use data_encoding::BASE64;
-use http::HeaderValue;
 use http::header::AsHeaderName;
+use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder};
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -46,20 +49,47 @@ pub enum Error {
     InvalidMetadata(#[from] serde_json::Error),
 }
 
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        let body = ApiErrorResponse::from_error(&self);
+
+        match self {
+            Error::Version(_) => (
+                StatusCode::PRECONDITION_FAILED,
+                [(TUS_VERSION_NAME, TUS_VERSION)],
+                body,
+            )
+                .into_response(),
+            Error::UploadOffset(Some(_)) => (StatusCode::CONFLICT, body).into_response(),
+            Error::ContentType { .. } => (StatusCode::UNSUPPORTED_MEDIA_TYPE, body).into_response(),
+            Error::UploadLength { .. }
+            | Error::InvalidMetadataBase64(_)
+            | Error::InvalidMetadata(_)
+            | Error::UploadOffset(_) => (StatusCode::BAD_REQUEST, body).into_response(),
+        }
+    }
+}
+
 /// TUS protocol header for the protocol version.
 ///
-/// See <https://tus.io/protocols/resumable-upload#tus-version>.
+/// See <https://tus.io/protocols/resumable-upload#tus-resumable>.
 pub const TUS_RESUMABLE: &str = "Tus-Resumable";
+
+/// TUS protocol header for the protocol versions supported by the Server.
+///
+/// See <https://tus.io/protocols/resumable-upload#tus-version>
+pub const TUS_VERSION_NAME: &str = "Tus-Version";
+
+/// TUS protocol version supported by this endpoint.
+pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 
 /// TUS protocol header for supported extensions.
 ///
 /// See <https://tus.io/protocols/resumable-upload#tus-extension>.
 const TUS_EXTENSION: &str = "Tus-Extension";
 
-const SUPPORTED_EXTENSIONS: HeaderValue = HeaderValue::from_static("creation");
-
-/// TUS protocol version supported by this endpoint.
-pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
+const SUPPORTED_EXTENSIONS: HeaderValue =
+    HeaderValue::from_static("creation,creation-defer-length");
 
 /// TUS protocol header for the total upload length.
 ///
@@ -205,9 +235,16 @@ pub fn add_upload_headers(builder: &mut RequestBuilder) {
 /// Prepares the required TUS response headers.
 pub fn response_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(TUS_RESUMABLE, TUS_VERSION);
     headers.insert(TUS_EXTENSION, SUPPORTED_EXTENSIONS);
     headers
+}
+
+/// Layer that stamps the `Tus-Resumable` header onto every response.
+///
+/// The TUS protocol requires this header on every response (except for responses to
+/// `OPTIONS` requests).
+pub fn resumable_header_layer() -> SetResponseHeaderLayer<HeaderValue> {
+    SetResponseHeaderLayer::overriding(HeaderName::from_static("tus-resumable"), TUS_VERSION)
 }
 
 /// Extracts the sentry metadata payload from the `Upload-Metadata` header.

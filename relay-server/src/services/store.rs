@@ -7,13 +7,17 @@ use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use relay_base_schema::events::EventType;
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
+use sentry::protocol::{Attachment, SpanId};
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -62,6 +66,8 @@ pub enum StoreError {
     NoEventId,
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+    #[error("invalid span id: {0}")]
+    InvalidSpanId(#[from] hex::FromHexError),
 }
 
 impl OutcomeError for StoreError {
@@ -76,6 +82,7 @@ impl OutcomeError for StoreError {
             StoreError::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            StoreError::InvalidSpanId(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
@@ -433,6 +440,7 @@ pub struct StoreService {
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
     producer: Producer,
+    last_span_report: Mutex<Instant>, // used to debounce expensive instrumentation.
 }
 
 impl StoreService {
@@ -449,6 +457,7 @@ impl StoreService {
             global_config,
             metric_outcomes,
             producer,
+            last_span_report: Instant::now().into(),
         })
     }
 
@@ -692,6 +701,34 @@ impl StoreService {
         };
 
         message.try_accept(|span| {
+            // Temporary validation of the segment ID.
+            if let Some(segment_id) = span
+                .item
+                .attributes
+                .value()
+                .and_then(|a| a.get_value(SENTRY__SEGMENT__ID))
+                .and_then(|v| v.as_str())
+                && let Err(e) = segment_id.parse::<SpanId>()
+            {
+                relay_log::configure_scope(|scope| {
+                    scope.set_tag("sentry_project_id", scoping.project_id);
+                    if let Ok(mut last_report) = self.last_span_report.try_lock() {
+                        let now = Instant::now();
+                        if (now.saturating_duration_since(*last_report)) > Duration::from_secs(1) {
+                            *last_report = now;
+                            if let Ok(json) = Annotated::new(span.item).to_json() {
+                                scope.add_attachment(Attachment {
+                                    buffer: json.into_bytes(),
+                                    filename: "span.json".to_owned(),
+                                    content_type: Some("application/json".to_owned()),
+                                    ty: None,
+                                });
+                            }
+                        }
+                    }
+                });
+                return Err(e.into());
+            }
             let item = Annotated::new(span.item);
             let message = KafkaMessage::SpanV2 {
                 routing_key: span.routing_key,
@@ -1114,6 +1151,10 @@ impl StoreService {
             MetricNamespace::Outcomes => {
                 return self.send_metric_based_outcome(message);
             }
+            MetricNamespace::Spans | MetricNamespace::Transactions => {
+                // Generic metrics (spans/transactions) are no longer ingested.
+                return Ok(());
+            }
             MetricNamespace::Unsupported => {
                 relay_log::error!(
                     metric_message.name = message.name.as_ref(),
@@ -1121,7 +1162,6 @@ impl StoreService {
                 );
                 return Ok(());
             }
-            _ => KafkaTopic::MetricsGeneric,
         };
 
         let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);

@@ -19,6 +19,14 @@ RELAY_ROOT = Path(__file__).parent.parent.parent
 HOUR_MILLISEC = 1000 * 3600
 
 
+def _align_time():
+    """
+    Sleep until we're at the start of the next second.  Useful for tests where bucketing of things
+    happen on the second boundary.
+    """
+    time.sleep(1 - (time.time() % 1))
+
+
 def _disable_quota(project_config, event_type="error", reason="rate_limited"):
     project_config["config"]["quotas"] = [
         {
@@ -564,9 +572,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
@@ -683,6 +688,8 @@ def test_outcomes_aggregate_inbound_filters(
     )
 
     outcomes_consumer = outcomes_consumer()
+
+    _align_time()
 
     # Send empty body twice
     _send_event(relay)
@@ -817,6 +824,7 @@ def test_profile_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"
@@ -919,13 +927,6 @@ def test_profile_outcomes(
 
     outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
-
-    metrics = [
-        m
-        for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "c:spans/usage@none" and m["tags"].get("is_segment") == "true"
-    ]
-    assert sum(metric["value"] for metric in metrics) == 2
 
     assert profiles_consumer.get_profile()
     assert profiles_consumer.get_profile()
@@ -1343,6 +1344,7 @@ def test_span_outcomes(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     outcomes_consumer,
     num_intermediate_relays,
 ):
@@ -1383,21 +1385,24 @@ def test_span_outcomes(
         },
     }
 
-    # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(config)
+    # The innermost Relay needs to be in processing mode and trust the PoP Relay.
+    pop_credentials = relay_credentials()
+    upstream = relay_with_processing(config, static_credentials=pop_credentials)
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
         config = deepcopy(config)
         if i == 0:
             # Emulate a PoP Relay
+            credentials = pop_credentials
             config["outcomes"]["source"] = "pop-relay"
-            config["http"] = {"global_metrics": True}
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
+            credentials = None
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
-        upstream = relay(upstream, config)
+        upstream = relay(upstream, config, credentials=credentials)
 
     def make_envelope(transaction_name):
         payload = _get_event_payload("transaction")

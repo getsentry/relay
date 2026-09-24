@@ -10,6 +10,10 @@ local pipedream_config = {
   exclude_regions: [
     's4s2',
     'de',
+    'us',
+    'customer-1',
+    'customer-2',
+    'customer-7',
   ],
   materials: {
     relay_repo: {
