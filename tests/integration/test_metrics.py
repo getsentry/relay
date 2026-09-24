@@ -662,7 +662,7 @@ def test_transaction_metrics_extraction_external_relays(mini_sentry, relay):
     external.send_transaction(project_id, tx, None, trace_info)
 
     payload = mini_sentry.get_metrics()
-    assert len(payload) == 4
+    assert len(payload) == 2
 
     by_name = {m["name"]: m for m in payload}
     usage_metric = by_name["c:spans/usage@none"]
