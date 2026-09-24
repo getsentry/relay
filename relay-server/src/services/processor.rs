@@ -2337,7 +2337,7 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
+        item.set_payload(ContentType::Text, "sessions/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,
