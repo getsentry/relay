@@ -377,11 +377,14 @@ impl<'de, A: SeqAccess<'de>> SeqAccess<'de> for MeteredSeqAccess<'_, A> {
         &mut self,
         seed: T,
     ) -> Result<Option<T::Value>, Self::Error> {
-        self.meter.spend(cost::UNIT)?;
         let element = self.inner.next_element_seed(MeteredSeed {
             meter: self.meter,
             inner: seed,
         })?;
+
+        if element.is_some() {
+            self.meter.spend(cost::UNIT)?;
+        }
 
         Ok(element)
     }
@@ -404,12 +407,14 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for MeteredMapAccess<'_, A> {
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
-        self.meter.spend(cost::UNIT)?;
-
         let key = self.inner.next_key_seed(MeteredSeed {
             meter: self.meter,
             inner: seed,
         })?;
+
+        if key.is_some() {
+            self.meter.spend(cost::UNIT)?;
+        }
 
         Ok(key)
     }
@@ -587,7 +592,7 @@ mod tests {
     }
 
     fn prim_array_cost(num_elements: usize) -> usize {
-        cost::UNIT + (cost::UNIT * num_elements)
+        cost::UNIT + (2 * cost::UNIT * num_elements)
     }
 
     fn str_cost() -> usize {
@@ -603,11 +608,11 @@ mod tests {
     }
 
     fn scalar_struct_cost(num_fields: usize) -> usize {
-        map_cost() + num_fields * (str_cost() + prim_cost())
+        map_cost() + (2 * num_fields) + (num_fields * (str_cost() + prim_cost()))
     }
 
     fn variant_cost(payload: usize) -> usize {
-        str_cost() + payload
+        3 + str_cost() + payload
     }
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -703,7 +708,7 @@ mod tests {
     #[test]
     fn test_deserialize_all_paths() {
         let mut de = json_deserializer(EVERYTHING_PAYLOAD);
-        let value: Everything<'_> = deserialize(&mut de, 1 << 20).unwrap();
+        let value: Everything = deserialize(&mut de, 1 << 20).unwrap();
 
         assert_eq!(
             value,
@@ -765,7 +770,7 @@ mod tests {
     #[test]
     fn test_expected_costs_everything() {
         let mut de = json_deserializer(EVERYTHING_PAYLOAD);
-        let (_, meter): (Everything<'_>, _) = deserialize_return_meter(&mut de, 1 << 20);
+        let (_, meter): (Everything, _) = deserialize_return_meter(&mut de, 1 << 20);
 
         // The cost of every field's value, in declaration order. Field names are charged
         // separately, below.
@@ -794,29 +799,37 @@ mod tests {
             prim_cost(),
             // none
             prim_cost(),
-            // seq: the outer sequence plus `[1, 2]`, `[]` and `[3]`
-            cost::UNIT + prim_array_cost(2) + prim_array_cost(0) + prim_array_cost(1),
-            // map: two entries, each a key plus an enum variant
-            map_cost()
-                + (str_cost() + variant_cost(prim_cost()))
-                + (str_cost() + variant_cost(prim_cost())),
-            // variants: a unit, a newtype, a tuple and two struct variants
+            // seq: entering the array + the outer sequence + `[1, 2]`, `[]` and `[3]`
             cost::UNIT
-                + variant_cost(prim_cost())
-                + variant_cost(prim_cost())
-                + variant_cost(prim_array_cost(2))
-                + variant_cost(scalar_struct_cost(2))
-                + variant_cost(scalar_struct_cost(2)),
+                + (3 * cost::UNIT)
+                + prim_array_cost(2)
+                + prim_array_cost(0)
+                + prim_array_cost(1),
+            // map: two entries, each a key plus an enum variant
+            map_cost() + (2 + str_cost() + str_cost()) + (str_cost() + variant_cost(prim_cost())),
+            // variants: an array, of 5 elements which are part of a variant and have: a unit, a
+            // newtype, a tuple and two struct variants
+            cost::UNIT
+                + 1
+                + (5 * cost::UNIT)
+                + (str_cost())
+                + (str_cost() + prim_cost())
+                + (str_cost() + prim_array_cost(2))
+                + (str_cost() + scalar_struct_cost(2))
+                + (str_cost() + scalar_struct_cost(2)),
             // nested: `Nested` with two names, one value and no inner
             map_cost()
-                + (str_cost() + prim_array_cost(2))
-                + (str_cost() + prim_array_cost(1))
-                + (str_cost() + prim_cost()),
+                + (2 + str_cost() + prim_array_cost(2))
+                + (2 + str_cost() + prim_array_cost(1))
+                + (2 + str_cost() + prim_cost()),
             // The `ignored` field (just the string field name)
             cost::UNIT,
         ];
 
-        let expected = map_cost() + values.len() * str_cost() + values.iter().sum::<usize>();
+        let expected = map_cost()
+            + (values.len() * 2)
+            + values.len() * str_cost()
+            + values.iter().sum::<usize>();
         assert_eq!(meter.spent(), expected);
     }
 }
