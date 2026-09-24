@@ -159,8 +159,6 @@ def test_nnswitch_with_session(
         Item(type="event", payload=PayloadRef(json=event_payload)),
         Item(type="session", payload=PayloadRef(json=session_payload)),
     )
-    with open("dying_message_new.dat", "wb") as f:
-        f.write(dying_message)
 
     envelope.add_item(
         Item(
