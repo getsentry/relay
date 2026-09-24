@@ -6,7 +6,7 @@ use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::{FiniteF64, get_value};
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::DataCategory;
 use relay_sampling::config::RuleType;
 use relay_sampling::dsc::TraceUserContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
@@ -190,11 +190,9 @@ fn split_indexed_and_total(
     spans: Managed<ExpandedSpans>,
     decision: SamplingDecision,
 ) -> SpansAndMetrics {
-    let scoping = spans.scoping();
-
     spans.split_once(|spans, r| {
         r.lenient(DataCategory::MetricBucket);
-        let metrics = create_metrics(scoping, &spans.spans, spans.headers.dsc(), decision);
+        let metrics = create_metrics(&spans.spans, decision);
 
         (spans.into_indexed(), metrics)
     })
@@ -266,12 +264,7 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
 /// The `c:spans/count_per_root_project@none` metric is incremented for each span and added to the
 /// *sampling project*. The metric is tagged with dynamic sampling information, `decision`,
 /// `target_project_id`, `transaction` (from the trace root) and `is_segment`.
-fn create_metrics(
-    scoping: Scoping,
-    spans: &[ExpandedSpan],
-    dsc: Option<&DynamicSamplingContext>,
-    sampling_decision: SamplingDecision,
-) -> ExtractedMetrics {
+fn create_metrics(spans: &[ExpandedSpan], sampling_decision: SamplingDecision) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
 
     let total = spans.len();
@@ -293,38 +286,11 @@ fn create_metrics(
         metadata.extracted_from_indexed = true;
     }
 
-    let count_per_root_tags = {
-        let mut tags = BTreeMap::new();
-        tags.insert("decision".to_owned(), sampling_decision.to_string());
-        tags.insert(
-            "target_project_id".to_owned(),
-            scoping.project_id.to_string(),
-        );
-        if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
-            tags.insert("transaction".to_owned(), tx);
-        }
-        tags.insert("is_segment".to_owned(), "false".to_owned());
-        tags
-    };
-
     // Segment spans.
     if segments > 0 {
         let segments = FiniteF64::cast_from_u64(segments as u64);
 
-        metrics.sampling_metrics.push(Bucket {
-            timestamp,
-            width: 0,
-            name: "c:spans/count_per_root_project@none".into(),
-            value: BucketValue::counter(segments),
-            tags: {
-                let mut tags = count_per_root_tags.clone();
-                tags.insert("is_segment".to_owned(), "true".to_owned());
-                tags
-            },
-            metadata,
-        });
-
-        metrics.project_metrics.push(Bucket {
+        metrics.0.push(Bucket {
             timestamp,
             width: 0,
             name: "c:spans/usage@none".into(),
@@ -341,15 +307,7 @@ fn create_metrics(
     if total > segments {
         let spans = FiniteF64::cast_from_u64((total - segments) as u64);
 
-        metrics.sampling_metrics.push(Bucket {
-            timestamp,
-            width: 0,
-            name: "c:spans/count_per_root_project@none".into(),
-            value: BucketValue::counter(spans),
-            tags: count_per_root_tags,
-            metadata,
-        });
-        metrics.project_metrics.push(Bucket {
+        metrics.0.push(Bucket {
             timestamp,
             width: 0,
             name: "c:spans/usage@none".into(),

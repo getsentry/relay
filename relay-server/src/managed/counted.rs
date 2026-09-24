@@ -183,7 +183,7 @@ impl Counted for ExtractedMetrics {
             transactions,
             spans,
             buckets,
-        } = metrics::extract_quantities(&self.project_metrics);
+        } = metrics::extract_quantities(&self.0);
 
         [
             (DataCategory::Transaction, transactions),
