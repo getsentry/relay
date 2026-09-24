@@ -90,6 +90,9 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+    /// Configuration for JSON attribute expansion. Will be emitted only if present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json_expansion: Option<ErrorBoundary<JsonExpansionConfig>>,
 }
 
 impl ProjectConfig {
@@ -166,6 +169,7 @@ impl Default for ProjectConfig {
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
+            json_expansion: None,
         }
     }
 }
@@ -287,6 +291,14 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+/// Settings for JSON attribute expansion.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JsonExpansionConfig {
+    /// Whether JSON attribute expansion is enabled.
+    pub enabled: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,5 +315,65 @@ mod tests {
         for feature in GRADUATED_FEATURE_FLAGS {
             assert!(project_config.features.has(*feature));
         }
+    }
+
+    fn assert_project_config_roundtrip(json: &str) {
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        let serialized = serde_json::to_value(&config).unwrap();
+        let expected: Value = serde_json::from_str(json).unwrap();
+        assert_eq!(serialized, expected);
+    }
+
+    #[test]
+    fn test_json_expansion_absent_roundtrip() {
+        let json = r#"{"allowedDomains":["*"],"piiConfig":null,"trustedRelays":[]}"#;
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        assert!(config.json_expansion.is_none());
+        assert_project_config_roundtrip(json);
+    }
+
+    #[test]
+    fn test_json_expansion_enabled_roundtrip() {
+        let json = r#"{"allowedDomains":["*"],"jsonExpansion":{"enabled":true},"piiConfig":null,"trustedRelays":[]}"#;
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.json_expansion.as_ref().and_then(|b| b.as_ref().ok()),
+            Some(&JsonExpansionConfig { enabled: true })
+        );
+        assert_project_config_roundtrip(json);
+    }
+
+    #[test]
+    fn test_json_expansion_disabled_object_roundtrip() {
+        let json = r#"{"allowedDomains":["*"],"jsonExpansion":{"enabled":false},"piiConfig":null,"trustedRelays":[]}"#;
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.json_expansion.as_ref().and_then(|b| b.as_ref().ok()),
+            Some(&JsonExpansionConfig { enabled: false })
+        );
+        assert_project_config_roundtrip(json);
+    }
+
+    #[test]
+    fn test_json_expansion_unknown_field_does_not_fail() {
+        let json = r#"{"jsonExpansion":{"enabled":true,"maxDepth":4}}"#;
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.json_expansion.as_ref().and_then(|b| b.as_ref().ok()),
+            Some(&JsonExpansionConfig { enabled: true })
+        );
+    }
+
+    #[test]
+    fn test_json_expansion_malformed_does_not_fail_config() {
+        let json = r#"{"allowedDomains":["example.com"],"jsonExpansion":true,"trustedRelays":[]}"#;
+        let config: ProjectConfig = serde_json::from_str(json).unwrap();
+        assert!(
+            config
+                .json_expansion
+                .as_ref()
+                .is_some_and(|boundary| boundary.is_err())
+        );
+        assert_eq!(config.allowed_domains, vec!["example.com".to_owned()]);
     }
 }
