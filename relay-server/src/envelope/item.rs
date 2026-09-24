@@ -129,7 +129,7 @@ impl Item {
             ItemType::Session | ItemType::Sessions => {
                 smallvec![(DataCategory::Session, item_count)]
             }
-            ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
+            ItemType::MetricBuckets => smallvec![],
             ItemType::Log => smallvec![
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
@@ -652,7 +652,6 @@ impl Item {
             ItemType::UserReport
             | ItemType::Session
             | ItemType::Sessions
-            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::ReplayEvent
@@ -690,7 +689,6 @@ impl Item {
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
@@ -778,8 +776,6 @@ pub enum ItemType {
     Session,
     /// Aggregated session data.
     Sessions,
-    /// Individual metrics in text encoding.
-    Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
     /// Client internal report (eg: outcomes).
@@ -848,7 +844,6 @@ impl ItemType {
             Self::UserReportV2 => "feedback",
             Self::Session => "session",
             Self::Sessions => "sessions",
-            Self::Statsd => "statsd",
             Self::MetricBuckets => "metric_buckets",
             Self::ClientReport => "client_report",
             Self::Profile => "profile",
@@ -875,7 +870,7 @@ impl ItemType {
 
     /// Returns `true` if the item is a metric type.
     pub fn is_metrics(&self) -> bool {
-        matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
+        matches!(self, ItemType::MetricBuckets)
     }
 
     /// Returns `true` if the item is a Relay internal item type.
@@ -906,7 +901,6 @@ impl ItemType {
             ItemType::UserReport => false,
             ItemType::Session => true,
             ItemType::Sessions => true,
-            ItemType::Statsd => true,
             ItemType::MetricBuckets => true,
             ItemType::ClientReport => true,
             ItemType::Profile => true,
@@ -947,7 +941,6 @@ impl std::str::FromStr for ItemType {
             "feedback" => Self::UserReportV2,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
-            "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,

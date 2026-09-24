@@ -345,8 +345,7 @@ impl MetricData {
     /// Consumes the metric data and parses the contained buckets.
     ///
     /// If the contained data is already parsed the buckets are returned unchanged.
-    /// Raw buckets are parsed and created with the passed `timestamp`.
-    fn into_buckets(self, timestamp: UnixTimestamp) -> Vec<Bucket> {
+    fn into_buckets(self) -> Vec<Bucket> {
         let items = match self {
             Self::Parsed(buckets) => return buckets,
             Self::Raw(items) => items,
@@ -355,17 +354,7 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
-                for bucket_result in Bucket::parse_all(&payload, timestamp) {
-                    match bucket_result {
-                        Ok(bucket) => buckets.push(bucket),
-                        Err(error) => relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd format",
-                        ),
-                    }
-                }
-            } else if item.ty() == &ItemType::MetricBuckets {
+            if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
@@ -763,7 +752,7 @@ impl EnvelopeProcessorService {
         let received_timestamp =
             UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
 
-        let mut buckets = data.into_buckets(received_timestamp);
+        let mut buckets = data.into_buckets();
         if buckets.is_empty() {
             return;
         };
@@ -2336,8 +2325,8 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_payload(ContentType::Json, "spans/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

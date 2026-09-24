@@ -2608,11 +2608,6 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_sessions_size.as_bytes()
     }
 
-    /// Returns the maximum payload size of a statsd metric in bytes.
-    pub fn max_statsd_size(&self) -> usize {
-        self.inner.values.limits.max_statsd_size.as_bytes()
-    }
-
     /// Returns the maximum payload size of metric buckets in bytes.
     pub fn max_metric_buckets_size(&self) -> usize {
         self.inner.values.limits.max_metric_buckets_size.as_bytes()
