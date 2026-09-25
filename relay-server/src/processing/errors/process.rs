@@ -16,8 +16,9 @@ use crate::services::processor::ProcessingError;
 /// For example an crash report attachment may be expanded into an error event, multiple other
 /// attachments and some user feedback.
 ///
-/// This function may also return an envelope containing "unprocessable" items that
-/// should be returned back to the envelope processor for another round through the pipeline.
+/// This function may also return an envelope containing "intermediate" items which were extracted
+/// from the error envelope, but cannot be processed by this processer and should be returned
+/// back to the envelope processor for another round through the pipeline.
 pub fn expand(
     error: Managed<SerializedError>,
     ctx: Context<'_>,

@@ -743,7 +743,7 @@ impl EnvelopeProcessorService {
             for Output {
                 main,
                 metrics,
-                unprocessed,
+                intermediates,
             } in outputs
             {
                 if let Some(metrics) = metrics {
@@ -758,8 +758,8 @@ impl EnvelopeProcessorService {
                     self.submit_upstream(&mut Token::noop(), output, ctx);
                 }
 
-                if let Some(unprocessed) = unprocessed {
-                    envelopes.push(unprocessed)
+                if let Some(intermediates) = intermediates {
+                    envelopes.push(intermediates)
                 }
             }
         }
@@ -1913,7 +1913,7 @@ mod tests {
         let Output {
             main,
             metrics,
-            unprocessed: _,
+            intermediates: _,
         } = outputs.pop().unwrap();
 
         if let Some(metrics) = metrics {

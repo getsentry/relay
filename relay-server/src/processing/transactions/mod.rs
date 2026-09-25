@@ -162,7 +162,7 @@ impl Processor for TransactionProcessor {
                 return Ok(Output {
                     main: profile.map(TransactionOutput::Profile),
                     metrics: Some(metrics),
-                    unprocessed: None,
+                    intermediates: None,
                 });
             }
         };
@@ -194,7 +194,7 @@ impl Processor for TransactionProcessor {
         Ok(Output {
             main: Some(TransactionOutput::Indexed { spans, transaction }),
             metrics: Some(metrics),
-            unprocessed: None,
+            intermediates: None,
         })
     }
 }
