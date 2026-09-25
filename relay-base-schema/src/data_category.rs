@@ -97,6 +97,10 @@ pub enum DataCategory {
     /// SDK rate limiting behavior: apply to items of type 'feedback'.
     UserReportV2 = 14,
     /// Metric buckets.
+    ///
+    /// These are metrics generated and consumed by Relay.
+    ///
+    /// SDK rate limiting behavior: ignore.
     MetricBucket = 15,
     /// SpanIndexed
     ///
