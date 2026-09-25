@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -11,6 +12,7 @@ use crate::services::buffer::envelope_store::sqlite::{
     DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
     SqliteEnvelopeStoreError,
 };
+use crate::services::buffer::unspool_throttle::UnspoolThrottle;
 use crate::statsd::RelayTimers;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
@@ -47,10 +49,13 @@ pub struct SqliteEnvelopeStack {
     flush_timeout: Option<Duration>,
     /// Time of last flush to disk (or creation time of the envelope stack).
     last_flush: Instant,
+    /// Optional throttle which paces how quickly envelopes are unspooled from disk.
+    unspool_throttle: Option<Arc<UnspoolThrottle>>,
 }
 
 impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         partition_id: u8,
         envelope_store: SqliteEnvelopeStore,
@@ -59,6 +64,7 @@ impl SqliteEnvelopeStack {
         sampling_key: ProjectKey,
         check_disk: bool,
         flush_timeout: Option<Duration>,
+        unspool_throttle: Option<Arc<UnspoolThrottle>>,
     ) -> Self {
         Self {
             envelope_store,
@@ -71,6 +77,7 @@ impl SqliteEnvelopeStack {
             partition_tag: partition_id.to_string(),
             flush_timeout,
             last_flush: Instant::now(),
+            unspool_throttle,
         }
     }
 
@@ -145,6 +152,9 @@ impl SqliteEnvelopeStack {
         match batch {
             Some(batch) => {
                 self.batch = batch.into();
+                if let Some(throttle) = &self.unspool_throttle {
+                    throttle.acquire(self.batch.len()).await;
+                }
             }
             None => self.check_disk = false,
         }
@@ -244,6 +254,7 @@ mod tests {
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
             None,
+            None,
         );
 
         let envelope = mock_envelope(Utc::now());
@@ -268,6 +279,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
             None,
         );
 
@@ -311,6 +323,7 @@ mod tests {
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
             None,
+            None,
         );
 
         // We pop with an invalid db.
@@ -332,6 +345,7 @@ mod tests {
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
             None,
+            None,
         );
 
         // We pop with no elements.
@@ -350,6 +364,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
             None,
         );
 
@@ -394,6 +409,7 @@ mod tests {
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             false,
             Some(timeout),
+            None,
         );
 
         // First push: no spool
@@ -443,6 +459,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
             None,
         );
 
@@ -512,6 +529,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
             None,
         );
 
