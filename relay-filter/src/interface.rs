@@ -242,7 +242,7 @@ macro_rules! impl_for_attributes {
             fn ip_addr(&self) -> Option<&str> {
                 let attributes = self.attributes.value()?;
 
-                // If the SDK indicates this really is a local host request, use this information
+                // If the SDK indicates this really is a localhost request, use this information
                 // to provide the IP to filter on.
                 let is_localhost = attributes
                     .get_value(SENTRY__IS_LOCALHOST)
@@ -254,7 +254,7 @@ macro_rules! impl_for_attributes {
                 // Otherwise fall back to the more generic client address.
                 //
                 // This may be inferred from Relay (even for requests happening on localhost),
-                // and therefor is just the fallback.
+                // and therefore is just the fallback.
                 //
                 // This may happen for example for single page applications running in the browser,
                 // they really are on `localhost` but Relay infers the internet ip address.
