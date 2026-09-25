@@ -428,6 +428,10 @@ pub enum RelayTimers {
     ///  - `event_processing.process`
     ///  - `event_processing.filtering`
     ///  - `event_processing.rate_limiting`
+    ///
+    /// This metric is tagged with:
+    /// - `is_intermediate`: Whether this envelope contains "intermediates",
+    /// i.e. items produced by one processor for processing by others.
     EnvelopeProcessingTime,
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
@@ -1027,9 +1031,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
-    /// A processor returned intermediate items which need
-    /// to be processed separately.
-    IntermediateItems,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1095,7 +1096,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
-            RelayCounters::IntermediateItems => "event.intermediate_items",
         }
     }
 }

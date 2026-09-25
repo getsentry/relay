@@ -734,10 +734,15 @@ impl EnvelopeProcessorService {
         let mut envelopes: smallvec::SmallVec<[ManagedEnvelope; 1]> =
             smallvec::smallvec![message.envelope];
 
+        // The first envelope we process is not an intermediate.
+        let mut is_intermediate = false;
+
         while let Some(envelope) = envelopes.pop() {
-            let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
-                self.process(envelope, ctx).await
-            });
+            let outputs = metric!(
+                timer(RelayTimers::EnvelopeProcessingTime),
+                is_intermediate = if is_intermediate { "true" } else { "false" },
+                { self.process(envelope, ctx).await }
+            );
 
             let ctx = ctx.to_forward();
             for Output {
@@ -759,12 +764,11 @@ impl EnvelopeProcessorService {
                 }
 
                 if let Some(intermediates) = intermediates {
-                    metric!(
-                        counter(RelayCounters::IntermediateItems) +=
-                            intermediates.envelope().len() as u64
-                    );
                     envelopes.push(intermediates)
                 }
+
+                // Every envelope past the first is an intermediate.
+                is_intermediate = true;
             }
         }
     }
