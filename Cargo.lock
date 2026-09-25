@@ -4913,6 +4913,8 @@ dependencies = [
  "relay-common",
  "relay-pattern",
  "relay-protocol-derive",
+ "semver",
+ "sentry-release-parser",
  "serde",
  "serde_json",
  "similar-asserts",

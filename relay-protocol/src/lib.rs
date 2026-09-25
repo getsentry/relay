@@ -26,6 +26,7 @@ mod meta;
 mod size;
 mod traits;
 mod value;
+mod version;
 
 pub use self::annotated::*;
 pub use self::condition::RuleCondition;

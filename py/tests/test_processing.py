@@ -251,6 +251,11 @@ def test_validate_cidr_condition():
     sentry_relay.validate_rule_condition(condition)
 
 
+def test_validate_version_condition():
+    condition = '{"op": "version", "name": "event.release", "value": [">=1.2.0, <2.0.0", "~>3.1"]}'
+    sentry_relay.validate_rule_condition(condition)
+
+
 def test_invalid_sampling_condition():
     """
     Tests that invalid conditions are caught

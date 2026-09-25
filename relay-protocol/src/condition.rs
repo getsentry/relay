@@ -10,6 +10,7 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+pub use crate::version::VersionConstraints;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -315,6 +316,43 @@ impl CidrCondition {
     }
 }
 
+/// A condition that compares the version of a release against version constraints.
+///
+/// The field must hold a release string such as `1.2.3` or `myapp@1.2.3+build`. The condition
+/// matches if the version satisfies any entry in `value`. See [`VersionConstraints`] for the
+/// constraint syntax.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VersionCondition {
+    /// Path of the field that holds the release.
+    pub name: String,
+    /// Version constraints to check against, such as `">=1.2.0, <2.0.0"`.
+    ///
+    /// Note that this cannot be a single value, it must be a list of values.
+    pub value: VersionConstraints,
+}
+
+impl VersionCondition {
+    /// Creates a condition that matches release versions against one or more constraints.
+    ///
+    /// Entries that do not parse as a constraint are skipped.
+    pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self {
+            name: field.into(),
+            value: value.into_strings().into_iter().collect(),
+        }
+    }
+
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        match instance.get_value(self.name.as_str()) {
+            Some(Val::String(release)) => self.value.matches(release),
+            _ => false,
+        }
+    }
+}
+
 /// Combines multiple conditions using logical OR.
 ///
 /// This condition matches if **any** of the inner conditions match. The default value for this
@@ -574,6 +612,17 @@ pub enum RuleCondition {
     /// ```
     Cidr(CidrCondition),
 
+    /// A condition that compares the version of a release against version constraints.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::version("obj.release", ">=1.2.0, <2.0.0");
+    /// ```
+    Version(VersionCondition),
+
     /// Combines multiple conditions using logical OR.
     ///
     /// # Example
@@ -724,6 +773,26 @@ impl RuleCondition {
     /// ```
     pub fn cidr(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Cidr(CidrCondition::new(field, value))
+    }
+
+    /// Creates a condition that matches release versions against one or more constraints.
+    ///
+    /// Each entry is a comma-separated list of comparators such as `">=1.2.0, <2.0.0"`. The
+    /// condition matches if any entry holds. Entries that do not parse are ignored.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// // Match a range:
+    /// let condition = RuleCondition::version("obj.release", ">=1.2.0, <2.0.0");
+    ///
+    /// // Match any of a list of constraints:
+    /// let condition = RuleCondition::version("obj.release", &["<1.0.0", "~>2.1"][..]);
+    /// ```
+    pub fn version(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self::Version(VersionCondition::new(field, value))
     }
 
     /// Creates a condition that applies `>`.
@@ -887,7 +956,8 @@ impl RuleCondition {
             | RuleCondition::Lt(_)
             | RuleCondition::Eq(_)
             | RuleCondition::Glob(_)
-            | RuleCondition::Cidr(_) => true,
+            | RuleCondition::Cidr(_)
+            | RuleCondition::Version(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -910,6 +980,7 @@ impl RuleCondition {
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
             RuleCondition::Cidr(condition) => condition.matches(value),
+            RuleCondition::Version(condition) => condition.matches(value),
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
@@ -1050,6 +1121,11 @@ mod tests {
                 "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32","not-an-ip"]
             },
             {
+                "op":"version",
+                "name": "field_release",
+                "value": [">=1.2.0, <2.0.0","~>3.1","not-a-constraint"]
+            },
+            {
                 "op":"not",
                 "inner": {
                     "op":"glob",
@@ -1131,6 +1207,14 @@ mod tests {
             value: [
               "10.0.0.0/8",
               "192.168.1.1/32",
+            ],
+          ),
+          VersionCondition(
+            op: "version",
+            name: "field_release",
+            value: [
+              ">=1.2.0, <2.0.0",
+              "~>3.1",
             ],
           ),
           NotCondition(
@@ -1312,6 +1396,36 @@ mod tests {
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
         assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
+    }
+
+    #[test]
+    fn test_version_condition() {
+        let trace = mock_trace();
+
+        assert!(RuleCondition::version("trace.release", "1.1.1").matches(&trace));
+        assert!(RuleCondition::version("trace.release", ">=1.1, <1.2").matches(&trace));
+        assert!(RuleCondition::version("trace.release", "~>1.0").matches(&trace));
+        assert!(RuleCondition::version("trace.release", &["<1.0.0", ">1.1.0"][..]).matches(&trace));
+        assert!(!RuleCondition::version("trace.release", ">1.1.1").matches(&trace));
+        assert!(!RuleCondition::version("trace.release", "!=1.1.1").matches(&trace));
+        assert!(!RuleCondition::version("trace.release", Vec::<String>::new()).matches(&trace));
+        assert!(!RuleCondition::version("trace.missing", ">=1.0.0").matches(&trace));
+        assert!(!RuleCondition::version("trace.transaction", ">=1.0.0").matches(&trace));
+        assert!(!RuleCondition::version("trace.client_ip", ">=1.0.0").matches(&trace));
+    }
+
+    #[test]
+    fn test_version_condition_skips_invalid_entries() {
+        let condition: RuleCondition = serde_json::from_str(
+            r#"{"op": "version", "name": "trace.release", "value": ["garbage", ">=1.0.0"]}"#,
+        )
+        .unwrap();
+
+        assert!(condition.matches(&mock_trace()));
+        assert_eq!(
+            serde_json::to_string(&condition).unwrap(),
+            r#"{"op":"version","name":"trace.release","value":[">=1.0.0"]}"#
+        );
     }
 
     #[test]
