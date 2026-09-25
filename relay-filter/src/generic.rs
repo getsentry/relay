@@ -16,19 +16,35 @@ use relay_protocol::{Getter, GetterIter, RuleCondition, Val};
 /// This is the same address the `clientIps` filter uses, not the user IP stored in the item.
 const CLIENT_IP_PATH: &str = "envelope.client_ip";
 
-/// An item together with the envelope data that conditions can reference.
+/// Paths under which conditions read the release of an item.
+///
+/// Item getters return these as plain strings. Generic filters retype them as [`Val::Release`],
+/// so that comparison conditions order them by version.
+const RELEASE_PATHS: [&str; 4] = [
+    "event.release",
+    "log.attributes.sentry.release.value",
+    "trace_metric.attributes.sentry.release.value",
+    "span.attributes.sentry.release.value",
+];
+
+/// An item as generic filter conditions see it.
 ///
 /// Fields of the item resolve through its own [`Getter`]. [`CLIENT_IP_PATH`] resolves to the
-/// client IP of the envelope, which no item type carries itself.
-struct WithClientIp<'a, F> {
+/// client IP of the envelope, which no item type carries itself, and [`RELEASE_PATHS`] resolve
+/// to releases instead of strings.
+struct FilterItem<'a, F> {
     item: &'a F,
     client_ip: Option<IpAddr>,
 }
 
-impl<F: Getter> Getter for WithClientIp<'_, F> {
+impl<F: Getter> Getter for FilterItem<'_, F> {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         match path {
             CLIENT_IP_PATH => self.client_ip.map(Val::IpAddr),
+            path if RELEASE_PATHS.contains(&path) => match self.item.get_value(path)? {
+                Val::String(release) => Some(Val::Release(release)),
+                other => Some(other),
+            },
             other => self.item.get_value(other),
         }
     }
@@ -66,14 +82,15 @@ fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
 /// for that type maps `"event.some_field"` to the corresponding field on that type.
 ///
 /// Conditions can also read `envelope.client_ip`, the IP address of the client that sent the
-/// envelope, for every item type.
+/// envelope, for every item type. Release fields compare by version in `gt`, `gte`, `lt`, and
+/// `lte` conditions.
 pub(crate) fn should_filter<F: Getter>(
     item: &F,
     client_ip: Option<IpAddr>,
     project_filters: &GenericFiltersConfig,
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
-    let item = WithClientIp { item, client_ip };
+    let item = FilterItem { item, client_ip };
     let filters = merge_generic_filters(
         project_filters,
         global_filters,

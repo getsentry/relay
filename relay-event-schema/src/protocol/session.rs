@@ -151,7 +151,7 @@ pub struct SessionAttributes {
 impl Getter for SessionAttributes {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path.strip_prefix("event.")? {
-            "release" => Val::Release(self.release.as_str()),
+            "release" => self.release.as_str().into(),
             "environment" => self.environment.as_deref()?.into(),
             _ => return None,
         })
@@ -625,7 +625,7 @@ mod tests {
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(
             update.get_value("event.release"),
-            Some(Val::Release("sentry-test@1.0.0"))
+            Some(Val::String("sentry-test@1.0.0"))
         );
         assert_eq!(
             update.get_value("event.environment"),
@@ -652,7 +652,7 @@ mod tests {
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(
             update.get_value("event.release"),
-            Some(Val::Release("sentry-test@1.0.0"))
+            Some(Val::String("sentry-test@1.0.0"))
         );
         assert_eq!(update.get_value("event.environment"), None);
     }

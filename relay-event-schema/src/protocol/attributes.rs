@@ -2,9 +2,8 @@ use std::borrow::{Borrow, Cow};
 use std::fmt;
 
 use enumset::EnumSet;
-use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_protocol::{
-    Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Val, Value,
+    Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
 };
 
 use crate::processor::{
@@ -253,17 +252,6 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.get_annotated_value(key)?.value()
-    }
-
-    /// Returns the value of the attribute with the given key for use in rule conditions.
-    ///
-    /// The `sentry.release` attribute is returned as [`Val::Release`], so comparison conditions
-    /// order it by version.
-    pub fn get_val(&self, key: &str) -> Option<Val<'_>> {
-        Some(match self.get_value(key)? {
-            Value::String(release) if key == SENTRY__RELEASE => Val::Release(release),
-            value => value.into(),
-        })
     }
 
     /// Returns the attribute with the given key.

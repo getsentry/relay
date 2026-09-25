@@ -65,7 +65,7 @@ impl Getter for SpanV2 {
             path => {
                 let key = path.strip_prefix("attributes.")?;
                 let key = key.strip_suffix(".value")?;
-                self.attributes.value()?.get_val(key)?
+                self.attributes.value()?.get_value(key)?.into()
             }
         })
     }

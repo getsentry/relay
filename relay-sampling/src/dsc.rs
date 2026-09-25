@@ -76,7 +76,7 @@ pub struct DynamicSamplingContext {
 impl Getter for DynamicSamplingContext {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path.strip_prefix("trace.")? {
-            "release" => Val::Release(self.release.as_deref()?),
+            "release" => self.release.as_deref()?.into(),
             "environment" => self.environment.as_deref()?.into(),
             "user.id" => or_none(&self.user.user_id)?.into(),
             "user.segment" => or_none(&self.user.user_segment)?.into(),
@@ -583,7 +583,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        assert_eq!(Some(Val::Release("1.1.1")), dsc.get_value("trace.release"));
+        assert_eq!(Some(Val::String("1.1.1")), dsc.get_value("trace.release"));
         assert_eq!(
             Some(Val::String("prod")),
             dsc.get_value("trace.environment")

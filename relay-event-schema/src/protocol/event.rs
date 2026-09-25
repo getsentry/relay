@@ -623,7 +623,7 @@ impl Getter for Event {
         Some(match path.strip_prefix("event.")? {
             // Simple fields
             "level" => self.level.value()?.name().into(),
-            "release" => Val::Release(self.release.as_str()?),
+            "release" => self.release.as_str()?.into(),
             "dist" => self.dist.as_str()?.into(),
             "environment" => self.environment.as_str()?.into(),
             "transaction" => self.transaction.as_str()?.into(),
@@ -1186,10 +1186,7 @@ mod tests {
 
         assert_eq!(Some(Val::String("info")), event.get_value("event.level"));
 
-        assert_eq!(
-            Some(Val::Release("1.1.1")),
-            event.get_value("event.release")
-        );
+        assert_eq!(Some(Val::String("1.1.1")), event.get_value("event.release"));
         assert_eq!(
             Some(Val::String("prod")),
             event.get_value("event.environment")
