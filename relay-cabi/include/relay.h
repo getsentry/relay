@@ -128,8 +128,6 @@ enum RelayDataCategory {
   RELAY_DATA_CATEGORY_USER_REPORT_V2 = 14,
   /**
    * Metric buckets.
-   *
-   * SDK rate limiting behavior: apply to `statsd` and `metrics` items.
    */
   RELAY_DATA_CATEGORY_METRIC_BUCKET = 15,
   /**

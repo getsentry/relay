@@ -97,8 +97,6 @@ pub enum DataCategory {
     /// SDK rate limiting behavior: apply to items of type 'feedback'.
     UserReportV2 = 14,
     /// Metric buckets.
-    ///
-    /// SDK rate limiting behavior: apply to `statsd` and `metrics` items.
     MetricBucket = 15,
     /// SpanIndexed
     ///

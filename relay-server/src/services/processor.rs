@@ -264,14 +264,10 @@ pub struct ProcessEnvelope {
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
 }
 
-/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+/// Parses metric buckets and pushes them to the project's aggregator.
 ///
-/// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
-///    ignored independently.
-///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
-///    dropped together on parsing failure.
-///  - Other envelope items will be ignored with an error message.
+/// Each [`MetricBuckets`](ItemType::MetricBuckets) item contains a JSON list of buckets. The entire
+/// list is dropped on parsing failure. Other envelope items are ignored with an error message.
 ///
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
@@ -303,8 +299,7 @@ impl MetricData {
     /// Consumes the metric data and parses the contained buckets.
     ///
     /// If the contained data is already parsed the buckets are returned unchanged.
-    /// Raw buckets are parsed and created with the passed `timestamp`.
-    fn into_buckets(self, timestamp: UnixTimestamp) -> Vec<Bucket> {
+    fn into_buckets(self) -> Vec<Bucket> {
         let items = match self {
             Self::Parsed(buckets) => return buckets,
             Self::Raw(items) => items,
@@ -313,17 +308,7 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
-                for bucket_result in Bucket::parse_all(&payload, timestamp) {
-                    match bucket_result {
-                        Ok(bucket) => buckets.push(bucket),
-                        Err(error) => relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd format",
-                        ),
-                    }
-                }
-            } else if item.ty() == &ItemType::MetricBuckets {
+            if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
@@ -743,7 +728,7 @@ impl EnvelopeProcessorService {
         let received_timestamp =
             UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
 
-        let mut buckets = data.into_buckets(received_timestamp);
+        let mut buckets = data.into_buckets();
         if buckets.is_empty() {
             return;
         };
@@ -2320,8 +2305,18 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(ContentType::Text, "sessions/foo:3182887624:4267882815|s");
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_payload(
+            ContentType::Json,
+            serde_json::json!([{
+                "timestamp": received_at.timestamp(),
+                "width": 0,
+                "name": "s:sessions/foo@none",
+                "type": "s",
+                "value": [3182887624u32, 4267882815u32],
+            }])
+            .to_string(),
+        );
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

@@ -663,8 +663,6 @@ pub struct Limits {
     pub max_standalone_span_count: usize,
     /// The maximum payload size for an item container.
     pub max_container_size: ByteSize,
-    /// The maximum payload size for a statsd metric.
-    pub max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
     pub max_metric_buckets_size: ByteSize,
     /// The maximum payload size for a compressed replay.
@@ -754,7 +752,6 @@ impl Default for Limits {
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
-            max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
@@ -2606,11 +2603,6 @@ impl ConfigSnapshot {
     /// Returns the maximum combined size for all sessions in an envelope in bytes.
     pub fn max_sessions_size(&self) -> usize {
         self.inner.values.limits.max_sessions_size.as_bytes()
-    }
-
-    /// Returns the maximum payload size of a statsd metric in bytes.
-    pub fn max_statsd_size(&self) -> usize {
-        self.inner.values.limits.max_statsd_size.as_bytes()
     }
 
     /// Returns the maximum payload size of metric buckets in bytes.

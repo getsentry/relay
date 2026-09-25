@@ -16,7 +16,7 @@ use std::{borrow::Cow, sync::OnceLock};
 /// for the MRI divider characters, metric type, and namespace, which is a reasonable allocation.
 const CUSTOM_METRIC_NAME_MAX_SIZE: usize = 150;
 
-/// Validates a metric name and normalizes it. This is the statsd name, i.e. without type or unit.
+/// Validates and normalizes a metric name without its type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
 /// underscores, dashes, and periods. The implementation will further replace dashes with
