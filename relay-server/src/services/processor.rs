@@ -1903,6 +1903,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         }
     }
 
@@ -1955,6 +1956,7 @@ mod tests {
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
                     namespace: None,
+                    group_by: None,
                 };
 
                 let mut config = ProjectConfig::default();

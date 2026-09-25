@@ -1,4 +1,5 @@
-use std::fmt::{self, Debug};
+use std::borrow::Cow;
+use std::fmt::{self, Debug, Write};
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -14,7 +15,7 @@ use crate::cache::OpportunisticQuotaCache;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::statsd::{QuotaCounters, QuotaTimers};
-use crate::{REJECT_ALL_SECS, cache};
+use crate::{EMPTY_DIMENSIONS, REJECT_ALL_SECS, cache};
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -75,7 +76,7 @@ impl OwnedRedisQuota {
     pub fn build_ref(&self) -> RedisQuota<'_> {
         RedisQuota {
             quota: &self.quota,
-            scoping: self.scoping,
+            scoping: &self.scoping,
             prefix: Arc::clone(&self.prefix),
             window: self.window,
             quantity: self.quantity,
@@ -90,7 +91,7 @@ pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
-    scoping: ItemScoping,
+    scoping: &'a ItemScoping,
     /// The Redis key prefix mapped from the quota id.
     prefix: Arc<str>,
     /// The Redis window in seconds mapped from the quota.
@@ -110,7 +111,7 @@ impl<'a> RedisQuota<'a> {
     pub fn new(
         quota: &'a Quota,
         quantity: u64,
-        scoping: ItemScoping,
+        scoping: &'a ItemScoping,
         timestamp: UnixTimestamp,
     ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
@@ -132,7 +133,7 @@ impl<'a> RedisQuota<'a> {
     pub fn build_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
-            scoping: self.scoping,
+            scoping: self.scoping.clone(),
             prefix: Arc::clone(&self.prefix),
             window: self.window,
             quantity: self.quantity,
@@ -210,6 +211,19 @@ impl<'a> RedisQuota<'a> {
             subscope,
             namespace: self.namespace,
             slot: self.slot(),
+            dimensions: self.scoping.dimensions_as_string(self.quota),
+        }
+    }
+
+    /// Returns the maximum cardinality of the quota dimensions that we will support. This is an
+    /// arbitrary value, but necessary to ensure we don't end up with huge numbers of buckets
+    /// for some set of dimensions. If we don't have any dimensions, than all values will hash
+    /// to the same bucket, so we can just say the cardinality is 1 in that case.
+    pub fn max_dimensions_cardinality(&self) -> u32 {
+        if let Some(group_by) = &self.group_by {
+            group_by.max_cardinality
+        } else {
+            1
         }
     }
 
@@ -244,12 +258,16 @@ pub struct QuotaCacheKey {
     subscope: Option<u64>,
     namespace: Option<MetricNamespace>,
     slot: u64,
+    dimensions: Cow<'static, str>,
 }
 
-impl fmt::Display for QuotaCacheKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl QuotaCacheKey {
+    fn to_redis_key(&self) -> String {
+        let mut result = String::new();
+        // Note: do _not_ include dimension_hash for the display, as it does not form part of the
+        // redis key. It's used as an index into the hash stored at the redis key.
         write!(
-            f,
+            &mut result,
             "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
             id = self.id,
             org = self.org,
@@ -257,6 +275,8 @@ impl fmt::Display for QuotaCacheKey {
             namespace = OptionalDisplay(self.namespace),
             slot = self.slot,
         )
+        .expect("should be infallible");
+        result
     }
 }
 
@@ -354,7 +374,7 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
             } else if let Some(mut quota) =
-                RedisQuota::new(quota, quantity, *item_scoping, timestamp)
+                RedisQuota::new(quota, quantity, item_scoping, timestamp)
             {
                 if let Some(cache) = &self.cache {
                     quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
@@ -363,9 +383,16 @@ impl RedisRateLimiter {
                     };
                 }
 
-                let redis_key = quota.key().to_string();
+                let mut redis_key = quota.key().to_redis_key();
                 // Remaining quotas are expected to be track-able in Redis.
                 let refund_key = get_refunded_quota_key(&redis_key);
+
+                let redis_dims_key = item_scoping.dimensions_as_string(&quota);
+                if redis_dims_key != EMPTY_DIMENSIONS {
+                    redis_key += ":hash";
+                }
+
+                let max_cardinality = quota.max_dimensions_cardinality();
 
                 invocation.key(redis_key);
                 invocation.key(refund_key);
@@ -374,6 +401,8 @@ impl RedisRateLimiter {
                 invocation.arg(quota.key_expiry());
                 invocation.arg(quota.quantity);
                 invocation.arg(over_accept_once);
+                invocation.arg(redis_dims_key);
+                invocation.arg(max_cardinality);
 
                 tracked_quotas.push(quota);
             } else {
@@ -486,12 +515,13 @@ struct QuotaState {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
-    use crate::MetricNamespaceScoping;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
+    use crate::{Dimension, EMPTY_DIMENSIONS, GroupBy, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -525,6 +555,7 @@ mod tests {
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
+                group_by: None,
             },
             Quota {
                 id: Some("42".into()),
@@ -535,6 +566,7 @@ mod tests {
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
                 namespace: None,
+                group_by: None,
             },
         ];
 
@@ -547,6 +579,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -582,6 +615,7 @@ mod tests {
                 window: Some(600),
                 reason_code: Some(ReasonCode::new(format!("ns: {namespace:?}"))),
                 namespace,
+                group_by: None,
             }
         };
 
@@ -597,6 +631,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Sessions),
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -651,6 +686,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -662,6 +698,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -702,6 +739,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -713,6 +751,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -765,6 +804,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -776,6 +816,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -824,6 +865,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -848,6 +890,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
                 namespace: None,
+                group_by: None,
             },
             Quota {
                 id: Some("q1".into()),
@@ -858,6 +901,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
                 namespace: None,
+                group_by: None,
             },
         ];
 
@@ -870,6 +914,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -910,6 +955,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -921,6 +967,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -961,6 +1008,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -972,11 +1020,15 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}42:61561561");
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
+        assert_eq!(
+            redis_quota.key().to_redis_key(),
+            "quota:foo{69420}42:61561561"
+        );
     }
 
     #[tokio::test]
@@ -990,6 +1042,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -1001,11 +1054,12 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}:23453");
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.key().to_redis_key(), "quota:foo{69420}:23453");
     }
 
     #[tokio::test]
@@ -1019,6 +1073,7 @@ mod tests {
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         let scoping = ItemScoping {
@@ -1030,10 +1085,11 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
         assert_eq!(redis_quota.limit(), -1);
     }
 
@@ -1079,10 +1135,14 @@ mod tests {
             .arg(now + 60) // expiry
             .arg(1) // quantity
             .arg(false) // over accept once
+            .arg(EMPTY_DIMENSIONS) // dimensions
+            .arg(1) // max cardinality
             .arg(2) // limit
             .arg(now + 120) // expiry
             .arg(1) // quantity
-            .arg(false); // over accept once
+            .arg(false) // over accept once
+            .arg(EMPTY_DIMENSIONS) // dimensions
+            .arg(1); // max cardinality
 
         // Craft a new invocation similar to the previous one, but it only applies to the quota
         // with a higher limit (2).
@@ -1093,7 +1153,9 @@ mod tests {
             .arg(2) // limit
             .arg(now + 120) // expiry
             .arg(1) // quantity
-            .arg(false); // over accept once
+            .arg(false) // over accept once
+            .arg(EMPTY_DIMENSIONS) // dimensions
+            .arg(1); // max cardinality
 
         // 1 quantity used from both quotas.
         assert_invocation!(invocation, @r"
@@ -1192,11 +1254,13 @@ mod tests {
         );
 
         assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
+
         let ttl: u64 = conn.ttl(&foo).await.unwrap();
         assert!(ttl >= 59);
         assert!(ttl <= 60);
 
         assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "2");
+
         let ttl: u64 = conn.ttl(&bar).await.unwrap();
         assert!(ttl >= 119);
         assert!(ttl <= 120);
@@ -1215,7 +1279,9 @@ mod tests {
             .arg(1) // limit
             .arg(now + 60) // expiry
             .arg(1) // quantity
-            .arg(false);
+            .arg(false) // over accept once
+            .arg(EMPTY_DIMENSIONS) // dimensions
+            .arg(1); // max cardinality
 
         // increment, current quota usage is 1.
         assert_invocation!(invocation, @r"
@@ -1263,7 +1329,9 @@ mod tests {
             .arg(1) // limit
             .arg(now + 60) // expiry
             .arg(1) // quantity
-            .arg(false);
+            .arg(false) // over accept once
+            .arg(EMPTY_DIMENSIONS) // dimensions
+            .arg(1); // max cardinality
 
         // test that refund key is used
         assert_invocation!(invocation, @r"
@@ -1279,6 +1347,235 @@ mod tests {
         );
     }
 
+    /// Each dimensions key is counted independently within the same Redis key.
+    #[tokio::test]
+    async fn test_is_rate_limited_script_dimensions() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
+
+        let rate_limiter = build_rate_limiter();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
+
+        let key = format!("dims___{now}");
+        let refund_key = format!("r:dims___{now}");
+
+        let script = RedisScripts::load_is_rate_limited();
+
+        // A single quota with a limit of 1, invoked for two different dimension values.
+        let invoke = |dims: &str| {
+            let mut invocation = script.prepare_invoke();
+
+            let mut key = key.clone();
+            if dims != EMPTY_DIMENSIONS {
+                key += ":hash";
+            }
+
+            invocation
+                .key(&key) // key
+                .key(&refund_key) // refund key
+                .arg(1) // limit
+                .arg(now + 60) // expiry
+                .arg(1) // quantity
+                .arg(false) // over accept once
+                .arg(dims) // dimensions
+                .arg(999); // max cardinality
+            invocation
+        };
+
+        let invoke_async = async |dims: &str, conn: &mut _| {
+            invoke(dims)
+                .invoke_async::<ScriptResult>(conn)
+                .await
+                .unwrap()
+                .0
+        };
+
+        // The first check for `:2:a` consumes its bucket...
+        let result = invoke_async(":2:a", &mut conn).await;
+        assert!(!result[0].is_rejected);
+        assert_eq!(result[0].consumed, 1);
+
+        // ...and the second one is rejected.
+        let result = invoke_async(":2:a", &mut conn).await;
+        assert!(result[0].is_rejected);
+        assert_eq!(result[0].consumed, 1);
+
+        // A different dimensions key is a separate bucket, unaffected by the exhausted one.
+        let result = invoke_async(":2:b", &mut conn).await;
+        assert!(!result[0].is_rejected);
+        assert_eq!(result[0].consumed, 1);
+
+        let result = invoke_async(":2:b", &mut conn).await;
+        assert!(result[0].is_rejected);
+        assert_eq!(result[0].consumed, 1);
+
+        // So is the undimensioned bucket.
+        let result = invoke_async(EMPTY_DIMENSIONS, &mut conn).await;
+        assert!(!result[0].is_rejected);
+        assert_eq!(result[0].consumed, 1);
+
+        // All buckets live in the same hash, under the same expiry.
+        let mut fields: Vec<(String, i64)> = conn.hgetall(&(key.clone() + ":hash")).await.unwrap();
+        fields.sort();
+        assert_eq!(
+            fields,
+            vec![(":2:a".to_owned(), 1), (":2:b".to_owned(), 1),]
+        );
+
+        let ttl: u64 = conn.ttl(&key).await.unwrap();
+        assert!(ttl >= 59, "{ttl}");
+        assert!(ttl <= 60, "{ttl}");
+    }
+
+    /// A quota with a maximum cardinality rejects items which would create a new bucket beyond
+    /// that cardinality, but keeps serving the buckets which already exist.
+    #[tokio::test]
+    async fn test_is_rate_limited_script_dimensions_cardinality() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
+
+        let rate_limiter = build_rate_limiter();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
+
+        let key = format!("cardinality___{now}");
+        let refund_key = format!("r:cardinality___{now}");
+
+        let script = RedisScripts::load_is_rate_limited();
+
+        // A generous limit, so that only the cardinality can cause a rejection.
+        let invoke_async = async |dims: &str, conn: &mut _| {
+            let mut invocation = script.prepare_invoke();
+            invocation
+                .key(&key) // key
+                .key(&refund_key) // refund key
+                .arg(100) // limit
+                .arg(now + 60) // expiry
+                .arg(1) // quantity
+                .arg(false) // over accept once
+                .arg(dims) // dimensions
+                .arg(2); // max cardinality
+
+            invocation
+                .invoke_async::<ScriptResult>(conn)
+                .await
+                .unwrap()
+                .0
+        };
+
+        // The first two buckets fit within the cardinality of 2.
+        assert!(!invoke_async(":2:a", &mut conn).await[0].is_rejected);
+        assert!(!invoke_async(":2:b", &mut conn).await[0].is_rejected);
+
+        // A third, new bucket is rejected, even though its own limit is nowhere near reached.
+        let result = invoke_async(":2:c", &mut conn).await;
+        assert!(result[0].is_rejected);
+        assert_eq!(result[0].consumed, 0);
+
+        // The existing buckets keep being counted, as they do not add cardinality.
+        assert!(!invoke_async(":2:a", &mut conn).await[0].is_rejected);
+        assert!(!invoke_async(":2:b", &mut conn).await[0].is_rejected);
+
+        // The rejected bucket was never created.
+        let mut fields: Vec<(String, i64)> = conn.hgetall(&key).await.unwrap();
+        fields.sort();
+        assert_eq!(fields, vec![(":2:a".to_owned(), 2), (":2:b".to_owned(), 2)]);
+    }
+
+    /// A cardinality of `0` rejects every item, and a cardinality of `-1` is unlimited.
+    #[tokio::test]
+    async fn test_is_rate_limited_script_dimensions_cardinality_edges() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
+
+        let rate_limiter = build_rate_limiter();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
+
+        let script = RedisScripts::load_is_rate_limited();
+
+        let invoke_async = async |key: &str, dims: &str, cardinality: i32, conn: &mut _| {
+            let mut invocation = script.prepare_invoke();
+            invocation
+                .key(key) // key
+                .key(get_refunded_quota_key(key)) // refund key
+                .arg(100) // limit
+                .arg(now + 60) // expiry
+                .arg(1) // quantity
+                .arg(false) // over accept once
+                .arg(dims) // dimensions
+                .arg(cardinality); // max cardinality
+
+            invocation
+                .invoke_async::<ScriptResult>(conn)
+                .await
+                .unwrap()
+                .0
+        };
+
+        let zero = format!("cardinality_zero___{now}");
+        assert!(invoke_async(&zero, ":2:a", 0, &mut conn).await[0].is_rejected);
+        assert_eq!(conn.hlen::<_, u64>(&zero).await.unwrap(), 0);
+
+        // `-1` means unlimited, so an arbitrary number of new buckets is accepted.
+        let unlimited = format!("cardinality_unlimited___{now}");
+        for i in 0..10 {
+            let dims = format!(":2:{i}");
+            assert!(!invoke_async(&unlimited, &dims, -1, &mut conn).await[0].is_rejected);
+        }
+        assert_eq!(conn.hlen::<_, u64>(&unlimited).await.unwrap(), 10);
+    }
+
+    /// The refund counter is a plain key, and hence shared by all dimension buckets of a quota.
+    #[tokio::test]
+    async fn test_is_rate_limited_script_dimensions_share_refund_key() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
+
+        let rate_limiter = build_rate_limiter();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
+
+        let key = format!("dims_refund___{now}");
+        let refund_key = get_refunded_quota_key(&key);
+        let () = conn.set(&refund_key, 5).await.unwrap();
+
+        let script = RedisScripts::load_is_rate_limited();
+
+        let invoke_async = async |dims: &str, conn: &mut _| {
+            let mut invocation = script.prepare_invoke();
+            invocation
+                .key(&key) // key
+                .key(&refund_key) // refund key
+                .arg(1) // limit
+                .arg(now + 60) // expiry
+                .arg(1) // quantity
+                .arg(false) // over accept once
+                .arg(dims) // dimensions
+                .arg(999); // max cardinality
+
+            invocation
+                .invoke_async::<ScriptResult>(conn)
+                .await
+                .unwrap()
+                .0
+        };
+
+        // Both buckets are discounted by the full refund, since the refund is not dimensioned.
+        let result = invoke_async(":2:a", &mut conn).await;
+        assert!(!result[0].is_rejected);
+        assert_eq!(result[0].consumed, -4);
+
+        let result = invoke_async(":2:b", &mut conn).await;
+        assert!(!result[0].is_rejected);
+        assert_eq!(result[0].consumed, -4);
+    }
+
     /// Usual rate limiting with a cache should just work as expected.
     #[tokio::test]
     async fn test_quota_with_cache() {
@@ -1291,6 +1588,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -1302,6 +1600,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         // For this test, with only a single rate limiter accessing Redis and always a quantity of
@@ -1350,6 +1649,7 @@ mod tests {
             window: Some(window),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            group_by: None,
         }];
 
         let scoping = ItemScoping {
@@ -1361,6 +1661,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
         };
 
         // 10% Quota cache.
@@ -1411,6 +1712,508 @@ mod tests {
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
             }]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_quota_dimensions() {
+        let quotas = &[
+            Quota {
+                id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4()).into()),
+                categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                scope: QuotaScope::Project,
+                scope_id: None,
+                limit: Some(2),
+                window: Some(60),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
+                group_by: GroupBy {
+                    max_cardinality: 999,
+                    dimensions: BTreeSet::from([
+                        Dimension::CheckInEnvironment,
+                        Dimension::CheckInSlug,
+                    ])
+                    .into(),
+                }
+                .into(),
+            },
+            Quota {
+                id: Some(format!("test_quota_wont_go_over{}", uuid::Uuid::new_v4()).into()),
+                categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                scope: QuotaScope::Project,
+                scope_id: None,
+                limit: Some(2),
+                window: Some(60),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
+                group_by: None,
+            },
+        ];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Monitor,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::from([
+                (Dimension::CheckInEnvironment, "us".to_owned()),
+                (Dimension::CheckInSlug, "cron1".to_owned()),
+            ])
+            .into(),
+        };
+
+        let no_dims_scoping = ItemScoping {
+            category: DataCategory::Monitor,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+            dimensions: Arc::default(),
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // limit is 2, so first call not rate limited
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &scoping, 2, false)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+
+        // make sure the non-dimensioned monitor is not limited...
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &no_dims_scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // ...until we invoke again
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &no_dims_scoping, 2, false)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+    }
+
+    /// Builds a project-scoped monitor quota with the passed dimensions and limit.
+    fn monitor_quota(limit: u64, group_by: GroupBy) -> Quota {
+        Quota {
+            id: Some(format!("test_dimensions_{}", uuid::Uuid::new_v4()).into()),
+            categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+            scope: QuotaScope::Project,
+            scope_id: None,
+            limit: Some(limit),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+            group_by: Some(group_by),
+        }
+    }
+
+    /// Builds a monitor item scoping with the passed dimensions.
+    fn monitor_scoping(dimensions: &[(Dimension, &str)]) -> ItemScoping {
+        let mut owned_dims: Vec<_> = dimensions
+            .iter()
+            .map(|(d, v)| (*d, (*v).to_owned()))
+            .collect();
+        ItemScoping {
+            category: DataCategory::Monitor,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::from_iter(owned_dims.drain(..)).into(),
+        }
+    }
+
+    /// Items which differ in any of the quota's dimensions consume separate buckets.
+    #[tokio::test]
+    async fn test_quota_dimensions_are_independent_buckets() {
+        let quotas = &[monitor_quota(
+            1,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        // Every one of these differs from the others in at least one dimension, so each one
+        // gets the full limit of 1 for itself.
+        let distinct = [
+            [
+                (Dimension::CheckInEnvironment, "prod"),
+                (Dimension::CheckInSlug, "cron1"),
+            ],
+            [
+                (Dimension::CheckInEnvironment, "prod"),
+                (Dimension::CheckInSlug, "cron2"),
+            ],
+            [
+                (Dimension::CheckInEnvironment, "dev"),
+                (Dimension::CheckInSlug, "cron1"),
+            ],
+        ];
+
+        for dims in &distinct {
+            let scoping = monitor_scoping(dims);
+
+            let rate_limits = rate_limiter
+                .is_rate_limited(quotas, &scoping, 1, false)
+                .await
+                .unwrap();
+            assert!(!rate_limits.is_limited(), "first check for {dims:?}");
+
+            // The bucket for these dimensions is now exhausted.
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, &scoping, 1, false)
+                .await
+                .unwrap()
+                .into_iter()
+                .collect();
+
+            assert_eq!(
+                rate_limits,
+                vec![RateLimit {
+                    categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                    scope: RateLimitScope::Project(ProjectId::new(43)),
+                    reason_code: Some(ReasonCode::new("get_lost")),
+                    retry_after: rate_limits[0].retry_after,
+                    namespaces: smallvec![],
+                }],
+                "second check for {dims:?}"
+            );
+        }
+    }
+
+    /// Dimensions the quota does not key on do not split the bucket.
+    #[tokio::test]
+    async fn test_quota_dimensions_ignores_unrelated_dimensions() {
+        let quotas = &[monitor_quota(
+            2,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        // The quota only keys on the slug, so these two items share a bucket despite their
+        // differing environments.
+        let prod = monitor_scoping(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]);
+        let dev = monitor_scoping(&[
+            (Dimension::CheckInEnvironment, "dev"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]);
+
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &prod, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &dev, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+
+        // Two of the limit of 2 are consumed, so both items are limited from here on.
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, &prod, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, &dev, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+    }
+
+    /// A quota with dimensions never applies to an item which does not carry them.
+    #[tokio::test]
+    async fn test_quota_dimensions_skipped_for_undimensioned_item() {
+        let quotas = &[monitor_quota(
+            1,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        // The quota does not match, so no amount of traffic can exhaust it.
+        for _ in 0..5 {
+            assert!(
+                !rate_limiter
+                    .is_rate_limited(quotas, &monitor_scoping(&[]), 1, false)
+                    .await
+                    .unwrap()
+                    .is_limited()
+            );
+        }
+
+        // An item missing only one of two required dimensions is skipped the same way.
+        let quotas = &[monitor_quota(
+            1,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
+            },
+        )];
+
+        for _ in 0..5 {
+            assert!(
+                !rate_limiter
+                    .is_rate_limited(
+                        quotas,
+                        &monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
+                        1,
+                        false
+                    )
+                    .await
+                    .unwrap()
+                    .is_limited()
+            );
+        }
+    }
+
+    /// Once the quota's cardinality is used up, items with new dimension values are limited,
+    /// while the existing ones keep their quota.
+    #[tokio::test]
+    async fn test_quota_dimensions_max_cardinality() {
+        let quotas = &[monitor_quota(
+            100,
+            GroupBy {
+                max_cardinality: 2,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+        let cron2 = monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]);
+        let cron3 = monitor_scoping(&[(Dimension::CheckInSlug, "cron3")]);
+
+        // Two distinct slugs fit into the cardinality of 2.
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &cron1, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &cron2, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+
+        // The third one is limited, despite the limit of 100 being nowhere near reached.
+        let rate_limits: Vec<RateLimit> = rate_limiter
+            .is_rate_limited(quotas, &cron3, 1, false)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            rate_limits,
+            vec![RateLimit {
+                categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                scope: RateLimitScope::Project(ProjectId::new(43)),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                retry_after: rate_limits[0].retry_after,
+                namespaces: smallvec![],
+            }]
+        );
+
+        // The slugs which made it in are unaffected.
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &cron1, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &cron2, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+    }
+
+    /// A quota with a cardinality of `0` rejects every dimensioned item.
+    #[tokio::test]
+    async fn test_quota_dimensions_zero_cardinality() {
+        let quotas = &[monitor_quota(
+            100,
+            GroupBy {
+                max_cardinality: 0,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        assert!(
+            rate_limiter
+                .is_rate_limited(
+                    quotas,
+                    &monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
+                    1,
+                    false
+                )
+                .await
+                .unwrap()
+                .is_limited()
+        );
+    }
+
+    /// Every dimension bucket gets its own limit, even when the opportunistic cache is enabled.
+    ///
+    /// The cache is keyed on the quota's dimension *names*, not on the values of an individual
+    /// item, so all buckets of a quota share one cache entry. This test pins down that sharing
+    /// the entry does not make the buckets share their limit.
+    #[tokio::test]
+    async fn test_quota_dimensions_with_cache() {
+        let limit = 50 * 60;
+
+        let quotas = &[monitor_quota(
+            limit,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
+        )];
+
+        let rate_limiter = build_rate_limiter().cache(Some(0.1), Some(0.9));
+
+        let crons = [
+            monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
+            monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]),
+        ];
+
+        // Interleave the two slugs, so that both of them go through the shared cache entry, and
+        // send a third more than either of them is allowed.
+        let mut accepted = [0u64; 2];
+        for _ in 0..(limit + limit / 2) {
+            for (scoping, accepted) in crons.iter().zip(accepted.iter_mut()) {
+                if !rate_limiter
+                    .is_rate_limited(quotas, scoping, 1, false)
+                    .await
+                    .unwrap()
+                    .is_limited()
+                {
+                    *accepted += 1;
+                }
+            }
+        }
+
+        // The cache accepts opportunistically, so allow for the same 1% of over-acceptance the
+        // undimensioned cache tests allow for.
+        let tolerance = limit / 100;
+        for accepted in accepted {
+            assert!(
+                accepted.abs_diff(limit) <= tolerance,
+                "accepted {accepted} of a limit of {limit}"
+            );
+        }
+    }
+
+    /// Dimensioned and undimensioned quotas on the same item are counted separately, and either
+    /// of them can rate limit the item on its own.
+    #[tokio::test]
+    async fn test_quota_dimensions_alongside_undimensioned_quota() {
+        // The undimensioned quota is the more generous of the two.
+        let quotas = &[
+            monitor_quota(
+                1,
+                GroupBy {
+                    max_cardinality: 999,
+                    dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+                },
+            ),
+            monitor_quota(3, GroupBy::default()),
+        ];
+
+        let rate_limiter = build_rate_limiter();
+
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+        let cron2 = monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]);
+        let cron3 = monitor_scoping(&[(Dimension::CheckInSlug, "cron3")]);
+        let cron4 = monitor_scoping(&[(Dimension::CheckInSlug, "cron4")]);
+
+        // Each new slug has its own per-dimension bucket, and all of them share the
+        // undimensioned one.
+        for scoping in [&cron1, &cron2, &cron3] {
+            assert!(
+                !rate_limiter
+                    .is_rate_limited(quotas, scoping, 1, false)
+                    .await
+                    .unwrap()
+                    .is_limited()
+            );
+        }
+
+        // The per-dimension bucket of a repeated slug is exhausted.
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, &cron1, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+
+        // A fresh slug has quota of its own, but the shared, undimensioned quota of 3 is now
+        // used up, so it is limited all the same.
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, &cron4, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
         );
     }
 }
