@@ -45,8 +45,8 @@ impl UnspoolThrottle {
             let elapsed = now.duration_since(state.last_refill).as_secs_f64();
             state.last_refill = now;
 
-            state.remaining = (state.remaining + elapsed * self.envelopes_per_second)
-                .min(self.envelopes_per_second);
+            state.remaining += elapsed * self.envelopes_per_second;
+            state.remaining = state.remaining.min(self.envelopes_per_second);
             state.remaining -= envelopes as f64;
 
             (state.remaining < 0.0)

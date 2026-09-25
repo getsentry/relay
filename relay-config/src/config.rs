@@ -1050,7 +1050,7 @@ pub struct EnvelopeSpool {
     /// Maximum number of envelopes unspooled from disk per second.
     ///
     /// The limit applies per Relay instance, not per spool partition.
-    /// Set to `null` to disable the limit.
+    /// Set to `None` to disable the limit.
     ///
     /// Defaults to 1000.
     pub max_unspool_envelopes_per_second: Option<NonZeroU32>,
