@@ -17,6 +17,7 @@
 - Copy the browser navigation type and id to web vital metrics. ([#6401](https://github.com/getsentry/relay/pull/6401))
 - Disable dynamic sampling and metrics extraction in Managed relays. For users with a dynamic sampling rate < 1, this increases the outgoing request volume of the Managed relay. ([#6413](https://github.com/getsentry/relay/pull/6413), [#6425](https://github.com/getsentry/relay/pull/6425))
 - Copy the INP interaction type to the INP web vital metric. ([#6420](https://github.com/getsentry/relay/pull/6420))
+- Extract session updates from Switch dying messages. ([#6363](https://github.com/getsentry/relay/pull/6363))
 
 **Bug Fixes**:
 
