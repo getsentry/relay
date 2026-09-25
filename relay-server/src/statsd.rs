@@ -431,7 +431,7 @@ pub enum RelayTimers {
     ///
     /// This metric is tagged with:
     /// - `is_intermediate`: Whether this envelope contains "intermediates",
-    /// i.e. items produced by one processor for processing by others.
+    ///   i.e. items produced by one processor for processing by others.
     EnvelopeProcessingTime,
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
