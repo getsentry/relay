@@ -2,10 +2,11 @@
 
 use relay_conventions::attributes::{
     BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__EVENT__SERIALIZED_BREADCRUMBS,
-    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA, SENTRY__RELEASE,
-    SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
+    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA,
+    SENTRY__EVENT__SERIALIZED_META, SENTRY__RELEASE, SENTRY__SDK__NAME, SENTRY__SDK__VERSION,
+    SENTRY__SEGMENT__NAME, URL__QUERY,
 };
-use relay_protocol::{IntoValue, Object, SerializePayload, SkipSerialization};
+use relay_protocol::{IntoValue, MetaTree, Object, SerializePayload, SkipSerialization};
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
@@ -134,6 +135,31 @@ impl From<&Event> for Span {
             && let Ok(json) = extra.payload_to_json()
         {
             span_data.insert_value(SENTRY__EVENT__SERIALIZED_EXTRA, json);
+        }
+
+        // Preserve the event's `_meta` (remarks/errors) for the fields serialized above, so the
+        // annotations PII scrubbing and normalization produced aren't lost when the transaction is
+        // turned into an EAP span.
+        let mut meta = MetaTree::default();
+        let mut contexts_meta = IntoValue::extract_meta_tree(contexts);
+        // Keep this consistent with the serialized contexts payload, which omits the trace context.
+        contexts_meta.children.remove(TraceContext::default_key());
+        if !contexts_meta.is_empty() {
+            meta.children.insert("contexts".to_owned(), contexts_meta);
+        }
+        let breadcrumbs_meta = IntoValue::extract_meta_tree(breadcrumbs);
+        if !breadcrumbs_meta.is_empty() {
+            meta.children
+                .insert("breadcrumbs".to_owned(), breadcrumbs_meta);
+        }
+        let extra_meta = IntoValue::extract_meta_tree(extra);
+        if !extra_meta.is_empty() {
+            meta.children.insert("extra".to_owned(), extra_meta);
+        }
+        if !meta.is_empty()
+            && let Ok(json) = serde_json::to_string(&meta)
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_META, json);
         }
 
         Self {
@@ -420,6 +446,119 @@ mod tests {
             assert!(!data.contains(SENTRY__EVENT__SERIALIZED_CONTEXTS));
             assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
             assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
+        }
+    }
+
+    #[test]
+    fn convert_preserves_meta() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"},
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": "[Filtered]"
+                },
+                "_meta": {
+                    "contexts": {
+                        "browser": {
+                            "name": {"": {"rem": [["browser_rule", "s"]]}}
+                        },
+                        "trace": {
+                            "trace_id": {"": {"rem": [["trace_rule", "s"]]}}
+                        }
+                    },
+                    "breadcrumbs": {
+                        "0": {
+                            "message": {"": {"rem": [["breadcrumb_rule", "s"]]}}
+                        }
+                    },
+                    "extra": {
+                        "my_key": {"": {"rem": [["extra_rule", "s", 0, 10]]}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        let meta = data.get_str(SENTRY__EVENT__SERIALIZED_META).unwrap();
+
+        assert_eq!(
+            meta,
+            r#"{"breadcrumbs":{"values":{"0":{"message":{"":{"rem":[["breadcrumb_rule","s"]]}}}}},"contexts":{"browser":{"name":{"":{"rem":[["browser_rule","s"]]}}}},"extra":{"my_key":{"":{"rem":[["extra_rule","s",0,10]]}}}}"#
+        );
+    }
+
+    #[test]
+    fn convert_omits_meta_when_absent() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"}
+                },
+                "extra": {
+                    "my_key": 1
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_META));
+        }
+    }
+
+    #[test]
+    fn convert_omits_meta_when_only_trace_context_has_meta() {
+        // The trace context is excluded from the serialized payload, so meta attached only to it
+        // must not produce a `serialized_meta` attribute.
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "_meta": {
+                    "contexts": {
+                        "trace": {
+                            "trace_id": {"": {"rem": [["trace_rule", "s"]]}}
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_META));
         }
     }
 }
