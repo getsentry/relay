@@ -1,0 +1,20 @@
+[package]
+name = "relay-serialization-derive"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Derive macros for relay serialization tools"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "26.7.2"
+edition = "2024"
+license-file = "../LICENSE.md"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true }
+
+[lib]
+proc-macro = true
