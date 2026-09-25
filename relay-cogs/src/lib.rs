@@ -71,6 +71,8 @@ mod test;
 
 pub(crate) mod time;
 
+use std::fmt;
+
 pub use self::cogs::*;
 pub use self::recorder::*;
 #[cfg(test)]
@@ -171,15 +173,20 @@ pub enum AppFeature {
     ///
     /// This app feature is for continuous profiling.
     Profiles,
+    /// User Reports
+    UserReports,
+    /// Event attachments not associated with an event.
+    StandaloneAttachments,
 
-    /// Metrics in the transactions namespace.
-    MetricsTransactions,
+    /// Outcomes.
+    Outcomes,
+
     /// Metrics in the spans namespace.
     MetricsSpans,
+    /// Metrics in the transactions namespace.
+    MetricsTransactions,
     /// Metrics in the sessions namespace.
     MetricsSessions,
-    /// Metrics in the custom namespace.
-    MetricsCustom,
     /// Metrics in the unsupported namespace.
     ///
     /// This is usually not emitted, since metrics in the unsupported
@@ -205,10 +212,12 @@ impl AppFeature {
             Self::ClientReports => "client_reports",
             Self::CheckIns => "check_ins",
             Self::Replays => "replays",
-            Self::MetricsTransactions => "metrics_transactions",
+            Self::UserReports => "user_reports",
+            Self::StandaloneAttachments => "standalone_attachments",
+            Self::Outcomes => "outcomes",
             Self::MetricsSpans => "metrics_spans",
+            Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",
-            Self::MetricsCustom => "metrics_custom",
             Self::MetricsUnsupported => "metrics_unsupported",
             Self::Profiles => "profiles",
             Self::TraceMetrics => "trace_metrics",
@@ -234,9 +243,27 @@ pub struct CogsMeasurement {
     pub value: Value,
 }
 
+impl fmt::Display for CogsMeasurement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}@{}", self.resource, self.feature.as_str())?;
+        if let Some(category) = self.category {
+            write!(f, "[{category}]")?;
+        }
+        write!(f, "={}", self.value)
+    }
+}
+
 /// A COGS measurement value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     /// A time measurement.
     Time(std::time::Duration),
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Time(duration) => write!(f, "{duration:?}"),
+        }
+    }
 }

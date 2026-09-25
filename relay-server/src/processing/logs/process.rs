@@ -1,37 +1,59 @@
+use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress};
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::extractors::{RequestMeta, RequestTrust};
-use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
-use crate::processing::{Context, Managed};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::extractors::RequestTrust;
+use crate::managed::Rejected;
+use crate::processing::logs::{
+    self, Error, ExpandedLogs, LogItems, Result, SerializedLogs, Settings,
+};
+use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
     let trust = logs.headers.meta().request_trust();
 
-    logs.map(|logs, records| {
+    logs.try_map(|logs, records| {
+        let SerializedLogs {
+            headers,
+            items,
+            invalid,
+        } = logs;
+
+        debug_assert!(
+            invalid.is_empty(),
+            "invalid items should already be rejected"
+        );
+
+        // Log byte counts will change here as we go from an estimated count based on the body, to
+        // accurately counted bytes.
         records.lenient(DataCategory::LogByte);
 
-        let mut all_logs = Vec::new();
-        for logs in logs.logs {
-            let expanded = expand_log_container(&logs, trust);
-            let expanded = records.or_default(expanded, logs);
-            all_logs.extend(expanded);
-        }
+        let ingress = match &items {
+            LogItems::Container(_) => Ingress::Container,
+            LogItems::Integration(_) => Ingress::Integration,
+        };
 
-        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
+        let (settings, logs) = match items {
+            LogItems::Container(item) => expand_log_container(&item, trust)?,
+            LogItems::Integration(item) => {
+                logs::integrations::expand(item, records, &headers).unwrap_or_default()
+            }
+        };
 
-        ExpandedLogs {
-            headers: logs.headers,
-            logs: all_logs,
-        }
+        Ok::<_, Error>(ExpandedLogs {
+            headers,
+            ingress,
+            settings,
+            logs,
+        })
     })
 }
 
@@ -39,11 +61,14 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 ///
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
-pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
+pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    let settings = logs.settings;
+    let ingress = logs.ingress.clone();
+
     logs.retain_with_context(
-        |logs| (&mut logs.logs, logs.headers.meta()),
-        |log, meta, _| {
-            normalize_log(log, meta).inspect_err(|err| {
+        |logs| (&mut logs.logs, &logs.headers),
+        |log, headers, _| {
+            normalize_log(log, &ingress, headers, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -61,13 +86,16 @@ pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     );
 }
 
-fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
-    let mut logs = ItemContainer::parse(item)
+fn expand_log_container(
+    item: &Item,
+    trust: RequestTrust,
+) -> Result<(Settings, ContainerItems<OurLog>)> {
+    let (metadata, mut logs) = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .into_items();
+        .into_parts();
 
     for log in &mut logs {
         // Calculate the received byte size and remember it as metadata, in the header.
@@ -86,16 +114,37 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
         }
     }
 
-    Ok(logs)
+    relay_log::trace!("log container metadata: {metadata:?}");
+    let settings = metadata
+        .map(|metadata| {
+            let is = metadata.ingest_settings.as_ref();
+
+            match metadata.version {
+                None | Some(1) => Settings {
+                    infer_user_agent: true,
+                    ..Default::default()
+                },
+                // Technically invalid.
+                Some(0) => Settings::default(),
+                Some(2) => Settings {
+                    infer_ip: is
+                        .and_then(|is| is.infer_ip)
+                        .is_some_and(|infer| infer.is_auto()),
+                    infer_user_agent: is
+                        .and_then(|is| is.infer_user_agent)
+                        .is_some_and(|infer| infer.is_auto()),
+                },
+                // Unsupported, fall back to the safe default.
+                Some(_) => Default::default(),
+            }
+        })
+        .unwrap_or_default();
+
+    Ok((settings, logs))
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| Error::PiiConfig(e.clone()))?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     relay_pii::eap::scrub(
         ValueType::OurLog,
@@ -107,18 +156,68 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(
+    log: &mut Annotated<OurLog>,
+    ingress: &Ingress,
+    headers: &EnvelopeHeaders,
+    settings: Settings,
+    ctx: Context<'_>,
+) -> Result<()> {
+    let meta = headers.meta();
+
+    eap::time::normalize(
+        log,
+        utils::normalize::time_config(headers, |f| f.log.as_ref(), ctx),
+    )?;
+
     if let Some(log) = log.value_mut() {
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
+
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);
         eap::normalize_received(&mut log.attributes, meta.received_at());
         eap::normalize_client_address(&mut log.attributes, meta.client_addr());
-        eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
+        if settings.infer_ip {
+            eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
+        }
+        eap::normalize_user_agent(&mut log.attributes, client_ua_info);
+        eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress), None);
     }
 
+    if let Annotated(None, meta) = log {
+        relay_log::debug!("empty log: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
+    }
+
+    Ok(())
+}
+
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+///
+/// In practice, for logs, it only performs schema validation.
+pub fn normalize_derived(logs: &mut Managed<ExpandedLogs>) {
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, &()),
+        |log, _, _| {
+            normalize_log_derived(log).inspect_err(|err| {
+                relay_log::debug!("failed to normalize log: {err}");
+            })
+        },
+    );
+}
+
+fn normalize_log_derived(log: &mut Annotated<OurLog>) -> Result<()> {
     process_value(
         log,
-        &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+        &mut SchemaProcessor::new()
+            .with_required(RequiredMode::DeleteParent)
+            .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
         ProcessingState::root(),
     )?;
 

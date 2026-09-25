@@ -1,3 +1,4 @@
+from unittest import mock
 import sentry_relay
 
 import pytest
@@ -127,9 +128,10 @@ def test_normalize_user_agent(must_normalize):
                 "type": "browser",
             },
             "client_os": {"name": "Ubuntu", "os": "Ubuntu", "type": "os"},
+            "trace": mock.ANY,
         }
     else:
-        assert "contexts" not in event
+        assert set(event["contexts"].keys()) == {"trace"}
 
 
 def test_validate_pii_selector():
@@ -242,6 +244,13 @@ def test_validate_rule_condition():
     sentry_relay.validate_rule_condition(condition)
 
 
+def test_validate_cidr_condition():
+    condition = (
+        '{"op": "cidr", "name": "envelope.client_ip", "value": ["10.0.0.0/8", "::1"]}'
+    )
+    sentry_relay.validate_rule_condition(condition)
+
+
 def test_invalid_sampling_condition():
     """
     Tests that invalid conditions are caught
@@ -327,53 +336,6 @@ def test_normalize_project_config():
     config["foobar"] = True
     normalized = sentry_relay.normalize_project_config(config)
     assert config != normalized
-
-
-def test_cardinality_limit_config_equal_normalization():
-    config = {
-        "id": "project-override-custom",
-        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
-        "limit": 1000,
-        "namespace": "custom",
-        "scope": "name",
-        "passive": True,
-        "report": True,
-    }
-    sentry_relay.normalize_cardinality_limit_config(config)
-    assert config == sentry_relay.normalize_cardinality_limit_config(config)
-
-
-def test_cardinality_limit_config_subset_normalized():
-    config = {
-        "id": "project-override-custom",
-        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
-        "limit": 1000,
-        "namespace": "custom",
-        "scope": "name",
-        "passive": False,
-        "report": False,
-        "unknown": "value",
-    }
-    normalized = sentry_relay.normalize_cardinality_limit_config(config)
-    config.pop("passive")
-    config.pop("report")
-    config.pop("unknown")
-    assert config == normalized
-
-
-def test_cardinality_limit_config_unparsable():
-    config = {
-        "id": "project-override-custom",
-        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
-        "limit": -1,
-        "namespace": "custom",
-        "scope": "name",
-    }
-    with pytest.raises(ValueError) as e:
-        sentry_relay.normalize_cardinality_limit_config(config)
-    assert (
-        str(e.value) == "invalid value: integer `-1`, expected u32 at line 1 column 107"
-    )
 
 
 def test_global_config_equal_normalization():

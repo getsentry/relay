@@ -10,12 +10,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
-use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::endpoints::common::BadStoreRequest;
+use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
@@ -87,6 +88,14 @@ impl OutcomeError for Infallible {
     }
 }
 
+impl OutcomeError for BadStoreRequest {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self) {
+        (self.to_outcome(), self)
+    }
+}
+
 /// A wrapper type which ensures outcomes have been emitted for an error.
 ///
 /// [`Managed`] wraps an error in [`Rejected`] once outcomes for have been emitted for the managed
@@ -151,11 +160,27 @@ impl Managed<Box<Envelope>> {
             outcome_aggregator,
             received_at: envelope.received_at(),
             scoping: envelope.meta().get_partial_scoping().into_scoping(),
-            event_id: envelope.event_id(),
             remote_addr: envelope.meta().remote_addr(),
         });
 
         Self::from_parts(envelope, meta)
+    }
+}
+
+/// Helper trait to abstract over `Vec` and `SmallVec` in [`Managed::retain`].
+pub trait RetainMut<I> {
+    /// Retains only the elements specified by the predicate.
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool);
+}
+
+impl<I> RetainMut<I> for Vec<I> {
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
+        Vec::retain_mut(self, f)
+    }
+}
+impl<I, const N: usize> RetainMut<I> for SmallVec<[I; N]> {
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
+        SmallVec::retain_mut(self, f)
     }
 }
 
@@ -164,15 +189,31 @@ impl<T: Counted> Managed<T> {
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn with_meta_from(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn with_meta_from_managed_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {
                 outcome_aggregator: envelope.outcome_aggregator().clone(),
                 received_at: envelope.received_at(),
                 scoping: envelope.scoping(),
-                event_id: envelope.envelope().event_id(),
                 remote_addr: envelope.meta().remote_addr(),
+            }),
+        )
+    }
+
+    /// Creates new [`Managed`] instance with the provided `value` and metadata from `request_meta`.
+    pub fn with_meta_from_request_meta(
+        request_meta: &RequestMeta,
+        outcome_aggregator: &Addr<TrackOutcome>,
+        value: T,
+    ) -> Self {
+        Self::from_parts(
+            value,
+            Arc::new(Meta {
+                outcome_aggregator: outcome_aggregator.clone(),
+                received_at: request_meta.received_at(),
+                scoping: request_meta.get_partial_scoping().into_scoping(),
+                remote_addr: request_meta.remote_addr(),
             }),
         )
     }
@@ -185,6 +226,11 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
+    /// Boxes the contained value.
+    pub fn boxed(self) -> Managed<Box<T>> {
+        self.map(|value, _| Box::new(value))
+    }
+
     /// Original received timestamp.
     pub fn received_at(&self) -> DateTime<Utc> {
         self.meta.received_at
@@ -193,6 +239,11 @@ impl<T: Counted> Managed<T> {
     /// Scoping information stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping
+    }
+
+    /// Optional remote addr from where the data was received.
+    pub fn remote_addr(&self) -> Option<IpAddr> {
+        self.meta.remote_addr
     }
 
     /// Updates the scoping stored in this context.
@@ -209,6 +260,44 @@ impl<T: Counted> Managed<T> {
         meta.scoping = scoping;
     }
 
+    /// Merge [`Self`] with another [`Managed`] instance using a mapping function.
+    ///
+    /// The caller's closure is expected to merge `other`'s inner value into `self`'s inner value.
+    /// The outcome records of `self` are automatically offset by the records of `other`.
+    pub fn merge_with<S, F>(&mut self, other: Managed<S>, f: F)
+    where
+        S: Counted,
+        F: FnOnce(&mut T, S, &mut RecordKeeper),
+    {
+        self.modify(|s, records| {
+            for (category, quantity) in other.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            other.accept(|o| f(s, o, records));
+        })
+    }
+    /// Zips two managed instances into one managed tuple.
+    ///
+    /// The returned instance uses the metadata from `first`. `second` is accepted, transferring
+    /// outcome responsibility to the merged instance.
+    pub fn zip<S>(first: Self, second: Managed<S>) -> Managed<(T, S)>
+    where
+        S: Counted,
+    {
+        debug_assert_eq!(
+            first.scoping(),
+            second.scoping(),
+            "cannot zip Managed values with different metadata"
+        );
+        first.map(|first, records| {
+            for (category, quantity) in second.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            let second = second.accept(|second| second);
+            (first, second)
+        })
+    }
+
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
     /// The two resulting managed instances together are expected to have the same outcomes as the original instance..
@@ -216,25 +305,22 @@ impl<T: Counted> Managed<T> {
     /// quantities are transferred to, there may be new additional data categories created.
     pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
     where
-        F: FnOnce(T) -> (S, U),
+        F: FnOnce(T, &mut RecordKeeper) -> (S, U),
         S: Counted,
         U: Counted,
     {
         debug_assert!(!self.is_done());
 
         let (value, meta) = self.destructure();
-        #[cfg(debug_assertions)]
         let quantities = value.quantities();
 
-        let (a, b) = f(value);
+        let mut records = RecordKeeper::new(&meta, quantities);
 
-        #[cfg(debug_assertions)]
-        debug::Quantities::from(&quantities)
-            // Instead of `assert_only_extra`, used for extracted metrics also counting
-            // in the `metric bucket` category, it may make sense to give the mapping function
-            // control over which categories to ignore, similar to the record keeper's lenient
-            // method.
-            .assert_only_extra(debug::Quantities::from(&a) + debug::Quantities::from(&b));
+        let (a, b) = f(value, &mut records);
+
+        let mut quantities = a.quantities();
+        quantities.extend(b.quantities());
+        records.success(quantities);
 
         (
             Managed::from_parts(a, Arc::clone(&meta)),
@@ -320,12 +406,13 @@ impl<T: Counted> Managed<T> {
     ///     todo!()
     /// }
     /// ```
-    pub fn retain<S, I, U, E>(&mut self, select: S, mut retain: U)
+    pub fn retain<S, I, U, E, V>(&mut self, select: S, mut retain: U)
     where
-        S: FnOnce(&mut T) -> &mut Vec<I>,
+        S: FnOnce(&mut T) -> &mut V,
         I: Counted,
         U: FnMut(&mut I, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
+        V: RetainMut<I>,
     {
         self.retain_with_context(
             |inner| (select(inner), &()),
@@ -369,16 +456,17 @@ impl<T: Counted> Managed<T> {
     ///     todo!()
     /// }
     /// ```
-    pub fn retain_with_context<S, C, I, U, E>(&mut self, select: S, mut retain: U)
+    pub fn retain_with_context<S, C, I, U, E, V>(&mut self, select: S, mut retain: U)
     where
         // Returning `&'a C` here is not optimal, ideally we return C here and express the correct
         // bound of `C: 'a` but this is, to my knowledge, currently not possible to express in stable Rust.
         //
         // This is unfortunately a bit limiting but for most of our purposes it is enough.
-        for<'a> S: FnOnce(&'a mut T) -> (&'a mut Vec<I>, &'a C),
+        for<'a> S: FnOnce(&'a mut T) -> (&'a mut V, &'a C),
         I: Counted,
         U: FnMut(&mut I, &C, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
+        V: RetainMut<I>,
     {
         self.modify(|inner, records| {
             let (items, ctx) = select(inner);
@@ -685,9 +773,7 @@ struct Meta {
     received_at: DateTime<Utc>,
     /// Data scoping information of the contained item.
     scoping: Scoping,
-    /// Optional event id associated with the contained data.
-    event_id: Option<EventId>,
-    /// Optional remote addr from where the data was received from.
+    /// Optional remote addr from where the data was received.
     remote_addr: Option<IpAddr>,
 }
 
@@ -697,10 +783,10 @@ impl Meta {
             timestamp: self.received_at,
             scoping: self.scoping,
             outcome,
-            event_id: self.event_id,
+            event_id: None,
             remote_addr: self.remote_addr,
             category,
-            quantity: quantity.try_into().unwrap_or(u32::MAX),
+            quantity: quantity as _,
         });
     }
 }
@@ -1068,6 +1154,8 @@ where
 mod tests {
     use super::*;
 
+    use relay_base_schema::project::ProjectId;
+
     struct CountedVec(Vec<u32>);
 
     impl Counted for CountedVec {
@@ -1096,6 +1184,72 @@ mod tests {
         // Now dropping the manged instance, should not record any (internal) outcomes either.
         drop(managed);
         handle.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        a.merge_with(b, |a, b, _| a.0.extend(b.0));
+
+        assert_eq!(a.0, vec![1, 2, 3, 4]);
+        drop(a);
+        handle_a.assert_internal_outcome(DataCategory::Error, 4);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_zip_into_tuple() {
+        let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedValue(3)).build();
+
+        let z = Managed::zip(a, b);
+
+        assert_eq!((z.as_ref().0).0, vec![1, 2]);
+        assert_eq!((z.as_ref().1).0, 3);
+        drop(z);
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
+        handle_a.assert_internal_outcome(DataCategory::Error, 1);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_zip_rejects_different_metadata() {
+        let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedValue(3))
+            .scoping(Scoping {
+                project_id: ProjectId::new(45),
+                ..a.scoping()
+            })
+            .build();
+
+        let result = std::panic::catch_unwind(move || {
+            Managed::zip(a, b);
+        });
+
+        assert!(
+            result.is_err(),
+            "cannot zip Managed values with different metadata"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
+        handle_b.assert_internal_outcome(DataCategory::Error, 1);
+    }
+
+    #[test]
+    fn test_merge_mismatched_records_should_panic() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, _handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        let r = std::panic::catch_unwind(move || {
+            a.merge_with(b, |_a, _b, _| {});
+        });
+
+        assert!(
+            r.is_err(),
+            "expected merge to panic because of mismatched outcome records"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
     }
 
     #[test]

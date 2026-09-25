@@ -1,15 +1,14 @@
 import time
 
-from requests import Session
-from requests.adapters import HTTPAdapter
+import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from urllib3.util import Retry
 
 from sentry_relay.auth import SecretKey
 
+DEFAULT_USER_AGENT = "RelayIntegrationTests/1.0.0 Firefox/42.0"
+
 
 class SentryLike:
-    _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
@@ -24,11 +23,6 @@ class SentryLike:
         self.internal_server_address = internal_server_address or server_address
         self.upstream = upstream
         self.public_key = public_key
-
-        self.session = Session()
-        self.session.mount(
-            "http://", HTTPAdapter(max_retries=Retry(total=5, backoff_factor=0.1))
-        )
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -110,13 +104,6 @@ class SentryLike:
                 if backoff > 10:
                     raise
                 backoff *= 2
-
-    def wait_relay_health_check(self):
-        if self._health_check_passed:
-            return
-
-        self._wait("/api/relay/healthcheck/ready/", is_internal=True)
-        self._health_check_passed = True
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.upstream)})>"
@@ -223,6 +210,7 @@ class SentryLike:
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
+        raise_for_status=True,
     ):
 
         if dsn_key is None:
@@ -240,7 +228,9 @@ class SentryLike:
         else:
             response = self.post(url, headers=headers, data=bytes)
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
+        return response
 
     def send_otel_logs(
         self,
@@ -250,6 +240,7 @@ class SentryLike:
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
+        raise_for_status=True,
     ):
 
         if dsn_key is None:
@@ -267,7 +258,9 @@ class SentryLike:
         else:
             response = self.post(url, headers=headers, data=bytes)
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
+        return response
 
     def send_vercel_logs(
         self,
@@ -342,12 +335,12 @@ class SentryLike:
 
         self.send_envelope(project_id, envelope)
 
-    def send_replay_event(self, project_id, payload, item_headers=None):
-        envelope = Envelope()
+    def send_replay_event(self, project_id, payload, envelope_headers=None):
+        envelope = Envelope(headers=envelope_headers)
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="replay_event"))
-        if envelope.headers is None:
-            envelope.headers = {}
-
+        envelope.add_item(
+            Item(payload=PayloadRef(bytes=b"{}\n[]"), type="replay_recording")
+        )
         self.send_envelope(project_id, envelope)
 
     def send_session_aggregates(self, project_id, payload, headers=None):
@@ -370,12 +363,12 @@ class SentryLike:
         envelope.add_item(Item(PayloadRef(json=payload), type="user_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload):
+    def send_metrics(self, project_id, payload, headers=None):
         envelope = Envelope()
         envelope.add_item(
             Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
-        return self.send_envelope(project_id, envelope)
+        return self.send_envelope(project_id, envelope, headers)
 
     def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
@@ -428,7 +421,15 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_minidump(self, project_id, params=None, files=None, dsn_key_idx=0):
+    def send_minidump(
+        self,
+        project_id,
+        params=None,
+        files=None,
+        *,
+        dsn_key_idx=0,
+        raise_for_status=True,
+    ):
         """
         :param project_id: the project id
         :param params: a list of tuples (param_name, param_value)
@@ -458,7 +459,8 @@ class SentryLike:
             files=all_files,
         )
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_unreal_request(self, project_id, file_content, dsn_key_idx=0):
@@ -487,6 +489,7 @@ class SentryLike:
         crash_file_content,
         crash_video_content=None,
         dsn_key_idx=0,
+        raise_for_status=True,
     ):
         """
         Sends a request to the playstation endpoint
@@ -514,7 +517,8 @@ class SentryLike:
             files=files,
         )
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_playstation_data_request(
@@ -535,7 +539,9 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_attachments(self, project_id, event_id, files, dsn_key_idx=0):
+    def send_attachments(
+        self, project_id, event_id, files, *, dsn_key_idx=0, raise_for_status=True
+    ):
         files = {
             name: (file_name, file_content) for (name, file_name, file_content) in files
         }
@@ -554,7 +560,8 @@ class SentryLike:
             },
             files=files,
         )
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_check_in(self, project_id, check_in):
@@ -562,14 +569,21 @@ class SentryLike:
         envelope.add_item(Item(payload=PayloadRef(json=check_in), type="check_in"))
         self.send_envelope(project_id, envelope)
 
-    def request(self, method, path, timeout=None, is_internal=False, **kwargs):
+    def request(
+        self, method, path, timeout=None, is_internal=False, headers=None, **kwargs
+    ):
         assert path.startswith("/")
 
         if timeout is None:
             timeout = 10
 
+        headers = headers or {}
+        headers.setdefault("User-Agent", DEFAULT_USER_AGENT)
+
         url = self.url if not is_internal else self.internal_url
-        return self.session.request(method, url + path, timeout=timeout, **kwargs)
+        return requests.request(
+            method, url + path, timeout=timeout, headers=headers, **kwargs
+        )
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
@@ -579,3 +593,6 @@ class SentryLike:
 
     def get(self, path, **kwargs):
         return self.request("get", path, **kwargs)
+
+    def patch(self, path, **kwargs):
+        return self.request("patch", path, **kwargs)

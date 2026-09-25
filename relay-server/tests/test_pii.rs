@@ -34,7 +34,7 @@ fn test_reponse_context_pii() {
     ds_config.scrub_ip_addresses = true;
 
     // And also run the PII processort to check if the sensitive data is scrubbed.
-    let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+    let pii_config = ds_config.pii_config().as_ref().unwrap();
     let mut pii_processor = PiiProcessor::new(pii_config.compiled());
     processor::process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
     assert_annotated_snapshot!(data);

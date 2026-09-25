@@ -5,7 +5,8 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use relay_config::Config;
+use itertools::Either;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -36,39 +37,38 @@ impl SecurityReportParams {
         report_item.set_payload(ContentType::Json, item);
 
         if let Some(sentry_release) = &query.sentry_release {
-            report_item.set_header("sentry_release", sentry_release.clone());
+            report_item.set_sentry_release(sentry_release.clone());
         }
 
         if let Some(sentry_environment) = &query.sentry_environment {
-            report_item.set_header("sentry_environment", sentry_environment.clone());
+            report_item.set_sentry_environment(sentry_environment.clone());
         }
 
         report_item
     }
 
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelopes(&self) -> Result<impl Iterator<Item = Box<Envelope>>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-        let variant =
-            serde_json::from_slice::<Vec<&RawValue>>(&body).map_err(BadStoreRequest::InvalidJson);
+        let items = match serde_json::from_slice::<Vec<&RawValue>>(body) {
+            Ok(items) => Either::Left(
+                items
+                    .into_iter()
+                    .map(|item| Bytes::from(item.to_owned().to_string())),
+            ),
+            Err(_) => Either::Right(std::iter::once(body.clone())),
+        };
 
-        if let Ok(items) = variant {
-            for item in items {
-                let report_item =
-                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
-                envelope.add_item(report_item);
-            }
-        } else {
-            let report_item = Self::create_security_item(&query, body);
+        Ok(items.map(move |data| {
+            let mut envelope = Envelope::from_request(Some(EventId::new()), meta.clone());
+            let report_item = Self::create_security_item(query, data);
             envelope.add_item(report_item);
-        }
-
-        Ok(envelope)
+            envelope
+        }))
     }
 }
 
@@ -81,9 +81,6 @@ fn is_security_mime(mime: Mime) -> bool {
         (ty, subty, suffix),
         ("application", "json", None)
             | ("application", "csp-report", None)
-            | ("application", "expect-ct-report", None)
-            | ("application", "expect-ct-report", Some("json"))
-            | ("application", "expect-staple-report", None)
             | ("application", "reports", Some("json"))
     )
 }
@@ -100,14 +97,15 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let envelope = params.extract_envelope()?;
-    common::handle_envelope(&state, envelope)
-        .await?
-        .ignore_rate_limits();
+    for envelope in params.extract_envelopes()? {
+        common::handle_envelope(&state, envelope)
+            .await?
+            .check_rate_limits()?;
+    }
 
     Ok(().into_response())
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

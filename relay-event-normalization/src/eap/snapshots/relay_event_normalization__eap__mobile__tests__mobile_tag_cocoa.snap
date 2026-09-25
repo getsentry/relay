@@ -1,0 +1,14 @@
+---
+source: relay-event-normalization/src/eap/mobile.rs
+expression: attributes
+---
+{
+  "sentry.mobile": {
+    "type": "string",
+    "value": "true"
+  },
+  "sentry.sdk.name": {
+    "type": "string",
+    "value": "sentry.cocoa"
+  }
+}

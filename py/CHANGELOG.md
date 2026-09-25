@@ -1,6 +1,71 @@
 # Changelog
 
-## Unreleased
+## 0.9.31
+
+- Add the `CIDR` rule condition for generic inbound filters. ([#6374](https://github.com/getsentry/relay/pull/6374))
+
+## 0.9.30
+
+- Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
+
+## 0.9.29
+
+### New Features ✨
+
+- (flags) Raise context limit to 128 KiB by @jjbayer in [#6310](https://github.com/getsentry/relay/pull/6310)
+
+### Other
+
+- release: 0.9.28 by @getsentry-bot in [98bda2b8](https://github.com/getsentry/relay/commit/98bda2b8cf204907a4569e257f824e579ba4af74)
+
+## 0.9.28
+
+### Features
+
+- (auth) Support PEM file format for signing / verification keys by @jjbayer in ([#6155](https://github.com/getsentry/relay/pull/6155))
+- (normalization) Raise the size limit for the flags context to 128 KiB by @jjbayer in ([#6310](https://github.com/getsentry/relay/pull/6310))
+
+## 0.9.27
+
+### Bug Fixes 🐛
+
+- (pii) Require TLD in email regex to prevent Java identifier false positives by @olksdr in [#5737](https://github.com/getsentry/relay/pull/5737)
+
+### Internal Changes 🔧
+
+- (relay) Remove cardinality limiter by @Dav1dde in [#5809](https://github.com/getsentry/relay/pull/5809)
+
+### Other
+
+- release: 0.9.26 by @getsentry-bot in [8ccf872f](https://github.com/getsentry/relay/commit/8ccf872f4037901384475f9b3a2bd60b11fbf99c)
+- release: 0.9.25 by @getsentry-bot in [8c38b59a](https://github.com/getsentry/relay/commit/8c38b59a152e47285db8a3a607cf5732f1fb3533)
+
+## 0.9.26
+
+### Bug Fixes 🐛
+
+- (pii) Require TLD in email regex to prevent Java identifier false positives by @olksdr in [#5737](https://github.com/getsentry/relay/pull/5737)
+
+### Internal Changes 🔧
+
+- (relay) Remove cardinality limiter by @Dav1dde in [#5809](https://github.com/getsentry/relay/pull/5809)
+
+### Other
+
+- release: 0.9.25 by @getsentry-bot in [8c38b59a](https://github.com/getsentry/relay/commit/8c38b59a152e47285db8a3a607cf5732f1fb3533)
+
+## 0.9.25
+
+- feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))
+- **Breaking**:  To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
+
+## 0.9.24
+
+### Bug Fixes 🐛
+
+- (profiles) Use separate data categories for transaction backend/ui profiles by @Dav1dde in [#5648](https://github.com/getsentry/relay/pull/5648)
+
+## 0.9.23
 
 - Add `CategoryUnit` enum to expose data category measurement units (count, bytes, milliseconds) for quota validation. ([#5427](https://github.com/getsentry/relay/pull/5427))
 

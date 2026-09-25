@@ -9,8 +9,9 @@
 //! objects and common request objects, it's just that nobody bothers to implement the conversion
 //! logic.
 use std::io;
+use std::time::Duration;
 
-use bytes::Bytes;
+use http::header::InvalidHeaderValue;
 use relay_config::HttpEncoding;
 pub use reqwest::StatusCode;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -26,6 +27,10 @@ pub enum HttpError {
     Io(#[from] io::Error),
     #[error("failed to parse JSON response")]
     Json(#[from] serde_json::Error),
+    #[error("request was retried or not initialized")]
+    Misconfigured,
+    #[error("failed to construct header")]
+    Header(#[from] InvalidHeaderValue),
 }
 
 impl HttpError {
@@ -37,7 +42,9 @@ impl HttpError {
             // logic is part of upstream service.
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
-            HttpError::Overflow => false,
+            Self::Overflow => false,
+            Self::Misconfigured => false,
+            Self::Header(_) => false,
         }
     }
 }
@@ -93,7 +100,14 @@ impl RequestBuilder {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body(&mut self, body: Bytes) -> &mut Self {
+    /// Enables a total request timeout.
+    ///
+    /// See [`reqwest::RequestBuilder::timeout`].
+    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.build(|builder| builder.timeout(timeout))
+    }
+
+    pub fn body(&mut self, body: impl Into<reqwest::Body>) -> &mut Self {
         self.build(|builder| builder.body(body))
     }
 }

@@ -1,4 +1,4 @@
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use relay_auth::{
     PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, SignatureRef,
     generate_key_pair, generate_relay_id,
@@ -61,7 +61,11 @@ pub unsafe extern "C" fn relay_publickey_verify(
 ) -> bool {
     let pk = spk as *const PublicKey;
     let signature = SignatureRef(unsafe { (*sig).as_str() });
-    unsafe { (*pk).verify((*data).as_bytes(), signature) }
+    unsafe {
+        (*pk)
+            .verify((*data).as_bytes(), signature, Utc::now(), Duration::MAX)
+            .is_ok()
+    }
 }
 
 /// Verifies a signature
@@ -74,9 +78,13 @@ pub unsafe extern "C" fn relay_publickey_verify_timestamp(
     max_age: u32,
 ) -> bool {
     let pk = spk as *const PublicKey;
-    let max_age = Some(Duration::seconds(i64::from(max_age)));
+    let max_age = Duration::seconds(i64::from(max_age));
     let signature = SignatureRef(unsafe { (*sig).as_str() });
-    unsafe { (*pk).verify_timestamp((*data).as_bytes(), signature, max_age) }
+    unsafe {
+        (*pk)
+            .verify((*data).as_bytes(), signature, Utc::now(), max_age)
+            .is_ok()
+    }
 }
 
 /// Parses a secret key from a string.
@@ -146,13 +154,14 @@ pub unsafe extern "C" fn relay_create_register_challenge(
     max_age: u32,
 ) -> RelayStr {
     let max_age = match max_age {
-        0 => None,
-        m => Some(Duration::seconds(i64::from(m))),
+        0 => Duration::MAX,
+        m => Duration::seconds(i64::from(m)),
     };
     let signature = SignatureRef(unsafe { (*signature).as_str() });
 
     let challenge = unsafe {
-        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), signature, max_age)?;
+        let req =
+            RegisterRequest::bootstrap_unpack((*data).as_bytes(), signature, Utc::now(), max_age)?;
 
         req.into_challenge((*secret).as_str().as_bytes())
     };
@@ -178,8 +187,8 @@ pub unsafe extern "C" fn relay_validate_register_response(
     max_age: u32,
 ) -> RelayStr {
     let max_age = match max_age {
-        0 => None,
-        m => Some(Duration::seconds(i64::from(m))),
+        0 => Duration::MAX,
+        m => Duration::seconds(i64::from(m)),
     };
 
     let signature = SignatureRef(unsafe { (*signature).as_str() });
@@ -187,6 +196,7 @@ pub unsafe extern "C" fn relay_validate_register_response(
         unsafe { (*data).as_bytes() },
         signature,
         unsafe { (*secret).as_str().as_bytes() },
+        Utc::now(),
         max_age,
     )?;
 

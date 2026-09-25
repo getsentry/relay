@@ -1,8 +1,12 @@
 //! AI cost calculation.
 
-use crate::normalize::AiOperationTypeMap;
-use crate::{ModelCostV2, ModelCosts};
-use relay_event_schema::protocol::{Event, Span, SpanData};
+use crate::eap::AttributesLike;
+use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
+use crate::{ModelCostV2, ModelMetadata};
+use relay_conventions::attributes::*;
+use relay_event_schema::protocol::{
+    Event, Measurements, OperationType, Span, SpanData, TraceContext,
+};
 use relay_protocol::{Annotated, Getter, Value};
 
 /// Amount of used tokens for a model call.
@@ -14,6 +18,10 @@ pub struct UsedTokens {
     ///
     /// This is a subset of [`Self::input_tokens`].
     pub input_cached_tokens: f64,
+    /// Amount of cache write tokens used.
+    ///
+    /// This is a subset of [`Self::input_tokens`].
+    pub input_cache_write_tokens: f64,
     /// Total amount of output tokens.
     pub output_tokens: f64,
     /// Total amount of reasoning tokens.
@@ -27,15 +35,16 @@ impl UsedTokens {
     pub fn from_span_data(data: &SpanData) -> Self {
         macro_rules! get_value {
             ($e:expr) => {
-                $e.value().and_then(Value::as_f64).unwrap_or(0.0)
+                data.get_value($e).and_then(|v| v.as_f64()).unwrap_or(0.0)
             };
         }
 
         Self {
-            input_tokens: get_value!(data.gen_ai_usage_input_tokens),
-            output_tokens: get_value!(data.gen_ai_usage_output_tokens),
-            output_reasoning_tokens: get_value!(data.gen_ai_usage_output_tokens_reasoning),
-            input_cached_tokens: get_value!(data.gen_ai_usage_input_tokens_cached),
+            input_tokens: get_value!(GEN_AI__USAGE__INPUT_TOKENS),
+            output_tokens: get_value!(GEN_AI__USAGE__OUTPUT_TOKENS),
+            output_reasoning_tokens: get_value!(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS),
+            input_cached_tokens: get_value!(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS),
+            input_cache_write_tokens: get_value!(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS),
         }
     }
 
@@ -44,11 +53,14 @@ impl UsedTokens {
         self.input_tokens > 0.0 || self.output_tokens > 0.0
     }
 
-    /// Calculates the total amount of uncached input tokens.
+    /// Calculates the total amount of input tokens billed at the standard rate.
     ///
-    /// Subtracts cached tokens from the total token count.
+    /// Both [`Self::input_cached_tokens`] and [`Self::input_cache_write_tokens`] are
+    /// subsets of [`Self::input_tokens`] and are billed separately at their own
+    /// (cached / cache-write) rates, so both are subtracted here to avoid charging
+    /// them twice.
     pub fn raw_input_tokens(&self) -> f64 {
-        self.input_tokens - self.input_cached_tokens
+        self.input_tokens - self.input_cached_tokens - self.input_cache_write_tokens
     }
 
     /// Calculates the total amount of raw, non-reasoning output tokens.
@@ -62,10 +74,16 @@ impl UsedTokens {
 /// Calculated model call costs.
 #[derive(Debug, Copy, Clone)]
 pub struct CalculatedCost {
-    /// The cost of input tokens used.
+    /// The total cost of all input tokens (raw + cached + cache_write).
     pub input: f64,
-    /// The cost of output tokens used.
+    /// The total cost of all output tokens (raw + reasoning).
     pub output: f64,
+    /// The cost of cached input tokens only (subset of `input`).
+    pub cache_read_input: f64,
+    /// The cost of cache-write input tokens only (subset of `input`).
+    pub cache_creation_input: f64,
+    /// The cost of reasoning output tokens only (subset of `output`).
+    pub reasoning_output: f64,
 }
 
 impl CalculatedCost {
@@ -78,52 +96,181 @@ impl CalculatedCost {
 /// Calculates the total cost for a model call.
 ///
 /// Returns `None` if no tokens were used.
-pub fn calculate_costs(model_cost: &ModelCostV2, tokens: UsedTokens) -> Option<CalculatedCost> {
+pub fn calculate_costs(
+    model_cost: &ModelCostV2,
+    tokens: UsedTokens,
+    integration: &str,
+    platform: &str,
+) -> Option<CalculatedCost> {
     if !tokens.has_usage() {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_tokens",
+            integration = integration,
+            platform = platform,
+        );
         return None;
     }
 
+    let cache_read_input = tokens.input_cached_tokens * model_cost.input_cached_per_token;
+    let cache_creation_input =
+        tokens.input_cache_write_tokens * model_cost.input_cache_write_per_token;
     let input = (tokens.raw_input_tokens() * model_cost.input_per_token)
-        + (tokens.input_cached_tokens * model_cost.input_cached_per_token);
+        + cache_read_input
+        + cache_creation_input;
 
     // For now most of the models do not differentiate between reasoning and output token cost,
     // it costs the same.
-    let reasoning_cost = match model_cost.output_reasoning_per_token {
-        reasoning_cost if reasoning_cost > 0.0 => reasoning_cost,
+    let reasoning_per_token = match model_cost.output_reasoning_per_token {
+        r if r > 0.0 => r,
         _ => model_cost.output_per_token,
     };
+    let reasoning_output = tokens.output_reasoning_tokens * reasoning_per_token;
+    let output = (tokens.raw_output_tokens() * model_cost.output_per_token) + reasoning_output;
 
-    let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
-        + (tokens.output_reasoning_tokens * reasoning_cost);
+    let metric_label = match (input, output) {
+        (x, y) if x < 0.0 || y < 0.0 => "calculation_negative",
+        (0.0, 0.0) => "calculation_zero",
+        _ => "calculation_positive",
+    };
 
-    Some(CalculatedCost { input, output })
+    relay_statsd::metric!(
+        counter(Counters::GenAiCostCalculationResult) += 1,
+        result = metric_label,
+        integration = integration,
+        platform = platform,
+    );
+
+    Some(CalculatedCost {
+        input,
+        output,
+        cache_read_input,
+        cache_creation_input,
+        reasoning_output,
+    })
+}
+
+/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`]
+/// for AI spans without a well known AI span op.
+///
+/// See also: [`infer_ai_operation_type`].
+pub const DEFAULT_AI_OPERATION: &str = "ai_client";
+
+/// Infers the AI operation from an AI operation name.
+///
+/// The operation name is usually inferred from the
+/// [`GEN_AI__OPERATION__NAME`] span attribute and the span
+/// operation.
+///
+/// Sentry expects the operation type in the [`GEN_AI__OPERATION__TYPE`] attribute.
+///
+/// The function returns `None` when the op is not a well known AI operation, callers likely want to default
+/// the value to [`DEFAULT_AI_OPERATION`] for AI spans.
+pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
+    let ai_op = match op_name {
+        // Full matches:
+        "ai.run.generateText"
+        | "ai.run.generateObject"
+        | "gen_ai.invoke_agent"
+        | "ai.pipeline.generate_text"
+        | "ai.pipeline.generate_object"
+        | "ai.pipeline.stream_text"
+        | "ai.pipeline.stream_object"
+        | "gen_ai.create_agent"
+        | "invoke_agent"
+        | "create_agent" => "agent",
+        "gen_ai.execute_tool" | "execute_tool" => "tool",
+        "gen_ai.handoff" | "handoff" => "handoff",
+        "ai.processor" | "processor_run" => "other",
+        // Prefix matches:
+        op if op.starts_with("ai.streamText.doStream") => "ai_client",
+        op if op.starts_with("ai.streamText") => "agent",
+
+        op if op.starts_with("ai.generateText.doGenerate") => "ai_client",
+        op if op.starts_with("ai.generateText") => "agent",
+
+        op if op.starts_with("ai.generateObject.doGenerate") => "ai_client",
+        op if op.starts_with("ai.generateObject") => "agent",
+
+        op if op.starts_with("ai.toolCall") => "tool",
+        // No match:
+        _ => return None,
+    };
+
+    Some(ai_op)
+}
+
+/// Returns whether a valid total cost is attached.
+pub fn has_valid_total_cost(attributes: &impl AttributesLike) -> bool {
+    attributes
+        .get_value(GEN_AI__COST__TOTAL_TOKENS)
+        .and_then(Value::as_f64)
+        .is_some()
 }
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
-fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanData) {
-    let Some(model_cost) = model_cost else { return };
+fn extract_ai_model_cost_data(
+    model_cost: Option<&ModelCostV2>,
+    data: &mut SpanData,
+    origin: Option<&str>,
+    platform: Option<&str>,
+) {
+    // Preserve existing total cost instead of recalculating and overwriting it.
+    if has_valid_total_cost(data) {
+        return;
+    }
 
-    let used_tokens = UsedTokens::from_span_data(&*data);
-    let Some(costs) = calculate_costs(model_cost, used_tokens) else {
+    let integration = map_origin_to_integration(origin);
+    let platform = platform_tag(platform);
+
+    let Some(model_cost) = model_cost else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = integration,
+            platform = platform,
+        );
         return;
     };
 
-    data.gen_ai_cost_total_tokens
+    let used_tokens = UsedTokens::from_span_data(&*data);
+    let Some(costs) = calculate_costs(model_cost, used_tokens, integration, platform) else {
+        return;
+    };
+
+    data.other
+        .entry(GEN_AI__COST__TOTAL_TOKENS.to_owned())
+        .or_default()
         .set_value(Value::F64(costs.total()).into());
 
     // Set individual cost components
-    data.gen_ai_cost_input_tokens
+    data.other
+        .entry(GEN_AI__COST__INPUT_TOKENS.to_owned())
+        .or_default()
         .set_value(Value::F64(costs.input).into());
-    data.gen_ai_cost_output_tokens
+    data.other
+        .entry(GEN_AI__COST__CACHE_READ__INPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.cache_read_input).into());
+    data.other
+        .entry(GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.cache_creation_input).into());
+
+    data.other
+        .entry(GEN_AI__COST__OUTPUT_TOKENS.to_owned())
+        .or_default()
         .set_value(Value::F64(costs.output).into());
+
+    data.other
+        .entry(GEN_AI__COST__REASONING__OUTPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.reasoning_output).into());
 }
 
 /// Maps AI-related measurements (legacy) to span data.
-fn map_ai_measurements_to_data(span: &mut Span) {
-    let measurements = span.measurements.value();
-    let data = span.data.get_or_insert_with(SpanData::default);
-
+fn map_ai_measurements_to_data(data: &mut SpanData, measurements: Option<&Measurements>) {
     let set_field_from_measurement = |target_field: &mut Annotated<Value>,
                                       measurement_key: &str| {
         if let Some(measurements) = measurements
@@ -134,26 +281,34 @@ fn map_ai_measurements_to_data(span: &mut Span) {
         }
     };
 
-    set_field_from_measurement(&mut data.gen_ai_usage_total_tokens, "ai_total_tokens_used");
-    set_field_from_measurement(&mut data.gen_ai_usage_input_tokens, "ai_prompt_tokens_used");
     set_field_from_measurement(
-        &mut data.gen_ai_usage_output_tokens,
+        data.other
+            .entry(GEN_AI__USAGE__TOTAL_TOKENS.to_owned())
+            .or_default(),
+        "ai_total_tokens_used",
+    );
+    set_field_from_measurement(
+        data.other
+            .entry(GEN_AI__USAGE__INPUT_TOKENS.to_owned())
+            .or_default(),
+        "ai_prompt_tokens_used",
+    );
+    set_field_from_measurement(
+        data.other
+            .entry(GEN_AI__USAGE__OUTPUT_TOKENS.to_owned())
+            .or_default(),
         "ai_completion_tokens_used",
     );
 }
 
-fn set_total_tokens(span: &mut Span) {
-    let data = span.data.get_or_insert_with(SpanData::default);
-
+fn set_total_tokens(data: &mut SpanData) {
     // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if data.gen_ai_usage_total_tokens.value().is_none() {
+    if data.get_value(GEN_AI__USAGE__TOTAL_TOKENS).is_none() {
         let input_tokens = data
-            .gen_ai_usage_input_tokens
-            .value()
+            .get_value(GEN_AI__USAGE__INPUT_TOKENS)
             .and_then(Value::as_f64);
         let output_tokens = data
-            .gen_ai_usage_output_tokens
-            .value()
+            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
             .and_then(Value::as_f64);
 
         if input_tokens.is_none() && output_tokens.is_none() {
@@ -161,115 +316,222 @@ fn set_total_tokens(span: &mut Span) {
             return;
         }
 
-        data.gen_ai_usage_total_tokens.set_value(
-            Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
-        );
+        data.other
+            .entry(GEN_AI__USAGE__TOTAL_TOKENS.to_owned())
+            .or_default()
+            .set_value(
+                Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
+            );
+    }
+}
+
+/// Sets the context window size and utilization for the model.
+fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetadata) {
+    let model_id = data.get_str(GEN_AI__RESPONSE__MODEL);
+
+    let context_size = model_id.and_then(|id| model_metadata.context_size(id));
+
+    let Some(context_size) = context_size else {
+        return;
+    };
+
+    data.other
+        .entry(GEN_AI__CONTEXT__WINDOW_SIZE.to_owned())
+        .or_default()
+        .set_value(Value::U64(context_size).into());
+
+    let total_tokens = data
+        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
+        .and_then(Value::as_f64);
+
+    if let Some(total_tokens) = total_tokens {
+        data.other
+            .entry(GEN_AI__CONTEXT__UTILIZATION.to_owned())
+            .or_default()
+            .set_value(Value::F64(total_tokens / context_size as f64).into());
     }
 }
 
 /// Extract the additional data into the span
-fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
+fn extract_ai_data(
+    data: &mut SpanData,
+    duration: f64,
+    model_metadata: &ModelMetadata,
+    origin: Option<&str>,
+    platform: Option<&str>,
+) {
+    // Extracts the response tokens per second
+    if data
+        .get_value(GEN_AI__RESPONSE__TOKENS_PER_SECOND)
+        .is_none()
+        && duration > 0.0
+        && let Some(output_tokens) = data
+            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
+            .and_then(Value::as_f64)
+    {
+        data.other
+            .entry(GEN_AI__RESPONSE__TOKENS_PER_SECOND.to_owned())
+            .or_default()
+            .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
+    }
+
+    extract_context_utilization(data, model_metadata);
+
+    // Extracts the total cost of the AI model used
+    if let Some(model_id) = data.get_str(GEN_AI__RESPONSE__MODEL) {
+        extract_ai_model_cost_data(
+            model_metadata.cost_per_token(model_id),
+            data,
+            origin,
+            platform,
+        )
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_id_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
+    }
+}
+
+/// Enrich the AI span data
+fn enrich_ai_span_data(
+    span_data: &mut Annotated<SpanData>,
+    span_op: &Annotated<OperationType>,
+    measurements: &Annotated<Measurements>,
+    duration: f64,
+    model_metadata: Option<&ModelMetadata>,
+    origin: Option<&str>,
+    platform: Option<&str>,
+) {
+    if !is_ai_span(span_data, span_op.value()) {
+        return;
+    }
+
+    let data = span_data.get_or_insert_with(SpanData::default);
+
+    map_ai_measurements_to_data(data, measurements.value());
+
+    set_total_tokens(data);
+
+    // Default response model to request model if not set.
+    if data.get_value(GEN_AI__RESPONSE__MODEL).is_none()
+        && let Some(request_model) = data.get_value(GEN_AI__REQUEST__MODEL).cloned()
+    {
+        data.other
+            .entry(GEN_AI__RESPONSE__MODEL.to_owned())
+            .or_default()
+            .set_value(Some(request_model));
+    }
+
+    // Default agent name to function_id if not set.
+    if data.get_value(GEN_AI__AGENT__NAME).is_none()
+        && let Some(function_id) = data.get_value(GEN_AI__FUNCTION_ID).cloned()
+    {
+        data.other
+            .entry(GEN_AI__AGENT__NAME.to_owned())
+            .or_default()
+            .set_value(Some(function_id));
+    }
+
+    if let Some(model_metadata) = model_metadata {
+        extract_ai_data(data, duration, model_metadata, origin, platform);
+    } else {
+        relay_statsd::metric!(
+            counter(Counters::GenAiCostCalculationResult) += 1,
+            result = "calculation_no_model_cost_available",
+            integration = map_origin_to_integration(origin),
+            platform = platform_tag(platform),
+        );
+    }
+
+    let ai_op_type = data
+        .get_str(GEN_AI__OPERATION__NAME)
+        .or(span_op.value().map(String::as_str))
+        .and_then(infer_ai_operation_type)
+        .unwrap_or(DEFAULT_AI_OPERATION);
+
+    data.other
+        .entry(GEN_AI__OPERATION__TYPE.to_owned())
+        .or_default()
+        .set_value(Some(Value::String(ai_op_type.to_owned())));
+}
+
+/// Enrich the AI span data
+pub fn enrich_ai_span(span: &mut Span, model_metadata: Option<&ModelMetadata>) {
     let duration = span
         .get_value("span.duration")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
-    let data = span.data.get_or_insert_with(SpanData::default);
-
-    // Extracts the response tokens per second
-    if data.gen_ai_response_tokens_per_second.value().is_none()
-        && duration > 0.0
-        && let Some(output_tokens) = data
-            .gen_ai_usage_output_tokens
-            .value()
-            .and_then(Value::as_f64)
-    {
-        data.gen_ai_response_tokens_per_second
-            .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
-    }
-
-    // Extracts the total cost of the AI model used
-    if let Some(model_id) = data
-        .gen_ai_request_model
-        .value()
-        .and_then(|val| val.as_str())
-        .or_else(|| {
-            data.gen_ai_response_model
-                .value()
-                .and_then(|val| val.as_str())
-        })
-    {
-        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
-    }
-}
-
-/// Enrich the AI span data
-pub fn enrich_ai_span_data(
-    span: &mut Span,
-    model_costs: Option<&ModelCosts>,
-    operation_type_map: Option<&AiOperationTypeMap>,
-) {
-    if !is_ai_span(span) {
-        return;
-    }
-
-    map_ai_measurements_to_data(span);
-    set_total_tokens(span);
-
-    if let Some(model_costs) = model_costs {
-        extract_ai_data(span, model_costs);
-    }
-    if let Some(operation_type_map) = operation_type_map {
-        infer_ai_operation_type(span, operation_type_map);
-    }
+    enrich_ai_span_data(
+        &mut span.data,
+        &span.op,
+        &span.measurements,
+        duration,
+        model_metadata,
+        span.origin.as_str(),
+        span.platform.as_str(),
+    );
 }
 
 /// Extract the ai data from all of an event's spans
-pub fn enrich_ai_event_data(
-    event: &mut Event,
-    model_costs: Option<&ModelCosts>,
-    operation_type_map: Option<&AiOperationTypeMap>,
-) {
+pub fn enrich_ai_event_data(event: &mut Event, model_metadata: Option<&ModelMetadata>) {
+    let event_duration = event
+        .get_value("event.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    if let Some(trace_context) = event
+        .contexts
+        .value_mut()
+        .as_mut()
+        .and_then(|c| c.get_mut::<TraceContext>())
+    {
+        enrich_ai_span_data(
+            &mut trace_context.data,
+            &trace_context.op,
+            &event.measurements,
+            event_duration,
+            model_metadata,
+            trace_context.origin.as_str(),
+            event.platform.as_str(),
+        );
+    }
     let spans = event.spans.value_mut().iter_mut().flatten();
     let spans = spans.filter_map(|span| span.value_mut().as_mut());
 
     for span in spans {
-        enrich_ai_span_data(span, model_costs, operation_type_map);
-    }
-}
+        let span_duration = span
+            .get_value("span.duration")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let span_platform = span.platform.as_str().or_else(|| event.platform.as_str());
 
-///  Infer AI operation type mapping to a span.
-///
-/// This function sets the gen_ai.operation.type attribute based on the value of either
-/// gen_ai.operation.name or span.op based on the provided operation type map configuration.
-fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationTypeMap) {
-    let data = span.data.get_or_insert_with(SpanData::default);
-    let op_type = data
-        .gen_ai_operation_name
-        .value()
-        .or(span.op.value())
-        .and_then(|op| operation_type_map.get_operation_type(op));
-
-    if let Some(operation_type) = op_type {
-        data.gen_ai_operation_type
-            .set_value(Some(operation_type.to_owned()));
+        enrich_ai_span_data(
+            &mut span.data,
+            &span.op,
+            &span.measurements,
+            span_duration,
+            model_metadata,
+            span.origin.as_str(),
+            span_platform,
+        );
     }
 }
 
 /// Returns true if the span is an AI span.
 /// AI spans are spans with either a gen_ai.operation.name attribute or op starting with "ai."
 /// (legacy) or "gen_ai." (new).
-fn is_ai_span(span: &Span) -> bool {
-    let has_ai_op = span
-        .data
+fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) -> bool {
+    let has_ai_op = span_data
         .value()
-        .and_then(|data| data.gen_ai_operation_name.value())
+        .and_then(|data| data.get_value(GEN_AI__OPERATION__NAME))
         .is_some();
 
-    let is_ai_span_op = span
-        .op
-        .value()
-        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
+    let is_ai_span_op =
+        span_op.is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."));
 
     has_ai_op || is_ai_span_op
 }
@@ -279,9 +541,30 @@ mod tests {
     use std::collections::HashMap;
 
     use relay_pattern::Pattern;
-    use relay_protocol::get_value;
+    use relay_protocol::{FromValue, assert_annotated_snapshot};
+    use serde_json::json;
 
     use super::*;
+    use crate::ModelMetadataEntry;
+
+    fn ai_span_with_data(data: serde_json::Value) -> Span {
+        Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(data.into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_has_valid_total_cost() {
+        let missing = ai_span_with_data(json!({}));
+        let invalid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": false}));
+        let valid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": 1.0}));
+
+        assert!(!has_valid_total_cost(missing.data.value().unwrap()));
+        assert!(!has_valid_total_cost(invalid.data.value().unwrap()));
+        assert!(has_valid_total_cost(valid.data.value().unwrap()));
+    }
 
     #[test]
     fn test_calculate_cost_no_tokens() {
@@ -291,8 +574,11 @@ mod tests {
                 output_per_token: 1.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.0,
             },
             UsedTokens::from_span_data(&SpanData::default()),
+            "test",
+            "test",
         );
         assert!(cost.is_none());
     }
@@ -305,13 +591,17 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 3.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -319,6 +609,9 @@ mod tests {
         CalculatedCost {
             input: 5.5,
             output: 39.0,
+            cache_read_input: 2.5,
+            cache_creation_input: 0.0,
+            reasoning_output: 27.0,
         }
         ");
     }
@@ -332,13 +625,17 @@ mod tests {
                 // Should fallback to output token cost for reasoning.
                 output_reasoning_per_token: 0.0,
                 input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.0,
             },
             UsedTokens {
                 input_tokens: 8.0,
                 input_cached_tokens: 5.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 15.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -346,6 +643,9 @@ mod tests {
         CalculatedCost {
             input: 5.5,
             output: 30.0,
+            cache_read_input: 2.5,
+            cache_creation_input: 0.0,
+            reasoning_output: 18.0,
         }
         ");
     }
@@ -361,13 +661,17 @@ mod tests {
                 output_per_token: 2.0,
                 output_reasoning_per_token: 1.0,
                 input_cached_per_token: 1.0,
+                input_cache_write_per_token: 1.5,
             },
             UsedTokens {
                 input_tokens: 1.0,
                 input_cached_tokens: 11.0,
+                input_cache_write_tokens: 0.0,
                 output_tokens: 1.0,
                 output_reasoning_tokens: 9.0,
             },
+            "test",
+            "test",
         )
         .unwrap();
 
@@ -375,6 +679,116 @@ mod tests {
         CalculatedCost {
             input: -9.0,
             output: -7.0,
+            cache_read_input: 11.0,
+            cache_creation_input: 0.0,
+            reasoning_output: 9.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_calculate_cost_with_cache_writes() {
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 3.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            UsedTokens {
+                input_tokens: 100.0,
+                input_cached_tokens: 20.0,
+                input_cache_write_tokens: 30.0,
+                output_tokens: 50.0,
+                output_reasoning_tokens: 10.0,
+            },
+            "test",
+            "test",
+        )
+        .unwrap();
+
+        // input: (100 - 20 - 30) * 1.0 + 20 * 0.5 + 30 * 0.75 = 50 + 10 + 22.5 = 82.5
+        //   (cache-write tokens are billed once at the cache-write rate, not also at
+        //    the standard input rate). output: 40 * 2.0 + 10 * 3.0 = 110.0
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 82.5,
+            output: 110.0,
+            cache_read_input: 10.0,
+            cache_creation_input: 22.5,
+            reasoning_output: 30.0,
+        }
+        ");
+    }
+
+    #[test]
+    fn test_existing_cost_is_not_overwritten() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.response.model": "claude-2.1",
+            "gen_ai.usage.input_tokens": 1000.0,
+            "gen_ai.cost.input_tokens": 99.0,
+            "gen_ai.cost.total_tokens": 123.0,
+        }));
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.get_value(GEN_AI__COST__TOTAL_TOKENS)
+                .and_then(Value::as_f64),
+            Some(123.0)
+        );
+        assert!(data.get_value(GEN_AI__COST__OUTPUT_TOKENS).is_none());
+    }
+
+    #[test]
+    fn test_calculate_cost_backward_compatibility_no_cache_write() {
+        // Test that cost calculation works when cache_write field is missing (backward compatibility)
+        let span_data = SpanData::from([
+            (
+                GEN_AI__USAGE__INPUT_TOKENS.to_owned(),
+                Annotated::new(100.0.into()),
+            ),
+            (
+                GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS.to_owned(),
+                Annotated::new(20.0.into()),
+            ),
+            (
+                GEN_AI__USAGE__OUTPUT_TOKENS.to_owned(),
+                Annotated::new(50.0.into()),
+            ),
+        ]);
+
+        let tokens = UsedTokens::from_span_data(&span_data);
+
+        // Verify cache_write_tokens defaults to 0.0
+        assert_eq!(tokens.input_cache_write_tokens, 0.0);
+
+        let cost = calculate_costs(
+            &ModelCostV2 {
+                input_per_token: 1.0,
+                output_per_token: 2.0,
+                output_reasoning_per_token: 0.0,
+                input_cached_per_token: 0.5,
+                input_cache_write_per_token: 0.75,
+            },
+            tokens,
+            "test",
+            "test",
+        )
+        .unwrap();
+
+        // Cost should be calculated without cache_write_tokens
+        // input: (100 - 20) * 1.0 + 20 * 0.5 + 0 * 0.75 = 80 + 10 + 0 = 90
+        // output: 50 * 2.0 = 100
+        insta::assert_debug_snapshot!(cost, @r"
+        CalculatedCost {
+            input: 90.0,
+            output: 100.0,
+            cache_read_input: 10.0,
+            cache_creation_input: 0.0,
+            reasoning_output: 0.0,
         }
         ");
     }
@@ -382,128 +796,566 @@ mod tests {
     /// Test that the AI operation type is inferred from a gen_ai.operation.name attribute.
     #[test]
     fn test_infer_ai_operation_type_from_gen_ai_operation_name() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.operation.name": "invoke_agent"
+        }));
 
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
+        enrich_ai_span(&mut span, None);
 
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "invoke_agent"
-            }
-        }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
-        assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "agent"
-        );
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.operation.type": "agent"
+        }
+        "#);
     }
 
     /// Test that the AI operation type is inferred from a span.op attribute.
     #[test]
     fn test_infer_ai_operation_type_from_span_op() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
+        let mut span = Span {
+            op: "gen_ai.invoke_agent".to_owned().into(),
+            ..Default::default()
         };
 
-        let span = r#"{
-            "op": "gen_ai.invoke_agent"
-        }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
-        assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "agent"
-        );
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(span.data, @r#"
+        {
+          "gen_ai.operation.type": "agent"
+        }
+        "#);
     }
 
     /// Test that the AI operation type is inferred from a fallback.
     #[test]
     fn test_infer_ai_operation_type_from_fallback() {
-        let operation_types = HashMap::from([
-            (Pattern::new("*").unwrap(), "ai_client".to_owned()),
-            (Pattern::new("invoke_agent").unwrap(), "agent".to_owned()),
-            (
-                Pattern::new("gen_ai.invoke_agent").unwrap(),
-                "agent".to_owned(),
-            ),
-        ]);
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.operation.name": "embeddings"
+        }));
 
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
+        enrich_ai_span(&mut span, None);
 
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "embeddings"
-            }
-        }"#;
-        let mut span = Annotated::from_json(span).unwrap();
-        infer_ai_operation_type(span.value_mut().as_mut().unwrap(), &operation_type_map);
-        assert_eq!(
-            get_value!(span.data.gen_ai_operation_type!).as_str(),
-            "ai_client"
-        );
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.name": "embeddings",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_from_request_model() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.response.model": "gpt-4"
+        }
+        "#);
+    }
+
+    /// Test that the response model is defaulted to the request model if not set.
+    #[test]
+    fn test_default_response_model_not_overridden() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.request.model": "gpt-4",
+            "gen_ai.response.model": "gpt-4-abcd",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.response.model": "gpt-4-abcd"
+        }
+        "#);
+    }
+
+    /// Test that gen_ai.agent.name is defaulted from gen_ai.function_id.
+    #[test]
+    fn test_default_agent_name_from_function_id() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.function_id": "my-agent",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.agent.name": "my-agent",
+          "gen_ai.function_id": "my-agent",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that gen_ai.agent.name is not overridden when already set.
+    #[test]
+    fn test_default_agent_name_not_overridden() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.function_id": "my-function",
+            "gen_ai.agent.name": "my-agent",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.agent.name": "my-agent",
+          "gen_ai.function_id": "my-function",
+          "gen_ai.operation.type": "ai_client"
+        }
+        "#);
     }
 
     /// Test that an AI span is detected from a gen_ai.operation.name attribute.
     #[test]
     fn test_is_ai_span_from_gen_ai_operation_name() {
-        let span = r#"{
-            "data": {
-                "gen_ai.operation.name": "chat"
-            }
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        let mut span_data = Annotated::default();
+        span_data
+            .get_or_insert_with(SpanData::default)
+            .other
+            .insert(
+                GEN_AI__OPERATION__NAME.to_owned(),
+                Annotated::new(Value::String("chat".into())),
+            );
+        assert!(is_ai_span(&span_data, None));
     }
 
     /// Test that an AI span is detected from a span.op starting with "ai.".
     #[test]
     fn test_is_ai_span_from_span_op_ai() {
-        let span = r#"{
-            "op": "ai.chat"
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        let span_op: OperationType = "ai.chat".into();
+        assert!(is_ai_span(&Annotated::default(), Some(&span_op)));
     }
 
     /// Test that an AI span is detected from a span.op starting with "gen_ai.".
     #[test]
     fn test_is_ai_span_from_span_op_gen_ai() {
-        let span = r#"{
-            "op": "gen_ai.chat"
-        }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(is_ai_span(&span));
+        let span_op: OperationType = "gen_ai.chat".into();
+        assert!(is_ai_span(&Annotated::default(), Some(&span_op)));
     }
 
     /// Test that a non-AI span is detected.
     #[test]
     fn test_is_ai_span_negative() {
-        let span = r#"{
+        assert!(!is_ai_span(&Annotated::default(), None));
+    }
+
+    /// Test enrich_ai_event_data with invoke_agent in trace context and a chat child span.
+    #[test]
+    fn test_enrich_ai_event_data_invoke_agent_trace_with_chat_span() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "gen_ai.invoke_agent",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456",
+                    "data": {
+                        "gen_ai.operation.name": "gen_ai.invoke_agent",
+                        "gen_ai.usage.input_tokens": 500,
+                        "gen_ai.usage.output_tokens": 200
+                    }
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.chat.completions",
+                    "span_id": "1234567890123457",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567890.5,
+                    "data": {
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.usage.input_tokens": 100,
+                        "gen_ai.usage.output_tokens": 50
+                    }
+                }
+            ]
         }"#;
-        let span: Span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        assert!(!is_ai_span(&span));
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        enrich_ai_event_data(event, None);
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "gen_ai.invoke_agent",
+              "data": {
+                "gen_ai.operation.name": "gen_ai.invoke_agent",
+                "gen_ai.operation.type": "agent",
+                "gen_ai.usage.input_tokens": 500,
+                "gen_ai.usage.output_tokens": 200,
+                "gen_ai.usage.total_tokens": 700.0
+              },
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567890.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.chat.completions",
+              "span_id": "1234567890123457",
+              "data": {
+                "gen_ai.operation.name": "chat",
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50,
+                "gen_ai.usage.total_tokens": 150.0
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    /// Test enrich_ai_event_data with non-AI trace context, invoke_agent parent span, and chat child span.
+    #[test]
+    fn test_enrich_ai_event_data_nested_agent_and_chat_spans() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "http.server",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456"
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.invoke_agent",
+                    "span_id": "1234567890123457",
+                    "parent_span_id": "1234567890123456",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567891.5,
+                    "data": {
+                        "gen_ai.operation.name": "invoke_agent",
+                        "gen_ai.usage.input_tokens": 500,
+                        "gen_ai.usage.output_tokens": 200
+                    }
+                },
+                {
+                    "op": "gen_ai.chat.completions",
+                    "span_id": "1234567890123458",
+                    "parent_span_id": "1234567890123457",
+                    "start_timestamp": 1234567890.0,
+                    "timestamp": 1234567891.0,
+                    "data": {
+                        "gen_ai.operation.name": "chat",
+                        "gen_ai.usage.input_tokens": 100,
+                        "gen_ai.usage.output_tokens": 50
+                    }
+                }
+            ]
+        }"#;
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        enrich_ai_event_data(event, None);
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567891.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.invoke_agent",
+              "span_id": "1234567890123457",
+              "parent_span_id": "1234567890123456",
+              "data": {
+                "gen_ai.operation.name": "invoke_agent",
+                "gen_ai.operation.type": "agent",
+                "gen_ai.usage.input_tokens": 500,
+                "gen_ai.usage.output_tokens": 200,
+                "gen_ai.usage.total_tokens": 700.0
+              }
+            },
+            {
+              "timestamp": 1234567891.0,
+              "start_timestamp": 1234567890.0,
+              "op": "gen_ai.chat.completions",
+              "span_id": "1234567890123458",
+              "parent_span_id": "1234567890123457",
+              "data": {
+                "gen_ai.operation.name": "chat",
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50,
+                "gen_ai.usage.total_tokens": 150.0
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    /// Test enrich_ai_event_data with legacy measurements and span op for operation type.
+    #[test]
+    fn test_enrich_ai_event_data_legacy_measurements_and_span_op() {
+        let event_json = r#"{
+            "type": "transaction",
+            "timestamp": 1234567892.0,
+            "start_timestamp": 1234567889.0,
+            "contexts": {
+                "trace": {
+                    "op": "http.server",
+                    "trace_id": "12345678901234567890123456789012",
+                    "span_id": "1234567890123456"
+                }
+            },
+            "spans": [
+                {
+                    "op": "gen_ai.invoke_agent",
+                    "span_id": "1234567890123457",
+                    "parent_span_id": "1234567890123456",
+                    "start_timestamp": 1234567889.5,
+                    "timestamp": 1234567891.5,
+                    "measurements": {
+                        "ai_prompt_tokens_used": {"value": 500.0},
+                        "ai_completion_tokens_used": {"value": 200.0}
+                    }
+                },
+                {
+                    "op": "ai.chat_completions.create.langchain.ChatOpenAI",
+                    "span_id": "1234567890123458",
+                    "parent_span_id": "1234567890123457",
+                    "start_timestamp": 1234567890.0,
+                    "timestamp": 1234567891.0,
+                    "measurements": {
+                        "ai_prompt_tokens_used": {"value": 100.0},
+                        "ai_completion_tokens_used": {"value": 50.0}
+                    }
+                }
+            ]
+        }"#;
+
+        let mut annotated_event: Annotated<Event> = Annotated::from_json(event_json).unwrap();
+        let event = annotated_event.value_mut().as_mut().unwrap();
+
+        enrich_ai_event_data(event, None);
+
+        assert_annotated_snapshot!(&annotated_event, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1234567892.0,
+          "start_timestamp": 1234567889.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "12345678901234567890123456789012",
+              "span_id": "1234567890123456",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 1234567891.5,
+              "start_timestamp": 1234567889.5,
+              "op": "gen_ai.invoke_agent",
+              "span_id": "1234567890123457",
+              "parent_span_id": "1234567890123456",
+              "data": {
+                "gen_ai.operation.type": "agent",
+                "gen_ai.usage.input_tokens": 500.0,
+                "gen_ai.usage.output_tokens": 200.0,
+                "gen_ai.usage.total_tokens": 700.0
+              },
+              "measurements": {
+                "ai_completion_tokens_used": {
+                  "value": 200.0
+                },
+                "ai_prompt_tokens_used": {
+                  "value": 500.0
+                }
+              }
+            },
+            {
+              "timestamp": 1234567891.0,
+              "start_timestamp": 1234567890.0,
+              "op": "ai.chat_completions.create.langchain.ChatOpenAI",
+              "span_id": "1234567890123458",
+              "parent_span_id": "1234567890123457",
+              "data": {
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.usage.input_tokens": 100.0,
+                "gen_ai.usage.output_tokens": 50.0,
+                "gen_ai.usage.total_tokens": 150.0
+              },
+              "measurements": {
+                "ai_completion_tokens_used": {
+                  "value": 50.0
+                },
+                "ai_prompt_tokens_used": {
+                  "value": 100.0
+                }
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    fn metadata_with_context_size() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
+                        input_per_token: 0.01,
+                        output_per_token: 0.02,
+                        output_reasoning_per_token: 0.0,
+                        input_cached_per_token: 0.0,
+                        input_cache_write_per_token: 0.0,
+                    }),
+                    context_size: Some(100_000),
+                },
+            )]),
+        }
+    }
+
+    #[test]
+    fn test_context_utilization_with_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.input_tokens": 30000.0,
+                    "gen_ai.usage.output_tokens": 12000.0,
+                    "gen_ai.usage.total_tokens": 42000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE)
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        assert_eq!(
+            data.get_value(GEN_AI__CONTEXT__UTILIZATION)
+                .and_then(Value::as_f64),
+            Some(0.42)
+        );
+    }
+
+    #[test]
+    fn test_context_utilization_no_context_size() {
+        let metadata = ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: None,
+                    context_size: None,
+                },
+            )]),
+        };
+
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata));
+
+        let data = span.data.value().unwrap();
+        assert!(data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE).is_none());
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_no_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        // window_size should still be set even without tokens.
+        assert_eq!(
+            data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE)
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        // But utilization cannot be computed without total_tokens.
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_unknown_model() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "unknown-model",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert!(data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE).is_none());
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
     }
 }

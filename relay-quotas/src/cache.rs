@@ -282,7 +282,7 @@ where
             return false;
         }
 
-        let mut cache = self.cache.pin();
+        let cache = self.cache.pin();
         cache.retain(|_, v| v.is_still_needed(now));
 
         true

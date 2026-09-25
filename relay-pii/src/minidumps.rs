@@ -1,6 +1,7 @@
 //! Minidump scrubbing.
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::num::TryFromIntError;
 use std::ops::Range;
 use std::str::Utf8Error;
@@ -153,14 +154,17 @@ impl<'a> MinidumpData<'a> {
         let mut items = Vec::new();
 
         let thread_list: MinidumpThreadList = self.minidump.get_stream()?;
+        let stack_memory_rvas: HashSet<u32> = thread_list
+            .threads
+            .iter()
+            .map(|t| t.raw.stack.memory.rva)
+            .collect();
 
+        // NOTE: Scrubbing fails if the minidump is large and has a MinidumpMemory64List instead.
         let mem_list: MinidumpMemoryList = self.minidump.get_stream()?;
+
         for mem in mem_list.iter() {
-            if thread_list
-                .threads
-                .iter()
-                .any(|t| t.raw.stack.memory.rva == mem.desc.memory.rva)
-            {
+            if stack_memory_rvas.contains(&mem.desc.memory.rva) {
                 items.push(MinidumpItem::StackMemory(
                     self.location_range(mem.desc.memory)?,
                 ));
@@ -179,13 +183,11 @@ impl<'a> MinidumpData<'a> {
         }
 
         let mod_list: MinidumpModuleList = self.minidump.get_stream()?;
-        let mut rvas = Vec::new();
+        let mut rvas = HashSet::new();
         for module in mod_list.iter() {
             let rva: usize = module.raw.module_name_rva.try_into()?;
-            if rvas.contains(&rva) {
+            if !rvas.insert(rva) {
                 continue;
-            } else {
-                rvas.push(rva);
             }
             let len_bytes = self
                 .data

@@ -200,7 +200,11 @@ impl Processor for PiiProcessor<'_> {
             let basename = value.split_off(index);
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
-                Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
+                Err(
+                    ProcessingAction::DeleteValueHard
+                    | ProcessingAction::DeleteValueWithRemark(_)
+                    | ProcessingAction::DeleteValueSoft,
+                ) => {
                     basename[1..].clone_into(value);
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {
@@ -459,26 +463,19 @@ fn apply_rule_to_value(
     }
 
     for (pattern_type, regex, replace_behavior) in regexes::get_regex_for_rule_type(&rule.ty) {
-        match pattern_type {
-            PatternType::KeyValue => {
-                if regex.is_match(key.unwrap_or("")) {
-                    if value.is_some() && should_redact_chunks {
-                        // If we're given a string value here, redact the value like we would with
-                        // @anything.
-                        apply_regex!(&ANYTHING_REGEX, replace_behavior);
-                    } else {
-                        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
-                        return Err(ProcessingAction::DeleteValueHard);
-                    }
-                } else {
-                    // If we did not redact using the key, we will redact the entire value if the key
-                    // appears in it.
-                    apply_regex!(regex, replace_behavior);
-                }
+        if matches!(pattern_type, PatternType::Key | PatternType::KeyValue)
+            && key.is_some_and(|key| regex.is_match(key))
+        {
+            if value.is_some() && should_redact_chunks {
+                // If we're given a string value here, redact the value like we would with
+                // @anything.
+                apply_regex!(&ANYTHING_REGEX, replace_behavior);
+            } else {
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+                return Err(ProcessingAction::DeleteValueHard);
             }
-            PatternType::Value => {
-                apply_regex!(regex, replace_behavior);
-            }
+        } else if matches!(pattern_type, PatternType::Value | PatternType::KeyValue) {
+            apply_regex!(regex, replace_behavior);
         }
     }
 
@@ -535,6 +532,9 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
+        // ALERT: This logic assumes that `regex` doesn't match a capture
+        // group starting on a null byte. If you get an error in debug mode
+        // about `replacement_chunks` not being empty, check the regex.
         static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
         let regex = NULL_SPLIT_RE.get_or_init(|| {
             #[allow(clippy::trivial_regex)]
@@ -640,7 +640,7 @@ mod tests {
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::convert::to_pii_config as to_pii_config_impl;
-        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        let rv = to_pii_config_impl(datascrubbing_config);
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
@@ -657,7 +657,7 @@ mod tests {
                     "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
                     "ip_address": "is this an ip address? 73.133.27.120", //  <--------
                 },
-                "hpkp":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
+                "extra":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
             })
             .into(),
         );
@@ -675,6 +675,77 @@ mod tests {
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
         assert_debug_snapshot!(&data);
+    }
+
+    #[test]
+    fn test_remark_overlap() {
+        let mut data = Annotated::<Event>::from_json_bytes(
+            br#"{
+                "extra": {"foo": "bar"},
+                "_meta":{
+                    "extra": {
+                        "foo":{
+                            "":{
+                                "rem":[["some_rule","s",0,3],["some_rule","s",0,3]]
+                            }
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        // Verify that overlapping remarks do not make the string longer:
+        assert_eq!(get_value!(data.extra["foo"]!).0.as_str(), Some("bar"));
+    }
+
+    #[test]
+    fn test_resume_after_gap() {
+        let mut data = Annotated::<Event>::from_json_bytes(
+            br#"{
+                "extra": {"foo": "abcdefghijklmnopqrstuvwxyz"},
+                "_meta":{
+                    "extra": {
+                        "foo":{
+                            "":{
+                                "rem":[["some_rule","s",0,3],["some_rule","s",6,5]]
+                            }
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        // Verify that an invalid remark after a gap does not repeat the gap:
+        assert_eq!(
+            get_value!(data.extra["foo"]!).0.as_str(),
+            Some("abcdefghijklmnopqrstuvwxyz")
+        );
     }
 
     #[test]
@@ -1004,6 +1075,42 @@ mod tests {
     }
 
     #[test]
+    fn test_only_match_token_on_keys() {
+        let mut data = Event::from_value(
+            json!({
+                "request": {
+                    "headers": [
+                        ["X-Token", "oof this is very sensitive"],
+                        ["Token", "also bad"],
+                    ]
+                },
+                "extra": {
+                    "url": "foo.bar/endpoint?token=sensitive",
+                    "url2": "foo.bar/endpoint?token_foobar=sensitive",
+                    "aaa": "token:12345",
+                    "foo-token-bar": "sensitive",
+                    "llm": "token count",
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(&data);
+    }
+
+    #[test]
     fn test_ignore_user_agent_ip_scrubbing() {
         let mut data = Event::from_value(
             json!({
@@ -1318,7 +1425,6 @@ mod tests {
             scrub_ip_addresses: true,
             ..Default::default()
         })
-        .unwrap()
         .unwrap();
 
         let mut event = Annotated::new(Event {
@@ -1375,7 +1481,6 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         })
-        .unwrap()
         .unwrap();
 
         let mut event = Annotated::new(Event {
@@ -1587,7 +1692,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(
@@ -1617,7 +1722,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1643,7 +1748,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1675,7 +1780,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1703,7 +1808,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1726,12 +1831,12 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         processor::process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_eq!(
-            get_value!(span.data.code_filepath!).as_str(),
+            span.0.unwrap().data.0.unwrap().other["code.filepath"].as_str(),
             Some("src/sentry/api/authentication.py")
         );
     }
@@ -1781,7 +1886,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
@@ -1806,7 +1911,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
@@ -1837,7 +1942,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
@@ -1865,7 +1970,7 @@ mod tests {
             scrub_defaults: true,
             ..Default::default()
         };
-        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let pii_config = ds_config.pii_config().as_ref().unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);

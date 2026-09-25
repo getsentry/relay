@@ -4,15 +4,15 @@ use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use relay_common::impl_str_serde;
 use sentry::integrations::tracing::EventFilter;
 use sentry::types::Dsn;
-use sentry::{TracesSampler, TransactionContext};
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, prelude::*};
+
+use crate::crash;
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -244,22 +244,6 @@ impl Default for SentryConfig {
     }
 }
 
-/// Captures an envelope from the native crash reporter using the main Sentry SDK.
-#[cfg(feature = "crash-handler")]
-fn capture_native_envelope(data: &[u8]) {
-    if let Some(client) = sentry::Hub::main().client() {
-        match sentry::Envelope::from_bytes_raw(data.to_owned()) {
-            Ok(envelope) => client.send_envelope(envelope),
-            Err(error) => {
-                let error = &error as &dyn std::error::Error;
-                crate::error!(error, "failed to capture crash")
-            }
-        }
-    } else {
-        crate::error!("failed to capture crash: no sentry client registered");
-    }
-}
-
 /// Configures the given log level for all of Relay's crates.
 fn get_default_filters() -> EnvFilter {
     // Configure INFO as default, except for crates that are very spammy on INFO level.
@@ -269,6 +253,7 @@ fn get_default_filters() -> EnvFilter {
         tower_http=TRACE,\
         trust_dns_proto=WARN,\
         minidump=ERROR,\
+        metrics_exporter_dogstatsd::forwarder::sync=OFF,\
         ",
     );
 
@@ -355,59 +340,47 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
         // was previously sampled. We don't want to take that into account because
         // SDKs send headers with their envelopes that erroneously cause us to
         // sample transactions.
-        let traces_sampler =
-            Some(Arc::new(move |_: &TransactionContext| traces_sample_rate) as Arc<TracesSampler>);
-        let mut options = sentry::ClientOptions {
-            dsn: Some(dsn).cloned(),
-            in_app_include: vec!["relay"],
-            release: Some(RELEASE.into()),
-            attach_stacktrace: config.enable_backtraces,
-            environment: sentry.environment.clone(),
-            server_name: sentry.server_name.clone(),
-            traces_sampler,
-            enable_logs: true,
-            ..Default::default()
-        };
+        let mut options = sentry::ClientOptions::new()
+            .in_app_include(["relay"])
+            .release(RELEASE)
+            .attach_stacktrace(config.enable_backtraces)
+            .traces_sampler(move |_| traces_sample_rate);
+        options.dsn = Some(dsn.clone());
+        options.environment = sentry.environment.clone();
+        options.server_name = sentry.server_name.clone();
 
         // If `default_tags` is set in Sentry configuration install the `before_send` hook
         // in order to inject said tags into each event
         if let Some(default_tags) = sentry.default_tags.clone() {
             // Install hook
-            options.before_send = Some(Arc::new(move |mut event| {
+            options = options.before_send(move |mut event| {
                 // Extend `event.tags` with `default_tags` without replacing tags already present
                 let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
                 event.tags.extend(previous_event_tags);
                 Some(event)
-            }));
+            });
         }
 
-        crate::info!(
-            release = RELEASE,
-            server_name = sentry.server_name.as_deref(),
-            environment = sentry.environment.as_deref(),
-            traces_sample_rate,
-            "Initialized Sentry client options"
-        );
+        // The crash reporter process runs inside `sentry::init` and never
+        // returns from it.
+        #[cfg(feature = "crash-handler")]
+        if let Some(integration) = crash::integration(sentry) {
+            options = options.add_integration(integration);
+        }
+
+        if !crash::is_crash_reporter_process() {
+            crate::info!(
+                release = RELEASE,
+                server_name = sentry.server_name.as_deref(),
+                environment = sentry.environment.as_deref(),
+                traces_sample_rate,
+                "Initialized Sentry client options"
+            );
+        }
 
         let guard = sentry::init(options);
 
         // Keep the client initialized. The client is flushed manually in `main`.
         std::mem::forget(guard);
-    }
-
-    // Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
-    // access to an initialized Hub to capture crashes from the previous run.
-    #[cfg(feature = "crash-handler")]
-    {
-        if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string())
-            && let Some(db) = sentry._crash_db.as_deref()
-        {
-            crate::info!("initializing crash handler in {}", db.display());
-            relay_crash::CrashHandler::new(dsn.as_str(), db)
-                .transport(capture_native_envelope)
-                .release(Some(RELEASE))
-                .environment(sentry.environment.as_deref())
-                .install();
-        }
     }
 }

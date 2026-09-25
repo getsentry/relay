@@ -1,16 +1,152 @@
 from datetime import datetime, timezone, timedelta
-from unittest import mock
 
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsServiceResponse,
+)
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, only_items
+from .test_spansv2_otel import parse_google_rpc_status
+from .asserts import matches_any, time_within_delta, time_within, only_items
+from .consts import Outcome
+
+GRPC_INVALID_ARGUMENT = 3
+GRPC_RESOURCE_EXHAUSTED = 8
+GRPC_UNAUTHENTICATED = 16
 
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    },
-}
+def test_otlp_logs_protobuf_success_response(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/x-protobuf"},
+        bytes=b"",
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/x-protobuf"
+    assert ExportLogsServiceResponse.FromString(response.content) == (
+        ExportLogsServiceResponse()
+    )
+
+
+def test_otlp_logs_unsupported_media_type_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "text/plain"},
+        bytes=b"",
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 415
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_INVALID_ARGUMENT
+
+
+def test_otlp_logs_missing_auth_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        f"/api/{project_id}/integration/otlp/v1/logs",
+        headers={"Content-Type": "application/x-protobuf"},
+        json={"resourceLogs": []},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["content-type"] == "application/x-protobuf"
+    status = parse_google_rpc_status(response.content)
+    assert status.code == GRPC_UNAUTHENTICATED
+    assert status.message == "missing authorization information"
+
+
+def test_otlp_logs_json_success_response_with_content_type_parameters(
+    mini_sentry, relay
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        json={"resourceLogs": []},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {}
+
+
+def test_otlp_logs_rate_limit_returns_status_and_retry_headers(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": "test_otlp_logs_rate_limit",
+            "categories": ["log_item"],
+            "limit": 0,
+            "window": 60,
+            "reasonCode": "otlp_rate_limited",
+        }
+    ]
+    relay = relay(mini_sentry)
+
+    # Make sure project config is available.
+    relay.send_event(project_id, {"message": "warm project cache"})
+    _ = mini_sentry.get_captured_envelope().get_event()
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json"},
+        json={"resourceLogs": []},
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"]
+    assert response.headers["x-sentry-rate-limits"]
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_RESOURCE_EXHAUSTED
+
+
+def test_otlp_logs_oversized_body_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry, options={"limits": {"max_container_size": 1}})
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json"},
+        bytes=b"{}",
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_RESOURCE_EXHAUSTED
 
 
 def test_otlp_logs_conversion(
@@ -23,13 +159,12 @@ def test_otlp_logs_conversion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
-        "organizations:relay-otel-logs-endpoint",
     ]
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -128,13 +263,12 @@ def test_otlp_logs_conversion(
                 "map.attribute": {"stringValue": '{"nested.key":"nested value"}'},
                 "resource.service.name": {"stringValue": "test-service"},
                 "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": "378"},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -148,7 +282,7 @@ def test_otlp_logs_conversion(
                 "string.attribute": {"stringValue": "some string"},
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -158,27 +292,20 @@ def test_otlp_logs_conversion(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "349",
+                    },
+                ],
+                "keyId": "123",
+            },
         }
-    ]
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 378,
-        },
     ]
 
 
@@ -192,13 +319,13 @@ def test_otlp_logs_multiple_records(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
-        "organizations:relay-otel-logs-endpoint",
+        "organizations:relay-generate-billing-outcome",
     ]
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -240,13 +367,12 @@ def test_otlp_logs_multiple_records(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "First log entry"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -259,7 +385,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -269,17 +395,29 @@ def test_otlp_logs_multiple_records(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "123",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
         {
             "attributes": {
                 "sentry.body": {"stringValue": "Second log entry"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -292,7 +430,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -302,26 +440,19 @@ def test_otlp_logs_multiple_records(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
-        },
-    ]
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 305,
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "124",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
     ]
 
@@ -331,10 +462,9 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
-        "organizations:relay-otel-logs-endpoint",
     ]
 
-    relay = relay(mini_sentry, options={"limits": {"max_log_size": 50}, **TEST_CONFIG})
+    relay = relay(mini_sentry, options={"limits": {"max_log_size": 50}})
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -374,19 +504,13 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,
-            "project_id": project_id,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,
-            "project_id": project_id,
+            "outcome": Outcome.INVALID,
             "quantity": 127,
             "reason": "too_large:log",
         },

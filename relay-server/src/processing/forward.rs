@@ -1,49 +1,82 @@
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::GlobalConfig;
-#[cfg(feature = "processing")]
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 #[cfg(feature = "processing")]
 use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
-use crate::services::store::Store;
-#[cfg(feature = "processing")]
-use crate::services::upload::Upload;
+use crate::services::store::{Store, StoreEvent};
 
 /// A transparent handle that dispatches between store-like services.
 #[cfg(feature = "processing")]
 #[derive(Debug, Clone, Copy)]
 pub struct StoreHandle<'a> {
     store: &'a Addr<Store>,
-    upload: Option<&'a Addr<Upload>>,
+    objectstore: Option<&'a Addr<Objectstore>>,
+    global_config: &'a GlobalConfig,
 }
 
 #[cfg(feature = "processing")]
 impl<'a> StoreHandle<'a> {
-    pub fn new(store: &'a Addr<Store>, upload: Option<&'a Addr<Upload>>) -> Self {
-        Self { store, upload }
+    pub fn new(
+        store: &'a Addr<Store>,
+        objectstore: Option<&'a Addr<Objectstore>>,
+        global_config: &'a GlobalConfig,
+    ) -> Self {
+        Self {
+            store,
+            objectstore,
+            global_config,
+        }
+    }
+
+    /// Dispatches an event message to either the [`Objectstore`] or [`Store`] service.
+    pub fn send_event(&self, message: Managed<Box<StoreEvent>>) {
+        if message.attachments.is_empty() {
+            self.store.send(message);
+            return;
+        }
+
+        let Some(objectstore) = self.objectstore else {
+            self.store.send(message);
+            return;
+        };
+
+        let use_objectstore = crate::utils::sample(
+            self.global_config
+                .options
+                .objectstore_attachments_sample_rate,
+        )
+        .is_keep();
+
+        match use_objectstore {
+            true => objectstore.send(message),
+            false => self.store.send(message),
+        }
     }
 
     /// Sends a message to the [`Store`] service.
-    pub fn store<M>(&self, message: M)
+    pub fn send_to_store<M>(&self, message: M)
     where
         Store: FromMessage<M>,
     {
         self.store.send(message);
     }
 
-    /// Sends a message to the [`Upload`] service.
-    pub fn upload<M>(&self, message: M)
+    /// Sends a message to the [`Objectstore`] service.
+    pub fn send_to_objectstore<M>(&self, message: M)
     where
-        Upload: FromMessage<M>,
+        Objectstore: FromMessage<M>,
     {
-        if let Some(upload) = self.upload {
-            upload.send(message);
+        if let Some(objectstore) = self.objectstore {
+            objectstore.send(message);
         } else {
-            relay_log::error!("Upload service not configured. Dropping message.");
+            relay_log::error!("Objectstore service not configured. Dropping message.");
         }
     }
 }
@@ -72,17 +105,14 @@ pub trait Forward {
 #[derive(Copy, Clone, Debug)]
 pub struct ForwardContext<'a> {
     /// The Relay configuration.
-    #[expect(unused, reason = "not yet used")]
-    pub config: &'a Config,
+    pub config: &'a ConfigSnapshot,
     /// A view of the currently active global configuration.
-    #[expect(unused, reason = "not yet used")]
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub project_info: &'a ProjectInfo,
 }
 
-#[cfg(feature = "processing")]
 impl ForwardContext<'_> {
     /// Returns the [`Retention`] for a specific type/product.
     pub fn retention<F>(&self, f: F) -> Retention
@@ -115,6 +145,7 @@ impl ForwardContext<'_> {
 /// The [`Nothing`] output.
 ///
 /// Some processors may only produce by-products and not have any output of their own.
+#[derive(Debug, Copy, Clone)]
 pub struct Nothing(std::convert::Infallible);
 
 impl Forward for Nothing {
@@ -139,15 +170,14 @@ impl From<Nothing> for crate::processing::Outputs {
 
 /// Full retention settings to apply to specific payloads.
 #[derive(Debug, Copy, Clone)]
-#[cfg(feature = "processing")]
 pub struct Retention {
     /// Standard / full fidelity retention policy in days.
     pub standard: u16,
     /// Downsampled retention policy in days.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub downsampled: u16,
 }
 
-#[cfg(feature = "processing")]
 impl From<RetentionConfig> for Retention {
     fn from(value: RetentionConfig) -> Self {
         Self {

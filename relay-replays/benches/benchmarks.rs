@@ -19,7 +19,7 @@ fn bench_recording(c: &mut Criterion) {
     scrubbing_config.scrub_data = true;
     scrubbing_config.scrub_defaults = true;
     scrubbing_config.scrub_ip_addresses = true;
-    let pii_config = scrubbing_config.pii_config_uncached().unwrap().unwrap();
+    let pii_config = scrubbing_config.pii_config_uncached().unwrap();
 
     let mut scrubber = RecordingScrubber::new(usize::MAX, Some(&pii_config), None);
 

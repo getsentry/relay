@@ -43,7 +43,7 @@ fn normalize_url(request: &mut Request) {
             if request.fragment.value().is_none() {
                 request
                     .fragment
-                    .set_value(url.fragment().map(str::to_string));
+                    .set_value(url.fragment().map(str::to_owned));
             }
 
             url.set_query(None);

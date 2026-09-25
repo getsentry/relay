@@ -1,91 +1,18 @@
 //! Profiles related processor code.
-use relay_base_schema::project::ProjectId;
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::GlobalConfig;
 use relay_quotas::{DataCategory, Scoping};
 use std::net::IpAddr;
 
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileId, ProfileType};
 use relay_protocol::{Annotated, Empty};
 use relay_protocol::{Getter, Remark, RemarkType};
 
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
-use crate::managed::{Counted, Managed, Quantities, RecordKeeper};
-use crate::processing::transactions::{Error, ExpandedTransaction, Transaction};
-use crate::processing::{Context, CountRateLimited};
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::processing::Context;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::should_filter;
-
-/// An item wrapper that counts as profile.
-#[derive(Debug)]
-pub struct Profile(pub Item);
-
-impl Counted for Profile {
-    fn quantities(&self) -> Quantities {
-        self.0.quantities()
-    }
-}
-
-/// A profile with metadata required to forward it.
-#[derive(Debug)]
-pub struct ProfileWithHeaders {
-    pub headers: EnvelopeHeaders,
-    pub item: Item,
-}
-
-impl Counted for ProfileWithHeaders {
-    fn quantities(&self) -> Quantities {
-        self.item.quantities()
-    }
-}
-
-impl CountRateLimited for Managed<ProfileWithHeaders> {
-    type Error = Error;
-}
-
-/// Filters out invalid profiles.
-///
-/// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter(
-    work: &mut ExpandedTransaction<Transaction>,
-    record_keeper: &mut RecordKeeper,
-    ctx: Context,
-    project_id: ProjectId,
-) -> Option<ProfileId> {
-    let profile_item = work.profile.as_ref()?;
-
-    let feature = Feature::Profiling;
-    let mut profile_id = None;
-    if should_filter(ctx.config, ctx.project_info, feature) {
-        record_keeper.reject_err(
-            Outcome::Invalid(DiscardReason::FeatureDisabled(feature)),
-            work.profile.take(),
-        );
-    } else if work.transaction.0.value().is_none() && profile_item.sampled() {
-        // A profile with `sampled=true` should never be without a transaction
-        record_keeper.reject_err(
-            Outcome::Invalid(DiscardReason::Profiling("missing_transaction")),
-            work.profile.take(),
-        );
-    } else {
-        match relay_profiling::parse_metadata(&profile_item.payload(), project_id) {
-            Ok(id) => {
-                profile_id = Some(id);
-            }
-            Err(err) => {
-                record_keeper.reject_err(
-                    Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                        &err,
-                    ))),
-                    work.profile.take(),
-                );
-            }
-        }
-    }
-    profile_id
-}
 
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
@@ -175,13 +102,6 @@ pub fn process(
 ) -> Result<ProfileId, Outcome> {
     debug_assert_eq!(profile.ty(), &ItemType::Profile);
     let filter_settings = &ctx.project_info.config.filter_settings;
-    let profiling_enabled = ctx.project_info.has_feature(Feature::Profiling);
-
-    if !profiling_enabled {
-        return Err(Outcome::Invalid(DiscardReason::FeatureDisabled(
-            Feature::Profiling,
-        )));
-    }
 
     let Some(event) = event else {
         return Err(Outcome::Invalid(DiscardReason::NoEventPayload));
@@ -228,7 +148,7 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
 fn expand_profile(
     item: &mut Item,
     event: &Event,
-    config: &Config,
+    config: &ConfigSnapshot,
     client_ip: Option<IpAddr>,
     filter_settings: &ProjectFiltersConfig,
     global_config: &GlobalConfig,

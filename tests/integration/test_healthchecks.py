@@ -9,7 +9,7 @@ import os
 import subprocess
 import pytest
 
-from requests import HTTPError
+from requests import HTTPError, ConnectionError
 
 
 def failing_check_challenge(*args, **kwargs):
@@ -37,8 +37,12 @@ def cli_healthcheck(relay_binary, relay, mode):
 
 
 def http_healthcheck(_, relay, mode):
-    response = relay.get(f"/api/relay/healthcheck/{mode}/", is_internal=True)
-    return response.status_code == 200
+    try:
+        response = relay.get(f"/api/relay/healthcheck/{mode}/", is_internal=True)
+    except ConnectionError:
+        return False
+    else:
+        return response.status_code == 200
 
 
 @pytest.mark.parametrize("port", [None, "random"])
@@ -75,7 +79,7 @@ def test_readiness(mini_sentry, relay, get_relay_binary, random_port, port, chec
         assert not check(get_relay_binary(), relay, "ready")
 
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
-        relay.wait_relay_health_check()
+        relay.wait_health_check()
     finally:
         mini_sentry.clear_test_failures()
 
@@ -149,7 +153,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
         {"aggregator": {"max_total_bucket_bytes": 1, "initial_delay": 30}},
     )
 
-    metrics_payload = "transactions/foo:42|c\ntransactions/bar:17|c"
+    metrics_payload = "sessions/foo:42|c\nspans/bar:17|c"
     relay.send_metrics(42, metrics_payload)
 
     for _ in range(100):

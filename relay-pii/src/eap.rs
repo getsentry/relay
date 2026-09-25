@@ -38,18 +38,20 @@ pub fn scrub<T: ProcessValue>(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::ValueType;
-    use relay_event_schema::protocol::{Attributes, OurLog, SpanV2};
+    use relay_event_schema::protocol::{Attributes, OurLog, SpanV2, TraceMetric};
     use relay_protocol::{Annotated, SerializableAnnotated};
 
     use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
     fn test_scrub_attributes_pii_default_rules() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, default rules should scrub the `true` attributes and leave the `false` and `maybe` attributes intact.
         let json = r#"{
               "sentry.description": {
                   "type": "string",
@@ -60,6 +62,10 @@ mod tests {
                   "value": "secret123"
               },
               "sentry.release": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "url.domain": {
                   "type": "string",
                   "value": "secret123"
               },
@@ -171,7 +177,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = data_scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = data_scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -180,11 +186,13 @@ mod tests {
 
     #[test]
     fn test_scrub_attributes_pii_custom_object_rules() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, custom rules should scrub the `true` and `maybe` attributes addressed explicitly, but not the `false` attribute.
         let json = r#"
         {
           "sentry.description": {
@@ -200,6 +208,10 @@ mod tests {
               "value": "secret123"
           },
           "url.path": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "url.domain": {
               "type": "string",
               "value": "secret123"
           },
@@ -238,7 +250,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
         {
@@ -299,6 +311,13 @@ mod tests {
                         "method": "replace",
                         "text": "[DESCRIPTION]"
                     }
+                },
+                "project:8": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL DOMAIN]"
+                    }
                 }
             },
             "applications": {
@@ -325,6 +344,9 @@ mod tests {
                 ],
                 "'sentry.description'.value": [
                     "project:7"
+                ],
+                "'url.domain'.value": [
+                    "project:8"
                 ]
             }
         }
@@ -372,6 +394,10 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "[URL DOMAIN]"
           },
           "url.path": {
             "type": "string",
@@ -457,6 +483,21 @@ mod tests {
                 }
               }
             },
+            "url.domain": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:8",
+                      "s",
+                      0,
+                      12
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "url.path": {
               "value": {
                 "": {
@@ -529,7 +570,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -628,7 +669,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
 
@@ -718,7 +759,7 @@ mod tests {
             ..Default::default()
         };
 
-        let scrubbing_config = scrubbing_config.pii_config().unwrap();
+        let scrubbing_config = scrubbing_config.pii_config();
 
         eap::scrub(
             ValueType::OurLog,
@@ -805,7 +846,7 @@ mod tests {
                 scrubbing_config.scrub_defaults = false;
                 scrubbing_config.scrub_ip_addresses = false;
 
-                let scrubbing_config = scrubbing_config.pii_config().unwrap();
+                let scrubbing_config = scrubbing_config.pii_config();
 
                 let span_json = format!(r#"{{
                     "start_timestamp": 1544719859.0,
@@ -831,7 +872,7 @@ mod tests {
 
                 eap::scrub(ValueType::Span, &mut span, Some(&config), scrubbing_config.as_ref()).unwrap();
 
-                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @$snapshot));
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @$snapshot););
 
                 let log_json = format!(r#"{{
                     "timestamp": 1544719860.0,
@@ -857,7 +898,33 @@ mod tests {
 
                 eap::scrub(ValueType::OurLog, &mut log, Some(&config), scrubbing_config.as_ref()).unwrap();
 
-                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot));
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot););
+
+                let metric_json = format!(r#"{{
+                    "timestamp": 1544719860.0,
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "name": "test.metric",
+                    "type": "counter",
+                    "value": 1.0,
+                    "attributes": {{
+                        "{rule_type}|{value}": {{
+                            "type": "string",
+                            "value": "{value}"
+                        }}
+                    }}
+                }}"#,
+                rule_type = $rule_type,
+                value = $test_value
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n")
+                );
+
+                let mut metric = Annotated::<TraceMetric>::from_json(&metric_json).unwrap();
+
+                eap::scrub(ValueType::TraceMetric, &mut metric, Some(&config), scrubbing_config.as_ref()).unwrap();
+
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&metric.value().unwrap().attributes), @$snapshot););
             }
         };
     }
@@ -2171,7 +2238,7 @@ mod tests {
     "###);
 
     attribute_rule_test!(
-        test_scrub_attributes_pii_string_rules_bearer_mask, 
+        test_scrub_attributes_pii_string_rules_bearer_mask,
         "@bearer:mask",
         "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
     @r###"

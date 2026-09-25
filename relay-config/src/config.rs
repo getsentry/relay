@@ -1,14 +1,16 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
-use std::num::NonZeroU8;
+use std::net::{IpAddr, SocketAddr};
+use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 use std::{env, fmt, fs, io};
 
 use anyhow::Context;
+use arc_swap::ArcSwap;
 use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
@@ -171,7 +173,16 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source = serde_vars::EnvSource::default();
+        let mut source = {
+            let file = serde_vars::FileSource::default()
+                .with_variable_prefix("${file:")
+                .with_variable_suffix("}")
+                .with_base_path(base);
+            let env = serde_vars::EnvSource::default()
+                .with_variable_prefix("${")
+                .with_variable_suffix("}");
+            (file, env)
+        };
         match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
@@ -219,7 +230,7 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
 /// Structure used to hold information about configuration overrides via
 /// CLI parameters or environment variables
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
@@ -272,10 +283,10 @@ impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
         relay_log::info!("generating new relay credentials");
-        let (sk, pk) = generate_key_pair();
+        let (secret_key, public_key) = generate_key_pair();
         Self {
-            secret_key: sk,
-            public_key: pk,
+            secret_key,
+            public_key,
             id: generate_relay_id(),
         }
     }
@@ -474,15 +485,24 @@ pub enum ReadinessCondition {
 }
 
 /// Relay specific configuration values.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Relay {
-    /// The operation mode of this relay.
+    /// The operation mode of this Relay.
     pub mode: RelayMode,
-    /// The instance type of this relay.
+    /// The instance type of this Relay.
     pub instance: RelayInstance,
-    /// The upstream relay or sentry instance.
-    pub upstream: UpstreamDescriptor<'static>,
+    /// The upstream Relay or Sentry instance.
+    pub upstream: UpstreamDescriptor,
+    /// The upstream advertised to downstream Relay instances.
+    ///
+    /// This value will be advertised to downstream Relays as the upstream to use when forwarding
+    /// data. It can be used for traffic routing and balancing, it must not redirect to a different
+    /// Sentry instance.
+    ///
+    /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
+    /// and re-use already established authentication keys.
+    pub advertised_upstream: Option<UpstreamDescriptor>,
     /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -520,6 +540,15 @@ pub struct Relay {
     /// Validation of project identifiers can be safely skipped in these cases.
     #[serde(skip_serializing_if = "is_default")]
     pub override_project_ids: bool,
+    /// Interval in seconds for Relay to check if its configuration changed.
+    ///
+    /// If configured Relay will periodically check its configuration for changes
+    /// and hot reload it.
+    ///
+    /// Hot reloading is only supported for a limited set of values.
+    ///
+    /// Defaults to `None` / off.
+    pub config_reload_interval: Option<u64>,
 }
 
 impl Default for Relay {
@@ -528,6 +557,7 @@ impl Default for Relay {
             mode: RelayMode::Managed,
             instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
+            advertised_upstream: None,
             host: default_host(),
             port: 3000,
             internal_host: None,
@@ -536,18 +566,23 @@ impl Default for Relay {
             tls_identity_path: None,
             tls_identity_password: None,
             override_project_ids: false,
+            config_reload_interval: None,
         }
     }
 }
 
 /// Control the metrics.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Metrics {
     /// Hostname and port of the statsd server.
     ///
     /// Defaults to `None`.
     pub statsd: Option<String>,
+    /// Buffer size used for metrics sent to the statsd socket.
+    ///
+    /// Defaults to `None`.
+    pub statsd_buffer_size: Option<usize>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
@@ -556,47 +591,28 @@ pub struct Metrics {
     pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     pub hostname_tag: Option<String>,
-    /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
-    ///
-    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
-    /// Defaults to `1.0` (100%).
-    pub sample_rate: f32,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
-    /// Whether local metric aggregation using statdsproxy should be enabled.
-    ///
-    /// Defaults to `true`.
-    pub aggregate: bool,
-    /// Allows emission of metrics with high cardinality tags.
-    ///
-    /// High cardinality tags are dynamic values attached to metrics,
-    /// such as project IDs. When enabled, these tags will be included
-    /// in the emitted metrics. When disabled, the tags will be omitted.
-    ///
-    /// Defaults to `false`.
-    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
         Metrics {
             statsd: None,
+            statsd_buffer_size: None,
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            sample_rate: 1.0,
             periodic_secs: 5,
-            aggregate: true,
-            allow_high_cardinality_tags: false,
         }
     }
 }
 
 /// Controls various limits
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Limits {
     /// How many requests can be sent concurrently from Relay to the upstream before Relay starts
@@ -611,14 +627,22 @@ pub struct Limits {
     pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
     pub max_attachment_size: ByteSize,
+    /// The maximum amount of attachments in a single envelope.
+    pub max_attachment_count: usize,
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
+    /// The maximum size for a TUS upload request body.
+    pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,
+    /// The maximum number of client report items per envelope.
+    pub max_client_reports_count: usize,
     /// The maximum payload size for a monitor check-in.
     pub max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     pub max_envelope_size: ByteSize,
+    /// The maximum combined size for all sessions in an envelope in bytes.
+    pub max_sessions_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
     /// The maximum payload size for general API requests.
@@ -635,6 +659,8 @@ pub struct Limits {
     pub max_log_size: ByteSize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
+    /// The maximum amount of standalone transaction spans per envelope.
+    pub max_standalone_span_count: usize,
     /// The maximum payload size for an item container.
     pub max_container_size: ByteSize,
     /// The maximum payload size for a statsd metric.
@@ -648,6 +674,16 @@ pub struct Limits {
     max_replay_uncompressed_size: ByteSize,
     /// The maximum size for a replay recording Kafka message.
     pub max_replay_message_size: ByteSize,
+    /// The byte size limit up to which Relay will retain
+    /// keys of invalid/removed attributes.
+    ///
+    /// This is only relevant for EAP items (spans, logs, …).
+    /// In principle, we want to record all deletions of attributes,
+    /// but we have to institute some limit to protect our infrastructure
+    /// against excessive metadata sizes.
+    ///
+    /// Defaults to 10KiB.
+    pub max_removed_attribute_key_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
@@ -700,18 +736,23 @@ impl Default for Limits {
             max_concurrent_queries: 5,
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(200),
+            max_attachment_count: 30,
             max_attachments_size: ByteSize::mebibytes(200),
-            max_client_reports_size: ByteSize::kibibytes(4),
+            max_upload_size: ByteSize::mebibytes(1024),
+            max_client_reports_size: ByteSize::kibibytes(100),
+            max_client_reports_count: 100,
             max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(200),
+            max_sessions_size: ByteSize::mebibytes(10),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
-            max_trace_metric_size: ByteSize::kibibytes(2),
-            max_log_size: ByteSize::mebibytes(1),
-            max_span_size: ByteSize::mebibytes(1),
+            max_trace_metric_size: ByteSize::mebibytes(1),
+            max_log_size: ByteSize::mebibytes(2),
+            max_span_size: ByteSize::mebibytes(10),
+            max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
@@ -726,12 +767,13 @@ impl Default for Limits {
             idle_timeout: None,
             max_connections: None,
             tcp_listen_backlog: 1024,
+            max_removed_attribute_key_size: ByteSize::kibibytes(10),
         }
     }
 }
 
 /// Controls traffic steering.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Routing {
     /// Accept and forward unknown Envelope items to the upstream.
@@ -807,7 +849,7 @@ impl HttpEncoding {
 }
 
 /// Controls authentication with upstream.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Http {
     /// Timeout for upstream requests in seconds.
@@ -874,7 +916,14 @@ pub struct Http {
     /// Controls whether the forward endpoint is enabled.
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
+    ///
+    /// Relay instances with processing enabled are expected to support the latest API and do never
+    /// support forwarding requests to Sentry.
     pub forward: bool,
+    /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
+    /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
+    /// server (important for K8s infrastructure).
+    pub dns_cache: bool,
 }
 
 impl Default for Http {
@@ -886,56 +935,37 @@ impl Default for Http {
             host_header: None,
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
-            retry_delay: default_retry_delay(),
-            project_failure_interval: default_project_failure_interval(),
+            retry_delay: 1,
+            project_failure_interval: 90,
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
             forward: true,
+            dns_cache: true,
         }
     }
 }
 
-/// Default for unavailable upstream retry period, 1s.
-fn default_retry_delay() -> u64 {
-    1
-}
-
-/// Default for project failure interval, 90s.
-fn default_project_failure_interval() -> u64 {
-    90
-}
-
-/// Default for max disk size, 500 MB.
-fn spool_envelopes_max_disk_size() -> ByteSize {
-    ByteSize::mebibytes(500)
-}
-
-/// Default number of encoded envelope bytes to cache before writing to disk.
-fn spool_envelopes_batch_size_bytes() -> ByteSize {
-    ByteSize::kibibytes(10)
-}
-
-fn spool_envelopes_max_envelope_delay_secs() -> u64 {
-    24 * 60 * 60
-}
-
-/// Default refresh frequency in ms for the disk usage monitoring.
-fn spool_disk_usage_refresh_frequency_ms() -> u64 {
-    100
-}
-
-/// Default max memory usage for unspooling.
-fn spool_max_backpressure_memory_percent() -> f32 {
-    0.8
-}
-
-/// Default number of partitions for the buffer.
-fn spool_envelopes_partitions() -> NonZeroU8 {
-    NonZeroU8::new(1).unwrap()
+/// Strategy used to assign envelopes to buffer partitions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeSpoolPartitioning {
+    /// Envelopes with the same project key pair land on the same partition.
+    ///
+    /// Keeps per-project state, disk files, and event ordering co-located on one partition.
+    ProjectKeyPair,
+    /// Envelopes are distributed across partitions in a round-robin fashion (default).
+    ///
+    /// This prevents "hot" partitions when a single project pair dominates traffic, but has
+    /// trade-offs:
+    /// - Per-project LIFO ordering is no longer preserved across partitions.
+    /// - Per-partition memory footprint grows since every partition sees every project.
+    #[default]
+    RoundRobin,
 }
 
 /// Persistent buffering configuration for incoming envelopes.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct EnvelopeSpool {
     /// The path of the SQLite database file(s) which persist the data.
     ///
@@ -948,7 +978,6 @@ pub struct EnvelopeSpool {
     /// When the on-disk buffer reaches this size, new envelopes will be dropped.
     ///
     /// Defaults to 500MB.
-    #[serde(default = "spool_envelopes_max_disk_size")]
     pub max_disk_size: ByteSize,
     /// Size of the batch of compressed envelopes that are spooled to disk at once.
     ///
@@ -956,21 +985,24 @@ pub struct EnvelopeSpool {
     /// that exactly this size will be spooled, it can be greater or equal.
     ///
     /// Defaults to 10 KiB.
-    #[serde(default = "spool_envelopes_batch_size_bytes")]
     pub batch_size_bytes: ByteSize,
+    /// Time after which a batch is flushed, regardless of batch size.
+    ///
+    /// The age of the batch is only checked when a new envelope comes in, but in practice this
+    /// has the desired effect: High-volume projects always form full batches, low-volume batches
+    /// flush individual envelopes to keep memory usage low.
+    pub flush_timeout_secs: Option<u64>,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
     /// they are dropped.
     ///
     /// Defaults to 24h.
-    #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     pub max_envelope_delay_secs: u64,
     /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
     ///
     /// Defaults to 100ms.
-    #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     pub disk_usage_refresh_frequency_ms: u64,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
@@ -1001,7 +1033,6 @@ pub struct EnvelopeSpool {
     /// - A deadlock occurs, with the system unable to recover without manual intervention.
     ///
     /// Defaults to 90% (5% less than max memory).
-    #[serde(default = "spool_max_backpressure_memory_percent")]
     pub max_backpressure_memory_percent: f32,
     /// Number of partitions of the buffer.
     ///
@@ -1009,37 +1040,55 @@ pub struct EnvelopeSpool {
     /// and other resources.
     ///
     /// Defaults to 1.
-    #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Strategy used to assign envelopes to buffer partitions.
+    ///
+    /// Defaults to partitioning by `ProjectKeyPair`, which keeps all envelopes of a given project
+    /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
+    /// trade-offs.
+    pub partitioning: EnvelopeSpoolPartitioning,
+    /// Whether the database defined in `path` is on an ephemeral storage disk.
+    ///
+    /// With `ephemeral: true`, Relay does not spool in-flight data to disk
+    /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
+    pub ephemeral: bool,
 }
 
 impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
             path: None,
-            max_disk_size: spool_envelopes_max_disk_size(),
-            batch_size_bytes: spool_envelopes_batch_size_bytes(),
-            max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
-            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
-            max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
-            partitions: spool_envelopes_partitions(),
+            max_disk_size: ByteSize::mebibytes(500),
+            batch_size_bytes: ByteSize::kibibytes(10),
+            max_envelope_delay_secs: 24 * 60 * 60,
+            disk_usage_refresh_frequency_ms: 100,
+            max_backpressure_memory_percent: 0.8,
+            partitions: NonZeroU8::new(1).unwrap(),
+            partitioning: EnvelopeSpoolPartitioning::default(),
+            ephemeral: false,
+            flush_timeout_secs: None,
         }
     }
 }
 
 /// Persistent buffering configuration.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
 pub struct Spool {
     /// Configuration for envelope spooling.
-    #[serde(default)]
     pub envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
+    ///
+    /// Relay instances that receive the full project config have full access to quota config
+    /// and perform dynamic sampling.
     pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     pub project_expiry: u32,
@@ -1056,16 +1105,6 @@ pub struct Cache {
     pub project_refresh_interval: Option<u32>,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     pub relay_expiry: u32,
-    /// Unused cache timeout for envelopes.
-    ///
-    /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
-    /// maximum number of envelopes in the buffer. A time based configuration may be re-introduced
-    /// at a later point.
-    #[serde(alias = "event_expiry")]
-    envelope_expiry: u32,
-    /// The maximum amount of envelopes to queue before dropping them.
-    #[serde(alias = "event_buffer_size")]
-    envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     pub miss_expiry: u32,
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
@@ -1089,9 +1128,7 @@ impl Default for Cache {
             project_expiry: 300,       // 5 minutes
             project_grace_period: 120, // 2 minutes
             project_refresh_interval: None,
-            relay_expiry: 3600,   // 1 hour
-            envelope_expiry: 600, // 10 minutes
-            envelope_buffer_size: 1000,
+            relay_expiry: 3600,                    // 1 hour
             miss_expiry: 60,                       // 1 minute
             batch_interval: 100,                   // 100ms
             downstream_relays_batch_interval: 100, // 100ms
@@ -1102,40 +1139,17 @@ impl Default for Cache {
     }
 }
 
-fn default_max_secs_in_future() -> u32 {
-    60 // 1 minute
-}
-
-fn default_max_session_secs_in_past() -> u32 {
-    5 * 24 * 3600 // 5 days
-}
-
-fn default_chunk_size() -> ByteSize {
-    ByteSize::mebibytes(1)
-}
-
-fn default_projectconfig_cache_prefix() -> String {
-    "relayconfig".to_owned()
-}
-
-#[allow(clippy::unnecessary_wraps)]
-fn default_max_rate_limit() -> Option<u32> {
-    Some(300) // 5 minutes
-}
-
 /// Controls Sentry-internal event processing.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
     /// GeoIp DB file source.
-    #[serde(default)]
     pub geoip_path: Option<PathBuf>,
     /// Maximum future timestamp of ingested events.
-    #[serde(default = "default_max_secs_in_future")]
     pub max_secs_in_future: u32,
     /// Maximum age of ingested sessions. Older sessions will be dropped.
-    #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
@@ -1158,25 +1172,18 @@ pub struct Processing {
     /// ```
     ///
     /// Then metrics will be produced to an entirely different Kafka cluster.
-    #[serde(default)]
     pub secondary_kafka_configs: BTreeMap<String, Vec<KafkaConfigParam>>,
     /// Kafka topic names.
-    #[serde(default)]
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
-    #[serde(default)]
     pub kafka_validate_topics: bool,
     /// Redis hosts to connect to for storing state for rate limits.
-    #[serde(default)]
     pub redis: Option<RedisConfigs>,
     /// Maximum chunk size of attachments for Kafka.
-    #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
     /// Prefix to use when looking up project configs in Redis. Defaults to "relayconfig".
-    #[serde(default = "default_projectconfig_cache_prefix")]
     pub projectconfig_cache_prefix: String,
     /// Maximum rate limit to report to clients.
-    #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
     /// Configures the quota cache ratio between `0.0` and `1.0`.
     ///
@@ -1196,9 +1203,9 @@ pub struct Processing {
     ///
     /// Must be between `0.0` and `1.0`, by default there is no limit configured.
     pub quota_cache_max: Option<f32>,
-    /// Configuration for attachment uploads.
-    #[serde(default)]
-    pub upload: UploadServiceConfig,
+    /// Configuration for the objectstore service.
+    #[serde(alias = "upload")]
+    pub objectstore: ObjectstoreServiceConfig,
 }
 
 impl Default for Processing {
@@ -1207,29 +1214,28 @@ impl Default for Processing {
         Self {
             enabled: false,
             geoip_path: None,
-            max_secs_in_future: default_max_secs_in_future(),
-            max_session_secs_in_past: default_max_session_secs_in_past(),
+            max_secs_in_future: 60,                  // 1 minute
+            max_session_secs_in_past: 5 * 24 * 3600, // 5 days
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
             redis: None,
-            attachment_chunk_size: default_chunk_size(),
-            projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
-            max_rate_limit: default_max_rate_limit(),
+            attachment_chunk_size: ByteSize::mebibytes(1),
+            projectconfig_cache_prefix: "relayconfig".to_owned(),
+            max_rate_limit: Some(300), // 5 minutes
             quota_cache_ratio: None,
             quota_cache_max: None,
-            upload: UploadServiceConfig::default(),
+            objectstore: ObjectstoreServiceConfig::default(),
         }
     }
 }
 
 /// Configuration for normalization in this Relay.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Normalization {
     /// Level of normalization for Relay to apply to incoming data.
-    #[serde(default)]
     pub level: NormalizationLevel,
 }
 
@@ -1249,29 +1255,30 @@ pub enum NormalizationLevel {
     Full,
 }
 
-/// Configuration values for the outcome aggregator
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct OutcomeAggregatorConfig {
-    /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
-    pub bucket_interval: u64,
-    /// Defines how often all buckets are flushed, in seconds.
-    pub flush_interval: u64,
+/// Configuration options for objectstore's auth scheme.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ObjectstoreAuthConfig {
+    /// Identifier for the private key used to sign objectstore's tokens. Must correspond to a
+    /// public key configured in objectstore.
+    pub key_id: String,
+
+    /// EdDSA private key used to sign Objectstore's tokens, in PEM format.
+    pub signing_key: String,
 }
 
-impl Default for OutcomeAggregatorConfig {
-    fn default() -> Self {
-        Self {
-            bucket_interval: 60,
-            flush_interval: 120,
-        }
+impl fmt::Debug for ObjectstoreAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObjectstoreAuthConfig")
+            .field("key_id", &self.key_id)
+            .field("signing_key", &"[redacted]")
+            .finish()
     }
 }
 
-/// Configuration values for attachment uploads.
-#[derive(Serialize, Deserialize, Debug)]
+/// Configuration values for the objectstore service.
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct UploadServiceConfig {
+pub struct ObjectstoreServiceConfig {
     /// The base URL for the objectstore service.
     ///
     /// This defaults to [`None`], which means that the service will be disabled,
@@ -1281,16 +1288,51 @@ pub struct UploadServiceConfig {
     /// Maximum concurrency of uploads.
     pub max_concurrent_requests: usize,
 
+    /// Maximum size of the service input queue when `max_concurrent_requests` is saturated.
+    ///
+    /// The service will loadshed if this threshold is reached.
+    pub max_backlog: usize,
+
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    ///
+    /// NOTE: This timeout applies to attachments that are already in-memory. Streaming uploads
+    /// might take longer and are restricted independently by [`Self::stream_timeout`].
     pub timeout: u64,
+
+    /// Maximum duration of an upload stream.
+    ///
+    /// Streams get a larger default timeout because their duration depends on the client
+    /// as well as the server.
+    pub stream_timeout: u64,
+
+    /// Time between upload attempts.
+    pub retry_delay: f64,
+
+    /// Maximum number of attempts made to upload.
+    pub max_attempts: NonZeroU16,
+
+    /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
+    ///
+    /// When disabled, failed event attachments are dropped with an `upload_failed`
+    /// outcome instead of falling back to Store's Kafka attachment path.
+    pub fallback_to_kafka: bool,
+
+    /// Configuration values for objectstore's auth scheme.
+    pub auth: Option<ObjectstoreAuthConfig>,
 }
 
-impl Default for UploadServiceConfig {
+impl Default for ObjectstoreServiceConfig {
     fn default() -> Self {
         Self {
             objectstore_url: None,
             max_concurrent_requests: 10,
+            max_backlog: 20,
             timeout: 60,
+            stream_timeout: 5 * 60, // synced with `Upload::timeout`
+            retry_delay: 1.0,
+            max_attempts: NonZeroU16::new(5).unwrap(),
+            fallback_to_kafka: true,
+            auth: None,
         }
     }
 }
@@ -1300,11 +1342,11 @@ impl Default for UploadServiceConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 
 pub enum EmitOutcomes {
-    /// Do not emit any outcomes
+    /// Do not emit any outcomes.
     None,
-    /// Emit outcomes as client reports
+    /// Emit outcomes as client reports.
     AsClientReports,
-    /// Emit outcomes as outcomes
+    /// Emit outcomes as outcomes.
     AsOutcomes,
 }
 
@@ -1335,7 +1377,7 @@ impl Visitor<'_> for EmitOutcomesVisitor {
     type Value = EmitOutcomes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("true, false, or 'as_client_reports'")
+        formatter.write_str("true, false, 'as_client_reports'")
     }
 
     fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
@@ -1353,10 +1395,9 @@ impl Visitor<'_> for EmitOutcomesVisitor {
     where
         E: serde::de::Error,
     {
-        if v == "as_client_reports" {
-            Ok(EmitOutcomes::AsClientReports)
-        } else {
-            Err(E::invalid_value(Unexpected::Str(v), &"as_client_reports"))
+        match v {
+            "as_client_reports" => Ok(EmitOutcomes::AsClientReports),
+            _ => Err(E::invalid_value(Unexpected::Str(v), &self)),
         }
     }
 }
@@ -1371,37 +1412,23 @@ impl<'de> Deserialize<'de> for EmitOutcomes {
 }
 
 /// Outcome generation specific configuration values.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Outcomes {
     /// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// Controls wheather client reported outcomes should be emitted.
-    pub emit_client_outcomes: bool,
-    /// The maximum number of outcomes that are batched before being sent
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_size: usize,
-    /// The maximum time interval (in milliseconds) that an outcome may be batched
-    /// via http to the upstream (only applies to non processing relays).
-    pub batch_interval: u64,
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
-    /// Configures the outcome aggregator.
-    pub aggregator: OutcomeAggregatorConfig,
 }
 
 impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            emit_client_outcomes: true,
-            batch_size: 1000,
-            batch_interval: 500,
             source: None,
-            aggregator: OutcomeAggregatorConfig::default(),
         }
     }
 }
@@ -1490,59 +1517,45 @@ mod config_relay_info {
 }
 
 /// Authentication options.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(skip_serializing_if = "is_default")]
     pub ready: ReadinessCondition,
 
     /// Statically authenticated downstream relays.
-    #[serde(default, with = "config_relay_info")]
+    #[serde(with = "config_relay_info")]
     pub static_relays: HashMap<RelayId, RelayInfo>,
 
     /// How old a signature can be before it is considered invalid, in seconds.
     ///
     /// Defaults to 5 minutes.
-    #[serde(default = "default_max_age")]
     pub signature_max_age: u64,
 }
 
-fn default_max_age() -> u64 {
-    300
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            ready: ReadinessCondition::default(),
+            static_relays: HashMap::new(),
+            signature_max_age: 300, // 5 minutes
+        }
+    }
 }
 
 /// GeoIp database configuration options.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GeoIpConfig {
     /// The path to GeoIP database.
     pub path: Option<PathBuf>,
-}
-
-/// Cardinality Limiter configuration options.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct CardinalityLimiter {
-    /// Cache vacuum interval in seconds for the in memory cache.
-    ///
-    /// The cache will scan for expired values based on this interval.
-    ///
-    /// Defaults to 180 seconds, 3 minutes.
-    pub cache_vacuum_interval: u64,
-}
-
-impl Default for CardinalityLimiter {
-    fn default() -> Self {
-        Self {
-            cache_vacuum_interval: 180,
-        }
-    }
 }
 
 /// Settings to control Relay's health checks.
 ///
 /// After breaching one of the configured thresholds, Relay will
 /// return an `unhealthy` status from its health endpoint.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct Health {
     /// Interval to refresh internal health checks.
@@ -1589,7 +1602,7 @@ impl Default for Health {
 }
 
 /// COGS configuration.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Cogs {
     /// Maximium amount of COGS measurements allowed to backlog.
@@ -1615,46 +1628,87 @@ impl Default for Cogs {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-struct ConfigValues {
-    #[serde(default)]
-    relay: Relay,
-    #[serde(default)]
-    http: Http,
-    #[serde(default)]
-    cache: Cache,
-    #[serde(default)]
-    spool: Spool,
-    #[serde(default)]
-    limits: Limits,
-    #[serde(default)]
-    logging: relay_log::LogConfig,
-    #[serde(default)]
-    routing: Routing,
-    #[serde(default)]
-    metrics: Metrics,
-    #[serde(default)]
-    sentry: relay_log::SentryConfig,
-    #[serde(default)]
-    processing: Processing,
-    #[serde(default)]
-    outcomes: Outcomes,
-    #[serde(default)]
-    aggregator: AggregatorServiceConfig,
-    #[serde(default)]
-    secondary_aggregators: Vec<ScopedAggregatorConfig>,
-    #[serde(default)]
-    auth: AuthConfig,
-    #[serde(default)]
-    geoip: GeoIpConfig,
-    #[serde(default)]
-    normalization: Normalization,
-    #[serde(default)]
-    cardinality_limiter: CardinalityLimiter,
-    #[serde(default)]
-    health: Health,
-    #[serde(default)]
-    cogs: Cogs,
+/// Configuration for the upload service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Upload {
+    /// Maximum number of uploads that the service accepts.
+    ///
+    /// Additional uploads will be rejected.
+    pub max_concurrent_requests: usize,
+    /// Maximum time spent trying to upload, in seconds.
+    pub timeout: u64,
+    /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
+    ///
+    /// In seconds.
+    pub max_age: i64,
+
+    /// Credentials used for signing & verifying upload locations.
+    ///
+    /// If omitted, relay's default [`Credentials`] are used.
+    pub credentials: Option<UploadCredentials>,
+}
+
+impl Default for Upload {
+    fn default() -> Self {
+        Self {
+            max_concurrent_requests: 100,
+            timeout: 5 * 60,  // five minutes
+            max_age: 60 * 60, // 1h
+            credentials: None,
+        }
+    }
+}
+
+/// Credentials used for signing & verifying upload locations.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UploadCredentials {
+    /// Key used to sign upload locations.
+    #[cfg(feature = "processing")]
+    pub signing_key: SecretKey,
+
+    /// Key used to verify upload locations.
+    pub verification_key: PublicKey,
+}
+
+impl fmt::Debug for UploadCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            #[cfg(feature = "processing")]
+                signing_key: _,
+            verification_key,
+        } = self;
+        let mut b = f.debug_struct("UploadCredentials");
+        #[cfg(feature = "processing")]
+        b.field("signing_key", &"[redacted]");
+        b.field("verification_key", verification_key).finish()
+    }
+}
+
+/// All configuration values that can be deserialized from `config.yml`.
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(default)]
+#[allow(missing_docs)]
+pub struct ConfigValues {
+    pub relay: Relay,
+    pub http: Http,
+    pub cache: Cache,
+    pub spool: Spool,
+    pub limits: Limits,
+    pub logging: relay_log::LogConfig,
+    pub routing: Routing,
+    pub metrics: Metrics,
+    pub sentry: relay_log::SentryConfig,
+    pub processing: Processing,
+    pub outcomes: Outcomes,
+    pub aggregator: AggregatorServiceConfig,
+    pub secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    pub auth: AuthConfig,
+    pub geoip: GeoIpConfig,
+    pub normalization: Normalization,
+    pub health: Health,
+    pub cogs: Cogs,
+    pub upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1667,104 +1721,53 @@ impl ConfigObject for ConfigValues {
     }
 }
 
-/// Config struct.
-pub struct Config {
+#[derive(Default, Clone)]
+struct ConfigInner {
+    /// Relay's config values.
     values: ConfigValues,
+    /// Configured Relay credentials.
+    ///
+    /// Credentials may be missing for proxy mode.
     credentials: Option<Credentials>,
-    path: PathBuf,
 }
 
-impl fmt::Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Config")
-            .field("path", &self.path)
-            .field("values", &self.values)
-            .finish()
-    }
-}
-
-impl Config {
-    /// Loads a config from a given config folder.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
-        let path = env::current_dir()
-            .map(|x| x.join(path.as_ref()))
-            .unwrap_or_else(|_| path.as_ref().to_path_buf());
-
-        let config = Config {
-            values: ConfigValues::load(&path)?,
-            credentials: if Credentials::path(&path).exists() {
-                Some(Credentials::load(&path)?)
-            } else {
-                None
-            },
-            path: path.clone(),
-        };
-
-        if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, &path).into());
+impl ConfigInner {
+    fn apply_overrides(&mut self, overrides: &OverridableConfig) -> anyhow::Result<()> {
+        if let Some(log_level) = &overrides.log_level {
+            self.values.logging.level = log_level.parse()?;
         }
 
-        Ok(config)
-    }
+        if let Some(log_format) = &overrides.log_format {
+            self.values.logging.format = log_format.parse()?;
+        }
 
-    /// Creates a config from a JSON value.
-    ///
-    /// This is mostly useful for tests.
-    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
-        Ok(Config {
-            values: serde_json::from_value(value)
-                .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
-            credentials: None,
-            path: PathBuf::new(),
-        })
-    }
-
-    /// Override configuration with values coming from other sources (e.g. env variables or
-    /// command line parameters)
-    pub fn apply_override(
-        &mut self,
-        mut overrides: OverridableConfig,
-    ) -> anyhow::Result<&mut Self> {
         let relay = &mut self.values.relay;
-
-        if let Some(mode) = overrides.mode {
+        if let Some(mode) = &overrides.mode {
             relay.mode = mode
                 .parse::<RelayMode>()
                 .with_context(|| ConfigError::field("mode"))?;
         }
-
-        if let Some(deployment) = overrides.instance {
+        if let Some(deployment) = &overrides.instance {
             relay.instance = deployment
                 .parse::<RelayInstance>()
                 .with_context(|| ConfigError::field("deployment"))?;
         }
-
-        if let Some(log_level) = overrides.log_level {
-            self.values.logging.level = log_level.parse()?;
-        }
-
-        if let Some(log_format) = overrides.log_format {
-            self.values.logging.format = log_format.parse()?;
-        }
-
-        if let Some(upstream) = overrides.upstream {
+        if let Some(upstream) = &overrides.upstream {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
                 .with_context(|| ConfigError::field("upstream"))?;
-        } else if let Some(upstream_dsn) = overrides.upstream_dsn {
+        } else if let Some(upstream_dsn) = &overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::<Dsn>()
-                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn))
                 .with_context(|| ConfigError::field("upstream_dsn"))?;
         }
-
-        if let Some(host) = overrides.host {
+        if let Some(host) = &overrides.host {
             relay.host = host
                 .parse::<IpAddr>()
                 .with_context(|| ConfigError::field("host"))?;
         }
-
-        if let Some(port) = overrides.port {
+        if let Some(port) = &overrides.port {
             relay.port = port
                 .as_str()
                 .parse()
@@ -1772,19 +1775,17 @@ impl Config {
         }
 
         let processing = &mut self.values.processing;
-        if let Some(enabled) = overrides.processing {
+        if let Some(enabled) = &overrides.processing {
             match enabled.to_lowercase().as_str() {
                 "true" | "1" => processing.enabled = true,
                 "false" | "0" | "" => processing.enabled = false,
                 _ => return Err(ConfigError::field("processing").into()),
             }
         }
-
-        if let Some(redis) = overrides.redis_url {
+        if let Some(redis) = overrides.redis_url.clone() {
             processing.redis = Some(RedisConfigs::Unified(RedisConfig::single(redis)))
         }
-
-        if let Some(kafka_url) = overrides.kafka_url {
+        if let Some(kafka_url) = overrides.kafka_url.clone() {
             let existing = processing
                 .kafka_config
                 .iter_mut()
@@ -1793,20 +1794,34 @@ impl Config {
             if let Some(config_param) = existing {
                 config_param.value = kafka_url;
             } else {
-                processing.kafka_config.push(KafkaConfigParam {
+                self.values.processing.kafka_config.push(KafkaConfigParam {
                     name: "bootstrap.servers".to_owned(),
                     value: kafka_url,
                 })
             }
         }
-        // credentials overrides
-        let id = if let Some(id) = overrides.id {
-            let id = Uuid::parse_str(&id).with_context(|| ConfigError::field("id"))?;
+
+        if overrides.outcome_source.is_some() {
+            self.values.outcomes.source = overrides.outcome_source.clone();
+        }
+
+        if let Some(shutdown_timeout) = &overrides.shutdown_timeout
+            && let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>()
+        {
+            self.values.limits.shutdown_timeout = shutdown_timeout;
+        }
+
+        if let Some(server_name) = overrides.server_name.clone() {
+            self.values.sentry.server_name = Some(server_name.into());
+        }
+
+        let id = if let Some(id) = &overrides.id {
+            let id = Uuid::parse_str(id).with_context(|| ConfigError::field("id"))?;
             Some(id)
         } else {
             None
         };
-        let public_key = if let Some(public_key) = overrides.public_key {
+        let public_key = if let Some(public_key) = &overrides.public_key {
             let public_key = public_key
                 .parse::<PublicKey>()
                 .with_context(|| ConfigError::field("public_key"))?;
@@ -1815,7 +1830,7 @@ impl Config {
             None
         };
 
-        let secret_key = if let Some(secret_key) = overrides.secret_key {
+        let secret_key = if let Some(secret_key) = &overrides.secret_key {
             let secret_key = secret_key
                 .parse::<SecretKey>()
                 .with_context(|| ConfigError::field("secret_key"))?;
@@ -1823,10 +1838,6 @@ impl Config {
         } else {
             None
         };
-        let outcomes = &mut self.values.outcomes;
-        if overrides.outcome_source.is_some() {
-            outcomes.source = overrides.outcome_source.take();
-        }
 
         if let Some(credentials) = &mut self.credentials {
             //we have existing credentials we may override some entries
@@ -1859,16 +1870,121 @@ impl Config {
             }
         }
 
-        let limits = &mut self.values.limits;
-        if let Some(shutdown_timeout) = overrides.shutdown_timeout
-            && let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>()
-        {
-            limits.shutdown_timeout = shutdown_timeout;
+        Ok(())
+    }
+
+    /// Merges reloadable parts of the config from `other` into `self`.
+    ///
+    /// Returns `true` if any parts of the config were updated.
+    fn reload_with(&mut self, other: &Self) -> bool {
+        let mut changed = false;
+
+        if self.values.health != other.values.health {
+            relay_log::debug!("updating health");
+            self.values.health = other.values.health.clone();
+            changed = true;
         }
 
-        if let Some(server_name) = overrides.server_name {
-            self.values.sentry.server_name = Some(server_name.into());
+        changed
+    }
+}
+
+/// Relay's Configuration.
+pub struct Config {
+    /// A mutex to serialize all write accesses to `inner`.
+    ///
+    /// Accessing the arc swap is done with compare and swap, but we still want serialized
+    /// access and operations to guarantee consistency when dealing with e.g. the filesystem.
+    ///
+    /// The mutex must be acquired before changing `inner`. Methods taking `&mut` can omit
+    /// this, as the `&mut` requirement already satisfies that there is no concurrent access
+    /// possible.
+    inner_access: Mutex<()>,
+    /// The actual config.
+    inner: ArcSwap<ConfigInner>,
+    /// A list of overrides applied to the config, in order.
+    ///
+    /// When re-loading the configuration these overrides need to be applied again
+    /// in the same order as they were applied originally.
+    overrides: Vec<OverridableConfig>,
+    /// Path from which the config is loaded.
+    ///
+    /// This is Relay's configuration directory.
+    path: PathBuf,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.load();
+
+        f.debug_struct("Config")
+            .field("path", &self.path)
+            // Only print specific parts of `inner` to not leak the credentials.
+            .field("values", &inner.values)
+            .finish()
+    }
+}
+
+impl Config {
+    /// Loads a config from a given config folder.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
+        let path = env::current_dir()
+            .map(|x| x.join(path.as_ref()))
+            .unwrap_or_else(|_| path.as_ref().to_path_buf());
+
+        let inner = ConfigInner {
+            values: ConfigValues::load(&path)?,
+            credentials: match Credentials::path(&path).exists() {
+                true => Some(Credentials::load(&path)?),
+                false => None,
+            },
+        };
+
+        let config = Config {
+            inner_access: Mutex::new(()),
+            inner: ArcSwap::from_pointee(inner),
+            overrides: Vec::new(),
+            path: path.clone(),
+        };
+
+        if cfg!(not(feature = "processing")) && config.current().processing_enabled() {
+            return Err(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, &path).into());
         }
+
+        Ok(config)
+    }
+
+    /// Creates a config from a JSON value.
+    ///
+    /// This is mostly useful for tests.
+    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
+        Ok(Config {
+            inner_access: Mutex::new(()),
+            inner: ArcSwap::from_pointee(ConfigInner {
+                values: serde_json::from_value(value)
+                    .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
+                credentials: None,
+            }),
+            overrides: Vec::new(),
+            path: PathBuf::new(),
+        })
+    }
+
+    /// Override configuration with values coming from other sources (e.g. env variables or
+    /// command line parameters).
+    ///
+    /// If applying the overrides fails, the config may be left in an inconsistent state.
+    pub fn apply_override(&mut self, overrides: OverridableConfig) -> anyhow::Result<&mut Self> {
+        // We could introduce a config builder which operates on mutable configs, which would eliminate
+        // the need for this `try_rcu` dance here.
+        crate::utils::try_rcu(&self.inner, |inner| {
+            let mut new = ConfigInner::clone(inner);
+            new.apply_overrides(&overrides)?;
+            Ok::<_, anyhow::Error>(Arc::new(new))
+        })?;
+
+        // Overrides successfully applied.
+        self.overrides.push(overrides);
 
         Ok(self)
     }
@@ -1885,99 +2001,176 @@ impl Config {
 
     /// Dumps out a YAML string of the values.
     pub fn to_yaml_string(&self) -> anyhow::Result<String> {
-        serde_yaml::to_string(&self.values)
+        serde_yaml::to_string(&self.inner.load().values)
             .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
-    }
-
-    /// Regenerates the relay credentials.
-    ///
-    /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self, save: bool) -> anyhow::Result<()> {
-        let creds = Credentials::generate();
-        if save {
-            creds.save(&self.path)?;
-        }
-        self.credentials = Some(creds);
-        Ok(())
-    }
-
-    /// Return the current credentials
-    pub fn credentials(&self) -> Option<&Credentials> {
-        self.credentials.as_ref()
     }
 
     /// Set new credentials.
     ///
-    /// This also writes the credentials back to the file.
+    /// This also writes the credentials back to the file, if this config was loaded from the file-system.
     pub fn replace_credentials(
         &mut self,
         credentials: Option<Credentials>,
     ) -> anyhow::Result<bool> {
-        if self.credentials == credentials {
+        if self.inner.load().credentials == credentials {
             return Ok(false);
         }
 
-        match credentials {
-            Some(ref creds) => {
-                creds.save(&self.path)?;
-            }
-            None => {
-                let path = Credentials::path(&self.path);
-                if fs::metadata(&path).is_ok() {
-                    fs::remove_file(&path).with_context(|| {
-                        ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path)
-                    })?;
+        if !self.path.is_empty() {
+            match &credentials {
+                Some(creds) => {
+                    creds.save(&self.path)?;
+                }
+                None => {
+                    let path = Credentials::path(&self.path);
+                    if fs::metadata(&path).is_ok() {
+                        fs::remove_file(&path).with_context(|| {
+                            ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path)
+                        })?;
+                    }
                 }
             }
         }
 
-        self.credentials = credentials;
+        // Note: there is never anyone racing on the `ArcSwap` as long as `Self` borrowed mutably.
+        //
+        // We can improve this if we split out mutable operations into a separate struct and only
+        // once `frozen()` we change to an `ArcSwap` internally.
+        self.inner.rcu(|inner| {
+            let mut inner = ConfigInner::clone(inner);
+            inner.credentials = credentials.clone();
+            Arc::new(inner)
+        });
+
         Ok(true)
     }
 
+    /// Reloads the configuration from disk.
+    ///
+    /// Returns `true` if the configuration changed.
+    ///
+    /// In order for a config to be reloadable it must've been loaded from a path. The original
+    /// config will be re-read and reloadable parts of the config will be replaced with their updated
+    /// values.
+    ///
+    /// If the reload fails for any reason, the current config is untouched.
+    pub fn reload(&self) -> anyhow::Result<bool> {
+        if self.path.is_empty() {
+            return Ok(false);
+        }
+
+        let _access = self
+            .inner_access
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+
+        let mut new_config = Self::from_path(&self.path)?;
+        for overrides in &self.overrides {
+            new_config.apply_override(overrides.clone())?;
+        }
+        let new_config = new_config.current();
+
+        let mut changed = false;
+
+        // Since we do have the `_access` lock, this will always succeed on the first try.
+        self.inner.rcu(|inner| {
+            let mut new_inner = ConfigInner::clone(inner);
+            changed = new_inner.reload_with(&new_config.inner);
+            match changed {
+                true => Arc::new(new_inner),
+                false => Arc::clone(inner),
+            }
+        });
+
+        Ok(changed)
+    }
+
+    /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
+    ///
+    /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
+    /// once per unit of work.
+    pub fn current(&self) -> ConfigSnapshot {
+        let inner = self.inner.load();
+        ConfigSnapshot { inner }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            inner_access: Mutex::new(()),
+            inner: ArcSwap::from_pointee(Default::default()),
+            overrides: Vec::new(),
+            path: PathBuf::new(),
+        }
+    }
+}
+
+/// A config snapshot is a point in time snapshot of the [`Config`].
+///
+/// The [`Config`] may change over time, to guarantee a consistent view of the config
+/// a snapshot must be acquired first.
+///
+/// The snapshot should not be stored in a long lasting datastructure. As a rule of thumb it should
+/// only exist on the stack.
+pub struct ConfigSnapshot {
+    inner: arc_swap::Guard<Arc<ConfigInner>>,
+}
+
+impl ConfigSnapshot {
     /// Returns `true` if the config is ready to use.
     pub fn has_credentials(&self) -> bool {
-        self.credentials.is_some()
+        self.inner.credentials.is_some()
+    }
+
+    /// Return the current credentials.
+    pub fn credentials(&self) -> Option<&Credentials> {
+        self.inner.credentials.as_ref()
     }
 
     /// Returns the secret key if set.
     pub fn secret_key(&self) -> Option<&SecretKey> {
-        self.credentials.as_ref().map(|x| &x.secret_key)
+        self.inner.credentials.as_ref().map(|x| &x.secret_key)
     }
 
     /// Returns the public key if set.
     pub fn public_key(&self) -> Option<&PublicKey> {
-        self.credentials.as_ref().map(|x| &x.public_key)
+        self.inner.credentials.as_ref().map(|x| &x.public_key)
     }
 
     /// Returns the relay ID.
     pub fn relay_id(&self) -> Option<&RelayId> {
-        self.credentials.as_ref().map(|x| &x.id)
+        self.inner.credentials.as_ref().map(|x| &x.id)
     }
 
     /// Returns the relay mode.
     pub fn relay_mode(&self) -> RelayMode {
-        self.values.relay.mode
+        self.inner.values.relay.mode
     }
 
     /// Returns the instance type of relay.
     pub fn relay_instance(&self) -> RelayInstance {
-        self.values.relay.instance
+        self.inner.values.relay.instance
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
-        &self.values.relay.upstream
+    pub fn upstream(&self) -> &UpstreamDescriptor {
+        &self.inner.values.relay.upstream
+    }
+
+    /// Returns the advertised upstream for downstream instances as descriptor.
+    pub fn advertised_upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.inner.values.relay.advertised_upstream.as_ref()
     }
 
     /// Returns the custom HTTP "Host" header.
     pub fn http_host_header(&self) -> Option<&str> {
-        self.values.http.host_header.as_deref()
+        self.inner.values.http.host_header.as_deref()
     }
 
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
-        (self.values.relay.host, self.values.relay.port).into()
+        (self.inner.values.relay.host, self.inner.values.relay.port).into()
     }
 
     /// Returns the listen address for internal APIs.
@@ -1989,11 +2182,11 @@ impl Config {
     /// and they should instead be exposed on the main [`Self::listen_addr`].
     pub fn listen_addr_internal(&self) -> Option<SocketAddr> {
         match (
-            self.values.relay.internal_host,
-            self.values.relay.internal_port,
+            self.inner.values.relay.internal_host,
+            self.inner.values.relay.internal_port,
         ) {
-            (Some(host), None) => Some((host, self.values.relay.port).into()),
-            (None, Some(port)) => Some((self.values.relay.host, port).into()),
+            (Some(host), None) => Some((host, self.inner.values.relay.port).into()),
+            (None, Some(port)) => Some((self.inner.values.relay.host, port).into()),
             (Some(host), Some(port)) => Some((host, port).into()),
             (None, None) => None,
         }
@@ -2001,9 +2194,9 @@ impl Config {
 
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.values.relay.tls_identity_path.is_some() {
-            let port = self.values.relay.tls_port.unwrap_or(3443);
-            Some((self.values.relay.host, port).into())
+        if self.inner.values.relay.tls_identity_path.is_some() {
+            let port = self.inner.values.relay.tls_port.unwrap_or(3443);
+            Some((self.inner.values.relay.host, port).into())
         } else {
             None
         }
@@ -2011,26 +2204,39 @@ impl Config {
 
     /// Returns the path to the identity bundle
     pub fn tls_identity_path(&self) -> Option<&Path> {
-        self.values.relay.tls_identity_path.as_deref()
+        self.inner.values.relay.tls_identity_path.as_deref()
     }
 
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
-        self.values.relay.tls_identity_password.as_deref()
+        self.inner.values.relay.tls_identity_password.as_deref()
     }
 
     /// Returns `true` when project IDs should be overriden rather than validated.
     ///
     /// Defaults to `false`, which requires project ID validation.
     pub fn override_project_ids(&self) -> bool {
-        self.values.relay.override_project_ids
+        self.inner.values.relay.override_project_ids
+    }
+
+    /// Returns the interval to check for configuration changes.
+    ///
+    /// `None` if the config should never be reloaded.
+    pub fn config_reload_interval(&self) -> Option<Duration> {
+        let interval = self.inner.values.relay.config_reload_interval?;
+        Some(match interval {
+            // Useful for tests to be able to configure this to a very small value,
+            // but we also don't want it to be actually 0.
+            0 => Duration::from_millis(50),
+            secs => Duration::from_secs(secs),
+        })
     }
 
     /// Returns `true` if Relay requires authentication for readiness.
     ///
     /// See [`ReadinessCondition`] for more information.
     pub fn requires_auth(&self) -> bool {
-        match self.values.auth.ready {
+        match self.inner.values.auth.ready {
             ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
             ReadinessCondition::Always => false,
         }
@@ -2044,7 +2250,7 @@ impl Config {
             return None;
         }
 
-        match self.values.http.auth_interval {
+        match self.inner.values.http.auth_interval {
             None | Some(0) => None,
             Some(secs) => Some(Duration::from_secs(secs)),
         }
@@ -2053,7 +2259,7 @@ impl Config {
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage.
     pub fn http_outage_grace_period(&self) -> Duration {
-        Duration::from_secs(self.values.http.outage_grace_period)
+        Duration::from_secs(self.inner.values.http.outage_grace_period)
     }
 
     /// Time Relay waits before retrying an upstream request.
@@ -2061,27 +2267,30 @@ impl Config {
     /// Before going into a network outage, Relay may fail to make upstream
     /// requests. This is the time Relay waits before retrying the same request.
     pub fn http_retry_delay(&self) -> Duration {
-        Duration::from_secs(self.values.http.retry_delay)
+        Duration::from_secs(self.inner.values.http.retry_delay)
     }
 
     /// Time of continued project request failures before Relay emits an error.
     pub fn http_project_failure_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.project_failure_interval)
+        Duration::from_secs(self.inner.values.http.project_failure_interval)
     }
 
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
-        self.values.http.encoding
+        self.inner.values.http.encoding
     }
 
     /// Returns whether metrics should be sent globally through a shared endpoint.
     pub fn http_global_metrics(&self) -> bool {
-        self.values.http.global_metrics
+        self.inner.values.http.global_metrics
     }
 
     /// Returns `true` if Relay supports forwarding unknown API requests.
+    ///
+    /// Relay instances with processing enabled are expected to support the latest API and do never
+    /// support forwarding requests to Sentry.
     pub fn http_forward(&self) -> bool {
-        self.values.http.forward
+        self.inner.values.http.forward && !self.processing_enabled()
     }
 
     /// Returns whether this Relay should emit outcomes.
@@ -2092,103 +2301,54 @@ impl Config {
         if self.processing_enabled() {
             return EmitOutcomes::AsOutcomes;
         }
-        self.values.outcomes.emit_outcomes
-    }
-
-    /// Returns whether this Relay should emit client outcomes
-    ///
-    /// Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.  This is only done
-    /// if this relay emits outcomes at all. A relay that will not emit outcomes
-    /// will forward the envelope unchanged.
-    ///
-    /// This flag can be explicitly disabled on processing relays as well to prevent the
-    /// emitting of client outcomes to the kafka topic.
-    pub fn emit_client_outcomes(&self) -> bool {
-        self.values.outcomes.emit_client_outcomes
-    }
-
-    /// Returns the maximum number of outcomes that are batched before being sent
-    pub fn outcome_batch_size(&self) -> usize {
-        self.values.outcomes.batch_size
-    }
-
-    /// Returns the maximum interval that an outcome may be batched
-    pub fn outcome_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.outcomes.batch_interval)
+        self.inner.values.outcomes.emit_outcomes
     }
 
     /// The originating source of the outcome
     pub fn outcome_source(&self) -> Option<&str> {
-        self.values.outcomes.source.as_deref()
-    }
-
-    /// Returns the width of the buckets into which outcomes are aggregated, in seconds.
-    pub fn outcome_aggregator(&self) -> &OutcomeAggregatorConfig {
-        &self.values.outcomes.aggregator
+        self.inner.values.outcomes.source.as_deref()
     }
 
     /// Returns logging configuration.
     pub fn logging(&self) -> &relay_log::LogConfig {
-        &self.values.logging
+        &self.inner.values.logging
     }
 
     /// Returns logging configuration.
     pub fn sentry(&self) -> &relay_log::SentryConfig {
-        &self.values.sentry
+        &self.inner.values.sentry
     }
 
-    /// Returns the socket addresses for statsd.
-    ///
-    /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
-        if let Some(ref addr) = self.values.metrics.statsd {
-            let addrs = addr
-                .as_str()
-                .to_socket_addrs()
-                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
-                .collect();
-            Ok(addrs)
-        } else {
-            Ok(vec![])
-        }
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_addr(&self) -> Option<&str> {
+        self.inner.values.metrics.statsd.as_deref()
+    }
+
+    /// Returns the addresses for statsd metrics.
+    pub fn statsd_buffer_size(&self) -> Option<usize> {
+        self.inner.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.
     pub fn metrics_prefix(&self) -> &str {
-        &self.values.metrics.prefix
+        &self.inner.values.metrics.prefix
     }
 
     /// Returns the default tags for statsd metrics.
     pub fn metrics_default_tags(&self) -> &BTreeMap<String, String> {
-        &self.values.metrics.default_tags
+        &self.inner.values.metrics.default_tags
     }
 
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
-        self.values.metrics.hostname_tag.as_deref()
-    }
-
-    /// Returns the global sample rate for all metrics.
-    pub fn metrics_sample_rate(&self) -> f32 {
-        self.values.metrics.sample_rate
-    }
-
-    /// Returns whether local metric aggregation should be enabled.
-    pub fn metrics_aggregate(&self) -> bool {
-        self.values.metrics.aggregate
-    }
-
-    /// Returns whether high cardinality tags should be removed before sending metrics.
-    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
-        self.values.metrics.allow_high_cardinality_tags
+        self.inner.values.metrics.hostname_tag.as_deref()
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
     ///
     /// `None` if periodic metrics are disabled.
     pub fn metrics_periodic_interval(&self) -> Option<Duration> {
-        match self.values.metrics.periodic_secs {
+        match self.inner.values.metrics.periodic_secs {
             0 => None,
             secs => Some(Duration::from_secs(secs)),
         }
@@ -2196,58 +2356,55 @@ impl Config {
 
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.http.timeout.into())
+        Duration::from_secs(self.inner.values.http.timeout.into())
     }
 
     /// Returns the connection timeout for all upstream HTTP requests.
     pub fn http_connection_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.http.connection_timeout.into())
+        Duration::from_secs(self.inner.values.http.connection_timeout.into())
     }
 
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.max_retry_interval.into())
+        Duration::from_secs(self.inner.values.http.max_retry_interval.into())
+    }
+
+    /// Returns `true` if relay should use an in-process cache for DNS lookups.
+    pub fn http_dns_cache(&self) -> bool {
+        self.inner.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.
     pub fn project_cache_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.project_expiry.into())
+        Duration::from_secs(self.inner.values.cache.project_expiry.into())
     }
 
     /// Returns `true` if the full project state should be requested from upstream.
     pub fn request_full_project_config(&self) -> bool {
-        self.values.cache.project_request_full_config
+        self.inner.values.cache.project_request_full_config
     }
 
     /// Returns the expiry timeout for cached relay infos (public keys).
     pub fn relay_cache_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.relay_expiry.into())
-    }
-
-    /// Returns the maximum number of buffered envelopes
-    pub fn envelope_buffer_size(&self) -> usize {
-        self.values
-            .cache
-            .envelope_buffer_size
-            .try_into()
-            .unwrap_or(usize::MAX)
+        Duration::from_secs(self.inner.values.cache.relay_expiry.into())
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
     pub fn cache_miss_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.miss_expiry.into())
+        Duration::from_secs(self.inner.values.cache.miss_expiry.into())
     }
 
     /// Returns the grace period for project caches.
     pub fn project_grace_period(&self) -> Duration {
-        Duration::from_secs(self.values.cache.project_grace_period.into())
+        Duration::from_secs(self.inner.values.cache.project_grace_period.into())
     }
 
     /// Returns the refresh interval for a project.
     ///
     /// Validates the refresh time to be between the grace period and expiry.
     pub fn project_refresh_interval(&self) -> Option<Duration> {
-        self.values
+        self.inner
+            .values
             .cache
             .project_refresh_interval
             .map(Into::into)
@@ -2257,23 +2414,29 @@ impl Config {
     /// Returns the duration in which batchable project config queries are
     /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.cache.batch_interval.into())
+        Duration::from_millis(self.inner.values.cache.batch_interval.into())
     }
 
     /// Returns the duration in which downstream relays are requested from upstream.
     pub fn downstream_relays_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
+        Duration::from_millis(
+            self.inner
+                .values
+                .cache
+                .downstream_relays_batch_interval
+                .into(),
+        )
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
     pub fn local_cache_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.file_interval.into())
+        Duration::from_secs(self.inner.values.cache.file_interval.into())
     }
 
     /// Returns the interval in seconds in which fresh global configs should be
     /// fetched from  upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
+        Duration::from_secs(self.inner.values.cache.global_config_fetch_interval.into())
     }
 
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
@@ -2282,6 +2445,7 @@ impl Config {
     /// suffixed with `.{partition_id}`.
     pub fn spool_envelopes_path(&self, partition_id: u8) -> Option<PathBuf> {
         let mut path = self
+            .inner
             .values
             .spool
             .envelopes
@@ -2302,143 +2466,203 @@ impl Config {
 
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
-        self.values.spool.envelopes.max_disk_size.as_bytes()
+        self.inner.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
     /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
     pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
-        self.values.spool.envelopes.batch_size_bytes.as_bytes()
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .batch_size_bytes
+            .as_bytes()
+    }
+
+    /// Time after which a batch of envelopes is flushed to disk, regardless of its size.
+    pub fn spool_envelopes_flush_timeout(&self) -> Option<Duration> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .flush_timeout_secs
+            .map(Duration::from_secs)
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
-        Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
+        Duration::from_secs(self.inner.values.spool.envelopes.max_envelope_delay_secs)
     }
 
     /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
-        Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+        Duration::from_millis(
+            self.inner
+                .values
+                .spool
+                .envelopes
+                .disk_usage_refresh_frequency_ms,
+        )
     }
 
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
-        self.values.spool.envelopes.max_backpressure_memory_percent
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .max_backpressure_memory_percent
     }
 
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
-        self.values.spool.envelopes.partitions
+        self.inner.values.spool.envelopes.partitions
+    }
+
+    /// Returns the strategy used to assign envelopes to buffer partitions.
+    pub fn spool_partitioning(&self) -> EnvelopeSpoolPartitioning {
+        self.inner.values.spool.envelopes.partitioning
+    }
+
+    /// Returns `true` if the data is stored on ephemeral disks.
+    pub fn spool_ephemeral(&self) -> bool {
+        self.inner.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
-        self.values.limits.max_event_size.as_bytes()
+        self.inner.values.limits.max_event_size.as_bytes()
     }
 
     /// Returns the maximum size of each attachment.
     pub fn max_attachment_size(&self) -> usize {
-        self.values.limits.max_attachment_size.as_bytes()
+        self.inner.values.limits.max_attachment_size.as_bytes()
+    }
+
+    /// The maximum amount of attachments in a single envelope.
+    pub fn max_attachment_count(&self) -> usize {
+        self.inner.values.limits.max_attachment_count
     }
 
     /// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
-        self.values.limits.max_attachments_size.as_bytes()
+        self.inner.values.limits.max_attachments_size.as_bytes()
+    }
+
+    /// Returns the maximum size of a TUS upload request body.
+    pub fn max_upload_size(&self) -> usize {
+        self.inner.values.limits.max_upload_size.as_bytes()
+    }
+
+    /// Returns the maximum number of client reports per envelope.
+    pub fn max_client_reports_count(&self) -> usize {
+        self.inner.values.limits.max_client_reports_count
     }
 
     /// Returns the maximum combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
-        self.values.limits.max_client_reports_size.as_bytes()
+        self.inner.values.limits.max_client_reports_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a monitor check-in in bytes.
     pub fn max_check_in_size(&self) -> usize {
-        self.values.limits.max_check_in_size.as_bytes()
+        self.inner.values.limits.max_check_in_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a log in bytes.
     pub fn max_log_size(&self) -> usize {
-        self.values.limits.max_log_size.as_bytes()
+        self.inner.values.limits.max_log_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a span in bytes.
     pub fn max_span_size(&self) -> usize {
-        self.values.limits.max_span_size.as_bytes()
+        self.inner.values.limits.max_span_size.as_bytes()
+    }
+
+    /// Returns the maximum amount of standalone transaction spans per envelope.
+    pub fn max_standalone_span_count(&self) -> usize {
+        self.inner.values.limits.max_standalone_span_count
     }
 
     /// Returns the maximum payload size of an item container in bytes.
     pub fn max_container_size(&self) -> usize {
-        self.values.limits.max_container_size.as_bytes()
-    }
-
-    /// Returns the maximum payload size for logs integration items in bytes.
-    pub fn max_logs_integration_size(&self) -> usize {
-        // Not explicitly configured, inherited from the maximum size of a log container.
-        self.max_container_size()
-    }
-
-    /// Returns the maximum payload size for spans integration items in bytes.
-    pub fn max_spans_integration_size(&self) -> usize {
-        // Not explicitly configured, inherited from the maximum size of a span container.
-        self.max_container_size()
+        self.inner.values.limits.max_container_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
     pub fn max_envelope_size(&self) -> usize {
-        self.values.limits.max_envelope_size.as_bytes()
+        self.inner.values.limits.max_envelope_size.as_bytes()
     }
 
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
-        self.values.limits.max_session_count
+        self.inner.values.limits.max_session_count
+    }
+
+    /// Returns the maximum combined size for all sessions in an envelope in bytes.
+    pub fn max_sessions_size(&self) -> usize {
+        self.inner.values.limits.max_sessions_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.
     pub fn max_statsd_size(&self) -> usize {
-        self.values.limits.max_statsd_size.as_bytes()
+        self.inner.values.limits.max_statsd_size.as_bytes()
     }
 
     /// Returns the maximum payload size of metric buckets in bytes.
     pub fn max_metric_buckets_size(&self) -> usize {
-        self.values.limits.max_metric_buckets_size.as_bytes()
+        self.inner.values.limits.max_metric_buckets_size.as_bytes()
     }
 
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
-        self.values.limits.max_api_payload_size.as_bytes()
+        self.inner.values.limits.max_api_payload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for file uploads and chunks.
     pub fn max_api_file_upload_size(&self) -> usize {
-        self.values.limits.max_api_file_upload_size.as_bytes()
+        self.inner.values.limits.max_api_file_upload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
-        self.values.limits.max_api_chunk_upload_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_api_chunk_upload_size
+            .as_bytes()
     }
 
     /// Returns the maximum payload size for a profile
     pub fn max_profile_size(&self) -> usize {
-        self.values.limits.max_profile_size.as_bytes()
+        self.inner.values.limits.max_profile_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a trace metric.
     pub fn max_trace_metric_size(&self) -> usize {
-        self.values.limits.max_trace_metric_size.as_bytes()
+        self.inner.values.limits.max_trace_metric_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a compressed replay.
     pub fn max_replay_compressed_size(&self) -> usize {
-        self.values.limits.max_replay_compressed_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_replay_compressed_size
+            .as_bytes()
     }
 
     /// Returns the maximum payload size for an uncompressed replay.
     pub fn max_replay_uncompressed_size(&self) -> usize {
-        self.values.limits.max_replay_uncompressed_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_replay_uncompressed_size
+            .as_bytes()
     }
 
     /// Returns the maximum message size for an uncompressed replay.
@@ -2447,101 +2671,110 @@ impl Config {
     /// it can include additional metadata about the replay in
     /// addition to the recording.
     pub fn max_replay_message_size(&self) -> usize {
-        self.values.limits.max_replay_message_size.as_bytes()
+        self.inner.values.limits.max_replay_message_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
-        self.values.limits.max_concurrent_requests
+        self.inner.values.limits.max_concurrent_requests
     }
 
     /// Returns the maximum number of active queries
     pub fn max_concurrent_queries(&self) -> usize {
-        self.values.limits.max_concurrent_queries
+        self.inner.values.limits.max_concurrent_queries
+    }
+
+    /// Returns the maximum combined size of keys of invalid attributes.
+    pub fn max_removed_attribute_key_size(&self) -> usize {
+        self.inner
+            .values
+            .limits
+            .max_removed_attribute_key_size
+            .as_bytes()
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.query_timeout)
+        Duration::from_secs(self.inner.values.limits.query_timeout)
     }
 
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     pub fn shutdown_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.shutdown_timeout)
+        Duration::from_secs(self.inner.values.limits.shutdown_timeout)
     }
 
     /// Returns the server keep-alive timeout in seconds.
     ///
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.keepalive_timeout)
+        Duration::from_secs(self.inner.values.limits.keepalive_timeout)
     }
 
     /// Returns the server idle timeout in seconds.
     pub fn idle_timeout(&self) -> Option<Duration> {
-        self.values.limits.idle_timeout.map(Duration::from_secs)
+        self.inner
+            .values
+            .limits
+            .idle_timeout
+            .map(Duration::from_secs)
     }
 
     /// Returns the maximum connections.
     pub fn max_connections(&self) -> Option<usize> {
-        self.values.limits.max_connections
+        self.inner.values.limits.max_connections
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.
     pub fn tcp_listen_backlog(&self) -> u32 {
-        self.values.limits.tcp_listen_backlog
+        self.inner.values.limits.tcp_listen_backlog
     }
 
     /// Returns the number of cores to use for thread pools.
     pub fn cpu_concurrency(&self) -> usize {
-        self.values.limits.max_thread_count
+        self.inner.values.limits.max_thread_count
     }
 
     /// Returns the number of tasks that can run concurrently in the worker pool.
     pub fn pool_concurrency(&self) -> usize {
-        self.values.limits.max_pool_concurrency
+        self.inner.values.limits.max_pool_concurrency
     }
 
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
-        self.values.cache.batch_size
-    }
-
-    /// Get filename for static project config.
-    pub fn project_configs_path(&self) -> PathBuf {
-        self.path.join("projects")
+        self.inner.values.cache.batch_size
     }
 
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
-        self.values.processing.enabled
+        self.inner.values.processing.enabled
     }
 
     /// Level of normalization for Relay to apply to incoming data.
     pub fn normalization_level(&self) -> NormalizationLevel {
-        self.values.normalization.level
+        self.inner.values.normalization.level
     }
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values
-            .geoip
-            .path
-            .as_deref()
-            .or(self.values.processing.geoip_path.as_deref())
+        self.inner.values.geoip.path.as_deref().or(self
+            .inner
+            .values
+            .processing
+            .geoip_path
+            .as_deref())
     }
 
     /// Maximum future timestamp of ingested data.
     ///
     /// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.
     pub fn max_secs_in_future(&self) -> i64 {
-        self.values.processing.max_secs_in_future.into()
+        self.inner.values.processing.max_secs_in_future.into()
     }
 
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     pub fn max_session_secs_in_past(&self) -> i64 {
-        self.values.processing.max_session_secs_in_past.into()
+        self.inner.values.processing.max_session_secs_in_past.into()
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
@@ -2549,31 +2782,60 @@ impl Config {
         &self,
         topic: KafkaTopic,
     ) -> Result<KafkaTopicConfig<'_>, KafkaConfigError> {
-        self.values.processing.topics.get(topic).kafka_configs(
-            &self.values.processing.kafka_config,
-            &self.values.processing.secondary_kafka_configs,
-        )
+        self.inner
+            .values
+            .processing
+            .topics
+            .get(topic)
+            .kafka_configs(
+                &self.inner.values.processing.kafka_config,
+                &self.inner.values.processing.secondary_kafka_configs,
+            )
     }
 
     /// Whether to validate the topics against Kafka.
     pub fn kafka_validate_topics(&self) -> bool {
-        self.values.processing.kafka_validate_topics
+        self.inner.values.processing.kafka_validate_topics
     }
 
     /// All unused but configured topic assignments.
     pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
-        &self.values.processing.topics.unused
+        &self.inner.values.processing.topics.unused
     }
 
-    /// Configuration of the attachment upload service.
-    pub fn upload(&self) -> &UploadServiceConfig {
-        &self.values.processing.upload
+    /// Configuration of the objectstore service.
+    pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
+        &self.inner.values.processing.objectstore
     }
 
-    /// Redis servers to connect to for project configs, cardinality limits,
-    /// rate limiting, and metrics metadata.
+    /// Configuration of the upload service.
+    pub fn upload(&self) -> &Upload {
+        &self.inner.values.upload
+    }
+
+    /// Returns the key used to sign upload locations.
+    #[cfg(feature = "processing")]
+    pub fn upload_signing_key(&self) -> Option<&SecretKey> {
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.signing_key)
+            .or(self.credentials().map(|c| &c.secret_key))
+    }
+
+    /// Returns the key used to verify upload locations.
+    #[cfg(feature = "processing")]
+    pub fn upload_verification_key(&self) -> Option<&PublicKey> {
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.verification_key)
+            .or(self.credentials().map(|c| &c.public_key))
+    }
+
+    /// Redis servers to connect to for project configs, rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
-        let redis_configs = self.values.processing.redis.as_ref()?;
+        let redis_configs = self.inner.values.processing.redis.as_ref()?;
 
         Some(build_redis_configs(
             redis_configs,
@@ -2584,50 +2846,48 @@ impl Config {
 
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
-        self.values.processing.attachment_chunk_size.as_bytes()
+        self.inner
+            .values
+            .processing
+            .attachment_chunk_size
+            .as_bytes()
     }
 
     /// Maximum metrics batch size in bytes.
     pub fn metrics_max_batch_size_bytes(&self) -> usize {
-        self.values.aggregator.max_flush_bytes
+        self.inner.values.aggregator.max_flush_bytes
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when
     /// Relay is in processing mode.
     pub fn projectconfig_cache_prefix(&self) -> &str {
-        &self.values.processing.projectconfig_cache_prefix
+        &self.inner.values.processing.projectconfig_cache_prefix
     }
 
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
-        self.values.processing.max_rate_limit.map(u32::into)
+        self.inner.values.processing.max_rate_limit.map(u32::into)
     }
 
     /// Amount of remaining quota which is cached in memory.
     pub fn quota_cache_ratio(&self) -> Option<f32> {
-        self.values.processing.quota_cache_ratio
+        self.inner.values.processing.quota_cache_ratio
     }
 
     /// Maximum limit (ratio) for the in memory quota cache.
     pub fn quota_cache_max(&self) -> Option<f32> {
-        self.values.processing.quota_cache_max
-    }
-
-    /// Cache vacuum interval for the cardinality limiter in memory cache.
-    ///
-    /// The cache will scan for expired values based on this interval.
-    pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
+        self.inner.values.processing.quota_cache_max
     }
 
     /// Interval to refresh internal health checks.
     pub fn health_refresh_interval(&self) -> Duration {
-        Duration::from_millis(self.values.health.refresh_interval_ms)
+        Duration::from_millis(self.inner.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.
     pub fn health_max_memory_watermark_bytes(&self) -> u64 {
-        self.values
+        self.inner
+            .values
             .health
             .max_memory_bytes
             .as_ref()
@@ -2636,93 +2896,107 @@ impl Config {
 
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
-        self.values.health.max_memory_percent
+        self.inner.values.health.max_memory_percent
     }
 
     /// Health check probe timeout.
     pub fn health_probe_timeout(&self) -> Duration {
-        Duration::from_millis(self.values.health.probe_timeout_ms)
+        Duration::from_millis(self.inner.values.health.probe_timeout_ms)
     }
 
     /// Refresh frequency for polling new memory stats.
     pub fn memory_stat_refresh_frequency_ms(&self) -> u64 {
-        self.values.health.memory_stat_refresh_frequency_ms
+        self.inner.values.health.memory_stat_refresh_frequency_ms
     }
 
     /// Maximum amount of COGS measurements buffered in memory.
     pub fn cogs_max_queue_size(&self) -> u64 {
-        self.values.cogs.max_queue_size
+        self.inner.values.cogs.max_queue_size
     }
 
     /// Resource ID to use for Relay COGS measurements.
     pub fn cogs_relay_resource_id(&self) -> &str {
-        &self.values.cogs.relay_resource_id
+        &self.inner.values.cogs.relay_resource_id
     }
 
     /// Returns configuration for the default metrics aggregator.
     pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
-        &self.values.aggregator
+        &self.inner.values.aggregator
     }
 
     /// Returns configuration for non-default metrics aggregator.
     pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
-        &self.values.secondary_aggregators
+        &self.inner.values.secondary_aggregators
     }
 
     /// Returns aggregator config for a given metrics namespace.
     pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
-        for entry in &self.values.secondary_aggregators {
+        for entry in &self.inner.values.secondary_aggregators {
             if entry.condition.matches(Some(namespace)) {
                 return &entry.config;
             }
         }
-        &self.values.aggregator
+        &self.inner.values.aggregator
     }
 
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
-        &self.values.auth.static_relays
+        &self.inner.values.auth.static_relays
     }
 
     /// Returns the max age a signature is considered valid, in seconds.
     pub fn signature_max_age(&self) -> Duration {
-        Duration::from_secs(self.values.auth.signature_max_age)
+        Duration::from_secs(self.inner.values.auth.signature_max_age)
     }
 
     /// Returns `true` if unknown items should be accepted and forwarded.
     pub fn accept_unknown_items(&self) -> bool {
-        let forward = self.values.routing.accept_unknown_items;
+        let forward = self.inner.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            values: ConfigValues::default(),
-            credentials: None,
-            path: PathBuf::new(),
-        }
+impl fmt::Debug for ConfigSnapshot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConfigSnapshot")
+            .field("values", &self.inner.values)
+            .finish()
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
-    /// Regression test for renaming the envelope buffer flags.
+    #[cfg(feature = "processing")]
     #[test]
-    fn test_event_buffer_size() {
-        let yaml = r###"
-cache:
-    event_buffer_size: 1000000
-    event_expiry: 1800
-"###;
+    fn test_upload_secret_key_from_file() {
+        let path = env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&path).unwrap();
+        fs::write(
+            path.join("my_secret.txt"),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks",
+        )
+        .unwrap();
+        fs::write(
+            ConfigValues::path(&path),
+            r#"
+    upload:
+        credentials:
+            signing_key: ${file:my_secret.txt}
+            verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
+        )
+        .unwrap();
 
-        let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
-        assert_eq!(values.cache.envelope_expiry, 1800);
+        let config = Config::from_path(&path).unwrap().current();
+
+        fs::remove_dir_all(path).unwrap();
+
+        let signing_key = &config.upload().credentials.as_ref().unwrap().signing_key;
+        assert_eq!(
+            signing_key.to_string(),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
+        );
     }
 
     #[test]

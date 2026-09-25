@@ -1,21 +1,27 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
-#[cfg(feature = "processing")]
-use crate::processing::StoreHandle;
+use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::errors::ErrorsProcessor;
+use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::profiles::ProfilesProcessor;
+use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
+use crate::processing::transactions::TransactionProcessor;
+use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
         /// All known [`Processor`] outputs.
         #[derive(Debug)]
+        #[allow(clippy::large_enum_variant)]
         pub enum Outputs {
             $(
                 $variant(<$ty as Processor>::Output)
@@ -34,7 +40,7 @@ macro_rules! outputs {
             #[cfg(feature = "processing")]
             fn forward_store(
                 self,
-                s: StoreHandle<'_>,
+                s: crate::processing::StoreHandle<'_>,
                 ctx: ForwardContext<'_>,
             ) -> Result<(), Rejected<()>> {
                 match self {
@@ -56,11 +62,18 @@ macro_rules! outputs {
 }
 
 outputs!(
+    Attachments => AttachmentProcessor,
     CheckIns => CheckInsProcessor,
+    Errors => ErrorsProcessor,
+    ForwardUnknown => ForwardUnknownProcessor,
     Logs => LogsProcessor,
     ProfileChunks => ProfileChunksProcessor,
+    Profiles => ProfilesProcessor,
+    Replays => ReplaysProcessor,
     Sessions => SessionsProcessor,
     Spans => SpansProcessor,
     TraceAttachments => TraceAttachmentsProcessor,
     TraceMetrics => TraceMetricsProcessor,
+    Transactions => TransactionProcessor,
+    UserReports => UserReportsProcessor,
 );

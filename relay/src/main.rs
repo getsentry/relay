@@ -34,12 +34,10 @@
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
-//!  - [`relay-cardinality`]: Metrics cardinality limiter.
 //!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - `relay-conventions`: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
-//!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
 //!  - [`relay-event-normalization`]: Event normalization and processing.
@@ -60,6 +58,7 @@
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
+//!  - [`relay-serialization`]: Bounded deserialization functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
@@ -79,11 +78,9 @@
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-base-schema`]: ../relay_base_schema/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
-//! [`relay-cardinality`]: ../relay_cardinality/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-cogs`]: ../relay_cogs/index.html
-//! [`relay-crash`]: ../relay_crash/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-event-derive`]: ../relay_event_derive/index.html
 //! [`relay-event-normalization`]: ../relay_event_normalization/index.html
@@ -104,6 +101,7 @@
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
+//! [`relay-serialization`]: ../relay_serialization/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-system`]: ../relay_system/index.html

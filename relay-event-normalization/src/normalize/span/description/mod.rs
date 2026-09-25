@@ -1,8 +1,12 @@
 //! Span description scrubbing logic.
+
 mod redis;
 mod resource;
 mod sql;
 use psl;
+use relay_conventions::attributes::{
+    DB__COLLECTION__NAME, DB__OPERATION__NAME, DB__SYSTEM__NAME, UI__COMPONENT_NAME,
+};
 use relay_filter::matches_any_origin;
 use serde_json::Value;
 #[cfg(test)]
@@ -51,9 +55,7 @@ pub(crate) fn scrub_span_description(
 
     let data = span.data.value();
 
-    let db_system = data
-        .and_then(|data| data.db_system.value())
-        .and_then(|system| system.as_str());
+    let db_system = data.and_then(|data| data.get_str(DB__SYSTEM__NAME));
     let span_origin = span.origin.as_str();
 
     let mut parsed_sql = None;
@@ -68,13 +70,9 @@ pub(crate) fn scrub_span_description(
             }
             ("cache", _) => scrub_redis_keys(description),
             ("db", sub) => {
-                let db_operation = data
-                    .and_then(|data| data.db_operation.value())
-                    .and_then(|op| op.as_str());
+                let db_operation = data.and_then(|data| data.get_str(DB__OPERATION__NAME));
 
-                let collection_name = data
-                    .and_then(|data| data.db_collection_name.value())
-                    .and_then(|collection| collection.as_str());
+                let collection_name = data.and_then(|data| data.get_str(DB__COLLECTION__NAME));
 
                 let (scrubbed, parsed_sql_statement) = scrub_db_query(
                     description,
@@ -104,8 +102,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
-                .and_then(|data| data.ui_component_name.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.get_str(UI__COMPONENT_NAME))
                 .map(String::from),
             ("app", _) => {
                 // `app.*` has static descriptions, like `Cold Start`
@@ -1268,7 +1265,7 @@ mod tests {
                 "timestamp": 1597976393.4718769,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "op": "db",
-                "data": {"db.system": "mysql"}
+                "data": {"db.system.name": "mysql"}
             }
         "#;
 
@@ -1299,7 +1296,7 @@ mod tests {
             "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
             "op": "db.sql.activerecord",
             "data": {
-                "db.system": "mysql"
+                "db.system.name": "mysql"
             }
         }"#;
 
@@ -1317,7 +1314,7 @@ mod tests {
             "description": "del myveryrandomkey:123Xalsdkxfhn",
             "op": "db",
             "data": {
-                "db.system": "redis"
+                "db.system.name": "redis"
             }
         }"#;
 
@@ -1367,8 +1364,8 @@ mod tests {
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
             "data": {
-                "db.system": "mongodb",
-                "db.operation": "find",
+                "db.system.name": "mongodb",
+                "db.operation.name": "find",
                 "db.collection.name": "documents"
             }
         }"#;
@@ -1384,14 +1381,14 @@ mod tests {
     }
 
     #[test]
-    fn mongodb_with_legacy_collection_property() {
+    fn mongodb_with_collection_property() {
         let json = r#"{
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
             "data": {
-                "db.system": "mongodb",
-                "db.operation": "find",
-                "db.mongodb.collection": "documents"
+                "db.system.name": "mongodb",
+                "db.operation.name": "find",
+                "db.collection.name": "documents"
             }
         }"#;
 
@@ -1487,8 +1484,8 @@ mod tests {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "op": "db",
                         "data": {{
-                            "db.system": "mongodb",
-                            "db.operation": {},
+                            "db.system.name": "mongodb",
+                            "db.operation.name": {},
                             "db.collection.name": {}
                         }}
                     }}

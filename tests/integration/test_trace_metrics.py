@@ -1,25 +1,23 @@
 from datetime import datetime, timezone, timedelta
-from unittest import mock
+import uuid
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, only_items
+from .asserts import matches_any, time_within_delta, time_within, only_items, matches
+
+import pytest
+import json
+from .consts import Outcome
 
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    },
-}
-
-
-def envelope_with_trace_metrics(*payloads: dict) -> Envelope:
+def envelope_with_trace_metrics(*payloads: dict, metadata=None) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="trace_metric",
-            payload=PayloadRef(json={"items": payloads}),
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
             content_type="application/vnd.sentry.items.trace-metric+json",
             headers={"item_count": len(payloads)},
         )
@@ -27,15 +25,98 @@ def envelope_with_trace_metrics(*payloads: dict) -> Envelope:
     return envelope
 
 
+def test_trace_metric_multiple_containers_not_allowed(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    relay = relay(mini_sentry)
+    start = datetime.now(timezone.utc)
+    envelope = Envelope()
+
+    payload = {
+        "timestamp": start.timestamp(),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+    }
+    envelope.add_item(
+        Item(
+            type="trace_metric",
+            payload=PayloadRef(json={"items": [payload]}),
+            content_type="application/vnd.sentry.items.trace-metric+json",
+            headers={"item_count": 1},
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="trace_metric",
+            payload=PayloadRef(json={"items": [payload, payload]}),
+            content_type="application/vnd.sentry.items.trace-metric+json",
+            headers={"item_count": 2},
+        )
+    )
+
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
+
+    outcomes = mini_sentry.get_outcomes(n=2)
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    assert outcomes == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "timestamp": time_within_delta(),
+            "outcome": Outcome.INVALID,
+            "quantity": 3,
+            "reason": "too_large:trace_metric",
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "timestamp": time_within_delta(),
+            "outcome": Outcome.INVALID,
+            "quantity": matches(lambda x: 300 < x < 500),
+            "reason": "too_large:trace_metric",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "external_mode,expected_byte_size",
+    [
+        # The value here is a billing relevant metric, do not arbitrarily change it,
+        # these values are supposed to be static and purely based on data received,
+        # independent of any normalization.
+        (None, 139),
+        # Same applies as above, a proxy Relay does not need to run normalization.
+        ("proxy", 139),
+        # If an external Relay/Client makes modifications, sizes can change,
+        # this is fuzzy due to slight changes in sizes due to added timestamps
+        # and may need to be adjusted when changing normalization.
+        ("managed", 222),
+    ],
+)
 def test_trace_metric_extraction(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     items_consumer,
     outcomes_consumer,
+    external_mode,
+    expected_byte_size,
 ):
+    relay_fn = relay
+
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -45,19 +126,30 @@ def test_trace_metric_extraction(
         "traceMetric": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    credentials = relay_credentials()
+    relay = relay_fn(
+        relay_with_processing(static_credentials=credentials),
+        credentials=credentials,
+    )
+    if external_mode is not None:
+        relay = relay_fn(relay, options={"relay": {"mode": external_mode}})
+
     start = datetime.now(timezone.utc)
 
+    # The size of this payload, as counted for trace metrics, is 139B:
+    # - `name`: 29B
+    # - `value`: 8B
+    # - `attributes`: 102B
     payload = {
         "timestamp": start.timestamp(),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "name": "http.request.duration",
+        "name": "http.request.duration seconds",
         "type": "distribution",
         "value": 123.45,
         "unit": "millisecond",
         "attributes": {
-            "http.method": {"value": "GET", "type": "string"},
+            "http.request.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
             "http.some.headers": {"value": ["foo", "bar"], "type": "array"},
             "sentry.client_sample_rate": {"value": 0.25, "type": "double"},
@@ -75,7 +167,7 @@ def test_trace_metric_extraction(
                     "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
                 }
             },
-            "sentry.metric_name": {"stringValue": "http.request.duration"},
+            "sentry.metric_name": {"stringValue": "http.request.duration_seconds"},
             "sentry.metric_type": {"stringValue": "distribution"},
             "sentry.metric_unit": {"stringValue": "millisecond"},
             "sentry.value": {"doubleValue": 123.45},
@@ -95,13 +187,16 @@ def test_trace_metric_extraction(
                     precision="us",
                 )
             },
+            "sentry.payload_size_bytes": {
+                # This is the size of the payload as sent, i.e. before normalization
+                "intValue": f"{expected_byte_size}",
+            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
-            "sentry.browser.name": {"stringValue": mock.ANY},
-            "sentry.browser.version": {"stringValue": mock.ANY},
-            "http.method": {"stringValue": "GET"},
+            "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
-            "sentry._internal.cooccuring.name.http.request.duration": {
+            "http.response.status_code": {"intValue": "200"},
+            "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
             "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
@@ -109,7 +204,7 @@ def test_trace_metric_extraction(
         },
         "clientSampleRate": 0.25,
         "downsampledRetentionDays": 390,
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -118,18 +213,92 @@ def test_trace_metric_extraction(
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(start, expect_resolution="ns"),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
+                    "quantity": f"{expected_byte_size}",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
-    assert outcomes == [
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        pytest.param(["trace_metric"], id="item"),
+        pytest.param(["trace_metric_byte"], id="byte"),
+        pytest.param(["trace_metric", "trace_metric_byte"], id="both"),
+    ],
+)
+def test_fast_path_rate_limits(mini_sentry, relay, categories):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
         {
-            "category": DataCategory.TRACE_METRIC.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "no_more_quota",
         }
+        for category in categories
+    ]
+
+    relay = relay(mini_sentry)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+        }
+    )
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 200  # project config not yet loaded
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 134,
+        },
+    ]
+
+    with pytest.raises(HTTPError, match="429 Client Error"):
+        response = relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 134,
+        },
     ]
 
 
@@ -148,7 +317,8 @@ def test_trace_metric_validation(
         "organizations:tracemetrics-ingestion",
     ]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {"http": {"global_metrics": True}}
+    relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
 
     # Missing required field type
@@ -162,17 +332,26 @@ def test_trace_metric_validation(
     envelope = envelope_with_trace_metrics(invalid_payload)
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
-            "category": DataCategory.TRACE_METRIC.value,
+            "category": DataCategory.TRACE_METRIC,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_trace_metric",
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 19,
+            "reason": "invalid_trace_metric",
+        },
     ]
 
 
@@ -195,7 +374,7 @@ def test_trace_metric_pii_scrubbing(
         "applications": {"**": ["strip_ips"]},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
     start = datetime.now(timezone.utc)
 
     payload = {
@@ -235,8 +414,9 @@ def test_trace_metric_pii_scrubbing(
                     precision="us",
                 )
             },
-            "sentry.browser.name": {"stringValue": mock.ANY},
-            "sentry.browser.version": {"stringValue": mock.ANY},
+            "sentry.payload_size_bytes": {
+                "intValue": "99",
+            },
             "safe.attribute": {"stringValue": "keep this"},
             "user.ip": {"stringValue": ""},
             "sentry._meta.fields.attributes.user.ip": {
@@ -247,7 +427,7 @@ def test_trace_metric_pii_scrubbing(
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -256,19 +436,238 @@ def test_trace_metric_pii_scrubbing(
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(start, expect_resolution="ns"),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
+                    "quantity": "99",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
-    assert outcomes == [
-        {
-            "category": DataCategory.TRACE_METRIC.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        }
+
+def test_trace_metric_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
     ]
+
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay_instance = relay(mini_sentry)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": matches_any()},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
+                        }
+                    }
+                }
+            },
+        },
+    }
+
+
+def test_trace_metric_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay_instance = relay(mini_sentry)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    meta = item.pop("_meta")
+
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            attribute_key: {"type": "string", "value": expected_value},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": matches_any()},
+    }
+
+    rem_info = meta["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
+
+
+def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    project_config["config"]["piiConfig"] = {
+        "rules": {
+            "remove_custom_field": {
+                "type": "anything",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            }
+        },
+        "applications": {"**": ["remove_custom_field"]},
+    }
+
+    relay_instance = relay(mini_sentry)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "custom_field": {"value": "custom_value", "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "custom_field": {"type": "string", "value": "[REDACTED]"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": matches_any()},
+        "_meta": {
+            "attributes": {
+                "custom_field": {
+                    "value": {
+                        "": {
+                            "len": matches_any(),
+                            "rem": [
+                                [
+                                    "remove_custom_field",
+                                    matches_any(),
+                                    matches_any(),
+                                    matches_any(),
+                                ]
+                            ],
+                        }
+                    }
+                }
+            },
+        },
+    }
 
 
 def test_trace_metric_size_limits(
@@ -281,9 +680,7 @@ def test_trace_metric_size_limits(
         "organizations:tracemetrics-ingestion",
     ]
 
-    relay = relay(
-        mini_sentry, options={"limits": {"max_trace_metric_size": 600}, **TEST_CONFIG}
-    )
+    relay = relay(mini_sentry, options={"limits": {"max_trace_metric_size": 600}})
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_trace_metrics(
@@ -312,12 +709,465 @@ def test_trace_metric_size_limits(
     assert mini_sentry.get_captured_envelope() == only_items("trace_metric")
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,
-            "project_id": 42,
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.INVALID,
+            "quantity": 608,
+            "reason": "too_large:trace_metric",
+        },
     ]
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+    project_config["config"]["retentions"] = {
+        "traceMetric": {"standard": 1, "downsampled": 100},
+    }
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": (ts + delta).timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "unit": "millisecond",
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.TRACE_METRIC,
+                "outcome": Outcome.INVALID,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.TRACE_METRIC_BYTE,
+                "outcome": Outcome.INVALID,
+                "quantity": matches_any(),
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "__header": matches_any(),
+            "_meta": {
+                "timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
+                        ]
+                    }
+                }
+            },
+            "attributes": matches_any(),
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "unit": "millisecond",
+            "span_id": "eee19b7ec3c1b175",
+            "timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+        }
+
+
+def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+
+    relay = relay_with_processing()
+
+    ts = datetime.now(timezone.utc)
+    seq_shift_in_secs = 1.0
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "unit": "millisecond",
+            "attributes": {
+                "sentry.timestamp.sequence": {
+                    "value": int(seq_shift_in_secs * 1e9),
+                    "type": "integer",
+                },
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert items_consumer.get_item() == {
+        "attributes": {
+            "sentry._internal.cooccuring.name.http.request.duration": {
+                "boolValue": True,
+            },
+            "sentry._internal.cooccuring.type.distribution": {
+                "boolValue": True,
+            },
+            "sentry._internal.cooccuring.unit.millisecond": {
+                "boolValue": True,
+            },
+            "sentry._meta.fields.timestamp": {
+                "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
+            },
+            "sentry.metric_name": {
+                "stringValue": "http.request.duration",
+            },
+            "sentry.metric_type": {
+                "stringValue": "distribution",
+            },
+            "sentry.metric_unit": {
+                "stringValue": "millisecond",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(ts, expect_resolution="ns")
+            },
+            "sentry.payload_size_bytes": matches_any(),
+            "sentry.span_id": {
+                "stringValue": "eee19b7ec3c1b175",
+            },
+            "sentry.timestamp.sequence": {
+                "intValue": "1000000000",
+            },
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(
+                    ts + timedelta(seconds=seq_shift_in_secs),
+                    delta=timedelta(
+                        seconds=0,
+                    ),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+            "sentry.value": {
+                "doubleValue": 123.45,
+            },
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": matches_any(),
+        "itemType": "TRACE_ITEM_TYPE_METRIC",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
+        ),
+        "traceId": matches_any(),
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
+                    "quantity": "62",
+                },
+            ],
+            "keyId": "123",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "metadata,client_ip,browser",
+    [
+        ({}, False, False),
+        ({"version": 2}, False, False),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "never", "infer_user_agent": "never"},
+            },
+            False,
+            False,
+        ),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
+            },
+            True,
+            True,
+        ),
+    ],
+)
+def test_trace_metric_container_metadata(
+    mini_sentry,
+    relay,
+    metadata,
+    client_ip,
+    browser,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+        },
+        metadata=metadata,
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    assert item_payload["version"] == 2
+    assert "ingest_settings" not in item_payload
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "attributes": {
+            **_if_dict(
+                client_ip,
+                {
+                    "client.address": {
+                        "type": "string",
+                        "value": "127.0.0.1",
+                    }
+                },
+            ),
+            **_if_dict(
+                browser,
+                {
+                    "browser.name": {
+                        "type": "string",
+                        "value": "Firefox",
+                    },
+                    "browser.version": {
+                        "type": "string",
+                        "value": "42.0",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                    },
+                },
+            ),
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "__header": matches_any(),
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "timestamp": time_within(ts),
+    }
+
+
+@pytest.mark.parametrize(
+    "filter_name,filter_config,args",
+    [
+        pytest.param(
+            "release-version",
+            {"releases": {"releases": ["foobar@1.0"]}},
+            {},
+            id="release",
+        ),
+        pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {
+                "attributes": {
+                    "sentry.segment.name": {
+                        "value": "/foo/healthz",
+                        "type": "string",
+                    }
+                }
+            },
+            id="transaction",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
+        ),
+        pytest.param(
+            "legacy-browsers",
+            {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            {
+                "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+            },
+            id="legacy-browsers",
+        ),
+        pytest.param(
+            "web-crawlers",
+            {"webCrawlers": {"isEnabled": True}},
+            {
+                "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+            },
+            id="web-crawlers",
+        ),
+        pytest.param(
+            "gen_name",
+            {
+                "op": "glob",
+                "name": "trace_metric.name",
+                "value": ["test.*"],
+            },
+            {},
+            id="gen_name",
+        ),
+        pytest.param(
+            "gen_attr",
+            {
+                "op": "gte",
+                "name": "trace_metric.attributes.http.status_code.value",
+                "value": 500,
+            },
+            {},
+            id="gen_attr",
+        ),
+    ],
+)
+def test_filters_are_applied_to_trace_metrics(
+    mini_sentry,
+    relay,
+    filter_name,
+    filter_config,
+    args,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    if filter_name.startswith("gen_"):
+        filter_config = {
+            "generic": {
+                "version": 1,
+                "filters": [
+                    {
+                        "id": filter_name,
+                        "isEnabled": True,
+                        "condition": filter_config,
+                    }
+                ],
+            }
+        }
+
+    project_config["config"]["filterSettings"] = filter_config
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    metadata = {
+        "version": 2,
+        "ingest_settings": {"infer_ip": "never", "infer_user_agent": "auto"},
+    }
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "http.status_code": {"value": 500, "type": "integer"},
+                "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                **args.get("attributes", {}),
+            },
+        },
+        metadata=metadata,
+    )
+
+    headers = None
+    if user_agent := args.get("user-agent"):
+        headers = {"User-Agent": user_agent}
+
+    relay.send_envelope(project_id, envelope, headers=headers)
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.FILTERED,
+            "reason": filter_name,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.FILTERED,
+            "quantity": matches_any(),
+            "reason": filter_name,
+        },
+    ]
+
+
+def _if_dict(cond, then):
+    return then if cond else {}

@@ -62,7 +62,7 @@ pub unsafe extern "C" fn relay_category_unit_parse(name: *const RelayStr) -> i8 
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_data_category_unit(category: DataCategory) -> i8 {
-    match CategoryUnit::from_category(&category) {
+    match CategoryUnit::from_category(category) {
         Some(unit) => unit as i8,
         None => CATEGORY_UNIT_NONE,
     }

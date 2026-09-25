@@ -9,6 +9,10 @@ on:
   pull_request:
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RELAY_CARGO_ARGS: "--locked"
@@ -24,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -54,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update

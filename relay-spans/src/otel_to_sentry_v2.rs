@@ -3,11 +3,10 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_conventions::IS_REMOTE;
-use relay_conventions::ORIGIN;
-use relay_conventions::PLATFORM;
-use relay_conventions::SPAN_KIND;
-use relay_conventions::STATUS_MESSAGE;
+use relay_conventions::attributes::{
+    SENTRY__CLIENT_SAMPLE_RATE, SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM,
+    SENTRY__SEGMENT__ID, SENTRY__SEGMENT__NAME, SENTRY__STATUS__MESSAGE,
+};
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
@@ -47,7 +46,7 @@ pub fn otel_to_sentry_span(
         links,
         start_time_unix_nano,
         end_time_unix_nano,
-        trace_state: _,
+        trace_state,
         dropped_attributes_count: _,
         events: _,
         dropped_events_count: _,
@@ -57,7 +56,7 @@ pub fn otel_to_sentry_span(
     let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
-    let span_id = SpanId::try_from(span_id.as_slice()).into();
+    let span_id: Annotated<SpanId> = SpanId::try_from(span_id.as_slice()).into();
     let trace_id = TraceId::try_from_slice_or_random(trace_id.as_slice());
 
     let parent_span_id = match parent_span_id.as_slice() {
@@ -69,11 +68,11 @@ pub fn otel_to_sentry_span(
 
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
-    sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    sentry_attributes.insert(SENTRY__ORIGIN, "auto.otlp.spans".to_owned());
     if let Some(resource) = resource
         && let Some(platform) = otel_resource_to_platform(resource)
     {
-        sentry_attributes.insert(PLATFORM, platform.to_owned());
+        sentry_attributes.insert(SENTRY__PLATFORM, platform.to_owned());
     }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
@@ -101,38 +100,55 @@ pub fn otel_to_sentry_span(
         }
     }
 
+    if sentry_attributes
+        .get_value(SENTRY__CLIENT_SAMPLE_RATE)
+        .is_none()
+        && let Some(sample_rate) = client_sample_rate_from_trace_state(&trace_state)
+    {
+        sentry_attributes.insert(SENTRY__CLIENT_SAMPLE_RATE, sample_rate);
+    }
+
     let sentry_links: Vec<Annotated<SpanV2Link>> = links
         .into_iter()
         .map(|link| otel_to_sentry_link(link).into())
         .collect();
 
     if let Some(status_message) = status.clone().map(|status| status.message) {
-        sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
+        sentry_attributes.insert(SENTRY__STATUS__MESSAGE.to_owned(), status_message);
     }
 
     let is_remote = otel_flags_is_remote(flags);
     if let Some(is_remote) = is_remote {
-        sentry_attributes.insert(IS_REMOTE, is_remote);
+        sentry_attributes.insert(SENTRY__IS_REMOTE, is_remote);
     }
 
     sentry_attributes.insert(
-        SPAN_KIND,
+        SENTRY__KIND,
         otel_to_sentry_kind(kind).map_value(|v| v.to_string()),
     );
 
-    // A remote span is a segment span, but not every segment span is remote:
-    let is_segment = match is_remote {
-        Some(true) => Some(true),
-        _ => None,
+    // A remote span is a segment span, but not every segment span is remote.
+    // A span is also a segment if it has no parent span (i.e., it's a root span).
+    let is_root_span = parent_span_id.value().is_none();
+    let is_segment = is_root_span || is_remote.unwrap_or(false);
+
+    if is_segment {
+        if let Some(span_id) = span_id.value() {
+            // It's fine to use SENTRY__SEGMENT__ID here, it gets normalized in `sentry`:
+            // https://github.com/getsentry/sentry/blob/0bb54f81a56c68bba25487f0f081ffd31ea5a3c7/src/sentry/spans/consumers/process_segments/convert.py#L38
+            sentry_attributes.insert(SENTRY__SEGMENT__ID, span_id.to_string());
+        }
+        if let Some(ref segment_name) = name {
+            sentry_attributes.insert(SENTRY__SEGMENT__NAME, segment_name.clone());
+        }
     }
-    .into();
 
     SentrySpanV2 {
         name: name.into(),
         trace_id,
         span_id,
         parent_span_id,
-        is_segment,
+        is_segment: is_segment.into(),
         start_timestamp: Timestamp(start_timestamp).into(),
         end_timestamp: Timestamp(end_timestamp).into(),
         status: status
@@ -143,6 +159,44 @@ pub fn otel_to_sentry_span(
         attributes: Annotated::new(sentry_attributes),
         ..Default::default()
     }
+}
+
+/// Number of distinct 56-bit values used by OTel consistent sampling.
+const OTEL_MAX_ADJUSTED_COUNT: u64 = 1 << 56;
+
+/// Extracts the client sample rate from an OTEL W3C TraceState string.
+///
+/// OpenTelemetry encodes the sampling threshold in the `ot` vendor entry as `th:<hex>`.
+/// The threshold is a 56-bit rejection threshold; the sample rate (probability) is
+/// `(2^56 - threshold) / 2^56`.
+///
+/// See <https://opentelemetry.io/docs/specs/otel/trace/tracestate-handling/>.
+fn client_sample_rate_from_trace_state(trace_state: &str) -> Option<f64> {
+    let ot_value = trace_state
+        .split(',')
+        .map(str::trim)
+        .find_map(|member| member.strip_prefix("ot="))?;
+
+    // Spec: only 1 `th` value is permitted.
+    let mut thresholds = ot_value.split(';').filter_map(|kv| {
+        let (key, value) = kv.split_once(':')?;
+        (key == "th").then_some(value)
+    });
+    let th = thresholds.next()?;
+    if thresholds.next().is_some() {
+        return None;
+    }
+
+    // Spec: 1–14 lowercase hexadecimal digits.
+    if th.is_empty() || th.len() > 14 || !th.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return None;
+    }
+
+    // Extend with trailing zeros to 14 hex digits, then parse as a 56-bit unsigned integer.
+    let threshold = u64::from_str_radix(th, 16).ok()? << ((14 - th.len()) * 4);
+
+    Some((OTEL_MAX_ADJUSTED_COUNT - threshold) as f64 / OTEL_MAX_ADJUSTED_COUNT as f64)
 }
 
 fn otel_flags_is_remote(value: u32) -> Option<bool> {
@@ -186,8 +240,9 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
         Some((kv.key, Annotated::new(attr_value)))
     }));
 
+    let trace_id = TraceId::try_from_or_random(otel_link.trace_id.as_slice());
     let span_link = SpanV2Link {
-        trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
+        trace_id,
         span_id: SpanId::try_from(otel_link.span_id.as_slice())?.into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes: Annotated::new(attributes),
@@ -295,6 +350,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -393,6 +449,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -455,6 +512,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -531,6 +589,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "database query",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -599,6 +658,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "name": "http client request",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 1697620454.98,
           "end_timestamp": 1697620454.980079,
           "links": [],
@@ -767,6 +827,7 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "myname",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -859,6 +920,10 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
             }
           }
         }
@@ -884,6 +949,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -895,6 +961,80 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn span_is_segment_if_it_has_no_parent() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "e342abb1214ca181",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn segment_span_with_name_is_copied_to_attributes() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "name": "my segment span",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "e342abb1214ca181",
+          "name": "my segment span",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "my segment span"
             }
           }
         }
@@ -920,6 +1060,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": false,
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -985,6 +1126,7 @@ mod tests {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "span_id": "e342abb1214ca181",
           "status": "ok",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [
@@ -1016,6 +1158,10 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
             }
           }
         }
@@ -1040,6 +1186,7 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "span_id": "e342abb1214ca181",
           "status": "error",
+          "is_segment": true,
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [],
@@ -1048,6 +1195,10 @@ mod tests {
               "type": "string",
               "value": "auto.otlp.spans"
             },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
+            },
             "sentry.status.message": {
               "type": "string",
               "value": "2 is the error status code"
@@ -1055,5 +1206,105 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn client_sample_rate_from_trace_state_examples() {
+        // `th:0` is 100% sampling.
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:0"), Some(1.0));
+        // `th:c` is the spec example for 25% sampling.
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:c"), Some(0.25));
+        // Short thresholds are extended with trailing zeroes, not parsed as-is.
+        assert_eq!(
+            client_sample_rate_from_trace_state("ot=th:12"),
+            Some(0.9296875)
+        );
+        // Other `ot` sub-keys and vendor entries must be ignored.
+        assert_eq!(
+            client_sample_rate_from_trace_state(
+                "foo=t61rcWkgMzE,ot=p:8;r:62;th:c,bar=00f067aa0ba902b7"
+            ),
+            Some(0.25)
+        );
+    }
+
+    #[test]
+    fn client_sample_rate_from_trace_state_invalid() {
+        assert_eq!(client_sample_rate_from_trace_state(""), None);
+        assert_eq!(client_sample_rate_from_trace_state("ot=p:8;r:62"), None);
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:"), None);
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:zzzz"), None);
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:C"), None);
+        assert_eq!(client_sample_rate_from_trace_state("ot=th:c;th:0"), None);
+        assert_eq!(
+            client_sample_rate_from_trace_state("ot=th:123456789012345"),
+            None
+        );
+        assert_eq!(client_sample_rate_from_trace_state("vendor=th:c"), None);
+    }
+
+    #[test]
+    fn parse_span_client_sample_rate_from_trace_state() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "traceState": "ot=th:c"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "status": "ok",
+          "is_segment": false,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
+            "sentry.client_sample_rate": {
+              "type": "double",
+              "value": 0.25
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_span_client_sample_rate_attribute_takes_precedence() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "traceState": "ot=th:c",
+          "attributes": [
+            {
+              "key": "sentry.client_sample_rate",
+              "value": {
+                "doubleValue": 0.1
+              }
+            }
+          ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let rate = event_span
+            .attributes
+            .value()
+            .and_then(|attrs| attrs.get_value(SENTRY__CLIENT_SAMPLE_RATE))
+            .and_then(|v| v.as_f64());
+        assert_eq!(rate, Some(0.1));
     }
 }

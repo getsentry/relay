@@ -154,15 +154,6 @@ pub enum SamplingValue {
         value: f64,
     },
 
-    /// A reservoir limit.
-    ///
-    /// A rule with a reservoir limit will be sampled if the rule have been matched fewer times
-    /// than the limit.
-    Reservoir {
-        /// The limit of how many times this rule will be sampled before this rule is invalid.
-        limit: i64,
-    },
-
     /// A minimum sample rate.
     ///
     /// The sample rate specified in the rule will be used as a minimum over the otherwise used

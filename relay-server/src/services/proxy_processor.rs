@@ -57,7 +57,8 @@ impl ProxyProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.config.upstream_descriptor();
+        let config = self.config.current();
+        let upstream = config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -88,7 +89,8 @@ impl ProxyProcessorService {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
-        let http_encoding = self.config.http_encoding();
+        let config = self.config.current();
+        let http_encoding = config.http_encoding();
         let result = envelope.envelope().to_vec().and_then(|v| {
             encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
         });
@@ -96,7 +98,8 @@ impl ProxyProcessorService {
         match result {
             Ok(body) => {
                 self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
-                    envelope: envelope.into_processed(),
+                    upstream: None,
+                    envelope,
                     body,
                     http_encoding,
                     project_cache: self.project_cache.clone(),

@@ -1,6 +1,4 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
-//!
-//! See: [`crate::protocol::contexts::NelContext`].
 
 use std::fmt;
 use std::str::FromStr;

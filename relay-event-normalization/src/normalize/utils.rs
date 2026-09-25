@@ -5,6 +5,7 @@
 
 use std::f64::consts::SQRT_2;
 
+use relay_conventions::attributes::HTTP__RESPONSE__STATUS_CODE;
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
 use relay_protocol::Value;
 
@@ -19,10 +20,10 @@ pub const MOBILE_SDKS: [&str; 4] = [
 /// Allowed value for main thread name.
 pub const MAIN_THREAD_NAME: &str = "main";
 
-/// Maximum length of a mobile span or measurement in milliseconds.
+/// Maximum duration of a mobile measurement in milliseconds.
 ///
-/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
-/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+/// Mobile measurements (app start, TTID, TTFD) that exceed this threshold are considered
+/// outliers and removed.
 pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
 
 /// Extract the HTTP status code from the span data.
@@ -31,7 +32,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     if let Some(status_code) = span
         .data
         .value()
-        .and_then(|data| data.http_response_status_code.value())
+        .and_then(|data| data.get_value(HTTP__RESPONSE__STATUS_CODE))
         .map(|v| match v {
             Value::String(s) => Some(s.as_str().to_owned()),
             Value::I64(i) => Some(i.to_string()),
@@ -191,7 +192,11 @@ fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
     (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232)
 }
 
-/// Calculates a log-normal CDF score based on a log-normal with a specific p10 and p50
+/// Computes the [cumulative distribution function](https://en.wikipedia.org/wiki/Cumulative_distribution_function)
+/// of a [log-normal distribution](https://en.wikipedia.org/wiki/Log-normal_distribution) with the given p10 and p50.
+///
+/// In other words, if `X` is log-normally distributed with 10th and 50th percentile `p10` and `p50`,
+/// then `calculate_cdf_score(x, p10, p50) = P(X ≤ x)`.
 pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
     0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }

@@ -1,18 +1,27 @@
-use axum::RequestExt;
+//! Implements the PlayStation crash uploading endpoint.
+//!
+//! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use relay_config::Config;
+use multer::{Field, Multipart};
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
-use relay_event_schema::protocol::EventId;
+use relay_quotas::DataCategory;
+use relay_system::Addr;
 use serde::Serialize;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::{Managed, ManagedResult};
+use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::UnconstrainedMultipart;
+use crate::services::outcome::DiscardReason;
+use crate::services::projects::project::ProjectState;
+use crate::services::upload::{ProjectContext, Upload};
+use crate::utils::{self, AttachmentStrategy, SizeSplit};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -52,6 +61,120 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
+struct UploadContext<'a> {
+    upload: &'a Addr<Upload>,
+    project: ProjectContext,
+    inline_limit: usize,
+}
+
+/// Created an [UploadContext].
+///
+/// Requires both the `endpoint_fetch_config_enabled` option and `PlaystationUploads`
+/// feature to be enabled as well as attachments not being ratelimited.
+async fn upload_context<'a>(
+    state: &'a ServiceState,
+    meta: &RequestMeta,
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+
+    if !global_config.options.endpoint_fetch_config_enabled {
+        return Ok(None);
+    }
+
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout())
+        .await
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
+    let project_config = match project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        // Note: The playstation endpoint is not available in customer hosted relays.
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
+        }
+    };
+
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        &scoping.item(DataCategory::Attachment),
+    );
+
+    match project_config.has_feature(Feature::PlaystationUploads)
+        && !attachment_rate_limits.is_limited()
+    {
+        true => Ok(Some(UploadContext {
+            upload: state.upload(),
+            project: ProjectContext {
+                scoping,
+                upstream: project_config.upstream.clone(),
+                retention: project_config.event_retention(),
+            },
+            inline_limit: global_config.options.attachment_inline_limit,
+        })),
+        false => Ok(None),
+    }
+}
+
+struct PlaystationAttachmentStrategy<'a> {
+    upload_context: Option<UploadContext<'a>>,
+}
+
+impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        if field
+            .file_name()
+            .is_some_and(|f| f.ends_with(PROSPERODUMP_EXTENSION))
+        {
+            AttachmentType::Prosperodump
+        } else {
+            AttachmentType::Attachment
+        }
+    }
+
+    async fn add_to_item(
+        &self,
+        field: Field<'static>,
+        item: Managed<Item>,
+        config: &ConfigSnapshot,
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+        match &self.upload_context {
+            Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
+                let content_type = field.content_type().map(ToString::to_string);
+
+                match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
+                    SizeSplit::Small(bytes) => Ok(Some(utils::read_bytes_into_item(
+                        bytes,
+                        item,
+                        content_type.map(|ct| ct.parse().unwrap_or(ContentType::OctetStream)),
+                    ))),
+                    SizeSplit::Large(stream) => Ok(common::upload_stream(
+                        stream,
+                        content_type,
+                        item,
+                        config,
+                        upload_context.project.clone(),
+                        upload_context.upload,
+                        "playstation",
+                    )
+                    .await
+                    .ok()),
+                }
+            }
+            _ => match utils::read_field_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large attachments, skip over them and continue
+                // with the next item.
+                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                r => Ok(Some(r?)),
+            },
+        }
+    }
+}
+
 fn create_data_request_response() -> DataRequestResponse {
     DataRequestResponse {
         parts: Parts {
@@ -69,38 +192,32 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> AttachmentType {
-    if file_name.ends_with(PROSPERODUMP_EXTENSION) {
-        AttachmentType::Prosperodump
-    } else {
-        AttachmentType::Attachment
-    }
-}
+async fn multipart_to_items(
+    multipart: Multipart<'static>,
+    meta: &RequestMeta,
+    state: &ServiceState,
+    upload_context: Option<UploadContext<'_>>,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let mut items = utils::multipart_items(
+        multipart,
+        &state.config(),
+        PlaystationAttachmentStrategy { upload_context },
+        meta,
+        state.outcome_aggregator(),
+    )
+    .await?;
 
-async fn extract_multipart(
-    multipart: UnconstrainedMultipart,
-    meta: RequestMeta,
-    config: &Config,
-) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
-
-    let prosperodump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
-
-    prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());
-
-    validate_prosperodump(&prosperodump_item.payload())?;
-
-    let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
-
-    for item in items {
-        envelope.add_item(item);
-    }
-
-    Ok(envelope)
+    items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
+        let prosperodump = inner
+            .iter_mut()
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .ok_or(BadStoreRequest::MissingProsperodump)?;
+        let payload = prosperodump.payload();
+        validate_prosperodump(&payload)?;
+        prosperodump.set_payload(ContentType::OctetStream, payload);
+        Ok(())
+    })?;
+    Ok(items)
 }
 
 async fn handle(
@@ -114,25 +231,40 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
-    envelope.require_feature(Feature::PlaystationIngestion);
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
+
+    let upload_context = upload_context(&state, &meta).await.reject(&managed_err)?;
+    let multipart = utils::multipart_from_request(request).reject(&managed_err)?;
+    let items = multipart_to_items(multipart, &meta, &state, upload_context)
+        .await
+        .reject(&managed_err)?;
+    let envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
+        let envelope = Envelope::from_request(Some(event_id), meta)
+            .with_items(items)
+            .with_required_feature(Feature::PlaystationIngestion);
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?;
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error.into()),
-    };
+    common::handle_managed_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
     Ok(TextResponse(id).into_response())
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+    post(handle)
+        .route_layer(RequestBodyLimitLayer::new(
+            config.max_upload_size() + config.max_attachments_size(),
+        ))
+        .route_layer(DefaultBodyLimit::disable())
+        .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }

@@ -1,28 +1,131 @@
-//! Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
+//! Relay's interface to [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
 //!
-//! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
-//! are parsed at compile time and can be accessed via the `attribute_info` function.
+//! This crate contains the `sentry-conventions` repository as a git submodule.
 //!
-//! It also exposes a number of constants for attribute names that Relay has specific logic for. It is recommended
-//! to use these constants instead of the bare attribute names to ensure consistency.
+//! # Attributes
+//!
+//! Attribute definitions in `sentry-conventions` are parsed at build time. For each attribute, this crate exposes:
+//! * A constant whose value is the attribute's key in `sentry-conventions`. This constant has a deprecation tag if
+//!   the attribute is marked as deprecated in `sentry-conventions`, leading to a compiler warning if it's used anyway.
+//! * A record of the attribute's relevant parameters (PII status, backfilling normalizing behavior). These records can
+//!   be queried using the [`attribute_info`] function.
+//!
+//! ## Attribute normalization
+//! Deprecated attributes can have their `_status` set to `null`, `"backfill"`, or `"normalize"` in `sentry-conventions`.
+//! These values affect how Relay normalizes the attribute:
+//! * `null`: The attribute is left unchanged.
+//! * `"backfill"`: The attribute's value is _copied_ to the replacement attribute, but an existing value for the
+//!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, nothing happens.
+//! * `"normalize"`: The attribute's value is _moved_ to the replacement attribute, but an existing value for the
+//!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, _the deprecated
+//!   attribute is deleted_.
+//!
+//! This normalization step runs before other steps (user agent detection, category
+//! detection, …) that depend on specific attributes. Therefore, those other normalizations only need to check the
+//! values of non-deprecated attributes.
+//!
+//! # FAQ
+//!
+//! ### I've changed something in `sentry-conventions`, how do I get Relay to pick it up?
+//! Relay parses `sentry-conventions` at compile time, so any change requires a PR to Relay and needs to be deployed.
+//!
+//! In Relay, Update the `sentry-conventions` submodule:
+//! ```bash
+//! cd relay-conventions/sentry-conventions
+//! git checkout main
+//! git pull
+//! ```
+//! Then open a PR with your change.
+//!
+//! ### Why is my deprecated attribute not being rewritten to the current name?
+//! Make sure the attribute's `deprecation["_status"]` field is set to either `"backfill"` or `"normalize"`,
+//! depending on what you want to happen (see above). If this is set correctly and it's still not working,
+//! verify the behaviour with an integration test and open an issue.
+//!
+//! ### After updating `sentry-conventions` I get a warning about a deprecated constant, what should I do?
+//! This means that Relay is reading or writing an attribute that is deprecated in the new conventions version.
+//!
+//! * If the attribute has a replacement and is set to `"backfill"` or `"normalize"`, you can just replace the constant
+//!   with the current version and normalization takes care of the rest.
+//! * If the attribute has a replacement but no `"backfill"` or `"normalize"`, consider changing that in `sentry-conventions`.
+//!   Unless there is a good reason not to, you probably want the attribute to be rewritten.
+//! * Otherwise, we may have to decide what to do on a case-by-case basis.
+//!
+//! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
+//! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
 
-pub mod consts;
+use std::fmt;
+pub mod attributes {
+    //! Attribute constant definitions.
+    #![allow(rustdoc::bare_urls)]
+    #![allow(non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 
-pub use consts::*;
+    mod not_yet_defined {
+        // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+        // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
+        pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
+    }
+    pub use self::not_yet_defined::*;
+}
+
+pub mod measurements {
+    //! Measurement constant definitions.
+    #![allow(non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/measurement_consts.rs"));
+}
+
+pub mod interpolate {
+    //! Functions for interpolating attribute keys with placeholders.
+    #![allow(non_snake_case)]
+    include!(concat!(env!("OUT_DIR"), "/interpolation_fns.rs"));
+}
+
+pub mod name {
+    include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
+}
+
+pub mod description {
+    include!(concat!(env!("OUT_DIR"), "/description_fn.rs"));
+}
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
-include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
+include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
+include!(concat!(env!("OUT_DIR"), "/measurement_replacement_fn.rs"));
 
-/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+/// Whether an attribute should be scrubbed.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Pii {
-    /// The field will be stripped by default
-    True,
-    /// The field cannot be stripped at all
-    False,
-    /// The field will only be stripped when addressed with a specific path selector, but generic
+pub enum ApplyScrubbing {
+    /// The attribute will be stripped by default.
+    Auto,
+    /// The attribute will only be stripped when addressed with a specific path selector, but generic
     /// selectors such as `$string` do not apply.
-    Maybe,
+    Manual,
+    /// The attribute cannot be stripped at all.
+    Never,
+}
+
+/// The name of the replacement of a deprecated attribute.
+#[derive(Clone, Copy)]
+pub enum ReplacementName {
+    /// The replacement attribute has a fixed name,
+    /// i.e., doesn't contain a placeholder.
+    Static(&'static str),
+    /// The replacement attribute contains a placeholder.
+    ///
+    /// This means its name can't be used "as-is"; a value
+    /// has to be inserted into the placeholder. The contained
+    /// function performs this insertion.
+    Dynamic(fn(&str) -> String),
+}
+
+impl fmt::Debug for ReplacementName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Static(arg0) => f.debug_tuple("Static").field(arg0).finish(),
+            Self::Dynamic(_) => f.debug_tuple("Dynamic").finish(),
+        }
+    }
 }
 
 /// Under which names an attribute should be saved.
@@ -33,10 +136,10 @@ pub enum WriteBehavior {
     /// This is the only choice for attributes that aren't deprecated.
     CurrentName,
     /// Save the attribute under its replacement name instead.
-    NewName(&'static str),
+    NewName(ReplacementName),
     /// Save the attribute under both its current name and
     /// its replacement name.
-    BothNames(&'static str),
+    BothNames(ReplacementName),
 }
 
 /// Information about an attribute, as defined in `sentry-conventions`.
@@ -45,14 +148,22 @@ pub struct AttributeInfo {
     /// How this attribute should be saved.
     pub write_behavior: WriteBehavior,
     /// Whether this attribute can contain PII.
-    pub pii: Pii,
+    pub apply_scrubbing: ApplyScrubbing,
     /// Other attribute names that alias to this attribute.
     pub aliases: &'static [&'static str],
 }
 
 /// Returns information about an attribute, as defined in `sentry-conventions`.
-pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+///
+/// If the matched attribute contains a placeholder (`<key>`), the second returned
+/// value is the part of the attribute key that was inserted for the placeholder.
+pub fn attribute_info_with_fragment(key: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
     ATTRIBUTES.find(key)
+}
+
+/// Returns information about an attribute, as defined in `sentry-conventions`.
+pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+    attribute_info_with_fragment(key).map(|(info, _)| info)
 }
 
 /// Special path segment in attribute keys that matches any value.
@@ -64,19 +175,32 @@ struct Node<T: 'static> {
 }
 
 impl<T> Node<T> {
-    fn find(&self, key: &str) -> Option<&T> {
+    fn find<'a>(&self, key: &'a str) -> Option<(&T, Option<&'a str>)> {
         if key.is_empty() {
-            return self.info.as_ref();
+            return self.info.as_ref().map(|info| (info, None));
         }
         let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
-        for candidate in [prefix, PLACEHOLDER_SEGMENT] {
-            if let Some(info) = self
+
+        // First try a literal lookup.
+        // If the prefix is `"<key>"`, we skip this and fall through
+        // to the second attempt.
+        if prefix != PLACEHOLDER_SEGMENT
+            && let Some(info) = self
                 .children
-                .get(candidate)
+                .get(prefix)
                 .and_then(|child| child.find(suffix))
-            {
-                return Some(info);
-            }
+        {
+            return Some(info);
+        }
+
+        // If the literal lookup doesn't succeed, try a placeholder
+        // lookup and bubble up the current `prefix` if it succeeds.
+        if let Some((info, _)) = self
+            .children
+            .get(PLACEHOLDER_SEGMENT)
+            .and_then(|child| child.find(suffix))
+        {
+            return Some((info, Some(prefix)));
         }
         None
     }
@@ -95,34 +219,54 @@ mod tests {
     fn test_http_response_content_length() {
         let info = attribute_info("http.response_content_length").unwrap();
 
-        insta::assert_debug_snapshot!(info, @r###"
+        insta::assert_debug_snapshot!(info, @r#"
         AttributeInfo {
             write_behavior: BothNames(
-                "http.response.body.size",
+                Static(
+                    "http.response.body.size",
+                ),
             ),
-            pii: False,
+            apply_scrubbing: Manual,
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
             ],
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_url_path_parameter() {
         // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
-        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+        let (info, fragment) = attribute_info_with_fragment("url.path.parameter.'id=123'").unwrap();
+        assert_eq!(fragment, Some("'id=123'"));
 
-        insta::assert_debug_snapshot!(info, @r###"
+        insta::assert_debug_snapshot!(info, @r#"
         AttributeInfo {
             write_behavior: CurrentName,
-            pii: Maybe,
+            apply_scrubbing: Auto,
             aliases: [
                 "params.<key>",
+                "url.path.params.<key>",
             ],
         }
-        "###);
+        "#);
+    }
+
+    /// Tests that `cls.source.<key>` is rewritten to `browser.web_vital.cls.source.<key>`.
+    #[test]
+    fn test_cls_source_key() {
+        let (info, fragment) = attribute_info_with_fragment("cls.source.foobar").unwrap();
+
+        let WriteBehavior::BothNames(ReplacementName::Dynamic(name_fn)) = info.write_behavior
+        else {
+            unreachable!();
+        };
+
+        assert_eq!(
+            name_fn(fragment.unwrap()),
+            "browser.web_vital.cls.source.foobar"
+        );
     }
 
     const ROOT: Node<u8> = Node {
@@ -146,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_hypothetical() {
-        assert_eq!(ROOT.find("foo.bar"), Some(&2));
+        assert_eq!(ROOT.find("foo.bar"), Some((&2, Some("foo"))));
+        assert_eq!(ROOT.find("<key>.bar"), Some((&2, Some("<key>"))));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
@@ -166,7 +311,7 @@ mod tests {
     fn only_literal_template() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_with_literal_name", &attributes,),
+            name_for_op_and_attributes("op_with_literal_name", &attributes,).unwrap(),
             "literal name"
         );
     }
@@ -175,11 +320,11 @@ mod tests {
     fn multiple_ops_same_template() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::String("foo"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "foo"
         );
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_2", &attributes),
+            name_for_op_and_attributes("op_with_attributes_2", &attributes).unwrap(),
             "foo"
         );
     }
@@ -191,7 +336,7 @@ mod tests {
             ("attr3", Val::String("baz")),
         ]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "bar baz"
         );
     }
@@ -200,7 +345,7 @@ mod tests {
     fn handles_literal_prefixes_and_suffixes() {
         let attributes = GetterMap(HashMap::from([("attr3", Val::String("baz"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "prefix baz suffix",
         );
     }
@@ -209,43 +354,40 @@ mod tests {
     fn considers_multiple_files() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_in_second_name_file", &attributes),
+            name_for_op_and_attributes("op_in_second_name_file", &attributes).unwrap(),
             "second file literal name",
         );
     }
 
     #[test]
-    fn falls_back_to_op_for_unknown_ops() {
+    fn returns_none_for_unknown_ops() {
         let attributes = GetterMap(HashMap::new());
-        assert_eq!(
-            name_for_op_and_attributes("unknown_op", &attributes),
-            "unknown_op",
-        );
+        assert!(name_for_op_and_attributes("unknown_op", &attributes).is_none());
     }
 
     #[test]
     fn handles_multiple_value_types() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::Bool(true))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "true",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::I64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::U64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::F64(1.23))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "1.23",
         );
     }

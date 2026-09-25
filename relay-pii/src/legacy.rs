@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::{PiiConfig, PiiConfigError};
+use crate::config::PiiConfig;
 use crate::convert;
 
 /// Configuration for Sentry's datascrubbing
@@ -36,14 +36,14 @@ pub struct DataScrubbingConfig {
     /// because we want the conversion to run on the processing sync arbiter, so that it does not
     /// slow down or even crash other parts of the system.
     #[serde(skip)]
-    pub(super) pii_config: OnceLock<Result<Option<PiiConfig>, PiiConfigError>>,
+    pub(super) pii_config: OnceLock<Option<PiiConfig>>,
 }
 
 impl DataScrubbingConfig {
     /// Creates a new data scrubbing configuration that does nothing on the event.
     pub fn new_disabled() -> Self {
         let pii_config = OnceLock::new();
-        let _ = pii_config.set(Ok(None));
+        let _ = pii_config.set(None);
 
         DataScrubbingConfig {
             exclude_fields: vec![],
@@ -64,20 +64,13 @@ impl DataScrubbingConfig {
     ///
     /// This can be computationally expensive when called for the first time. The result is cached
     /// internally and reused on the second call.
-    pub fn pii_config(&self) -> Result<&'_ Option<PiiConfig>, &PiiConfigError> {
-        self.pii_config
-            .get_or_init(|| self.pii_config_uncached())
-            .as_ref()
+    pub fn pii_config(&self) -> &'_ Option<PiiConfig> {
+        self.pii_config.get_or_init(|| self.pii_config_uncached())
     }
 
     /// Like [`pii_config`](Self::pii_config) but without internal caching.
     #[inline]
-    pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, PiiConfigError> {
-        convert::to_pii_config(self).inspect_err(|e| {
-            relay_log::error!(
-                error = e as &dyn std::error::Error,
-                "failed to convert datascrubbing config"
-            );
-        })
+    pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
+        convert::to_pii_config(self)
     }
 }

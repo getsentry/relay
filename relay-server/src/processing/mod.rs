@@ -6,13 +6,13 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
-use relay_config::Config;
+use relay_cogs::FeatureWeights;
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
-use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
@@ -23,14 +23,23 @@ pub use self::common::*;
 pub use self::forward::*;
 pub use self::limits::*;
 
+pub mod attachments;
 pub mod check_ins;
+pub mod client_reports;
+pub mod errors;
+pub mod forward_unknown;
+pub mod invalid;
 pub mod logs;
 pub mod profile_chunks;
+pub mod profiles;
+pub mod relay;
+pub mod replays;
 pub mod sessions;
 pub mod spans;
 pub mod trace_attachments;
 pub mod trace_metrics;
 pub mod transactions;
+pub mod user_reports;
 pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
@@ -42,25 +51,27 @@ pub mod utils;
 /// defines all items in an event based envelope to relate to the envelope.
 pub trait Processor {
     /// A unit of work, the processor can process.
-    type UnitOfWork: Counted;
-    /// The result after processing a [`Self::UnitOfWork`].
+    type Input: Counted;
+    /// The result after processing a [`Self::Input`].
     type Output: Forward;
     /// The error returned by [`Self::process`].
     type Error: std::error::Error + 'static;
 
-    /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
+    /// Returns [`FeatureWeights`] for this processor to attribute COGS.
+    fn cogs() -> FeatureWeights;
+
+    /// Extracts a [`Self::Input`] from a [`ManagedEnvelope`].
     ///
     /// This is infallible, if a processor wants to report an error,
-    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being processed.
+    /// it should return a [`Self::Input`] which later, can produce an error when being processed.
     ///
     /// Returns `None` if nothing in the envelope concerns this processor.
-    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope)
-    -> Option<Managed<Self::UnitOfWork>>;
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>>;
 
-    /// Processes a [`Self::UnitOfWork`].
+    /// Processes a [`Self::Input`].
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        work: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>>;
 }
@@ -69,7 +80,7 @@ pub trait Processor {
 #[derive(Copy, Clone, Debug)]
 pub struct Context<'a> {
     /// The Relay configuration.
-    pub config: &'a Config,
+    pub config: &'a ConfigSnapshot,
     /// A view of the currently active global configuration.
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
@@ -80,8 +91,6 @@ pub struct Context<'a> {
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
     pub rate_limits: &'a RateLimits,
-    /// Reservoir counters for "get more samples" functionality.
-    pub reservoir_counters: &'a ReservoirCounters,
 }
 
 impl<'a> Context<'a> {
@@ -98,11 +107,9 @@ impl<'a> Context<'a> {
     /// when there is no full project config available. This is the case in stat and proxy
     /// Relays.
     pub fn should_filter(&self, feature: relay_dynamic_config::Feature) -> bool {
-        use relay_config::RelayMode::*;
-
         match self.config.relay_mode() {
-            Proxy => false,
-            Managed => !self.project_info.has_feature(feature),
+            RelayMode::Proxy => false,
+            RelayMode::Managed => !self.project_info.has_feature(feature),
         }
     }
 
@@ -120,13 +127,13 @@ impl<'a> Context<'a> {
 impl Context<'static> {
     /// Returns a [`Context`] with default values for testing.
     pub fn for_test() -> Self {
+        use relay_config::Config;
         use std::sync::LazyLock;
 
-        static CONFIG: LazyLock<Config> = LazyLock::new(Default::default);
+        static CONFIG: LazyLock<ConfigSnapshot> = LazyLock::new(|| Config::default().current());
         static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
         static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);
         static RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(Default::default);
-        static RESERVOIR_COUNTERS: LazyLock<ReservoirCounters> = LazyLock::new(Default::default);
 
         Self {
             config: &CONFIG,
@@ -134,7 +141,6 @@ impl Context<'static> {
             project_info: &PROJECT_INFO,
             sampling_project_info: None,
             rate_limits: &RATE_LIMITS,
-            reservoir_counters: &RESERVOIR_COUNTERS,
         }
     }
 }
@@ -146,6 +152,10 @@ pub struct Output<T> {
     pub main: Option<T>,
     /// Metric by products.
     pub metrics: Option<Managed<ExtractedMetrics>>,
+    /// An envelope containing items that the processor
+    /// extracted from an envelope, but couldn't process
+    /// itself.
+    pub intermediates: Option<ManagedEnvelope>,
 }
 
 impl<T> Output<T> {
@@ -154,6 +164,7 @@ impl<T> Output<T> {
         Self {
             main: Some(main),
             metrics: None,
+            intermediates: None,
         }
     }
 
@@ -162,6 +173,16 @@ impl<T> Output<T> {
         Self {
             main: None,
             metrics: Some(metrics),
+            intermediates: None,
+        }
+    }
+
+    /// Creates an new empty output.
+    pub fn empty() -> Self {
+        Self {
+            main: None,
+            metrics: None,
+            intermediates: None,
         }
     }
 
@@ -173,6 +194,7 @@ impl<T> Output<T> {
         Output {
             main: self.main.map(f),
             metrics: self.metrics,
+            intermediates: self.intermediates,
         }
     }
 }

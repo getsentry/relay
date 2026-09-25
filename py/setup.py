@@ -9,7 +9,6 @@ import subprocess
 from setuptools import setup, find_packages
 from distutils.command.sdist import sdist  # type: ignore
 
-
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 
 

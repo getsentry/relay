@@ -7,7 +7,7 @@ import pytest
 
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -122,11 +122,13 @@ def test_error_message_filters_are_applied(
 
 
 @pytest.mark.parametrize(
-    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+    "is_processing_relay",
+    [False, True],
+    ids=["external relay", "processing relay"],
 )
 @pytest.mark.parametrize(
     "enable_filters",
-    (False, True),
+    [False, True],
     ids=["events from extensions not filtered", "events from extensions filtered"],
 )
 def test_browser_extension_filters_are_applied(
@@ -155,12 +157,13 @@ def test_browser_extension_filters_are_applied(
         "exception": {
             "values": [
                 {
+                    "value": "test",
                     "stacktrace": {
                         "frames": [
                             {"filename": "a/different.file"},
                             {"filename": "chrome-extension://blablabla"},
                         ]
-                    }
+                    },
                 }
             ]
         }
@@ -310,9 +313,13 @@ def test_client_ip_filters_are_applied(
     event = {"message": "foo"}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "1.2.3.4"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "ip-address", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "ip-address",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -348,9 +355,13 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
     event = {"user": None, "request": {"headers": headers}}
     relay.send_event(project_id, event)
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -378,9 +389,13 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
     event = {"user": "{{auto}}", "request": {"headers": headers}}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "81.41.165.209"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -592,11 +607,8 @@ def test_filters_are_applied_to_profiles(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "organizations:profiling",
-            "organizations:continuous-profiling",
-        ]
+    project_config["config"].setdefault("features", []).append(
+        "organizations:continuous-profiling"
     )
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():
@@ -618,7 +630,7 @@ def test_filters_are_applied_to_profiles(
                 "org_id": 1,
                 "project_id": 42,
                 "key_id": 123,
-                "outcome": 1,  # Filtered
+                "outcome": Outcome.FILTERED,
                 "reason": "release-version",
                 "quantity": 1,
             },

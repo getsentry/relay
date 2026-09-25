@@ -2,15 +2,16 @@
 
 use std::error::Error;
 use std::num::NonZeroU8;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
-use relay_config::Config;
+use relay_base_schema::project::ProjectKey;
+use relay_config::{Config, ConfigSnapshot, EnvelopeSpoolPartitioning};
 use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
@@ -26,12 +27,12 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
-use crate::services::projects::cache::{ProjectCacheHandle, ProjectChange};
+use crate::services::projects::cache::{Project, ProjectCacheHandle, ProjectChange};
 use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::managed::{Managed, ManagedEnvelope};
+use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -44,7 +45,7 @@ pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
-use crate::services::projects::project::ProjectState;
+use crate::services::projects::project::{ProjectInfo, ProjectState};
 pub use common::ProjectKeyPair;
 
 mod common;
@@ -72,11 +73,13 @@ impl FromMessage<Self> for EnvelopeBuffer {
 }
 
 /// Abstraction that wraps a list of [`ObservableEnvelopeBuffer`]s to which [`Envelope`] are routed
-/// based on their [`ProjectKeyPair`].
-#[derive(Debug, Clone)]
+/// based on the configured [`EnvelopeSpoolPartitioning`] strategy.
+///
+/// Share between owners via `Arc<PartitionedEnvelopeBuffer>`.
+#[derive(Debug)]
 pub struct PartitionedEnvelopeBuffer {
-    buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
-    hasher: RandomState,
+    buffers: Vec<ObservableEnvelopeBuffer>,
+    partitioning: Partitioning,
 }
 
 impl PartitionedEnvelopeBuffer {
@@ -92,7 +95,9 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         services: &dyn ServiceSpawn,
-    ) -> Self {
+    ) -> Arc<Self> {
+        let partitioning = Partitioning::new(config.current().spool_partitioning());
+
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
             let envelope_buffer = EnvelopeBufferService::new(
@@ -111,20 +116,27 @@ impl PartitionedEnvelopeBuffer {
             envelope_buffers.push(envelope_buffer);
         }
 
-        Self {
-            buffers: Arc::new(envelope_buffers),
-            hasher: Self::build_hasher(),
-        }
+        Arc::new(Self {
+            buffers: envelope_buffers,
+            partitioning,
+        })
     }
 
-    /// Returns the [`ObservableEnvelopeBuffer`] to which [`Envelope`]s having the supplied
-    /// [`ProjectKeyPair`] will be sent.
+    /// Returns the [`ObservableEnvelopeBuffer`] to which the [`Envelope`] for the supplied
+    /// [`ProjectKeyPair`] should be sent.
     ///
-    /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
-    /// since each individual buffer will only take care of a subset of projects.
+    /// With [`EnvelopeSpoolPartitioning::ProjectKeyPair`], envelopes for a given pair always land
+    /// on the same partition, which keeps per-project state, on-disk files, and LIFO ordering
+    /// co-located. With [`EnvelopeSpoolPartitioning::RoundRobin`], envelopes are spread evenly
+    /// across partitions and `project_key_pair` is ignored for routing purposes.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let buffer_index =
-            (self.hasher.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
+        let len = self.buffers.len();
+        let buffer_index = match &self.partitioning {
+            Partitioning::ProjectKeyPair(hasher) => {
+                (hasher.hash_one(project_key_pair) % len as u64) as usize
+            }
+            Partitioning::RoundRobin(counter) => counter.fetch_add(1, Ordering::Relaxed) % len,
+        };
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
@@ -164,11 +176,49 @@ impl PartitionedEnvelopeBuffer {
     }
 }
 
+/// Internal representation of the partition-selection strategy.
+#[derive(Debug)]
+enum Partitioning {
+    /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
+    ProjectKeyPair(RandomState),
+    /// Distribute envelopes round-robin across partitions using a shared atomic counter.
+    RoundRobin(AtomicUsize),
+}
+
+impl Partitioning {
+    fn new(strategy: EnvelopeSpoolPartitioning) -> Self {
+        match strategy {
+            EnvelopeSpoolPartitioning::ProjectKeyPair => {
+                Self::ProjectKeyPair(PartitionedEnvelopeBuffer::build_hasher())
+            }
+            EnvelopeSpoolPartitioning::RoundRobin => Self::RoundRobin(AtomicUsize::new(0)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EnvelopeBufferMetrics {
     has_capacity: AtomicBool,
     item_count: AtomicU64,
     storage_size: AtomicU64,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum PushError {
+    #[error("relay is running out of memory")]
+    OutOfMemory,
+    #[error("envelope buffer channel is closed")]
+    ChannelClosed,
+    #[error("envelope buffer does not have capacity")]
+    Capacity,
+}
+
+impl OutcomeError for PushError {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+    }
 }
 
 /// Contains the services [`Addr`] and a watch channel to observe its state.
@@ -191,15 +241,21 @@ impl ObservableEnvelopeBuffer {
 
     /// Attempts to push an envelope into the envelope buffer.
     ///
-    /// Returns `false`, if the envelope buffer does not have enough capacity.
-    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
-        if self.has_capacity() {
-            let envelope = envelope.into();
-            self.addr.send(EnvelopeBuffer::Push(envelope));
-            Ok(())
-        } else {
-            Err(envelope)
+    /// Returns `false`, if the envelope buffer does not have enough capacity,
+    /// or if the process is shutting down.
+    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Rejected<PushError>> {
+        if self.addr.is_closed() {
+            // This happens for inflight requests when `ephemeral: false`.
+            relay_log::warn!("Pushing envelope after envelope buffer shutdown");
+            return Err(envelope.reject_err(PushError::ChannelClosed));
         }
+
+        if !self.has_capacity() {
+            return Err(envelope.reject_err(PushError::Capacity));
+        }
+
+        self.addr.send(EnvelopeBuffer::Push(envelope.into()));
+        Ok(())
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
@@ -271,7 +327,6 @@ impl EnvelopeBufferService {
     /// Returns both the [`Addr`] to this service, and references to spooler metrics.
     pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let metrics = self.metrics.clone();
-
         let addr = services.start(self);
 
         ObservableEnvelopeBuffer { addr, metrics }
@@ -320,14 +375,14 @@ impl EnvelopeBufferService {
     }
 
     fn memory_ready(&self) -> bool {
-        self.memory_stat.memory().used_percent()
-            <= self.config.spool_max_backpressure_memory_percent()
+        let config = self.config.current();
+        self.memory_stat.memory().used_percent() <= config.spool_max_backpressure_memory_percent()
     }
 
     /// Tries to pop an envelope for a ready project.
     async fn try_pop(
         partition_tag: &str,
-        config: &Config,
+        config: &ConfigSnapshot,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
     ) -> Result<Duration, EnvelopeBufferError> {
@@ -393,13 +448,7 @@ impl EnvelopeBufferService {
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
-                    let own_key = project_key_pair.own_key;
-                    let sampling_key = project_key_pair.sampling_key;
-
-                    services.project_cache_handle.fetch(own_key);
-                    if sampling_key != own_key {
-                        services.project_cache_handle.fetch(sampling_key);
-                    }
+                    Self::trigger_project_fetch(project_key_pair, services);
 
                     // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
@@ -413,21 +462,31 @@ impl EnvelopeBufferService {
         Ok(sleep)
     }
 
+    fn trigger_project_fetch(project_key_pair: ProjectKeyPair, services: &Services) {
+        let own_key = project_key_pair.own_key;
+        let sampling_key = project_key_pair.sampling_key;
+
+        services.project_cache_handle.fetch(own_key);
+        if sampling_key != own_key {
+            services.project_cache_handle.fetch(sampling_key);
+        }
+    }
+
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
         let mut managed_envelope =
             ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
+    async fn handle_message(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: EnvelopeBuffer,
+        services: &Services,
+    ) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
-                // NOTE: This function assumes that a project state update for the relevant
-                // projects was already triggered (see XXX).
-                // For better separation of concerns, this prefetch should be triggered from here
-                // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService: received push message");
-                Self::push(buffer, envelope.into_envelope()).await;
+                Self::push(buffer, envelope.into_envelope(), services).await;
             }
         };
     }
@@ -454,7 +513,16 @@ impl EnvelopeBufferService {
         false
     }
 
-    async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+    async fn push(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        envelope: Box<Envelope>,
+        services: &Services,
+    ) {
+        let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
+
+        // Prefetch configs so they are available as soon as possible.
+        Self::trigger_project_fetch(project_key_pair, services);
+
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
@@ -469,92 +537,49 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
         project_key_pair: ProjectKeyPair,
     ) -> Result<(), EnvelopeBufferError> {
-        let own_key = project_key_pair.own_key;
-        let own_project = services.project_cache_handle.get(own_key);
-        // We try to load the own project state and bail in case it's pending.
-        let own_project_info = match own_project.state() {
-            ProjectState::Enabled(info) => Some(info.clone()),
-            ProjectState::Disabled => None,
-            ProjectState::Pending => {
-                buffer.mark_ready(&own_key, false);
-                relay_statsd::metric!(
-                    counter(RelayCounters::BufferProjectPending) += 1,
-                    partition_id = &partition_tag
-                );
-
-                return Ok(());
-            }
-        };
-
-        let sampling_key = project_key_pair.sampling_key;
-        // If the projects are different, we load the project key of the sampling project. On the
-        // other hand, if they are the same, we just reuse the own project.
-        let sampling_project_info = if project_key_pair.has_distinct_sampling_key() {
-            // We try to load the sampling project state and bail in case it's pending.
-            match services.project_cache_handle.get(sampling_key).state() {
-                ProjectState::Enabled(info) => Some(info.clone()),
-                ProjectState::Disabled => None,
-                ProjectState::Pending => {
-                    buffer.mark_ready(&sampling_key, false);
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferProjectPending) += 1,
-                        partition_id = &partition_tag
-                    );
-
-                    return Ok(());
-                }
-            }
-        } else {
-            own_project_info.clone()
-        };
-
-        relay_log::trace!("EnvelopeBufferService: popping envelope");
-
-        // If we arrived here, know that both projects are available, so we pop the envelope.
-        let envelope = buffer
-            .pop()
-            .await?
-            .expect("Element disappeared despite exclusive excess");
-
-        // If the own project state is disabled, we want to drop the envelope and early return since
-        // we can't do much about it.
-        let Some(own_project_info) = own_project_info else {
-            let mut managed_envelope =
-                ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-
-            return Ok(());
-        };
-
-        // We only extract the sampling project info if both projects belong to the same org.
-        let sampling_project_info = sampling_project_info
-            .filter(|info| info.organization_id == own_project_info.organization_id);
-
-        let mut managed_envelope =
-            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
-
-        if own_project
-            .check_envelope(&mut managed_envelope)
-            .await
-            .is_err()
-        {
-            // Outcomes are emitted by `check_envelope`.
-            return Ok(());
-        };
-
-        if managed_envelope.is_empty() {
-            // Nothing left to process.
-            return Ok(());
+        macro_rules! pop_envelope {
+            () => {{
+                relay_log::trace!("EnvelopeBufferService: popping envelope");
+                // If we arrived here, know that both projects are available, so we pop the envelope.
+                //
+                // Available, doesn't necessarily mean enabled/active.
+                let envelope = buffer.pop().await?;
+                let envelope = envelope.expect("Element disappeared despite exclusive excess");
+                Managed::from_envelope(envelope, services.outcome_aggregator.clone())
+            }};
         }
 
-        let reservoir_counters = own_project.reservoir_counters().clone();
-        services.envelope_processor.send(ProcessEnvelope {
-            envelope: managed_envelope.into(),
-            project_info: own_project_info.clone(),
-            rate_limits: own_project.rate_limits().current_limits(),
-            sampling_project_info: sampling_project_info.clone(),
-            reservoir_counters,
-        });
+        match resolve_project(&services.project_cache_handle, project_key_pair) {
+            ResolvedProject::Enabled {
+                own_project,
+                own_project_info,
+                sampling_project_info,
+            } => {
+                let mut envelope = pop_envelope!();
+                if own_project.check_envelope(&mut envelope).await.is_err() || envelope.is_empty() {
+                    // Outcomes are emitted by `check_envelope`.
+                    return Ok(());
+                };
+
+                services.envelope_processor.send(ProcessEnvelope {
+                    envelope: envelope.into(),
+                    project_info: own_project_info,
+                    rate_limits: own_project.rate_limits().current_limits(),
+                    sampling_project_info,
+                });
+            }
+            // If the own project state is disabled, we want to drop the envelope.
+            ResolvedProject::Disabled => {
+                let _ = pop_envelope!().reject_err(Outcome::Invalid(DiscardReason::ProjectId));
+            }
+            ResolvedProject::NotReady(key) => {
+                buffer.mark_ready(&key, false);
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferProjectPending) += 1,
+                    partition_id = partition_tag
+                );
+            }
+        }
 
         Ok(())
     }
@@ -572,7 +597,7 @@ impl EnvelopeBufferService {
     }
 }
 
-fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
+fn is_expired(last_received_at: DateTime<Utc>, config: &ConfigSnapshot) -> bool {
     (Utc::now() - last_received_at)
         .to_std()
         .is_ok_and(|age| age > config.spool_envelopes_max_age())
@@ -582,17 +607,19 @@ impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        let config = self.config.clone();
-        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
+        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), self.config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
 
-        let mut buffer =
-            PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
-                .await
-                .expect("failed to start the envelope buffer service");
+        let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+            self.partition_id,
+            &self.config.current(),
+            memory_checker,
+        )
+        .await
+        .expect("failed to start the envelope buffer service");
 
         buffer.initialize().await;
 
@@ -620,7 +647,12 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferServiceLoopIteration) += 1,
+                partition_id = &partition_tag
+            );
             let mut sleep = DEFAULT_SLEEP;
+            let config = self.config.current();
 
             tokio::select! {
                 // NOTE: we do not select a bias here.
@@ -654,7 +686,7 @@ impl Service for EnvelopeBufferService {
                         sleep = Duration::ZERO;
                 }
                 Some(message) = rx.recv() => {
-                    Self::handle_message(&mut buffer, message).await;
+                    Self::handle_message(&mut buffer, message, &services).await;
                         sleep = Duration::ZERO;
                 }
                 shutdown = shutdown.notified() => {
@@ -676,6 +708,103 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: stopping", self.partition_id);
     }
+}
+
+/// Resolves the project and project information for an envelope about to be popped from the buffer.
+///
+/// Resolves the own and sampling project information
+fn resolve_project(
+    project_cache: &ProjectCacheHandle,
+    ProjectKeyPair {
+        own_key,
+        sampling_key,
+    }: ProjectKeyPair,
+) -> ResolvedProject<'_> {
+    static DUMMY_CONFIG: LazyLock<Arc<ProjectInfo>> = LazyLock::new(|| {
+        Arc::new(ProjectInfo {
+            project_id: None,
+            last_change: None,
+            rev: Default::default(),
+            public_keys: Default::default(),
+            slug: None,
+            config: Default::default(),
+            organization_id: None,
+            upstream: None,
+        })
+    });
+
+    let own_project = project_cache.get(own_key);
+    let own_project_info = match own_project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        ProjectState::Dummy => {
+            return ResolvedProject::Enabled {
+                own_project,
+                // Since downstream requires a project config, we re-use this dummy config.
+                //
+                // This is how Relay historically always handled its proxy mode.
+                // It would make sense to instead of passing down this dummy, making the project
+                // config state here optional or similarly typed to the project state.
+                own_project_info: Arc::clone(&DUMMY_CONFIG),
+                sampling_project_info: None,
+            };
+        }
+        ProjectState::Disabled => return ResolvedProject::Disabled,
+        ProjectState::Pending => return ResolvedProject::NotReady(own_key),
+    };
+
+    // If the projects are different, we load the project key of the sampling project. On the
+    // other hand, if they are the same, we just reuse the own project.
+    let sampling_project_info = match own_key == sampling_key {
+        // For matching keys, we can re-use the existing config.
+        true => Some(own_project_info.clone()),
+        // If the sampling project is distinct, we need also fetch that config.
+        false => {
+            match project_cache.get(sampling_key).state() {
+                ProjectState::Enabled(info) => {
+                    // The sampling project key must belong to the same organization as the own project key.
+                    //
+                    // Dynamic sampling does not work across organizations, we also want to have a clear separation
+                    // of data between organizations.
+                    (info.organization_id == own_project_info.organization_id)
+                        .then(|| Arc::clone(info))
+                }
+                ProjectState::Dummy => {
+                    // This case should never happen, the own project info would already be dummy allowed.
+                    debug_assert!(false);
+                    None
+                }
+                ProjectState::Disabled => None,
+                ProjectState::Pending => return ResolvedProject::NotReady(sampling_key),
+            }
+        }
+    };
+
+    ResolvedProject::Enabled {
+        own_project,
+        own_project_info,
+        sampling_project_info,
+    }
+}
+
+/// State returned from [`resolve_project`].
+enum ResolvedProject<'a> {
+    /// The project is enabled and data for it can be processed.
+    Enabled {
+        /// The own project.
+        own_project: Project<'a>,
+        /// The own, enabled, project info.
+        own_project_info: Arc<ProjectInfo>,
+        /// The sampling project info.
+        ///
+        /// May be `None` when the sampling project is disabled or from a different organization.
+        sampling_project_info: Option<Arc<ProjectInfo>>,
+    },
+    /// The project is disabled.
+    Disabled,
+    /// The project information isn't ready.
+    ///
+    /// This may be returned for either the own project or the sampling project.
+    NotReady(ProjectKey),
 }
 
 /// The spooler uses internal time based mechanics and to not make the tests actually wait
@@ -917,7 +1046,9 @@ mod tests {
         let mut envelope = new_managed_envelope(false, "foo");
         envelope.envelope_mut().meta_mut().set_received_at(
             Utc::now()
-                - chrono::Duration::seconds(2 * config.spool_envelopes_max_age().as_secs() as i64),
+                - chrono::Duration::seconds(
+                    2 * config.current().spool_envelopes_max_age().as_secs() as i64,
+                ),
         );
         addr.send(EnvelopeBuffer::Push(envelope));
 
@@ -925,6 +1056,9 @@ mod tests {
 
         assert_eq!(envelope_processor_rx.len(), 0);
 
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Transaction);
+        assert_eq!(outcome.quantity, 1);
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);
@@ -970,8 +1104,8 @@ mod tests {
         let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
-            buffers: Arc::new(vec![observable1, observable2]),
-            hasher: PartitionedEnvelopeBuffer::build_hasher(),
+            buffers: vec![observable1, observable2],
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::ProjectKeyPair),
         };
 
         // Create two envelopes with different project keys
@@ -998,5 +1132,63 @@ mod tests {
         assert!(envelope_processor_rx.recv().await.is_some());
         assert!(envelope_processor_rx.recv().await.is_some());
         assert!(envelope_processor_rx.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_partitioned_buffer_routing() {
+        let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+        let (outcome_aggregator, _outcome_rx) = Addr::custom();
+        let project_cache_handle = ProjectCacheHandle::for_test();
+        let (envelope_processor, _envelope_processor_rx) = Addr::custom();
+
+        let services = Services {
+            envelope_processor,
+            project_cache_handle: project_cache_handle.clone(),
+            outcome_aggregator,
+        };
+
+        let config = Arc::new(Config::default());
+        let observable1 = EnvelopeBufferService::new(
+            0,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .start_in(&TokioServiceSpawn);
+        let observable2 = EnvelopeBufferService::new(
+            1,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .start_in(&TokioServiceSpawn);
+
+        let buffers = vec![observable1, observable2];
+        let pair = ProjectKeyPair::from_envelope(new_managed_envelope(false, "foo").envelope());
+
+        // Default strategy: same pair always maps to the same partition.
+        let by_pair = PartitionedEnvelopeBuffer {
+            buffers: buffers.clone(),
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::ProjectKeyPair),
+        };
+        let expected = by_pair.buffer(pair) as *const _;
+        for _ in 0..8 {
+            assert_eq!(expected, by_pair.buffer(pair) as *const _);
+        }
+
+        // Round-robin: same pair cycles through both partitions.
+        let round_robin = PartitionedEnvelopeBuffer {
+            buffers,
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::RoundRobin),
+        };
+        let first = round_robin.buffer(pair) as *const _;
+        let second = round_robin.buffer(pair) as *const _;
+        let third = round_robin.buffer(pair) as *const _;
+        assert_ne!(first, second);
+        assert_eq!(first, third);
     }
 }

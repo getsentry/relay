@@ -7,6 +7,7 @@ import signal
 import stat
 import requests
 import subprocess
+from collections import defaultdict
 
 import yaml
 import pytest
@@ -47,12 +48,21 @@ class Relay(SentryLike):
         self.options = options
         self.version = version
 
+        self._health_check_passed = defaultdict(lambda: False)
+
     def wait_for_exit(self, timeout=5):
         try:
             return self.process.wait(timeout)
         except subprocess.TimeoutExpired:
             self.process.kill()
             raise
+
+    def wait_health_check(self, mode="ready"):
+        if self._health_check_passed[mode]:
+            return
+
+        self._wait(f"/api/relay/healthcheck/{mode}/", is_internal=True)
+        self._health_check_passed[mode] = True
 
     def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
@@ -124,7 +134,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         options=None,
         prepare=None,
         external=None,
-        wait_health_check=True,
+        wait_health_check="ready",
         static_relays=None,
         static_credentials=None,
         credentials=None,
@@ -136,7 +146,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 
         default_opts = {
             "relay": {
-                "upstream": upstream.url,
+                "upstream": getattr(upstream, "url", upstream),
                 "host": host,
                 "port": port,
                 "tls_port": None,
@@ -144,22 +154,16 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 "tls_cert": None,
             },
             "sentry": {"dsn": mini_sentry.internal_error_dsn, "enabled": True},
-            "limits": {"max_api_file_upload_size": "1MiB"},
+            "limits": {"max_api_file_upload_size": "1MiB", "max_thread_count": 1},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
-            "outcomes": {
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "bucket_interval": 1,
-                    "flush_interval": 0,
-                },
-            },
+            "outcomes": {"emit_outcomes": True},
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
+                "shift_key": "none" if version > "23.12.0" else "bucket",
             },
         }
 
@@ -209,9 +213,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(
-            relay_bin + ["-c", str(dir), "run"],
-        )
+        process = background_process(relay_bin + ["-c", str(dir), "run"])
 
         relay = Relay(
             (host, port),
@@ -226,7 +228,9 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         )
 
         if wait_health_check:
-            relay.wait_relay_health_check()
+            relay.wait_health_check("live")
+            if wait_health_check == "ready":
+                relay.wait_health_check("ready")
 
             # Filter out health check failures, which can happen during startup
             filtered_test_failures = Queue()

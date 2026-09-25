@@ -10,7 +10,7 @@ use crate::events::EventType;
 /// An error that occurs if a number cannot be converted into a [`DataCategory`].
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("Unknown numeric data category {0} can not be converted into a DataCategory.")]
-pub struct UnknownDataCategory(pub u8);
+pub struct UnknownDataCategory(pub u32);
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -28,7 +28,7 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: apply to the entire envelope if it contains an item `transaction`.
     Transaction = 2,
-    /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
+    /// Events with an event type of `csp`.
     ///
     /// SDK rate limiting behavior: ignore.
     Security = 3,
@@ -223,6 +223,34 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: ignore.
     SeerUser = 34,
+    /// Transaction profiles for backend platforms.
+    ///
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+    /// platform, see also [`Self::ProfileUi`].
+    ///
+    /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+    ///
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms".
+    ProfileBackend = 35,
+    /// Transaction profiles for ui platforms.
+    ///
+    /// This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+    /// platform, see also [`Self::ProfileBackend`].
+    ///
+    /// Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
+    ///
+    /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
+    ProfileUi = 36,
+    /// TraceMetricByte
+    ///
+    /// This is the category for trace metrics for which we store total bytes for users.
+    TraceMetricByte = 37,
+    /// Snapshot image
+    ///
+    /// Counts images accepted by the preprod snapshot upload API.
+    ///
+    /// SDK rate limiting behavior: ignore.
+    SnapshotImage = 38,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -271,7 +299,11 @@ impl DataCategory {
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
+            "trace_metric_byte" => Self::TraceMetricByte,
+            "snapshot_image" => Self::SnapshotImage,
             "seer_user" => Self::SeerUser,
+            "profile_backend" => Self::ProfileBackend,
+            "profile_ui" => Self::ProfileUi,
             _ => Self::Unknown,
         }
     }
@@ -313,7 +345,11 @@ impl DataCategory {
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
+            Self::TraceMetricByte => "trace_metric_byte",
+            Self::SnapshotImage => "snapshot_image",
             Self::SeerUser => "seer_user",
+            Self::ProfileBackend => "profile_backend",
+            Self::ProfileUi => "profile_ui",
             Self::Unknown => "unknown",
         }
     }
@@ -370,11 +406,9 @@ impl FromStr for DataCategory {
 impl From<EventType> for DataCategory {
     fn from(ty: EventType) -> Self {
         match ty {
-            EventType::Default | EventType::Error | EventType::Nel => Self::Error,
+            EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                Self::Security
-            }
+            EventType::Csp => Self::Security,
             EventType::UserReportV2 => Self::UserReportV2,
         }
     }
@@ -420,8 +454,21 @@ impl TryFrom<u8> for DataCategory {
             32 => Ok(Self::InstallableBuild),
             33 => Ok(Self::TraceMetric),
             34 => Ok(Self::SeerUser),
-            other => Err(UnknownDataCategory(other)),
+            35 => Ok(Self::ProfileBackend),
+            36 => Ok(Self::ProfileUi),
+            37 => Ok(Self::TraceMetricByte),
+            38 => Ok(Self::SnapshotImage),
+            other => Err(UnknownDataCategory(other as u32)),
         }
+    }
+}
+
+impl TryFrom<u32> for DataCategory {
+    type Error = UnknownDataCategory;
+
+    fn try_from(value: u32) -> Result<Self, UnknownDataCategory> {
+        let value = u8::try_from(value).map_err(|_| UnknownDataCategory(value))?;
+        value.try_into()
     }
 }
 
@@ -475,7 +522,7 @@ impl CategoryUnit {
     /// Returns `None` for `DataCategory::Unknown`.
     ///
     /// Note: Takes a reference to avoid unnecessary copying and allow direct use with iterators.
-    pub fn from_category(category: &DataCategory) -> Option<Self> {
+    pub fn from_category(category: DataCategory) -> Option<Self> {
         match category {
             DataCategory::Default
             | DataCategory::Error
@@ -507,9 +554,14 @@ impl CategoryUnit {
             | DataCategory::SizeAnalysis
             | DataCategory::InstallableBuild
             | DataCategory::TraceMetric
-            | DataCategory::SeerUser => Some(Self::Count),
+            | DataCategory::SeerUser
+            | DataCategory::ProfileBackend
+            | DataCategory::ProfileUi
+            | DataCategory::SnapshotImage => Some(Self::Count),
 
-            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+            DataCategory::Attachment | DataCategory::LogByte | DataCategory::TraceMetricByte => {
+                Some(Self::Bytes)
+            }
 
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
@@ -543,8 +595,11 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(34), Ok(DataCategory::SeerUser));
-        assert_eq!(DataCategory::try_from(35), Err(UnknownDataCategory(35)));
+        assert_eq!(
+            DataCategory::try_from(38u8),
+            Ok(DataCategory::SnapshotImage)
+        );
+        assert_eq!(DataCategory::try_from(39u8), Err(UnknownDataCategory(39)));
     }
 
     #[test]
@@ -590,40 +645,44 @@ mod tests {
     fn test_category_unit_from_category() {
         // Count categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Error),
+            CategoryUnit::from_category(DataCategory::Error),
             Some(CategoryUnit::Count)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Transaction),
+            CategoryUnit::from_category(DataCategory::Transaction),
             Some(CategoryUnit::Count)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Span),
+            CategoryUnit::from_category(DataCategory::Span),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(DataCategory::SnapshotImage),
             Some(CategoryUnit::Count)
         );
 
         // Bytes categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Attachment),
+            CategoryUnit::from_category(DataCategory::Attachment),
             Some(CategoryUnit::Bytes)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::LogByte),
+            CategoryUnit::from_category(DataCategory::LogByte),
             Some(CategoryUnit::Bytes)
         );
 
         // Milliseconds categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::ProfileDuration),
+            CategoryUnit::from_category(DataCategory::ProfileDuration),
             Some(CategoryUnit::Milliseconds)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::ProfileDurationUi),
+            CategoryUnit::from_category(DataCategory::ProfileDurationUi),
             Some(CategoryUnit::Milliseconds)
         );
 
         // Unknown returns None
-        assert_eq!(CategoryUnit::from_category(&DataCategory::Unknown), None);
+        assert_eq!(CategoryUnit::from_category(DataCategory::Unknown), None);
     }
 
     #[test]

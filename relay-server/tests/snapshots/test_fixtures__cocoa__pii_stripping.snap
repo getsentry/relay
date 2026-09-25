@@ -810,6 +810,10 @@ expression: SerializableAnnotated(& event)
     [
       "a",
       "b"
+    ],
+    [
+      "device.class",
+      "2"
     ]
   ],
   "extra": {

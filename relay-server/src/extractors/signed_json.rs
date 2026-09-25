@@ -4,6 +4,7 @@ use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use chrono::Utc;
 use relay_auth::{RelayId, Signature, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
@@ -38,6 +39,14 @@ impl IntoResponse for SignatureError {
             SignatureError::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::UNAUTHORIZED,
         };
+
+        #[cfg(feature = "processing")]
+        if let SignatureError::BadSignature(ref error) = self {
+            relay_log::warn!(
+                error = error as &dyn std::error::Error,
+                "invalid relay signature"
+            )
+        }
 
         (status, ApiErrorResponse::from_error(&self)).into_response()
     }
@@ -96,12 +105,17 @@ impl FromRequest<ServiceState> for SignedBytes {
             .await?
             .ok_or_else(|| SignatureError::MissingHeader("x-sentry-relay-signature"))?;
 
+        let max_age = chrono::Duration::from_std(state.config().signature_max_age())
+            .unwrap_or(chrono::Duration::MAX);
+
         let body = Bytes::from_request(request, state).await?;
-        if signature.verify_bytes(body.as_ref(), &relay.public_key) {
-            Ok(SignedBytes { body, relay })
-        } else {
-            Err(SignatureError::BadSignature(UnpackError::BadSignature))
-        }
+
+        let _verified = signature
+            .verify(body.as_ref(), &relay.public_key, Utc::now(), max_age)
+            .map_err(Into::into)
+            .map_err(SignatureError::BadSignature)?;
+
+        Ok(SignedBytes { body, relay })
     }
 }
 

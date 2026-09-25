@@ -168,8 +168,6 @@ pub enum RedisConfigs {
     Individual {
         /// Configuration for the `project_configs` pool.
         project_configs: Box<RedisConfig>,
-        /// Configuration for the `cardinality` pool.
-        cardinality: Box<RedisConfig>,
         /// Configuration for the `quotas` pool.
         quotas: Box<RedisConfig>,
     },
@@ -204,8 +202,6 @@ pub enum RedisConfigsRef<'a> {
     Individual {
         /// Configuration for the `project_configs` pool.
         project_configs: RedisConfigRef<'a>,
-        /// Configuration for the `cardinality` pool.
-        cardinality: RedisConfigRef<'a>,
         /// Configuration for the `quotas` pool.
         quotas: RedisConfigRef<'a>,
     },
@@ -284,15 +280,12 @@ pub(super) fn build_redis_configs(
         }
         RedisConfigs::Individual {
             project_configs,
-            cardinality,
             quotas,
         } => {
             let project_configs = build_redis_config(project_configs, project_connections);
-            let cardinality = build_redis_config(cardinality, total_pool_concurrency);
             let quotas = build_redis_config(quotas, total_pool_concurrency);
             RedisConfigsRef::Individual {
                 project_configs,
-                cardinality,
                 quotas,
             }
         }
@@ -357,8 +350,6 @@ connection_timeout: 5
 project_configs:
     server: "redis://127.0.0.1:6379"
     max_connections: 42
-cardinality:
-    server: "redis://127.0.0.1:6379"
 quotas:
     cluster_nodes:
         - "redis://127.0.0.1:6379"
@@ -376,10 +367,6 @@ quotas:
                     max_connections: Some(42),
                     ..Default::default()
                 },
-            })),
-            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-                server: "redis://127.0.0.1:6379".to_owned(),
-                options: Default::default(),
             })),
             quotas: Box::new(RedisConfig::Cluster {
                 cluster_nodes: vec![
@@ -597,10 +584,6 @@ max_connections: 20
                     ..Default::default()
                 },
             })),
-            cardinality: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
-                server: "redis://127.0.0.1:6379".to_owned(),
-                options: Default::default(),
-            })),
             quotas: Box::new(RedisConfig::Cluster {
                 cluster_nodes: vec![
                     "redis://127.0.0.1:6379".to_owned(),
@@ -618,13 +601,6 @@ max_connections: 20
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
             "max_connections": 42,
-            "idle_timeout": 60,
-            "create_timeout": 3,
-            "recycle_timeout": 2,
-            "response_timeout": 30
-          },
-          "cardinality": {
-            "server": "redis://127.0.0.1:6379",
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,

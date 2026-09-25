@@ -12,10 +12,7 @@ use serde_json::Value;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
-use crate::metrics::{
-    self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule,
-    TransactionMetricsConfig,
-};
+use crate::metrics::{self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule};
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
@@ -50,6 +47,9 @@ pub struct ProjectConfig {
     /// Retention settings for different products.
     #[serde(default, skip_serializing_if = "RetentionsConfig::is_empty")]
     pub retentions: RetentionsConfig,
+    /// Trimming settings for different products.
+    #[serde(default, skip_serializing_if = "TrimmingConfigs::is_empty")]
+    pub trimming: TrimmingConfigs,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -69,9 +69,6 @@ pub struct ProjectConfig {
     /// Configuration for extracting metrics from sessions.
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    /// Configuration for extracting metrics from transaction events.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// Configuration for generic metrics extraction from all data categories.
     #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
@@ -93,9 +90,6 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-    /// Configuration for metrics.
-    #[serde(default, skip_serializing_if = "skip_metrics")]
-    pub metrics: ErrorBoundary<Metrics>,
 }
 
 impl ProjectConfig {
@@ -130,7 +124,7 @@ impl ProjectConfig {
             // This is probably not intended behavior.
             for quota in &self.quotas {
                 if let Some(id) = quota.id.as_deref() {
-                    for category in &*quota.categories {
+                    for category in quota.categories.iter() {
                         if let Some(indexed) = category.index_category()
                             && quota.categories.contains(&indexed)
                         {
@@ -159,20 +153,19 @@ impl Default for ProjectConfig {
             event_retention: None,
             downsampled_event_retention: None,
             retentions: Default::default(),
+            trimming: Default::default(),
             quotas: Vec::new(),
             sampling: None,
             measurements: None,
             breakdowns_v2: None,
             performance_score: Default::default(),
             session_metrics: SessionMetricsConfig::default(),
-            transaction_metrics: None,
             metric_extraction: Default::default(),
             metric_conditional_tagging: Vec::new(),
             features: Default::default(),
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
-            metrics: Default::default(),
         }
     }
 }
@@ -181,13 +174,6 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
     match boundary {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(config) => !config.is_enabled(),
-    }
-}
-
-fn skip_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
-    match boundary {
-        ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(metrics) => metrics.is_empty(),
     }
 }
 
@@ -205,14 +191,10 @@ pub struct LimitedProjectConfig {
     pub filter_settings: ProjectFiltersConfig,
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling: Option<ErrorBoundary<SamplingConfig>>,
+    #[serde(skip_serializing_if = "TrimmingConfigs::is_empty")]
+    pub trimming: TrimmingConfigs,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
-    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
-    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -277,21 +259,49 @@ impl RetentionsConfig {
     }
 }
 
+/// Per-category settings for item trimming.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrimmingConfig {
+    /// The maximum size in bytes above which an item should be trimmed.
+    pub max_size: u32,
+}
+
+/// Settings for item trimming.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TrimmingConfigs {
+    /// Trimming settings for spans.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<TrimmingConfig>,
+}
+
+impl TrimmingConfigs {
+    fn is_empty(&self) -> bool {
+        let Self { span } = self;
+        span.is_none()
+    }
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Feature;
-
     use super::*;
 
     #[test]
     fn graduated_feature_flag_gets_inserted() {
         let mut project_config = ProjectConfig::default();
-        assert!(!project_config.features.has(Feature::UserReportV2Ingest));
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(!project_config.features.has(*feature));
+        }
+
         project_config.sanitize(false);
-        assert!(project_config.features.has(Feature::UserReportV2Ingest));
+
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(project_config.features.has(*feature));
+        }
     }
 }

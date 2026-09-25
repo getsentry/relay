@@ -3,42 +3,218 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
+use std::fmt;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_conventions::consts::*;
-use relay_conventions::{AttributeInfo, WriteBehavior};
-use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_conventions::attributes::*;
+use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
+use relay_event_schema::protocol::{
+    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
+};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
-use relay_spans::derive_op_for_v2_span;
+use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
-    domain_from_scrubbed_http, domain_from_server_address, sql_action_from_query,
-    sql_tables_from_query,
+    domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
+    sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
+    normalize_transaction_name,
+};
 
 mod ai;
+mod attribute_like;
+mod mobile;
 mod size;
+pub mod time;
+pub mod trace_metric;
+mod trimming;
 
 pub use self::ai::normalize_ai;
+pub use self::attribute_like::AttributesLike;
+pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
+pub use self::trimming::TrimmingProcessor;
+
+/// How an EAP item entered Relay.
+#[derive(Debug, Clone)]
+pub enum Ingress {
+    /// The item comes from an integration (e.g. OTEL, Vercel).
+    Integration,
+    /// The item comes from an item container.
+    Container,
+    /// The item was converted from a legacy item type.
+    Legacy,
+}
+
+impl fmt::Display for Ingress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ingress::Integration => f.write_str("integration"),
+            Ingress::Container => f.write_str("container"),
+            Ingress::Legacy => f.write_str("legacy"),
+        }
+    }
+}
+
+/// The pipeline through which an item went in Relay.
+#[derive(Debug, Clone)]
+pub enum Pipeline {
+    /// The legacy standalone span pipeline.
+    SpanLegacy,
+    /// The legacy transaction pipeline.
+    Transaction,
+    /// The V2 span pipeline.
+    SpanV2,
+}
+
+impl fmt::Display for Pipeline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pipeline::SpanLegacy => f.write_str("span_legacy"),
+            Pipeline::Transaction => f.write_str("transaction"),
+            Pipeline::SpanV2 => f.write_str("span_v2"),
+        }
+    }
+}
+
+/// Writes `ingress` and `pipeline` into [`SENTRY__RELAY__INGRESS`] and
+/// [`SENTRY__RELAY__PIPELINE`], respectively.
+pub fn normalize_pipeline_attributes(
+    attributes: &mut Annotated<Attributes>,
+    ingress: Option<&Ingress>,
+    pipeline: Option<&Pipeline>,
+) {
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    if let Some(ingress) = ingress {
+        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    }
+
+    if let Some(pipeline) = pipeline {
+        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
+    }
+}
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
     if attributes
         .value()
-        .is_some_and(|attrs| attrs.contains_key(OP))
+        .is_some_and(|attrs| attrs.contains_key(SENTRY__OP))
     {
         return;
     }
     let inferred_op = derive_op_for_v2_span(attributes);
     let attrs = attributes.get_or_insert_with(Default::default);
-    attrs.insert_if_missing(OP, || inferred_op);
+    attrs.insert_if_missing(SENTRY__OP, || inferred_op);
+}
+
+/// Normalizes a V2 span's [`SENTRY__DESCRIPTION`] attribute.
+///
+/// If the span has no description, this will attempt to synthesize one from its
+/// attributes using [derive_description_for_v2_span].
+pub fn normalize_sentry_description(
+    attributes: &mut Annotated<Attributes>,
+    name: &Annotated<String>,
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let description = attributes.get_annotated_value(SENTRY__DESCRIPTION);
+
+    if description.is_some_and(|d| !d.is_empty()) {
+        return;
+    }
+
+    if let Some(description) = derive_description_for_v2_span(attributes, name) {
+        attributes.insert(SENTRY__DESCRIPTION, description);
+    }
+}
+
+/// Normalizes a V2 span's name.
+///
+/// If the span has no name, this will attempt to synthesize one from its
+/// attributes using [relay_spans::name_for_attributes].
+///
+/// This is only relevant for spans converted from V1. Spans that were sent
+/// as V2 should always have a name.
+pub fn normalize_span_name(span: &mut SpanV2) {
+    if span.name.value().is_some() {
+        return;
+    }
+
+    let Some(attributes) = span.attributes.value() else {
+        return;
+    };
+
+    if let Some(name) = relay_spans::name_for_attributes(attributes) {
+        span.name = name.into();
+    }
+}
+
+/// Infers the sentry.category attribute and inserts it into `attributes` if not
+/// already set.  The category is derived from the span operation or other span
+/// attributes.
+pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes_val) = attributes.value() else {
+        return;
+    };
+
+    // Clients can explicitly set the category.
+    if attribute_is_nonempty_string(attributes_val, SENTRY__CATEGORY) {
+        return;
+    }
+
+    // Try to derive category from sentry.op.
+    if let Some(op_value) = attributes_val.get_value(SENTRY__OP)
+        && let Some(op_str) = op_value.as_str()
+    {
+        let op_lowercase = op_str.to_lowercase();
+        if let Some(category) = span_op_to_category(&op_lowercase) {
+            let attrs = attributes.get_or_insert_with(Default::default);
+            attrs.insert(SENTRY__CATEGORY, category.to_owned());
+            return;
+        }
+    }
+
+    // Without an op, rely on attributes typically found only on spans of the given category.
+    let category = if attribute_is_nonempty_string(attributes_val, DB__SYSTEM__NAME) {
+        Some("db")
+    } else if attribute_is_nonempty_string(attributes_val, HTTP__REQUEST__METHOD) {
+        Some("http")
+    } else if attribute_is_nonempty_string(attributes_val, UI__COMPONENT_NAME) {
+        Some("ui")
+    } else if attribute_is_nonempty_string(attributes_val, RESOURCE__RENDER_BLOCKING_STATUS) {
+        Some("resource")
+    } else if attributes_val
+        .get_value(SENTRY__ORIGIN)
+        .and_then(|v| v.as_str())
+        .is_some_and(|v| v == "auto.ui.browser.metrics")
+    {
+        Some("browser")
+    } else {
+        None
+    };
+
+    // Write the derived category to attributes
+    if let Some(category) = category {
+        let attrs = attributes.get_or_insert_with(Default::default);
+        attrs.insert(SENTRY__CATEGORY, category.to_owned());
+    }
+}
+
+fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
+    attributes
+        .get_value(key)
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.is_empty())
 }
 
 /// Normalizes/validates all attribute types.
@@ -61,7 +237,8 @@ pub fn normalize_attribute_types(attributes: &mut Annotated<Attributes>) {
         match (&mut inner.value.ty, &mut inner.value.value) {
             (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
             (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
-            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(u)), _))
+                if i64::try_from(*u).is_ok() => {}
             (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
@@ -147,7 +324,7 @@ fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
 pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: DateTime<Utc>) {
     attributes
         .get_or_insert_with(Default::default)
-        .insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
+        .insert_if_missing(SENTRY__OBSERVED_TIMESTAMP_NANOS, || {
             received
                 .timestamp_nanos_opt()
                 .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
@@ -155,36 +332,52 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
         });
 }
 
+/// Client user agent information.
+///
+/// This is information which is extracted from the client's request.
+#[derive(Debug, Copy, Clone, Default)]
+pub struct ClientUserAgentInfo<'a> {
+    /// The user agent extracted from the client request.
+    pub user_agent: Option<&'a str>,
+    /// Client hints extracted from the client request.
+    pub hints: ClientHints<&'a str>,
+}
+
 /// Normalizes the user agent/client information into [`Attributes`].
 ///
 /// Does not modify the attributes if there is already browser information present,
 /// to preserve original values.
+///
+/// The `client_info` should be omitted for cases where the info is unreliable or incorrect, for
+/// example when the client is a backend SDK or another Relay.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    client_user_agent: Option<&str>,
-    client_hints: ClientHints<&str>,
+    client_info: Option<ClientUserAgentInfo<'_>>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
+    if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
         return;
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
+    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
+        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
+    }
+
     let user_agent = attributes
-        .get_value(USER_AGENT_ORIGINAL)
-        .and_then(|v| v.as_str())
-        .or(client_user_agent);
+        .get_value(USER_AGENT__ORIGINAL)
+        .and_then(|v| v.as_str());
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
-        client_hints,
+        client_hints: client_info.map(|ci| ci.hints).unwrap_or_default(),
     }) else {
         return;
     };
 
-    attributes.insert_if_missing(BROWSER_NAME, || context.name);
-    attributes.insert_if_missing(BROWSER_VERSION, || context.version);
+    attributes.insert_if_missing(BROWSER__NAME, || context.name);
+    attributes.insert_if_missing(BROWSER__VERSION, || context.version);
 }
 
 /// Normalizes the client address into [`Attributes`].
@@ -198,32 +391,54 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
-    let Some(client_ip) = client_ip else { return };
 
     let client_address = attributes
-        .get_value(CLIENT_ADDRESS)
+        .get_value(CLIENT__ADDRESS)
         .and_then(|v| v.as_str());
 
     if client_address == Some("{{auto}}") {
-        attributes.insert(CLIENT_ADDRESS, client_ip.to_string());
+        match client_ip {
+            Some(client_ip) => attributes.insert(CLIENT__ADDRESS, client_ip.to_string()),
+            None => drop(attributes.remove(CLIENT__ADDRESS)),
+        }
     }
+}
+
+/// Injects a client ip address into [`Attributes`].
+///
+/// Unlike [`normalize_client_address`], this always injects the passed client ip into `attributes`.
+pub fn normalize_inject_client_address(
+    attributes: &mut Annotated<Attributes>,
+    client_ip: Option<IpAddr>,
+) {
+    let Some(client_ip) = client_ip else {
+        return;
+    };
+
+    let attributes = attributes.get_or_insert_with(Default::default);
+    attributes.insert_if_missing(CLIENT__ADDRESS, || client_ip.to_string());
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
 ///
 /// Does not modify the attributes if there is already user geo information present,
 /// to preserve original values.
+///
+/// This uses the [`CLIENT__ADDRESS`] attribute to infer the client IP address, you may want to run
+/// [`normalize_client_address`] before [`normalize_user_geo`].
 pub fn normalize_user_geo(
     attributes: &mut Annotated<Attributes>,
-    info: impl FnOnce() -> Option<Geo>,
+    info: impl FnOnce(IpAddr) -> Option<Geo>,
 ) {
-    let attributes = attributes.get_or_insert_with(Default::default);
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
 
     if [
-        USER_GEO_COUNTRY_CODE,
-        USER_GEO_CITY,
-        USER_GEO_SUBDIVISION,
-        USER_GEO_REGION,
+        USER__GEO__COUNTRY_CODE,
+        USER__GEO__CITY,
+        USER__GEO__SUBDIVISION,
+        USER__GEO__REGION,
     ]
     .into_iter()
     .any(|a| attributes.contains_key(a))
@@ -231,43 +446,128 @@ pub fn normalize_user_geo(
         return;
     }
 
-    let Some(geo) = info() else {
+    let client_address = attributes
+        .get_value(CLIENT__ADDRESS)
+        .and_then(|v| v.as_str())
+        .and_then(|v| v.parse().ok());
+
+    let Some(geo) = client_address.and_then(info) else {
         return;
     };
 
-    attributes.insert_if_missing(USER_GEO_COUNTRY_CODE, || geo.country_code);
-    attributes.insert_if_missing(USER_GEO_CITY, || geo.city);
-    attributes.insert_if_missing(USER_GEO_SUBDIVISION, || geo.subdivision);
-    attributes.insert_if_missing(USER_GEO_REGION, || geo.region);
+    attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
+    attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
+    attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
+    attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
-/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
-pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&DynamicSamplingContext>) {
-    let Some(dsc) = dsc else { return };
+/// Normalizes the dynamic sampling context into [`Attributes`].
+///
+/// If `is_segment` is set to `false`, the function will only add select attributes that are
+/// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
+/// attributes are added when `is_segment` is set to `true`.
+pub fn normalize_dsc(
+    attributes: &mut Annotated<Attributes>,
+    is_segment: &Annotated<bool>,
+    dsc: Option<&DynamicSamplingContext>,
+) {
+    let Some(dsc) = dsc else {
+        return;
+    };
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    // Check if DSC attributes are already set, the trace id is always required and must always be set.
-    if attributes.contains_key(DSC_TRACE_ID) {
+    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
+
+    match &dsc.transaction {
+        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone()),
+        None => drop(attributes.remove(SENTRY__DSC__TRANSACTION)),
+    }
+
+    if let Some(project_id) = &dsc.project_id {
+        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.to_string());
+    }
+
+    if is_segment.value().is_some_and(|is_segment| *is_segment) {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
+        if let Some(release) = &dsc.release {
+            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
+        }
+        if let Some(environment) = &dsc.environment {
+            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
+        }
+        if let Some(sample_rate) = dsc.sample_rate {
+            attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
+        }
+        if let Some(sampled) = dsc.sampled {
+            attributes.insert(SENTRY__DSC__SAMPLED, sampled);
+        }
+    }
+}
+
+/// Sets the `sentry.trace.status` attribute on segment spans.
+///
+/// The value is derived from the `sentry.status` attribute if present, falling back to the span's
+/// top-level `status` field.
+pub fn normalize_trace_status(
+    attributes: &mut Annotated<Attributes>,
+    is_segment: &Annotated<bool>,
+    status: &Annotated<SpanV2Status>,
+) {
+    if is_segment.value().is_none_or(|is_segment| !*is_segment) {
         return;
     }
 
-    attributes.insert(DSC_TRACE_ID, dsc.trace_id.to_string());
-    attributes.insert(DSC_PUBLIC_KEY, dsc.public_key.to_string());
-    if let Some(release) = &dsc.release {
-        attributes.insert(DSC_RELEASE, release.clone());
+    let attributes = attributes.get_or_insert_with(Default::default);
+    if attributes.contains_key(SENTRY__TRACE__STATUS) {
+        return;
     }
-    if let Some(environment) = &dsc.environment {
-        attributes.insert(DSC_ENVIRONMENT, environment.clone());
+
+    let trace_status = attributes
+        .get_value(SENTRY__STATUS)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned())
+        .or_else(|| status.value().map(|s| s.to_string()));
+
+    if let Some(trace_status) = trace_status {
+        attributes.insert(SENTRY__TRACE__STATUS, trace_status);
     }
-    if let Some(transaction) = &dsc.transaction {
-        attributes.insert(DSC_TRANSACTION, transaction.clone());
+}
+
+/// Normalizes the client sample rate attribute to be in the range `(0, 1]`.
+///
+/// If the attribute is missing, it is created from the DSC sample rate, falling back to `1.0`. The
+/// resulting value is validated the same way as a client supplied one.
+///
+/// This is only relevant for spans as other eap types re not sampled.
+pub fn normalize_client_sample_rate(
+    attributes: &mut Annotated<Attributes>,
+    dsc_sample_rate: Option<f64>,
+) {
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    if attributes.get_value(SENTRY__CLIENT_SAMPLE_RATE).is_none() {
+        attributes.insert(SENTRY__CLIENT_SAMPLE_RATE, dsc_sample_rate.unwrap_or(1.0));
     }
-    if let Some(sample_rate) = dsc.sample_rate {
-        attributes.insert(DSC_SAMPLE_RATE, sample_rate);
+
+    // This is fine if normalizations like this stay one-offs. If at some point we end up with more
+    // of these structural validations or normalizations based on attributes, they should be
+    // outsourced to conventions and enforced with a dedicated processor.
+    fn normalize_sample_rate(sr: &Annotated<Attribute>) -> Option<Annotated<Attribute>> {
+        match sr.value()?.value.value.value()?.as_f64() {
+            Some(v) if v > 0.0 && v <= 1.0 => None,
+            // This is an invalid sample rate, either by type or value.
+            _ => Some(Annotated::from_error(
+                Error::expected("sample rate > 0.0, <= 1.0"),
+                None,
+            )),
+        }
     }
-    if let Some(sampled) = dsc.sampled {
-        attributes.insert(DSC_SAMPLED, sampled);
+
+    if let Some(sr) = attributes.0.get_mut(SENTRY__CLIENT_SAMPLE_RATE)
+        && let Some(new_sr) = normalize_sample_rate(sr)
+    {
+        *sr = new_sr;
     }
 }
 
@@ -279,29 +579,43 @@ pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&Dynami
 ///
 /// Attributes with a status of `"backfill"` will be copied to their replacement name if the
 /// replacement name is not present. In any case, the original name is left alone.
-pub fn normalize_attribute_names(attributes: &mut Annotated<Attributes>) {
-    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info)
-}
-
-fn normalize_attribute_names_inner(
-    attributes: &mut Annotated<Attributes>,
-    attribute_info: fn(&str) -> Option<&'static AttributeInfo>,
-) {
+pub fn normalize_attribute_names(attributes: &mut Annotated<impl AttributesLike>) {
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
 
-    let attribute_names: Vec<_> = attributes.0.keys().cloned().collect();
+    normalize_attribute_names_inner(
+        attributes.as_object_mut(),
+        relay_conventions::attribute_info_with_fragment,
+    )
+}
+
+type AttributeInfoFn = fn(&str) -> Option<(&'static AttributeInfo, Option<&str>)>;
+
+fn normalize_attribute_names_inner<T>(attributes: &mut Object<T>, attribute_info: AttributeInfoFn)
+where
+    T: Clone,
+{
+    let attribute_names: Vec<_> = attributes.keys().cloned().collect();
 
     for name in attribute_names {
-        let Some(attribute_info) = attribute_info(&name) else {
+        let Some((attribute_info, fragment)) = attribute_info(&name) else {
             continue;
         };
 
         match attribute_info.write_behavior {
             WriteBehavior::CurrentName => continue,
             WriteBehavior::NewName(new_name) => {
-                let Some(old_attribute) = attributes.0.get_mut(&name) else {
+                let Some(old_attribute) = attributes.get_mut(&name) else {
+                    continue;
+                };
+
+                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
+                    relay_log::error!(
+                        attribute = name,
+                        ?fragment,
+                        "Attribute placeholder mismatch"
+                    );
                     continue;
                 };
 
@@ -310,18 +624,53 @@ fn normalize_attribute_names_inner(
                 meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
                 let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
 
-                if !attributes.contains_key(new_name) {
-                    attributes.0.insert(new_name.to_owned(), new_attribute);
+                if !attributes.contains_key(&*new_name) {
+                    attributes.insert(new_name.into_owned(), new_attribute);
                 }
             }
             WriteBehavior::BothNames(new_name) => {
-                if !attributes.contains_key(new_name)
-                    && let Some(current_attribute) = attributes.0.get(&name).cloned()
+                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
+                    relay_log::error!(
+                        attribute = name,
+                        ?fragment,
+                        "Attribute placeholder mismatch"
+                    );
+                    continue;
+                };
+
+                if !attributes.contains_key(&*new_name)
+                    && let Some(current_attribute) = attributes.get(&name).cloned()
                 {
-                    attributes.0.insert(new_name.to_owned(), current_attribute);
+                    attributes.insert(new_name.into_owned(), current_attribute);
                 }
             }
         }
+    }
+}
+
+/// Resolves the name of a replacement attribute for rewriting.
+///
+/// There are two cases to consider:
+/// - `name` is `Static` and `fragment` is `None`: This means that both
+///   the source and target attribute don't have a placeholder.
+/// - `name` is `Dynamic` and `fragment` is `Some`: This means that both the
+///   source and target attribute do have a placeholder.
+fn resolve_attribute_name(
+    name: ReplacementName,
+    fragment: Option<&str>,
+) -> Option<Cow<'static, str>> {
+    match (name, fragment) {
+        // Neither the original nor the replacement attribute contains a placeholder.
+        // Simply use the replacement attribute's static name.
+        (ReplacementName::Static(name), None) => Some(Cow::Borrowed(name)),
+        // Both the original and replacement attribute contain a placeholder.
+        // Use the replacement's interpolation function and the matched fragment
+        // to obtain the new name.
+        (ReplacementName::Dynamic(name_fn), Some(fragment)) => Some(Cow::Owned(name_fn(fragment))),
+        // The other cases would mean that either the original attribute contains a placeholder
+        // and the replacement doesn't, or vice versa. This is ruled out by a compile-time check
+        // in `relay-conventions`.
+        _ => None,
     }
 }
 
@@ -339,6 +688,7 @@ pub fn normalize_attribute_values(
 ) {
     normalize_db_attributes(attributes);
     normalize_http_attributes(attributes, http_span_allowed_hosts);
+    normalize_mobile_attributes(attributes);
 }
 
 /// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
@@ -355,21 +705,21 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     };
 
     // Skip normalization if the normalized db query attribute is already set.
-    if attributes.get_value(NORMALIZED_DB_QUERY).is_some() {
+    if attributes.get_value(SENTRY__NORMALIZED_DB_QUERY).is_some() {
         return;
     }
 
     let (op, sub_op) = attributes
-        .get_value(OP)
+        .get_value(SENTRY__OP)
         .and_then(|v| v.as_str())
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .unwrap_or_default();
 
     let raw_query = attributes
-        .get_value(DB_QUERY_TEXT)
+        .get_value(DB__QUERY__TEXT)
         .or_else(|| {
             if op == "db" {
-                attributes.get_value(DESCRIPTION)
+                attributes.get_value(SENTRY__DESCRIPTION)
             } else {
                 None
             }
@@ -377,18 +727,20 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .and_then(|v| v.as_str());
 
     let db_system = attributes
-        .get_value(DB_SYSTEM_NAME)
+        .get_value(DB__SYSTEM__NAME)
         .and_then(|v| v.as_str());
 
     let db_operation = attributes
-        .get_value(DB_OPERATION_NAME)
+        .get_value(DB__OPERATION__NAME)
         .and_then(|v| v.as_str());
 
     let collection_name = attributes
-        .get_value(DB_COLLECTION_NAME)
+        .get_value(DB__COLLECTION__NAME)
         .and_then(|v| v.as_str());
 
-    let span_origin = attributes.get_value(ORIGIN).and_then(|v| v.as_str());
+    let span_origin = attributes
+        .get_value(SENTRY__ORIGIN)
+        .and_then(|v| v.as_str());
 
     let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
         scrub_db_query(
@@ -452,14 +804,14 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
             let mut normalized_db_query_hash = format!("{:x}", md5::compute(&normalized_db_query));
             normalized_db_query_hash.truncate(16);
 
-            attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
-            attributes.insert(NORMALIZED_DB_QUERY_HASH, normalized_db_query_hash);
+            attributes.insert(SENTRY__NORMALIZED_DB_QUERY, normalized_db_query);
+            attributes.insert(SENTRY__NORMALIZED_DB_QUERY__HASH, normalized_db_query_hash);
         }
         if let Some(db_operation_name) = db_operation {
-            attributes.insert(DB_OPERATION_NAME, db_operation_name)
+            attributes.insert(DB__OPERATION__NAME, db_operation_name)
         }
         if let Some(db_collection_name) = db_collection_name {
-            attributes.insert(DB_COLLECTION_NAME, db_collection_name);
+            attributes.insert(DB__COLLECTION__NAME, db_collection_name);
         }
     }
 }
@@ -477,34 +829,38 @@ fn normalize_http_attributes(
     };
 
     // Skip normalization if not an http span.
-    // This is equivalent to conditionally scrubbing by span category in the V1 pipeline.
-    if !attributes.contains_key(HTTP_REQUEST_METHOD)
-        && !attributes.contains_key(LEGACY_HTTP_REQUEST_METHOD)
+    if attributes
+        .get_value(SENTRY__CATEGORY)
+        .is_none_or(|category| category.as_str().unwrap_or_default() != "http")
     {
         return;
     }
 
-    let op = attributes.get_value(OP).and_then(|v| v.as_str());
+    let op = attributes.get_value(SENTRY__OP).and_then(|v| v.as_str());
+
+    let (description_method, description_url) = match attributes
+        .get_value(SENTRY__DESCRIPTION)
+        .and_then(|v| v.as_str())
+        .and_then(|description| description.split_once(' '))
+    {
+        Some((method, url)) => (Some(method), Some(url)),
+        _ => (None, None),
+    };
 
     let method = attributes
-        .get_value(HTTP_REQUEST_METHOD)
-        .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
-        .and_then(|v| v.as_str());
+        .get_value(HTTP__REQUEST__METHOD)
+        .and_then(|v| v.as_str())
+        .or(description_method);
 
     let server_address = attributes
-        .get_value(SERVER_ADDRESS)
+        .get_value(SERVER__ADDRESS)
         .and_then(|v| v.as_str());
 
     let url: Option<&str> = attributes
-        .get_value(URL_FULL)
+        .get_value(URL__FULL)
         .and_then(|v| v.as_str())
-        .or_else(|| {
-            attributes
-                .get_value(DESCRIPTION)
-                .and_then(|v| v.as_str())
-                .and_then(|description| description.split_once(' ').map(|(_, url)| url))
-        });
-    let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
+        .or(description_url);
+    let url_scheme = attributes.get_value(URL__SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
     // extract a normalized domain to be stored in the "server.address" attribute.
@@ -527,17 +883,63 @@ fn normalize_http_attributes(
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(method) = method {
-            attributes.insert(HTTP_REQUEST_METHOD, method);
+            attributes.insert(HTTP__REQUEST__METHOD, method);
         }
 
         if let Some(normalized_server_address) = normalized_server_address {
-            attributes.insert(SERVER_ADDRESS, normalized_server_address);
+            attributes.insert(SERVER__ADDRESS, normalized_server_address);
         }
 
         if let Some(raw_url) = raw_url {
-            attributes.insert_if_missing(URL_FULL, || raw_url);
+            attributes.insert_if_missing(URL__FULL, || raw_url);
         }
     }
+}
+
+/// Makes sure web vital spans are not identified with segments.
+///
+/// This was ported from the legacy pipeline for behavior parity.
+/// At some point in the future, web vital spans will become metrics,
+/// and this will become academic.
+pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
+    let Some(attributes) = span.attributes.value_mut() else {
+        return;
+    };
+
+    if let Some(op) = attributes.get_value(SENTRY__OP)
+        && let Some(op_name) = op.as_str()
+        && (op_name.starts_with("ui.interaction.") || op_name.starts_with("ui.webvital."))
+    {
+        span.is_segment = None.into();
+        span.parent_span_id = None.into();
+        attributes.remove(SENTRY__SEGMENT__ID);
+    }
+}
+
+/// Normalize the [`SENTRY__SEGMENT__NAME`] attribute (aka the transaction)
+/// by running [`normalize_transaction_name`] on it.
+///
+/// This exists for parity with the legacy standalone span pipeline.
+pub fn normalize_segment_name(
+    attributes: &mut Annotated<Attributes>,
+    tx_name_rules: &[TransactionNameRule],
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let Some(attr_value) = attributes.get_annotated_value_mut(SENTRY__SEGMENT__NAME) else {
+        return;
+    };
+
+    let mut segment_name = match &attr_value.0 {
+        Some(Value::String(s)) => Annotated(Some(s.to_owned()), attr_value.1.clone()),
+        _ => return,
+    };
+
+    normalize_transaction_name(&mut segment_name, tx_name_rules);
+
+    *attr_value = segment_name.map_value(Value::String);
 }
 
 /// Double writes sentry conventions attributes into legacy attributes.
@@ -555,30 +957,230 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
     let current_to_legacy_attributes = [
         // DB attributes
-        (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
-        (NORMALIZED_DB_QUERY_HASH, SENTRY_GROUP),
-        (DB_OPERATION_NAME, SENTRY_ACTION),
-        (DB_COLLECTION_NAME, SENTRY_DOMAIN),
+        (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
+        (DB__OPERATION__NAME, SENTRY__ACTION),
         // HTTP attributes
-        (SERVER_ADDRESS, SENTRY_DOMAIN),
-        (HTTP_REQUEST_METHOD, SENTRY_ACTION),
+        (SERVER__ADDRESS, SENTRY__DOMAIN),
+        (HTTP__REQUEST__METHOD, SENTRY__ACTION),
+        (HTTP__RESPONSE__STATUS_CODE, SENTRY__STATUS_CODE),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
-        if attributes.contains_key(current_attribute) {
-            let Some(attr) = attributes.get_attribute(current_attribute) else {
-                continue;
-            };
-            attributes.insert(legacy_attribute, attr.value.clone());
+        if attributes.contains_key(legacy_attribute) {
+            continue;
         }
+
+        let Some(attr) = attributes.get_attribute(current_attribute) else {
+            continue;
+        };
+
+        attributes.insert(legacy_attribute, attr.value.clone());
+    }
+
+    if !attributes.contains_key(SENTRY__DOMAIN)
+        && let Some(db_domain) = attributes
+            .get_value(DB__COLLECTION__NAME)
+            .and_then(|value| value.as_str())
+            .map(|collection_name| collection_name.to_owned())
+    {
+        // sentry.domain must be wrapped in preceding and trailing commas, for old hacky reasons.
+        attributes.insert(
+            SENTRY__DOMAIN,
+            match (db_domain.starts_with(','), db_domain.ends_with(',')) {
+                (true, true) => db_domain,
+                (true, false) => format!("{db_domain},"),
+                (false, true) => format!(",{db_domain}"),
+                (false, false) => format!(",{db_domain},"),
+            },
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
+    use std::time::Duration;
+
+    use relay_base_schema::project::ProjectId;
+    use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
+    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
+
+    fn mock_dsc(transaction: Option<&str>) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            project_id: Some(ProjectId::new(42)),
+            release: None,
+            environment: None,
+            transaction: transaction.map(str::to_owned),
+            sample_rate: None,
+            user: Default::default(),
+            replay_id: None,
+            sampled: None,
+            other: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_normalize_dsc_child_span_no_dsc() {
+        let mut attributes = Annotated::empty();
+        normalize_dsc(&mut attributes, &Annotated::new(false), None);
+        assert!(attributes.value().is_none());
+    }
+
+    #[test]
+    fn test_normalize_dsc_child_span_no_transaction() {
+        let mut attributes = Annotated::empty();
+        let dsc = &mock_dsc(None);
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_dsc_child_span() {
+        let mut attributes = Annotated::empty();
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": "/some/endpoint"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_dsc_segment() {
+        let mut attributes = Annotated::empty();
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc));
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
+          "sentry.dsc.public_key": {
+            "type": "string",
+            "value": "12345678901234567890123456789012"
+          },
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": "/some/endpoint"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_trace_status_not_segment() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(false),
+            &Annotated::new(SpanV2Status::Ok),
+        );
+        assert!(attributes.value().is_none());
+    }
+
+    #[test]
+    fn test_normalize_trace_status_already_set() {
+        let mut attributes = Annotated::from_json(
+            r#"{"sentry.trace.status": {"type": "string", "value": "internal_error"}}"#,
+        )
+        .unwrap();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("internal_error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_from_sentry_status_attribute() {
+        let mut attributes = Annotated::from_json(
+            r#"{"sentry.status": {"type": "string", "value": "internal_error"}}"#,
+        )
+        .unwrap();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("internal_error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_from_span_status() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_no_status() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(&mut attributes, &Annotated::new(true), &Annotated::empty());
+        assert!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .is_none(),
+        );
+    }
 
     #[test]
     fn test_normalize_received_none() {
@@ -589,7 +1191,7 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.observed_timestamp_nanos": {
             "type": "string",
@@ -616,7 +1218,7 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "sentry.observed_timestamp_nanos": {
             "type": "string",
@@ -674,6 +1276,10 @@ mod tests {
                 "type": "integer",
                 "value": "abc"
             },
+            "invalid_int": {
+                "type": "integer",
+                "value": 9223372036854775808
+            },
             "missing_type": {
                 "value": "value with missing type"
             },
@@ -709,12 +1315,13 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
         normalize_attribute_types(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "double_with_i64": {
             "type": "double",
             "value": -42
           },
+          "invalid_int": null,
           "invalid_int_from_invalid_string": null,
           "missing_type": null,
           "missing_value": null,
@@ -775,6 +1382,17 @@ mod tests {
             "some_other_field": "some_other_value"
           },
           "_meta": {
+            "invalid_int": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ],
+                "val": {
+                  "type": "integer",
+                  "value": 9223372036854775808
+                }
+              }
+            },
             "invalid_int_from_invalid_string": {
               "": {
                 "err": [
@@ -861,35 +1479,41 @@ mod tests {
         let mut attributes = Default::default();
         normalize_user_agent(
             &mut attributes,
-            Some(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ),
-            ClientHints::default(),
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                ..Default::default()
+            }),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r###"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Chrome"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "131.0.0"
+          },
+          "user_agent.original": {
+            "type": "string",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
     fn test_normalize_user_agent_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }
@@ -899,46 +1523,60 @@ mod tests {
 
         normalize_user_agent(
             &mut attributes,
-            Some(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ),
-            ClientHints::default(),
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                ..Default::default()
+            }),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }
         }
-        "#,
+        "#
         );
     }
 
     #[test]
     fn test_normalize_user_geo_none() {
-        let mut attributes = Default::default();
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          }
+        }"#,
+        )
+        .unwrap();
 
-        normalize_user_geo(&mut attributes, || {
+        normalize_user_geo(&mut attributes, |addr| {
             Some(Geo {
                 country_code: "XY".to_owned().into(),
-                city: "Foo Hausen".to_owned().into(),
+                city: addr.to_string().into(),
                 subdivision: Annotated::empty(),
                 region: "Illu".to_owned().into(),
                 other: Default::default(),
             })
         });
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
-            "value": "Foo Hausen"
+            "value": "192.168.2.1"
           },
           "user.geo.country_code": {
             "type": "string",
@@ -956,6 +1594,10 @@ mod tests {
     fn test_normalize_user_geo_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
             "value": "Foo Hausen"
@@ -964,50 +1606,101 @@ mod tests {
         )
         .unwrap();
 
-        normalize_user_geo(&mut attributes, || unreachable!());
+        normalize_user_geo(&mut attributes, |_| unreachable!());
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
             "value": "Foo Hausen"
           }
         }
-        "#,
+        "#
         );
     }
 
     #[test]
     fn test_normalize_attributes() {
-        fn mock_attribute_info(name: &str) -> Option<&'static AttributeInfo> {
-            use relay_conventions::Pii;
+        fn replace_key(fragment: &str) -> String {
+            format!("placeholder.replaced.{fragment}")
+        }
+
+        fn backfill_key(fragment: &str) -> String {
+            format!("placeholder.backfilled.{fragment}")
+        }
+
+        fn mock_attribute_info(name: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
+            use relay_conventions::ApplyScrubbing;
 
             match name {
-                "replace.empty" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::NewName("replaced"),
-                    pii: Pii::Maybe,
-                    aliases: &["replaced"],
-                }),
-                "replace.existing" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::NewName("not.replaced"),
-                    pii: Pii::Maybe,
-                    aliases: &["not.replaced"],
-                }),
-                "backfill.empty" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::BothNames("backfilled"),
-                    pii: Pii::Maybe,
-                    aliases: &["backfilled"],
-                }),
-                "backfill.existing" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::BothNames("not.backfilled"),
-                    pii: Pii::Maybe,
-                    aliases: &["not.backfilled"],
-                }),
+                "replace.empty" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Static("replaced")),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["replaced"],
+                    },
+                    None,
+                )),
+                "replace.existing" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Static(
+                            "not.replaced",
+                        )),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["not.replaced"],
+                    },
+                    None,
+                )),
+                "backfill.empty" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
+                            "backfilled",
+                        )),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["backfilled"],
+                    },
+                    None,
+                )),
+                "backfill.existing" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
+                            "not.backfilled",
+                        )),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["not.backfilled"],
+                    },
+                    None,
+                )),
+                _ if let Some(fragment) = name.strip_prefix("placeholder.replace.") => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Dynamic(
+                            replace_key,
+                        )),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["placeholder.replaced.<key>"],
+                    },
+                    Some(fragment),
+                )),
+                _ if let Some(fragment) = name.strip_prefix("placeholder.backfill.") => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Dynamic(
+                            backfill_key,
+                        )),
+                        apply_scrubbing: ApplyScrubbing::Manual,
+                        aliases: &["placeholder.backfilled.<key>"],
+                    },
+                    Some(fragment),
+                )),
+
                 _ => None,
             }
         }
 
-        let mut attributes = Annotated::new(Attributes::from([
+        let mut attributes = Attributes::from([
             (
                 "replace.empty".to_owned(),
                 Annotated::new("Should be moved".to_owned().into()),
@@ -1015,6 +1708,10 @@ mod tests {
             (
                 "replace.existing".to_owned(),
                 Annotated::new("Should be removed".to_owned().into()),
+            ),
+            (
+                "placeholder.replace.foo".to_owned(),
+                Annotated::new("Should be moved".to_owned().into()),
             ),
             (
                 "not.replaced".to_owned(),
@@ -1029,14 +1726,18 @@ mod tests {
                 Annotated::new("Should be left alone".to_owned().into()),
             ),
             (
+                "placeholder.backfill.bar".to_owned(),
+                Annotated::new("Should be copied".to_owned().into()),
+            ),
+            (
                 "not.backfilled".to_owned(),
                 Annotated::new("Should be left alone".to_owned().into()),
             ),
-        ]));
+        ]);
 
-        normalize_attribute_names_inner(&mut attributes, mock_attribute_info);
+        normalize_attribute_names_inner(&mut attributes.0, mock_attribute_info);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        assert_annotated_snapshot!(Annotated::new(attributes), @r###"
         {
           "backfill.empty": {
             "type": "string",
@@ -1058,6 +1759,19 @@ mod tests {
             "type": "string",
             "value": "Should be left alone"
           },
+          "placeholder.backfill.bar": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "placeholder.backfilled.bar": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "placeholder.replace.foo": null,
+          "placeholder.replaced.foo": {
+            "type": "string",
+            "value": "Should be moved"
+          },
           "replace.empty": null,
           "replace.existing": null,
           "replaced": {
@@ -1065,6 +1779,16 @@ mod tests {
             "value": "Should be moved"
           },
           "_meta": {
+            "placeholder.replace.foo": {
+              "": {
+                "rem": [
+                  [
+                    "attribute.deprecated",
+                    "x"
+                  ]
+                ]
+              }
+            },
             "replace.empty": {
               "": {
                 "rem": [
@@ -1109,7 +1833,7 @@ mod tests {
 
         normalize_sentry_op(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.operation.name": {
             "type": "string",
@@ -1155,7 +1879,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.operation.name": {
             "type": "string",
@@ -1221,7 +1945,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -1347,7 +2071,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1374,6 +2098,10 @@ mod tests {
             "type": "string",
             "value": "http.client"
           },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "http.request.method": {
             "type": "string",
             "value": "GET"
@@ -1389,11 +2117,15 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1416,6 +2148,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1439,11 +2175,15 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1470,6 +2210,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1492,11 +2236,15 @@ mod tests {
             &["application.www.xn--85x722f.xn--55qx5d.cn".to_owned()],
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
             "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
           },
           "sentry.op": {
             "type": "string",
@@ -1546,7 +2294,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -1585,6 +2333,10 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"
         {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
           "sentry.op": {
             "type": "string",
             "value": "http.client"
@@ -1592,6 +2344,49 @@ mod tests {
           "http.request_method": {
             "type": "string",
             "value": "GET"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_attribute_names(&mut attributes);
+        normalize_http_attributes(&mut attributes, &[]);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_from_description() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
           },
           "sentry.description": {
             "type": "string",
@@ -1604,15 +2399,15 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
             "value": "GET"
           },
-          "http.request_method": {
+          "sentry.category": {
             "type": "string",
-            "value": "GET"
+            "value": "http"
           },
           "sentry.description": {
             "type": "string",
@@ -1674,7 +2469,7 @@ mod tests {
 
         write_legacy_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -1698,11 +2493,7 @@ mod tests {
           },
           "sentry.domain": {
             "type": "string",
-            "value": "documents"
-          },
-          "sentry.group": {
-            "type": "string",
-            "value": "aedc5c7e8cec726b"
+            "value": ",documents,"
           },
           "sentry.normalized_db_query": {
             "type": "string",
@@ -1719,6 +2510,698 @@ mod tests {
           "sentry.op": {
             "type": "string",
             "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_explicit() {
+        // Category is already explicitly set, should not be overwritten
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.category": {
+            "type": "string",
+            "value": "custom"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "custom"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_db() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "db"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "db.query"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_http() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_op_ui_framework() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "sentry.op": {
+            "type": "string",
+            "value": "ui.react.render"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "ui.react"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "ui.react.render"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_db_system() {
+        // Category derived from db.system.name when no op
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "db.system.name": {
+            "type": "string",
+            "value": "mongodb"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "db"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_http_method() {
+        // Category derived from http.request.method when no op or db
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_ui_component() {
+        // Category derived from ui.component_name
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "ui.component_name": {
+            "type": "string",
+            "value": "MyComponent"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "ui"
+          },
+          "ui.component_name": {
+            "type": "string",
+            "value": "MyComponent"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_resource() {
+        // Category derived from resource.render_blocking_status
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "resource.render_blocking_status": {
+            "type": "string",
+            "value": "blocking"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "resource.render_blocking_status": {
+            "type": "string",
+            "value": "blocking"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "resource"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_from_browser_origin() {
+        // Category derived from sentry.origin with browser metrics value
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.ui.browser.metrics"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "browser"
+          },
+          "sentry.origin": {
+            "type": "string",
+            "value": "auto.ui.browser.metrics"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_without_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_explicit_not_replaced() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_missing_attribute() {
+        let mut attributes = Annotated::empty();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ipv6() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_inserts_when_missing() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_does_not_overwrite() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_none_ip() {
+        let mut attributes = Annotated::from_json(r#"{}"#).unwrap();
+
+        normalize_inject_client_address(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_ipv6() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_span_category_no_match() {
+        // No category derived when no relevant attributes are present
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+          "some.other.attribute": {
+            "type": "string",
+            "value": "value"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_span_category(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "some.other.attribute": {
+            "type": "string",
+            "value": "value"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_valid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_missing_uses_dsc() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, Some(0.25));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 0.25
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_missing_defaults_to_one() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_dsc_marked_as_error() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, Some(0.0));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_too_small() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, 0.0);
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_too_large() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, 1.1);
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_type() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, "foobar");
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements() {
+        let json = r#"
+        {
+            "frames.slow": {"value": 1, "type": "integer"},
+            "app.vitals.frames.frozen.count": {"value": 2, "type": "integer"},
+            "frames.total": {"value": 4, "type": "integer"},
+            "stall_total_time": {"value": 4000, "type": "integer"}
+        }
+        "#;
+
+        let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
+
+        normalize_attribute_names(&mut attributes);
+        normalize_mobile_measurements(&mut attributes, Some(Duration::from_secs(5)));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes),  @r#"
+        {
+          "app.vitals.frames.frozen.count": {
+            "type": "integer",
+            "value": 2
+          },
+          "app.vitals.frames.frozen.rate": {
+            "type": "double",
+            "value": 0.5
+          },
+          "app.vitals.frames.slow.count": {
+            "type": "integer",
+            "value": 1
+          },
+          "app.vitals.frames.slow.rate": {
+            "type": "double",
+            "value": 0.25
+          },
+          "app.vitals.frames.total.count": {
+            "type": "integer",
+            "value": 4
+          },
+          "app.vitals.stall.duration": {
+            "type": "integer",
+            "value": 4000
+          },
+          "app.vitals.stall.percentage": {
+            "type": "double",
+            "value": 0.8
+          },
+          "frames.slow": {
+            "type": "integer",
+            "value": 1
+          },
+          "frames.total": {
+            "type": "integer",
+            "value": 4
+          },
+          "stall_total_time": {
+            "type": "integer",
+            "value": 4000
           }
         }
         "#);

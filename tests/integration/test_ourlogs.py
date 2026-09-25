@@ -1,39 +1,25 @@
 import json
-
-from datetime import datetime, timezone, timedelta
 from unittest import mock
 
+from datetime import datetime, timezone, timedelta
+import uuid
+
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, matches
+from .asserts import time_within_delta, time_within, matches, matches_any
 
 import pytest
+from .consts import Outcome
 
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
-
-
-def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
+def envelope_with_sentry_logs(*payloads: dict, metadata=None) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="log",
-            payload=PayloadRef(json={"items": payloads}),
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
             content_type="application/vnd.sentry.items.log+json",
             headers={"item_count": len(payloads)},
         )
@@ -44,7 +30,7 @@ def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
 def timestamps(ts: datetime):
     return {
         "sentry.observed_timestamp_nanos": {
-            "stringValue": time_within(ts, expect_resolution="ns")
+            "stringValue": time_within_delta(ts, expect_resolution="ns")
         },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
@@ -72,7 +58,8 @@ def test_ourlog_multiple_containers_not_allowed(
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {"http": {"global_metrics": True}}
+    relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -93,48 +80,122 @@ def test_ourlog_multiple_containers_not_allowed(
             )
         )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
         {
-            "category": DataCategory.LOG_ITEM.value,
+            "category": DataCategory.LOG_ITEM,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
         {
-            "category": DataCategory.LOG_BYTE.value,
+            "category": DataCategory.LOG_BYTE,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
     ]
 
 
 @pytest.mark.parametrize(
-    "external_mode,expected_byte_size",
+    "categories",
     [
-        # 296 here is a billing relevant metric, do not arbitrarily change it,
-        # this value is supposed to be static and purely based on data received,
+        pytest.param(["log_item"], id="item"),
+        pytest.param(["log_byte"], id="byte"),
+        pytest.param(["log_item", "log_byte"], id="both"),
+    ],
+)
+def test_fast_path_rate_limits(mini_sentry, relay, categories):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "no_more_quota",
+        }
+        for category in categories
+    ]
+
+    relay = relay(mini_sentry)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "This is really bad",
+        }
+    )
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 200  # project config not yet loaded
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 157,
+        },
+    ]
+
+    with pytest.raises(HTTPError, match="429 Client Error"):
+        response = relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "no_more_quota",
+            "quantity": 157,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "external_mode,expected_byte_size_1,expected_byte_size_2",
+    [
+        # The values here are billing relevant metrics, do not arbitrarily change it,
+        # these values are supposed to be static and purely based on data received,
         # independent of any normalization.
-        (None, 377),
+        (None, 18, 359),
         # Same applies as above, a proxy Relay does not need to run normalization.
-        ("proxy", 377),
+        ("proxy", 18, 359),
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 587),
+        ("managed", 194, 525),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -145,7 +206,8 @@ def test_ourlog_extraction_with_sentry_logs(
     items_consumer,
     outcomes_consumer,
     external_mode,
-    expected_byte_size,
+    expected_byte_size_1,
+    expected_byte_size_2,
 ):
     relay_fn = relay
 
@@ -163,14 +225,11 @@ def test_ourlog_extraction_with_sentry_logs(
 
     credentials = relay_credentials()
     relay = relay_fn(
-        relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
+        relay_with_processing(static_credentials=credentials),
         credentials=credentials,
-        options=TEST_CONFIG,
     )
     if external_mode is not None:
-        relay = relay_fn(
-            relay, options={"relay": {"mode": external_mode}, **TEST_CONFIG}
-        )
+        relay = relay_fn(relay, options={"relay": {"mode": external_mode}})
 
     ts = datetime.now(timezone.utc)
 
@@ -221,15 +280,19 @@ def test_ourlog_extraction_with_sentry_logs(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.relay.ingress": {"stringValue": "container"},
                 "sentry.severity_text": {"stringValue": "error"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                },
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -241,6 +304,19 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": f"{expected_byte_size_1}",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
         {
             "attributes": {
@@ -278,24 +354,28 @@ def test_ourlog_extraction_with_sentry_logs(
                     "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
                 },
                 "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "info"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "http.response_content_length": {"intValue": "17"},
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "string.attribute": {"stringValue": "some string"},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                },
                 "string_array": {
                     "arrayValue": {
                         "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
                     }
                 },
                 "valid_string_with_other": {"stringValue": "test"},
+                "sentry.relay.ingress": {"stringValue": "container"},
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -307,26 +387,19 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
-        },
-    ]
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": expected_byte_size,
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": f"{expected_byte_size_2}",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
     ]
 
@@ -348,7 +421,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -375,21 +448,28 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "browser.version": {"type": "string", "value": "42.0"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
         },
-        "__header": {"byte_size": mock.ANY},
+        "__header": {"byte_size": matches_any()},
         "_meta": {
             "attributes": {
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }
@@ -425,7 +505,7 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
         },
     )
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -470,7 +550,7 @@ def test_ourlog_default_pii_body(
     ]
     non_destructive.install(project_config)
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -490,18 +570,17 @@ def test_ourlog_default_pii_body(
     log = item_payload["items"][0]
 
     assert log == {
-        **(
-            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}}
-            if non_destructive.scrubs()
-            else {}
+        **_if_dict(
+            non_destructive.scrubs(),
+            {"_meta": {"body": {"": {"len": matches_any(), "rem": matches_any()}}}},
         ),
-        "attributes": mock.ANY,
+        "attributes": matches_any(),
         "body": non_destructive.expected_output,
         "level": "info",
         "span_id": "eee19b7ec3c1b174",
         "timestamp": time_within(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "__header": mock.ANY,
+        "__header": matches_any(),
     }
 
     if non_destructive.additional_checks:
@@ -539,7 +618,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "applications": {"**": ["remove_custom_field"]},
     }
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -563,17 +642,21 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.version": {"stringValue": "42.0"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.payload_size_bytes": matches_any(),
+            "browser.name": {"stringValue": "Firefox"},
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -585,6 +668,19 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
         ),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": "32",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
 
@@ -600,7 +696,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -617,14 +713,18 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "Example log record 2"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.name": {"stringValue": "Firefox"},
+            "browser.version": {"stringValue": "42.0"},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "warn"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -636,6 +736,19 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
         ),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": "20",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
 
@@ -645,7 +758,7 @@ def test_ourlog_extraction_is_disabled_without_feature(
     items_consumer,
 ):
     items_consumer = items_consumer()
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["retentions"] = {
@@ -741,7 +854,7 @@ def test_browser_name_version_extraction(
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
-    relay = relay(relay_with_processing(options=TEST_CONFIG))
+    relay = relay(relay_with_processing())
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -759,15 +872,17 @@ def test_browser_name_version_extraction(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "This is really bad"},
-            "sentry.browser.name": {"stringValue": expected_browser_name},
-            "sentry.browser.version": {"stringValue": expected_browser_version},
+            "browser.name": {"stringValue": expected_browser_name},
+            "browser.version": {"stringValue": expected_browser_version},
+            "user_agent.original": {"stringValue": user_agent},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "error"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -779,6 +894,19 @@ def test_browser_name_version_extraction(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
         ),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": mock.ANY,
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": mock.ANY,
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
 
@@ -790,6 +918,42 @@ def test_browser_name_version_extraction(
             {"releases": {"releases": ["foobar@1.0"]}},
             {},
             id="release",
+        ),
+        pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {
+                "attributes": {
+                    "sentry.segment.name": {
+                        "value": "/foo/healthz",
+                        "type": "string",
+                    }
+                }
+            },
+            id="transaction",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
         ),
         pytest.param(
             "legacy-browsers",
@@ -861,7 +1025,7 @@ def test_filters_are_applied_to_logs(
 
     project_config["config"]["filterSettings"] = filter_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -875,6 +1039,14 @@ def test_filters_are_applied_to_logs(
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                **args.get("attributes", {}),
+            },
+        },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_ip": "never",
+                "infer_user_agent": "auto",
             },
         },
     )
@@ -885,27 +1057,306 @@ def test_filters_are_applied_to_logs(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.LOG_ITEM.value,
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,  # Filtered
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 1,
-            "project_id": 42,
-            "quantity": mock.ANY,
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.FILTERED,
+            "quantity": matches_any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
         },
     ]
 
     assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+    project_config["config"]["retentions"] = {
+        "log": {"standard": 1, "downsampled": 100},
+    }
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": (ts + delta).timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.LOG_ITEM,
+                "outcome": Outcome.INVALID,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.LOG_BYTE,
+                "outcome": Outcome.INVALID,
+                "quantity": matches_any(),
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "__header": {"byte_size": 3},
+            "_meta": {
+                "timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
+                        ]
+                    }
+                }
+            },
+            "attributes": matches_any(),
+            "body": "foo",
+            "level": "error",
+            "span_id": "eee19b7ec3c1b175",
+            "timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+        }
+
+
+def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+
+    relay = relay_with_processing()
+
+    ts = datetime.now(timezone.utc)
+    seq_shift_in_secs = 1.0
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+            "attributes": {
+                "sentry.timestamp.sequence": {
+                    "value": int(seq_shift_in_secs * 1e9),
+                    "type": "integer",
+                },
+            },
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert items_consumer.get_item() == {
+        "attributes": {
+            "browser.name": {
+                "stringValue": "Firefox",
+            },
+            "browser.version": {
+                "stringValue": "42.0",
+            },
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
+            "sentry._meta.fields.timestamp": {
+                "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
+            },
+            "sentry.body": {
+                "stringValue": "foo",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(ts, expect_resolution="ns")
+            },
+            "sentry.payload_size_bytes": {
+                "intValue": "36",
+            },
+            "sentry.relay.ingress": {
+                "stringValue": "container",
+            },
+            "sentry.severity_text": {
+                "stringValue": "error",
+            },
+            "sentry.span_id": {
+                "stringValue": "eee19b7ec3c1b175",
+            },
+            "sentry.timestamp.sequence": {
+                "intValue": "1000000000",
+            },
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(
+                    ts + timedelta(seconds=seq_shift_in_secs),
+                    delta=timedelta(
+                        seconds=0,
+                    ),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": matches_any(),
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": "36",
+                },
+            ],
+            "keyId": "123",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "metadata,client_ip,browser",
+    [
+        ({}, False, True),
+        ({"version": 2}, False, False),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "never", "infer_user_agent": "never"},
+            },
+            False,
+            False,
+        ),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
+            },
+            True,
+            True,
+        ),
+    ],
+)
+def test_ourlog_container_metadata(
+    mini_sentry,
+    relay,
+    metadata,
+    client_ip,
+    browser,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "info",
+            "body": "Test log",
+        },
+        metadata=metadata,
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "attributes": {
+            **_if_dict(
+                client_ip,
+                {
+                    "client.address": {
+                        "type": "string",
+                        "value": "127.0.0.1",
+                    }
+                },
+            ),
+            **_if_dict(
+                browser,
+                {
+                    "browser.name": {
+                        "type": "string",
+                        "value": "Firefox",
+                    },
+                    "browser.version": {
+                        "type": "string",
+                        "value": "42.0",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                    },
+                },
+            ),
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+        },
+        "__header": matches_any(),
+        "body": "Test log",
+        "level": "info",
+        "timestamp": time_within(ts),
+    }
+
+
+def _if_dict(cond, then):
+    return then if cond else {}

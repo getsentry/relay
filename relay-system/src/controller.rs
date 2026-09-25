@@ -49,6 +49,7 @@ static MANUAL_SHUTDOWN: LazyLock<Channel<ShutdownMode>> = LazyLock::new(|| watch
 ///
 /// This handle is returned by [`Controller::shutdown_handle`].
 // TODO: The receiver of this message can not yet signal they have completed shutdown.
+#[derive(Debug, Clone)]
 pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 
 impl ShutdownHandle {
@@ -96,6 +97,11 @@ impl ShutdownHandle {
                 _ = tokio::time::sleep(timeout) => (),
             }
         }
+    }
+
+    /// Returns `true` when the shutdown signal has been sent.
+    pub fn shutting_down(&self) -> bool {
+        self.0.borrow().is_some()
     }
 }
 

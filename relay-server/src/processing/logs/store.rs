@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::logs::{Error, Result};
-use crate::processing::utils::store::{extract_meta_attributes, proto_timestamp};
+use crate::processing::utils::store::{
+    extract_meta_attributes, proto_timestamp, quantities_to_trace_item_outcomes, uuid_to_item_id,
+};
 use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -70,16 +72,14 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         downsampled_retention_days: ctx.retention.downsampled.into(),
         timestamp: Some(proto_timestamp(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
-        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
-    Ok(StoreTraceItem {
-        trace_item,
-        quantities,
-    })
+    Ok(StoreTraceItem { trace_item })
 }
 
 /// Fields on the log message which are stored as fields.

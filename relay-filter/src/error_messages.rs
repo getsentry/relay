@@ -146,7 +146,7 @@ mod tests {
                 let (exc_type, exc_value, logentry_formatted, should_ingest) = case;
                 let event = Event {
                     exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-                        ty: Annotated::from(exc_type.map(str::to_string)),
+                        ty: Annotated::from(exc_type.map(str::to_owned)),
                         value: Annotated::from(exc_value.map(str::to_owned).map(From::from)),
                         ..Default::default()
                     })])),

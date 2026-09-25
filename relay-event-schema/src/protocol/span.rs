@@ -4,14 +4,17 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
+use relay_conventions::attributes::{
+    BROWSER__NAME, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
+};
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
 
-use crate::processor::ProcessValue;
+use crate::processor::{Pii, ProcessValue, ProcessingState};
 use crate::protocol::{
-    EventId, IpAddr, JsonLenientString, LenientString, Measurements, OperationType, OriginType,
-    SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    EventId, JsonLenientString, Measurements, OperationType, OriginType, SpanId, SpanStatus,
+    Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -121,19 +124,6 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanKind>,
 
-    /// Temporary flag that controls where performance issues are detected.
-    ///
-    /// When the flag is set to true, performance issues will be detected on this span provided it
-    /// is a root (segment) instead of the transaction event.
-    ///
-    /// Only set on root spans extracted from transactions.
-    #[metastructure(
-        field = "_performance_issues_spans",
-        skip_serialization = "empty",
-        trim = false
-    )]
-    pub performance_issues_spans: Annotated<bool>,
-
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
@@ -145,7 +135,7 @@ impl Span {
     /// This primarily looks up the attribute in the `data` object, but falls back to the `tags`
     /// object if the attribute is not found.
     fn attribute(&self, key: &str) -> Option<Val<'_>> {
-        Some(match self.data.value()?.get_value(key) {
+        Some(match Getter::get_value(self.data.value()?, key) {
             Some(value) => value,
             None => self.tags.value()?.get(key)?.as_str()?.into(),
         })
@@ -180,7 +170,8 @@ impl Getter for Span {
                         self.attribute(key)?
                     } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                         self.sentry_tags.value()?.get_value(key)?
-                    } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    } else {
+                        let rest = path.strip_prefix("measurements.")?;
                         let name = rest.strip_suffix(".value")?;
                         self.measurements
                             .value()?
@@ -189,8 +180,6 @@ impl Getter for Span {
                             .value
                             .value()?
                             .into()
-                    } else {
-                        return None;
                     }
                 }
             });
@@ -200,10 +189,10 @@ impl Getter for Span {
         // for a span.
         let event_prefix = path.strip_prefix("event.")?;
         Some(match event_prefix {
-            "release" => self.data.value()?.release.as_str()?.into(),
-            "environment" => self.data.value()?.environment.as_str()?.into(),
-            "transaction" => self.data.value()?.segment_name.as_str()?.into(),
-            "contexts.browser.name" => self.data.value()?.browser_name.as_str()?.into(),
+            "release" => self.data.value()?.get_str(SENTRY__RELEASE)?.into(),
+            "environment" => self.data.value()?.get_str(SENTRY__ENVIRONMENT)?.into(),
+            "transaction" => self.data.value()?.get_str(SENTRY__SEGMENT__NAME)?.into(),
+            "contexts.browser.name" => self.data.value()?.get_str(BROWSER__NAME)?.into(),
             // TODO: we might want to add additional fields once they are added to the span.
             _ => return None,
         })
@@ -226,7 +215,6 @@ pub struct SentryTags {
     #[metastructure(pii = "true", field = "user.email")]
     pub user_email: Annotated<String>,
     pub environment: Annotated<String>,
-    pub transaction: Annotated<String>,
     #[metastructure(field = "transaction.method")]
     pub transaction_method: Annotated<String>,
     #[metastructure(field = "transaction.op")]
@@ -435,7 +423,6 @@ impl Getter for SentryTags {
             "trace.status" => &self.trace_status,
             "transaction.method" => &self.transaction_method,
             "transaction.op" => &self.transaction_op,
-            "transaction" => &self.transaction,
             "ttfd" => &self.ttfd,
             "ttid" => &self.ttid,
             "user.email" => &self.user_email,
@@ -454,609 +441,109 @@ impl Getter for SentryTags {
     }
 }
 
+/// Determines the `Pii` value for a field of [`SpanData`] by looking it up in `relay-conventions`.
+///
+/// If the field is not found in the conventions, this returns `Pii::True`
+/// as a precaution.
+fn span_data_pii_from_conventions(state: &ProcessingState) -> Pii {
+    fn inner(state: &ProcessingState) -> Option<Pii> {
+        // `state.keys().next()` is the _last_ segment in the state's
+        // path, i.e. the field name.
+        let key = state.keys().next()?;
+
+        match relay_conventions::attribute_info(key)?.apply_scrubbing {
+            relay_conventions::ApplyScrubbing::Auto => Some(Pii::True),
+            relay_conventions::ApplyScrubbing::Never => Some(Pii::False),
+            relay_conventions::ApplyScrubbing::Manual => Some(Pii::Maybe),
+        }
+    }
+
+    inner(state).unwrap_or(Pii::True)
+}
+
 /// Arbitrary additional data on a span.
 ///
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false)]
+#[metastructure(trim = false, pii = "span_data_pii_from_conventions")]
 pub struct SpanData {
-    /// Mobile app start variant.
-    ///
-    /// Can be either "cold" or "warm".
-    #[metastructure(field = "app_start_type")] // TODO: no dot?
-    pub app_start_type: Annotated<Value>,
-
-    /// The maximum number of tokens that should be used by an LLM call.
-    #[metastructure(field = "gen_ai.request.max_tokens", pii = "maybe")]
-    pub gen_ai_request_max_tokens: Annotated<Value>,
-
-    /// Name of the AI pipeline or chain being executed.
-    #[metastructure(field = "gen_ai.pipeline.name", legacy_alias = "ai.pipeline.name")]
-    pub gen_ai_pipeline_name: Annotated<Value>,
-
-    /// The total tokens that were used by an LLM call
-    #[metastructure(
-        field = "gen_ai.usage.total_tokens",
-        legacy_alias = "ai.total_tokens.used",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_total_tokens: Annotated<Value>,
-
-    /// The input tokens used by an LLM call (usually cheaper than output tokens)
-    #[metastructure(
-        field = "gen_ai.usage.input_tokens",
-        legacy_alias = "ai.prompt_tokens.used",
-        legacy_alias = "gen_ai.usage.prompt_tokens",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_input_tokens: Annotated<Value>,
-
-    /// The input tokens used by an LLM call that were cached
-    /// (cheaper and faster than non-cached input tokens)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cached", pii = "maybe")]
-    pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
-
-    /// The input tokens written to cache during an LLM call
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write", pii = "maybe")]
-    pub gen_ai_usage_input_tokens_cache_write: Annotated<Value>,
-
-    /// The input tokens that missed the cache (DeepSeek provider)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_miss", pii = "maybe")]
-    pub gen_ai_usage_input_tokens_cache_miss: Annotated<Value>,
-
-    /// The output tokens used by an LLM call (the ones the LLM actually generated)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens",
-        legacy_alias = "ai.completion_tokens.used",
-        legacy_alias = "gen_ai.usage.completion_tokens",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_output_tokens: Annotated<Value>,
-
-    /// The output tokens used to represent the model's internal thought
-    /// process while generating a response
-    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning", pii = "maybe")]
-    pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
-
-    /// The output tokens for accepted predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_accepted",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_output_tokens_prediction_accepted: Annotated<Value>,
-
-    /// The output tokens for rejected predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_rejected",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_output_tokens_prediction_rejected: Annotated<Value>,
-
-    // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
-    #[metastructure(field = "gen_ai.response.model")]
-    pub gen_ai_response_model: Annotated<Value>,
-
-    /// The name of the GenAI model a request is being made to (e.g. gpt-4)
-    #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
-    pub gen_ai_request_model: Annotated<Value>,
-
-    /// The total cost for the tokens used (duplicate field for migration)
-    #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
-    pub gen_ai_cost_total_tokens: Annotated<Value>,
-
-    /// The cost for input tokens used
-    #[metastructure(field = "gen_ai.cost.input_tokens", pii = "maybe")]
-    pub gen_ai_cost_input_tokens: Annotated<Value>,
-
-    /// The cost for output tokens used
-    #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
-    pub gen_ai_cost_output_tokens: Annotated<Value>,
-
-    /// Prompt passed to LLM (Vercel AI SDK)
-    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
-    pub gen_ai_prompt: Annotated<Value>,
-
-    /// Prompt passed to LLM
-    #[metastructure(
-        field = "gen_ai.request.messages",
-        pii = "maybe",
-        legacy_alias = "ai.prompt.messages"
-    )]
-    pub gen_ai_request_messages: Annotated<Value>,
-
-    /// Tool call arguments
-    #[metastructure(
-        field = "gen_ai.tool.input",
-        pii = "maybe",
-        legacy_alias = "ai.toolCall.args"
-    )]
-    pub gen_ai_tool_input: Annotated<Value>,
-
-    /// Tool call result
-    #[metastructure(
-        field = "gen_ai.tool.output",
-        pii = "maybe",
-        legacy_alias = "ai.toolCall.result"
-    )]
-    pub gen_ai_tool_output: Annotated<Value>,
-
-    /// LLM decisions to use tools
-    #[metastructure(
-        field = "gen_ai.response.tool_calls",
-        legacy_alias = "ai.response.toolCalls",
-        legacy_alias = "ai.tool_calls",
-        pii = "maybe"
-    )]
-    pub gen_ai_response_tool_calls: Annotated<Value>,
-
-    /// LLM response text (Vercel AI, generateText)
-    #[metastructure(
-        field = "gen_ai.response.text",
-        legacy_alias = "ai.response.text",
-        legacy_alias = "ai.responses",
-        pii = "maybe"
-    )]
-    pub gen_ai_response_text: Annotated<Value>,
-
-    /// LLM response object (Vercel AI, generateObject)
-    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
-    pub gen_ai_response_object: Annotated<Value>,
-
-    /// Whether or not the AI model call's response was streamed back asynchronously
-    #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
-    pub gen_ai_response_streaming: Annotated<Value>,
-
-    ///  Total output tokens per seconds throughput
-    #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
-    pub gen_ai_response_tokens_per_second: Annotated<Value>,
-
-    /// The available tools for a request to an LLM
-    #[metastructure(
-        field = "gen_ai.request.available_tools",
-        legacy_alias = "ai.tools",
-        pii = "maybe"
-    )]
-    pub gen_ai_request_available_tools: Annotated<Value>,
-
-    /// The frequency penalty for a request to an LLM
-    #[metastructure(
-        field = "gen_ai.request.frequency_penalty",
-        legacy_alias = "ai.frequency_penalty"
-    )]
-    pub gen_ai_request_frequency_penalty: Annotated<Value>,
-
-    /// The presence penalty for a request to an LLM
-    #[metastructure(
-        field = "gen_ai.request.presence_penalty",
-        legacy_alias = "ai.presence_penalty"
-    )]
-    pub gen_ai_request_presence_penalty: Annotated<Value>,
-
-    /// The seed for a request to an LLM
-    #[metastructure(field = "gen_ai.request.seed", legacy_alias = "ai.seed")]
-    pub gen_ai_request_seed: Annotated<Value>,
-
-    /// The temperature for a request to an LLM
-    #[metastructure(field = "gen_ai.request.temperature", legacy_alias = "ai.temperature")]
-    pub gen_ai_request_temperature: Annotated<Value>,
-
-    /// The top_k parameter for a request to an LLM
-    #[metastructure(field = "gen_ai.request.top_k", legacy_alias = "ai.top_k")]
-    pub gen_ai_request_top_k: Annotated<Value>,
-
-    /// The top_p parameter for a request to an LLM
-    #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
-    pub gen_ai_request_top_p: Annotated<Value>,
-
-    /// The finish reason for a response from an LLM
-    #[metastructure(
-        field = "gen_ai.response.finish_reason",
-        legacy_alias = "ai.finish_reason"
-    )]
-    pub gen_ai_response_finish_reason: Annotated<Value>,
-
-    /// The unique identifier for a response from an LLM
-    #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
-    pub gen_ai_response_id: Annotated<Value>,
-
-    /// The GenAI system identifier
-    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
-    pub gen_ai_system: Annotated<Value>,
-
-    /// The name of the tool being called
-    #[metastructure(
-        field = "gen_ai.tool.name",
-        legacy_alias = "ai.function_call",
-        pii = "maybe"
-    )]
-    pub gen_ai_tool_name: Annotated<Value>,
-
-    /// The name of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
-    pub gen_ai_operation_name: Annotated<String>,
-
-    /// The type of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
-    pub gen_ai_operation_type: Annotated<String>,
-
-    /// The result of the MCP prompt.
-    #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
-    pub mcp_prompt_result: Annotated<Value>,
-
-    /// The result of the MCP tool.
-    #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
-    pub mcp_tool_result_content: Annotated<Value>,
-
-    /// The client's browser name.
-    #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<String>,
-
-    /// The source code file name that identifies the code unit as uniquely as possible.
-    #[metastructure(field = "code.filepath", pii = "maybe")]
-    pub code_filepath: Annotated<Value>,
-    /// The line number in `code.filepath` best representing the operation.
-    #[metastructure(field = "code.lineno", pii = "maybe")]
-    pub code_lineno: Annotated<Value>,
-    /// The method or function name, or equivalent.
-    ///
-    /// Usually rightmost part of the code unit's name.
-    #[metastructure(field = "code.function", pii = "maybe")]
-    pub code_function: Annotated<Value>,
-    /// The "namespace" within which `code.function` is defined.
-    ///
-    /// Usually the qualified class or module name, such that
-    /// `code.namespace + some separator + code.function`
-    /// form a unique identifier for the code unit.
-    #[metastructure(field = "code.namespace", pii = "maybe")]
-    pub code_namespace: Annotated<Value>,
-
-    /// The name of the operation being executed.
-    ///
-    /// E.g. the MongoDB command name such as findAndModify, or the SQL keyword.
-    /// Based on [OpenTelemetry's call level db attributes](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#call-level-attributes).
-    #[metastructure(field = "db.operation")]
-    pub db_operation: Annotated<Value>,
-
-    /// An identifier for the database management system (DBMS) product being used.
-    ///
-    /// See [OpenTelemetry docs for a list of well-known identifiers](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem).
-    #[metastructure(field = "db.system")]
-    pub db_system: Annotated<Value>,
-
-    /// The name of a collection (table, container) within the database.
-    ///
-    /// See [OpenTelemetry's database span semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).
-    #[metastructure(
-        field = "db.collection.name",
-        legacy_alias = "db.cassandra.table",
-        legacy_alias = "db.cosmosdb.container",
-        legacy_alias = "db.mongodb.collection",
-        legacy_alias = "db.sql.table"
-    )]
-    pub db_collection_name: Annotated<Value>,
-
-    /// The sentry environment.
-    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
-    pub environment: Annotated<String>,
-
-    /// The release version of the project.
-    #[metastructure(field = "sentry.release", legacy_alias = "release")]
-    pub release: Annotated<LenientString>,
-
-    /// The decoded body size of the response (in bytes).
-    #[metastructure(field = "http.decoded_response_content_length")]
-    pub http_decoded_response_content_length: Annotated<Value>,
-
-    /// The HTTP method used.
-    #[metastructure(
-        field = "http.request_method",
-        legacy_alias = "http.method",
-        legacy_alias = "method"
-    )]
-    pub http_request_method: Annotated<Value>,
-
-    /// The encoded body size of the response (in bytes).
-    #[metastructure(field = "http.response_content_length")]
-    pub http_response_content_length: Annotated<Value>,
-
-    /// The transfer size of the response (in bytes).
-    #[metastructure(field = "http.response_transfer_size")]
-    pub http_response_transfer_size: Annotated<Value>,
-
-    /// The render blocking status of the resource.
-    #[metastructure(field = "resource.render_blocking_status")]
-    pub resource_render_blocking_status: Annotated<Value>,
-
-    /// Name of the web server host.
-    #[metastructure(field = "server.address")]
-    pub server_address: Annotated<Value>,
-
-    /// Whether cache was hit or miss on a read operation.
-    #[metastructure(field = "cache.hit")]
-    pub cache_hit: Annotated<Value>,
-
-    /// The name of the cache key.
-    #[metastructure(field = "cache.key")]
-    pub cache_key: Annotated<Value>,
-
-    /// The size of the cache item.
-    #[metastructure(field = "cache.item_size")]
-    pub cache_item_size: Annotated<Value>,
-
-    /// The status HTTP response.
-    #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
-    pub http_response_status_code: Annotated<Value>,
-
-    /// Label identifying a thread from where the span originated.
-    #[metastructure(field = "thread.name")]
-    pub thread_name: Annotated<String>,
-
-    /// ID of thread from where the span originated.
-    #[metastructure(field = "thread.id")]
-    pub thread_id: Annotated<ThreadId>,
-
-    /// Name of the segment that this span belongs to (see `segment_id`).
-    ///
-    /// This corresponds to the transaction name in the transaction-based model.
-    ///
-    /// For INP spans, this is the route name where the interaction occurred.
-    #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
-    pub segment_name: Annotated<String>,
-
-    /// Name of the UI component (e.g. React).
-    #[metastructure(field = "ui.component_name")]
-    pub ui_component_name: Annotated<Value>,
-
-    /// The URL scheme, e.g. `"https"`.
-    #[metastructure(field = "url.scheme")]
-    pub url_scheme: Annotated<Value>,
-
-    /// User Display
-    #[metastructure(field = "user")]
-    pub user: Annotated<Value>,
-
-    /// User email address.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.email")]
-    pub user_email: Annotated<String>,
-
-    /// User’s full name.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.full_name")]
-    pub user_full_name: Annotated<String>,
-
-    /// Two-letter country code (ISO 3166-1 alpha-2).
-    ///
-    /// This is not an OTel convention (yet).
-    #[metastructure(field = "user.geo.country_code")]
-    pub user_geo_country_code: Annotated<String>,
-
-    /// Human readable city name.
-    ///
-    /// This is not an OTel convention (yet).
-    #[metastructure(field = "user.geo.city")]
-    pub user_geo_city: Annotated<String>,
-
-    /// Human readable subdivision name.
-    ///
-    /// This is not an OTel convention (yet).
-    #[metastructure(field = "user.geo.subdivision")]
-    pub user_geo_subdivision: Annotated<String>,
-
-    /// Human readable region name or code.
-    ///
-    /// This is not an OTel convention (yet).
-    #[metastructure(field = "user.geo.region")]
-    pub user_geo_region: Annotated<String>,
-
-    /// Unique user hash to correlate information for a user in anonymized form.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.hash")]
-    pub user_hash: Annotated<String>,
-
-    /// Unique identifier of the user.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.id")]
-    pub user_id: Annotated<String>,
-
-    /// Short name or login/username of the user.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.name")]
-    pub user_name: Annotated<String>,
-
-    /// Array of user roles at the time of the event.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.roles")]
-    pub user_roles: Annotated<Array<String>>,
-
-    /// Exclusive Time
-    #[metastructure(field = "sentry.exclusive_time")]
-    pub exclusive_time: Annotated<Value>,
-
-    /// Profile ID
-    #[metastructure(field = "profile_id")]
-    pub profile_id: Annotated<Value>,
-
-    /// Replay ID
-    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id")]
-    pub replay_id: Annotated<Value>,
-
-    /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.name")]
-    pub sdk_name: Annotated<String>,
-
-    /// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.version")]
-    pub sdk_version: Annotated<String>,
-
-    /// Slow Frames
-    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
-    pub frames_slow: Annotated<Value>,
-
-    /// Frozen Frames
-    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
-    pub frames_frozen: Annotated<Value>,
-
-    /// Total Frames
-    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
-    pub frames_total: Annotated<Value>,
-
-    // Frames Delay (in seconds)
-    #[metastructure(field = "frames.delay")]
-    pub frames_delay: Annotated<Value>,
-
-    // Messaging Destination Name
-    #[metastructure(field = "messaging.destination.name")]
-    pub messaging_destination_name: Annotated<String>,
-
-    /// Message Retry Count
-    #[metastructure(field = "messaging.message.retry.count")]
-    pub messaging_message_retry_count: Annotated<Value>,
-
-    /// Message Receive Latency
-    #[metastructure(field = "messaging.message.receive.latency")]
-    pub messaging_message_receive_latency: Annotated<Value>,
-
-    /// Message Body Size
-    #[metastructure(field = "messaging.message.body.size")]
-    pub messaging_message_body_size: Annotated<Value>,
-
-    /// Message ID
-    #[metastructure(field = "messaging.message.id")]
-    pub messaging_message_id: Annotated<String>,
-
-    /// Messaging Operation Name
-    #[metastructure(field = "messaging.operation.name")]
-    pub messaging_operation_name: Annotated<String>,
-
-    /// Messaging Operation Type
-    #[metastructure(field = "messaging.operation.type")]
-    pub messaging_operation_type: Annotated<String>,
-
-    /// Value of the HTTP User-Agent header sent by the client.
-    #[metastructure(field = "user_agent.original")]
-    pub user_agent_original: Annotated<String>,
-
-    /// Absolute URL of a network resource.
-    #[metastructure(field = "url.full")]
-    pub url_full: Annotated<String>,
-
-    /// The client's IP address.
-    #[metastructure(field = "client.address")]
-    pub client_address: Annotated<IpAddr>,
-
-    /// The current route in the application.
-    ///
-    /// Set by React Native SDK.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
-    pub route: Annotated<Route>,
-    /// The previous route in the application
-    ///
-    /// Set by React Native SDK.
-    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
-    pub previous_route: Annotated<Route>,
-
-    // The dom element responsible for the largest contentful paint.
-    #[metastructure(field = "lcp.element")]
-    pub lcp_element: Annotated<String>,
-
-    // The size of the largest contentful paint element.
-    #[metastructure(field = "lcp.size")]
-    pub lcp_size: Annotated<u64>,
-
-    // The id of the largest contentful paint element.
-    #[metastructure(field = "lcp.id")]
-    pub lcp_id: Annotated<String>,
-
-    // The url of the largest contentful paint element.
-    #[metastructure(field = "lcp.url")]
-    pub lcp_url: Annotated<String>,
-
-    // The span's name, a brief, human-readable, low cardinality description of operation
-    // represented by the span (as per OpenTelemetry/Sentry's Span V2 schema).
-    #[metastructure(field = "sentry.name")]
-    pub span_name: Annotated<String>,
-
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
-        pii = "true",
         retain = true,
         skip_serialization = "null" // applies to child elements
     )]
     pub other: Object<Value>,
 }
 
+impl SpanData {
+    /// Returns an annotated attribute from span data.
+    pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
+        self.other.get(key)
+    }
+
+    /// Returns an attribute value from span data.
+    pub fn get_value(&self, key: &str) -> Option<&Value> {
+        self.get(key).and_then(Annotated::value)
+    }
+
+    /// Returns a string attribute from span data.
+    pub fn get_str(&self, key: &str) -> Option<&str> {
+        self.get_value(key)?.as_str()
+    }
+
+    /// Returns whether span data contains an attribute.
+    pub fn contains(&self, key: &str) -> bool {
+        self.other.contains_key(key)
+    }
+
+    /// Inserts an annotated attribute into span data.
+    pub fn insert(&mut self, key: impl Into<String>, value: Annotated<Value>) {
+        self.other.insert(key.into(), value);
+    }
+
+    /// Inserts an attribute into span data.
+    pub fn insert_value<T>(&mut self, key: impl Into<String>, value: T)
+    where
+        T: IntoValue,
+    {
+        self.insert(key, Annotated::new(value.into_value()));
+    }
+
+    /// Removes an attribute from span data.
+    pub fn remove(&mut self, key: &str) -> Option<Annotated<Value>> {
+        self.other.remove(key)
+    }
+}
+
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path {
-            "app_start_type" => self.app_start_type.value()?.into(),
-            "browser\\.name" => self.browser_name.as_str()?.into(),
-            "code\\.filepath" => self.code_filepath.value()?.into(),
-            "code\\.function" => self.code_function.value()?.into(),
-            "code\\.lineno" => self.code_lineno.value()?.into(),
-            "code\\.namespace" => self.code_namespace.value()?.into(),
-            "db.operation" => self.db_operation.value()?.into(),
-            "db\\.system" => self.db_system.value()?.into(),
-            "environment" => self.environment.as_str()?.into(),
-            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
-            "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
-            "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
-            "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
-            "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
-            "http\\.decoded_response_content_length" => {
-                self.http_decoded_response_content_length.value()?.into()
-            }
-            "http\\.request_method" | "http\\.method" | "method" => {
-                self.http_request_method.value()?.into()
-            }
-            "http\\.response_content_length" => self.http_response_content_length.value()?.into(),
-            "http\\.response_transfer_size" => self.http_response_transfer_size.value()?.into(),
-            "http\\.response.status_code" | "status_code" => {
-                self.http_response_status_code.value()?.into()
-            }
-            "resource\\.render_blocking_status" => {
-                self.resource_render_blocking_status.value()?.into()
-            }
-            "server\\.address" => self.server_address.value()?.into(),
-            "thread\\.name" => self.thread_name.as_str()?.into(),
-            "ui\\.component_name" => self.ui_component_name.value()?.into(),
-            "url\\.scheme" => self.url_scheme.value()?.into(),
-            "user" => self.user.value()?.into(),
-            "user\\.email" => self.user_email.as_str()?.into(),
-            "user\\.full_name" => self.user_full_name.as_str()?.into(),
-            "user\\.geo\\.city" => self.user_geo_city.as_str()?.into(),
-            "user\\.geo\\.country_code" => self.user_geo_country_code.as_str()?.into(),
-            "user\\.geo\\.region" => self.user_geo_region.as_str()?.into(),
-            "user\\.geo\\.subdivision" => self.user_geo_subdivision.as_str()?.into(),
-            "user\\.hash" => self.user_hash.as_str()?.into(),
-            "user\\.id" => self.user_id.as_str()?.into(),
-            "user\\.name" => self.user_name.as_str()?.into(),
-            "transaction" => self.segment_name.as_str()?.into(),
-            "release" => self.release.as_str()?.into(),
-            _ => {
-                let escaped = path.replace("\\.", "\0");
-                let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
-                let root = path.next()?;
+        let escaped = path.replace("\\.", "\0");
+        let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
+        let root = path.next()?;
 
-                let mut val = self.other.get(&root)?.value()?;
-                for part in path {
-                    // While there is path segments left, `val` has to be an Object.
-                    let relay_protocol::Value::Object(map) = val else {
-                        return None;
-                    };
-                    val = map.get(&part)?.value()?;
-                }
-                val.into()
-            }
-        })
+        let mut val = self.get(&root)?.value()?;
+        for part in path {
+            // While there is path segments left, `val` has to be an Object.
+            let relay_protocol::Value::Object(map) = val else {
+                return None;
+            };
+            val = map.get(&part)?.value()?;
+        }
+        Some(val.into())
+    }
+}
+
+impl From<Object<Value>> for SpanData {
+    fn from(other: Object<Value>) -> Self {
+        Self { other }
+    }
+}
+
+impl<const N: usize> From<[(String, Annotated<Value>); N]> for SpanData {
+    fn from(value: [(String, Annotated<Value>); N]) -> Self {
+        Self::from(Object::from(value))
     }
 }
 
@@ -1251,10 +738,41 @@ mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_conventions::attributes::*;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    /// Test that span data attributes expected to follow sentry conventions actually do so. This
+    /// is achieved by 1) creating a json which uses sentry conventions constants, 2) creating a
+    /// `SpanData` object from the json, and 3) verifying that the json values end up in the
+    /// expected `SpanData` fields (which wouldn't happen if the sentry conventions constants don't
+    /// match the declared field names).
+    #[test]
+    fn test_span_data_attributes_follow_sentry_conventions() {
+        let my_trace = &"my_trace".to_owned();
+        let my_transaction = &"my_transaction".to_owned();
+        let my_project_id = &"my_project_id".to_owned();
+        let json = format!(
+            r#"{{
+                "{SENTRY__DSC__TRACE_ID}": "{my_trace}",
+                "{SENTRY__DSC__TRANSACTION}": "{my_transaction}",
+                "{SENTRY__DSC__PROJECT_ID}": "{my_project_id}"
+            }}"#,
+        );
+        let data = Annotated::<SpanData>::from_json(&json).unwrap();
+        let data = data.value().unwrap();
+        assert_eq!(data.get_str(SENTRY__DSC__TRACE_ID), Some(my_trace.as_str()));
+        assert_eq!(
+            data.get_str(SENTRY__DSC__TRANSACTION),
+            Some(my_transaction.as_str())
+        );
+        assert_eq!(
+            data.get_str(SENTRY__DSC__PROJECT_ID),
+            Some(my_project_id.as_str())
+        );
+    }
 
     #[test]
     fn test_span_serialization() {
@@ -1399,8 +917,8 @@ mod tests {
         let span = Annotated::<Span>::from_json(
             r#"{
                 "data": {
-                    "release": "1.0",
-                    "environment": "prod",
+                    "sentry.release": "1.0",
+                    "sentry.environment": "prod",
                     "sentry.segment.name": "/api/endpoint"
                 }
             }"#,
@@ -1440,7 +958,7 @@ mod tests {
         let data = r#"{
         "foo": 2,
         "bar": "3",
-        "db.system": "mysql",
+        "db.system.name": "mysql",
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
@@ -1460,158 +978,113 @@ mod tests {
         "url.full": "my_url.com",
         "client.address": "192.168.0.1"
     }"#;
-        let data = Annotated::<SpanData>::from_json(data)
+        let mut data = Annotated::<SpanData>::from_json(data)
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
-            app_start_type: ~,
-            gen_ai_request_max_tokens: ~,
-            gen_ai_pipeline_name: ~,
-            gen_ai_usage_total_tokens: ~,
-            gen_ai_usage_input_tokens: ~,
-            gen_ai_usage_input_tokens_cached: ~,
-            gen_ai_usage_input_tokens_cache_write: ~,
-            gen_ai_usage_input_tokens_cache_miss: ~,
-            gen_ai_usage_output_tokens: ~,
-            gen_ai_usage_output_tokens_reasoning: ~,
-            gen_ai_usage_output_tokens_prediction_accepted: ~,
-            gen_ai_usage_output_tokens_prediction_rejected: ~,
-            gen_ai_response_model: ~,
-            gen_ai_request_model: ~,
-            gen_ai_cost_total_tokens: ~,
-            gen_ai_cost_input_tokens: ~,
-            gen_ai_cost_output_tokens: ~,
-            gen_ai_prompt: ~,
-            gen_ai_request_messages: ~,
-            gen_ai_tool_input: ~,
-            gen_ai_tool_output: ~,
-            gen_ai_response_tool_calls: ~,
-            gen_ai_response_text: ~,
-            gen_ai_response_object: ~,
-            gen_ai_response_streaming: ~,
-            gen_ai_response_tokens_per_second: ~,
-            gen_ai_request_available_tools: ~,
-            gen_ai_request_frequency_penalty: ~,
-            gen_ai_request_presence_penalty: ~,
-            gen_ai_request_seed: ~,
-            gen_ai_request_temperature: ~,
-            gen_ai_request_top_k: ~,
-            gen_ai_request_top_p: ~,
-            gen_ai_response_finish_reason: ~,
-            gen_ai_response_id: ~,
-            gen_ai_system: ~,
-            gen_ai_tool_name: ~,
-            gen_ai_operation_name: ~,
-            gen_ai_operation_type: ~,
-            mcp_prompt_result: ~,
-            mcp_tool_result_content: ~,
-            browser_name: ~,
-            code_filepath: String(
-                "task.py",
-            ),
-            code_lineno: I64(
-                123,
-            ),
-            code_function: String(
-                "fn()",
-            ),
-            code_namespace: String(
-                "ns",
-            ),
-            db_operation: ~,
-            db_system: String(
-                "mysql",
-            ),
-            db_collection_name: ~,
-            environment: ~,
-            release: ~,
-            http_decoded_response_content_length: ~,
-            http_request_method: ~,
-            http_response_content_length: ~,
-            http_response_transfer_size: ~,
-            resource_render_blocking_status: ~,
-            server_address: ~,
-            cache_hit: ~,
-            cache_key: ~,
-            cache_item_size: ~,
-            http_response_status_code: ~,
-            thread_name: ~,
-            thread_id: ~,
-            segment_name: ~,
-            ui_component_name: ~,
-            url_scheme: ~,
-            user: ~,
-            user_email: ~,
-            user_full_name: ~,
-            user_geo_country_code: ~,
-            user_geo_city: ~,
-            user_geo_subdivision: ~,
-            user_geo_region: ~,
-            user_hash: ~,
-            user_id: ~,
-            user_name: ~,
-            user_roles: ~,
-            exclusive_time: ~,
-            profile_id: ~,
-            replay_id: ~,
-            sdk_name: ~,
-            sdk_version: ~,
-            frames_slow: I64(
-                1,
-            ),
-            frames_frozen: I64(
-                2,
-            ),
-            frames_total: I64(
-                9,
-            ),
-            frames_delay: I64(
-                100,
-            ),
-            messaging_destination_name: "default",
-            messaging_message_retry_count: I64(
-                3,
-            ),
-            messaging_message_receive_latency: I64(
-                40,
-            ),
-            messaging_message_body_size: I64(
-                100,
-            ),
-            messaging_message_id: "abc123",
-            messaging_operation_name: "publish",
-            messaging_operation_type: "create",
-            user_agent_original: "Chrome",
-            url_full: "my_url.com",
-            client_address: IpAddr(
-                "192.168.0.1",
-            ),
-            route: ~,
-            previous_route: ~,
-            lcp_element: ~,
-            lcp_size: ~,
-            lcp_id: ~,
-            lcp_url: ~,
-            span_name: ~,
             other: {
                 "bar": String(
                     "3",
                 ),
+                "client.address": String(
+                    "192.168.0.1",
+                ),
+                "code.filepath": String(
+                    "task.py",
+                ),
+                "code.function": String(
+                    "fn()",
+                ),
+                "code.lineno": I64(
+                    123,
+                ),
+                "code.namespace": String(
+                    "ns",
+                ),
+                "db.system.name": String(
+                    "mysql",
+                ),
                 "foo": I64(
                     2,
                 ),
+                "frames.delay": I64(
+                    100,
+                ),
+                "frames.frozen": I64(
+                    2,
+                ),
+                "frames.slow": I64(
+                    1,
+                ),
+                "frames.total": I64(
+                    9,
+                ),
+                "messaging.destination.name": String(
+                    "default",
+                ),
+                "messaging.message.body.size": I64(
+                    100,
+                ),
+                "messaging.message.id": String(
+                    "abc123",
+                ),
+                "messaging.message.receive.latency": I64(
+                    40,
+                ),
+                "messaging.message.retry.count": I64(
+                    3,
+                ),
+                "messaging.operation.name": String(
+                    "publish",
+                ),
+                "messaging.operation.type": String(
+                    "create",
+                ),
+                "url.full": String(
+                    "my_url.com",
+                ),
+                "user_agent.original": String(
+                    "Chrome",
+                ),
             },
         }
-        "#);
+        "###);
 
-        assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
-        assert_eq!(data.get_value("bar"), Some(Val::String("3")));
-        assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
-        assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
-        assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
-        assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
+        assert_eq!(
+            data.get("foo").and_then(Annotated::value),
+            Some(&Value::I64(2))
+        );
+        assert_eq!(data.get_value("foo"), Some(&Value::I64(2)));
+        assert_eq!(data.get_str("bar"), Some("3"));
+        assert_eq!(data.get_str("foo"), None);
+        data.insert("bool", Annotated::new(Value::Bool(true)));
+        assert_eq!(data.get_value("bool"), Some(&Value::Bool(true)));
+        data.insert_value("string", "value".to_owned());
+        assert_eq!(data.get_str("string"), Some("value"));
+        assert!(data.contains("string"));
+        assert_eq!(
+            data.remove("string").and_then(Annotated::into_value),
+            Some(Value::String("value".to_owned()))
+        );
+        assert!(!data.contains("string"));
+        assert_eq!(
+            Getter::get_value(&data, "db\\.system\\.name"),
+            Some(Val::String("mysql"))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.lineno"),
+            Some(Val::U64(123))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.function"),
+            Some(Val::String("fn()"))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.namespace"),
+            Some(Val::String("ns"))
+        );
         assert_eq!(data.get_value("unknown"), None);
     }
 

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use relay_conventions::{IS_REMOTE, SPAN_KIND};
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -13,7 +13,14 @@ use crate::name::name_for_attributes;
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
-pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
+///
+/// Measurements are converted to attributes by looking up the
+/// replacement attribute's name in `sentry-conventions`.
+///
+/// `infer_name` controls whether the span's name is inferred based on its attributes.
+/// Only enable it if the source span has gone through PII scrubbing, otherwise the name
+/// might end up containing PII that doesn't get scrubbed later!
+pub fn span_v1_to_span_v2(span_v1: SpanV1, infer_name: bool) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -36,9 +43,8 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         received: _, // needs to go into the Kafka span eventually, but makes no sense in Span V2 schema.
         measurements,
         platform,
-        was_transaction,
+        was_transaction: _,
         kind,
-        performance_issues_spans,
         other: _,
     } = span_v1;
 
@@ -46,27 +52,24 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
-    attributes.insert("sentry.exclusive_time", exclusive_time);
-    attributes.insert("sentry.op", op);
-
-    attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.description", description);
-    attributes.insert("sentry.origin", origin);
-    attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.platform", platform);
-    attributes.insert("sentry.was_transaction", was_transaction);
-    attributes.insert(
-        "sentry._internal.performance_issues_spans",
-        performance_issues_spans,
-    );
+    attributes.insert(SENTRY__EXCLUSIVE_TIME, exclusive_time);
+    attributes.insert(SENTRY__OP, op);
+    attributes.insert(SENTRY__SEGMENT__ID, segment_id.map_value(|v| v.to_string()));
+    attributes.insert(SENTRY__DESCRIPTION, description);
+    attributes.insert(SENTRY__ORIGIN, origin);
+    attributes.insert(SENTRY__PROFILE_ID, profile_id.map_value(|v| v.to_string()));
+    attributes.insert(SENTRY__PLATFORM, platform);
 
     // Use same precedence as `backfill_data` for data bags:
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
             let key = match key.as_str() {
-                "client_sample_rate" => "sentry.client_sample_rate",
-                "server_sample_rate" => "sentry.server_sample_rate",
-                other => other,
+                // These measurements aren't defined in conventions; they are not sent
+                // by SDKs but inserted into `measurements` by Relay. As such, we
+                // special-case them here.
+                "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
+                "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
+                other => relay_conventions::measurement_to_attribute(other).unwrap_or(other),
             };
 
             attributes.insert_if_missing(key, || match measurement {
@@ -91,11 +94,32 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         && let Value::Object(tags) = tags.into_value()
     {
         for (key, value) in tags {
+            if value.is_empty() {
+                continue;
+            }
+            let conventional_key = match key.as_str() {
+                "user.email" => Some(USER__EMAIL),
+                "user.geo.city" => Some(USER__GEO__CITY),
+                "user.geo.country_code" => Some(USER__GEO__COUNTRY_CODE),
+                "user.geo.region" => Some(USER__GEO__REGION),
+                "user.geo.subdivision" => Some(USER__GEO__SUBDIVISION),
+                "user.id" => Some(USER__ID),
+                "user.ip" => Some(USER__IP_ADDRESS),
+                "user.username" => Some(USER__NAME),
+                _ => None,
+            };
+            if let Some(conv_key) = conventional_key
+                && !attributes.contains_key(conv_key)
+            {
+                attributes
+                    .0
+                    .insert(conv_key.to_owned(), attribute_from_value(value.clone()));
+            }
             let key = match key.as_str() {
-                "description" => "sentry.normalized_description".into(),
+                "description" => SENTRY__NORMALIZED_DESCRIPTION.into(),
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
-            if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
+            if !attributes.contains_key(key.as_ref()) {
                 attributes
                     .0
                     .insert(key.into_owned(), attribute_from_value(value));
@@ -106,12 +130,19 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let name = attributes
         .remove("sentry.name")
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
-        .unwrap_or_else(|| name_for_attributes(attributes).into());
+        .or_else(|| {
+            if infer_name {
+                name_for_attributes(attributes).map(Annotated::new)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(Annotated::empty());
 
     if let Some(is_remote) = is_remote.value() {
-        attributes.insert(IS_REMOTE, *is_remote);
+        attributes.insert(SENTRY__IS_REMOTE, *is_remote);
     }
-    attributes.insert(SPAN_KIND, kind.map_value(|kind| kind.to_string()));
+    attributes.insert(SENTRY__KIND, kind.map_value(|kind| kind.to_string()));
 
     let is_segment = match (is_segment.value(), is_remote.value()) {
         (None, Some(true)) => is_remote,
@@ -303,6 +334,15 @@ mod tests {
           "sentry_tags": {
             "description": "normalized description",
             "user": "id:user123",
+            "user.email": "john@example.com",
+            "user.geo.city": "Vienna",
+            "user.geo.country_code": "AT",
+            "user.geo.region": "Europe",
+            "user.geo.subdivision": "AT-9",
+            "user.geo.subregion": "155",
+            "user.id": "user123",
+            "user.ip": "127.0.0.1",
+            "user.username": "john",
           },
           "op": "operation",
           "origin": "auto.http",
@@ -316,15 +356,13 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
-        let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r#"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
           "span_id": "fa90fdead5f74052",
-          "name": "operation",
           "status": "ok",
           "is_segment": true,
           "start_timestamp": -63158400.0,
@@ -370,10 +408,6 @@ mod tests {
             "my.nested": {
               "type": "string",
               "value": "{\"numbers\":[1,2,3]}"
-            },
-            "sentry._internal.performance_issues_spans": {
-              "type": "boolean",
-              "value": true
             },
             "sentry.client_sample_rate": {
               "type": "double",
@@ -427,9 +461,358 @@ mod tests {
               "type": "string",
               "value": "id:user123"
             },
-            "sentry.was_transaction": {
+            "sentry.user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "sentry.user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "sentry.user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "sentry.user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "sentry.user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "sentry.user.geo.subregion": {
+              "type": "string",
+              "value": "155"
+            },
+            "sentry.user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "sentry.user.ip": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "sentry.user.username": {
+              "type": "string",
+              "value": "john"
+            },
+            "user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "user.ip_address": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "user.name": {
+              "type": "string",
+              "value": "john"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "my.array": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "my.nested": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "expected scalar attribute"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_with_name_inference() {
+        let json = serde_json::json!({
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "parent_span_id": "fa90fdead5f74051",
+          "span_id": "fa90fdead5f74052",
+          "status": "ok",
+          "is_remote": true,
+          "kind": "server",
+          "start_timestamp": -63158400.0,
+          "timestamp": 0.0,
+          "links": [
+            {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "fa90fdead5f74052",
+            "sampled": true,
+              "attributes": {
+                "boolAttr": true,
+                "numAttr": 123,
+                "stringAttr": "foo"
+              }
+            }
+          ],
+          "tags": {
+            "foo": "bar"
+          },
+          "measurements": {
+            "memory": {
+              "value": 9001.0,
+              "unit": "byte"
+            },
+            "client_sample_rate": {
+              "value": 0.11
+            },
+            "server_sample_rate": {
+              "value": 0.22
+            }
+          },
+          "data": {
+            "my.data.field": "my.data.value",
+            "my.array": ["str", 123],
+            "my.nested": {
+              "numbers": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          "_performance_issues_spans": true,
+          "description": "raw description",
+          "exclusive_time": 1.23,
+          "is_segment": true,
+          "sentry_tags": {
+            "description": "normalized description",
+            "user": "id:user123",
+            "user.email": "john@example.com",
+            "user.geo.city": "Vienna",
+            "user.geo.country_code": "AT",
+            "user.geo.region": "Europe",
+            "user.geo.subdivision": "AT-9",
+            "user.geo.subregion": "155",
+            "user.id": "user123",
+            "user.ip": "127.0.0.1",
+            "user.username": "john",
+          },
+          "op": "operation",
+          "origin": "auto.http",
+          "platform": "javascript",
+          "profile_id": "4c79f60c11214eb38604f4ae0781bfb0",
+          "segment_id": "fa90fdead5f74050",
+          "was_transaction": true,
+
+          "received": 0.2,
+          "additional_field": "additional field value"
+        });
+
+        let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1, true);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r#"
+        {
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "parent_span_id": "fa90fdead5f74051",
+          "span_id": "fa90fdead5f74052",
+          "name": "operation",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": -63158400.0,
+          "end_timestamp": 0.0,
+          "links": [
+            {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74052",
+              "sampled": true,
+              "attributes": {
+                "boolAttr": {
+                  "type": "boolean",
+                  "value": true
+                },
+                "numAttr": {
+                  "type": "integer",
+                  "value": 123
+                },
+                "stringAttr": {
+                  "type": "string",
+                  "value": "foo"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "foo": {
+              "type": "string",
+              "value": "bar"
+            },
+            "memory": {
+              "type": "double",
+              "value": 9001.0
+            },
+            "my.array": {
+              "type": "string",
+              "value": "[\"str\",123]"
+            },
+            "my.data.field": {
+              "type": "string",
+              "value": "my.data.value"
+            },
+            "my.nested": {
+              "type": "string",
+              "value": "{\"numbers\":[1,2,3]}"
+            },
+            "sentry.client_sample_rate": {
+              "type": "double",
+              "value": 0.11
+            },
+            "sentry.description": {
+              "type": "string",
+              "value": "raw description"
+            },
+            "sentry.exclusive_time": {
+              "type": "double",
+              "value": 1.23
+            },
+            "sentry.is_remote": {
               "type": "boolean",
               "value": true
+            },
+            "sentry.kind": {
+              "type": "string",
+              "value": "server"
+            },
+            "sentry.normalized_description": {
+              "type": "string",
+              "value": "normalized description"
+            },
+            "sentry.op": {
+              "type": "string",
+              "value": "operation"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http"
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "javascript"
+            },
+            "sentry.profile_id": {
+              "type": "string",
+              "value": "4c79f60c11214eb38604f4ae0781bfb0"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "fa90fdead5f74050"
+            },
+            "sentry.server_sample_rate": {
+              "type": "double",
+              "value": 0.22
+            },
+            "sentry.user": {
+              "type": "string",
+              "value": "id:user123"
+            },
+            "sentry.user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "sentry.user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "sentry.user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "sentry.user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "sentry.user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "sentry.user.geo.subregion": {
+              "type": "string",
+              "value": "155"
+            },
+            "sentry.user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "sentry.user.ip": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "sentry.user.username": {
+              "type": "string",
+              "value": "john"
+            },
+            "user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "user.ip_address": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "user.name": {
+              "type": "string",
+              "value": "john"
             }
           },
           "_meta": {
@@ -472,27 +855,52 @@ mod tests {
             .unwrap();
         assert_eq!(txn.transaction.as_str(), Some("hi"));
         let span_v1 = SpanV1::from(&txn);
-        assert_eq!(
-            span_v1.data.value().unwrap().segment_name.as_str(),
-            Some("hi")
-        );
-        let span_v2 = span_v1_to_span_v2(span_v1);
-        assert_eq!(
-            span_v2
-                .attributes
-                .value()
-                .unwrap()
-                .get_value("sentry.segment.name")
-                .and_then(Value::as_str),
-            Some("hi")
-        );
+
+        // Both the name and the segment name are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v1.clone())), @r#"
+        {
+          "is_segment": true,
+          "is_remote": true,
+          "description": "hi",
+          "data": {
+            "sentry.name": "hi",
+            "sentry.segment.name": "hi"
+          },
+          "was_transaction": true
+        }
+        "#);
+
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
+
+        // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
+        {
+          "name": "hi",
+          "status": "ok",
+          "is_segment": true,
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "hi"
+            },
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "hi"
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
 
         // Parsed version is still fine:
         assert_eq!(

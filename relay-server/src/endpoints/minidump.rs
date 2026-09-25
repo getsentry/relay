@@ -1,27 +1,35 @@
-use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use bzip2::read::BzDecoder;
-use flate2::read::GzDecoder;
-use liblzma::read::XzDecoder;
-use multer::Multipart;
-use relay_config::Config;
+use futures::{self, Stream, StreamExt, TryStreamExt};
+use multer::{Field, Multipart};
+use relay_config::ConfigSnapshot;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::{DataCategory, RateLimits};
+use relay_system::Addr;
+use smallvec::smallvec;
 use std::convert::Infallible;
 use std::error::Error;
-use std::io::Cursor;
-use std::io::Read;
-use zstd::stream::Decoder as ZstdDecoder;
+use tokio::io::BufReader;
+use tokio_util::io::{ReaderStream, StreamReader};
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::Minidump;
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::{Managed, ManagedResult};
+use crate::middlewares;
 use crate::service::ServiceState;
-use crate::utils::{self, ConstrainedMultipart};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
+use crate::services::projects::project::ProjectState;
+use crate::services::upload::{ByteStream, ProjectContext, Upload};
+use crate::utils::{
+    self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
+    read_bytes_into_item, read_field_into_item,
+};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -42,6 +50,7 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 /// Minidump attachments should have these magic bytes, little- and big-endian.
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
+const MINIDUMP_MAGIC_HEADER_LENGTH: usize = MINIDUMP_MAGIC_HEADER_LE.len();
 
 /// Magic bytes for gzip compressed minidump containers.
 const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
@@ -52,8 +61,55 @@ const BZIP2_MAGIC_HEADER: &[u8] = b"\x42\x5A\x68";
 /// Magic bytes for zstd compressed minidump containers.
 const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
 
+/// Longest magic header we recognize (XZ is 6 bytes).
+const MAGIC_PEEK: usize = 6;
+
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
+
+macro_rules! wrap_decode {
+    ($stream:expr, $decoder:ident) => {{ ReaderStream::new($decoder::new(BufReader::new(StreamReader::new($stream)))).boxed() }};
+}
+
+/// Peek the first bytes of `stream` and returns a decoding wrapper if necessary.
+///
+/// Returns raw minidump bytes if the stream is uncompressed, otherwise decompresses
+/// one of the minidump container formats we support for inline uploads.
+async fn decode_stream<S, E>(stream: S) -> std::io::Result<ByteStream>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
+{
+    use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder, ZstdDecoder};
+
+    let stream = stream.map_err(std::io::Error::other);
+    let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
+    let decoded = match Compression::from(&head) {
+        Compression::None => stream.boxed(),
+        Compression::Zstd => wrap_decode!(stream, ZstdDecoder),
+        Compression::Gzip => wrap_decode!(stream, GzipDecoder),
+        Compression::Xz => wrap_decode!(stream, XzDecoder),
+        Compression::Bzip2 => wrap_decode!(stream, BzDecoder),
+    };
+    Ok(decoded)
+}
+
+async fn decode_and_validate_stream<S, E>(stream: S) -> Result<ByteStream, BadStoreRequest>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
+{
+    let stream = decode_stream(stream)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    let (head, stream) = peek_n(stream, MINIDUMP_MAGIC_HEADER_LENGTH)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    validate_minidump(&head)?;
+    Ok(stream.boxed())
+}
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
@@ -64,52 +120,54 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-/// Convenience wrapper to let a decoder decode its full input into a buffer
-fn run_decoder(decoder: &mut Box<dyn Read>) -> std::io::Result<Vec<u8>> {
-    let mut buffer = Vec::new();
-    decoder.read_to_end(&mut buffer)?;
-    Ok(buffer)
+/// Types of compression we support for minidump payloads.
+enum Compression {
+    None,
+    Gzip,
+    Xz,
+    Bzip2,
+    Zstd,
 }
 
-/// Creates a decoder based on the magic bytes the minidump payload
-fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
-    if minidump_data.starts_with(GZIP_MAGIC_HEADER) {
-        return Some(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(XZ_MAGIC_HEADER) {
-        return Some(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
-        return Some(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
-        return match ZstdDecoder::new(Cursor::new(minidump_data)) {
-            Ok(decoder) => Some(Box::new(decoder)),
-            Err(ref err) => {
-                relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
-                None
-            }
-        };
+impl Compression {
+    fn from(header: &[u8]) -> Self {
+        if header.starts_with(GZIP_MAGIC_HEADER) {
+            Self::Gzip
+        } else if header.starts_with(XZ_MAGIC_HEADER) {
+            Self::Xz
+        } else if header.starts_with(BZIP2_MAGIC_HEADER) {
+            Self::Bzip2
+        } else if header.starts_with(ZSTD_MAGIC_HEADER) {
+            Self::Zstd
+        } else {
+            Self::None
+        }
     }
-
-    None
 }
 
 /// Tries to decode a minidump using any of the supported compression formats
-/// or returns the provided minidump payload untouched if no format where detected
-fn decode_minidump(minidump_data: Bytes) -> Result<Bytes, BadStoreRequest> {
-    match decoder_from(minidump_data.clone()) {
-        Some(mut decoder) => {
-            match run_decoder(&mut decoder) {
-                Ok(decoded) => Ok(Bytes::from(decoded)),
-                Err(err) => {
-                    // we detected a compression container but failed to decode it
-                    relay_log::trace!("invalid compression container");
-                    Err(BadStoreRequest::InvalidCompressionContainer(err))
-                }
-            }
+/// or returns the provided minidump payload untouched if no format where detected.
+///
+/// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
+async fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
+    if matches!(Compression::from(&minidump_data), Compression::None) {
+        return Ok(minidump_data);
+    }
+    let stream = futures::stream::once(async move { Ok::<_, Infallible>(minidump_data) });
+    let decoded = decode_stream(stream)
+        .await
+        .map_err(BadStoreRequest::InvalidCompression)?;
+
+    match utils::stream::split_by_size(decoded, max_size.saturating_add(1)).await {
+        Ok(SizeSplit::Small(decoded)) => Ok(decoded),
+        Ok(SizeSplit::Large(_)) => {
+            let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
+            Err(BadStoreRequest::ItemTooLarge(item_type))
         }
-        None => {
-            // this means we haven't detected any compression container
-            // proceed to process the payload untouched (as a plain minidump).
-            Ok(minidump_data)
+        Err(err) => {
+            // we detected a compression container but failed to decode it
+            relay_log::trace!("invalid compression container");
+            Err(BadStoreRequest::InvalidCompression(err))
         }
     }
 }
@@ -122,17 +180,6 @@ fn remove_container_extension(filename: &str) -> &str {
         .into_iter()
         .find_map(|suffix| filename.strip_suffix(suffix))
         .unwrap_or(filename)
-}
-
-fn infer_attachment_type(field_name: Option<&str>, _file_name: &str) -> AttachmentType {
-    match field_name.unwrap_or("") {
-        MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
-        ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_EVENT => AttachmentType::EventPayload,
-        VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
-        _ => AttachmentType::Attachment,
-    }
 }
 
 /// Extract a minidump from a nested multipart form.
@@ -163,53 +210,412 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-async fn extract_multipart(
-    multipart: ConstrainedMultipart,
-    meta: RequestMeta,
-    config: &Config,
-) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
-
-    let minidump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::Minidump))
-        .ok_or(BadStoreRequest::MissingMinidump)?;
-
-    let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
-    if let Some(embedded) = embedded_opt {
-        minidump_item.set_payload(Minidump, embedded);
-    }
-
-    minidump_item.set_payload(Minidump, decode_minidump(minidump_item.payload())?);
-
-    validate_minidump(&minidump_item.payload())?;
-
-    if let Some(minidump_filename) = minidump_item.filename() {
-        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
-    }
-
-    let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
-
-    for item in items {
-        envelope.add_item(item);
-    }
-
-    Ok(envelope)
+#[derive(Clone, Debug)]
+enum UploadDecision {
+    /// Put the item into the envelope as-is (default behavior).
+    Inline,
+    /// Upload the item to objectstore and put a placeholder into the envelope.
+    ///
+    /// The behavior for supersized items.
+    Upload,
+    /// Drop the item rather than uploading it or putting it in an envelope.
+    ///
+    /// Since we already check the quota in the endpoint an item can be dropped even before being
+    /// uploaded or put into an envelope.
+    Drop(RateLimits),
 }
 
-fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut item = Item::new(ItemType::Attachment);
+struct UploadContext<'a> {
+    upload: &'a Addr<Upload>,
+    project: ProjectContext,
+    upload_attachments: UploadDecision,
+    upload_minidumps: UploadDecision,
+    inline_limit: usize,
+    gpu_crash_split: bool,
+}
 
-    item.set_payload(Minidump, decode_minidump(data)?);
-    validate_minidump(&item.payload())?;
+impl UploadContext<'_> {
+    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
+        match attachment_type {
+            Some(AttachmentType::Attachment) => &self.upload_attachments,
+            // GPU dumps are smaller than minidumps. We still stream them under the same
+            // decision instead of inlining them into the envelope.
+            Some(
+                AttachmentType::Minidump
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug,
+            ) => &self.upload_minidumps,
+            _ => &UploadDecision::Inline,
+        }
+    }
+}
+
+struct MinidumpAttachmentStrategy<'a> {
+    /// Information necessary to upload to the objectstore.
+    ///
+    /// This is optional since uploading to the objectstore might not be enabled for a project.
+    upload_context: Option<UploadContext<'a>>,
+}
+
+impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
+    async fn add_to_item(
+        &self,
+        field: Field<'static>,
+        item: Managed<Item>,
+        config: &ConfigSnapshot,
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+        let read_inline = async |field: Field<'static>, item: Managed<Item>| {
+            let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+            match read_field_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large items unless it is the minidump itself.
+                Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                r => Ok(Some(r?)),
+            }
+        };
+
+        // If we have no upload context just fall back to the old behavior.
+        let Some(ref upload_context) = self.upload_context else {
+            return read_inline(field, item).await;
+        };
+
+        match upload_context.upload_decision(item.attachment_type()) {
+            UploadDecision::Inline => read_inline(field, item).await,
+            UploadDecision::Upload => {
+                let content_type = field.content_type().map(|ct| ct.as_ref().to_owned());
+                let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+
+                match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
+                    SizeSplit::Small(bytes) => Ok(Some(read_bytes_into_item(
+                        bytes,
+                        item,
+                        content_type.map(|ct| ct.parse().unwrap_or(ContentType::OctetStream)),
+                    ))),
+                    SizeSplit::Large(stream) => {
+                        match upload_stream_checked(
+                            stream,
+                            content_type,
+                            item,
+                            config,
+                            upload_context.project.clone(),
+                            upload_context.upload,
+                            "minidump",
+                        )
+                        .await
+                        {
+                            Ok(item) => Ok(Some(item)),
+                            // A failed minidump upload should cause the entire request to be rejected.
+                            Err(e) if is_minidump => Err(e),
+                            // A failed attachment upload should not cause the entire request to be rejected.
+                            Err(_) => Ok(None),
+                        }
+                    }
+                }
+            }
+            UploadDecision::Drop(limits) => {
+                // This is best effort, the item here does not yet have its content set hence size
+                // is not correct.
+                let _ = item.reject_err(Outcome::RateLimited(
+                    limits.longest().and_then(|l| l.reason_code.clone()),
+                ));
+                Ok(None)
+            }
+        }
+    }
+
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.file_name() {
+            Some(name) if name.ends_with(".nv-gpudmp") => return AttachmentType::NvGpuDump,
+            Some(name) if name.ends_with(".nvdbg") => return AttachmentType::NvShaderDebug,
+            _ => {}
+        }
+        match field.name().unwrap_or("") {
+            MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
+            ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_EVENT => AttachmentType::EventPayload,
+            VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
+            _ => AttachmentType::Attachment,
+        }
+    }
+}
+
+/// Wrapper around [`upload_stream`] that decompresses minidumps if necessary.
+pub async fn upload_stream_checked<S, E>(
+    stream: S,
+    content_type: Option<String>,
+    mut item: Managed<Item>,
+    config: &ConfigSnapshot,
+    project: ProjectContext,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Result<Managed<Item>, BadStoreRequest>
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
+{
+    if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
+        return upload_stream(
+            stream,
+            content_type,
+            item,
+            config,
+            project,
+            upload,
+            referrer,
+        )
+        .await
+        .map_err(BadStoreRequest::from);
+    }
+
+    let stream = match decode_and_validate_stream(stream).await {
+        Ok(decoded) => decoded,
+        Err(_) => {
+            let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
+            return Err(BadStoreRequest::InvalidMinidump);
+        }
+    };
+
+    item.modify(|item, _| {
+        if let Some(filename) = item.filename() {
+            let new_filename = remove_container_extension(filename);
+            if new_filename != filename {
+                let new_filename = new_filename.to_owned();
+                item.set_filename(new_filename);
+            }
+        }
+    });
+    upload_stream(
+        stream,
+        Some(ContentType::Minidump.to_string()),
+        item,
+        config,
+        project,
+        upload,
+        referrer,
+    )
+    .await
+    .map_err(BadStoreRequest::from)
+}
+
+async fn multipart_to_items(
+    multipart: Multipart<'static>,
+    meta: &RequestMeta,
+    state: &ServiceState,
+    upload_context: Option<UploadContext<'_>>,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
+    let config = state.config();
+
+    let mut items = utils::multipart_items(
+        multipart,
+        &config,
+        minidump_attachment_strategy,
+        meta,
+        state.outcome_aggregator(),
+    )
+    .await?;
+
+    let minidump_idx = items
+        .iter()
+        .position(|item| item.attachment_type() == Some(AttachmentType::Minidump))
+        .ok_or(BadStoreRequest::MissingMinidump)
+        .reject(&items)?;
+
+    let minidump_item = items
+        .get(minidump_idx)
+        .ok_or(BadStoreRequest::MissingMinidump)
+        .reject(&items)?;
+    // Doing these operations does not make sense if we already streamed the minidump to objectstore.
+    if !minidump_item.is_attachment_ref() {
+        let payload = minidump_item.payload();
+        let payload = extract_embedded_minidump(payload.clone())
+            .await
+            .reject(&items)?
+            .unwrap_or(payload);
+        let payload = decode_minidump(payload, config.max_attachment_size())
+            .await
+            .reject(&items)?;
+
+        items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
+            let minidump_item = items
+                .get_mut(minidump_idx)
+                .ok_or(BadStoreRequest::MissingMinidump)?;
+            minidump_item.set_payload(ContentType::Minidump, payload);
+            records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
+            if let Some(minidump_filename) = minidump_item.filename() {
+                minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned())
+            }
+            validate_minidump(&minidump_item.payload())?;
+            Ok(())
+        })?;
+    }
+
+    Ok(items)
+}
+
+/// Creates an [UploadContext].
+async fn upload_context<'a>(
+    meta: &RequestMeta,
+    state: &'a ServiceState,
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+
+    if !global_config.options.endpoint_fetch_config_enabled {
+        return Ok(None);
+    }
+
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout())
+        .await
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
+    let project_config = match project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        // Note: In Proxy mode we should never make it here since the endpoint_fetch_config_enabled
+        // check should already fail.
+        ProjectState::Dummy => return Ok(None),
+        ProjectState::Disabled | ProjectState::Pending => {
+            return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
+        }
+    };
+
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        &scoping.item(DataCategory::Error),
+    );
+
+    let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        &scoping.item(DataCategory::Attachment),
+    );
+
+    let upload_minidumps = if !project_config.has_feature(Feature::MinidumpUploads) {
+        UploadDecision::Inline
+    } else if rate_limits.is_limited() {
+        UploadDecision::Drop(rate_limits.clone())
+    } else {
+        UploadDecision::Upload
+    };
+
+    let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop(_)) {
+        UploadDecision::Drop(rate_limits)
+    } else if attachment_rate_limits.is_limited() {
+        UploadDecision::Drop(attachment_rate_limits)
+    } else {
+        UploadDecision::Upload
+    };
+
+    Ok(Some(UploadContext {
+        upload: state.upload(),
+        project: ProjectContext {
+            scoping,
+            upstream: project_config.upstream.clone(),
+            retention: project_config.event_retention(),
+        },
+        upload_attachments,
+        upload_minidumps,
+        inline_limit: global_config.options.attachment_inline_limit,
+        gpu_crash_split: project_config.has_feature(Feature::NvGpuCrashSplit),
+    }))
+}
+
+async fn raw_minidump_to_item(
+    request: Request,
+    meta: &RequestMeta,
+    state: &ServiceState,
+    upload_context: Option<UploadContext<'_>>,
+) -> Result<Managed<Item>, BadStoreRequest> {
+    debug_assert!(!matches!(
+        upload_context.as_ref().map(|c| &c.upload_minidumps),
+        Some(UploadDecision::Drop(_))
+    ));
+
+    let mut item = Item::new(ItemType::Attachment);
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
+    let mut item = Managed::with_meta_from_request_meta(meta, state.outcome_aggregator(), item);
+    if let Some(upload_context) = upload_context
+        && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
+    {
+        let stream = request.into_body().into_data_stream();
 
-    // Create an envelope with a random event id.
-    let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-    envelope.add_item(item);
-    Ok(envelope)
+        match utils::stream::split_by_size(stream, upload_context.inline_limit)
+            .await
+            .map_err(|e| BadStoreRequest::InvalidBody(std::io::Error::other(e)))?
+        {
+            SizeSplit::Small(bytes) => {
+                let payload = decode_minidump(bytes, state.config().max_attachment_size())
+                    .await
+                    .reject(&item)?;
+                item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
+                    inner.set_payload(ContentType::Minidump, payload);
+                    records.lenient(DataCategory::Attachment); // decoding changes its size
+                    validate_minidump(&inner.payload())?;
+                    Ok(())
+                })?;
+            }
+            SizeSplit::Large(stream) => {
+                let stream = decode_and_validate_stream(stream).await?;
+
+                item = upload_stream(
+                    stream,
+                    Some(ContentType::Minidump.to_string()),
+                    item,
+                    &state.config(),
+                    upload_context.project,
+                    upload_context.upload,
+                    "minidump",
+                )
+                .await
+                .map_err(BadStoreRequest::from)?;
+            }
+        }
+    } else {
+        let minidump_data =
+            axum::body::to_bytes(request.into_body(), state.config().max_attachment_size())
+                .await
+                .map_err(|e| match find_error_source(&e, is_length_limit_error) {
+                    Some(_) => BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                        DiscardAttachmentType::Minidump,
+                    )),
+                    None => BadStoreRequest::InvalidBody(std::io::Error::other(e)),
+                })?;
+
+        let payload = decode_minidump(minidump_data, state.config().max_attachment_size())
+            .await
+            .reject(&item)?;
+        item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
+            inner.set_payload(ContentType::Minidump, payload);
+            records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
+            validate_minidump(&inner.payload())?;
+            Ok(())
+        })?;
+    };
+
+    Ok(item)
+}
+
+async fn items(
+    upload_context: Option<UploadContext<'_>>,
+    state: &ServiceState,
+    meta: &RequestMeta,
+    content_type: RawContentType,
+    request: Request,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
+        raw_minidump_to_item(request, meta, state, upload_context)
+            .await?
+            .map(|item, _| smallvec![item])
+    } else {
+        let multipart = utils::multipart_from_request(request)?;
+        multipart_to_items(multipart, meta, state, upload_context).await?
+    };
+    Ok(items)
 }
 
 async fn handle(
@@ -223,33 +629,75 @@ async fn handle(
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
-    let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        extract_raw_minidump(request.extract().await?, meta)?
-    } else {
-        let multipart = request.extract_with_state(&state).await?;
-        extract_multipart(multipart, meta, state.config()).await?
-    };
+
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted. This is a best effort outcome, in the sense that we also drop some
+    // attachments but since we know neither the amount or size we can't emit an accurate outcome
+    // for them.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
+
+    let upload_context = upload_context(&meta, &state).await.reject(&managed_err)?;
+
+    if let Some(upload_context) = &upload_context
+        && let UploadDecision::Drop(limits) = &upload_context.upload_minidumps
+    {
+        let _ = managed_err.reject_err(Outcome::RateLimited(
+            limits.longest().and_then(|l| l.reason_code.clone()),
+        ));
+        return Ok(TextResponse(Some(EventId::new())));
+    }
+
+    let gpu_crash_split = upload_context
+        .as_ref()
+        .is_some_and(|ctx| ctx.gpu_crash_split);
+
+    let items = items(upload_context, &state, &meta, content_type, request)
+        .await
+        .reject(&managed_err)?;
+
+    let mut envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
+        let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?;
+    if gpu_crash_split {
+        let (cpu, gpu) = utils::gpu::split_crash(envelope);
+        if let Some(gpu) = gpu {
+            // The GPU crash is a best-effort duplicate: a failure submitting it must
+            // not drop the CPU crash, which clients do not retry.
+            match common::handle_managed_envelope(&state, gpu).await {
+                Ok(handled) => {
+                    handled.ignore_rate_limits();
+                }
+                Err(rejected) => relay_log::debug!(
+                    error = &rejected.into_inner() as &dyn std::error::Error,
+                    "failed to submit split-off GPU crash envelope",
+                ),
+            }
+        }
+        envelope = cpu;
+    }
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error.into()),
-    };
+    common::handle_managed_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
     Ok(TextResponse(id))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    // Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
-    // limited body and applies its own limits.
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+    post(handle)
+        .route_layer(RequestBodyLimitLayer::new(
+            config.max_upload_size() + config.max_attachments_size(),
+        ))
+        .route_layer(DefaultBodyLimit::disable())
+        .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
 
 #[cfg(test)]
@@ -307,28 +755,77 @@ mod tests {
         Ok(Bytes::from(compressed))
     }
 
-    #[test]
-    fn test_validate_encoded_minidump() -> Result<(), Box<dyn std::error::Error>> {
-        let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
+    fn stream_of(data: Bytes) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
+        futures::stream::once(async move { Ok(data) })
+    }
 
+    #[tokio::test]
+    async fn test_decode_and_validate_minidump() -> Result<(), Box<dyn std::error::Error>> {
+        let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
         for encoder in &encoders {
             let be_minidump = b"PMDMxxxxxx";
             let compressed = encoder(be_minidump)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(&mut decoder).is_ok());
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
 
             let le_minidump = b"MDMPxxxxxx";
             let compressed = encoder(le_minidump)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(&mut decoder).is_ok());
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
 
             let garbage = b"xxxxxx";
             let compressed = encoder(garbage)?;
-            let mut decoder = decoder_from(compressed).unwrap();
-            let decoded = run_decoder(&mut decoder);
-            assert!(decoded.is_ok());
-            assert!(validate_minidump(&decoded.unwrap()).is_err());
+            assert!(matches!(
+                decode_and_validate_stream(stream_of(compressed)).await,
+                Err(BadStoreRequest::InvalidMinidump)
+            ));
         }
+
+        let plain = Bytes::from_static(b"MDMPxxxxxx");
+        assert!(decode_and_validate_stream(stream_of(plain)).await.is_ok());
+
+        let plain = Bytes::from_static(b"xxxxxxxxxx");
+        assert!(matches!(
+            decode_and_validate_stream(stream_of(plain)).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let short = stream_of(Bytes::from_static(b"MD"));
+        assert!(matches!(
+            decode_and_validate_stream(short).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let chunked = futures::stream::iter([
+            Ok::<_, Infallible>(Bytes::from_static(b"MD")),
+            Ok(Bytes::from_static(b"MP")),
+            Ok(Bytes::from_static(b"rest")),
+        ]);
+        assert!(decode_and_validate_stream(chunked).await.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decode_minidump_size_limit() -> Result<(), Box<dyn std::error::Error>> {
+        // Create a minidump that will decompress to 100 bytes
+        let minidump_data = b"xxxxxxxxxx".repeat(10);
+        let compressed = encode_gzip(&minidump_data)?;
+
+        // With a limit larger than the decompressed size, decoding should succeed
+        let result = decode_minidump(compressed.clone(), 200).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 100);
+
+        // With a limit smaller than the decompressed size, decoding should fail with Overflow
+        let result = decode_minidump(compressed, 50).await;
+        assert!(matches!(result, Err(BadStoreRequest::ItemTooLarge(_))));
 
         Ok(())
     }
@@ -397,14 +894,25 @@ mod tests {
             .body(Body::from(multipart_body)).unwrap();
 
         let config = Config::default();
+        let config = config.current();
 
-        let multipart = ConstrainedMultipart(
-            utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
+        let request_meta = RequestMeta::new(
+            "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
+                .parse()
+                .unwrap(),
         );
-        let items = multipart
-            .items(infer_attachment_type, &config)
-            .await
-            .unwrap();
+        let multipart = utils::multipart_from_request(request).unwrap();
+        let items = utils::multipart_items(
+            multipart,
+            &config,
+            MinidumpAttachmentStrategy {
+                upload_context: None,
+            },
+            &request_meta,
+            &Addr::dummy(),
+        )
+        .await
+        .unwrap();
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)
@@ -419,57 +927,51 @@ mod tests {
         assert_eq!(item.filename().unwrap(), "config.json");
         assert!(item.content_type().is_none());
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), &AttachmentType::Attachment);
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
         assert_eq!(item.payload().len(), 95);
 
         // the first breadcrumb buffer
         let item = &items[1];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
         let item = &items[2];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            &AttachmentType::Breadcrumbs
-        );
+        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 0);
 
         // the msg-pack encoded event file
         let item = &items[3];
         assert_eq!(item.filename().unwrap(), "__sentry-event");
-        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::EventPayload
+            AttachmentType::EventPayload
         );
         assert_eq!(item.payload().len(), 29);
 
         // the next item is the view-hierarchy file
         let item = &items[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
-        assert_eq!(item.content_type().unwrap(), &ContentType::Json);
+        assert_eq!(item.content_type().unwrap(), ContentType::Json);
         assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
             item.attachment_type().unwrap(),
-            &AttachmentType::ViewHierarchy
+            AttachmentType::ViewHierarchy
         );
         assert_eq!(item.payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
         let item = &items[5];
         assert!(item.filename().is_none());
-        assert_eq!(item.content_type().unwrap(), &ContentType::Text);
+        assert_eq!(item.content_type().unwrap(), ContentType::Text);
         assert_eq!(item.ty(), &ItemType::FormData);
         assert!(item.attachment_type().is_none());
         let form_payload = item.payload();

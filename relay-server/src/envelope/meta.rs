@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// A list well known clients.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClientName<'a> {
@@ -26,9 +28,15 @@ pub enum ClientName<'a> {
 }
 
 impl<'a> ClientName<'a> {
-    /// Returns the client name as a string.
-    pub fn as_str(&self) -> &'a str {
-        match self {
+    /// Returns the client name as a `str` with a static lifetime.
+    ///
+    /// Returns `None` if the client name is not a well known client.
+    pub fn as_static_str(&self) -> Option<&'static str> {
+        self.maybe_static().ok()
+    }
+
+    fn maybe_static(&self) -> Result<&'static str, &'a str> {
+        Ok(match self {
             Self::Relay => "sentry.relay",
             Self::Ruby => "sentry-ruby",
             Self::CocoaFlutter => "sentry.cocoa.flutter",
@@ -50,8 +58,8 @@ impl<'a> ClientName<'a> {
             Self::Symfony => "sentry.php.symfony",
             Self::Php => "sentry.php",
             Self::Python => "sentry.python",
-            Self::Other(other) => other,
-        }
+            Self::Other(s) => return Err(s),
+        })
     }
 }
 
@@ -84,6 +92,14 @@ impl<'a> From<&'a str> for ClientName<'a> {
     }
 }
 
+impl fmt::Display for ClientName<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.maybe_static() {
+            Ok(s) | Err(s) => f.write_str(s),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +109,6 @@ mod tests {
         let name = crate::constants::CLIENT.split_once('/').unwrap().0;
 
         assert_eq!(ClientName::from(name), ClientName::Relay);
-        assert_eq!(ClientName::Relay.as_str(), name);
+        assert_eq!(ClientName::Relay.as_static_str(), Some(name));
     }
 }

@@ -1,7 +1,8 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
-use relay_conventions::{
-    BROWSER_NAME, BROWSER_VERSION, RELEASE, SEGMENT_NAME, USER_AGENT_ORIGINAL,
+use relay_conventions::attributes::{
+    BROWSER__NAME, BROWSER__VERSION, CLIENT__ADDRESS, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
+    URL__FULL, USER_AGENT__ORIGINAL,
 };
 use url::Url;
 
@@ -9,7 +10,6 @@ use relay_event_schema::protocol::{
     Attributes, Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates,
     SessionUpdate, Span, SpanV2, TraceMetric, Values,
 };
-
 /// A user agent returned from [`Filterable::user_agent`].
 #[derive(Clone, Debug, Default)]
 pub struct UserAgent<'a> {
@@ -171,19 +171,19 @@ impl Filterable for Replay {
 
 impl Filterable for Span {
     fn ip_addr(&self) -> Option<&str> {
-        self.data.value()?.client_address.as_str()
+        self.data.value()?.get_str(CLIENT__ADDRESS)
     }
 
     fn release(&self) -> Option<&str> {
-        self.data.value()?.release.as_str()
+        self.data.value()?.get_str(SENTRY__RELEASE)
     }
 
     fn transaction(&self) -> Option<&str> {
-        self.data.value()?.segment_name.as_str()
+        self.data.value()?.get_str(SENTRY__SEGMENT__NAME)
     }
 
     fn url(&self) -> Option<Url> {
-        let url_str = self.data.value()?.url_full.as_str()?;
+        let url_str = self.data.value()?.get_str(URL__FULL)?;
         Url::parse(url_str).ok()
     }
 
@@ -191,22 +191,8 @@ impl Filterable for Span {
         let raw = self
             .data
             .value()
-            .and_then(|data| data.user_agent_original.as_str());
+            .and_then(|data| data.get_str(USER_AGENT__ORIGINAL));
         UserAgent { raw, parsed: None }
-    }
-}
-
-impl Filterable for SpanV2 {
-    fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(SEGMENT_NAME)?.as_str()
-    }
-
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
     }
 }
 
@@ -250,32 +236,52 @@ impl Filterable for SessionAggregates {
     }
 }
 
-impl Filterable for OurLog {
-    fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
-    }
+macro_rules! impl_for_attributes {
+    ($ty:ty) => {
+        impl Filterable for $ty {
+            fn ip_addr(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(CLIENT__ADDRESS)?
+                    .as_str()
+            }
 
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
-    }
+            fn release(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(SENTRY__RELEASE)?
+                    .as_str()
+            }
+
+            fn transaction(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(SENTRY__SEGMENT__NAME)?
+                    .as_str()
+            }
+
+            fn url(&self) -> Option<Url> {
+                let url = self.attributes.value()?.get_value(URL__FULL)?.as_str()?;
+                Url::parse(url).ok()
+            }
+
+            fn user_agent(&self) -> UserAgent<'_> {
+                user_agent_from_attributes(&self.attributes)
+            }
+        }
+    };
 }
 
-impl Filterable for TraceMetric {
-    fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
-    }
-
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
-    }
-}
+impl_for_attributes!(SpanV2);
+impl_for_attributes!(OurLog);
+impl_for_attributes!(TraceMetric);
 
 fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>) -> UserAgent<'_> {
     let parsed = (|| {
         let attributes = attributes.value()?;
 
-        let family = attributes.get_value(BROWSER_NAME)?.as_str()?;
-        let version = attributes.get_value(BROWSER_VERSION)?.as_str()?;
+        let family = attributes.get_value(BROWSER__NAME)?.as_str()?;
+        let version = attributes.get_value(BROWSER__VERSION)?.as_str()?;
         let mut parts = version.splitn(3, '.');
 
         Some(relay_ua::UserAgent {
@@ -288,7 +294,7 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
 
     let raw = attributes
         .value()
-        .and_then(|attr| attr.get_value(USER_AGENT_ORIGINAL))
+        .and_then(|attr| attr.get_value(USER_AGENT__ORIGINAL))
         .and_then(|ua| ua.as_str());
 
     UserAgent { raw, parsed }

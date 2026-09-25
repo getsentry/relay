@@ -9,7 +9,7 @@ use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use data_encoding::BASE64;
 use flate2::bufread::ZlibDecoder;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +52,7 @@ fn decode_bytes(body: Bytes, limit: usize) -> Result<Bytes, io::Error> {
 fn parse_event(
     mut body: Bytes,
     meta: RequestMeta,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     // The body may be zlib compressed and encoded as base64. Decode it transparently if this is the
     // case.
@@ -113,7 +113,7 @@ async fn handle_post(
         envelope::CONTENT_TYPE => {
             Envelope::parse_request(body, meta).map_err(BadStoreRequest::InvalidEnvelope)?
         }
-        _ => parse_event(body, meta, state.config())?,
+        _ => parse_event(body, meta, &state.config())?,
     };
     if envelope.is_internal() {
         return Err(BadStoreRequest::InternalEnvelope.into());
@@ -146,13 +146,13 @@ async fn handle_get(
     meta: RequestMeta,
     Query(query): Query<GetQuery>,
 ) -> axum::response::Result<impl IntoResponse> {
-    let envelope = parse_event(query.sentry_data.into(), meta, state.config())?;
+    let envelope = parse_event(query.sentry_data.into(), meta, &state.config())?;
     common::handle_envelope(&state, envelope)
         .await?
         .check_rate_limits()?;
     Ok(([(header::CONTENT_TYPE, "image/gif")], PIXEL))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     (post(handle_post).get(handle_get)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

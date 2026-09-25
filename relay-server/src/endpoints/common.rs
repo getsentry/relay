@@ -1,21 +1,35 @@
 //! Common facilities for ingesting events through store-like endpoints.
+use std::io;
 
+use axum::extract::rejection::{BytesRejection, FailedToBufferBody};
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use relay_config::RelayMode;
+use bytes::Bytes;
+use chrono::Utc;
+use futures::TryStreamExt;
+use futures::stream::BoxStream;
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_quotas::RateLimits;
+use relay_quotas::{DataCategory, RateLimits};
 use relay_statsd::metric;
+use relay_system::Addr;
 use serde::Deserialize;
 
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{
+    AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
+    Items,
+};
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
-use crate::services::buffer::ProjectKeyPair;
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+use crate::services::buffer::{ProjectKeyPair, PushError};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
+use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
-use crate::utils::{self, ApiErrorResponse, FormDataIter};
+use crate::utils::{
+    self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
+    is_length_limit_error, rmp,
+};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -59,7 +73,7 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(#[from] multer::Error),
+    InvalidMultipart(#[source] multer::Error),
 
     #[error("invalid minidump")]
     InvalidMinidump,
@@ -75,19 +89,22 @@ pub enum BadStoreRequest {
     #[error("missing prosperodump")]
     MissingProsperodump,
 
-    #[error("invalid compression container")]
-    InvalidCompressionContainer(#[source] std::io::Error),
+    #[error("invalid compression format")]
+    InvalidCompression(#[source] std::io::Error),
 
     #[error("invalid event id")]
     InvalidEventId,
 
     #[error("failed to queue envelope")]
-    QueueFailed,
+    QueueFailed(#[source] PushError),
 
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
-    Overflow(DiscardItemType),
+    ItemTooLarge(DiscardItemType),
+
+    #[error("request content exceeded size limits")]
+    RequestTooLarge,
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
@@ -96,6 +113,75 @@ pub enum BadStoreRequest {
 
     #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
+
+    #[error("project not available")]
+    ProjectUnavailable,
+
+    #[error("failed to upload file")]
+    UploadFailed,
+}
+
+impl BadStoreRequest {
+    pub fn to_outcome(&self) -> Option<Outcome> {
+        let discard_reason = match self {
+            Self::EmptyBody => DiscardReason::EmptyBody,
+            Self::InternalEnvelope => DiscardReason::InternalEnvelope,
+            Self::InvalidBody(_) => DiscardReason::InvalidBody,
+            Self::InvalidJson(_) => DiscardReason::InvalidJson,
+            Self::InvalidMsgpack(_) => DiscardReason::InvalidMsgpack,
+            Self::InvalidEnvelope(_) => DiscardReason::InvalidEnvelope,
+            Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
+            Self::InvalidMinidump => DiscardReason::InvalidMinidump,
+            Self::MissingMinidump => DiscardReason::MissingMinidump,
+            #[cfg(sentry)]
+            Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
+            #[cfg(sentry)]
+            Self::MissingProsperodump => DiscardReason::MissingProsperodump,
+            Self::InvalidCompression(_) => DiscardReason::InvalidCompression,
+            Self::InvalidEventId => DiscardReason::InvalidEventId,
+            Self::QueueFailed(_) => DiscardReason::QueueFailed,
+            Self::ItemTooLarge(item_type) => DiscardReason::ItemTooLarge(*item_type),
+            Self::RequestTooLarge => DiscardReason::RequestTooLarge,
+            Self::RateLimited(_) => DiscardReason::RateLimited,
+            Self::EventRejected(discard_reason) => *discard_reason,
+            Self::ProjectUnavailable => DiscardReason::ProjectUnavailable,
+            Self::UploadFailed => DiscardReason::UploadFailed,
+        };
+        Some(Outcome::Invalid(discard_reason))
+    }
+}
+
+impl From<Rejected<BadStoreRequest>> for BadStoreRequest {
+    fn from(rejected: Rejected<BadStoreRequest>) -> Self {
+        rejected.into_inner()
+    }
+}
+
+impl From<BytesRejection> for BadStoreRequest {
+    fn from(value: BytesRejection) -> Self {
+        match value {
+            BytesRejection::FailedToBufferBody(FailedToBufferBody::LengthLimitError(_)) => {
+                BadStoreRequest::RequestTooLarge
+            }
+            other => BadStoreRequest::InvalidBody(io::Error::other(other)),
+        }
+    }
+}
+
+impl From<multer::Error> for BadStoreRequest {
+    fn from(value: multer::Error) -> Self {
+        match value {
+            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::RequestTooLarge,
+            multer::Error::StreamReadFailed(error)
+                if find_error_source(error.as_ref(), is_length_limit_error).is_some() =>
+            {
+                // This happens when the stream suddenly stops because `RequestBodyLimit` capped
+                // a request with `Transfer-Encoding: Chunked`.
+                BadStoreRequest::RequestTooLarge
+            }
+            other => BadStoreRequest::InvalidMultipart(other),
+        }
+    }
 }
 
 impl IntoResponse for BadStoreRequest {
@@ -121,7 +207,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed => {
+            BadStoreRequest::QueueFailed(_) | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -133,7 +219,15 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::Overflow(_) => (StatusCode::PAYLOAD_TOO_LARGE, body).into_response(),
+            BadStoreRequest::ItemTooLarge(_) | BadStoreRequest::RequestTooLarge => {
+                (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
+            }
+            BadStoreRequest::UploadFailed => {
+                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+            }
+            BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
@@ -142,7 +236,12 @@ impl IntoResponse for BadStoreRequest {
         };
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-        if response.status().is_server_error() {
+        if response.status() == http::StatusCode::SERVICE_UNAVAILABLE {
+            relay_log::warn!(
+                error = &self as &dyn std::error::Error,
+                "not handling request: service unavailable"
+            );
+        } else if response.status().is_server_error() {
             relay_log::error!(
                 error = &self as &dyn std::error::Error,
                 "error handling request"
@@ -189,7 +288,8 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    rmp_serde::from_slice(data)
+    let mut deserializer = rmp::slice_deserializer(data);
+    MinimalEvent::deserialize(&mut deserializer)
         .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
@@ -237,7 +337,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
+        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
         && let Some(event_id) = event_id_from_msgpack(&item.payload())?
     {
         return Ok(Some(event_id));
@@ -278,7 +378,7 @@ fn queue_envelope(
         let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
 
         let metrics;
-        (envelope, metrics) = envelope.split_once(|mut envelope| {
+        (envelope, metrics) = envelope.split_once(|mut envelope, _| {
             let metrics = envelope.take_items_by(is_metric).into_vec();
             (envelope, metrics)
         });
@@ -299,14 +399,21 @@ fn queue_envelope(
     }
 
     let pkp = ProjectKeyPair::from_envelope(&envelope);
-    if let Err(envelope) = state.envelope_buffer(pkp).try_push(envelope) {
-        return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
-        )));
-    }
+    state
+        .envelope_buffer(pkp)
+        .try_push(envelope)
+        .map_err(|e| e.map(BadStoreRequest::QueueFailed))
+}
 
-    Ok(())
+/// Convert `envelope` to a managed envelope and call [`handle_managed_envelope`].
+///
+/// See [`handle_managed_envelope`] for full details.
+pub async fn handle_envelope(
+    state: &ServiceState,
+    envelope: Box<Envelope>,
+) -> Result<HandledEnvelope, Rejected<BadStoreRequest>> {
+    let envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    handle_managed_envelope(state, envelope).await
 }
 
 /// Handles an envelope store request.
@@ -317,25 +424,25 @@ fn queue_envelope(
 ///
 /// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
 /// implicitly through an item that will create an event during ingestion.
-pub async fn handle_envelope(
+pub async fn handle_managed_envelope(
     state: &ServiceState,
-    envelope: Box<Envelope>,
+    mut envelope: Managed<Box<Envelope>>,
 ) -> Result<HandledEnvelope, Rejected<BadStoreRequest>> {
     emit_envelope_metrics(&envelope);
-
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
 
     if state.memory_checker().check_memory().is_exceeded() {
         return Err(envelope.reject_err((
             Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
+            BadStoreRequest::QueueFailed(PushError::OutOfMemory),
         )));
     };
+
+    let config = state.config();
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
-    utils::remove_unknown_items(state.config(), &mut envelope);
+    utils::remove_unknown_items(&config, &mut envelope);
 
     let event_id = envelope.event_id();
     if envelope.is_empty() {
@@ -347,15 +454,6 @@ pub async fn handle_envelope(
 
     let project_key = envelope.meta().public_key();
 
-    // Prefetch sampling project key, current spooling implementations rely on this behavior.
-    //
-    // To be changed once spool v1 has been removed.
-    if let Some(sampling_project_key) = envelope.sampling_key()
-        && sampling_project_key != project_key
-    {
-        state.project_cache_handle().fetch(sampling_project_key);
-    }
-
     let rate_limits = state
         .project_cache_handle()
         .get(project_key)
@@ -364,13 +462,16 @@ pub async fn handle_envelope(
         .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
 
     if envelope.is_empty() {
-        return Err(envelope.reject_err((None, BadStoreRequest::RateLimited(rate_limits))));
+        return Ok(HandledEnvelope {
+            event_id,
+            rate_limits,
+        });
     }
 
-    if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
+    if let Err(offender) = utils::check_envelope_size_limits(&config, &envelope) {
         return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::TooLarge(offender)),
-            BadStoreRequest::Overflow(offender),
+            Outcome::Invalid(DiscardReason::ItemTooLarge(offender)),
+            BadStoreRequest::ItemTooLarge(offender),
         )));
     }
 
@@ -399,14 +500,8 @@ pub struct HandledEnvelope {
 }
 
 impl HandledEnvelope {
-    /// Ensures all active rate limits are handled as an error.
-    ///
-    /// This is legacy behaviour where active rate limits are returned as an error, instead of
-    /// being added to the usual response.
-    /// The event id in this legacy behaviour is only returned when there are no active rate
-    /// limits.
-    ///
-    /// The functions simplifies this legacy handling by turning rate limits into an error again.
+    /// Check if any rate limits were enforced (i.e. led to one or more items being dropped) and
+    /// return an error if so.
     pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
         if self.rate_limits.is_limited() {
             return Err(BadStoreRequest::RateLimited(self.rate_limits));
@@ -414,14 +509,10 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Explicitly ignores contained active rate limits.
+    /// Silence rate limits, even if they caused items to be dropped from the envelope.
     ///
-    /// Endpoints which choose to not propagate active rate limits, should use this method to
-    /// explicitly state the fact they do not propagate the rate limits.
-    ///
-    /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
-    ///
-    /// Note: enforced rate limits are still returned as an error from [`handle_envelope`].
+    /// Endpoints which choose to not propagate rate limits should use this method to explicitly
+    /// state the fact that they do so.
     pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
@@ -439,7 +530,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             is_container = is_container,
         );
         metric!(
-            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
+            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1) as u64,
             item_type = item_type,
             is_container = is_container,
             sdk = client_name,
@@ -451,6 +542,117 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             sdk = client_name,
         );
     }
+}
+
+/// Uploads the content of `field` to the upload service and returns an [Item] with an
+/// [AttachmentPlaceholder] as payload.
+pub async fn upload_stream<S, E>(
+    stream: S,
+    content_type: Option<String>,
+    mut item: Managed<Item>,
+    config: &ConfigSnapshot,
+    project: ProjectContext,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Result<Managed<Item>, Rejected<BadStoreRequest>>
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
+{
+    let res = upload_stream_inner(
+        stream,
+        content_type,
+        &mut item,
+        config,
+        project,
+        upload,
+        referrer,
+    )
+    .await;
+    match res {
+        Ok(()) => Ok(item),
+        Err(e) => Err(item.reject_err(e)),
+    }
+}
+
+async fn upload_stream_inner<S, E>(
+    stream: S,
+    content_type: Option<String>,
+    item: &mut Managed<Item>,
+    config: &ConfigSnapshot,
+    project: ProjectContext,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Result<(), BadStoreRequest>
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
+{
+    let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(stream.map_err(io::Error::other));
+    let stream = MeteredStream::new(stream, referrer);
+    let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+    let byte_counter = stream.byte_counter();
+
+    let location = upload
+        .send(Create {
+            project: project.clone(),
+            length: None,
+            attachment_type: item.attachment_type(),
+        })
+        .await
+        .map_err(|_| BadStoreRequest::UploadFailed)?
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
+
+    let scoping = project.scoping;
+
+    let result = upload
+        .send(Stream {
+            received: Utc::now(),
+            project,
+            location,
+            stream,
+        })
+        .await
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
+
+    let location = result
+        .inspect_err(|e| {
+            relay_log::warn!(
+                error = e as &dyn std::error::Error,
+                referrer = referrer,
+                organization_id = scoping.organization_id.value(),
+                project_id = scoping.project_id.value(),
+                bytes_uploaded = byte_counter.get(),
+                "multipart item upload failed",
+            );
+        })
+        .map_err(|_| {
+            if byte_counter.get() > config.max_upload_size() {
+                BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                    item.attachment_type()
+                        .map_or(DiscardAttachmentType::Attachment, Into::into),
+                ))
+            } else {
+                BadStoreRequest::UploadFailed
+            }
+        })?;
+
+    let location = location
+        .try_to_uri()
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
+
+    let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
+        location: &location,
+        content_type,
+    })
+    .map_err(|_| BadStoreRequest::UploadFailed)?;
+
+    item.modify(|inner, records| {
+        inner.set_payload(ContentType::AttachmentRef, placeholder);
+        inner.set_attachment_length(byte_counter.get());
+        records.lenient(DataCategory::Attachment); // item was empty before
+    });
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -501,13 +703,13 @@ mod tests {
 
     #[test]
     fn test_minimal_event_type() {
-        let json = r#"{"type": "expectct"}"#;
+        let json = r#"{"type": "csp"}"#;
         let minimal = minimal_event_from_json(json.as_ref()).unwrap();
         assert_eq!(
             minimal,
             MinimalEvent {
                 id: None,
-                ty: EventType::ExpectCt,
+                ty: EventType::Csp,
             }
         );
     }

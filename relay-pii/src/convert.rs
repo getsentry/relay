@@ -3,10 +3,11 @@ use std::sync::LazyLock;
 
 use relay_event_schema::processor::ValueType;
 
+use crate::regexes::SENSITIVE_COOKIE_NAMES;
 use crate::selector::{SelectorPathItem, SelectorSpec};
 use crate::{
-    DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
-    RuleSpec, RuleType, Vars,
+    DataScrubbingConfig, LazyPattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType,
+    Vars,
 };
 
 /// Fields that the legacy data scrubber cannot strip.
@@ -21,48 +22,38 @@ static DATASCRUBBER_IGNORE: LazyLock<SelectorSpec> = LazyLock::new(|| {
 
 /// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 static KNOWN_IP_FIELDS: LazyLock<SelectorSpec> = LazyLock::new(|| {
-    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip')"
+    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip' | attributes.'client.address')"
         .parse()
         .unwrap()
 });
 
-static SENSITIVE_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
-    let sensitive_cookies = [
-        // Common session cookie names for popular web frameworks
-        "sentrysid", // Sentry default session cookie name
-        "sudo",      // Sentry default sudo cookie name
-        "su",        // Sentry superuser cookie name
-        "session",
-        "__session",
-        "sessionid",
-        "user_session",
-        "symfony",
-        "phpsessid",
-        "fasthttpsessionid",
-        "mysession",
-        "irissessionid",
-        // Common CSRF/XSRF cookie names for popular web frameworks
-        "csrf",
-        "xsrf",
-        "_xsrf",
-        "_csrf",
-        "csrf-token",
-        "csrf_token",
-        "xsrf-token",
-        "xsrf_token",
-        "fastcsrf",
-        "_iris_csrf",
-    ];
+/// Matches `'http.request.header.cookie'` and `'http.response.header.cookie'` as well as any entry thereof.
+///
+/// This is useful for cases where all cookies are sent together in a string
+/// or array (with `"name=value"` entries). Don't use this with the `"@anything:filter"`
+/// rule or all cookies will be scrubbed!
+static BULK_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
+    "(*.'http.request.header.cookie'.*)|((*.'http.request.header.cookie'))|(*.'http.response.header.set-cookie'.*)|((*.'http.response.header.set-cookie'))"
+        .parse()
+        .unwrap()
+});
 
-    // Scrub `http.request.header.cookie` in span data/attributes because all cookies
-    // may be sent in one blob
-    let mut selectors = vec!["*.'http.request.header.cookie'".parse().unwrap()];
-    for name in sensitive_cookies {
+/// A selector matching individual sensitive cookies.
+///
+/// These can be scrubbed by `"@anything:filter"`.
+static SENSITIVE_COOKIES: LazyLock<SelectorSpec> = LazyLock::new(|| {
+    let mut selectors = vec![];
+    for name in SENSITIVE_COOKIE_NAMES {
         // Scrub each sensitive cookie both in the cookies object and
         // as a header on span data/attributes
         selectors.push(format!("*.cookies.{name}").parse().unwrap());
         selectors.push(
             format!("*.'http.request.header.cookie.{name}'")
+                .parse()
+                .unwrap(),
+        );
+        selectors.push(
+            format!("*.'http.response.header.set-cookie.{name}'")
                 .parse()
                 .unwrap(),
         );
@@ -82,20 +73,30 @@ static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     [
         "$logentry.formatted",
         "$log.body",
+        "$span.data.'gen_ai.input.messages'",
+        "attributes.'gen_ai.input.messages'.value",
         "$span.data.'gen_ai.prompt'",
         "attributes.'gen_ai.prompt'.value",
         "$span.data.'gen_ai.request.messages'",
         "attributes.'gen_ai.request.messages'.value",
+        "$span.data.'gen_ai.tool.call.arguments'",
+        "attributes.'gen_ai.tool.call.arguments'.value",
         "$span.data.'gen_ai.tool.input'",
         "attributes.'gen_ai.tool.input'.value",
+        "$span.data.'gen_ai.tool.call.result'",
+        "attributes.'gen_ai.tool.call.result'.value",
         "$span.data.'gen_ai.tool.output'",
         "attributes.'gen_ai.tool.output'.value",
+        "$span.data.'gen_ai.output.messages'",
+        "attributes.'gen_ai.output.messages'.value",
         "$span.data.'gen_ai.response.tool_calls'",
         "attributes.'gen_ai.response.tool_calls'.value",
         "$span.data.'gen_ai.response.text'",
         "attributes.'gen_ai.response.text'.value",
         "$span.data.'gen_ai.response.object'",
         "attributes.'gen_ai.response.object'.value",
+        "$span.data.'gen_ai.tool.definitions'",
+        "attributes.'gen_ai.tool.definitions'.value",
         "$span.data.'gen_ai.request.available_tools'",
         "attributes.'gen_ai.request.available_tools'.value",
         "$span.data.'gen_ai.tool.name'",
@@ -110,9 +111,7 @@ static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
     .unwrap()
 });
 
-pub fn to_pii_config(
-    datascrubbing_config: &DataScrubbingConfig,
-) -> Result<Option<PiiConfig>, PiiConfigError> {
+pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
@@ -123,6 +122,7 @@ pub fn to_pii_config(
             SENSITIVE_COOKIES.clone(),
             vec!["@anything:filter".to_owned()],
         );
+        applications.insert(BULK_COOKIES.clone(), vec!["@cookies:filter".to_owned()]);
 
         applications.insert(
             REPLACE_ONLY_SELECTOR.clone(),
@@ -186,7 +186,7 @@ pub fn to_pii_config(
     }
 
     if applied_rules.is_empty() && applications.is_empty() {
-        return Ok(None);
+        return None;
     }
 
     let mut conjunctions = vec![
@@ -225,12 +225,12 @@ pub fn to_pii_config(
         applications.insert(applied_selector, applied_rules);
     }
 
-    Ok(Some(PiiConfig {
+    Some(PiiConfig {
         rules: custom_rules,
         vars: Vars::default(),
         applications,
         ..Default::default()
-    }))
+    })
 }
 
 #[cfg(test)]
@@ -249,7 +249,7 @@ mod tests {
     // has an equivalent testcase in Python.
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
+        let rv = to_pii_config_impl(datascrubbing_config);
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
@@ -313,6 +313,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "fasthttpsessionid": "my fasthttpsessionid",
         "mysession": "my mysession",
         "irissessionid": "my irissessionid",
+        "_vercel_jwt": "my _vercel_jwt",
         // Common CSRF/XSRF cookie names for popular web frameworks
         "csrf": "my csrf",
         "xsrf": "my xsrf",
@@ -348,29 +349,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_default_pii_config() {
-        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
+        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
+            "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
+            ],
+            "*.'http.request.header.cookie'.* || *.'http.request.header.cookie' || *.'http.response.header.set-cookie'.* || *.'http.response.header.set-cookie'": [
+              "@cookies:filter"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -380,29 +384,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
+            "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
+            ],
+            "*.'http.request.header.cookie'.* || *.'http.request.header.cookie' || *.'http.response.header.set-cookie'.* || *.'http.response.header.set-cookie'": [
+              "@cookies:filter"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -412,7 +419,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
             "strip-fields": {
@@ -430,22 +437,25 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
+            "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
+            ],
+            "*.'http.request.header.cookie'.* || *.'http.request.header.cookie' || *.'http.response.header.set-cookie'.* || *.'http.response.header.set-cookie'": [
+              "@cookies:filter"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -455,29 +465,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
+            "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
+            ],
+            "*.'http.request.header.cookie'.* || *.'http.request.header.cookie' || *.'http.response.header.set-cookie'.* || *.'http.response.header.set-cookie'": [
+              "@cookies:filter"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -495,7 +508,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ]
           }
@@ -648,6 +661,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&scrubbing_config).unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_ip_stripped_spanv2() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+                "attributes": {
+                    "user.name": {"type": "string", "value": "73.133.27.120"}, // should be stripped despite not being "known ip field"
+                    "client.address": {"type": "string", "value": "should be stripped despite lacking ip address"},
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: false,
+            scrub_ip_addresses: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor =
+            PiiProcessor::new(pii_config.compiled()).attribute_mode(AttributeMode::ValueOnly);
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
@@ -935,13 +974,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foo": "1453843029218310"
           }
         }
-        "###);
+        "#);
     }
 
     macro_rules! sanitize_url_test {
@@ -1037,13 +1076,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foo": 1
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1204,13 +1243,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foobar": "123-45-6789"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1232,13 +1271,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foobar": "xxx"
           }
         }
-        "###);
+        "#);
     }
 
     macro_rules! should_have_mysql_pwd_as_a_default_test {
@@ -1282,6 +1321,34 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "authorization": "foobar",
                     "auth": "foobar",
                     "auXth": "foobar",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_api_key_header_scrubbing() {
+        // Ensure that API key headers with hyphens (e.g. Anthropic's x-api-key) are scrubbed,
+        // not just underscore variants (api_key).
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "x-api-key": "sk-ant-secret-value",
+                    "api-key": "secret-value",
+                    "api_key": "secret-value",
+                    "apikey": "secret-value",
+                    "X-Api-Key": "secret-value",
                 }
             })
             .into(),
@@ -1365,7 +1432,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
             "strip-fields": {
@@ -1383,22 +1450,25 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || $span.data.'gen_ai.prompt' || attributes.'gen_ai.prompt'.value || $span.data.'gen_ai.request.messages' || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.response.text' || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
             ],
-            "*.'http.request.header.cookie' || *.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf'": [
+            "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
+            ],
+            "*.'http.request.header.cookie'.* || *.'http.request.header.cookie' || *.'http.response.header.set-cookie'.* || *.'http.response.header.set-cookie'": [
+              "@cookies:filter"
             ]
           }
         }
-        "###);
+        "#);
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
@@ -1628,7 +1698,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "contexts": {
                   "trace": {
                     "data": {
-                        "http.request.header.cookie": "session=foobar",
+                        "http.request.header.cookie": "baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
                         "http.request.header.cookie.sentrysid": "foobar",
                         "http.request.header.cookie.sudo": "foobar",
                         "http.request.header.cookie.su": "foobar",
@@ -1652,13 +1722,37 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                         "http.request.header.cookie.fastcsrf": "foobar",
                         "http.request.header.cookie._iris_csrf": "foobar",
                         "http.request.header.cookie.dark-mode": "foobar",
+                        "http.response.header.set-cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
+                        "http.response.header.set-cookie.sentrysid": "foobar",
+                        "http.response.header.set-cookie.sudo": "foobar",
+                        "http.response.header.set-cookie.su": "foobar",
+                        "http.response.header.set-cookie.session": "foobar",
+                        "http.response.header.set-cookie.__session": "foobar",
+                        "http.response.header.set-cookie.sessionid": "foobar",
+                        "http.response.header.set-cookie.user_session": "foobar",
+                        "http.response.header.set-cookie.symfony": "foobar",
+                        "http.response.header.set-cookie.phpsessid": "foobar",
+                        "http.response.header.set-cookie.fasthttpsessionid": "foobar",
+                        "http.response.header.set-cookie.mysession": "foobar",
+                        "http.response.header.set-cookie.irissessionid": "foobar",
+                        "http.response.header.set-cookie.csrf": "foobar",
+                        "http.response.header.set-cookie.xsrf": "foobar",
+                        "http.response.header.set-cookie._xsrf": "foobar",
+                        "http.response.header.set-cookie._csrf": "foobar",
+                        "http.response.header.set-cookie.csrf-token": "foobar",
+                        "http.response.header.set-cookie.csrf_token": "foobar",
+                        "http.response.header.set-cookie.xsrf-token": "foobar",
+                        "http.response.header.set-cookie.xsrf_token": "foobar",
+                        "http.response.header.set-cookie.fastcsrf": "foobar",
+                        "http.response.header.set-cookie._iris_csrf": "foobar",
+                        "http.response.header.set-cookie.dark-mode": "foobar",
                 },
                     "type": "trace"
                   }
               },
               "spans": [{
                 "data": {
-                    "http.request.header.cookie": "session=foobar",
+                    "http.request.header.cookie": "baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
                     "http.request.header.cookie.sentrysid": "foobar",
                     "http.request.header.cookie.sudo": "foobar",
                     "http.request.header.cookie.su": "foobar",
@@ -1682,6 +1776,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "http.request.header.cookie.fastcsrf": "foobar",
                     "http.request.header.cookie._iris_csrf": "foobar",
                     "http.request.header.cookie.dark-mode": "foobar",
+                    "http.response.header.set-cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
+                    "http.response.header.set-cookie.sentrysid": "foobar",
+                    "http.response.header.set-cookie.sudo": "foobar",
+                    "http.response.header.set-cookie.su": "foobar",
+                    "http.response.header.set-cookie.session": "foobar",
+                    "http.response.header.set-cookie.__session": "foobar",
+                    "http.response.header.set-cookie.sessionid": "foobar",
+                    "http.response.header.set-cookie.user_session": "foobar",
+                    "http.response.header.set-cookie.symfony": "foobar",
+                    "http.response.header.set-cookie.phpsessid": "foobar",
+                    "http.response.header.set-cookie.fasthttpsessionid": "foobar",
+                    "http.response.header.set-cookie.mysession": "foobar",
+                    "http.response.header.set-cookie.irissessionid": "foobar",
+                    "http.response.header.set-cookie.csrf": "foobar",
+                    "http.response.header.set-cookie.xsrf": "foobar",
+                    "http.response.header.set-cookie._xsrf": "foobar",
+                    "http.response.header.set-cookie._csrf": "foobar",
+                    "http.response.header.set-cookie.csrf-token": "foobar",
+                    "http.response.header.set-cookie.csrf_token": "foobar",
+                    "http.response.header.set-cookie.xsrf-token": "foobar",
+                    "http.response.header.set-cookie.xsrf_token": "foobar",
+                    "http.response.header.set-cookie.fastcsrf": "foobar",
+                    "http.response.header.set-cookie._iris_csrf": "foobar",
+                    "http.response.header.set-cookie.dark-mode": "foobar",
                 },
               }]
             })
@@ -1699,7 +1817,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = SpanV2::from_value(
             serde_json::json!({
               "attributes": {
-                "http.request.header.cookie": {"value": "session=foobar"},
+                "http.request.header.cookie": {"value": ["baz=quux", "session__0=foobar", "language=en", "csrf=u32t4o3tb3gg43", "foo=bar"]},
                 "http.request.header.cookie.sentrysid": {"value": "foobar"},
                 "http.request.header.cookie.sudo": {"value": "foobar"},
                 "http.request.header.cookie.su": {"value": "foobar"},
@@ -1723,6 +1841,30 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "http.request.header.cookie.fastcsrf": {"value": "foobar"},
                 "http.request.header.cookie._iris_csrf": {"value": "foobar"},
                 "http.request.header.cookie.dark-mode": {"value": "foobar"},
+                "http.response.header.set-cookie": {"value": ["baz=quux", "session=foobar", "language=en", "csrf=u32t4o3tb3gg43", "foo=bar"]},
+                "http.response.header.set-cookie.sentrysid": {"value": "foobar"},
+                "http.response.header.set-cookie.sudo": {"value": "foobar"},
+                "http.response.header.set-cookie.su": {"value": "foobar"},
+                "http.response.header.set-cookie.session": {"value": "foobar"},
+                "http.response.header.set-cookie.__session": {"value": "foobar"},
+                "http.response.header.set-cookie.sessionid": {"value": "foobar"},
+                "http.response.header.set-cookie.user_session": {"value": "foobar"},
+                "http.response.header.set-cookie.symfony": {"value": "foobar"},
+                "http.response.header.set-cookie.phpsessid": {"value": "foobar"},
+                "http.response.header.set-cookie.fasthttpsessionid": {"value": "foobar"},
+                "http.response.header.set-cookie.mysession": {"value": "foobar"},
+                "http.response.header.set-cookie.irissessionid": {"value": "foobar"},
+                "http.response.header.set-cookie.csrf": {"value": "foobar"},
+                "http.response.header.set-cookie.xsrf": {"value": "foobar"},
+                "http.response.header.set-cookie._xsrf": {"value": "foobar"},
+                "http.response.header.set-cookie._csrf": {"value": "foobar"},
+                "http.response.header.set-cookie.csrf-token": {"value": "foobar"},
+                "http.response.header.set-cookie.csrf_token": {"value": "foobar"},
+                "http.response.header.set-cookie.xsrf-token": {"value": "foobar"},
+                "http.response.header.set-cookie.xsrf_token": {"value": "foobar"},
+                "http.response.header.set-cookie.fastcsrf": {"value": "foobar"},
+                "http.response.header.set-cookie._iris_csrf": {"value": "foobar"},
+                "http.response.header.set-cookie.dark-mode": {"value": "foobar"},
               }
             })
             .into(),
@@ -1764,7 +1906,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "user": {
             "id": "5355849125500546"
@@ -1779,7 +1921,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1810,7 +1952,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "request": {
             "data": {
@@ -1839,7 +1981,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

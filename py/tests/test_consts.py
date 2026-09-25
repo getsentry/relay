@@ -154,6 +154,7 @@ def test_category_unit_mapping():
         DataCategory.INSTALLABLE_BUILD,
         DataCategory.TRACE_METRIC,
         DataCategory.SEER_USER,
+        DataCategory.SNAPSHOT_IMAGE,
     ]
     for category in count_categories:
         assert (

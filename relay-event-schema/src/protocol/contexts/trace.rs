@@ -9,7 +9,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
+use crate::protocol::{EventId, OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
 /// Represents a W3C Trace Context `trace-id`.
 ///
@@ -66,18 +66,26 @@ impl TraceId {
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
+/// Error for an invalid trace ID.
+#[derive(Debug)]
+pub enum InvalidTraceId {
+    /// The trace ID is all zeros.
+    Nil,
+    /// The trace ID is syntactically invalid.
+    Invalid,
+}
+
 impl FromStr for TraceId {
-    type Err = Error;
+    type Err = InvalidTraceId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s)
-            .map(Into::into)
-            .map_err(|_| Error::invalid("the trace id is not valid"))
+        let uuid = Uuid::from_str(s).map_err(|_| InvalidTraceId::Invalid)?;
+        Self::try_from(uuid)
     }
 }
 
 impl TryFrom<&str> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         value.parse()
@@ -85,12 +93,35 @@ impl TryFrom<&str> for TraceId {
 }
 
 impl TryFrom<&[u8]> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let uuid =
-            Uuid::from_slice(value).map_err(|_| Error::invalid("the trace id is not valid"))?;
-        Ok(Self(uuid))
+        Uuid::from_slice(value)
+            .map_err(|_| InvalidTraceId::Invalid)
+            .and_then(Self::try_from)
+    }
+}
+
+impl TryFrom<Uuid> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(uuid: Uuid) -> Result<Self, Self::Error> {
+        if uuid.is_nil() {
+            return Err(InvalidTraceId::Nil);
+        }
+        Ok(TraceId(uuid))
+    }
+}
+
+impl TryFrom<EventId> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(event_id: EventId) -> Result<Self, Self::Error> {
+        Self::try_from(event_id.0)
+    }
+}
+
+impl From<TraceId> for Uuid {
+    fn from(trace_id: TraceId) -> Self {
+        trace_id.0
     }
 }
 
@@ -103,12 +134,6 @@ impl fmt::Display for TraceId {
 impl fmt::Debug for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TraceId(\"{}\")", self.0.as_simple())
-    }
-}
-
-impl From<Uuid> for TraceId {
-    fn from(uuid: Uuid) -> Self {
-        TraceId(uuid)
     }
 }
 
@@ -126,9 +151,13 @@ impl FromValue for TraceId {
         Self: Sized,
     {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse::<TraceId>() {
                 Ok(trace_id) => Annotated(Some(trace_id), meta),
-                Err(_) => {
+                Err(InvalidTraceId::Nil) => {
+                    meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
+                    Annotated(Some(TraceId::random()), meta)
+                }
+                Err(InvalidTraceId::Invalid) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
@@ -164,9 +193,41 @@ impl IntoValue for TraceId {
 /// A 16-character hex string as described in the W3C trace context spec, stored
 /// internally as an array of 8 bytes.
 #[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct SpanId([u8; 8]);
+pub struct SpanId(pub [u8; 8]);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
+
+impl SpanId {
+    pub fn random() -> Self {
+        let value: u64 = rand::random_range(1..=u64::MAX);
+        Self(value.to_ne_bytes())
+    }
+
+    /// Derives a [`SpanId`] deterministically from a [`TraceId`].
+    ///
+    /// ```
+    /// # use relay_event_schema::protocol::{SpanId, TraceId};
+    /// #
+    /// let trace_id: TraceId = "515539018c9b4260a6f999572f1661ee".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "515539018c9b4260".parse().unwrap());
+    ///
+    /// let trace_id: TraceId = "00000000000000000000000000000001".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "0000000000000001".parse().unwrap());
+    /// ```
+    pub fn derive_from_trace_id(trace_id: &TraceId) -> Self {
+        let [first @ .., a, b, c, d, e, f, g, h]: [u8; 16] = *trace_id.as_bytes();
+        let second = [a, b, c, d, e, f, g, h];
+
+        // A trace id may never be nil, this means either the first or the second half needs to
+        // contain at least one non-zero value, making the resulting span id valid.
+        match first {
+            [0, 0, 0, 0, 0, 0, 0, 0] => SpanId(second),
+            _ => SpanId(first),
+        }
+    }
+}
 
 impl FromStr for SpanId {
     type Err = Error;
@@ -367,18 +428,18 @@ mod tests {
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id: Result<TraceId, Error> = "".parse();
+        let empty_trace_id: Result<TraceId, _> = "".parse();
         assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
+        let short_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
         assert!(short_trace_id.is_err());
 
-        let long_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
+        let long_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
         assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
+        let invalid_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
         assert!(invalid_trace_id.is_err());
     }
 
@@ -394,14 +455,14 @@ mod tests {
   "client_sample_rate": 0.5,
   "origin": "auto.http",
   "data": {
+    "custom_field_empty": "",
     "route": {
+      "custom_field": "something",
       "name": "/users",
       "params": {
         "tok": "test"
-      },
-      "custom_field": "something"
-    },
-    "custom_field_empty": ""
+      }
+    }
   },
   "links": [
     {
@@ -425,28 +486,33 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
-            data: Annotated::new(SpanData {
-                route: Annotated::new(Route {
-                    name: Annotated::new("/users".into()),
-                    params: Annotated::new({
-                        let mut map = Object::new();
-                        map.insert(
-                            "tok".to_owned(),
-                            Annotated::new(Value::String("test".into())),
-                        );
-                        map
-                    }),
-                    other: Object::from([(
-                        "custom_field".into(),
-                        Annotated::new(Value::String("something".into())),
-                    )]),
-                }),
-                other: Object::from([(
+            data: Annotated::new(SpanData::from([
+                (
+                    "route".to_owned(),
+                    Annotated::new(
+                        Route {
+                            name: Annotated::new("/users".into()),
+                            params: Annotated::new({
+                                let mut map = Object::new();
+                                map.insert(
+                                    "tok".to_owned(),
+                                    Annotated::new(Value::String("test".into())),
+                                );
+                                map
+                            }),
+                            other: Object::from([(
+                                "custom_field".into(),
+                                Annotated::new(Value::String("something".into())),
+                            )]),
+                        }
+                        .into_value(),
+                    ),
+                ),
+                (
                     "custom_field_empty".into(),
                     Annotated::new(Value::String("".into())),
-                )]),
-                ..Default::default()
-            }),
+                ),
+            ])),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new("ea90fdead5f74052".parse().unwrap()),
@@ -561,13 +627,10 @@ mod tests {
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
-            data: Annotated::new(SpanData {
-                route: Annotated::new(Route {
-                    name: Annotated::new("HomeRoute".into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
+            data: Annotated::new(SpanData::from([(
+                "route".to_owned(),
+                Annotated::new(Value::String("HomeRoute".into())),
+            )])),
             ..Default::default()
         })));
 

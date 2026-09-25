@@ -1,7 +1,5 @@
-use std::fmt::{Debug, Display};
-use std::marker::PhantomData;
+use std::fmt::Debug;
 use std::mem::size_of;
-use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -10,8 +8,8 @@ use relay_system::Addr;
 
 use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
+use crate::managed::Counted as _;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::{Processed, ProcessingGroup};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::EnvelopeSummary;
 
@@ -61,82 +59,6 @@ struct EnvelopeContext {
     scoping: Scoping,
     partition_key: Option<u32>,
     done: bool,
-}
-
-/// Error emitted when converting a [`ManagedEnvelope`] and a processing group into a [`TypedEnvelope`].
-#[derive(Debug)]
-pub struct InvalidProcessingGroupType(pub ManagedEnvelope, pub ProcessingGroup);
-
-impl Display for InvalidProcessingGroupType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "failed to convert to the processing group {} based on the provided type",
-            self.1.variant()
-        ))
-    }
-}
-
-impl std::error::Error for InvalidProcessingGroupType {}
-
-/// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
-pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
-
-impl<G> TypedEnvelope<G> {
-    /// Changes the typed of the current envelope to processed.
-    ///
-    /// Once it's marked processed it can be submitted to upstream.
-    pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self.0)
-    }
-
-    /// Accepts the envelope and drops the internal managed envelope with its context.
-    ///
-    /// This should be called if the envelope has been accepted by the upstream, which means that
-    /// the responsibility for logging outcomes has been moved. This function will not log any
-    /// outcomes.
-    pub fn accept(self) {
-        self.0.accept()
-    }
-
-    /// Creates a new typed envelope.
-    ///
-    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
-    /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope) -> Self {
-        Self(managed_envelope, Default::default())
-    }
-}
-
-impl<G: TryFrom<ProcessingGroup>> TryFrom<(ManagedEnvelope, ProcessingGroup)> for TypedEnvelope<G> {
-    type Error = InvalidProcessingGroupType;
-    fn try_from(
-        (envelope, group): (ManagedEnvelope, ProcessingGroup),
-    ) -> Result<Self, Self::Error> {
-        match <ProcessingGroup as TryInto<G>>::try_into(group) {
-            Ok(_) => Ok(TypedEnvelope::new(envelope)),
-            Err(_) => Err(InvalidProcessingGroupType(envelope, group)),
-        }
-    }
-}
-
-impl<G> Debug for TypedEnvelope<G> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
-    }
-}
-
-impl<G> Deref for TypedEnvelope<G> {
-    type Target = ManagedEnvelope;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<G> DerefMut for TypedEnvelope<G> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -204,13 +126,6 @@ impl ManagedEnvelope {
     pub fn into_envelope(mut self) -> Box<Envelope> {
         self.context.done = true;
         self.take_envelope()
-    }
-
-    /// Converts current managed envelope into processed envelope.
-    ///
-    /// Once it's marked processed it can be submitted to upstream.
-    pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self)
     }
 
     /// Take the envelope out of the context and replace it with a dummy.
@@ -290,9 +205,7 @@ impl ManagedEnvelope {
             event_id: self.envelope.event_id(),
             remote_addr: self.meta().remote_addr(),
             category,
-            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
-            // machines, but the protocol and data store can only do 32-bit.
-            quantity: quantity as u32,
+            quantity: quantity as u64,
         });
     }
 
@@ -332,7 +245,7 @@ impl ManagedEnvelope {
                     tags.project_key = self.scoping().project_key.to_string(),
                     tags.has_attachments = summary.attachment_quantities.bytes() > 0,
                     tags.has_sessions = summary.session_quantity > 0,
-                    tags.has_profiles = summary.profile_quantity > 0,
+                    tags.has_profiles = summary.profile_quantity.total > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
@@ -347,144 +260,8 @@ impl ManagedEnvelope {
             }
         }
 
-        if let Some(category) = self.event_category() {
-            if let Some(category) = category.index_category() {
-                self.track_outcome(outcome.clone(), category, 1);
-            }
-            self.track_outcome(outcome.clone(), category, 1);
-        }
-
-        if self.context.summary.attachment_quantities.bytes() > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Attachment,
-                self.context.summary.attachment_quantities.bytes(),
-            );
-        }
-
-        if self.context.summary.attachment_quantities.count() > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::AttachmentItem,
-                self.context.summary.attachment_quantities.count(),
-            );
-        }
-
-        if self.context.summary.monitor_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Monitor,
-                self.context.summary.monitor_quantity,
-            );
-        }
-
-        if self.context.summary.profile_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Profile,
-                self.context.summary.profile_quantity,
-            );
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileIndexed,
-                self.context.summary.profile_quantity,
-            );
-        }
-
-        if self.context.summary.span_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Span,
-                self.context.summary.span_quantity,
-            );
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::SpanIndexed,
-                self.context.summary.span_quantity,
-            );
-        }
-
-        if self.context.summary.log_item_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::LogItem,
-                self.context.summary.log_item_quantity,
-            );
-        }
-        if self.context.summary.log_byte_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::LogByte,
-                self.context.summary.log_byte_quantity,
-            );
-        }
-
-        // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
-        //
-        // Primary transaction count is already tracked through the event category
-        // (see: `Self::event_category()`).
-        if self.context.summary.secondary_transaction_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                // Secondary transaction counts are never indexed transactions
-                DataCategory::Transaction,
-                self.context.summary.secondary_transaction_quantity,
-            );
-        }
-
-        // Track outcomes for attached secondary spans, e.g. extracted from metrics.
-        //
-        // Primary span count is already tracked through `SpanIndexed`.
-        if self.context.summary.secondary_span_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                // Secondary transaction counts are never indexed transactions
-                DataCategory::Span,
-                self.context.summary.secondary_span_quantity,
-            );
-        }
-
-        if self.context.summary.replay_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Replay,
-                self.context.summary.replay_quantity,
-            );
-        }
-
-        // Track outcomes for user reports, the legacy item type for user feedback.
-        //
-        // User reports are not events, but count toward UserReportV2 for quotas and outcomes.
-        if self.context.summary.user_report_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::UserReportV2,
-                self.context.summary.user_report_quantity,
-            );
-        }
-
-        if self.context.summary.profile_chunk_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileChunk,
-                self.context.summary.profile_chunk_quantity,
-            );
-        }
-
-        if self.context.summary.profile_chunk_ui_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::ProfileChunkUi,
-                self.context.summary.profile_chunk_ui_quantity,
-            );
-        }
-
-        if self.context.summary.session_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Session,
-                self.context.summary.session_quantity,
-            );
+        for (category, quantity) in self.context.summary.quantities() {
+            self.track_outcome(outcome.clone(), category, quantity);
         }
 
         self.finish(RelayCounters::EnvelopeRejected, handling);
@@ -559,12 +336,6 @@ impl ManagedEnvelope {
 impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
-    }
-}
-
-impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
-    fn from(value: TypedEnvelope<G>) -> Self {
-        value.0
     }
 }
 

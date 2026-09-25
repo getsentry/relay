@@ -18,11 +18,6 @@ pub use self::quota::*;
 pub use self::rate_limit::*;
 
 #[cfg(feature = "redis")]
-mod global;
-#[cfg(feature = "redis")]
-pub use self::global::{GlobalLimiter, GlobalRateLimiter};
-
-#[cfg(feature = "redis")]
 mod cache;
 #[cfg(feature = "redis")]
 mod redis;

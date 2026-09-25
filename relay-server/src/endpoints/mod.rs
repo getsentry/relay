@@ -3,11 +3,14 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
+// Axum's standard `ErrorResponse` is larger than Clippy's default threshold.
+#![allow(clippy::result_large_err)]
+
+pub(crate) mod common;
+
 mod attachments;
 mod autoscaling;
 mod batch_metrics;
-mod batch_outcomes;
-mod common;
 mod envelope;
 mod forward;
 mod health_check;
@@ -24,13 +27,15 @@ mod security_report;
 mod statics;
 mod store;
 mod unreal;
+mod upload;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{Router, any, get, post};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::upload::UPLOAD_PATCH_PATH;
 
 /// Size limit for internal batch endpoints.
 const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
@@ -38,7 +43,7 @@ const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 /// All of Relay's routes.
 ///
 /// This includes [`public_routes`] as well as [`internal_routes`].
-pub fn all_routes(config: &Config) -> Router<ServiceState> {
+pub fn all_routes(config: &ConfigSnapshot) -> Router<ServiceState> {
     public_routes_raw(config).merge(internal_routes(config))
 }
 
@@ -46,7 +51,7 @@ pub fn all_routes(config: &Config) -> Router<ServiceState> {
 ///
 /// Routes which do not need to be exposed.
 #[rustfmt::skip]
-pub fn internal_routes(_: &Config) -> Router<ServiceState>{
+pub fn internal_routes(_: &ConfigSnapshot) -> Router<ServiceState>{
     Router::new()
         .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
         .route("/api/relay/autoscaling/", get(autoscaling::handle))
@@ -57,13 +62,13 @@ pub fn internal_routes(_: &Config) -> Router<ServiceState>{
 /// Relay's public routes.
 ///
 /// Routes which are public API and must be exposed.
-pub fn public_routes(config: &Config) -> Router<ServiceState> {
+pub fn public_routes(config: &ConfigSnapshot) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
     public_routes_raw(config).route("/api/relay/{*not_found}", any(statics::not_found))
 }
 
 #[rustfmt::skip]
-fn public_routes_raw(config: &Config) -> Router<ServiceState> {
+fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
     // Sentry Web API routes pointing to /api/0/relays/
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
@@ -75,7 +80,6 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
 
     let batch_routes = Router::new()
-        .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
         .route("/api/0/relays/metrics/", post(batch_metrics::handle))
         .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
@@ -97,8 +101,10 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
-        .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
-        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config));
+        .route("/api/{project_id}/events/{event_id}/attachments/", attachments::route(config))
+        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
+        .route("/api/{project_id}/upload/", upload::route_post(config))
+        .route(UPLOAD_PATCH_PATH, upload::route_patch(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));

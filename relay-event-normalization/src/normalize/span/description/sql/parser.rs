@@ -3,14 +3,7 @@ use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use sqlparser::ast::{
-    AlterTableOperation, Assignment, AssignmentTarget, BinaryOperator, CaseWhen, CloseCursor,
-    ColumnDef, CopySource, CreateIndex, Declare, Expr, ExprWithAlias, FunctionArg, GranteeName,
-    Ident, Insert, JsonTableColumn, JsonTableNamedColumn, JsonTableNestedColumn, LockTable,
-    ObjectName, ObjectNamePart, ObjectNamePartFunction, Query, Select, SelectItem, SetExpr,
-    ShowStatementFilter, Statement, TableAlias, TableAliasColumnDef, TableConstraint, TableFactor,
-    UnaryOperator, Use, Value, ValueWithSpan, VisitMut, VisitorMut,
-};
+use sqlparser::ast::*;
 use sqlparser::dialect::{Dialect, GenericDialect};
 use sqlparser::tokenizer::Span;
 
@@ -63,8 +56,8 @@ pub fn normalize_parsed_queries(
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    let _ = parsed.visit(&mut NormalizeVisitor);
-    let _ = parsed.visit(&mut MaxDepthVisitor::new());
+    let _ = VisitMut::visit(&mut parsed, &mut NormalizeVisitor);
+    let _ = VisitMut::visit(&mut parsed, &mut MaxDepthVisitor::new());
 
     let concatenated = parsed
         .iter()
@@ -151,7 +144,7 @@ impl NormalizeVisitor {
     }
 
     fn simplify_table_alias(alias: &mut Option<TableAlias>) {
-        if let Some(TableAlias { name, columns }) = alias {
+        if let Some(TableAlias { name, columns, .. }) = alias {
             Self::scrub_name(name);
             for TableAliasColumnDef { name, data_type: _ } in columns {
                 Self::scrub_name(name);
@@ -223,8 +216,8 @@ impl VisitorMut for NormalizeVisitor {
         ControlFlow::Continue(())
     }
 
-    fn pre_visit_value(&mut self, value: &mut Value) -> ControlFlow<Self::Break> {
-        *value = Value::Placeholder("%s".into());
+    fn pre_visit_value(&mut self, value: &mut ValueWithSpan) -> ControlFlow<Self::Break> {
+        value.value = Value::Placeholder("%s".into());
         ControlFlow::Continue(())
     }
 
@@ -408,14 +401,16 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Insert(Insert {
                 columns, source, ..
             }) => {
-                *columns = vec![Self::ellipsis()];
+                *columns = vec![Self::ellipsis().into()];
                 if let Some(source) = source.as_mut()
                     && let SetExpr::Values(v) = &mut *source.body
                 {
-                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                    v.rows = vec![Parens::with_empty_span(vec![Expr::Value(
+                        Self::placeholder(),
+                    )])];
                 }
             }
-            Statement::Update { assignments, .. } => {
+            Statement::Update(Update { assignments, .. }) => {
                 if assignments.len() > 1
                     && assignments
                         .iter()
@@ -464,9 +459,9 @@ impl VisitorMut for NormalizeVisitor {
                 CloseCursor::All => {}
                 CloseCursor::Specific { name } => Self::erase_name(name),
             },
-            Statement::AlterTable {
+            Statement::AlterTable(AlterTable {
                 name, operations, ..
-            } => {
+            }) => {
                 Self::simplify_object_name(&mut name.0);
                 for operation in operations {
                     match operation {
@@ -474,17 +469,17 @@ impl VisitorMut for NormalizeVisitor {
                             constraint,
                             not_valid: _,
                         } => match constraint {
-                            TableConstraint::Unique { name, .. } => {
+                            TableConstraint::Unique(UniqueConstraint { name, .. }) => {
                                 if let Some(name) = name {
                                     Self::scrub_name(name);
                                 }
                             }
-                            TableConstraint::ForeignKey {
+                            TableConstraint::ForeignKey(ForeignKeyConstraint {
                                 name,
                                 columns,
                                 referred_columns,
                                 ..
-                            } => {
+                            }) => {
                                 if let Some(name) = name {
                                     Self::scrub_name(name);
                                 }
@@ -495,30 +490,50 @@ impl VisitorMut for NormalizeVisitor {
                                     Self::scrub_name(column);
                                 }
                             }
-                            TableConstraint::Check { name, .. } => {
+                            TableConstraint::Check(CheckConstraint { name, .. }) => {
                                 if let Some(name) = name {
                                     Self::scrub_name(name);
                                 }
                             }
-                            TableConstraint::Index { name, .. } => {
+                            TableConstraint::Index(IndexConstraint { name, .. }) => {
                                 if let Some(name) = name {
                                     Self::scrub_name(name);
                                 }
                             }
-                            TableConstraint::FulltextOrSpatial { opt_index_name, .. } => {
+                            TableConstraint::FulltextOrSpatial(FullTextOrSpatialConstraint {
+                                opt_index_name,
+                                ..
+                            }) => {
                                 if let Some(name) = opt_index_name {
                                     Self::scrub_name(name);
                                 }
                             }
-                            TableConstraint::PrimaryKey {
-                                name, index_name, ..
-                            } => {
+                            TableConstraint::PrimaryKey(PrimaryKeyConstraint {
+                                name,
+                                index_name,
+                                ..
+                            }) => {
                                 if let Some(name) = name {
                                     Self::scrub_name(name);
                                 }
                                 if let Some(name) = index_name {
                                     Self::scrub_name(name);
                                 }
+                            }
+                            TableConstraint::PrimaryKeyUsingIndex(ConstraintUsingIndex {
+                                name,
+                                index_name,
+                                characteristics: _,
+                            })
+                            | TableConstraint::UniqueUsingIndex(ConstraintUsingIndex {
+                                name,
+                                index_name,
+                                characteristics: _,
+                            }) => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                Self::scrub_name(index_name);
                             }
                         },
                         AlterTableOperation::AddColumn { column_def, .. } => {
@@ -555,7 +570,7 @@ impl VisitorMut for NormalizeVisitor {
                     }
                 }
             }
-            Statement::Analyze { columns, .. } => {
+            Statement::Analyze(Analyze { columns, .. }) => {
                 Self::simplify_compound_identifier(columns);
             }
             Statement::Truncate { .. } => {}
@@ -585,11 +600,11 @@ impl VisitorMut for NormalizeVisitor {
                 *validation_mode = None;
             }
             Statement::Delete { .. } => {}
-            Statement::CreateView {
+            Statement::CreateView(CreateView {
                 columns,
                 cluster_by,
                 ..
-            } => {
+            }) => {
                 for column in columns {
                     Self::scrub_name(&mut column.name);
                 }
@@ -628,7 +643,7 @@ impl VisitorMut for NormalizeVisitor {
             Statement::AttachDatabase { schema_name, .. } => Self::scrub_name(schema_name),
             Statement::Drop { .. } => {}
             Statement::DropFunction { .. } => {}
-            Statement::CreateExtension { name, .. } => Self::scrub_name(name),
+            Statement::CreateExtension(CreateExtension { name, .. }) => Self::scrub_name(name),
             Statement::Flush { channel, .. } => *channel = None,
             Statement::Discard { .. } => {}
             Statement::ShowFunctions { filter } => Self::scrub_statement_filter(filter),
@@ -669,11 +684,11 @@ impl VisitorMut for NormalizeVisitor {
             Statement::CreateMacro { .. } => {}
             Statement::CreateStage { comment, .. } => *comment = None,
             Statement::Assert { .. } => {}
-            Statement::Grant {
+            Statement::Grant(Grant {
                 grantees,
                 granted_by,
                 ..
-            } => {
+            }) => {
                 for grantee in grantees {
                     if let Some(GranteeName::ObjectName(name)) = &mut grantee.name {
                         Self::simplify_object_name(&mut name.0);
@@ -682,11 +697,11 @@ impl VisitorMut for NormalizeVisitor {
 
                 *granted_by = None;
             }
-            Statement::Revoke {
+            Statement::Revoke(Revoke {
                 grantees,
                 granted_by,
                 ..
-            } => {
+            }) => {
                 for grantee in grantees {
                     if let Some(GranteeName::ObjectName(name)) = &mut grantee.name {
                         Self::simplify_object_name(&mut name.0);
@@ -907,7 +922,7 @@ mod tests {
             }
         }
 
-        let _ = expr.visit(&mut TestVisitor);
+        let _ = Visit::visit(&expr, &mut TestVisitor);
     }
 
     #[test]

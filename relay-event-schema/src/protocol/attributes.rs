@@ -16,7 +16,7 @@ pub struct Attribute {
     pub value: AttributeValue,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, trim = false)]
     pub other: Object<Value>,
 }
 
@@ -64,7 +64,7 @@ where
 pub struct AttributeValue {
     #[metastructure(field = "type", required = true, trim = false, pii = "false")]
     pub ty: Annotated<AttributeType>,
-    #[metastructure(required = true, pii = "attribute_pii_from_conventions")]
+    #[metastructure(required = "value_or_meta", pii = "attribute_pii_from_conventions")]
     pub value: Annotated<Value>,
 }
 
@@ -92,6 +92,21 @@ impl_from!(i64, AttributeType::Integer);
 impl_from!(f64, AttributeType::Double);
 impl_from!(bool, AttributeType::Boolean);
 
+impl From<Annotated<&str>> for AttributeValue {
+    fn from(value: Annotated<&str>) -> Self {
+        Self {
+            ty: Annotated::new(AttributeType::String),
+            value: value.map_value(Into::into),
+        }
+    }
+}
+
+impl From<&str> for AttributeValue {
+    fn from(value: &str) -> Self {
+        Self::from(Annotated::new(value))
+    }
+}
+
 /// Determines the `Pii` value for an attribute (or, more exactly, the
 /// attribute's `value` field) by looking it up in `relay-conventions`.
 ///
@@ -108,10 +123,10 @@ pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
             continue;
         };
 
-        return match info.pii {
-            relay_conventions::Pii::True => Pii::True,
-            relay_conventions::Pii::False => Pii::False,
-            relay_conventions::Pii::Maybe => Pii::Maybe,
+        return match info.apply_scrubbing {
+            relay_conventions::ApplyScrubbing::Auto => Pii::True,
+            relay_conventions::ApplyScrubbing::Never => Pii::False,
+            relay_conventions::ApplyScrubbing::Manual => Pii::Maybe,
         };
     }
 
@@ -257,6 +272,15 @@ impl Attributes {
         Some(&self.0.get(key)?.value()?.value.value)
     }
 
+    /// Returns the mutable attribute value as annotated.
+    pub fn get_annotated_value_mut<Q>(&mut self, key: &Q) -> Option<&mut Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&mut self.0.get_mut(key)?.value_mut().as_mut()?.value.value)
+    }
+
     /// Inserts an attribute with the given value into this collection.
     pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
@@ -324,6 +348,9 @@ impl<const N: usize> From<[(String, Annotated<Attribute>); N]> for Attributes {
     }
 }
 
+// We need to manually implement `ProcessValue` for `Attributes`.
+// Deriving it, even with `process_func`, causes both `process_value`
+// and `process_child_values` to be called because it's a newtype struct.
 impl ProcessValue for Attributes {
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

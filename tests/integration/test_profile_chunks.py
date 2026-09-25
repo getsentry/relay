@@ -1,5 +1,5 @@
+import json
 import uuid
-from copy import deepcopy
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -7,25 +7,9 @@ import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
-
-
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
 
 
 def sample_profile_v2_envelope(platform=None):
@@ -104,14 +88,15 @@ def test_profile_chunk_outcomes(
     )
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
-        config = deepcopy(TEST_CONFIG)
+        config = {"outcomes": {}}
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"
@@ -138,24 +123,29 @@ def test_profile_chunk_outcomes_invalid(
     """
     Tests that Relay reports correct outcomes for invalid profiles as `ProfileChunk`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append(
-        "organizations:continuous-profiling"
+    project_config.setdefault("features", []).extend(
+        [
+            "organizations:continuous-profiling",
+            "organizations:relay-generate-billing-outcome",
+        ]
     )
 
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     envelope = Envelope()
-    payload = {
-        "chunk_id": "11111111111111111111111111111111",
-        "platform": "thisisnotvalid",
-    }
-    envelope.add_item(Item(payload=PayloadRef(json=payload), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=b""),
+            type="profile_chunk",
+            headers={"platform": "node"},
+        )
+    )
 
     upstream.send_envelope(project_id, envelope)
 
@@ -164,14 +154,14 @@ def test_profile_chunk_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK.value,
+            "category": DataCategory.PROFILE_CHUNK,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_platform_not_supported",
+            "reason": "profiling_invalid_json",
         },
     ]
 
@@ -211,7 +201,7 @@ def test_profile_chunk_outcomes_rate_limited(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    # Enable profiling feature flag
+    # Enable continuous profiling feature flag
     project_config.setdefault("features", []).append(
         "organizations:continuous-profiling"
     )
@@ -228,7 +218,7 @@ def test_profile_chunk_outcomes_rate_limited(
 
     # Create and send envelope containing the profile chunk
     envelope = envelope(item_header_platform)
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
     upstream.send_envelope(project_id, envelope)
 
     # Verify the rate limited outcome was emitted with correct properties
@@ -237,11 +227,11 @@ def test_profile_chunk_outcomes_rate_limited(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK_UI.value,
+            "category": DataCategory.PROFILE_CHUNK_UI,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,  # RateLimited
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "profile_chunks_exceeded",
@@ -309,11 +299,50 @@ def test_profile_chunk_outcomes_rate_limited_fast(
         envelope = mini_sentry.get_captured_envelope()
         assert [item.type for item in envelope.items] == ["profile_chunk"]
     else:
-        outcome = mini_sentry.get_client_report()
-        assert outcome["rate_limited_events"] == [
-            {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.parse(category),
+                "outcome": Outcome.RATE_LIMITED,
+                "quantity": 1,
+                "reason": "profile_chunks_exceeded",
+            }
         ]
         assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize(
+    ["envelope_factory", "expected_version"],
+    [
+        pytest.param(sample_profile_v2_envelope, "2", id="profile v2"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            "2.android-trace",
+            id="android chunk",
+        ),
+    ],
+)
+def test_profile_chunk_version_is_forwarded(
+    mini_sentry,
+    relay_with_processing,
+    profiles_consumer,
+    envelope_factory,
+    expected_version,
+):
+    profiles_consumer = profiles_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append(
+        "organizations:continuous-profiling"
+    )
+
+    upstream = relay_with_processing()
+    upstream.send_envelope(project_id, envelope_factory())
+
+    profile, headers = profiles_consumer.get_profile()
+    assert headers == [("project_id", b"42")]
+    assert json.loads(profile["payload"])["version"] == expected_version
 
 
 @pytest.mark.parametrize(

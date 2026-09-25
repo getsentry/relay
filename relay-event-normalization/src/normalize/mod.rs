@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
-use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_event_schema::protocol::VALID_PLATFORMS;
 use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
@@ -81,41 +81,9 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-/// Replaces snake_case app start spans op with dot.case op.
-///
-/// This is done for the affected React Native SDK versions (from 3 to 4.4).
-pub fn normalize_app_start_spans(event: &mut Event) {
-    if !event.sdk_name().eq("sentry.javascript.react-native")
-        || !(event.sdk_version().starts_with("4.4")
-            || event.sdk_version().starts_with("4.3")
-            || event.sdk_version().starts_with("4.2")
-            || event.sdk_version().starts_with("4.1")
-            || event.sdk_version().starts_with("4.0")
-            || event.sdk_version().starts_with('3'))
-    {
-        return;
-    }
-
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(span) = span.value_mut()
-                && let Some(op) = span.op.value()
-            {
-                if op == "app_start_cold" {
-                    span.op.set_value(Some("app.start.cold".to_owned()));
-                    break;
-                } else if op == "app_start_warm" {
-                    span.op.set_value(Some("app.start.warm".to_owned()));
-                    break;
-                }
-            }
-        }
-    }
-}
-
 /// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct CombinedMeasurementsConfig<'a> {
     project: Option<&'a MeasurementsConfig>,
     global: Option<&'a MeasurementsConfig>,
@@ -218,76 +186,6 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
-/// A mapping of AI model types (like GPT-4) to their respective costs.
-///
-/// This struct uses a dictionary-based cost structure with exact model ID keys and granular
-/// token pricing.
-///
-/// Example JSON:
-/// ```json
-/// {
-///   "version": 2,
-///   "models": {
-///     "gpt-4": {
-///       "inputPerToken": 0.03,
-///       "outputPerToken": 0.06,
-///       "outputReasoningPerToken": 0.12,
-///       "inputCachedPerToken": 0.015
-///     }
-///   }
-/// }
-/// ```
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelCosts {
-    /// The version of the model cost struct
-    pub version: u16,
-
-    /// The mappings of model ID => cost as a dictionary
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<Pattern, ModelCostV2>,
-}
-
-impl ModelCosts {
-    const SUPPORTED_VERSION: u16 = 2;
-
-    /// `true` if the model costs are empty and the version is supported.
-    pub fn is_empty(&self) -> bool {
-        self.models.is_empty() || !self.is_enabled()
-    }
-
-    /// `false` if measurement and metrics extraction should be skipped.
-    pub fn is_enabled(&self) -> bool {
-        self.version == Self::SUPPORTED_VERSION
-    }
-
-    /// Gets the cost per token, if defined for the given model.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
-        if !self.is_enabled() {
-            return None;
-        }
-
-        let normalized_model_id = normalize_ai_model_name(model_id);
-
-        // First try exact match by creating a Pattern from the model_id
-        if let Some(value) = self.models.get(normalized_model_id) {
-            return Some(value);
-        }
-
-        // if there is not a direct match, try to find the match using a pattern
-        // since the name is already normalized, there are still patterns where the
-        // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
-        // will be matched via glob "*claude-sonnet-4"
-        self.models.iter().find_map(|(key, value)| {
-            if key.is_match(normalized_model_id) {
-                Some(value)
-            } else {
-                None
-            }
-        })
-    }
-}
-
 /// Regex that matches version and/or date patterns at the end of a model name.
 ///
 /// Examples matched:
@@ -367,71 +265,105 @@ pub struct ModelCostV2 {
     pub output_reasoning_per_token: f64,
     /// The cost per input cached token
     pub input_cached_per_token: f64,
+    /// The cost per input cache write token
+    pub input_cache_write_per_token: f64,
 }
 
-/// A mapping of AI operation types from span.op to gen_ai.operation.type.
-///
-/// This struct uses a dictionary-based mapping structure with pattern-based span operation keys
-/// and corresponding AI operation type values.
+/// Metadata for AI models including costs and context size.
 ///
 /// Example JSON:
 /// ```json
 /// {
 ///   "version": 1,
-///   "operation_types": {
-///     "gen_ai.execute_tool": "tool",
-///     "gen_ai.handoff": "handoff",
-///     "gen_ai.invoke_agent": "agent",
+///   "models": {
+///     "gpt-4": {
+///       "costs": {
+///         "inputPerToken": 0.0000003,
+///         "outputPerToken": 0.00000165,
+///         "outputReasoningPerToken": 0.0,
+///         "inputCachedPerToken": 0.0000015,
+///         "inputCacheWritePerToken": 0.00001875
+///       },
+///       "contextSize": 1000000
+///     }
 ///   }
 /// }
 /// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AiOperationTypeMap {
-    /// The version of the operation type mapping struct
+pub struct ModelMetadata {
+    /// The version of the model metadata struct.
     pub version: u16,
 
-    /// The mappings of span.op => gen_ai.operation.type as a dictionary
+    /// The mappings of model ID => metadata as a dictionary.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub operation_types: HashMap<Pattern, String>,
+    pub models: HashMap<Pattern, ModelMetadataEntry>,
 }
 
-impl AiOperationTypeMap {
+impl ModelMetadata {
     const SUPPORTED_VERSION: u16 = 1;
 
-    /// `true` if the operation type mapping is empty and the version is supported.
+    /// `true` if the model metadata is empty or the version is unsupported.
     pub fn is_empty(&self) -> bool {
-        self.operation_types.is_empty() || !self.is_enabled()
+        self.models.is_empty() || !self.is_enabled()
     }
 
-    /// `false` if operation type mapping should be skipped.
+    /// `false` if the version is unsupported.
     pub fn is_enabled(&self) -> bool {
         self.version == Self::SUPPORTED_VERSION
     }
 
-    /// Gets the AI operation type for the given span operation, if defined.
-    pub fn get_operation_type(&self, span_op: &str) -> Option<&str> {
+    /// Gets the cost per token for a given model, if defined.
+    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
+        self.get(model_id).and_then(|entry| entry.costs.as_ref())
+    }
+
+    /// Gets the context window size for a given model, if defined.
+    ///
+    /// Returns `None` for a zero context size, as it is not a meaningful value.
+    pub fn context_size(&self, model_id: &str) -> Option<u64> {
+        self.get(model_id)
+            .and_then(|entry| entry.context_size)
+            .filter(|&size| size > 0)
+    }
+
+    /// Gets the metadata for a given model, if defined.
+    pub fn get(&self, model_id: &str) -> Option<&ModelMetadataEntry> {
         if !self.is_enabled() {
             return None;
         }
 
-        // try first direct match with span_op
-        if let Some(value) = self.operation_types.get(span_op) {
-            return Some(value.as_str());
+        let normalized_model_id = normalize_ai_model_name(model_id);
+
+        // First try exact match.
+        if let Some(value) = self.models.get(normalized_model_id) {
+            return Some(value);
         }
 
-        // if there is not a direct match, try to find the match using a pattern
-        let operation_type = self.operation_types.iter().find_map(|(key, value)| {
-            if key.is_match(span_op) {
+        // Fall back to glob matching.
+        self.models.iter().find_map(|(key, value)| {
+            if key.is_match(normalized_model_id) {
                 Some(value)
             } else {
                 None
             }
-        });
-
-        operation_type.map(String::as_str)
+        })
     }
 }
+
+/// Metadata for a single AI model.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadataEntry {
+    /// Token costs for this model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub costs: Option<ModelCostV2>,
+
+    /// The context window size in tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_size: Option<u64>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -441,9 +373,9 @@ mod tests {
     use relay_base_schema::metrics::DurationUnit;
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::protocol::{
-        ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, EventId, Exception,
-        Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace, ReplayContext,
-        Request, Span, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
+        ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, Event, EventId,
+        Exception, Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace,
+        ReplayContext, Request, Span, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
     };
     use relay_protocol::{
         Annotated, Error, ErrorKind, FromValue, Object, SerializableAnnotated, Value,
@@ -458,234 +390,6 @@ mod tests {
     use crate::{EventValidationConfig, GeoIpLookup, NormalizationConfig, normalize_event};
 
     use super::*;
-
-    /// Test that integer versions are handled correctly in the struct format
-    #[test]
-    fn test_model_cost_version_sent_as_number() {
-        // Test integer version 2
-        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
-        let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
-        assert_debug_snapshot!(
-            deserialized_v2,
-            @r#"
-        ModelCosts {
-            version: 2,
-            models: {
-                Pattern {
-                    pattern: "gpt-4",
-                    options: Options {
-                        case_insensitive: false,
-                    },
-                    strategy: Literal(
-                        Literal(
-                            "gpt-4",
-                        ),
-                    ),
-                }: ModelCostV2 {
-                    input_per_token: 0.03,
-                    output_per_token: 0.06,
-                    output_reasoning_per_token: 0.12,
-                    input_cached_per_token: 0.015,
-                },
-            },
-        }
-        "#,
-        );
-
-        // Test unknown integer version
-        let original_unknown = r#"{"version":99,"models":{}}"#;
-        let deserialized_unknown: ModelCosts = serde_json::from_str(original_unknown).unwrap();
-        assert_eq!(deserialized_unknown.version, 99);
-        assert!(!deserialized_unknown.is_enabled());
-    }
-
-    #[test]
-    fn test_model_cost_config_v2() {
-        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r#"
-        ModelCosts {
-            version: 2,
-            models: {
-                Pattern {
-                    pattern: "gpt-4",
-                    options: Options {
-                        case_insensitive: false,
-                    },
-                    strategy: Literal(
-                        Literal(
-                            "gpt-4",
-                        ),
-                    ),
-                }: ModelCostV2 {
-                    input_per_token: 0.03,
-                    output_per_token: 0.06,
-                    output_reasoning_per_token: 0.12,
-                    input_cached_per_token: 0.015,
-                },
-            },
-        }
-        "#);
-
-        let serialized = serde_json::to_string(&deserialized).unwrap();
-        assert_eq!(&serialized, original);
-    }
-
-    #[test]
-    fn test_model_cost_functionality_v2() {
-        // Test V2 functionality
-        let mut models_map = HashMap::new();
-        models_map.insert(
-            Pattern::new("gpt-4").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-            },
-        );
-        let v2_config = ModelCosts {
-            version: 2,
-            models: models_map,
-        };
-        assert!(v2_config.is_enabled());
-        let cost = v2_config.cost_per_token("gpt-4").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-            }
-        );
-    }
-
-    #[test]
-    fn test_model_cost_glob_matching() {
-        // Test glob matching functionality in cost_per_token
-        let mut models_map = HashMap::new();
-        models_map.insert(
-            Pattern::new("gpt-4*").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-            },
-        );
-        models_map.insert(
-            Pattern::new("gpt-4-2xxx").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.0007,
-                output_per_token: 0.0008,
-                output_reasoning_per_token: 0.0016,
-                input_cached_per_token: 0.00035,
-            },
-        );
-
-        let v2_config = ModelCosts {
-            version: 2,
-            models: models_map,
-        };
-        assert!(v2_config.is_enabled());
-
-        // Test glob matching with gpt-4 variants (prefix matching)
-        let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-            }
-        );
-
-        let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.0007,
-                output_per_token: 0.0008,
-                output_reasoning_per_token: 0.0016,
-                input_cached_per_token: 0.00035,
-            }
-        );
-
-        assert_eq!(v2_config.cost_per_token("unknown-model"), None);
-    }
-
-    #[test]
-    fn test_model_cost_unknown_version() {
-        // Test that unknown versions are handled properly
-        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
-        assert_eq!(deserialized.version, 3);
-        assert!(!deserialized.is_enabled());
-        assert_eq!(deserialized.cost_per_token("some-model"), None);
-
-        // Test version 0 (invalid)
-        let version_zero_json = r#"{"version":0,"models":{}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
-        assert_eq!(deserialized.version, 0);
-        assert!(!deserialized.is_enabled());
-    }
-
-    #[test]
-    fn test_ai_operation_type_map_serialization() {
-        // Test serialization and deserialization with patterns
-        let mut operation_types = HashMap::new();
-        operation_types.insert(
-            Pattern::new("gen_ai.chat*").unwrap(),
-            "Inference".to_owned(),
-        );
-        operation_types.insert(
-            Pattern::new("gen_ai.execute_tool").unwrap(),
-            "Tool".to_owned(),
-        );
-
-        let original = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: AiOperationTypeMap = serde_json::from_str(&json).unwrap();
-
-        assert!(deserialized.is_enabled());
-        assert_eq!(
-            deserialized.get_operation_type("gen_ai.chat.completions"),
-            Some("Inference")
-        );
-        assert_eq!(
-            deserialized.get_operation_type("gen_ai.execute_tool"),
-            Some("Tool")
-        );
-        assert_eq!(deserialized.get_operation_type("unknown_op"), None);
-    }
-
-    #[test]
-    fn test_ai_operation_type_map_pattern_matching() {
-        let mut operation_types = HashMap::new();
-        operation_types.insert(Pattern::new("gen_ai.*").unwrap(), "default".to_owned());
-        operation_types.insert(Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned());
-
-        let map = AiOperationTypeMap {
-            version: 1,
-            operation_types,
-        };
-
-        let result = map.get_operation_type("gen_ai.chat");
-        assert!(Some("chat") == result);
-
-        let result = map.get_operation_type("gen_ai.chat.completions");
-        assert!(Some("default") == result);
-
-        assert_eq!(map.get_operation_type("gen_ai.other"), Some("default"));
-
-        assert_eq!(map.get_operation_type("other.operation"), None);
-    }
 
     #[test]
     fn test_normalize_ai_model_name() {
@@ -1596,7 +1300,7 @@ mod tests {
             }
           }
         }
-        "###)
+        "###);
     }
 
     #[test]
@@ -2133,8 +1837,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        span::normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -2160,11 +1864,10 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2181,8 +1884,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        span::normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -2208,11 +1911,10 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2229,8 +1931,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        span::normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -2256,10 +1958,9 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 }

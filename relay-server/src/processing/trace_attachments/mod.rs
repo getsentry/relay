@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_dynamic_config::Feature;
 use relay_event_schema::processor::ProcessingAction;
 use relay_quotas::RateLimits;
@@ -39,10 +40,6 @@ pub enum Error {
     #[error("rate limited")]
     RateLimited(RateLimits),
 
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig,
-
     /// A processor failed to process the spans.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
@@ -51,7 +48,6 @@ pub enum Error {
 impl From<ScrubAttachmentError> for Error {
     fn from(value: ScrubAttachmentError) -> Self {
         match value {
-            ScrubAttachmentError::PiiConfig => Self::PiiConfig,
             ScrubAttachmentError::ProcessingFailed(action) => Self::ProcessingFailed(action),
         }
     }
@@ -71,7 +67,6 @@ impl OutcomeError for Error {
             Self::FeatureDisabled(f) => Outcome::Invalid(DiscardReason::FeatureDisabled(*f)),
             Self::SerializeFailed(_) => Outcome::Invalid(DiscardReason::Internal),
             Self::Sampled(outcome) => outcome.clone(),
-            Self::PiiConfig => Outcome::Invalid(DiscardReason::ProjectStatePii),
             Self::RateLimited(rate_limits) => {
                 let reason_code = rate_limits
                     .longest()
@@ -98,16 +93,15 @@ impl TraceAttachmentsProcessor {
 }
 
 impl Processor for TraceAttachmentsProcessor {
-    type UnitOfWork = SerializedAttachments;
-
+    type Input = SerializedAttachments;
     type Output = Managed<ExpandedAttachments>;
-
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn cogs() -> FeatureWeights {
+        AppFeature::TraceAttachments.into()
+    }
+
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
         let items = envelope
             .envelope_mut()
@@ -115,18 +109,18 @@ impl Processor for TraceAttachmentsProcessor {
 
         (!items.is_empty()).then(|| {
             let work = SerializedAttachments { headers, items };
-            Managed::with_meta_from(envelope, work)
+            Managed::with_meta_from_managed_envelope(envelope, work)
         })
     }
 
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        work: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;
 
-        let work = process::sample(work, ctx).await?;
+        let work = process::sample(work, ctx)?;
 
         let work = process::expand(work);
 

@@ -1,17 +1,26 @@
 from collections import defaultdict
+from copy import deepcopy
 import json
+import os
+import time
+import uuid
+
 from google.protobuf.json_format import MessageToDict
 import msgpack
-import uuid
 
 from objectstore_client import Client, Usecase
 import pytest
-import os
 import confluent_kafka as kafka
-from copy import deepcopy
 
 from sentry_relay.consts import DataCategory
 from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
+from ..consts import Outcome
+
+TRANSIENT_CONSUMER_ERROR_CODES = {
+    kafka.KafkaError.NOT_COORDINATOR,
+    kafka.KafkaError.COORDINATOR_NOT_AVAILABLE,
+    kafka.KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+}
 
 
 @pytest.fixture
@@ -61,8 +70,6 @@ def processing_config(get_topic_name):
                 "outcomes": outcomes_topic,
                 "outcomes_billing": outcomes_topic,
                 "metrics_sessions": metrics_topic,
-                "metrics_generic": metrics_topic,
-                "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
@@ -78,6 +85,9 @@ def processing_config(get_topic_name):
             processing["projectconfig_cache_prefix"] = (
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
+
+        if processing.get("objectstore") is None:
+            processing["objectstore"] = {"objectstore_url": "http://127.0.0.1:8888/"}
 
         return options
 
@@ -185,12 +195,14 @@ def kafka_consumer(request, get_topic_name, processing_config):
         settings = {
             "bootstrap.servers": servers,
             "group.id": "test-consumer-%s" % uuid.uuid4().hex,
-            "enable.auto.commit": True,
+            "enable.auto.commit": False,
             "auto.offset.reset": "earliest",
         }
 
         consumer = kafka.Consumer(settings)
-        consumer.assign([kafka.TopicPartition(t, 0) for t in topics])
+        consumer.assign(
+            [kafka.TopicPartition(t, 0, kafka.OFFSET_BEGINNING) for t in topics]
+        )
 
         def die():
             consumer.close()
@@ -215,7 +227,25 @@ class ConsumerBase:
     def poll(self, timeout=None):
         if timeout is None:
             timeout = self.timeout
-        return self.consumer.poll(timeout=timeout)
+
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+
+            message = self.consumer.poll(timeout=remaining)
+            if message is None:
+                return None
+
+            error = message.error()
+            if error is None:
+                return message
+
+            if error.retriable() or error.code() in TRANSIENT_CONSUMER_ERROR_CODES:
+                continue
+
+            return message
 
     def poll_many(self, timeout=None, n=None):
         if timeout is None:
@@ -258,7 +288,10 @@ class ConsumerBase:
         """
         # First, give Relay a bit of time to process
         rv = self.poll(timeout=0.2)
-        assert rv is None, f"{self.__class__.__name__} not empty: {rv.value()}"
+        assert rv is None, (
+            f"{self.__class__.__name__} not empty: "
+            f"{rv.error() if rv.error() is not None else rv.value()}"
+        )
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -266,6 +299,7 @@ class ConsumerBase:
         self.test_producer.flush(timeout=5)
 
         rv = self.poll(timeout=timeout)
+        assert rv is not None, f"{self.__class__.__name__} did not receive test message"
         assert rv.error() is None
         assert rv.value() == message, rv.value()
 
@@ -335,7 +369,7 @@ class OutcomesConsumer(ConsumerBase):
         for outcome in outcomes:
             if ignore_other and outcome["category"] not in expected_categories:
                 continue
-            assert outcome["outcome"] == 2, outcome
+            assert outcome["outcome"] == Outcome.RATE_LIMITED, outcome
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
                 assert outcome["key_id"] == key_id, (outcome["key_id"], key_id)
@@ -394,11 +428,6 @@ def attachments_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def sessions_consumer(consumer_fixture):
-    yield from consumer_fixture(SessionsConsumer, "sessions")
-
-
-@pytest.fixture
 def metrics_consumer(consumer_fixture):
     yield from consumer_fixture(MetricsConsumer, "metrics")
 
@@ -406,11 +435,6 @@ def metrics_consumer(consumer_fixture):
 @pytest.fixture
 def replay_recordings_consumer(consumer_fixture):
     yield from consumer_fixture(ReplayRecordingsConsumer, "replay_recordings")
-
-
-@pytest.fixture
-def replay_events_consumer(consumer_fixture):
-    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
 
 
 @pytest.fixture
@@ -471,15 +495,6 @@ class MetricsConsumer(ConsumerBase):
         return metrics
 
 
-class SessionsConsumer(ConsumerBase):
-    def get_session(self):
-        message = self.poll()
-        assert message is not None
-        assert message.error() is None
-
-        return json.loads(message.value())
-
-
 class EventsConsumer(ConsumerBase):
     def get_event(self, timeout=None):
         message = self.poll(timeout)
@@ -487,7 +502,7 @@ class EventsConsumer(ConsumerBase):
         assert message.error() is None
 
         event = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert event["type"] == "event"
+        assert event["type"] == "event", event["type"]
         return json.loads(event["payload"].decode("utf8")), event
 
     def get_message(self):
@@ -602,13 +617,22 @@ class MonitorsConsumer(ConsumerBase):
 
 
 class SpansConsumer(ConsumerBase):
+    @staticmethod
+    def _expected_key(span):
+        trace_id_bytes = bytearray.fromhex(span["trace_id"])
+        org_id = span.get("organization_id", 0)
+        org_id_bytes = org_id.to_bytes(8, byteorder="big")
+        for i, b in enumerate(org_id_bytes):
+            trace_id_bytes[i] ^= b
+        return bytes(trace_id_bytes)
+
     def get_span(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
 
         span = json.loads(message.value())
-        assert message.key() == bytes.fromhex(span["trace_id"])
+        assert message.key() == self._expected_key(span)
         return span
 
     def get_spans(self, *, timeout=None, n=None):
@@ -617,7 +641,7 @@ class SpansConsumer(ConsumerBase):
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
             span = json.loads(message.value())
-            assert message.key() == bytes.fromhex(span["trace_id"])
+            assert message.key() == self._expected_key(span)
             spans.append(span)
 
         return spans

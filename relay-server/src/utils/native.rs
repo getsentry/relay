@@ -14,7 +14,9 @@ use relay_event_schema::protocol::{
     ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism,
     StabilityReportContext, Values,
 };
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Value, get_value};
+
+use crate::envelope::{Item, ItemType};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -36,12 +38,23 @@ struct NativePlaceholder {
     mechanism_type: &'static str,
 }
 
+#[derive(Clone, Copy)]
+/// What to do with additional exceptions in a minidump / apple crash report event.
+pub enum AdditionalExceptions {
+    Retain,
+    Delete,
+}
+
 /// Writes a placeholder to indicate that this event has an associated minidump or an apple
 /// crash report.
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
-fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
+fn write_native_placeholder(
+    event: &mut Event,
+    placeholder: NativePlaceholder,
+    additional_exceptions: AdditionalExceptions,
+) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
@@ -63,19 +76,38 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
         .value_mut()
         .get_or_insert_with(Vec::new);
 
-    exceptions.clear(); // clear previous errors if any
+    if let Some(exc) = exceptions.first() {
+        relay_log::info!(
+            additional_exceptions = exceptions.len(),
+            native_exception_mechanism = placeholder.exception_type,
+            additional_exception_mechanism = ?get_value!(exc.mechanism.ty),
+            sentry_project = ?event.project,
+            event_id = ?event.id,
+            platform = ?event.platform,
+            "Native event has additional exceptions",
+        )
+    }
 
-    exceptions.push(Annotated::new(Exception {
-        ty: Annotated::new(placeholder.exception_type.to_owned()),
-        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
-        mechanism: Annotated::new(Mechanism {
-            ty: Annotated::from(placeholder.mechanism_type.to_owned()),
-            handled: Annotated::from(false),
-            synthetic: Annotated::from(true),
-            ..Mechanism::default()
+    if matches!(additional_exceptions, AdditionalExceptions::Delete) {
+        exceptions.clear(); // clear previous errors if any
+    }
+
+    // The placeholder for the minidump exception has to be the first in the list. This is what
+    // sentry expects: https://github.com/getsentry/sentry/blob/f949db3155fcb6b79d3ee5e875b542460ed7c2c4/src/sentry/lang/native/utils.py#L149
+    exceptions.insert(
+        0,
+        Annotated::new(Exception {
+            ty: Annotated::new(placeholder.exception_type.to_owned()),
+            value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
+            mechanism: Annotated::new(Mechanism {
+                ty: Annotated::from(placeholder.mechanism_type.to_owned()),
+                handled: Annotated::from(false),
+                synthetic: Annotated::from(true),
+                ..Mechanism::default()
+            }),
+            ..Exception::default()
         }),
-        ..Exception::default()
-    }));
+    );
 }
 
 /// Generates crashpad contexts for annotations stored in the minidump.
@@ -194,15 +226,32 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, data: &[u8]) {
+pub fn process_minidump(
+    event: &mut Event,
+    item: &Item,
+    additional_exceptions: AdditionalExceptions,
+) {
+    debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
         mechanism_type: "minidump",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, additional_exceptions);
 
-    let minidump = match Minidump::read(data) {
+    if item.is_attachment_ref() {
+        // We don't have a full minidump, just a placeholder for something that was uploaded
+        // through the upload endpoint.
+        event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+            name: "minidump.upload".to_owned().into(),
+            version: "0.0.0".to_owned().into(),
+            ..Default::default()
+        });
+        return;
+    }
+
+    let data = item.payload();
+    let minidump = match Minidump::read(&data) {
         Ok(minidump) => minidump,
         Err(err) => {
             relay_log::debug!(error = &err as &dyn Error, "failed to parse minidump");
@@ -251,11 +300,48 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event, _data: &[u8]) {
+pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: AdditionalExceptions) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, additional_exceptions);
+}
+
+/// Reshapes a Switch crash so it renders the same as crashes on other platforms.
+///
+/// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
+///  its exception `type` is the raw abort result code (for example
+/// `2168-0002 ResultAccessViolationData`).
+///
+/// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
+/// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
+/// fall back to the crashing function. We apply the same treatment here, so the issue title
+/// matches its Windows/macOS counterpart.
+///
+/// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
+/// subtitle.
+pub fn reshape_switch_crash(event: &mut Event) {
+    // Sentry derives the issue title from the last exception in the list (see `_get_exception`
+    // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.
+    let Some(exception) = event
+        .exceptions
+        .value_mut()
+        .as_mut()
+        .and_then(|values| values.values.value_mut().as_mut())
+        .and_then(|exceptions| exceptions.last_mut())
+        .and_then(|exception| exception.value_mut().as_mut())
+    else {
+        return;
+    };
+
+    let mechanism = exception
+        .mechanism
+        .value_mut()
+        .get_or_insert_with(Mechanism::default);
+    mechanism.synthetic.set_value(Some(true));
+
+    // Events have level `error` by default, so set to `fatal` like for other native crashes.
+    event.level.set_value(Some(Level::Fatal));
 }

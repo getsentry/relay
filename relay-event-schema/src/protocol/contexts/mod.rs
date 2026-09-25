@@ -2,12 +2,12 @@ mod app;
 mod browser;
 mod chromium_stability_report;
 mod cloud_resource;
+mod culture;
 mod device;
 mod flags;
 mod gpu;
 mod memory_info;
 mod monitor;
-mod nel;
 mod os;
 mod ota_updates;
 mod otel;
@@ -26,11 +26,12 @@ pub use app::*;
 pub use browser::*;
 pub use chromium_stability_report::*;
 pub use cloud_resource::*;
+pub use culture::*;
 pub use device::*;
+pub use flags::*;
 pub use gpu::*;
 pub use memory_info::*;
 pub use monitor::*;
-pub use nel::*;
 pub use os::*;
 pub use ota_updates::*;
 pub use otel::*;
@@ -65,64 +66,64 @@ pub type OriginType = String;
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
-    Device(Box<DeviceContext>),
+    Device(#[metastructure(max_bytes = 8192)] Box<DeviceContext>),
     /// Operating system information.
-    Os(Box<OsContext>),
+    Os(#[metastructure(max_bytes = 8192)] Box<OsContext>),
     /// Runtime information.
-    Runtime(Box<RuntimeContext>),
+    Runtime(#[metastructure(max_bytes = 8192)] Box<RuntimeContext>),
     /// Application information.
-    App(Box<AppContext>),
+    App(#[metastructure(max_bytes = 8192)] Box<AppContext>),
     /// Web browser information.
-    Browser(Box<BrowserContext>),
+    Browser(#[metastructure(max_bytes = 8192)] Box<BrowserContext>),
     /// Information about device's GPU.
-    Gpu(Box<GpuContext>),
+    Gpu(#[metastructure(max_bytes = 8192)] Box<GpuContext>),
     /// Information related to Tracing.
-    Trace(Box<TraceContext>),
+    Trace(#[metastructure(max_bytes = 8192)] Box<TraceContext>),
     /// Information related to Profiling.
-    Profile(Box<ProfileContext>),
+    Profile(#[metastructure(max_bytes = 8192)] Box<ProfileContext>),
     /// Information related to Replay.
-    Replay(Box<ReplayContext>),
+    Replay(#[metastructure(max_bytes = 8192)] Box<ReplayContext>),
     /// Information related to Feature flags.
-    Flags(Box<flags::FlagsContext>),
+    Flags(#[metastructure(max_bytes = 131_072)] Box<flags::FlagsContext>),
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
-    UserReportV2(Box<UserReportV2Context>),
+    UserReportV2(#[metastructure(max_bytes = 8192)] Box<UserReportV2Context>),
     /// Information related to Memory usage and garbage collection metrics.
     #[metastructure(tag = "memory_info")]
-    MemoryInfo(Box<MemoryInfoContext>),
+    MemoryInfo(#[metastructure(max_bytes = 8192)] Box<MemoryInfoContext>),
     /// Information related to Monitors feature.
-    Monitor(Box<MonitorContext>),
+    Monitor(#[metastructure(max_bytes = 8192)] Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
     #[metastructure(omit_from_schema)]
-    Reprocessing(Box<ReprocessingContext>),
+    Reprocessing(#[metastructure(max_bytes = 8192)] Box<ReprocessingContext>),
     /// Response information.
-    Response(Box<ResponseContext>),
+    Response(#[metastructure(max_bytes = 8192)] Box<ResponseContext>),
     /// OpenTelemetry information.
-    Otel(Box<OtelContext>),
+    Otel(#[metastructure(max_bytes = 8192)] Box<OtelContext>),
     /// Cloud resource information.
-    CloudResource(Box<CloudResourceContext>),
-    /// Nel information.
-    Nel(Box<NelContext>),
+    CloudResource(#[metastructure(max_bytes = 8192)] Box<CloudResourceContext>),
+    /// Culture information.
+    Culture(#[metastructure(max_bytes = 8192)] Box<CultureContext>),
     /// Performance score information.
-    PerformanceScore(Box<PerformanceScoreContext>),
+    PerformanceScore(#[metastructure(max_bytes = 8192)] Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.
-    Spring(Box<SpringContext>),
+    Spring(#[metastructure(max_bytes = 8192)] Box<SpringContext>),
     /// Thread pool information.
     #[metastructure(tag = "threadpool_info")]
-    ThreadPoolInfo(Box<ThreadPoolInfoContext>),
+    ThreadPoolInfo(#[metastructure(max_bytes = 8192)] Box<ThreadPoolInfoContext>),
     /// OTA Updates information.
-    OTAUpdates(Box<OTAUpdatesContext>),
+    OTAUpdates(#[metastructure(max_bytes = 8192)] Box<OTAUpdatesContext>),
     /// Chromium Stability Report from minidump.
-    ChromiumStabilityReport(Box<StabilityReportContext>),
+    ChromiumStabilityReport(#[metastructure(max_bytes = 8192)] Box<StabilityReportContext>),
     /// Unity information.
-    Unity(Box<UnityContext>),
+    Unity(#[metastructure(max_bytes = 8192)] Box<UnityContext>),
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(fallback_variant)]
-    Other(#[metastructure(pii = "true")] Object<Value>),
+    #[metastructure(fallback_variant, retain = true)]
+    Other(#[metastructure(pii = "true", max_bytes = 8192)] Object<Value>),
 }
 
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct ContextInner(#[metastructure(max_depth = 7, max_bytes = 8192)] pub Context);
+pub struct ContextInner(#[metastructure(max_depth = 7)] pub Context);
 
 impl From<Context> for ContextInner {
     fn from(c: Context) -> ContextInner {

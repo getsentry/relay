@@ -2,12 +2,14 @@ use futures::StreamExt;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Notify;
+use tokio::sync::futures::Notified;
 use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
+use relay_config::ConfigSnapshot;
 use relay_quotas::CachedRateLimits;
-use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
@@ -38,7 +40,7 @@ pub struct ProjectStore {
 }
 
 impl ProjectStore {
-    pub fn new(config: &relay_config::Config) -> Self {
+    pub fn new(config: &ConfigSnapshot) -> Self {
         Self {
             config: Config::new(config),
             shared: Default::default(),
@@ -265,7 +267,7 @@ struct Config {
 }
 
 impl Config {
-    fn new(config: &relay_config::Config) -> Self {
+    fn new(config: &ConfigSnapshot) -> Self {
         let expiry = config.project_cache_expiry();
         let grace_period = config.project_grace_period();
 
@@ -298,16 +300,20 @@ impl Shared {
     /// The caller must ensure that the project cache is instructed to
     /// [`super::ProjectCache::Fetch`] the retrieved project.
     pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
+        self.get_or_create_inner(project_key).to_shared_project()
+    }
+
+    fn get_or_create_inner(&self, project_key: ProjectKey) -> SharedProjectState {
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
         if let Some(project) = projects.get(&project_key) {
-            return project.to_shared_project();
+            return project.clone();
         }
 
         // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
         match projects.try_insert(project_key, Default::default()) {
-            Ok(inserted) => inserted.to_shared_project(),
-            Err(occupied) => occupied.current.to_shared_project(),
+            Ok(inserted) => inserted.clone(),
+            Err(occupied) => occupied.current.clone(),
         }
     }
 }
@@ -358,9 +364,11 @@ impl SharedProject {
         &self.0.rate_limits
     }
 
-    /// Returns a reference to the contained [`ReservoirCounters`].
-    pub fn reservoir_counters(&self) -> &ReservoirCounters {
-        &self.0.reservoir_counters
+    /// Waits for the event of a changed project state, triggered by [`SharedProjectState::set_project_state`].
+    ///
+    /// Note that the content of this instance does not change when the event is triggered.
+    pub fn outdated(&self) -> Notified<'_> {
+        self.0.notify.notified()
     }
 }
 
@@ -602,24 +610,11 @@ impl SharedProjectState {
         let prev = self.0.rcu(|stored| SharedProjectStateInner {
             state: state.clone(),
             rate_limits: Arc::clone(&stored.rate_limits),
-            reservoir_counters: Arc::clone(&stored.reservoir_counters),
+            notify: Arc::clone(&stored.notify),
         });
 
-        // Try clean expired reservoir counters.
-        //
-        // We do it after the `rcu`, to not re-run this more often than necessary.
-        if let Some(state) = state.enabled() {
-            let config = state.config.sampling.as_ref();
-            if let Some(config) = config.and_then(|eb| eb.as_ref().ok()) {
-                // We can safely use previous here, the `rcu` just replaced the state, the
-                // reservoir counters did not change.
-                //
-                // `try_lock` to not potentially block, it's a best effort cleanup.
-                if let Ok(mut counters) = prev.reservoir_counters.try_lock() {
-                    counters.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
-                }
-            }
-        }
+        // Finally, notify listeners:
+        prev.notify.notify_waiters();
     }
 
     /// Extracts and clones the revision from the contained project state.
@@ -641,7 +636,7 @@ impl SharedProjectState {
 struct SharedProjectStateInner {
     state: ProjectState,
     rate_limits: Arc<CachedRateLimits>,
-    reservoir_counters: ReservoirCounters,
+    notify: Arc<Notify>,
 }
 
 /// Current fetch state for a project.
@@ -941,6 +936,8 @@ struct ExpiryTime(Instant);
 mod tests {
     use std::time::Duration;
 
+    use relay_config::Config;
+
     use super::*;
 
     async fn collect_evicted(store: &mut ProjectStore) -> Vec<ProjectKey> {
@@ -967,7 +964,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::new(&Default::default());
+        let mut store = ProjectStore::new(&Config::default().current());
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
         assert_eq!(fetch.project_key(), project_key);
@@ -1009,13 +1006,14 @@ mod tests {
     async fn test_store_fetch_pending_does_not_replace_state() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1032,9 +1030,9 @@ mod tests {
         // The old cached state is still available and not replaced.
         assert_state!(store, project_key, ProjectState::Disabled);
 
-        let fetch = fetch.complete(ProjectState::new_allowed().into());
+        let fetch = fetch.complete(ProjectState::Dummy.into());
         assert!(store.complete_fetch(fetch).is_none());
-        assert_state!(store, project_key, ProjectState::Enabled(_));
+        assert_state!(store, project_key, ProjectState::Dummy);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1042,13 +1040,14 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1081,13 +1080,14 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1120,13 +1120,14 @@ mod tests {
     async fn test_store_evict_projects_stale() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1150,13 +1151,14 @@ mod tests {
     async fn test_store_no_eviction_during_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1195,14 +1197,15 @@ mod tests {
     async fn test_store_refresh() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1244,14 +1247,15 @@ mod tests {
     async fn test_store_refresh_overtaken_by_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1284,14 +1288,15 @@ mod tests {
     async fn test_store_refresh_during_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1316,5 +1321,35 @@ mod tests {
         store.evict(eviction);
 
         assert!(store.refresh(refresh).is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_ready_state() {
+        let shared = SharedProjectState::default();
+
+        let shared_project = shared.to_shared_project();
+        assert!(shared_project.project_state().is_pending());
+        let mut listener = std::pin::pin!(shared_project.outdated());
+
+        // After five seconds, project state is still pending:
+        let result = tokio::time::timeout(Duration::from_secs(5), listener.as_mut()).await;
+        assert!(result.is_err()); // timed out before notify
+        assert!(shared.to_shared_project().project_state().is_pending());
+
+        // Change the state:
+        shared.set_project_state(ProjectState::Disabled);
+
+        // The listener gets notified immediately:
+        let result = tokio::time::timeout(Duration::from_secs(1), listener).await;
+        assert!(result.is_ok()); // notified before timeout
+
+        // The old snapshot is still pending:
+        assert!(shared_project.project_state().is_pending());
+
+        // The up-to-date snapshot is Disabled:
+        assert!(matches!(
+            shared.to_shared_project().project_state(),
+            &ProjectState::Disabled
+        ));
     }
 }

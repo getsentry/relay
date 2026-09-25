@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.12.1"
+version = "26.9.0"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -13,18 +13,17 @@ publish = false
 [features]
 default = []
 processing = [
+  "dep:mime_guess",
   "dep:minidump",
   "dep:prost-types",
   "dep:sentry_protos",
   "dep:symbolic-common",
   "dep:symbolic-unreal",
-  "relay-cardinality/redis",
   "relay-config/processing",
   "relay-kafka/producer",
   "relay-metrics/redis",
   "relay-quotas/redis",
   "relay-redis/impl",
-  "relay-sampling/redis",
 ]
 
 [lints]
@@ -34,10 +33,11 @@ workspace = true
 ahash = { workspace = true }
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
+async-compression = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }
-backoff = { workspace = true }
+backon = { workspace = true, default-features = false }
 brotli = { workspace = true }
 bytecount = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
@@ -48,16 +48,23 @@ either = { workspace = true }
 flate2 = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
 libc = { workspace = true }
 liblzma = { workspace = true }
+lz4_flex = { workspace = true }
+matchit = { workspace = true }
 mime = { workspace = true }
+mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 objectstore-client = { workspace = true }
+objectstore-types = { workspace = true }
 opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
@@ -68,7 +75,6 @@ rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
 relay-common = { workspace = true }
 relay-config = { workspace = true }
@@ -108,6 +114,7 @@ serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { workspace = true }
+serde_urlencoded = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true, features = ["all"] }
 sqlx = { workspace = true, features = [
@@ -120,6 +127,7 @@ symbolic-common = { workspace = true, optional = true, default-features = false 
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
   "serde",
 ] }
+sync_wrapper = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
@@ -136,6 +144,7 @@ tower-http = { workspace = true, default-features = false, features = [
   "decompression-deflate",
   "decompression-gzip",
   "decompression-zstd",
+  "limit",
   "set-header",
   "trace",
 ] }
@@ -143,9 +152,9 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
 
+
 [dev-dependencies]
 criterion = { workspace = true }
-http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-system = { workspace = true, features = ["test"] }

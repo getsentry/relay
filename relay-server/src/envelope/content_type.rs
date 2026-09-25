@@ -1,15 +1,14 @@
 use std::fmt;
 
-use serde::Serialize;
-
 use crate::integrations::Integration;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 /// Payload content types.
 ///
-/// This is an optimized enum intended to reduce allocations for common content types.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+/// This is an optimized enum intended to reduce allocations for common content types used by Relay.
+/// When dealing with generic/user provided content types, use a different type instead, e.g. `String`.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
     /// `text/plain`
     Text,
@@ -37,15 +36,17 @@ pub enum ContentType {
     TraceMetricContainer,
     /// `application/vnd.sentry.trace-attachment`
     TraceAttachment,
+    /// `application/vnd.sentry.attachment-ref+json`
+    AttachmentRef,
+    /// `application/x-perfetto-trace`
+    PerfettoTrace,
     /// All integration content types.
     Integration(Integration),
-    /// Any arbitrary content type not listed explicitly.
-    Other(String),
 }
 
 impl ContentType {
     #[inline]
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Text => "text/plain",
             Self::Json => "application/json",
@@ -60,13 +61,14 @@ impl ContentType {
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
+            Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
+            Self::PerfettoTrace => "application/x-perfetto-trace",
             Self::Integration(integration) => integration.as_content_type(),
-            Self::Other(other) => other,
         }
     }
 
     /// Returns `true` if this is the content type of an [`ItemContainer`](crate::envelope::ItemContainer).
-    pub fn is_container(&self) -> bool {
+    pub fn is_container(self) -> bool {
         matches!(
             self,
             ContentType::LogContainer
@@ -78,9 +80,9 @@ impl ContentType {
     fn from_str(ct: &str) -> Option<Self> {
         if ct.eq_ignore_ascii_case(Self::Text.as_str()) {
             Some(Self::Text)
-        } else if ct.eq_ignore_ascii_case(Self::Json.as_str()) {
+        } else if match_content_type_and_charset(ct, Self::Json.as_str(), "utf-8") {
             Some(Self::Json)
-        } else if ct.eq_ignore_ascii_case(Self::NdJson.as_str()) {
+        } else if match_content_type_and_charset(ct, Self::NdJson.as_str(), "utf-8") {
             Some(Self::NdJson)
         } else if ct.eq_ignore_ascii_case(Self::MsgPack.as_str()) {
             Some(Self::MsgPack)
@@ -88,8 +90,8 @@ impl ContentType {
             Some(Self::OctetStream)
         } else if ct.eq_ignore_ascii_case(Self::Minidump.as_str()) {
             Some(Self::Minidump)
-        } else if ct.eq_ignore_ascii_case(Self::Xml.as_str())
-            || ct.eq_ignore_ascii_case("application/xml")
+        } else if match_content_type_and_charset(ct, Self::Xml.as_str(), "utf-8")
+            || match_content_type_and_charset(ct, "application/xml", "utf-8")
         {
             Some(Self::Xml)
         } else if ct.eq_ignore_ascii_case(Self::Envelope.as_str()) {
@@ -106,6 +108,12 @@ impl ContentType {
             || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment.v2")
         {
             Some(Self::TraceAttachment)
+        } else if ct.eq_ignore_ascii_case(Self::AttachmentRef.as_str())
+            || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment-ref")
+        {
+            Some(Self::AttachmentRef)
+        } else if ct.eq_ignore_ascii_case(Self::PerfettoTrace.as_str()) {
+            Some(Self::PerfettoTrace)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }
@@ -118,20 +126,37 @@ impl fmt::Display for ContentType {
     }
 }
 
-impl From<String> for ContentType {
-    fn from(mut content_type: String) -> Self {
-        Self::from_str(&content_type).unwrap_or_else(|| {
-            content_type.make_ascii_lowercase();
-            ContentType::Other(content_type)
-        })
-    }
-}
+/// Matches a `Content-Type` header value against an expected media type per RFC 9110.
+///
+/// Returns `true` if the media type equals `expected` and the only parameter is
+/// the allowed `charset`. Any other parameter is not allowed.
+fn match_content_type_and_charset(ct: &str, expected: &str, charset: &str) -> bool {
+    // RFC whitespace characters.
+    const OWS: [char; 2] = [' ', '\t'];
 
-impl From<&'_ str> for ContentType {
-    fn from(content_type: &str) -> Self {
-        Self::from_str(content_type)
-            .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
+    let mut segments = ct.split(';');
+
+    let media_type = segments.next().unwrap_or_default();
+    if !media_type.trim_matches(OWS).eq_ignore_ascii_case(expected) {
+        return false;
     }
+
+    segments.all(|parameter| {
+        let parameter = parameter.trim_matches(OWS);
+        if parameter.is_empty() {
+            return true;
+        }
+
+        let Some((name, value)) = parameter.split_once('=') else {
+            return false;
+        };
+        let value = value
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or(value);
+
+        name.eq_ignore_ascii_case("charset") && value.eq_ignore_ascii_case(charset)
+    })
 }
 
 impl From<Integration> for ContentType {
@@ -140,11 +165,14 @@ impl From<Integration> for ContentType {
     }
 }
 
+#[derive(Debug)]
+pub struct UnknownContentType;
+
 impl std::str::FromStr for ContentType {
-    type Err = std::convert::Infallible;
+    type Err = UnknownContentType;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(s.into())
+        Self::from_str(s).ok_or(UnknownContentType)
     }
 }
 
@@ -189,7 +217,7 @@ impl PartialEq<ContentType> for String {
     }
 }
 
-impl Serialize for ContentType {
+impl serde::Serialize for ContentType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -199,3 +227,58 @@ impl Serialize for ContentType {
 }
 
 relay_common::impl_str_de!(ContentType, "a content type string");
+
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_attachment_ref_roundtrip() {
+        let canonical_name = "application/vnd.sentry.attachment-ref+json";
+        let ct = ContentType::from_str(canonical_name).unwrap();
+        assert_eq!(ct, ContentType::AttachmentRef);
+        assert_eq!(canonical_name, ct.as_str());
+
+        let legacy_alias = "application/vnd.sentry.attachment-ref";
+        let ct = ContentType::from_str(legacy_alias).unwrap();
+        assert_eq!(ct, ContentType::AttachmentRef);
+    }
+
+    #[test]
+    fn test_json_charset_parameter() {
+        for accepted in [
+            "application/json",
+            "application/json; charset=utf-8",
+            "application/json;charset=utf-8",
+            "application/json ;  charset=UTF-8",
+            "application/json;\tcharset=\"utf-8\"",
+            "APPLICATION/JSON; CHARSET=utf-8;",
+        ] {
+            assert_eq!(ContentType::from_str(accepted), Some(ContentType::Json));
+        }
+
+        for rejected in [
+            "application/json; charset=utf-16",
+            "application/json; charset",
+            "application/json; version=1",
+            "application/json2; charset=utf-8",
+            "application/ json; charset=utf-8",
+        ] {
+            assert_eq!(ContentType::from_str(rejected), None);
+        }
+    }
+
+    #[test]
+    fn test_xml_charset_parameter() {
+        for accepted in [
+            "text/xml",
+            "application/xml",
+            "text/xml; charset=utf-8",
+            "application/xml; charset=utf-8",
+        ] {
+            assert_eq!(ContentType::from_str(accepted), Some(ContentType::Xml));
+        }
+    }
+}

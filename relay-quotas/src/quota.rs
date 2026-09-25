@@ -5,6 +5,7 @@ use std::sync::Arc;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -133,7 +134,6 @@ impl ItemScoping {
     /// or `None` if the scope type doesn't have an applicable identifier.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
-            QuotaScope::Global => None,
             QuotaScope::Organization => Some(self.organization_id.value()),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
@@ -142,7 +142,7 @@ impl ItemScoping {
     }
 
     /// Checks whether the category matches any of the quota's categories.
-    pub(crate) fn matches_categories(&self, categories: &[DataCategory]) -> bool {
+    pub(crate) fn matches_categories(&self, categories: DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does
@@ -175,23 +175,49 @@ impl ItemScoping {
 /// An efficient container for data categories that avoids allocations.
 ///
 /// It is a read only and has set like properties, allowing for fast comparisons.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize)]
-#[serde(transparent)]
-pub struct DataCategories(Arc<[DataCategory]>);
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
+pub struct DataCategories(u64);
+
+impl Serialize for DataCategories {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut ser = serializer.serialize_seq(Some(self.len()))?;
+        for category in self.iter() {
+            ser.serialize_element(&category)?;
+        }
+        ser.end()
+    }
+}
 
 impl DataCategories {
+    fn category_to_mask(category: DataCategory) -> u64 {
+        if matches!(category, DataCategory::Unknown) {
+            // Handle Unknown by throwing it into the last bit.
+            1u64 << 63
+        } else {
+            1u64 << (category as u8)
+        }
+    }
+
+    fn bit_number_to_category(bit_number: u8) -> DataCategory {
+        bit_number.try_into().unwrap_or(DataCategory::Unknown)
+    }
+
     /// Creates new and empty [`DataCategories`].
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Creates a new [`Self`] from a [`SmallVec`].
-    ///
-    /// Sorts and de-duplicates the contents to uphold the invariants of the type.
-    fn new_sort_and_dedup<const N: usize>(mut s: SmallVec<[DataCategory; N]>) -> Self {
-        s.sort_unstable();
-        s.dedup();
-        Self(s.as_slice().into())
+    /// Creates a new [`DataCategories`] from the supplied slice of [`DataCategory`] values.
+    pub fn from_slice(slice: &[DataCategory]) -> Self {
+        let mut categories = 0;
+        for category in slice {
+            categories |= DataCategories::category_to_mask(*category);
+        }
+
+        Self(categories)
     }
 
     /// Adds a data category to [`Self`].
@@ -199,23 +225,74 @@ impl DataCategories {
     /// Returns `None` if the category was already contained, otherwise creates a new [`Self`] with
     /// the `category` added.
     pub fn add(&self, category: DataCategory) -> Option<Self> {
-        // We know the list of contained data categories is small -> we can just do a linear search
-        // instead of a binary search.
-        if self.0.contains(&category) {
+        let category_mask = DataCategories::category_to_mask(category);
+
+        if (self.0 & category_mask) != 0 {
             return None;
         }
 
-        let mut new = SmallVec::<[DataCategory; 12]>::from(&*self.0);
-        new.push(category);
-        Some(new.into())
+        Some(Self(self.0 | category_mask))
+    }
+
+    /// Returns true iff the category is contained.
+    pub fn contains(&self, category: &DataCategory) -> bool {
+        let category_mask = DataCategories::category_to_mask(*category);
+        (self.0 & category_mask) != 0
+    }
+
+    /// Returns an iterator over this [`DataCategories`] container.
+    pub fn iter(&self) -> DataCategoryIterator {
+        // We start our iteration from the lsb, so the number of trailings zeroes is our 0-based
+        // starting index.
+        let bit_start = self.0.trailing_zeros();
+
+        // Shift our bitfield so that the first bit is in the 0th place.
+        let (categories, _) = self.0.overflowing_shr(bit_start);
+        DataCategoryIterator {
+            categories,
+            current_bit: bit_start as u8,
+        }
+    }
+
+    /// Returns the number of categories in this container.
+    pub fn len(&self) -> usize {
+        self.0.count_ones() as usize
+    }
+
+    /// Returns true iff this container contains no categories.
+    pub fn is_empty(&self) -> bool {
+        self.0 == 0
     }
 }
 
-impl std::ops::Deref for DataCategories {
-    type Target = [DataCategory];
+/// An iterator over a [`DataCategories`] container.
+pub struct DataCategoryIterator {
+    categories: u64,
+    current_bit: u8,
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl Iterator for DataCategoryIterator {
+    type Item = DataCategory;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.categories == 0 {
+            return None;
+        }
+        let category = DataCategories::bit_number_to_category(self.current_bit);
+
+        // Consume the last bit
+        self.categories &= u64::MAX - 1;
+
+        // Find the next set bit
+        let trailing_zeroes = self.categories.trailing_zeros() as u8;
+
+        // Put that bit in the 0th (to-consume) position
+        (self.categories, _) = self.categories.overflowing_shr(trailing_zeroes as u32);
+
+        // Update the current bit state
+        self.current_bit += trailing_zeroes;
+
+        Some(category)
     }
 }
 
@@ -224,32 +301,32 @@ impl<'de> Deserialize<'de> for DataCategories {
     where
         D: serde::Deserializer<'de>,
     {
-        SmallVec::<[DataCategory; 12]>::deserialize(deserializer).map(Self::new_sort_and_dedup)
+        SmallVec::<[DataCategory; 12]>::deserialize(deserializer).map(Self::from)
     }
 }
 
 impl<const N: usize> From<SmallVec<[DataCategory; N]>> for DataCategories {
     fn from(categories: SmallVec<[DataCategory; N]>) -> Self {
-        Self::new_sort_and_dedup(categories)
+        Self::from_slice(&categories)
     }
 }
 
 impl<const N: usize> From<[DataCategory; N]> for DataCategories {
     fn from(categories: [DataCategory; N]) -> Self {
-        Self::new_sort_and_dedup(SmallVec::from_buf(categories))
+        Self::from_slice(&categories)
     }
 }
 
 impl FromIterator<DataCategory> for DataCategories {
     fn from_iter<T: IntoIterator<Item = DataCategory>>(iter: T) -> Self {
         let v: SmallVec<[DataCategory; 12]> = iter.into_iter().collect();
-        Self::new_sort_and_dedup(v)
+        Self::from_slice(&v)
     }
 }
 
 /// The scope at which a quota is applied.
 ///
-/// Defines the granularity at which quotas are enforced, from global (affecting all data)
+/// Defines the granularity at which quotas are enforced, from organizations
 /// down to individual project keys. This enum only defines the type of scope,
 /// not the specific instance.
 ///
@@ -258,8 +335,6 @@ impl FromIterator<DataCategory> for DataCategories {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
-    /// Global scope, matching all data regardless of origin.
-    Global,
     /// The organization level.
     ///
     /// This is the top-level scope.
@@ -286,7 +361,6 @@ impl QuotaScope {
     /// If the string doesn't match any known scope, returns [`QuotaScope::Unknown`].
     pub fn from_name(string: &str) -> Self {
         match string {
-            "global" => Self::Global,
             "organization" => Self::Organization,
             "project" => Self::Project,
             "key" => Self::Key,
@@ -299,7 +373,6 @@ impl QuotaScope {
     /// This is the lowercase string representation used in serialization.
     pub fn name(self) -> &'static str {
         match self {
-            Self::Global => "global",
             Self::Key => "key",
             Self::Project => "project",
             Self::Organization => "organization",
@@ -462,11 +535,7 @@ impl Quota {
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    fn matches_scope(&self, scoping: ItemScoping) -> bool {
-        if self.scope == QuotaScope::Global {
-            return true;
-        }
-
+    fn matches_scope(&self, scoping: &ItemScoping) -> bool {
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
@@ -488,15 +557,17 @@ impl Quota {
     ///
     /// This method determines if this quota should be applied to a given item
     /// based on its scope, categories, and namespace.
-    pub fn matches(&self, scoping: ItemScoping) -> bool {
+    pub fn matches(&self, scoping: &ItemScoping) -> bool {
         self.matches_scope(scoping)
-            && scoping.matches_categories(&self.categories)
+            && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::data_category::UnknownDataCategory;
+
     use super::*;
 
     #[test]
@@ -795,7 +866,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -820,7 +891,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -845,7 +916,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -856,7 +927,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Transaction,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -881,7 +952,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -906,7 +977,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -917,7 +988,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(0),
@@ -942,7 +1013,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -953,7 +1024,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -978,7 +1049,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -989,7 +1060,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1000,7 +1071,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1049,5 +1120,29 @@ mod tests {
         assert!(c.add(DataCategory::Span).is_none());
         let c = c.add(DataCategory::Transaction).unwrap();
         assert_eq!(c, [DataCategory::Span, DataCategory::Transaction].into());
+    }
+
+    #[test]
+    fn test_reserve_last_bit_data_category() {
+        // Ensure we don't accidentally use 63 as a valid DataCategory.
+        let r: Result<DataCategory, UnknownDataCategory> = 63u32.try_into();
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_bitmapping_identity() {
+        assert_eq!(
+            DataCategories::category_to_mask(DataCategory::Unknown),
+            1u64 << 63
+        );
+        for i in 0..63u32 {
+            let r: Result<DataCategory, UnknownDataCategory> = i.try_into();
+            if let Ok(dc) = r {
+                assert_eq!(DataCategories::bit_number_to_category(i as u8), dc);
+                assert_eq!(DataCategories::category_to_mask(dc), 1 << i);
+            } else {
+                break;
+            }
+        }
     }
 }

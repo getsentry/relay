@@ -1,0 +1,47 @@
+---
+source: relay-pii/src/convert.rs
+expression: data
+---
+{
+  "attributes": {
+    "client.address": {
+      "type": "string",
+      "value": null
+    },
+    "user.name": {
+      "type": "string",
+      "value": "[ip]"
+    }
+  },
+  "_meta": {
+    "attributes": {
+      "client.address": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:remove",
+                "x"
+              ]
+            ]
+          }
+        }
+      },
+      "user.name": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@ip:replace",
+                "s",
+                0,
+                4
+              ]
+            ],
+            "len": 13
+          }
+        }
+      }
+    }
+  }
+}

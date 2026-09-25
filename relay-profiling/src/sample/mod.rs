@@ -6,7 +6,7 @@ use relay_event_schema::protocol::Addr;
 pub mod v1;
 pub mod v2;
 
-/// Possible values for the version field of the Sample Format.
+/// Possible values for profile payload versions.
 #[derive(Debug, Serialize, Deserialize, Copy, Clone, Default, PartialEq, Eq)]
 pub enum Version {
     #[default]
@@ -15,6 +15,9 @@ pub enum Version {
     V1,
     #[serde(rename = "2")]
     V2,
+    /// Special-cased chunk format for Android trace profiles, distinct from Sample Format V2.
+    #[serde(rename = "2.android-trace")]
+    V2AndroidTrace,
 }
 
 /// Holds information about a single stacktrace frame.
@@ -69,6 +72,13 @@ pub struct Frame {
     /// language natively considers to be part of the stack (for instance in Java).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
+
+    /// The 'package' the frame was contained in.
+    ///
+    /// For native frames this is the dynamic library path (e.g. `libc.so`).
+    /// For Java frames this is the container (e.g. `boot-framework.oat`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
 
     /// Which platform this frame is from.
     ///

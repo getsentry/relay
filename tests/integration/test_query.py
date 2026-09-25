@@ -177,8 +177,8 @@ def test_processing_redis_query(
     relay.send_event(project_id)
 
     if disabled:
-        outcome = outcomes_consumer.get_outcome()
-        assert (outcome["outcome"], outcome["reason"]) == (3, "project_id")
+        events_consumer.assert_empty()
+        outcomes_consumer.assert_empty()
     else:
         event, v = events_consumer.get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}

@@ -113,6 +113,8 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 #[cfg(feature = "init")]
+mod crash;
+#[cfg(feature = "init")]
 mod setup;
 #[cfg(feature = "init")]
 pub use setup::*;
@@ -125,7 +127,7 @@ pub use test::*;
 mod utils;
 // Expose the minimal log facade.
 #[doc(inline)]
-pub use tracing::{Level, debug, error, info, trace, warn};
+pub use tracing::{Level, debug, enabled, error, info, trace, warn};
 // Expose the minimal error reporting API.
 #[doc(inline)]
 pub use sentry_core::{self as sentry, Hub, capture_error, configure_scope, protocol, with_scope};

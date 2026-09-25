@@ -1,18 +1,29 @@
 import uuid
+import json
+from datetime import datetime, timezone, timedelta
+
+import pytest
+from sentry_relay.consts import DataCategory
+
+from .asserts import time_within_delta
+from .consts import Outcome
 
 
 def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
+    timestamp = datetime.now(timezone.utc).timestamp()
+
     return {
         "type": "replay_event",
         "replay_id": replay_id,
         "replay_type": "session",
         "event_id": replay_id,
         "segment_id": 0,
-        "timestamp": 1597977777.6189718,
-        "replay_start_timestamp": 1597976392.6542819,
+        "timestamp": timestamp,
+        "replay_start_timestamp": timestamp - 60.0,
         "urls": ["sentry.io"],
         "error_ids": [str(uuid.uuid4())],
         "trace_ids": [str(uuid.uuid4())],
+        "segment_names": ["/api/0/organizations/", "/api/0/projects/"],
         "dist": "1.12",
         "platform": "javascript",
         "environment": "production",
@@ -55,6 +66,7 @@ def assert_replay_payload_matches(produced, consumed):
     assert consumed["urls"] == produced["urls"]
     assert consumed["error_ids"] == produced["error_ids"]
     assert consumed["trace_ids"] == produced["trace_ids"]
+    assert consumed["segment_names"] == produced["segment_names"]
     assert consumed["dist"] == produced["dist"]
     assert consumed["platform"] == produced["platform"]
     assert consumed["environment"] == produced["environment"]
@@ -101,24 +113,6 @@ def assert_replay_payload_matches(produced, consumed):
     }
 
 
-def test_replay_event_with_processing(
-    mini_sentry, relay_with_processing, replay_events_consumer
-):
-    relay = relay_with_processing()
-    mini_sentry.add_basic_project_config(
-        42, extra={"config": {"features": ["organizations:session-replay"]}}
-    )
-
-    replay_events_consumer = replay_events_consumer(timeout=10)
-    replay = generate_replay_sdk_event()
-
-    relay.send_replay_event(42, replay)
-
-    replay_event, replay_event_message = replay_events_consumer.get_replay_event()
-    assert replay_event_message["retention_days"] == 90
-    assert_replay_payload_matches(replay, replay_event)
-
-
 def test_replay_events_without_processing(mini_sentry, relay_chain):
     relay = relay_chain(min_relay_version="latest")
 
@@ -129,10 +123,12 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     replay_item = generate_replay_sdk_event()
 
-    relay.send_replay_event(42, replay_item)
+    relay.send_replay_event(
+        42, replay_item, envelope_headers={"event_id": replay_item["event_id"]}
+    )
 
     envelope = mini_sentry.get_captured_envelope(timeout=20)
-    assert len(envelope.items) == 1
+    assert len(envelope.items) == 2
 
     replay_event = envelope.items[0]
     assert replay_event.type == "replay_event"
@@ -141,7 +137,6 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 def test_replay_events_are_filtered(
     mini_sentry,
     relay_with_processing,
-    replay_events_consumer,
     outcomes_consumer,
 ):
     relay = relay_with_processing()
@@ -152,19 +147,89 @@ def test_replay_events_are_filtered(
     filter_settings["localhost"] = {"isEnabled": True}
     outcomes_consumer = outcomes_consumer()
 
-    replay_events_consumer = replay_events_consumer(timeout=10)
     replay = generate_replay_sdk_event()
     replay["request"]["url"] = "http://localhost:1200"
 
-    relay.send_replay_event(42, replay)
+    relay.send_replay_event(
+        42, replay, envelope_headers={"event_id": replay["event_id"]}
+    )
 
     outcome = outcomes_consumer.get_outcome(timeout=10)
     assert outcome["org_id"] == 1
     assert outcome["project_id"] == 42
-    assert outcome["outcome"] == 1
+    assert outcome["outcome"] == Outcome.FILTERED
     assert outcome["reason"] == "localhost"
-    assert outcome["category"] == 7
-    assert outcome["quantity"] == 1
+    assert outcome["category"] == DataCategory.REPLAY
+    assert outcome["quantity"] == 2
 
-    replay_events_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    mini_sentry.add_basic_project_config(
+        project_id,
+        extra={
+            "config": {
+                "features": ["organizations:session-replay"],
+                "eventRetention": 1,
+            }
+        },
+    )
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+
+    now = datetime.now(timezone.utc)
+    sdk_ts = (now + delta).timestamp()
+    sdk_start_ts = sdk_ts - 60.0
+
+    replay = generate_replay_sdk_event()
+    replay["timestamp"] = sdk_ts
+    replay["replay_start_timestamp"] = sdk_start_ts
+
+    relay.send_replay_event(
+        42, replay, envelope_headers={"event_id": replay["event_id"]}
+    )
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.REPLAY,
+                "outcome": Outcome.INVALID,
+                "quantity": 2,
+                "reason": "timestamp",
+            }
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        produced = mini_sentry.get_captured_envelope()
+        replay_items = [item for item in produced.items if item.type == "replay_event"]
+        assert len(replay_items) == 1
+
+        payload = json.loads(replay_items[0].payload.bytes.decode())
+
+        assert payload["timestamp"] == time_within_delta(now)
+        assert payload["replay_start_timestamp"] == time_within_delta(
+            now - timedelta(seconds=60)
+        )
+        assert payload["_meta"] == {
+            "timestamp": {
+                "": {
+                    "err": [
+                        [
+                            error,
+                            {
+                                "sdk_time": time_within_delta(now + delta),
+                                "server_time": time_within_delta(now),
+                            },
+                        ]
+                    ]
+                }
+            },
+            "user": {"email": {"": {"rem": [["@email", "s", 0, 7]], "len": 13}}},
+        }

@@ -15,11 +15,15 @@ use tokio::time::MissedTickBehavior;
 use crate::statsd::SystemGauges;
 use crate::{TaskId, spawn};
 
+mod concurrent;
 mod registry;
+mod simple;
 mod status;
 
+pub use self::concurrent::{ConcurrentService, LoadShed};
 pub(crate) use self::registry::Registry as ServiceRegistry;
 pub use self::registry::{ServiceId, ServiceMetrics, ServicesMetrics};
+pub use self::simple::SimpleService;
 pub use self::status::{
     ServiceError, ServiceJoinHandle, ServiceStatusError, ServiceStatusJoinHandle,
 };
@@ -770,6 +774,13 @@ impl<I: Interface> Addr<I> {
     /// Returns wether the queue is currently empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Returns wether the queue is closed.
+    ///
+    /// This happens when the receiving service has stopped running.
+    pub fn is_closed(&self) -> bool {
+        self.tx.is_closed()
     }
 
     /// Returns the current queue size.

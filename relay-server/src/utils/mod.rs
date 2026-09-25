@@ -1,18 +1,25 @@
 mod api;
+mod debug;
 mod dynamic_sampling;
+mod error;
+pub mod gpu;
 mod multipart;
 mod param_parser;
 mod pick;
+#[cfg(all(sentry, feature = "processing"))]
+pub mod playstation;
 mod rate_limits;
 mod retry;
+pub mod rmp;
 mod scheduled;
 mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
+pub mod stream;
 mod thread_pool;
+pub mod tus;
 
-mod feature;
 mod forward;
 mod memory;
 #[cfg(feature = "processing")]
@@ -22,8 +29,9 @@ mod serde;
 mod unreal;
 
 pub use self::api::*;
+pub use self::debug::*;
 pub use self::dynamic_sampling::*;
-pub use self::feature::*;
+pub use self::error::*;
 pub use self::forward::*;
 pub use self::memory::*;
 pub use self::multipart::*;
@@ -39,6 +47,7 @@ pub use self::sizes::*;
 pub use self::sleep_handle::*;
 pub use self::split_off::*;
 pub use self::statsd::*;
+pub use self::stream::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

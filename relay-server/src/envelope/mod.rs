@@ -33,13 +33,14 @@
 use relay_base_schema::project::ProjectKey;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io::{self, Write};
 use std::time::Duration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::{ErrorBoundary, Feature};
-use relay_event_normalization::{TransactionNameRule, normalize_transaction_name};
+use relay_event_normalization::{TransactionNameRule, parameterize_dsc_transaction};
 use relay_event_schema::protocol::{Event, EventId};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -47,7 +48,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
@@ -66,6 +67,8 @@ pub use self::meta::*;
 pub enum EnvelopeError {
     #[error("unexpected end of file")]
     UnexpectedEof,
+    #[error("too many individual items")]
+    TooManyItems,
     #[error("missing envelope header")]
     MissingHeader,
     #[error("missing newline after header or payload")]
@@ -82,7 +85,7 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[source] io::Error),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Unique identifier of the event associated to this envelope.
     ///
@@ -94,20 +97,6 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Further event information derived from a store request.
     #[serde(flatten)]
     meta: M,
-
-    /// Data retention in days for the items of this envelope.
-    ///
-    /// This value is always overwritten in processing mode by the value specified in the project
-    /// configuration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    retention: Option<u16>,
-
-    /// Data retention in days for the items of this envelope.
-    ///
-    /// This value is always overwritten in processing mode by the value specified in the project
-    /// configuration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    downsampled_retention: Option<u16>,
 
     /// Timestamp when the event has been sent, according to the SDK.
     ///
@@ -163,8 +152,6 @@ impl EnvelopeHeaders<PartialMeta> {
         Ok(EnvelopeHeaders {
             event_id: self.event_id,
             meta: meta.copy_to(request_meta),
-            retention: self.retention,
-            downsampled_retention: self.downsampled_retention,
             sent_at: self.sent_at,
             trace: self.trace,
             required_features: self.required_features,
@@ -196,6 +183,18 @@ impl<M> EnvelopeHeaders<M> {
         }
     }
 
+    /// Returns a mutable reference to the dynamic sampling context from the headers, if present.
+    pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
+        match &mut self.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.trace = Some(ErrorBoundary::Ok(dsc));
@@ -209,6 +208,52 @@ impl<M> EnvelopeHeaders<M> {
     /// Returns the timestamp when the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.sent_at
+    }
+
+    /// Returns the specified header value, if present.
+    pub fn get_header<K>(&self, name: &K) -> Option<&Value>
+    where
+        String: Borrow<K>,
+        K: Ord + ?Sized,
+    {
+        self.other.get(name)
+    }
+}
+
+impl<M> fmt::Debug for EnvelopeHeaders<M>
+where
+    M: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            event_id,
+            meta,
+            sent_at,
+            trace,
+            required_features,
+            other,
+        } = self;
+
+        let mut map = f.debug_map();
+
+        if let Some(event_id) = event_id {
+            map.entry(&"event_id", &event_id.0);
+        }
+        map.entry(&"meta", &meta);
+        if let Some(sent_at) = sent_at {
+            map.entry(&"sent_at", sent_at);
+        }
+        if let Some(trace) = trace {
+            map.entry(&"trace", trace);
+        }
+        if !required_features.is_empty() {
+            map.entry(&"required_features", required_features);
+        }
+        for (key, value) in other {
+            map.entry(key, value);
+        }
+
+        map.finish()
     }
 }
 
@@ -246,8 +291,6 @@ impl Envelope {
             headers: EnvelopeHeaders {
                 event_id,
                 meta,
-                retention: None,
-                downsampled_retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
@@ -287,7 +330,7 @@ impl Envelope {
 
         // Event-related envelopes *must* contain an event id.
         let items = Self::parse_items(&bytes, offset)?;
-        if items.iter().any(Item::requires_event) {
+        if items.iter().any(Item::creates_event) {
             headers.event_id.get_or_insert_with(EventId::new);
         }
 
@@ -345,20 +388,6 @@ impl Envelope {
         &mut self.headers.meta
     }
 
-    /// Returns the data retention in days for items in this envelope.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn retention(&self) -> u16 {
-        self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
-    }
-
-    /// Returns the data retention in days for items in this envelope.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn downsampled_retention(&self) -> u16 {
-        self.headers
-            .downsampled_retention
-            .unwrap_or(self.retention())
-    }
-
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
@@ -411,16 +440,6 @@ impl Envelope {
         self.headers.meta.set_received_at(start_time)
     }
 
-    /// Sets the data retention in days for items in this envelope.
-    pub fn set_retention(&mut self, retention: u16) {
-        self.headers.retention = Some(retention);
-    }
-
-    /// Sets the data retention in days for items in this envelope.
-    pub fn set_downsampled_retention(&mut self, retention: u16) {
-        self.headers.downsampled_retention = Some(retention);
-    }
-
     /// Runs transaction parametrization on the DSC trace transaction.
     ///
     /// The purpose is for trace rules to match on the parametrized version of the transaction.
@@ -428,20 +447,7 @@ impl Envelope {
         let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
             return;
         };
-
-        let parametrized_transaction = match &dsc.transaction {
-            Some(transaction) if transaction.contains('/') => {
-                // Ideally we would only apply transaction rules to transactions with source `url`,
-                // but the DSC does not contain this information. The chance of a transaction rename rule
-                // accidentially matching a non-URL transaction should be very low.
-                let mut annotated = Annotated::new(transaction.clone());
-                normalize_transaction_name(&mut annotated, rules);
-                annotated.into_value()
-            }
-            _ => return,
-        };
-
-        dsc.transaction = parametrized_transaction;
+        parameterize_dsc_transaction(dsc, rules);
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
@@ -470,13 +476,12 @@ impl Envelope {
     }
 
     /// Returns the specified header value, if present.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
         String: Borrow<K>,
         K: Ord + ?Sized,
     {
-        self.headers.other.get(name)
+        self.headers.get_header(name)
     }
 
     /// Sets the specified header value, returning the previous one if present.
@@ -540,6 +545,20 @@ impl Envelope {
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
+    }
+
+    /// Add new items and return `Self`.
+    pub fn with_items(mut self, items: impl IntoIterator<Item = Item>) -> Self {
+        for item in items {
+            self.items.push(item)
+        }
+        self
+    }
+
+    /// Add a required feature and return `Self`.
+    pub fn with_required_feature(mut self, feature: Feature) -> Self {
+        self.headers.required_features.push(feature);
+        self
     }
 
     /// Splits off the items from the envelope using provided predicates.
@@ -652,6 +671,9 @@ impl Envelope {
             let (item, item_size) = Item::parse(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
+            if items.len() > constants::MAX_ENVELOPE_ITEMS {
+                return Err(EnvelopeError::TooManyItems);
+            }
         }
 
         Ok(items)
@@ -904,7 +926,7 @@ mod tests {
             items[0].payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(&ContentType::Text));
+        assert_eq!(items[0].content_type(), Some(ContentType::Text));
 
         assert_eq!(items[1].ty(), &ItemType::Event);
         assert_eq!(items[1].len(), 41);
@@ -912,7 +934,7 @@ mod tests {
             items[1].payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(&ContentType::Json));
+        assert_eq!(items[1].content_type(), Some(ContentType::Json));
         assert_eq!(items[1].filename(), Some("application.log"));
     }
 
@@ -982,7 +1004,7 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(
             items[0].attachment_type(),
-            Some(&AttachmentType::ViewHierarchy)
+            Some(AttachmentType::ViewHierarchy)
         );
     }
 
@@ -1011,6 +1033,21 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(items[1].len(), 10);
         assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_parse_too_many_items() {
+        let mut envelope = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n".to_owned();
+        for _ in 0..constants::MAX_ENVELOPE_ITEMS + 1 {
+            envelope.push_str("{\"type\":\"attachment\"}\n");
+            envelope.push_str("hello world\n");
+        }
+        let envelope = Bytes::from(envelope.into_bytes());
+
+        std::assert_matches!(
+            Envelope::parse_bytes(envelope),
+            Err(EnvelopeError::TooManyItems)
+        );
     }
 
     #[test]
@@ -1200,6 +1237,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: None,
             release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,

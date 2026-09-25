@@ -8,7 +8,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::Item;
 use crate::managed::{Managed, RecordKeeper};
 use crate::metrics_extraction;
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::sessions::{Error, ExpandedSessions, Result, SerializedSessions};
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
@@ -212,7 +212,10 @@ fn normalize_attributes(attrs: &mut SessionAttributes, ctx: &NormalizeContext<'_
     Ok(())
 }
 
-pub fn extract(sessions: Managed<ExpandedSessions>, ctx: Context<'_>) -> Managed<ExtractedMetrics> {
+pub fn extract_metrics(
+    sessions: Managed<ExpandedSessions>,
+    ctx: Context<'_>,
+) -> Managed<ExtractedMetrics> {
     let should_extract_abnormal_mechanism = ctx
         .project_info
         .config
@@ -249,9 +252,6 @@ pub fn extract(sessions: Managed<ExpandedSessions>, ctx: Context<'_>) -> Managed
 
         records.modify_by(DataCategory::MetricBucket, metrics.len() as isize);
 
-        ExtractedMetrics {
-            project_metrics: metrics,
-            sampling_metrics: Vec::new(),
-        }
+        ExtractedMetrics(metrics)
     })
 }

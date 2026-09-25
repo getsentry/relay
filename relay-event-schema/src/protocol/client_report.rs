@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct DiscardedEvent {
     pub reason: String,
     pub category: DataCategory,
-    pub quantity: u32,
+    pub quantity: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

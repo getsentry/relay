@@ -3,9 +3,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
-from unittest import mock
 
-from .asserts import time_within_delta, time_is
+from .asserts import matches_any, time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import add_sampling_config
@@ -13,12 +12,7 @@ from .test_dynamic_sampling import add_sampling_config
 import json
 import uuid
 import pytest
-
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    }
-}
+from .consts import Outcome
 
 
 def create_attachment_metadata():
@@ -50,12 +44,10 @@ def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -109,14 +101,10 @@ def test_standalone_attachment_store(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -141,7 +129,9 @@ def test_standalone_attachment_store(
 
     produced_item = items_consumer.get_item()
     expected_item_id = base64.b64encode(
-        uuid.UUID(hex=attachment_metadata["attachment_id"]).bytes
+        int(uuid.UUID(hex=attachment_metadata["attachment_id"]).hex, base=16).to_bytes(
+            16, "little"
+        )
     ).decode("utf-8")
     assert produced_item == {
         "attributes": {
@@ -152,41 +142,92 @@ def test_standalone_attachment_store(
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
         "itemId": expected_item_id,
-        "itemType": 10,
+        "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": mock.ANY,
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": mock.ANY,
+        "timestamp": matches_any(),
         "traceId": attachment_metadata["trace_id"].replace("-", ""),
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.ATTACHMENT,
+                    "quantity": "36",
+                },
+                {
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM,
+                    "quantity": "1",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
-    assert (
-        objectstore.get(attachment_metadata["attachment_id"]).payload.read()
-        == attachment_body
-    )
+    stored = objectstore.get(attachment_metadata["attachment_id"])
+    assert stored.payload.read() == attachment_body
+    assert stored.metadata.filename == "myfile.txt"
+    assert stored.metadata.content_type == "text/plain"
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.ATTACHMENT.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 36,
-        },
-        {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
+
+def test_standalone_attachment_attribute_meta_store(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    items_consumer,
+    objectstore,
+):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-v2-attachment-processing",
+        "projects:trace-attachment-processing",
     ]
+    project_config["config"]["piiConfig"] = {
+        "rules": {"strip_ips": {"type": "ip", "redaction": {"method": "remove"}}},
+        "applications": {"**": ["strip_ips"]},
+    }
+
+    objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
+    relay = relay(relay_with_processing())
+
+    attachment_metadata = create_attachment_metadata()
+    attachment_metadata["attributes"] = {
+        "user.ip": {"type": "string", "value": "192.168.1.1"},
+        "safe.attribute": {"type": "string", "value": "keep this"},
+    }
+    attachment_body = b"This is some mock attachment content"
+    metadata_bytes = json.dumps(attachment_metadata, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    combined_payload = metadata_bytes + attachment_body
+
+    envelope = create_attachment_envelope(project_config)
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=combined_payload),
+            headers={
+                "content_type": "application/vnd.sentry.trace-attachment",
+                "meta_length": len(metadata_bytes),
+                "length": len(combined_payload),
+                "type": "attachment",
+            },
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    attributes = items_consumer.get_item()["attributes"]
+    assert attributes["safe.attribute"] == {"stringValue": "keep this"}
+    assert attributes["user.ip"] == {"stringValue": ""}
+    assert attributes["sentry._meta.fields.attributes.user.ip"] == {
+        "stringValue": '{"meta":{"value":{"":{"rem":[["strip_ips","x",0,0]],"len":11}}}}'
+    }
+    stored = objectstore.get(attachment_metadata["attachment_id"])
+    assert stored.payload.read() == attachment_body
 
 
 @pytest.mark.parametrize(
@@ -218,11 +259,9 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -246,21 +285,15 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.ATTACHMENT.value,
-            "org_id": 1,
-            "outcome": 3,
-            "key_id": 123,
-            "project_id": 42,
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "org_id": 1,
-            "outcome": 3,
-            "key_id": 123,
-            "project_id": 42,
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -275,11 +308,9 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -332,7 +363,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": mock.ANY,
+            "attributes": matches_any(),
         }
     ]
 
@@ -356,13 +387,10 @@ def test_attachment_with_matching_span_store(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "organizations:relay-generate-billing-outcome",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -405,7 +433,9 @@ def test_attachment_with_matching_span_store(
 
     attachment_item = items_consumer.get_item()
     expected_item_id = base64.b64encode(
-        uuid.UUID(hex=metadata["attachment_id"]).bytes
+        int(uuid.UUID(hex=metadata["attachment_id"]).hex, base=16).to_bytes(
+            16, "little"
+        )
     ).decode("utf-8")
     assert attachment_item == {
         "attributes": {
@@ -417,42 +447,47 @@ def test_attachment_with_matching_span_store(
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
         "itemId": expected_item_id,
-        "itemType": 10,
+        "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": mock.ANY,
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": mock.ANY,
+        "timestamp": matches_any(),
         "traceId": metadata["trace_id"],
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.ATTACHMENT,
+                    "quantity": "23",
+                },
+                {
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM,
+                    "quantity": "1",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=3)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 23,
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -463,11 +498,9 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -533,7 +566,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": mock.ANY,
+            "attributes": matches_any(),
         }
     ]
 
@@ -550,6 +583,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         }
 
     assert mini_sentry.captured_outcomes.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -560,8 +594,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
     # A transaction rule should never apply.
@@ -569,7 +601,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     span_id = "eee19b7ec3c1b174"
     ts = datetime.now(timezone.utc)
@@ -613,53 +645,30 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
 
     assert mini_sentry.get_metrics() == [
         {
-            "metadata": mock.ANY,
-            "name": "c:spans/count_per_root_project@none",
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-            "width": 1,
-        },
-        {
-            "metadata": mock.ANY,
+            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -692,7 +701,7 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
     sample_rate = 0.0 if should_drop else 1.0
     add_sampling_config(project_config, sample_rate=sample_rate, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     envelope = Envelope()
     envelope.headers["trace"] = {
@@ -722,22 +731,16 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
         assert mini_sentry.get_outcomes(n=2) == [
             {
                 "timestamp": time_within_delta(),
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
-                "category": DataCategory.ATTACHMENT.value,
+                "category": DataCategory.ATTACHMENT,
                 "quantity": len(body),
             },
             {
                 "timestamp": time_within_delta(),
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
-                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "category": DataCategory.ATTACHMENT_ITEM,
                 "quantity": 1,
             },
         ]
@@ -758,8 +761,6 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
     # A transaction rule should never apply.
@@ -767,7 +768,7 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     # Envelope with only an attachment, no spans
     envelope = create_attachment_envelope(project_config)
@@ -799,22 +800,16 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -826,8 +821,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
 
@@ -835,7 +828,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         "releases": {"releases": ["foobar@1.0"]}
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b175"
@@ -883,42 +876,30 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -930,11 +911,9 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -976,42 +955,30 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -1034,11 +1001,11 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Rate limit spans
-                (DataCategory.SPAN.value, 2): 1,
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                (DataCategory.SPAN, 2): 1,
+                (DataCategory.SPAN_INDEXED, 2): 1,
                 # Rate limit associated span attachments
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM, 2): 2,
             },
             id="span_quota_exceeded",
         ),
@@ -1053,9 +1020,9 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 }
             ],
             {
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.SPAN_INDEXED, 2): 1,
+                (DataCategory.ATTACHMENT, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM, 2): 2,
             },
             id="span_indexed_quota_exceeded",
         ),
@@ -1071,8 +1038,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Attachments don't make it through
-                (DataCategory.ATTACHMENT.value, 2): 104,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
+                (DataCategory.ATTACHMENT, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM, 2): 3,
             },
             id="attachment_quota_exceeded",
         ),
@@ -1095,10 +1062,10 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Nothing makes it through
-                (DataCategory.SPAN.value, 2): 1,
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 104,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
+                (DataCategory.SPAN, 2): 1,
+                (DataCategory.SPAN_INDEXED, 2): 1,
+                (DataCategory.ATTACHMENT, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM, 2): 3,
             },
             id="both_quotas_exceeded",
         ),
@@ -1111,14 +1078,12 @@ def test_span_attachment_independent_rate_limiting(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
     project_config["config"]["quotas"] = quota_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1211,7 +1176,6 @@ def test_span_attachment_independent_rate_limiting(
         outcome_counter[key] += outcome["quantity"]
 
     assert outcome_counter == expected_outcomes
-    assert mini_sentry.captured_outcomes.empty()
 
 
 @pytest.mark.parametrize("owned_by", ["single_span", "multiple_spans", "trace"])
@@ -1223,8 +1187,6 @@ def test_attachment_default_pii_scrubbing_meta(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
@@ -1237,7 +1199,7 @@ def test_attachment_default_pii_scrubbing_meta(
         },
     )
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1292,37 +1254,24 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_envelope()
+    forwarded = [mini_sentry.get_captured_envelope()]
     if owned_by == "trace":
         # attachment comes in separate envelope
-        forwarded = mini_sentry.get_captured_envelope()
+        forwarded.append(mini_sentry.get_captured_envelope())
 
-    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    attachment = next(
+        i for envelope in forwarded for i in envelope.items if i.type == "attachment"
+    )
     meta_length = attachment.headers.get("meta_length")
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
-    assert metadata_part == {
-        "attachment_id": metadata["attachment_id"],
-        "timestamp": time_within_delta(ts),
-        "filename": "data.txt",
-        "content_type": "text/plain",
-        "attributes": {
-            attribute_key: {"type": "string", "value": expected_value},
-        },
-        "_meta": {
-            "attributes": {
-                attribute_key: {
-                    "value": {
-                        "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
-                        }
-                    }
-                }
-            }
-        },
-    }
+    assert metadata_part["timestamp"] == time_within_delta(ts)
+    assert metadata_part["attachment_id"] == metadata["attachment_id"]
+    assert metadata_part["attributes"][attribute_key]["value"] == expected_value
+    rem_info = metadata_part["_meta"]["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
 
 
 def test_attachment_pii_scrubbing_meta_attribute(
@@ -1335,13 +1284,11 @@ def test_attachment_pii_scrubbing_meta_attribute(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1409,8 +1356,10 @@ def test_attachment_pii_scrubbing_meta_attribute(
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }
@@ -1423,8 +1372,6 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
     project_config["config"]["piiConfig"] = {
@@ -1432,7 +1379,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
         "applications": {"$attachments.'log.txt'": ["0"]},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"

@@ -1,5 +1,7 @@
-from unittest import mock
+from datetime import datetime, timezone
 import json
+
+from .asserts import matches_any, time_within_delta
 
 from sentry_relay.consts import DataCategory
 
@@ -9,7 +11,7 @@ VERCEL_LOG_1 = {
     "deploymentId": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD",
     "source": "build",
     "host": "my-app-abc123.vercel.app",
-    "timestamp": 1573817187330,
+    "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
     "projectId": "gdufoJxB6b9b1fEqr1jUtFkyavUU",
     "level": "info",
     "message": "Build completed successfully",
@@ -24,7 +26,7 @@ VERCEL_LOG_2 = {
     "deploymentId": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD",
     "source": "lambda",
     "host": "my-app-abc123.vercel.app",
-    "timestamp": 1573817250283,
+    "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
     "projectId": "gdufoJxB6b9b1fEqr1jUtFkyavUU",
     "level": "info",
     "message": "API request processed",
@@ -57,13 +59,12 @@ EXPECTED_ITEMS = [
     {
         "organizationId": "1",
         "projectId": "42",
-        "traceId": mock.ANY,
-        "itemId": mock.ANY,
+        "traceId": matches_any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
-        "timestamp": mock.ANY,
+        "timestamp": matches_any(),
         "attributes": {
             "vercel.id": {"stringValue": "1573817187330377061717300000"},
-            "sentry.browser.version": {"stringValue": "2.32"},
             "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
             "server.address": {"stringValue": "my-app-abc123.vercel.app"},
             "vercel.source": {"stringValue": "build"},
@@ -71,12 +72,14 @@ EXPECTED_ITEMS = [
             "vercel.log_type": {"stringValue": "stdout"},
             "sentry.body": {"stringValue": "Build completed successfully"},
             "vercel.project_name": {"stringValue": "my-app"},
+            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
-            "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-            "sentry.timestamp_precise": {"intValue": "1573817187330000000"},
+            "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(expect_resolution="ns")
+            },
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
-            "sentry.payload_size_bytes": {"intValue": "436"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
             "sentry._meta.fields.trace_id": {
                 "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
@@ -85,19 +88,31 @@ EXPECTED_ITEMS = [
         "clientSampleRate": 1.0,
         "serverSampleRate": 1.0,
         "retentionDays": 90,
-        "received": mock.ANY,
+        "received": matches_any(),
         "downsampledRetentionDays": 90,
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": "407",
+                },
+            ],
+            "keyId": "123",
+        },
     },
     {
         "organizationId": "1",
         "projectId": "42",
         "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
-        "itemId": mock.ANY,
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
-        "timestamp": mock.ANY,
+        "timestamp": matches_any(),
         "attributes": {
             "vercel.path": {"stringValue": "/api/users"},
-            "sentry.browser.version": {"stringValue": "2.32"},
             "vercel.proxy.scheme": {"stringValue": "https"},
             "vercel.entrypoint": {"stringValue": "api/index.js"},
             "vercel.proxy.user_agent": {"stringValue": '["Mozilla/5.0..."]'},
@@ -108,9 +123,9 @@ EXPECTED_ITEMS = [
             "vercel.deployment_id": {"stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"},
             "vercel.proxy.method": {"stringValue": "GET"},
             "vercel.execution_region": {"stringValue": "sfo1"},
+            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
             "vercel.request_id": {
                 "stringValue": "643af4e3-975a-4cc7-9e7a-1eda11539d90"
@@ -125,16 +140,31 @@ EXPECTED_ITEMS = [
             "vercel.proxy.timestamp": {"intValue": "1573817250172"},
             "sentry.body": {"stringValue": "API request processed"},
             "vercel.proxy.status_code": {"intValue": "200"},
-            "sentry.observed_timestamp_nanos": {"stringValue": mock.ANY},
-            "sentry.timestamp_precise": {"intValue": "1573817250283000000"},
-            "sentry.payload_size_bytes": {"intValue": "889"},
+            "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(expect_resolution="ns")
+            },
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
         "clientSampleRate": 1.0,
         "serverSampleRate": 1.0,
         "retentionDays": 90,
-        "received": mock.ANY,
+        "received": matches_any(),
         "downsampledRetentionDays": 90,
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": "860",
+                },
+            ],
+            "keyId": "123",
+        },
     },
 ]
 
@@ -165,26 +195,6 @@ def test_vercel_logs_json_array(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1325,
-        },
-    ]
-
 
 def test_vercel_logs_ndjson(
     mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
@@ -209,23 +219,3 @@ def test_vercel_logs_ndjson(
 
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1325,
-        },
-    ]

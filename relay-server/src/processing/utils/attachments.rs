@@ -1,21 +1,84 @@
 use std::error::Error;
 use std::time::Instant;
 
-use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
+use relay_config::ConfigSnapshot;
+use relay_pii::{PiiAttachmentsProcessor, PiiConfig, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
+#[cfg(feature = "processing")]
+use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::{Counted, Managed, RecordKeeper, RetainMut};
+use crate::processing::Context;
+use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
 use relay_dynamic_config::Feature;
+
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+pub fn validate_attachments<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+    ctx: Context<'_>,
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
+    if !ctx.is_processing() {
+        return;
+    }
+    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+}
+
+#[cfg_attr(not(feature = "processing"), expect(unused_variables))]
+fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+    #[cfg(not(feature = "processing"))]
+    return Ok(());
+
+    #[cfg(feature = "processing")]
+    {
+        use crate::services::upload::{Final, SignedLocation};
+
+        if !item.is_attachment_ref() {
+            return Ok(());
+        }
+
+        let payload = item.payload();
+        let payload: AttachmentPlaceholder =
+            serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_location: SignedLocation<Final> = SignedLocation::try_from_str(payload.location)
+            .ok_or(ProcessingError::InvalidAttachmentRef)?;
+        // NOTE: Using the received timestamp here breaks tests without a pop-relay.
+        let location = signed_location
+            .verify(chrono::Utc::now(), config)
+            .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_length = location.length.into_inner();
+
+        match item.attachment_body_size() == signed_length {
+            true => Ok(()),
+            false => Err(ProcessingError::InvalidAttachmentRef),
+        }
+    }
+}
 
 /// Apply data privacy rules to attachments in the envelope.
 ///
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: &ProjectInfo) {
+///
+/// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
+/// modifies the attachment quantity.
+pub fn scrub<'a>(
+    attachments: impl Iterator<Item = &'a mut Item>,
+    project_info: &ProjectInfo,
+    mut record_keeper: Option<&mut RecordKeeper>,
+) {
+    let _ = record_keeper;
     if let Some(ref config) = project_info.config.pii_config {
         let view_hierarchy_scrubbing_enabled = project_info
             .config
@@ -23,24 +86,36 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
-            if view_hierarchy_scrubbing_enabled
-                && item.attachment_type() == Some(&AttachmentType::ViewHierarchy)
+            if item.is_attachment_ref() {
+                relay_log::trace!("Skip attachment scrubbing for placeholder");
+                continue;
+            } else if view_hierarchy_scrubbing_enabled
+                && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
-                scrub_view_hierarchy(item, config)
-            } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
-                scrub_minidump(item, config)
+                let old_size = item.payload().len();
+                scrub_view_hierarchy(item, config);
+                let new_size = item.payload().len();
+
+                if let Some(record_keeper) = record_keeper.as_mut() {
+                    record_keeper.modify_by(
+                        relay_quotas::DataCategory::Attachment,
+                        new_size as isize - old_size as isize,
+                    );
+                }
+            } else if item.attachment_type() == Some(AttachmentType::Minidump) {
+                scrub_minidump(project_info, item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
                 // After we have assessed the impact on performance we can relax this condition.
-                scrub_attachment(item, config)
+                scrub_attachment(project_info, item, config)
             }
         }
     }
 }
 
-fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
-    debug_assert_eq!(item.attachment_type(), Some(&AttachmentType::Minidump));
+fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
+    debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -56,6 +131,12 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                 status = if modified { "ok" } else { "n/a" },
             );
+            if modified && sample(0.1).is_keep() {
+                relay_log::info!(
+                    sentry_project = ?project_info.project_id,
+                    "Minidump changed by scrubbing rules",
+                );
+            }
         }
         Err(scrub_error) => {
             metric!(
@@ -66,25 +147,27 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 error = &scrub_error as &dyn Error,
                 "failed to scrub minidump",
             );
+            let start = Instant::now();
+            let modified = processor.scrub_attachment(filename, &mut payload);
             metric!(
-                timer(RelayTimers::AttachmentScrubbing),
+                timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
                 attachment_type = "minidump",
-                {
-                    processor.scrub_attachment(filename, &mut payload);
-                }
-            )
+                status = if modified { "ok" } else { "n/a" },
+            );
+            if modified {
+                relay_log::info!(
+                    sentry_project = ?project_info.project_id,
+                    "Minidump changed by fallback rules",
+                );
+            }
         }
     }
 
-    let content_type = item
-        .content_type()
-        .unwrap_or(&ContentType::Minidump)
-        .clone();
-
-    item.set_payload(content_type, payload);
+    item.set_default_content_type(ContentType::Minidump);
+    item.set_payload_without_content_type(payload);
 }
 
-fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_view_hierarchy(item: &mut Item, config: &PiiConfig) {
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
     let payload = item.payload();
@@ -93,10 +176,10 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
         Ok(output) => {
             metric!(
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
-                status = "ok"
+                status = if output != payload { "ok" } else { "n/a" }
             );
-            let content_type = item.content_type().unwrap_or(&ContentType::Json).clone();
-            item.set_payload(content_type, output);
+            item.set_default_content_type(ContentType::Json);
+            item.set_payload_without_content_type(output);
         }
         Err(e) => {
             relay_log::debug!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
@@ -108,7 +191,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
     }
 }
 
-pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
+pub fn has_simple_attachment_selector(config: &PiiConfig) -> bool {
     for application in &config.applications {
         if let SelectorSpec::Path(vec) = &application.0 {
             let Some([a, b]) = vec.get(0..2) else {
@@ -126,7 +209,7 @@ pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
     false
 }
 
-fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_attachment(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -135,13 +218,19 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
         Some(t) => t.to_string(),
         None => "".to_owned(),
     };
+    let start = Instant::now();
+    let modified = processor.scrub_attachment(filename, &mut payload);
     metric!(
-        timer(RelayTimers::AttachmentScrubbing),
-        attachment_type = &attachment_type_tag,
-        {
-            processor.scrub_attachment(filename, &mut payload);
-        }
+        timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
+        attachment_type = attachment_type_tag,
+        status = if modified { "ok" } else { "n/a" },
     );
+    if modified {
+        relay_log::info!(
+            sentry_project = ?project_info.project_id,
+            "Attachment changed by scrubbing rules",
+        );
+    }
 
     item.set_payload_without_content_type(payload);
 }

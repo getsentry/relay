@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
+use relay_event_schema::protocol::trace_metric;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
@@ -10,8 +11,13 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
+use crate::managed::Managed;
 use crate::processing::trace_metrics::{Error, Result};
-use crate::processing::utils::store::{extract_client_sample_rate, extract_meta_attributes};
+use crate::processing::trace_metrics::{store, utils};
+use crate::processing::utils::store::{
+    extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
+    uuid_to_item_id,
+};
 use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
@@ -43,6 +49,11 @@ pub struct Context {
 
 pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = metric.quantities();
+    let payload_size_bytes = metric
+        .header
+        .as_ref()
+        .and_then(|h| h.byte_size)
+        .unwrap_or_default();
 
     let metric = required!(metric.value);
     let timestamp = required!(metric.timestamp);
@@ -56,6 +67,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         value: extract_numeric_value(required!(metric.value))?,
         timestamp,
         span_id: metric.span_id.into_value(),
+        payload_size_bytes,
     };
 
     let client_sample_rate = extract_client_sample_rate(&attrs).unwrap_or(1.0);
@@ -69,16 +81,14 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         downsampled_retention_days: ctx.retention.downsampled.into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(metric.trace_id).to_string(),
-        item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
+        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate,
         server_sample_rate: 1.0,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
-    Ok(StoreTraceItem {
-        trace_item,
-        quantities,
-    })
+    Ok(StoreTraceItem { trace_item })
 }
 
 fn ts(dt: DateTime<Utc>) -> Timestamp {
@@ -95,6 +105,7 @@ struct FieldAttributes {
     value: f64,
     timestamp: relay_event_schema::protocol::Timestamp,
     span_id: Option<SpanId>,
+    payload_size_bytes: u64,
 }
 
 fn extract_numeric_value(value: Value) -> Result<f64> {
@@ -124,6 +135,7 @@ fn attributes(
         value,
         timestamp,
         span_id,
+        payload_size_bytes,
     } = fields;
 
     result.insert(
@@ -198,7 +210,52 @@ fn attributes(
         );
     }
 
+    result.insert(
+        "sentry.payload_size_bytes".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
+        },
+    );
+
     result
+}
+
+/// Produce the supplied webvital trace metrics to kafka.
+/// This is required right now to double-write these webvitals as trace metrics, while we
+/// still write the vitals as spans.  Eventually, the sdks will natively emit metrics and we
+/// can remove this code.
+pub fn produce_webvitals_metrics(
+    s: processing::StoreHandle<'_>,
+    span: &Managed<Box<crate::services::store::StoreSpanV2>>,
+    metrics: Vec<TraceMetric>,
+) {
+    for metric in metrics {
+        let trace_metric_headers = trace_metric::TraceMetricHeader {
+            byte_size: Some(utils::calculate_size(&metric)),
+            other: std::collections::BTreeMap::default(),
+        };
+
+        let wheader = crate::envelope::WithHeader {
+            header: trace_metric_headers.into(),
+            value: metric.into(),
+        };
+
+        if let Ok(mut item) = store::convert(
+            wheader,
+            &store::Context {
+                received_at: span.received_at(),
+                scoping: span.scoping(),
+                retention: processing::Retention {
+                    standard: span.retention_days,
+                    downsampled: span.downsampled_retention_days,
+                },
+            },
+        ) {
+            // Clear outcomes for these metrics, as we don't want them billed.
+            item.trace_item.outcomes = None;
+            s.send_to_store(span.wrap(item));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -219,7 +276,10 @@ mod tests {
     macro_rules! trace_metric {
         ($($tt:tt)*) => {{
            WithHeader {
-               header: None,
+               header: Some(relay_event_schema::protocol::TraceMetricHeader {
+                   byte_size: Some(420),
+                   other: Default::default(),
+               }),
                value: TraceMetric::from_value(serde_json::json!($($tt)*).into())
            }
         }};

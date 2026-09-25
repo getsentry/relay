@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -9,6 +10,8 @@ use tokio::sync::broadcast;
 use super::state::Shared;
 use crate::services::projects::cache::service::ProjectChange;
 use crate::services::projects::cache::{Project, ProjectCache};
+use crate::services::projects::project::ProjectState;
+use crate::statsd::RelayTimers;
 
 /// A synchronous handle to the [`ProjectCache`].
 ///
@@ -29,7 +32,55 @@ impl ProjectCacheHandle {
         // Always trigger a fetch after retrieving the project to make sure the state is up to date.
         self.fetch(project_key);
 
-        Project::new(project, &self.config)
+        Project::new(project, self.config.current())
+    }
+
+    /// Awaits until the given project state becomes ready (enabled or disabled).
+    ///
+    /// Returns [`None`] if the project config cannot be resolved in the given time.
+    pub async fn ready(&self, project_key: ProjectKey, timeout: Duration) -> Option<Project<'_>> {
+        let project = self.get(project_key);
+        if !project.state().is_pending() {
+            return Some(project);
+        }
+
+        let t = Instant::now();
+        let result = tokio::time::timeout(timeout, self.ready_inner(project_key)).await;
+
+        relay_statsd::metric!(
+            timer(RelayTimers::ProjectStateReadyDuration) = t.elapsed(),
+            result = match &result {
+                Ok(project) => {
+                    match project.state() {
+                        ProjectState::Enabled(_) => "enabled",
+                        ProjectState::Dummy => "dummy",
+                        ProjectState::Disabled => "disabled",
+                        ProjectState::Pending => "pending",
+                    }
+                }
+                Err(_) => "timeout",
+            }
+        );
+
+        result.ok()
+    }
+
+    async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
+        loop {
+            let project = self.shared.get_or_create(project_key);
+            // Create the `Notified` before checking the project_state, to prevent missing
+            // an update between the check and the registration of the listener.
+            //
+            // From [`tokio::sync::futures::Notified::enabled`]:
+            // > notifications sent using notify_waiters [...] are received
+            // > as long as they happen after the creation of the Notified
+            let change_listener = project.outdated();
+            if !project.project_state().is_pending() {
+                drop(change_listener);
+                return Project::new(project, self.config.current());
+            }
+            change_listener.await;
+        }
     }
 
     /// Triggers a fetch/update check in the project cache for the supplied project.
@@ -56,8 +107,10 @@ impl fmt::Debug for ProjectCacheHandle {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::services::projects::project::ProjectState;
+    use relay_config::Config;
+
+    use super::*;
 
     impl ProjectCacheHandle {
         /// Creates a new [`ProjectCacheHandle`] for testing only.
@@ -66,7 +119,7 @@ mod test {
         pub fn for_test() -> Self {
             Self {
                 shared: Default::default(),
-                config: Default::default(),
+                config: Arc::new(Config::default()),
                 service: Addr::dummy(),
                 project_changes: broadcast::channel(999_999).0,
             }

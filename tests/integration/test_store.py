@@ -9,12 +9,6 @@ from time import sleep
 
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-)
-
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
@@ -195,24 +189,27 @@ def test_store_proxy_config(mini_sentry, relay):
 
 def test_store_with_low_memory(mini_sentry, relay):
     relay = relay(
-        mini_sentry, {"health": {"max_memory_percent": 0.0}}, wait_health_check=False
+        mini_sentry, {"health": {"max_memory_percent": 0.0}}, wait_health_check="live"
     )
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
     try:
-        with pytest.raises(HTTPError):
+        with pytest.raises(HTTPError) as exc:
             relay.send_event(project_id, {"message": "pls ignore"})
+
+        assert exc.value.response.status_code == 503
+
         pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
-        found_queue_error = False
+        found_memory_error = False
         for _, error in mini_sentry.current_test_failures():
             assert isinstance(error, AssertionError)
-            if "failed to queue envelope" in str(error):
-                found_queue_error = True
+            if "Not enough memory" in str(error):
+                found_memory_error = True
                 break
 
-        assert found_queue_error
+        assert found_memory_error
     finally:
         mini_sentry.clear_test_failures()
 
@@ -292,6 +289,7 @@ def test_processing(
     relay_with_processing,
     events_consumer,
     transactions_consumer,
+    processing_config,
     event_type,
 ):
     """
@@ -303,7 +301,8 @@ def test_processing(
     else:
         events_consumer = transactions_consumer()
 
-    relay = relay_with_processing()
+    options = processing_config()
+    relay = relay_with_processing(options=options)
     project_id = 42
     mini_sentry.add_full_project_config(42)
 
@@ -461,7 +460,7 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
-@pytest.mark.parametrize("namespace", ["transactions", "custom"])
+@pytest.mark.parametrize("namespace", ["spans", "transactions"])
 def test_sends_metric_bucket_outcome(
     mini_sentry, relay_with_processing, outcomes_consumer, namespace
 ):
@@ -483,8 +482,8 @@ def test_sends_metric_bucket_outcome(
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
+    public_key = projectconfig["publicKeys"][0]["publicKey"]
 
-    projectconfig["config"]["features"] = ["organizations:custom-metrics"]
     projectconfig["config"]["quotas"] = [
         {
             "scope": "organization",
@@ -494,12 +493,29 @@ def test_sends_metric_bucket_outcome(
     ]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
-    relay.send_metrics(project_id, metrics_payload)
+    metrics = [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:spans/foo@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/bar@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
+    relay.send_metrics_batch(
+        {"buckets": {public_key: metrics}},
+    )
 
     outcome = outcomes_consumer.get_outcome(timeout=3)
 
-    assert outcome["category"] == 15  # metric_bucket
+    assert outcome["category"] == DataCategory.METRIC_BUCKET
     assert outcome["quantity"] == 1
 
     outcomes_consumer.assert_empty()
@@ -552,271 +568,22 @@ def test_enforce_bucket_rate_limits(
         }
 
     buckets = [
-        make_bucket(f"d:transactions/measurements.lcp{i}@millisecond", "d", [1.0])
+        make_bucket(f"d:spans/measurements.lcp{i}@millisecond", "d", [1.0])
         for i in range(metric_bucket_limit)
     ]
 
-    # Send as many metrics as the quota allows.
+    # Generic metrics are no longer produced to Kafka.
     relay.send_metrics_buckets(project_id, buckets)
-    metrics_consumer.get_metrics(n=metric_bucket_limit)
-
-    # Send metrics again, at this point the quota is exhausted.
     relay.send_metrics_buckets(project_id, buckets)
-    metrics_consumer.assert_empty()
+    assert metrics_consumer.poll(timeout=2) is None
 
 
-@pytest.mark.parametrize("violating_bucket", [2.0, 3.0])
-def test_enforce_transaction_rate_limit_on_metric_buckets(
-    mini_sentry,
-    relay_with_processing,
-    metrics_consumer,
-    outcomes_consumer,
-    violating_bucket,
-):
-    """
-    param violating_bucket is parametrized so we cover both cases:
-        1. the quota is matched exactly
-        2. quota is exceeded by one
-    """
-    bucket_interval = 1  # second
-    relay = relay_with_processing(
-        {
-            "processing": {"max_rate_limit": 2 * 86400},
-            "aggregator": {
-                "bucket_interval": bucket_interval,
-                "initial_delay": 0,
-            },
-        }
-    )
-    metrics_consumer = metrics_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    project_id = 42
-    projectconfig = mini_sentry.add_full_project_config(project_id)
-    # add another dsn key (we want 2 keys so we can set limits per key)
-    mini_sentry.add_dsn_key_to_project(project_id)
-
-    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
-    key_id = public_keys[0]["numericId"]
-
-    reason_code = uuid.uuid4().hex
-
-    projectconfig["config"]["quotas"] = [
-        {
-            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "scope": "key",
-            "scopeId": str(key_id),
-            "categories": ["transaction"],
-            "limit": 5,
-            "window": 86400,
-            "reasonCode": reason_code,
-        }
-    ]
-
-    now = datetime.now(tz=timezone.utc).timestamp()
-
-    def generate_ticks():
-        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(now // bucket_interval * bucket_interval)
-        while True:
-            yield tick
-            tick += bucket_interval
-
-    tick = generate_ticks()
-
-    def make_bucket(name, type_, values):
-        return {
-            "org_id": 1,
-            "project_id": project_id,
-            "timestamp": next(tick),
-            "name": name,
-            "type": type_,
-            "value": values,
-            "width": bucket_interval,
-        }
-
-    def assert_metrics(expected_metrics):
-        produced_metrics = [
-            m for m, _ in metrics_consumer.get_metrics(n=len(expected_metrics))
-        ]
-        produced_metrics.sort(key=lambda b: (b["name"], b["value"]))
-        assert produced_metrics == expected_metrics
-
-    # NOTE: Sending these buckets in multiple envelopes because the order of flushing
-    # and also the order of rate limiting is not deterministic.
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # Send a few non-usage buckets, they will not deplete the quota
-            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
-            # Session metrics are accepted
-            make_bucket("d:sessions/session@none", "c", 1),
-            make_bucket("d:sessions/duration@second", "d", 9 * [1]),
-        ],
-    )
-    assert_metrics(
-        [
-            {
-                "name": "d:sessions/duration@second",
-                "org_id": 1,
-                "project_id": 42,
-                "retention_days": 90,
-                "tags": {},
-                "type": "d",
-                "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            },
-            {
-                "name": "d:sessions/session@none",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "c",
-                "value": 1.0,
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            },
-            {
-                "name": "d:transactions/measurements.lcp@millisecond",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "d",
-                "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            },
-        ]
-    )
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # Usage metric, subtract 3 from quota
-            make_bucket("c:transactions/usage@none", "c", 3),
-        ],
-    )
-    assert_metrics(
-        [
-            {
-                "name": "c:transactions/usage@none",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "c",
-                "value": 3.0,
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            },
-        ]
-    )
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # Can still send unlimited non-usage metrics
-            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [2.0]),
-        ],
-    )
-    assert_metrics(
-        [
-            {
-                "name": "d:transactions/measurements.lcp@millisecond",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "d",
-                "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            }
-        ]
-    )
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # Usage metric, subtract from quota. This bucket is still accepted (see over_accept_once),
-            # but the rest will be rejected.
-            make_bucket("c:transactions/usage@none", "c", violating_bucket),
-        ],
-    )
-    assert_metrics(
-        [
-            {
-                "name": "c:transactions/usage@none",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "c",
-                "value": violating_bucket,
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            },
-        ]
-    )
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # FCP buckets won't make it into Kafka, since usage was now counted in Redis and it's >= 5.
-            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
-        ],
-    )
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            # Another three for usage, won't make it into kafka because quota is zero.
-            make_bucket("c:transactions/usage@none", "c", 3),
-            # Session metrics are still accepted.
-            make_bucket("d:sessions/session@user", "s", [1254]),
-        ],
-    )
-    assert_metrics(
-        [
-            {
-                "name": "d:sessions/session@user",
-                "org_id": 1,
-                "retention_days": 90,
-                "project_id": 42,
-                "tags": {},
-                "type": "s",
-                "value": [1254],
-                "timestamp": time_within_delta(now),
-                "received_at": time_within_delta(now),
-            }
-        ]
-    )
-
-    outcomes_consumer.assert_rate_limited(
-        reason_code,
-        key_id=key_id,
-        categories=["transaction", "metric_bucket"],
-        quantity=5,
-    )
-
-
-@pytest.mark.parametrize(
-    "extraction_version",
-    [
-        TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-        TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    ],
-)
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
     outcomes_consumer,
-    extraction_version,
 ):
     relay = relay_with_processing(
         {
@@ -857,17 +624,12 @@ def test_processing_quota_transaction_indexing(
             "reasonCode": "get_lost",
         },
     ]
-    projectconfig["config"]["transactionMetrics"] = {
-        "version": extraction_version,
-    }
 
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
-    assert len(list(metrics_consumer.get_metrics())) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    assert len(list(metrics_consumer.get_metrics())) > 0
     outcomes_consumer.assert_rate_limited(
         "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
     )
@@ -890,14 +652,6 @@ def test_processing_quota_transaction_indexing(
         timeout=3,
     )
 
-    # Ignore span metrics, they may be emitted because rate limits from transactions are not
-    # currently enforced for spans, which they should be. See: https://github.com/getsentry/relay/issues/4961.
-    metrics = {metric["name"] for (metric, _) in metrics_consumer.get_metrics()}
-    assert metrics == {
-        "c:spans/count_per_root_project@none",
-        "c:spans/usage@none",
-    }
-
 
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()
@@ -913,7 +667,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
 
     # keep max backoff as short as the configuration allows (1 sec)
     relay_options = {"http": {"max_retry_interval": 1}}
-    relay = relay(mini_sentry, relay_options, wait_health_check=False)
+    relay = relay(mini_sentry, relay_options, wait_health_check="live")
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)

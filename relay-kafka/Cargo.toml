@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Kafka related functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.12.1"
+version = "26.9.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -21,6 +21,7 @@ rmp-serde = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
+sentry_arroyo = { workspace = true, optional = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
@@ -37,6 +38,7 @@ producer = [
   "dep:relay-log",
   "dep:relay-statsd",
   "dep:rmp-serde",
+  "dep:sentry_arroyo",
   "dep:serde_json",
   "rdkafka-sys/cmake-build",
 ]

@@ -38,9 +38,9 @@ where
 fn to_app_feature(ns: MetricNamespace) -> AppFeature {
     match ns {
         MetricNamespace::Sessions => AppFeature::MetricsSessions,
-        MetricNamespace::Transactions => AppFeature::MetricsTransactions,
         MetricNamespace::Spans => AppFeature::MetricsSpans,
-        MetricNamespace::Custom => AppFeature::MetricsCustom,
+        MetricNamespace::Transactions => AppFeature::MetricsTransactions,
+        MetricNamespace::Outcomes => AppFeature::Outcomes,
         MetricNamespace::Unsupported => AppFeature::MetricsUnsupported,
     }
 }

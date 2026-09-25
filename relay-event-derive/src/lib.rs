@@ -12,7 +12,7 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
-use syn::meta::ParseNestedMeta;
+use syn::parse::ParseStream;
 use syn::{ExprPath, Ident, Lit, LitBool, LitInt, LitStr};
 use synstructure::decl_derive;
 
@@ -44,9 +44,28 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
 
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
-            let field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
+            let variant_attrs = parse_variant_attributes(variant.ast().attrs)?;
+            let mut field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
+            // `fallback_variant` is defined on the variant, so is `retain`, but downstream code
+            // expects `retain` to be set as a field attribute.
+            field_attrs.retain |= variant_attrs.retain;
             let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, Some(quote!(parent_attrs)));
 
+            let process_value = if variant_attrs.fallback_variant {
+                quote! {
+                    __processor.process_other(#ident, &__state)?;
+                }
+            } else {
+                quote! {
+                    ::relay_event_schema::processor::ProcessValue::process_value(
+                        #ident,
+                        __meta,
+                        __processor,
+                        &__state
+                    )?;
+
+                }
+            };
             Ok(quote! {
                 let parent_attrs = __state.attrs();
                 let attrs = #field_attrs_tokens;
@@ -65,12 +84,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                     &__state
                 )?;
 
-                ::relay_event_schema::processor::ProcessValue::process_value(
-                    #ident,
-                    __meta,
-                    __processor,
-                    &__state
-                )?;
+                #process_value
 
                 __processor.after_process(
                     Some(#ident),
@@ -284,8 +298,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.trim = Some(s.value());
             } else if ident == "pii" {
-                let s = meta.value()?.parse::<LitStr>()?;
-                rv.pii = parse_pii_value(s, &meta)?;
+                rv.pii = Some(meta.value()?.parse()?);
             } else {
                 // Ignore other attributes used by `relay-protocol-derive`.
                 if !meta.input.peek(syn::Token![,]) {
@@ -308,39 +321,167 @@ enum Pii {
     Dynamic(ExprPath),
 }
 
+impl syn::parse::Parse for Pii {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let head = input.fork();
+        let value = input.parse::<LitStr>()?;
+        let pii = match value.value().as_str() {
+            "true" => Self::True,
+            "false" => Self::False,
+            "maybe" => Self::Maybe,
+            _ => Self::Dynamic(value.parse().map_err(|_| {
+                head.error("Expected one of `true`, `false`, `maybe`, or a function name")
+            })?),
+        };
+        Ok(pii)
+    }
+}
+
 impl Pii {
     fn as_tokens(&self) -> TokenStream {
         match self {
-            Pii::True => quote!(::relay_event_schema::processor::PiiMode::Static(
+            Self::True => quote!(::relay_event_schema::processor::PiiMode::Static(
                 ::relay_event_schema::processor::Pii::True
             )),
-            Pii::False => quote!(::relay_event_schema::processor::PiiMode::Static(
+            Self::False => quote!(::relay_event_schema::processor::PiiMode::Static(
                 ::relay_event_schema::processor::Pii::False
             )),
-            Pii::Maybe => quote!(::relay_event_schema::processor::PiiMode::Static(
+            Self::Maybe => quote!(::relay_event_schema::processor::PiiMode::Static(
                 ::relay_event_schema::processor::Pii::Maybe
             )),
-            Pii::Dynamic(fun) => quote!(::relay_event_schema::processor::PiiMode::Dynamic(#fun)),
+            Self::Dynamic(fun) => quote!(::relay_event_schema::processor::PiiMode::Dynamic(#fun)),
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Debug)]
+enum Required {
+    True,
+    False,
+    ValueOrMeta,
+}
+
+impl Required {
+    fn as_tokens(&self) -> TokenStream {
+        match self {
+            Self::True => quote!(::relay_event_schema::processor::Required::Value),
+            Self::False => quote!(::relay_event_schema::processor::Required::False),
+            Self::ValueOrMeta => quote!(::relay_event_schema::processor::Required::ValueOrMeta),
+        }
+    }
+}
+
+impl syn::parse::Parse for Required {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let head = input.fork();
+        if let Ok(bool) = input.parse::<LitBool>() {
+            return match bool.value() {
+                true => Ok(Self::True),
+                false => Ok(Self::False),
+            };
+        }
+
+        let input = head.fork();
+        let value = input.parse::<LitStr>()?;
+
+        match value.value().as_str() {
+            "value_or_meta" => Ok(Self::ValueOrMeta),
+            _ => Err(head.error(r#"Expected one of `true`, `false`, or `"value_or_meta"`"#)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Size {
+    Static(usize),
+    Dynamic(ExprPath),
+    Const(ExprPath),
+}
+
+impl syn::parse::Parse for Size {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(LitInt) {
+            let lit = input.parse::<LitInt>()?;
+            return Ok(Self::Static(lit.base10_parse()?));
+        }
+
+        if input.peek(LitStr) {
+            let head = input.fork();
+            let path = input
+                .parse::<LitStr>()?
+                .parse()
+                .map_err(|_| head.error("Expected a function name"))?;
+            return Ok(Self::Dynamic(path));
+        }
+
+        Ok(Self::Const(input.parse::<ExprPath>()?))
+    }
+}
+
+impl Size {
+    fn as_tokens(&self) -> TokenStream {
+        match self {
+            Self::Static(n) => quote!(::relay_event_schema::processor::SizeMode::Static(Some(#n))),
+            Self::Dynamic(fun) => quote!(::relay_event_schema::processor::SizeMode::Dynamic(#fun)),
+            Self::Const(path) => {
+                quote!(::relay_event_schema::processor::SizeMode::Static(Some(#path)))
+            }
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+struct VariantAttrs {
+    fallback_variant: bool,
+    retain: bool,
+}
+
+fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttrs> {
+    let mut rv = VariantAttrs::default();
+    for attr in attrs {
+        if !attr.path().is_ident("metastructure") {
+            continue;
+        }
+
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
+
+            if ident == "fallback_variant" {
+                rv.fallback_variant = true;
+            } else if ident == "retain" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.retain = s.value();
+            } else {
+                // Ignore other attributes used by `FromValue`/`IntoValue` derive macros.
+                if let Ok(v) = meta.value() {
+                    let _ = v.parse::<Lit>()?;
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    Ok(rv)
+}
+
+#[derive(Default, Debug)]
 struct FieldAttrs {
     additional_properties: bool,
     omit_from_schema: bool,
     field_name: String,
     flatten: bool,
-    required: Option<bool>,
+    required: Option<Required>,
     nonempty: Option<bool>,
     trim_whitespace: Option<bool>,
     pii: Option<Pii>,
     retain: bool,
     characters: Option<TokenStream>,
-    max_chars: Option<TokenStream>,
+    max_chars: Option<Size>,
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
-    max_bytes: Option<TokenStream>,
+    max_bytes: Option<Size>,
+    bytes_size: Option<Size>,
     trim: Option<bool>,
 }
 
@@ -358,11 +499,11 @@ impl FieldAttrs {
             );
         }
         let required = if let Some(required) = self.required {
-            quote!(#required)
+            required.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.required)
         } else {
-            quote!(false)
+            quote!(::relay_event_schema::processor::Required::False)
         };
 
         let nonempty = if let Some(nonempty) = self.nonempty {
@@ -402,11 +543,11 @@ impl FieldAttrs {
         let retain = self.retain;
 
         let max_chars = if let Some(ref max_chars) = self.max_chars {
-            quote!(Some(#max_chars))
+            max_chars.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.max_chars)
         } else {
-            quote!(None)
+            quote!(::relay_event_schema::processor::SizeMode::Static(None))
         };
 
         let max_chars_allowance = if let Some(ref max_chars_allowance) = self.max_chars_allowance {
@@ -426,11 +567,17 @@ impl FieldAttrs {
         };
 
         let max_bytes = if let Some(ref max_bytes) = self.max_bytes {
-            quote!(Some(#max_bytes))
+            max_bytes.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.max_bytes)
         } else {
-            quote!(None)
+            quote!(::relay_event_schema::processor::SizeMode::Static(None))
+        };
+
+        let bytes_size = if let Some(ref bytes_size) = self.bytes_size {
+            bytes_size.as_tokens()
+        } else {
+            quote!(::relay_event_schema::processor::SizeMode::Static(None))
         };
 
         let characters = if let Some(ref characters) = self.characters {
@@ -452,6 +599,7 @@ impl FieldAttrs {
                 characters: #characters,
                 max_depth: #max_depth,
                 max_bytes: #max_bytes,
+                bytes_size: #bytes_size,
                 pii: #pii,
                 retain: #retain,
                 trim: #trim,
@@ -498,8 +646,7 @@ fn parse_field_attributes(
             } else if ident == "flatten" {
                 rv.flatten = true;
             } else if ident == "required" {
-                let s = meta.value()?.parse::<LitBool>()?;
-                rv.required = Some(s.value());
+                rv.required = Some(meta.value()?.parse::<Required>()?);
             } else if ident == "nonempty" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.nonempty = Some(s.value());
@@ -513,8 +660,7 @@ fn parse_field_attributes(
                 let s = meta.value()?.parse::<LitStr>()?;
                 rv.characters = Some(parse_character_set(ident, &s.value()));
             } else if ident == "max_chars" {
-                let s = meta.value()?.parse::<LitInt>()?;
-                rv.max_chars = Some(quote!(#s));
+                rv.max_chars = Some(meta.value()?.parse()?);
             } else if ident == "max_chars_allowance" {
                 let s = meta.value()?.parse::<LitInt>()?;
                 rv.max_chars_allowance = Some(quote!(#s));
@@ -522,11 +668,11 @@ fn parse_field_attributes(
                 let s = meta.value()?.parse::<LitInt>()?;
                 rv.max_depth = Some(quote!(#s));
             } else if ident == "max_bytes" {
-                let s = meta.value()?.parse::<LitInt>()?;
-                rv.max_bytes = Some(quote!(#s));
+                rv.max_bytes = Some(meta.value()?.parse()?);
+            } else if ident == "bytes_size" {
+                rv.bytes_size = Some(meta.value()?.parse()?);
             } else if ident == "pii" {
-                let s = meta.value()?.parse::<LitStr>()?;
-                rv.pii = parse_pii_value(s, &meta)?;
+                rv.pii = Some(meta.value()?.parse()?);
             } else if ident == "retain" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.retain = s.value();
@@ -599,15 +745,4 @@ fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
             is_negative: #is_negative,
         }
     }
-}
-
-fn parse_pii_value(value: LitStr, meta: &ParseNestedMeta) -> syn::Result<Option<Pii>> {
-    Ok(Some(match value.value().as_str() {
-        "true" => Pii::True,
-        "false" => Pii::False,
-        "maybe" => Pii::Maybe,
-        _ => Pii::Dynamic(value.parse().map_err(|_| {
-            meta.error("Expected one of `true`, `false`, `maybe`, or a function name")
-        })?),
-    }))
 }

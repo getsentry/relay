@@ -9,7 +9,7 @@ use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
 use crate::envelope::{Item, SourceQuantities, WithHeader};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::utils::EnvelopeSummary;
 use crate::{Envelope, metrics, processing};
 
@@ -41,6 +41,14 @@ impl<T: Counted> Counted for Option<T> {
     }
 }
 
+impl<T: Counted, S: Counted> Counted for (T, S) {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = self.0.quantities();
+        quantities.extend(self.1.quantities());
+        quantities
+    }
+}
+
 impl<L, R> Counted for Either<L, R>
 where
     L: Counted,
@@ -60,6 +68,12 @@ impl Counted for (DataCategory, usize) {
     }
 }
 
+impl<const N: usize> Counted for [(DataCategory, usize); N] {
+    fn quantities(&self) -> Quantities {
+        smallvec::SmallVec::from_slice(self)
+    }
+}
+
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
         self.quantities()
@@ -68,11 +82,15 @@ impl Counted for Item {
 
 impl Counted for Box<Envelope> {
     fn quantities(&self) -> Quantities {
+        EnvelopeSummary::compute(self).quantities()
+    }
+}
+
+impl Counted for EnvelopeSummary {
+    fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
 
-        // This matches the implementation of `ManagedEnvelope::reject`.
-        let summary = EnvelopeSummary::compute(self);
-        if let Some(category) = summary.event_category {
+        if let Some(category) = self.event_category {
             quantities.push((category, 1));
             if let Some(category) = category.index_category() {
                 quantities.push((category, 1));
@@ -80,35 +98,35 @@ impl Counted for Box<Envelope> {
         }
 
         let data = [
-            (
-                DataCategory::Attachment,
-                summary.attachment_quantities.bytes(),
-            ),
+            (DataCategory::Attachment, self.attachment_quantities.bytes()),
             (
                 DataCategory::AttachmentItem,
-                summary.attachment_quantities.count(),
+                self.attachment_quantities.count(),
             ),
-            (DataCategory::Profile, summary.profile_quantity),
-            (DataCategory::ProfileIndexed, summary.profile_quantity),
-            (DataCategory::Span, summary.span_quantity),
-            (DataCategory::SpanIndexed, summary.span_quantity),
+            (DataCategory::Profile, self.profile_quantity.total),
+            (DataCategory::ProfileBackend, self.profile_quantity.backend),
+            (DataCategory::ProfileUi, self.profile_quantity.ui),
+            (DataCategory::ProfileIndexed, self.profile_quantity.total),
+            (DataCategory::Span, self.span_quantity),
+            (DataCategory::SpanIndexed, self.span_quantity),
             (
                 DataCategory::Transaction,
-                summary.secondary_transaction_quantity,
+                self.secondary_transaction_quantity,
             ),
-            (DataCategory::Span, summary.secondary_span_quantity),
-            (DataCategory::Replay, summary.replay_quantity),
-            (DataCategory::ProfileChunk, summary.profile_chunk_quantity),
+            (DataCategory::Span, self.secondary_span_quantity),
+            (DataCategory::Replay, self.replay_quantity),
+            (DataCategory::ProfileChunk, self.profile_chunk_quantity),
+            (DataCategory::ProfileChunkUi, self.profile_chunk_ui_quantity),
+            (DataCategory::UserReportV2, self.user_report_quantity),
+            (DataCategory::TraceMetric, self.trace_metric_quantity),
             (
-                DataCategory::ProfileChunkUi,
-                summary.profile_chunk_ui_quantity,
+                DataCategory::TraceMetricByte,
+                self.trace_metric_byte_quantity,
             ),
-            (DataCategory::UserReportV2, summary.user_report_quantity),
-            (DataCategory::TraceMetric, summary.trace_metric_quantity),
-            (DataCategory::LogItem, summary.log_item_quantity),
-            (DataCategory::LogByte, summary.log_byte_quantity),
-            (DataCategory::Monitor, summary.monitor_quantity),
-            (DataCategory::Session, summary.session_quantity),
+            (DataCategory::LogItem, self.log_item_quantity),
+            (DataCategory::LogByte, self.log_byte_quantity),
+            (DataCategory::Monitor, self.monitor_quantity),
+            (DataCategory::Session, self.session_quantity),
         ];
 
         for (category, quantity) in data {
@@ -135,7 +153,13 @@ impl Counted for WithHeader<OurLog> {
 
 impl Counted for WithHeader<TraceMetric> {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::TraceMetric, 1)]
+        smallvec::smallvec![
+            (DataCategory::TraceMetric, 1),
+            (
+                DataCategory::TraceMetricByte,
+                processing::trace_metrics::get_calculated_byte_size(self)
+            )
+        ]
     }
 }
 
@@ -158,14 +182,12 @@ impl Counted for ExtractedMetrics {
         let SourceQuantities {
             transactions,
             spans,
-            profiles,
             buckets,
-        } = metrics::extract_quantities(&self.project_metrics);
+        } = metrics::extract_quantities(&self.0);
 
         [
             (DataCategory::Transaction, transactions),
             (DataCategory::Span, spans),
-            (DataCategory::Profile, profiles),
             (DataCategory::MetricBucket, buckets),
         ]
         .into_iter()
@@ -191,6 +213,32 @@ impl Counted for SessionAggregateItem {
     }
 }
 
+#[cfg(feature = "processing")]
+impl Counted for sentry_protos::snuba::v1::Outcomes {
+    fn quantities(&self) -> Quantities {
+        self.category_count
+            .iter()
+            .inspect(|cc| {
+                debug_assert!(DataCategory::try_from(cc.data_category).is_ok());
+                debug_assert!(usize::try_from(cc.quantity).is_ok());
+            })
+            .filter_map(|cc| {
+                Some((
+                    DataCategory::try_from(cc.data_category).ok()?,
+                    usize::try_from(cc.quantity).ok()?,
+                ))
+            })
+            .collect()
+    }
+}
+
+#[cfg(feature = "processing")]
+impl Counted for sentry_protos::snuba::v1::TraceItem {
+    fn quantities(&self) -> Quantities {
+        self.outcomes.quantities()
+    }
+}
+
 impl<T> Counted for &T
 where
     T: Counted,
@@ -209,7 +257,7 @@ where
     }
 }
 
-impl<T: Counted> Counted for Vec<T> {
+impl<T: Counted> Counted for [T] {
     fn quantities(&self) -> Quantities {
         let mut quantities = BTreeMap::new();
         for element in self {
@@ -221,14 +269,14 @@ impl<T: Counted> Counted for Vec<T> {
     }
 }
 
+impl<T: Counted> Counted for Vec<T> {
+    fn quantities(&self) -> Quantities {
+        self.as_slice().quantities()
+    }
+}
+
 impl<T: Counted, const N: usize> Counted for SmallVec<[T; N]> {
     fn quantities(&self) -> Quantities {
-        let mut quantities = BTreeMap::new();
-        for element in self {
-            for (category, size) in element.quantities() {
-                *quantities.entry(category).or_default() += size;
-            }
-        }
-        quantities.into_iter().collect()
+        self.as_slice().quantities()
     }
 }

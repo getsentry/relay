@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
+use relay_monitors::{CheckIn, ProcessCheckInError};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -20,6 +22,13 @@ pub enum Error {
     /// Failed to process the check-in.
     #[error("failed to process checkin: {0}")]
     Processing(#[from] relay_monitors::ProcessCheckInError),
+}
+
+/// An expanded/deserialized CheckIn, including the originating item.
+#[derive(Debug)]
+pub struct ExpandedCheckIn {
+    headers: EnvelopeHeaders,
+    check_in: CheckIn,
 }
 
 impl OutcomeError for Error {
@@ -59,14 +68,15 @@ impl CheckInsProcessor {
 }
 
 impl processing::Processor for CheckInsProcessor {
-    type UnitOfWork = SerializedCheckIns;
+    type Input = SerializedCheckIns;
     type Output = CheckInsOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn cogs() -> FeatureWeights {
+        AppFeature::CheckIns.into()
+    }
+
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let check_ins = envelope
@@ -74,39 +84,50 @@ impl processing::Processor for CheckInsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
             .into_vec();
 
+        if check_ins.is_empty() {
+            return None;
+        }
+
         let work = SerializedCheckIns { headers, check_ins };
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(
         &self,
-        mut check_ins: Managed<Self::UnitOfWork>,
+        input: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        if ctx.is_processing() {
-            process::normalize(&mut check_ins);
-        }
+        let mut ex_check_in = process::expand(input)?;
 
-        let check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
+        process::normalize(&mut ex_check_in)?;
 
-        Ok(Output::just(CheckInsOutput(check_ins)))
+        let ex_check_in = self.limiter.enforce_quotas(ex_check_in, ctx).await?;
+
+        Ok(Output::just(CheckInsOutput(ex_check_in)))
     }
 }
 
 /// Output produced by the [`CheckInsProcessor`].
 #[derive(Debug)]
-pub struct CheckInsOutput(Managed<SerializedCheckIns>);
+pub struct CheckInsOutput(Managed<ExpandedCheckIn>);
 
 impl Forward for CheckInsOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let envelope = self.0.map(|SerializedCheckIns { headers, check_ins }, _| {
-            Envelope::from_parts(headers, Items::from_vec(check_ins))
+        let envelope = self.0.try_map(|ExpandedCheckIn { headers, check_in }, _| {
+            let mut item = Item::new(ItemType::CheckIn);
+            item.set_payload(
+                ContentType::Json,
+                serde_json::to_vec(&check_in)
+                    .map_err(ProcessCheckInError::from)
+                    .map_err(Error::from)?,
+            );
+            Ok::<Box<Envelope>, Error>(Envelope::from_parts(headers, smallvec::smallvec![item]))
         });
 
-        Ok(envelope)
+        envelope.map_err(|e| e.map(|_| ()))
     }
 
     #[cfg(feature = "processing")]
@@ -115,10 +136,34 @@ impl Forward for CheckInsOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
+        use crate::services::store::StoreCheckIn;
 
-        s.store(crate::services::store::StoreEnvelope { envelope });
+        let sdk = self.0.headers.meta().client().map(str::to_owned);
+        let retention_days = ctx.event_retention().standard;
+        let project_id = self.0.scoping().project_id;
+
+        s.send_to_store(
+            self.0
+                .try_map(|expanded_check_in, _| {
+                    let routing_hint =
+                        relay_monitors::routing_hint(&expanded_check_in.check_in, &project_id);
+                    let mut item = Item::new(ItemType::CheckIn);
+                    item.set_payload(
+                        ContentType::Json,
+                        serde_json::to_vec(&expanded_check_in.check_in)
+                            .map_err(ProcessCheckInError::from)
+                            .map_err(Error::from)?,
+                    );
+
+                    item.set_routing_hint(routing_hint);
+                    Ok::<StoreCheckIn, Error>(StoreCheckIn {
+                        check_in: item,
+                        sdk: sdk.clone(),
+                        retention_days,
+                    })
+                })
+                .map_err(|e| e.map(|_| ()))?,
+        );
 
         Ok(())
     }
@@ -142,6 +187,16 @@ impl Counted for SerializedCheckIns {
     }
 }
 
+impl Counted for ExpandedCheckIn {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Monitor, 1)]
+    }
+}
+
 impl CountRateLimited for Managed<SerializedCheckIns> {
+    type Error = Error;
+}
+
+impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 }

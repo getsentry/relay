@@ -1,10 +1,12 @@
-use relay_base_schema::{events::EventType, project::ProjectKey};
+use relay_base_schema::events::EventType;
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_event_schema::protocol::{Event, TraceContext};
 use relay_protocol::Annotated;
 use relay_sampling::{DynamicSamplingContext, dsc::TraceUserContext};
 
 use crate::envelope::EnvelopeHeaders;
 use crate::processing::Context;
+use crate::statsd::RelayCounters;
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -27,29 +29,38 @@ use crate::processing::Context;
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
 ///
-/// The function will return the sampling project information of the root project for the event. If
-/// no sampling project information is specified, the project information of the event’s project
-/// will be returned.
+/// The function will use the sampling project information of the trace root project. If
+/// the sampling project information is missing - due to the project being disabled or belonging to
+/// a separate org - the event’s own project information will be used instead.
 pub fn validate_and_set_dsc(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
     ctx: &mut Context,
 ) {
-    let original_dsc = headers.dsc();
-    if original_dsc.is_some() && ctx.sampling_project_info.is_some() {
+    let mut original_dsc = headers.dsc_mut();
+    if let Some(dsc) = original_dsc.as_mut()
+        && let Some(sp) = ctx.sampling_project_info
+    {
+        dsc.project_id = sp.project_id;
         return;
+    }
+    if ctx.sampling_project_info.is_none() {
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingProjectUnresolved) += 1,
+            item = "transaction"
+        );
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
     if let Some(event) = event.value()
         && let Some(key_config) = ctx.project_info.get_public_key_config()
-        && let Some(mut dsc) = dsc_from_event(key_config.public_key, event)
+        && let Some(mut dsc) =
+            dsc_from_event(key_config.public_key, ctx.project_info.project_id, event)
     {
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.
-        let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
-        dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
+        dsc.sample_rate = original_dsc.as_ref().and_then(|dsc| dsc.sample_rate);
 
         headers.set_dsc(dsc);
 
@@ -69,7 +80,11 @@ pub fn validate_and_set_dsc(
 ///
 /// Since sampling information is not available in the event payload, the `sample_rate` field
 /// cannot be set when computing the dynamic sampling context from a transaction event.
-pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
+pub fn dsc_from_event(
+    public_key: ProjectKey,
+    project_id: Option<ProjectId>,
+    event: &Event,
+) -> Option<DynamicSamplingContext> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return None;
     }
@@ -81,6 +96,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     Some(DynamicSamplingContext {
         trace_id,
         public_key,
+        project_id,
         release: event.release.as_str().map(str::to_owned),
         environment: event.environment.value().cloned(),
         transaction: event.transaction.value().cloned(),

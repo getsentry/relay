@@ -1,12 +1,16 @@
+from collections import defaultdict
+
 import pytest
 import uuid
 import json
 
-from unittest import mock
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
+from .asserts import matches_any
 from .test_store import make_transaction
+from .consts import Outcome
 
 
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
@@ -35,86 +39,87 @@ def test_mixed_attachments_with_processing(
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    chunked_contents = b"heavens no" * 20_000
+    large_content = b"heavens no" * 20_000
     attachments = [
-        ("att_1", "foo.txt", chunked_contents),
+        ("att_1", "foo.txt", large_content),
         ("att_2", "bar.txt", b"hell yeah"),
         ("att_3", "foobar.txt", b""),
     ]
     relay.send_attachments(project_id, event_id, attachments)
 
-    # A chunked attachment
-    attachment_contents = {}
-    attachment_ids = []
-    attachment_num_chunks = {}
+    chunked_data_per_id = defaultdict(bytes)
+    n_chunks = 0
+    attachments = {}
+    while set(chunked_data_per_id.values()) != {large_content} or len(attachments) < 3:
+        _, m = attachments_consumer.get_message()
+        if m["type"] == "attachment_chunk":
+            chunked_data_per_id[m["id"]] += m["payload"]
+            assert m["chunk_index"] == n_chunks
+            n_chunks += 1
+        elif m["type"] == "attachment":
+            attachments[m["attachment"]["name"]] = m
+        else:
+            raise AssertionError(f"Unexpected message type: {m['type']}")
 
-    while set(attachment_contents.values()) != {chunked_contents}:
-        chunk, v = attachments_consumer.get_attachment_chunk()
-        attachment_contents[v["id"]] = attachment_contents.get(v["id"], b"") + chunk
-        if v["id"] not in attachment_ids:
-            attachment_ids.append(v["id"])
-        num_chunks = 1 + attachment_num_chunks.get(v["id"], 0)
-        assert v["chunk_index"] == num_chunks - 1
-        attachment_num_chunks[v["id"]] = num_chunks
+    assert len(chunked_data_per_id) == 1
+    (foo_id,) = chunked_data_per_id
+    assert chunked_data_per_id[foo_id] == large_content
+    assert n_chunks > 1
 
-    (id1,) = attachment_ids
-    assert attachment_contents[id1] == chunked_contents
-    assert attachment_num_chunks[id1] > 1
-
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
-        "type": "attachment",
-        "attachment": {
-            "id": id1,
-            "name": "foo.txt",
-            "rate_limited": False,
-            "attachment_type": "event.attachment",
-            "size": len(chunked_contents),
-            "chunks": attachment_num_chunks[id1],
-        },
-        "event_id": event_id,
-        "project_id": project_id,
-    }
-
-    # An inlined attachment
-    attachment = attachments_consumer.get_individual_attachment()
-
+    # Inlined attachment bar
+    bar = attachments["bar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
-    assert attachment["attachment"].pop("id")
-
-    assert attachment == {
+    assert bar["attachment"].pop("id")
+    assert bar == {
         "type": "attachment",
         "attachment": {
             "name": "bar.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"hell yeah"),
+            "retention_days": 90,
             "data": b"hell yeah",
         },
         "event_id": event_id,
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
+    # Inlined metadata for chunked attachment foo
+    foo = attachments["foo.txt"]
+    assert foo == {
+        "type": "attachment",
+        "attachment": {
+            "id": foo_id,
+            "name": "foo.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(large_content),
+            "retention_days": 90,
+            "chunks": n_chunks,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
 
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-
+    # Empty attachment foobar
+    foobar = attachments["foobar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
-    assert attachment["attachment"].pop("id")
-
-    assert attachment == {
+    assert foobar["attachment"].pop("id")
+    assert foobar == {
         "type": "attachment",
         "attachment": {
             "name": "foobar.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    outcomes_consumer.assert_empty()
 
 
 def test_attachments_with_objectstore(
@@ -135,7 +140,6 @@ def test_attachments_with_objectstore(
     options = {
         "processing": {
             "attachment_chunk_size": "100KB",
-            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
         }
     }
     relay = relay_with_processing(options)
@@ -143,45 +147,50 @@ def test_attachments_with_objectstore(
     outcomes_consumer = outcomes_consumer()
 
     chunked_contents = b"heavens no" * 20_000
-    attachments = [
-        ("att_1", "foo.txt", chunked_contents),
-        ("att_2", "foobar.txt", b""),
-    ]
-    relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(
+        project_id,
+        event_id,
+        [("att_1", "foo.txt", chunked_contents), ("att_2", "foobar.txt", b"")],
+    )
 
-    attachment = attachments_consumer.get_individual_attachment()
+    attachments_by_name = {}
+    for _ in range(2):
+        att = attachments_consumer.get_individual_attachment()
+        attachments_by_name[att["attachment"]["name"]] = att
 
-    objectstore_key = attachment["attachment"].pop("stored_id")
+    # Large attachments are stored in objectstore
+    stored = attachments_by_name["foo.txt"]
+    objectstore_key = stored["attachment"].pop("stored_id")
     objectstore = objectstore("attachments", project_id)
     assert objectstore.get(objectstore_key).payload.read() == chunked_contents
-
-    assert attachment == {
+    assert stored == {
         "type": "attachment",
         "attachment": {
-            "id": mock.ANY,
+            "id": matches_any(),
             "name": "foo.txt",
             "rate_limited": False,
+            # Uploads guess the content type from the file name.
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
+            "retention_days": 90,
         },
         "event_id": event_id,
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
-
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
+    # Empty attachments are still transmitted with zero chunks, and not stored on
+    # objectstore, so their content type remains unset
+    empty = attachments_by_name["foobar.txt"]
+    assert empty == {
         "type": "attachment",
         "attachment": {
-            "id": mock.ANY,
+            "id": matches_any(),
             "name": "foobar.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
-            # empty attachments are still transmitted with zero chunks,
-            # and not stored on objectstore
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
@@ -303,6 +312,55 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
         ),
     ],
 )
+def test_attachment_scrubbing_with_event_with_fallback(
+    mini_sentry, relay, feature_flags, expected
+):
+    """
+    Like test_attachment_scrubbing_with_fallback, but goes through the ErrorsProcessor
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(feature_flags)
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "password", "redaction": {"method": "remove"}}},
+        "applications": {
+            "$string": ["@password:remove"],
+            "$attachments.'view-hierarchy.json'": ["0"],
+        },
+    }
+    relay = relay(mini_sentry)
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "password": "hunter42",
+    }
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_event({"message": "Hello, World!"})
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    envelope = mini_sentry.get_captured_envelope()
+    attachment = next(item for item in envelope.items if item.type == "attachment")
+    payload = attachment.payload.bytes
+    assert payload == expected
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], b"**************************************************"),
+        (
+            ["organizations:view-hierarchy-scrubbing"],
+            b'{"rendering_system":"UIKIT","password":""}',
+        ),
+    ],
+)
 def test_attachment_scrubbing_with_fallback(
     mini_sentry, relay, feature_flags, expected
 ):
@@ -390,7 +448,7 @@ Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
 path=c:\Users\yan\mylogfile.txt
 password=mysupersecretpassword123"""
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
     item = Item(
         payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
     )
@@ -400,9 +458,7 @@ password=mysupersecretpassword123"""
 
     scrubbed_payload = mini_sentry.get_captured_envelope().items[0].payload.bytes
 
-    assert (
-        scrubbed_payload
-        == rb"""Alice Johnson
+    assert scrubbed_payload == rb"""Alice Johnson
 *************************
 +1234567890
 4111 1111 1111 1111
@@ -411,7 +467,6 @@ Charlie Brown ************************* +1928374650 3782 822463 10005
 Dana White ************************ +1029384756 6011 0009 9013 9424
 path=c:\Users\***\mylogfile.txt
 password=mysupersecretpassword123"""
-    )
 
 
 def test_attachments_quotas(
@@ -558,6 +613,7 @@ def test_view_hierarchy_processing(
             "content_type": "application/json",
             "attachment_type": "event.view_hierarchy",
             "size": len(expected_payload),
+            "retention_days": 90,
             "data": expected_payload,
         },
         "event_id": event_id,
@@ -567,19 +623,29 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     transactions_consumer,
+    use_objectstore,
+    objectstore,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
+
+    if use_objectstore:
+        mini_sentry.global_config["options"][
+            "relay.objectstore-attachments.sample-rate"
+        ] = 1.0
+
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     # event attachments are always sent as chunks, and added to events
     envelope = Envelope(headers=[["event_id", event_id]])
@@ -588,27 +654,39 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
+            content_type="text/plain",
         )
     )
 
     relay.send_envelope(project_id, envelope)
 
-    chunk, _ = attachments_consumer.get_attachment_chunk()
-    assert chunk == b"event attachment"
+    if not use_objectstore:
+        chunk, _ = attachments_consumer.get_attachment_chunk()
+        assert chunk == b"event attachment"
 
     _, event_message = attachments_consumer.get_event()
 
     assert event_message["attachments"][0].pop("id")
     assert list(event_message["attachments"]) == [
         {
-            "name": "Unnamed Attachment",
+            "name": "event.txt",
             "rate_limited": False,
-            "content_type": "application/octet-stream",
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
-            "chunks": 1,
+            "retention_days": 90,
+            **({"stored_id": matches_any()} if use_objectstore else {"chunks": 1}),
         }
     ]
+
+    if use_objectstore:
+        stored_id = event_message["attachments"][0]["stored_id"]
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"event attachment"
+        # The file name is required for `Content-Disposition` on downloads.
+        assert stored.metadata.filename == "event.txt"
+        assert stored.metadata.content_type == "text/plain"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -618,22 +696,37 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"transaction attachment"),
+            filename="transaction.txt",
         )
     )
 
     relay.send_envelope(project_id, envelope)
 
     expected_attachment = {
-        "name": "Unnamed Attachment",
+        "name": "transaction.txt",
         "rate_limited": False,
-        "content_type": "application/octet-stream",
+        # Uploads normalize the generic content type by guessing from the file name.
+        "content_type": "text/plain" if use_objectstore else "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
-        "data": b"transaction attachment",
+        "retention_days": 90,
+        **(
+            {"stored_id": matches_any()}
+            if use_objectstore
+            else {"data": b"transaction attachment"}
+        ),
     }
 
     attachment = attachments_consumer.get_individual_attachment()
     assert attachment["attachment"].pop("id")
+
+    if use_objectstore:
+        stored_id = attachment["attachment"]["stored_id"]
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"transaction attachment"
+        assert stored.metadata.filename == "transaction.txt"
+        assert stored.metadata.content_type == "text/plain"
+
     assert attachment == {
         "type": "attachment",
         "attachment": expected_attachment,
@@ -643,6 +736,53 @@ def test_event_with_attachment(
 
     _, event = transactions_consumer.get_event()
     assert event["event_id"] == event_id
+
+
+def test_attachment_without_event_id(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    project_id = 42
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+
+    relay = relay_with_processing()
+
+    envelope = Envelope(headers=[])
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
+            content_type="text/plain",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.ATTACHMENT,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 16,
+            "reason": "invalid_event_id",
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_event_id",
+        },
+    ]
 
 
 def test_form_data_is_rejected(
@@ -676,6 +816,7 @@ def test_form_data_is_rejected(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"file content"),
+            "retention_days": 90,
             "data": b"file content",
         },
         "event_id": event_id,
@@ -684,3 +825,23 @@ def test_form_data_is_rejected(
 
     # Verify no more attachments were processed
     attachments_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+def test_size_limits(mini_sentry, relay, limit, expected_status_code):
+    proj_id = 42
+    relay = relay(mini_sentry, {"limits": {limit: 10}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    response = relay.send_attachments(
+        proj_id,
+        event_id,
+        [("some_field", "myfile.txt", "hello world!")],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == expected_status_code

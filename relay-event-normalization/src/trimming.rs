@@ -66,9 +66,9 @@ impl Processor for TrimmingProcessor {
         // If we encounter a max_bytes or max_depth attribute it
         // resets the size and depth that is permitted below it.
         // XXX(iker): test setting only one of the two attributes.
-        if state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
+        if state.max_bytes().is_some() || state.attrs().max_depth.is_some() {
             self.size_state.push(SizeState {
-                size_remaining: state.attrs().max_bytes,
+                size_remaining: state.max_bytes(),
                 encountered_at_depth: state.depth(),
                 max_depth: state.attrs().max_depth,
             });
@@ -93,26 +93,24 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(size_state) = self.size_state.last() {
-            // If our current depth is the one where we found a bag_size attribute, this means we
-            // are done processing a databag. Pop the bag size state.
-            if state.depth() == size_state.encountered_at_depth {
-                self.size_state.pop().unwrap();
-            }
-        }
+        // If our current depth is the one where we found a bag_size attribute, this means we
+        // are done processing a databag. Pop the bag size state.
+        self.size_state
+            .pop_if(|size_state| state.depth() == size_state.encountered_at_depth);
 
-        for size_state in self.size_state.iter_mut() {
-            // After processing a value, update the remaining bag sizes. We have a separate if-let
-            // here in case somebody defines nested databags (a struct with bag_size that contains
-            // another struct with a different bag_size), in case we just exited a databag we want
-            // to update the bag_size_state of the outer databag with the remaining size.
-            //
-            // This also has to happen after string trimming, which is why it's running in
-            // after_process.
-
-            if state.entered_anything() {
-                // Do not subtract if state is from newtype struct.
-                let item_length = relay_protocol::estimate_size_flat(value) + 1;
+        // After processing a value, update the remaining bag sizes. We have a separate if-let
+        // here in case somebody defines nested databags (a struct with bag_size that contains
+        // another struct with a different bag_size), in case we just exited a databag we want
+        // to update the bag_size_state of the outer databag with the remaining size.
+        //
+        // This also has to happen after string trimming, which is why it's running in
+        // after_process.
+        if state.entered_anything() && !self.size_state.is_empty() {
+            // Do not subtract if state is from newtype struct.
+            let item_length = state
+                .bytes_size()
+                .unwrap_or_else(|| relay_protocol::estimate_size_flat(value) + 1);
+            for size_state in self.size_state.iter_mut() {
                 size_state.size_remaining = size_state
                     .size_remaining
                     .map(|size| size.saturating_sub(item_length));
@@ -128,7 +126,7 @@ impl Processor for TrimmingProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(max_chars) = state.attrs().max_chars {
+        if let Some(max_chars) = state.max_chars() {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
@@ -136,9 +134,7 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
-        if let Some(size_state) = self.size_state.last()
-            && let Some(size_remaining) = size_state.size_remaining
-        {
+        if let Some(size_remaining) = self.remaining_size() {
             trim_string(value, meta, size_remaining, 0);
         }
 
@@ -299,7 +295,12 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_allowance: usize) {
+pub(crate) fn trim_string(
+    value: &mut String,
+    meta: &mut Meta,
+    max_chars: usize,
+    max_chars_allowance: usize,
+) {
     let hard_limit = max_chars + max_chars_allowance;
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
@@ -421,7 +422,12 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
     // TODO: Which annotation to set?
 
-    for i in system_frames_to_remove.iter().chain(app_frames_to_remove) {
+    let top_frame_index = frames_len.saturating_sub(1);
+    for i in system_frames_to_remove
+        .iter()
+        .chain(app_frames_to_remove)
+        .filter(|&&i| i != top_frame_index)
+    {
         if let Some(frame) = frames.get_mut(*i)
             && let Some(ref mut frame) = frame.value_mut().as_mut()
         {
@@ -439,10 +445,10 @@ mod tests {
     use crate::MaxChars;
     use chrono::DateTime;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
-        SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, FlagsContext, PairList,
+        SentryTags, Span, SpanData, SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
     };
-    use relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
+    use relay_protocol::{FromValue, IntoValue, Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -597,6 +603,60 @@ mod tests {
         let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
 
         insta::assert_ron_snapshot!(stripped_extra);
+    }
+
+    /// Tests that a trimming a string takes a lower outer limit into account.
+    #[test]
+    fn test_string_trimming_limits() {
+        #[derive(ProcessValue, IntoValue, FromValue, Empty, Debug, Clone)]
+        struct Outer {
+            #[metastructure(max_bytes = 10)]
+            inner: Annotated<Inner>,
+        }
+
+        #[derive(ProcessValue, IntoValue, FromValue, Empty, Debug, Clone)]
+        struct Inner {
+            #[metastructure(max_bytes = 20)]
+            innerer: Annotated<String>,
+        }
+
+        let mut processor = TrimmingProcessor::new();
+
+        let mut outer = Annotated::new({
+            Outer {
+                inner: Annotated::new(Inner {
+                    innerer: Annotated::new("This string is 28 bytes long".into()),
+                }),
+            }
+        });
+
+        processor::process_value(&mut outer, &mut processor, ProcessingState::root()).unwrap();
+        let stripped = SerializableAnnotated(&outer);
+
+        insta::assert_ron_snapshot!(stripped, @r###"
+        {
+          "inner": {
+            "innerer": "This st...",
+          },
+          "_meta": {
+            "inner": {
+              "innerer": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      7,
+                      10,
+                    ],
+                  ],
+                  len: Some(28),
+                ))),
+              },
+            },
+          },
+        }
+        "###);
     }
 
     #[test]
@@ -1002,6 +1062,39 @@ mod tests {
     }
 
     #[test]
+    fn test_slim_frame_data_does_not_trim_top_frame_metadata() {
+        let mut frames: Array<Frame> = (0..50)
+            .map(|n| {
+                Annotated::new(Frame {
+                    filename: Annotated::new(format!("system {n}").into()),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        frames.push(Annotated::new(Frame {
+            filename: Annotated::new("raising".into()),
+            pre_context: Annotated::new(vec![Annotated::new("before".to_owned())]),
+            context_line: Annotated::new("current".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("after".to_owned())]),
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("local".to_owned(), Annotated::new("value".into()));
+                vars.into()
+            }),
+            in_app: Annotated::new(true),
+            ..Default::default()
+        }));
+
+        slim_frame_data(&mut frames, 50);
+
+        let top_frame = frames.last().unwrap().value().unwrap();
+        assert!(top_frame.vars.value().is_some());
+        assert!(top_frame.pre_context.value().is_some());
+        assert!(top_frame.context_line.value().is_some());
+        assert!(top_frame.post_context.value().is_some());
+    }
+
+    #[test]
     fn test_too_many_spans_trimmed() {
         let span = Span {
             platform: Annotated::new("a".repeat(1024 * 90)),
@@ -1028,6 +1121,37 @@ mod tests {
 
         // The actual spans were not touched:
         assert_eq!(trimmed_spans.as_slice(), &spans[0..5]);
+    }
+
+    #[test]
+    fn test_span_data_not_partially_trimmed() {
+        let span_data = SpanData::from([(
+            "large_attribute".to_owned(),
+            Annotated::new(Value::String("a".repeat(100 * 1024))),
+        )]);
+        let span = Span {
+            data: Annotated::new(span_data.clone()),
+            ..Default::default()
+        };
+        let spans: Vec<_> = std::iter::repeat_with(|| Annotated::new(span.clone()))
+            .take(10)
+            .collect();
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(spans.clone()),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let trimmed = event.value().unwrap().spans.value().unwrap();
+        assert!(trimmed.len() < spans.len());
+        assert!(trimmed.iter().all(|span| {
+            span.value()
+                .and_then(|span| span.data.value())
+                .is_some_and(|data| data == &span_data)
+        }));
     }
 
     #[test]
@@ -1195,5 +1319,132 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_fixed_item_size() {
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestObject {
+            #[metastructure(max_bytes = 28)]
+            inner: Annotated<TestObjectInner>,
+        }
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestObjectInner {
+            #[metastructure(max_chars = 10, trim = true)]
+            body: Annotated<String>,
+            // This should neither be trimmed nor factor into size calculations.
+            #[metastructure(trim = false, bytes_size = "always_zero")]
+            number: Annotated<u64>,
+            // This should count as 10B.
+            #[metastructure(trim = false, bytes_size = 10)]
+            other_number: Annotated<u64>,
+            #[metastructure(trim = true)]
+            footer: Annotated<String>,
+        }
+
+        fn always_zero(_state: &ProcessingState) -> Option<usize> {
+            Some(0)
+        }
+
+        let mut object = Annotated::new(TestObject {
+            inner: Annotated::new(TestObjectInner {
+                body: Annotated::new("Longer than 10 chars".to_owned()),
+                number: Annotated::new(13),
+                other_number: Annotated::new(12),
+                footer: Annotated::new("There should only be 'Th...' left".to_owned()),
+            }),
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut object, &mut processor, ProcessingState::root()).unwrap();
+
+        // * `body` gets trimmed to 13B (10 chars + `...`)
+        // * `number` counts as 0B
+        // * `other_number` counts as 10B
+        // That leaves 5B for the `footer`.
+        insta::assert_ron_snapshot!(SerializableAnnotated(&object), @r###"
+        {
+          "inner": {
+            "body": "Longer ...",
+            "number": 13,
+            "other_number": 12,
+            "footer": "Th...",
+          },
+          "_meta": {
+            "inner": {
+              "body": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      7,
+                      10,
+                    ],
+                  ],
+                  len: Some(20),
+                ))),
+              },
+              "footer": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "!limit",
+                      s,
+                      2,
+                      5,
+                    ],
+                  ],
+                  len: Some(33),
+                ))),
+              },
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_flags_context_trimming() {
+        let original_flags_count = 1_000;
+        let values: Vec<_> = (0..original_flags_count)
+            .map(|i| {
+                serde_json::json!({
+                    "flag": format!("feature.flag.{i}"),
+                    "result": "x".repeat(500),
+                })
+            })
+            .collect();
+        let json = serde_json::json!({
+            "contexts": {
+                "flags": {
+                    "values": values,
+                },
+                "my_custom_context": {
+                    "foo": "x".repeat(10_000)
+                }
+            },
+        })
+        .to_string();
+        let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let contexts = get_value!(event.contexts!);
+
+        // Make sure flags contexts has its own limit applied.
+        let values = &contexts.get::<FlagsContext>().unwrap().values;
+
+        assert_eq!(values.value().unwrap().len(), 584);
+        assert_eq!(values.meta().original_length(), Some(original_flags_count));
+
+        // Make sure the custom context is trimmed to 8192.
+        let custom = match contexts.get_key("my_custom_context").unwrap() {
+            Context::Other(custom) => custom,
+            _ => unreachable!(),
+        };
+        assert_eq!(custom["foo"].value().unwrap().as_str().unwrap().len(), 8192);
+        assert_eq!(custom["foo"].meta().original_length(), Some(10_000));
     }
 }

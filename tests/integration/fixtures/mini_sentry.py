@@ -14,7 +14,7 @@ import pytest
 from flask import abort, Flask, request as flask_request, jsonify
 from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
-from sentry_sdk.envelope import Envelope
+from sentry_sdk.envelope import Envelope, PayloadRef
 
 from . import SentryLike
 
@@ -32,6 +32,17 @@ def _parse_version(version):
     return tuple(map(int, version.split(".")))
 
 
+_METRIC_TO_OUTCOME = {
+    "c:outcomes/accepted@none": 0,
+    "c:outcomes/filtered@none": 1,
+    "c:outcomes/rate_limited@none": 2,
+    "c:outcomes/invalid@none": 3,
+    "c:outcomes/abuse@none": 4,
+    "c:outcomes/client_discard@none": 5,
+    "c:outcomes/cardinality_limited@none": 6,
+}
+
+
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
         super().__init__(server_address)
@@ -40,8 +51,8 @@ class Sentry(SentryLike):
         self.project_configs = {}
         self.global_config = copy.deepcopy(GLOBAL_CONFIG)
         self.captured_envelopes = Queue()
-        self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
+        self.captured_outcomes = Queue()
         self.test_failures = Queue()
         self.hits = {}
         self.known_relays = {}
@@ -49,6 +60,7 @@ class Sentry(SentryLike):
         self.request_log = []
         self.project_config_simulate_pending = False
         self.project_config_ignore_revision = False
+        self.allow_chunked = False
 
         self.timeout = 10
 
@@ -231,43 +243,43 @@ class Sentry(SentryLike):
             ),
         )
 
-    def get_outcomes(self, n, *, timeout=None):
+    def get_global_metrics(self, *, timeout=None):
+        return self.captured_metrics.get(timeout=timeout or self.timeout)
+
+    def get_outcomes(self, *, n=None, timeout=None):
         outcomes = []
-        for _ in range(n):
-            outcomes.extend(
-                self.captured_outcomes.get(timeout=timeout or self.timeout).get(
-                    "outcomes"
-                )
-            )
-        outcomes.sort(key=lambda x: x["category"])
+
+        try:
+            while n is None or len(outcomes) < n:
+                outcome = self.captured_outcomes.get(timeout=timeout or self.timeout)
+                if n is None:
+                    # When not waiting for a specific amount don't wait the full timeout after the first item
+                    # as usually outcomes arrive all at once.
+                    timeout = 0.1
+                outcomes.append(outcome)
+        except Empty:
+            pass
+
+        if n is not None:
+            assert n == len(outcomes), f"expected {n} outcomes, got {len(outcomes)}"
+
+        outcomes.sort(key=lambda outcome: outcome["category"])
         return outcomes
 
-    def get_aggregated_outcomes(self, *, timeout=None):
+    def get_aggregated_outcomes(self, *, n=None, timeout=None):
         aggregated = Counter()
-        try:
-            while True:
-                outcomes = self.captured_outcomes.get(
-                    timeout=timeout or self.timeout
-                ).get("outcomes")
-                timeout = 0.1  # only wait the first time
-                for outcome in outcomes:
-                    del outcome["timestamp"]
-                    quantity = outcome.pop("quantity")
-                    aggregated[tuple(sorted(outcome.items()))] += quantity
-        except Empty:
-            outcomes = [
-                {**{k: v for (k, v) in fields}, "quantity": quantity}
-                for (fields, quantity) in aggregated.items()
-            ]
-            outcomes.sort(key=lambda o: sorted(o.items()))
-            return outcomes
 
+        for outcome in self.get_outcomes(n=n, timeout=timeout):
+            del outcome["timestamp"]
+            quantity = int(outcome.pop("quantity"))
+            aggregated[tuple(sorted(outcome.items()))] += quantity
 
-def _get_project_id(public_key, project_configs):
-    for project_id, project_config in project_configs.items():
-        for key_config in project_config["publicKeys"]:
-            if key_config["publicKey"] == public_key:
-                return project_id
+        outcomes = [
+            {**{k: v for (k, v) in fields}, "quantity": quantity}
+            for (fields, quantity) in aggregated.items()
+        ]
+        outcomes.sort(key=lambda o: sorted(o.items()))
+        return outcomes
 
 
 @pytest.fixture
@@ -299,14 +311,18 @@ def mini_sentry(request):  # noqa
     def count_hits():
         # Consume POST body even if we don't like this request
         # to no clobber the socket and buffers
-        _ = flask_request.data
+        try:
+            _ = flask_request.data
+        except Exception:
+            # stream might be invalid
+            pass
 
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)
 
         # Store endpoints theoretically support chunked transfer encoding,
         # but for now, we're conservative and don't allow that anywhere.
-        if flask_request.headers.get("transfer-encoding"):
+        if not sentry.allow_chunked and flask_request.headers.get("transfer-encoding"):
             abort(400, "transfer encoding not supported")
 
         sentry.request_log.append((flask_request.headers, flask_request.url))
@@ -378,7 +394,10 @@ def mini_sentry(request):  # noqa
         ), "Relay sent us non-envelope data to store"
 
         envelope = Envelope.deserialize(data)
-        sentry.captured_envelopes.put(envelope)
+        for outcome in _extract_outcomes_from_envelope(envelope):
+            sentry.captured_outcomes.put(outcome)
+        if envelope.items:
+            sentry.captured_envelopes.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])
@@ -471,20 +490,6 @@ def mini_sentry(request):  # noqa
 
         return jsonify(public_keys=keys, relays=relays)
 
-    @app.route("/api/0/relays/outcomes/", methods=["POST"])
-    def outcomes():
-        """
-        Mock endpoint for outcomes. SENTRY DOES NOT IMPLEMENT THIS ENDPOINT! This is just used to
-        verify Relay's batching behavior.
-        """
-        relay_id = flask_request.headers["x-sentry-relay-id"]
-        if relay_id not in authenticated_relays:
-            abort(403, "relay not registered")
-
-        outcomes_batch = flask_request.json
-        sentry.captured_outcomes.put(outcomes_batch)
-        return jsonify({})
-
     @app.route("/api/0/relays/metrics/", methods=["POST"])
     def global_metrics():
         """
@@ -503,12 +508,15 @@ def mini_sentry(request):  # noqa
             data = decompressor.read()
 
         metrics_batch = json.loads(data)["buckets"]
-        sentry.captured_metrics.put(metrics_batch)
+        for outcome in _extract_outcomes_from_global_metrics(metrics_batch):
+            sentry.captured_outcomes.put(outcome)
+        if any(metrics_batch.values()):
+            sentry.captured_metrics.put(metrics_batch)
         return jsonify({})
 
     @app.errorhandler(500)
     def fail(e):
-        sentry.test_failures.append((flask_request.url, e))
+        sentry.test_failures.put((flask_request.url, e))
         raise e
 
     def reraise_test_failures():
@@ -562,5 +570,71 @@ GLOBAL_CONFIG = {
     "options": {
         "relay.span-usage-metric": True,
         "relay.session.processing.rollout": 1.0,
+        "relay.endpoint-fetch-config.enabled": True,
     },
 }
+
+
+def _extract_outcomes_from_global_metrics(batch):
+    outcomes = []
+
+    for public_key, buckets in batch.items():
+        other = list()
+
+        for bucket in buckets:
+            if outcome := _metric_bucket_to_outcome(bucket):
+                outcomes.append({"public_key": public_key, **outcome})
+            else:
+                other.append(bucket)
+
+        batch[public_key] = other
+
+    return outcomes
+
+
+def _extract_outcomes_from_envelope(envelope):
+    # Implementation detail of Relay, metrics are always sent in an envelope with exactly one item
+    if not envelope.items:
+        return []
+
+    if envelope.items[0].headers["type"] != "metric_buckets":
+        return []
+
+    payload = json.loads(envelope.items[0].payload.get_bytes())
+    if not isinstance(payload, list):
+        return []
+
+    buckets = list()
+    outcomes = list()
+    for bucket in payload:
+        if not isinstance(bucket, dict):
+            return []
+        if outcome := _metric_bucket_to_outcome(bucket):
+            outcomes.append(outcome)
+        else:
+            buckets.append(bucket)
+
+    # If there were any outcomes in the batch, re-serialize the buckets
+    if len(outcomes) > 0:
+        if buckets:
+            envelope.items[0].payload = PayloadRef(
+                bytes=json.dumps(buckets).encode("utf-8")
+            )
+        else:
+            envelope.items.clear()
+
+    return outcomes
+
+
+def _metric_bucket_to_outcome(bucket):
+    name = bucket["name"]
+    if name not in _METRIC_TO_OUTCOME:
+        return None
+
+    return {
+        "timestamp": bucket["timestamp"],
+        "outcome": _METRIC_TO_OUTCOME[name],
+        "category": int(bucket["tags"].pop("category")),
+        "quantity": int(bucket["value"]),
+        **bucket["tags"],
+    }

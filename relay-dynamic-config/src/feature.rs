@@ -7,8 +7,12 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
-    Feature::ScrubMongoDbDescriptions,
+    Feature::DeprecatedProfiling,
+    Feature::DeprecatedOtelTracesEndpoint,
+    Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
+    Feature::DeprecatedStandaloneSpanIngestion,
+    Feature::DeprecatedSpanV2ExperimentalProcessing,
 ];
 
 /// Features exposed by project config.
@@ -29,38 +33,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables device.class synthesis
-    ///
-    /// Enables device.class tag synthesis on mobile events.
-    ///
-    /// Serialized as `organizations:device-class-synthesis`.
-    #[serde(rename = "organizations:device-class-synthesis")]
-    DeviceClassSynthesis,
-    /// Allow ingestion of metrics in the "custom" namespace.
-    ///
-    /// Serialized as `organizations:custom-metrics`.
-    #[serde(rename = "organizations:custom-metrics")]
-    CustomMetrics,
-    /// Enable processing profiles.
-    ///
-    /// Serialized as `organizations:profiling`.
-    #[serde(rename = "organizations:profiling")]
-    Profiling,
-    /// Enable standalone span ingestion.
-    ///
-    /// Serialized as `organizations:standalone-span-ingestion`.
-    #[serde(rename = "organizations:standalone-span-ingestion")]
-    StandaloneSpanIngestion,
-    /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
-    ///
-    /// Serialized as `organizations:relay-otlp-traces-endpoint`.
-    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
-    OtelTracesEndpoint,
-    /// Enable logs ingestion via the `/logs/` OTel endpoint.
-    ///
-    /// Serialized as `organizations:relay-otel-logs-endpoint`.
-    #[serde(rename = "organizations:relay-otel-logs-endpoint")]
-    OtelLogsEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -76,16 +48,14 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-    /// Enabled for beta orgs
+    /// Enable Perfetto binary trace processing for continuous profiling.
     ///
-    /// Serialized as `organizations:continuous-profiling-beta`.
-    #[serde(rename = "organizations:continuous-profiling-beta")]
-    ContinuousProfilingBeta,
-    /// Enabled when only beta orgs are allowed to send continuous profiles.
+    /// When enabled, compound profile chunk items with `content_type: "perfetto"` are
+    /// expanded from binary Perfetto format into the Sample v2 JSON format.
     ///
-    /// Serialized as `organizations:continuous-profiling-beta-ingest`.
-    #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
-    ContinuousProfilingBetaIngest,
+    /// Serialized as `organizations:continuous-profiling-perfetto`.
+    #[serde(rename = "organizations:continuous-profiling-perfetto")]
+    ContinuousProfilingPerfetto,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
@@ -96,6 +66,13 @@ pub enum Feature {
     /// Serialized as `organizations:tracemetrics-ingestion`.
     #[serde(rename = "organizations:tracemetrics-ingestion")]
     TraceMetricsIngestion,
+    /// Expand attributes containing a JSON object into a key-value list on EAP items.
+    ///
+    /// Enabling/disabling controls how these are sent to EAP.
+    ///
+    /// Serialized as `organizations:relay-automatic-json-expansion`.
+    #[serde(rename = "organizations:relay-automatic-json-expansion")]
+    AutomaticJsonExpansion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
@@ -104,22 +81,36 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
-    ScrubMongoDbDescriptions,
     #[doc(hidden)]
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
-    /// Enables the experimental Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-experimental-processing")]
-    SpanV2ExperimentalProcessing,
+    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-attachment-processing")]
+    SpanV2AttachmentProcessing,
+    /// Enable the experimental Trace Attachment pipeline in Relay.
+    #[serde(rename = "projects:trace-attachment-processing")]
+    TraceAttachmentProcessing,
+    /// Upload non-prosperodmp playstation attachments via the upload endpoint.
+    #[serde(rename = "projects:relay-playstation-uploads")]
+    PlaystationUploads,
+    /// Enable Nintendo event rewrite.
+    #[serde(rename = "projects:relay-nintendo-event-rewrite")]
+    NintendoEventRewrite,
+    /// Stream minidumps to objectstore.
+    #[serde(rename = "projects:relay-minidump-uploads")]
+    MinidumpUploads,
+    /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
+    /// own event.
+    #[serde(rename = "organizations:gpu-crash-symbolication")]
+    NvGpuCrashSplit,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
+    ///
+    /// This is now the default behaviour of Relay.
     #[serde(rename = "organizations:span-v2-otlp-processing")]
-    SpanV2OtlpProcessing,
+    DeprecatedSpanV2OtlpProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]
@@ -132,12 +123,37 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
-    /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-attachment-processing")]
-    SpanV2AttachmentProcessing,
-    /// Enable the experimental Trace Attachment pipeline in Relay.
-    #[serde(rename = "projects:trace-attachment-processing")]
-    TraceAttachmentProcessing,
+    /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
+    DeprecatedOtelTracesEndpoint,
+    /// Enable logs ingestion via the `/logs/` OTel endpoint.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:relay-otel-logs-endpoint")]
+    DeprecatedOtelLogsEndpoint,
+    /// Enable standalone span ingestion.
+    ///
+    /// Serialized as `organizations:standalone-span-ingestion`.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    DeprecatedStandaloneSpanIngestion,
+    /// Enable processing profiles.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:profiling")]
+    DeprecatedProfiling,
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    ///
+    /// This feature has graduated.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    DeprecatedSpanV2ExperimentalProcessing,
+
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -193,5 +209,19 @@ mod tests {
             serde_json::to_string(&features).unwrap(),
             r#"["organizations:session-replay"]"#
         );
+    }
+
+    #[test]
+    fn test_continuous_profiling_perfetto_serde() {
+        // Verify the serialized name matches what Sentry's backend sends.
+        let serialized = serde_json::to_string(&Feature::ContinuousProfilingPerfetto).unwrap();
+        assert_eq!(
+            serialized,
+            r#""organizations:continuous-profiling-perfetto""#
+        );
+
+        let deserialized: Feature =
+            serde_json::from_str(r#""organizations:continuous-profiling-perfetto""#).unwrap();
+        assert_eq!(deserialized, Feature::ContinuousProfilingPerfetto);
     }
 }

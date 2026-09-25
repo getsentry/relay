@@ -35,13 +35,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
       - name: Get changed files
         id: changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           list-files: json
           filters: |
@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -74,7 +74,7 @@ jobs:
           cache-dependency-path: uv.lock
           install-cmd: uv sync --frozen --only-dev --active
 
-      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: cache-epoch-1|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
@@ -107,7 +107,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -128,8 +128,8 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.1.7
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         name: Check for file changes
         id: changes
         with:
@@ -145,7 +145,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-15, windows-latest]
 
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -157,14 +157,13 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
-        uses: webfactory/ssh-agent@v0.7.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -216,16 +215,17 @@ jobs:
           docker run -d \
             --name objectstore \
             -p 8888:8888 \
+            -e OS__AUTH__ENFORCE="false" \
             ghcr.io/getsentry/objectstore:nightly \
             run
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -250,7 +250,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -359,13 +359,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
-        run: |
-          curl -sL https://sentry.io/get-cli/ | bash
+        uses: getsentry/action-setup-cli@70d7e587b84c2e78cf4d37cd33d7b74fb3729c1b # v1
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -393,7 +392,7 @@ jobs:
           cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}@${{ matrix.target }}
@@ -435,13 +434,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm curl
+          sudo apt-get install -y llvm curl libcurl4-openssl-dev
 
       - name: Install sentry-cli
-        run: |
-          curl -sL https://sentry.io/get-cli/ | bash
+        uses: getsentry/action-setup-cli@70d7e587b84c2e78cf4d37cd33d7b74fb3729c1b # v1
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -451,7 +449,7 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
-      - uses: webfactory/ssh-agent@v0.9.0
+      - uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
@@ -479,7 +477,7 @@ jobs:
           done
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: internal-${{ matrix.image_name }}@${{ matrix.target }}
@@ -506,19 +504,19 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -531,7 +529,7 @@ jobs:
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -543,7 +541,7 @@ jobs:
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
@@ -572,10 +570,10 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       # Logic taken from: publish-to-gcr
       - name: Google Auth
@@ -583,14 +581,14 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: Configure docker
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
       # Logic taken from: build-docker
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -606,7 +604,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@b172ab61a5f7eabd58bd42ce231b517e79947c01
+        uses: getsentry/action-build-and-push-images@dd9b907092cdd2dbc6c1a409f7290df1b391f6ee
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -617,7 +615,7 @@ jobs:
           google_ar: true
           google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
           google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          google_service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -650,7 +648,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v3"
@@ -697,7 +695,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          service_account: gha-relay-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: Configure docker
         run: |
@@ -710,7 +708,7 @@ jobs:
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
           version: ">= 390.0.0"
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -726,13 +724,17 @@ jobs:
           done
 
       - name: Upload gocd deployment assets
+        env:
+          # the upload SA has no delete perms; disable parallel composite uploads
+          # since their chunk cleanup would fail on delete
+          CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED: false
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            gsutil -m cp $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
+            gcloud storage cp --no-clobber $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
           done
 
@@ -744,6 +746,10 @@ jobs:
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      PYTEST_SENTRY_DSN: ${{ secrets.SENTRY_TESTS_DSN }}
+      PYTEST_SENTRY_ALWAYS_REPORT: 1
+      PYTEST_SENTRY_TRACES_SAMPLE_RATE: 1
+      PYTEST_SENTRY_PROFILES_SAMPLE_RATE: 0
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -754,16 +760,19 @@ jobs:
         ports:
           - 6379:6379
 
-      zookeeper:
-        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-zookeeper:6.2.0
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
-
       kafka:
-        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-kafka:6.2.0
+        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-kafka:7.5.0
         env:
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          # KRaft mode configuration (no Zookeeper)
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1001@127.0.0.1:29093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_NODE_ID: 1001
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092,EXTERNAL://127.0.0.1:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
           KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
         ports:
@@ -780,10 +789,11 @@ jobs:
           docker run -d \
             --name objectstore \
             -p 8888:8888 \
+            -e OS__AUTH__ENFORCE="false" \
             ghcr.io/getsentry/objectstore:nightly \
             run
 
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -797,7 +807,7 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -832,7 +842,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v7.0.1
         with:
           repository: getsentry/sentry
           path: sentry
@@ -856,7 +866,7 @@ jobs:
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: relay-docker-image
 
@@ -902,7 +912,7 @@ jobs:
     needs: devservices-files-changed
     if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
     steps:
-    - uses: actions/checkout@v6.0.1
+    - uses: actions/checkout@v7.0.1
       name: Checkout repository
 
     - name: Get devservices version
@@ -912,6 +922,8 @@ jobs:
           /name/ { pkg = $2 }
           /version/ { if (pkg == "devservices") print "version="$2 }
         ' uv.lock >> $GITHUB_OUTPUT
+        mkdir -p ~/.config/sentry-devenv
+        printf '[devenv]\ncoderoot = %s\n' "$(dirname "$GITHUB_WORKSPACE")" >> ~/.config/sentry-devenv/config.ini
 
     - uses: getsentry/action-validate-devservices-config@711ae7221998ddf81211f25f5e3873ecffd22387
       name: Validate devservices config

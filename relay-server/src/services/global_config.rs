@@ -135,7 +135,7 @@ pub enum Status {
     Ready(Arc<GlobalConfig>),
     /// The global config is requested from the upstream but it has not arrived yet.
     ///
-    /// This variant should never be sent after the first `Ready` has occured.
+    /// This variant should never be sent after the first `Ready` has occurred.
     #[default]
     Pending,
 }
@@ -160,14 +160,19 @@ impl GlobalConfigHandle {
         Self { watch }
     }
 
+    /// Returns `true` if the global config was loaded from the upstream.
+    pub fn is_ready(&self) -> bool {
+        self.watch.borrow().is_ready()
+    }
+
     /// Returns the currently loaded or a default global config.
     ///
     /// When no global config has been received from upstream yet,
-    /// this will return a default global config.
-    pub fn current(&self) -> Arc<GlobalConfig> {
+    /// this will return None.
+    pub fn current(&self) -> Option<Arc<GlobalConfig>> {
         match &*self.watch.borrow() {
-            Status::Ready(config) => Arc::clone(config),
-            Status::Pending => Default::default(),
+            Status::Ready(config) => Some(Arc::clone(config)),
+            Status::Pending => None,
         }
     }
 }
@@ -248,7 +253,7 @@ impl GlobalConfigService {
     fn schedule_fetch(&mut self) {
         if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
-                .set(self.config.global_config_fetch_interval());
+                .set(self.config.current().global_config_fetch_interval());
         }
     }
 
@@ -290,13 +295,11 @@ impl GlobalConfigService {
                 let is_ready = response.global_status.is_none_or(|stat| stat.is_ready());
 
                 match response.global {
-                    Some(mut global_config) if is_ready => {
+                    Some(global_config) if is_ready => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
-
-                        global_config.normalize();
 
                         self.global_config_watch
                             .send_replace(Status::Ready(Arc::new(global_config)));
@@ -342,7 +345,7 @@ impl Service for GlobalConfigService {
         let mut shutdown_handle = Controller::shutdown_handle();
 
         relay_log::info!("global config service starting");
-        if self.config.relay_mode() == RelayMode::Managed {
+        if self.config.current().relay_mode() == RelayMode::Managed {
             relay_log::info!("requesting global config from upstream");
             self.request_global_config();
         } else {
@@ -391,7 +394,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use relay_config::{Config, RelayMode};
+    use relay_config::{Config, Credentials, RelayMode};
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
 
@@ -414,8 +417,10 @@ mod tests {
 
         Controller::start(Duration::from_secs(1));
         let mut config = Config::default();
-        config.regenerate_credentials(false).unwrap();
-        let fetch_interval = config.global_config_fetch_interval();
+        config
+            .replace_credentials(Some(Credentials::generate()))
+            .unwrap();
+        let fetch_interval = config.current().global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
@@ -445,9 +450,11 @@ mod tests {
             }
         }))
         .unwrap();
-        config.regenerate_credentials(false).unwrap();
+        config
+            .replace_credentials(Some(Credentials::generate()))
+            .unwrap();
 
-        let fetch_interval = config.global_config_fetch_interval();
+        let fetch_interval = config.current().global_config_fetch_interval();
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
             .start_detached();
@@ -473,7 +480,7 @@ mod tests {
         }))
         .unwrap();
 
-        let fetch_interval = config.global_config_fetch_interval();
+        let fetch_interval = config.current().global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0

@@ -1,7 +1,6 @@
 import datetime
 import os
 import gzip
-import sqlite3
 import tempfile
 
 import pytest
@@ -10,7 +9,8 @@ import zlib
 from requests import HTTPError
 
 
-def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
+@pytest.mark.parametrize("backend", ["memory", "disk"])
+def test_graceful_shutdown_with_ephemeral_buffer(mini_sentry, relay, backend):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
@@ -23,66 +23,26 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    relay = relay(
-        mini_sentry,
-        {"limits": {"shutdown_timeout": 2}},
-    )
+    with tempfile.TemporaryDirectory() as db_dir:
+        db_file_path = (
+            os.path.join(db_dir, "database.db") if backend == "disk" else None
+        )
+        relay = relay(
+            mini_sentry,
+            {
+                "limits": {"shutdown_timeout": 5},
+                "spool": {"envelopes": {"path": db_file_path, "ephemeral": True}},
+            },
+        )
 
-    relay.send_event(project_id)
+        relay.send_event(project_id)
 
-    relay.shutdown(sig=signal.SIGTERM)
+        relay.shutdown(sig=signal.SIGTERM)
 
     # When using the memory envelope buffer, we optimistically do not do anything on shutdown, which means that the
     # buffer will try and pop as always as long as it can (within the shutdown timeout).
     event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
-
-
-def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
-    from time import sleep
-
-    # Create a temporary directory for the sqlite db.
-    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
-
-    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
-
-    @mini_sentry.app.endpoint("get_project_config")
-    def get_project_config():
-        sleep(1)  # Causes the process to wait for one second before shutting down
-        return get_project_config_original()
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay = relay(
-        mini_sentry,
-        {
-            "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"path": db_file_path}},
-        },
-    )
-
-    n = 10
-    for i in range(n):
-        relay.send_event(project_id)
-
-    relay.shutdown(sig=signal.SIGTERM)
-
-    # When using the disk envelope buffer, we don't forward envelopes, but we spool them to disk.
-    assert mini_sentry.captured_envelopes.empty()
-
-    # Check if there's data in the SQLite table `envelopes`
-    conn = sqlite3.connect(db_file_path)
-    cursor = conn.cursor()
-
-    # Check if there's data in the `envelopes` table
-    cursor.execute("SELECT SUM(count) FROM envelopes")
-    row_count = cursor.fetchone()[0]
-    assert (
-        row_count == n
-    ), f"The 'envelopes' table is empty. Expected {n} rows, but found {row_count}"
-
-    conn.close()
 
 
 def test_batch_size_bytes_asserted(mini_sentry, relay):
@@ -254,6 +214,7 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
 def test_zipbomb_content_encoding(mini_sentry, relay, route):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.allow_chunked = True
     relay = relay(
         mini_sentry,
         options={
@@ -390,3 +351,11 @@ def test_size_limit_status_code(mini_sentry, relay):
     )
     with pytest.raises(HTTPError, match="413 Client Error"):
         relay.send_event(project_id)
+
+
+@pytest.mark.skip("outside connections")
+@pytest.mark.parametrize(
+    "upstream", ["https://sentry.io", "https://o1.ingest.us.sentry.io"]
+)
+def test_sentry_io(relay, upstream):
+    relay = relay(upstream)

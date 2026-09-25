@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bytes::Bytes;
 use relay_event_schema::processor::{ProcessingAction, ValueType};
 use relay_pii::PiiAttachmentsProcessor;
@@ -65,21 +67,20 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
     })?;
 
     Ok(ExpandedAttachment {
-        parent_id: item.parent_id().cloned(),
+        parent_id: item.parent_id(),
         meta,
         body: payload.slice_ref(body),
     })
 }
 
 /// Runs dynamic-sampling on the attachments.
-pub async fn sample(
+pub fn sample(
     work: Managed<SerializedAttachments>,
     ctx: Context<'_>,
 ) -> Result<Managed<SampledAttachments>, Rejected<Error>> {
     let event = None; // only apply trace-based rules.
-    let reservoir = None; // legacy
 
-    let result = dynamic_sampling::run(work.headers.dsc(), event, &ctx, reservoir).await;
+    let result = dynamic_sampling::run(work.headers.dsc(), event, &ctx);
     let server_sample_rate = result.sample_rate();
 
     work.try_map(|work, _| {
@@ -112,8 +113,6 @@ pub fn scrub(work: &mut Managed<ExpandedAttachments>, ctx: Context<'_>) {
 /// Errors that can occur during attachment scrubbing.
 #[derive(Debug, thiserror::Error)]
 pub enum ScrubAttachmentError {
-    #[error("pii config")]
-    PiiConfig,
     #[error("processing error: {0}")]
     ProcessingFailed(#[from] ProcessingAction),
 }
@@ -123,12 +122,7 @@ pub fn scrub_attachment<'a>(
     attachment: &mut ExpandedAttachment,
     ctx: Context<'a>,
 ) -> Result<(), ScrubAttachmentError> {
-    let pii_config_from_scrubbing = ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|_| ScrubAttachmentError::PiiConfig)?;
+    let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     let ExpandedAttachment {
         parent_id: _,
@@ -152,15 +146,16 @@ pub fn scrub_attachment<'a>(
         let processor = PiiAttachmentsProcessor::new(config.compiled());
         let mut payload = body.to_vec();
 
+        let start = Instant::now();
+        let modified = processor.scrub_attachment(filename, &mut payload);
         metric!(
-            timer(RelayTimers::AttachmentScrubbing),
+            timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
             attachment_type = "trace_attachment",
-            {
-                if processor.scrub_attachment(filename, &mut payload) {
-                    *body = Bytes::from(payload);
-                };
-            }
+            status = if modified { "ok" } else { "n/a" },
         );
+        if modified {
+            *body = Bytes::from(payload);
+        }
     }
 
     Ok(())

@@ -16,7 +16,7 @@ use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
 use crate::services::projects::project::{
-    LimitedParsedProjectState, ParsedProjectState, ProjectState, Revision,
+    LimitedOutgoingProjectState, OutgoingProjectState, ProjectState, Revision,
 };
 use crate::utils::ApiErrorResponse;
 
@@ -55,17 +55,16 @@ struct VersionQuery {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum ProjectStateWrapper {
-    Full(ParsedProjectState),
-    Limited(#[serde(with = "LimitedParsedProjectState")] ParsedProjectState),
+    Full(OutgoingProjectState),
+    Limited(#[serde(with = "LimitedOutgoingProjectState")] OutgoingProjectState),
 }
 
 impl ProjectStateWrapper {
-    /// Create a wrapper which forces serialization into external or internal format
-    pub fn new(state: ParsedProjectState, full: bool) -> Self {
-        if full {
-            Self::Full(state)
-        } else {
-            Self::Limited(state)
+    /// Create a wrapper which forces serialization into external or internal format.
+    pub fn new(state: OutgoingProjectState, full: bool) -> Self {
+        match full {
+            true => Self::Full(state),
+            false => Self::Limited(state),
         }
     }
 }
@@ -171,6 +170,16 @@ async fn inner(
 
         let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
+            ProjectState::Dummy => {
+                // We have no data for this project.
+                //
+                // This really would only happen if someone tried to run a managed relay behind a
+                // proxy relay, which currently is not a supported setup.
+                //
+                // To support this, the proxy Relay would have to act as a pure proxy and not fetch
+                // the project configuration from its own cache.
+                continue;
+            }
             ProjectState::Disabled => {
                 // Don't insert project config. Downstream Relay will consider it disabled.
                 continue;
@@ -198,9 +207,10 @@ async fn inner(
         if has_access {
             let full = relay.internal && inner.full_config;
             let wrapper = ProjectStateWrapper::new(
-                ParsedProjectState {
+                OutgoingProjectState {
                     disabled: false,
-                    info: project_info.as_ref().clone(),
+                    info: Arc::clone(project_info),
+                    upstream: state.config().advertised_upstream().cloned(),
                 },
                 full,
             );

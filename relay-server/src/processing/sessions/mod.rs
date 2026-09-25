@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -56,14 +57,15 @@ impl SessionsProcessor {
 }
 
 impl processing::Processor for SessionsProcessor {
-    type UnitOfWork = SerializedSessions;
+    type Input = SerializedSessions;
     type Output = SessionsOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn cogs() -> FeatureWeights {
+        AppFeature::Sessions.into()
+    }
+
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let updates = envelope
@@ -76,17 +78,21 @@ impl processing::Processor for SessionsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Sessions))
             .into_vec();
 
+        if updates.is_empty() && aggregates.is_empty() {
+            return None;
+        }
+
         let work = SerializedSessions {
             headers,
             updates,
             aggregates,
         };
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(
         &self,
-        sessions: Managed<Self::UnitOfWork>,
+        sessions: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut sessions = match process::expand(sessions, ctx) {
@@ -103,7 +109,7 @@ impl processing::Processor for SessionsProcessor {
 
         let sessions = self.limiter.enforce_quotas(sessions, ctx).await?;
 
-        let sessions = process::extract(sessions, ctx);
+        let sessions = process::extract_metrics(sessions, ctx);
         Ok(Output::metrics(sessions))
     }
 }

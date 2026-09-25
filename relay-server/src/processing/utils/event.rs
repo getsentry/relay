@@ -9,9 +9,8 @@ use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
-use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
@@ -32,7 +31,8 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::envelope::{Envelope, EnvelopeHeaders, Item};
+use crate::envelope::AttachmentType;
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
 use crate::services::projects::project::ProjectInfo;
@@ -62,7 +62,7 @@ pub fn finalize<'a>(
     event: &mut Annotated<Event>,
     attachments: impl Iterator<Item = &'a Item>,
     metrics: &mut Metrics,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<(), ProcessingError> {
     let inner_event = match event.value_mut() {
         Some(event) => event,
@@ -100,7 +100,10 @@ pub fn finalize<'a>(
     if config.processing_enabled() {
         let mut metrics = std::mem::take(metrics);
 
-        let attachment_size = attachments.map(|item| item.len() as u64).sum::<u64>();
+        let attachment_size = attachments
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+            .map(|item| item.attachment_body_size() as u64)
+            .sum::<u64>();
 
         if attachment_size > 0 {
             metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
@@ -214,12 +217,10 @@ pub fn normalize(
     let request_meta = headers.meta();
     let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-    let transaction_aggregator_config = ctx
-        .config
-        .aggregator_config_for(MetricNamespace::Transactions);
+    // Inherit from spans, as transactions no longer produce metrics.
+    let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
-    let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
-    let ai_operation_type_map = ctx.global_config.ai_operation_type_map.as_ref().ok();
+    let ai_model_metadata = ctx.global_config.ai_model_metadata();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
@@ -276,7 +277,6 @@ pub fn normalize(
             transaction_name_config: TransactionNameConfig {
                 rules: &project_info.config.tx_name_rules,
             },
-            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
             enrich_spans: true,
             max_tag_value_length: ctx
                 .config
@@ -287,8 +287,7 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
-            ai_model_costs,
-            ai_operation_type_map,
+            ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
                 ctx.project_info.config().measurements.as_ref(),
@@ -298,9 +297,8 @@ pub fn normalize(
             replay_id: headers.dsc().and_then(|ctx| ctx.replay_id),
             span_allowed_hosts: http_span_allowed_hosts,
             span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
-            performance_issues_spans: ctx
-                .project_info
-                .has_feature(Feature::PerformanceIssuesSpans),
+            force_trace_context: true,
+            dsc: headers.dsc(),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {
@@ -348,7 +346,7 @@ pub enum FiltersStatus {
 pub fn filter(
     headers: &EnvelopeHeaders,
     event: &Annotated<Event>,
-    ctx: &Context,
+    ctx: Context,
 ) -> Result<FiltersStatus, FilterStatKey> {
     let event = match event.value() {
         Some(event) => event,
@@ -386,28 +384,8 @@ pub fn filter(
 }
 
 /// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
-
-/// New type representing whether metrics were extracted from transactions/spans.
-#[derive(Debug, Copy, Clone)]
-pub struct EventMetricsExtracted(pub bool);
-
-/// New type representing whether spans were extracted.
-#[derive(Debug, Copy, Clone)]
-pub struct SpansExtracted(pub bool);
 
 /// Checks if the Event includes unprintable fields.
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
@@ -446,10 +424,7 @@ pub fn scrub(
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
         }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        let pii_config = config.datascrubbing_settings.pii_config();
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;

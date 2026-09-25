@@ -6,18 +6,18 @@ use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::{FiniteF64, get_value};
-use relay_quotas::Scoping;
+use relay_quotas::DataCategory;
 use relay_sampling::config::RuleType;
+use relay_sampling::dsc::TraceUserContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ClientName;
-use crate::managed::Managed;
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::managed::{Managed, Rejected};
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{
-    Error, ExpandedSpan, ExpandedSpans, Indexed, Result, SerializedSpans,
-};
+use crate::processing::spans::{Error, ExpandedSpan, ExpandedSpans, Result};
+use crate::processing::utils::types::Indexed;
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -52,65 +52,77 @@ pub fn validate_configs(ctx: Context<'_>) {
     }
 }
 
-/// Validates the presence of a dynamic sampling context when processing Spans.
+/// Validates and, if necessary, resynthesizes the DSC for a batch of V2 spans.
 ///
-/// Each envelope received by Relay must contain a valid dynamic sampling context.
-/// This is not a technical requirement as a missing dynamic sampling context is treated as having
-/// a sample rate of 100%, but to ensure SDKs implement the protocol correctly it is validated.
+/// A DSC must be present. This is not a technical requirement as a missing DSC simply leads to a
+/// 100 % sample rate. Instead, the intention of the enforcement is to ensure that SDKs implement
+/// the protocol correctly.
 ///
 /// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
 /// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
-/// sampling if the necessary attributes are present.
-pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
-    let dsc = spans.headers.dsc();
-
-    // Envelopes created by Relay may not carry a DSC. This is currently the case for envelopes
-    // created through the OTeL integration.
-    //
-    // This validation is only best effort (not a hard requirement) to get SDKs to implement DSC
-    // correctly, so it is okay to be a bit more lenient here and trust ourselves.
-    let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
-
-    if !client_is_relay && dsc.is_none() {
-        return Err(Error::MissingDynamicSamplingContext);
-    }
-
-    Ok(())
-}
-
-/// Validates the dynamic sampling context against the parsed spans.
+/// sampling if the necessary attributes are present. OTeL spans are recognized by the client name
+/// being `Relay`.
 ///
-/// The values of the dynamic sampling context must match the values provided in the spans.
-/// Currently this only validates the trace id.
-pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
-    let Some(dsc) = spans.headers.dsc() else {
-        // It's okay if we don't have a DSC here. We may be in a processing path which has spans
-        // from mixed traces without a DSC (=100% sample rate).
-        // For example via the OTeL integration.
-        return Ok(());
-    };
+/// An unresolved trace root (sampling) project causes the DSC to be resynthesized and the trace attributed to
+/// the spans' own project. This happens when the sampling project is disabled or belongs to a
+/// different org than the spans.
+pub fn validate_and_set_dsc(
+    spans: &mut Managed<ExpandedSpans>,
+    ctx: &Context<'_>,
+) -> Result<(), Rejected<Error>> {
+    let public_key = spans.scoping().project_key;
+    spans.try_modify(|spans, _| {
+        let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
+        let dsc = match spans.headers.dsc_mut() {
+            None if client_is_relay => return Ok(()),
+            None => return Err(Error::MissingDynamicSamplingContext),
+            Some(dsc) => dsc,
+        };
 
-    for span in &spans.spans {
-        let span = &span.span;
-        let trace_id = get_value!(span.trace_id);
-
-        if trace_id != Some(&dsc.trace_id) {
-            return Err(Error::DynamicSamplingContextMismatch);
+        for span in &spans.spans {
+            let span = &span.span;
+            if get_value!(span.trace_id) != Some(&dsc.trace_id) {
+                return Err(Error::DynamicSamplingContextMismatch);
+            }
         }
-    }
 
-    Ok(())
+        match ctx.sampling_project_info {
+            None => {
+                *dsc = DynamicSamplingContext {
+                    trace_id: dsc.trace_id,
+                    public_key,
+                    project_id: ctx.project_info.project_id,
+                    release: None,
+                    environment: None,
+                    transaction: None,
+                    sample_rate: dsc.sample_rate,
+                    sampled: None,
+                    user: TraceUserContext::default(),
+                    replay_id: None,
+                    other: Default::default(),
+                };
+                relay_statsd::metric!(
+                    counter(RelayCounters::SamplingProjectUnresolved) += 1,
+                    item = "span"
+                );
+            }
+            Some(sampling_project_info) => {
+                dsc.project_id = sampling_project_info.project_id;
+            }
+        };
+        Ok(())
+    })
 }
 
 /// Computes the sampling decision for a batch of spans.
 ///
 /// All spans are evaluated in one go as they are required by the protocol to share the same
 /// DSC, which contains all the sampling relevant information.
-pub async fn run(
+pub fn run(
     mut spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
 ) -> Result<Managed<ExpandedSpans>, Managed<ExtractedMetrics>> {
-    let sampling_result = compute(&spans, ctx).await;
+    let sampling_result = compute(&spans, ctx);
 
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
@@ -178,16 +190,15 @@ fn split_indexed_and_total(
     spans: Managed<ExpandedSpans>,
     decision: SamplingDecision,
 ) -> SpansAndMetrics {
-    let scoping = spans.scoping();
-
-    spans.split_once(|spans| {
-        let metrics = create_metrics(scoping, &spans.spans, spans.headers.dsc(), decision);
+    spans.split_once(|spans, r| {
+        r.lenient(DataCategory::MetricBucket);
+        let metrics = create_metrics(&spans.spans, decision);
 
         (spans.into_indexed(), metrics)
     })
 }
 
-async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
+fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
     // The DSC is always required, we need it to evaluate all rules, if it is missing,
     // no rules can be applied -> we sample the item.
     let Some(dsc) = spans.headers.dsc() else {
@@ -208,7 +219,6 @@ async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingRe
         return SamplingResult::NoMatch;
     };
 
-    // Currently there is no support planned for reservoir sampling.
     let mut evaluator = SamplingEvaluator::new(Utc::now());
 
     // Apply project rules before trace rules, to give projects a chance to override the trace root
@@ -221,17 +231,14 @@ async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingRe
         //
         // The trace id gives us this property and it will also have the upside of consistently
         // sampling multiple segments of the same trace.
-        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules).await {
+        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules) {
             ControlFlow::Continue(evaluator) => evaluator,
             ControlFlow::Break(sampling_match) => return SamplingResult::Match(sampling_match),
         }
     }
 
     let rules = root_sampling_config.filter_rules(RuleType::Trace);
-    evaluator
-        .match_rules(*dsc.trace_id, dsc, rules)
-        .await
-        .into()
+    evaluator.match_rules(*dsc.trace_id, dsc, rules).into()
 }
 
 fn get_sampling_config(info: &ProjectInfo) -> Option<&SamplingConfig> {
@@ -253,16 +260,7 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
 /// segment, an additional tag is added, indicating if the segment span was created from a
 /// transaction. Currently this processing pipeline is never used for transaction spans and is
 /// therefor this tag is always `false`.
-///
-/// The `c:spans/count_per_root_project@none` metric is incremented for each span and added to the
-/// *sampling project*. The metric is tagged with dynamic sampling information, `decision`,
-/// `target_project_id`, `transaction` (from the trace root) and `is_segment`.
-fn create_metrics(
-    scoping: Scoping,
-    spans: &[ExpandedSpan],
-    dsc: Option<&DynamicSamplingContext>,
-    sampling_decision: SamplingDecision,
-) -> ExtractedMetrics {
+fn create_metrics(spans: &[ExpandedSpan], sampling_decision: SamplingDecision) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics::default();
 
     let total = spans.len();
@@ -284,45 +282,11 @@ fn create_metrics(
         metadata.extracted_from_indexed = true;
     }
 
-    let count_per_root_tags = {
-        let mut tags = BTreeMap::new();
-        tags.insert("decision".to_owned(), sampling_decision.to_string());
-        tags.insert(
-            "target_project_id".to_owned(),
-            scoping.project_id.to_string(),
-        );
-        if let Some(tx) = dsc.and_then(|dsc| dsc.transaction.clone()) {
-            tags.insert("transaction".to_owned(), tx);
-        }
-        tags.insert("is_segment".to_owned(), "false".to_owned());
-        tags
-    };
-
     // Segment spans.
     if segments > 0 {
         let segments = FiniteF64::cast_from_u64(segments as u64);
 
-        metrics.sampling_metrics.push(Bucket {
-            timestamp,
-            width: 0,
-            name: "c:spans/count_per_root_project@none".into(),
-            value: BucketValue::counter(segments),
-            tags: {
-                let mut tags = count_per_root_tags.clone();
-                tags.insert("is_segment".to_owned(), "true".to_owned());
-                tags
-            },
-            metadata,
-        });
-
-        // This pipeline is only used for standalone spans, which are never extracted from a
-        // transaction.
-        //
-        // If this changes in the future this flag *must* be adjusted accordingly.
-        #[cfg(debug_assertions)]
-        assert_segments_not_was_transaction(spans);
-
-        metrics.project_metrics.push(Bucket {
+        metrics.0.push(Bucket {
             timestamp,
             width: 0,
             name: "c:spans/usage@none".into(),
@@ -339,15 +303,7 @@ fn create_metrics(
     if total > segments {
         let spans = FiniteF64::cast_from_u64((total - segments) as u64);
 
-        metrics.sampling_metrics.push(Bucket {
-            timestamp,
-            width: 0,
-            name: "c:spans/count_per_root_project@none".into(),
-            value: BucketValue::counter(spans),
-            tags: count_per_root_tags,
-            metadata,
-        });
-        metrics.project_metrics.push(Bucket {
+        metrics.0.push(Bucket {
             timestamp,
             width: 0,
             name: "c:spans/usage@none".into(),
@@ -358,20 +314,4 @@ fn create_metrics(
     }
 
     metrics
-}
-
-/// Asserts all segments spans are not marked as being created from a transaction.
-#[cfg(debug_assertions)]
-fn assert_segments_not_was_transaction(spans: &[ExpandedSpan]) {
-    use relay_conventions::WAS_TRANSACTION;
-    use relay_protocol::Value;
-
-    for span in spans.iter().flat_map(|s| s.span.value()) {
-        let was_transaction = span
-            .attributes
-            .value()
-            .and_then(|attr| attr.get_value(WAS_TRANSACTION));
-
-        debug_assert!(matches!(was_transaction, None | Some(&Value::Bool(false))));
-    }
 }

@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
 
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::Geo;
 use relay_protocol::Annotated;
 
@@ -37,6 +38,14 @@ impl GeoIpLookup {
     /// Creates a new [`GeoIpLookup`] instance without any data loaded.
     pub fn empty() -> Self {
         Self(None)
+    }
+
+    /// Unix timestamp when the database was built.
+    ///
+    /// Returns `None` for an [`Self::empty`] database.
+    pub fn build_epoch(&self) -> Option<UnixTimestamp> {
+        let reader = self.0.as_ref()?;
+        Some(UnixTimestamp::from_secs(reader.metadata.build_epoch))
     }
 
     /// Looks up an IP address.

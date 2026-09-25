@@ -1,0 +1,275 @@
+use serde::Deserialize;
+
+use crate::{
+    AndroidProfileChunk, PerfettoProfileChunk, ProfileError, ProfileType, V2ProfileChunk,
+    sample::Version,
+};
+
+/// Minimum interface all profile chunk types must implement.
+pub trait ProfileChunk {
+    /// Returns the platform this profile chunk is associated with.
+    fn platform(&self) -> &str;
+
+    /// Returns the [`ProfileType`] of this profile chunk.
+    ///
+    /// By default this is inferred from the [`Self::platform`].
+    fn profile_type(&self) -> ProfileType {
+        ProfileType::from_platform(self.platform())
+    }
+
+    /// Normalizes the profile chunk.
+    fn normalize(&mut self) -> Result<(), ProfileError>;
+}
+
+/// Supported profile chunks for continous profiling.
+#[derive(Debug)]
+pub enum AnyProfileChunk {
+    Android(Box<AndroidProfileChunk>),
+    Perfetto(Box<PerfettoProfileChunk>),
+    V2(Box<V2ProfileChunk>),
+}
+
+impl From<Box<V2ProfileChunk>> for AnyProfileChunk {
+    fn from(chunk: Box<V2ProfileChunk>) -> Self {
+        Self::V2(chunk)
+    }
+}
+
+impl From<Box<AndroidProfileChunk>> for AnyProfileChunk {
+    fn from(chunk: Box<AndroidProfileChunk>) -> Self {
+        Self::Android(chunk)
+    }
+}
+
+impl From<Box<PerfettoProfileChunk>> for AnyProfileChunk {
+    fn from(chunk: Box<PerfettoProfileChunk>) -> Self {
+        Self::Perfetto(chunk)
+    }
+}
+
+impl From<AndroidOrV2ProfileChunk> for AnyProfileChunk {
+    fn from(chunk: AndroidOrV2ProfileChunk) -> Self {
+        match chunk {
+            AndroidOrV2ProfileChunk::Android(c) => Self::Android(c),
+            AndroidOrV2ProfileChunk::V2(c) => Self::V2(c),
+        }
+    }
+}
+
+impl ProfileChunk for AnyProfileChunk {
+    fn platform(&self) -> &str {
+        match self {
+            AnyProfileChunk::Android(chunk) => chunk.platform(),
+            AnyProfileChunk::Perfetto(chunk) => chunk.platform(),
+            AnyProfileChunk::V2(chunk) => chunk.platform(),
+        }
+    }
+
+    fn normalize(&mut self) -> Result<(), ProfileError> {
+        match self {
+            AnyProfileChunk::Android(chunk) => chunk.normalize(),
+            AnyProfileChunk::Perfetto(chunk) => chunk.normalize(),
+            AnyProfileChunk::V2(chunk) => chunk.normalize(),
+        }
+    }
+}
+
+impl relay_protocol::Getter for AnyProfileChunk {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        match self {
+            AnyProfileChunk::Android(chunk) => chunk.get_value(path),
+            AnyProfileChunk::Perfetto(chunk) => chunk.get_value(path),
+            AnyProfileChunk::V2(chunk) => chunk.get_value(path),
+        }
+    }
+}
+
+impl relay_filter::Filterable for AnyProfileChunk {
+    fn release(&self) -> Option<&str> {
+        match self {
+            AnyProfileChunk::Android(chunk) => chunk.release(),
+            AnyProfileChunk::Perfetto(chunk) => chunk.release(),
+            AnyProfileChunk::V2(chunk) => chunk.release(),
+        }
+    }
+}
+
+/// Either an [`AndroidProfileChunk`] or a [`V2ProfileChunk`].
+#[derive(Debug)]
+pub enum AndroidOrV2ProfileChunk {
+    Android(Box<AndroidProfileChunk>),
+    V2(Box<V2ProfileChunk>),
+}
+
+impl ProfileChunk for AndroidOrV2ProfileChunk {
+    fn platform(&self) -> &str {
+        match self {
+            AndroidOrV2ProfileChunk::Android(chunk) => chunk.platform(),
+            AndroidOrV2ProfileChunk::V2(chunk) => chunk.platform(),
+        }
+    }
+
+    fn normalize(&mut self) -> Result<(), ProfileError> {
+        match self {
+            AndroidOrV2ProfileChunk::Android(chunk) => chunk.normalize(),
+            AndroidOrV2ProfileChunk::V2(chunk) => chunk.normalize(),
+        }
+    }
+}
+
+impl AndroidOrV2ProfileChunk {
+    /// Parses either a [`AndroidOrV2ProfileChunk`] or [`ProfileChunk`] from a slice of bytes.
+    pub fn parse(data: &[u8]) -> Result<Self, ProfileError> {
+        #[derive(Debug, Deserialize)]
+        struct MinimalProfile {
+            platform: String,
+            #[serde(default)]
+            version: Version,
+            #[serde(default)]
+            sampled_profile: Option<serde::de::IgnoredAny>,
+        }
+
+        let minimal: MinimalProfile = {
+            let d = &mut serde_json::Deserializer::from_slice(data);
+            serde_path_to_error::deserialize(d)
+        }?;
+
+        // Android SDKs produce two profile_chunk types that pass through this method: trace
+        // profiles and Application-Not-Responding (ANR) profiles. They come in multiple
+        // varieties, each of which needs to be accounted for.
+
+        // Android trace profiles:
+        // ---------------
+        // Version: 2 (incorrect), 2.android-trace (corrected)
+        // Platform: android
+        // Content field: sampled_profile (i.e., Android Runtime's event-based format, aka
+        //   "traces")
+        // Destination type: AndroidProfileChunk
+
+        // Android ANR profiles:
+        // ---------------
+        // Version: 2
+        // Platform: java (incorrect), android (corrected)
+        // Content field: profile (i.e., standardized stacks/frames/samples format)
+        // Destination type: V2ProfileChunk
+
+        // We also need to handle non-Android profile chunks.
+
+        // Non-Android profiles:
+        // ---------------
+        // Version: 2
+        // Platform: cocoa, javascript, etc.
+        // Content field: profile (i.e., standardized stacks/frames/samples format)
+        // Destination type: V2ProfileChunk
+
+        let is_android_trace_profile =
+            minimal.platform == "android" && minimal.sampled_profile.is_some();
+
+        match minimal.version {
+            Version::V2AndroidTrace => AndroidProfileChunk::parse(data)
+                .map(Box::new)
+                .map(Self::Android),
+            // Account for legacy submissions that don't use the 2.android-trace version.
+            Version::V2 if is_android_trace_profile => AndroidProfileChunk::parse(data)
+                .map(Box::new)
+                .map(Self::Android),
+            Version::V2 => V2ProfileChunk::parse(data).map(Box::new).map(Self::V2),
+            Version::V1 | Version::Unknown => Err(ProfileError::PlatformNotSupported),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    #[test]
+    fn test_parse_correctly_versioned_android_trace_profile_into_android_profile_chunk() {
+        let mut payload: Value =
+            serde_json::from_slice(include_bytes!("../tests/fixtures/android/chunk/valid.json"))
+                .unwrap();
+        payload["version"] = json!("2.android-trace");
+        let data = serde_json::to_vec(&payload).unwrap();
+
+        // 1. Fresh SDK-shaped payload: `sampled_profile` populated, `profile` absent.
+        let sdk_chunk = AndroidOrV2ProfileChunk::parse(&data).unwrap();
+        assert_matches!(sdk_chunk, AndroidOrV2ProfileChunk::Android(_));
+
+        // 2. Relay's own re-serialized shape: `sampled_profile` absent, `profile` populated.
+        let AndroidOrV2ProfileChunk::Android(android_chunk) = sdk_chunk else {
+            unreachable!()
+        };
+        let reserialized = serde_json::to_vec(&android_chunk).unwrap();
+        let value: Value = serde_json::from_slice(&reserialized).unwrap();
+        assert!(value.get("sampled_profile").is_none());
+        assert!(value.get("profile").is_some());
+
+        let round_tripped = AndroidOrV2ProfileChunk::parse(&reserialized).unwrap();
+        assert_matches!(round_tripped, AndroidOrV2ProfileChunk::Android(_));
+    }
+
+    #[test]
+    fn test_parse_legacy_versioned_android_trace_profile_into_android_profile_chunk() {
+        let mut payload: Value =
+            serde_json::from_slice(include_bytes!("../tests/fixtures/android/chunk/valid.json"))
+                .unwrap();
+        payload["version"] = json!("2");
+        let data = serde_json::to_vec(&payload).unwrap();
+
+        let chunk = AndroidOrV2ProfileChunk::parse(&data).unwrap();
+        assert_matches!(chunk, AndroidOrV2ProfileChunk::Android(_));
+    }
+
+    #[test]
+    fn test_parse_sample_v2_profile_into_v2_profile_chunk() {
+        let base_payload: Value =
+            serde_json::from_slice(include_bytes!("../tests/fixtures/sample/v2/valid.json"))
+                .unwrap();
+
+        for platform in ["android", "cocoa", "javascript", "python"] {
+            let mut payload = base_payload.clone();
+            payload["platform"] = json!(platform);
+            let data = serde_json::to_vec(&payload).unwrap();
+
+            let chunk = AndroidOrV2ProfileChunk::parse(&data).unwrap();
+
+            assert_matches!(chunk, AndroidOrV2ProfileChunk::V2(_));
+        }
+    }
+
+    #[test]
+    fn test_return_error_for_version_1_profile() {
+        for payload in [
+            &include_bytes!("../tests/fixtures/sample/v2/valid.json")[..],
+            &include_bytes!("../tests/fixtures/android/chunk/valid.json")[..],
+            &include_bytes!("../tests/fixtures/android/chunk/valid-rn.json")[..],
+        ] {
+            let mut payload: Value = serde_json::from_slice(payload).unwrap();
+            payload["version"] = json!("1");
+            let data = serde_json::to_vec(&payload).unwrap();
+
+            let err = AndroidOrV2ProfileChunk::parse(&data).unwrap_err();
+            assert_matches!(err, ProfileError::PlatformNotSupported);
+        }
+    }
+
+    #[test]
+    fn test_return_error_for_unknown_version_profile() {
+        for payload in [
+            &include_bytes!("../tests/fixtures/sample/v2/valid.json")[..],
+            &include_bytes!("../tests/fixtures/android/chunk/valid.json")[..],
+            &include_bytes!("../tests/fixtures/android/chunk/valid-rn.json")[..],
+        ] {
+            let mut payload: Value = serde_json::from_slice(payload).unwrap();
+            payload.as_object_mut().unwrap().remove("version");
+            let data = serde_json::to_vec(&payload).unwrap();
+
+            let err = AndroidOrV2ProfileChunk::parse(&data).unwrap_err();
+            assert_matches!(err, ProfileError::PlatformNotSupported);
+        }
+    }
+}

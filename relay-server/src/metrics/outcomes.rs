@@ -7,8 +7,6 @@ use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
 use crate::services::outcome::{Outcome, TrackOutcome};
-#[cfg(feature = "processing")]
-use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 /// [`MetricOutcomes`] takes care of creating the right outcomes for metrics at the end of their
 /// lifecycle.
@@ -30,21 +28,19 @@ impl MetricOutcomes {
     pub fn track(&self, scoping: Scoping, buckets: &[impl TrackableBucket], outcome: Outcome) {
         let timestamp = Utc::now();
 
-        // Never emit accepted outcomes for surrogate metrics.
-        // These are handled from within Sentry.
+        // Accepted outcomes go through `track_accepted_outcome`, which does
+        // additional work to prevent billing double-counting.
         if !matches!(outcome, Outcome::Accepted) {
             let SourceQuantities {
                 transactions,
                 spans,
-                profiles,
                 buckets,
             } = extract_quantities(buckets);
 
             let categories = [
-                (DataCategory::Transaction, transactions as u32),
-                (DataCategory::Span, spans as u32),
-                (DataCategory::Profile, profiles as u32),
-                (DataCategory::MetricBucket, buckets as u32),
+                (DataCategory::Transaction, transactions as _),
+                (DataCategory::Span, spans as _),
+                (DataCategory::MetricBucket, buckets as _),
             ];
 
             for (category, quantity) in categories {
@@ -63,14 +59,49 @@ impl MetricOutcomes {
         }
     }
 
-    /// Tracks the cardinality of a metric.
+    /// Emits accepted outcomes, for the provided list of buckets.
+    ///
+    /// Additionally, adds a marker tag `billing_outcome_emitted` to all buckets for which an
+    /// outcome has been emitted.
     #[cfg(feature = "processing")]
-    pub fn cardinality(
-        &self,
-        _scoping: Scoping,
-        _limit: &CardinalityLimit,
-        _report: &CardinalityReport,
-    ) {
+    pub fn track_accepted_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
+        let timestamp = Utc::now();
+        for bucket in buckets {
+            let summary = bucket.summary();
+            match summary {
+                BucketSummary::Spans {
+                    count,
+                    is_segment,
+                    was_transaction: _,
+                } => {
+                    if count == 0 {
+                        continue;
+                    }
+
+                    let categories = match is_segment {
+                        true => [DataCategory::Span, DataCategory::Transaction].as_slice(),
+                        false => [DataCategory::Span].as_slice(),
+                    };
+
+                    bucket
+                        .tags
+                        .insert("billing_outcome_emitted".to_owned(), "true".to_owned());
+
+                    for category in categories {
+                        self.outcomes.send(TrackOutcome {
+                            timestamp,
+                            scoping,
+                            outcome: Outcome::Accepted,
+                            event_id: None,
+                            remote_addr: None,
+                            category: *category,
+                            quantity: count as _,
+                        });
+                    }
+                }
+                BucketSummary::None => continue,
+            };
+        }
     }
 }
 
@@ -79,8 +110,11 @@ impl MetricOutcomes {
 /// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
-    Transactions(usize),
-    Spans(usize),
+    Spans {
+        count: usize,
+        is_segment: bool,
+        was_transaction: bool,
+    },
     #[default]
     None,
 }
@@ -129,21 +163,22 @@ impl TrackableBucket for BucketView<'_> {
         };
 
         match mri.namespace {
-            MetricNamespace::Transactions => {
-                let count = match self.value() {
-                    BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                    _ => 0,
-                };
-                BucketSummary::Transactions(count)
-            }
-            MetricNamespace::Spans => BucketSummary::Spans(match self.value() {
-                BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                _ => 0,
-            }),
-            _ => {
-                // Nothing to count
-                BucketSummary::default()
-            }
+            MetricNamespace::Spans => match self.value() {
+                BucketViewValue::Counter(c) if mri.name == "usage" => BucketSummary::Spans {
+                    count: c.to_f64() as usize,
+                    is_segment: self.tags().get("is_segment").is_some_and(|s| s == "true"),
+                    was_transaction: self
+                        .tags()
+                        .get("was_transaction")
+                        .is_some_and(|s| s == "true"),
+                },
+                _ => BucketSummary::Spans {
+                    count: 0,
+                    is_segment: false,
+                    was_transaction: false,
+                },
+            },
+            _ => BucketSummary::default(),
         }
     }
 }
@@ -157,15 +192,26 @@ where
     let mut quantities = SourceQuantities::default();
 
     for bucket in buckets {
-        quantities.buckets += 1;
+        let namespace = bucket.name().namespace();
+        // Never count unsupported metrics, they are considered invalid.
+        // Never count outcomes, as that would create more outcomes creating a loop of outcomes.
+        if namespace != MetricNamespace::Unsupported && namespace != MetricNamespace::Outcomes {
+            quantities.buckets += 1;
+        }
 
         // Only count metrics for outcomes, where the indexed payload no longer exists.
         let summary = bucket.summary();
         match summary {
-            BucketSummary::Transactions(count) => {
-                quantities.transactions += count;
+            BucketSummary::Spans {
+                count,
+                is_segment,
+                was_transaction,
+            } => {
+                quantities.spans += count;
+                if is_segment && was_transaction {
+                    quantities.transactions += count;
+                }
             }
-            BucketSummary::Spans(count) => quantities.spans += count,
             BucketSummary::None => continue,
         };
     }

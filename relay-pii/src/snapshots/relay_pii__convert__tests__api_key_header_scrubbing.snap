@@ -1,0 +1,82 @@
+---
+source: relay-pii/src/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "X-Api-Key": "[Filtered]",
+    "api-key": "[Filtered]",
+    "api_key": "[Filtered]",
+    "apikey": "[Filtered]",
+    "x-api-key": "[Filtered]"
+  },
+  "_meta": {
+    "extra": {
+      "X-Api-Key": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 12
+        }
+      },
+      "api-key": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 12
+        }
+      },
+      "api_key": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 12
+        }
+      },
+      "apikey": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 12
+        }
+      },
+      "x-api-key": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 19
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use smallvec::SmallVec;
+
 use crate::{Literal, Options, Ranges, Token, Tokens};
 
 /// Matches [`Tokens`] against a `haystack` with the provided [`Options`].
@@ -11,143 +13,162 @@ use crate::{Literal, Options, Ranges, Token, Tokens};
 /// [Kirk J Krauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
 pub fn is_match(haystack: &str, tokens: &Tokens, options: Options) -> bool {
     match options.case_insensitive {
-        false => is_match_impl::<_, CaseSensitive>(haystack, tokens.as_slice()),
-        true => is_match_impl::<_, CaseInsensitive>(haystack, tokens.as_slice()),
+        false => is_match_impl::<CaseSensitive>(haystack, tokens.as_slice()),
+        true => is_match_impl::<CaseInsensitive>(haystack, tokens.as_slice()),
     }
 }
 
 #[inline(always)]
-fn is_match_impl<T, M>(haystack: &str, tokens: &T) -> bool
+fn is_match_impl<'a, M>(haystack: &'a str, tokens: &'a [Token]) -> bool
 where
-    T: TokenIndex + ?Sized,
     M: Matcher,
 {
-    // Remainder of the haystack which still needs to be matched.
-    let mut h_current = haystack;
-    // Saved haystack position for backtracking.
-    let mut h_revert = haystack;
-    // Revert index for `tokens`. In case of backtracking we backtrack to this index.
-    //
-    // If `t_revert` is zero, it means there is no currently saved backtracking position.
-    let mut t_revert = 0;
-    // The next token position which needs to be evaluted.
-    let mut t_next = 0;
-
-    macro_rules! advance {
-        ($len:expr) => {{
-            h_current = &h_current[$len..];
-            true
-        }};
-    }
-
     // Empty glob never matches.
     if tokens.is_empty() {
         return false;
     }
 
-    while t_next != tokens.len() || !h_current.is_empty() {
-        let matched = if t_next == tokens.len() {
-            false
-        } else {
-            let token = &tokens[t_next];
-            t_next += 1;
+    // Stack of matching attempts, the top of the stack is the attempt which is
+    // currently being matched.
+    //
+    // Each alternation pushes a new frame on the stack, containing a list of branches
+    // needing to be matched.
+    let mut frames: SmallVec<[Frame<'a>; 5]> = smallvec::smallvec![Frame::root(haystack, tokens)];
 
-            match token {
-                Token::Literal(literal) => match M::is_prefix(h_current, literal) {
-                    Some(n) => advance!(n),
-                    // The literal does not match, but it may match after backtracking.
-                    // TODO: possible optimization: if the literal cannot possibly match anymore
-                    // because it is too long for the remaining haystack, we can immediately return
-                    // no match here.
-                    None => false,
-                },
-                Token::Any(n) => {
-                    advance!(match n_chars_to_bytes(*n, h_current) {
-                        Some(n) => n,
-                        // Not enough characters in the haystack remaining,
-                        // there cannot be any other possible match.
-                        None => return false,
-                    });
-                    true
-                }
-                Token::Wildcard => {
-                    // `ab*c*` matches `abcd`.
-                    if t_next == tokens.len() {
-                        return true;
-                    }
+    // Whether the last evaluated token matched.
+    let mut matched = true;
 
-                    t_revert = t_next;
-
-                    match skip_to_token::<_, M>(tokens, t_next, h_current) {
-                        Some((tokens, revert, remaining)) => {
-                            t_next += tokens;
-                            h_revert = revert;
-                            h_current = remaining;
-                        }
-                        None => return false,
-                    };
-
-                    true
-                }
-                Token::Class { negated, ranges } => match h_current.chars().next() {
-                    Some(next) => {
-                        M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8())
-                    }
-                    None => false,
-                },
-                Token::Alternates(alternates) => {
-                    // TODO: should we make this iterative instead of recursive?
-                    let matches = alternates.iter().any(|alternate| {
-                        let tokens = tokens.with_alternate(t_next, alternate.as_slice());
-                        is_match_impl::<_, M>(h_current, &tokens)
-                    });
-
-                    // The brace match already matches to the end, if it is successful we can end right here.
-                    if matches {
-                        return true;
-                    }
-                    // No match, allow for backtracking.
-                    false
-                }
-                Token::Optional(optional) => {
-                    let optional = tokens.with_alternate(t_next, optional.as_slice());
-                    if is_match_impl::<_, M>(h_current, &optional) {
-                        // There is a match with the optional token, we're done.
-                        return true;
-                    }
-                    // Continue on without the optional token.
-                    true
-                }
-            }
+    loop {
+        let Some(frame) = frames.last_mut() else {
+            // All alternation branches exhausted -> no match.
+            return false;
         };
 
-        if !matched {
-            if t_revert == 0 {
-                // No backtracking necessary, no star encountered.
-                // Didn't match and no backtracking -> no match.
-                return false;
-            }
-            h_current = h_revert;
-            t_next = t_revert;
-
-            // Backtrack to the previous location +1 character.
-            advance!(match n_chars_to_bytes(NonZeroUsize::MIN, h_current) {
-                Some(n) => n,
-                None => return false,
-            });
-
-            match skip_to_token::<_, M>(tokens, t_next, h_current) {
-                Some((tokens, revert, remaining)) => {
-                    t_next += tokens;
-                    h_revert = revert;
-                    h_current = remaining;
+        // Matches the current attempt against the haystack, including wildcard backtracking.
+        //
+        // The loop:
+        //  - Returns `true` if a match was found.
+        //  - Breaks with a new frame, when an alternate is found.
+        //  - Breaks with `None` if the current alternate does not match.
+        let new_frame = loop {
+            if !matched {
+                if frame.t_revert == 0 {
+                    // No backtracking possible, no wildcard was encountered
+                    // in the current attempt.
+                    break None;
                 }
-                None => return false,
+                frame.h_current = frame.h_revert;
+                frame.t_next = frame.t_revert;
+
+                // Backtrack to the previous location +1 character.
+                match n_chars_to_bytes(NonZeroUsize::MIN, frame.h_current) {
+                    Some(n) => frame.h_current = &frame.h_current[n..],
+                    // The haystack is exhausted.
+                    None => break None,
+                }
+
+                if !frame.skip_to_next_token::<M>() {
+                    break None;
+                }
+            }
+
+            if frame.t_next == frame.stream.len() {
+                if frame.h_current.is_empty() {
+                    // All tokens and the entire haystack are consumed -> match.
+                    return true;
+                }
+                // There is haystack remaining, only backtracking can consume more of it.
+                matched = false;
+                continue;
+            }
+
+            let token = frame.stream.get(frame.t_next);
+            frame.t_next += 1;
+
+            matched = match token {
+                Token::Literal(literal) => match M::is_prefix(frame.h_current, literal) {
+                    Some(n) => {
+                        frame.h_current = &frame.h_current[n..];
+                        true
+                    }
+                    // The literal does not match, but it may match after backtracking.
+                    // TODO: possible optimization: if the literal cannot possibly match
+                    // anymore because it is too long for the remaining haystack, we can
+                    // immediately give up on the current attempt here.
+                    None => false,
+                },
+                Token::Any(n) => match n_chars_to_bytes(*n, frame.h_current) {
+                    Some(n) => {
+                        frame.h_current = &frame.h_current[n..];
+                        true
+                    }
+                    // Not enough characters in the haystack remaining and backtracking
+                    // only shrinks the haystack, there cannot be any other possible
+                    // match in the current attempt.
+                    None => break None,
+                },
+                Token::Wildcard => {
+                    // `ab*c*` matches `abcd`.
+                    if frame.t_next == frame.stream.len() {
+                        return true;
+                    }
+
+                    frame.t_revert = frame.t_next;
+
+                    if !frame.skip_to_next_token::<M>() {
+                        break None;
+                    }
+                    true
+                }
+                Token::Class { negated, ranges } => match frame.h_current.chars().next() {
+                    Some(next) if M::ranges_match(next, *negated, ranges) => {
+                        frame.h_current = &frame.h_current[next.len_utf8()..];
+                        true
+                    }
+                    _ => false,
+                },
+                // The parent frame is already in the correct state to continue matching
+                // after the alternation, all it takes is a new frame for the alternation.
+                Token::Alternates(alternates) => {
+                    break Some(frame.new_branch(alternates.as_slice(), false));
+                }
+                Token::Optional(optional) => {
+                    break Some(frame.new_branch(std::slice::from_ref(optional), true));
+                }
             };
+        };
+
+        match new_frame {
+            // An alternation was just entered, match its first branch.
+            Some(mut new_frame) => {
+                if new_frame.enter_next_alternate() {
+                    frames.push(new_frame);
+                    matched = true;
+                } else {
+                    // An alternation without any branches, there is nothing to match,
+                    // continue in the current frame.
+                    //
+                    // The parser never produces empty alternations, but they are
+                    // gracefully handled here like an alternation which did not match.
+                    matched = new_frame.optional;
+                }
+            }
+            // The current alternate can no longer match, continue with the next alternate.
+            None if frame.enter_next_alternate() => {
+                matched = true;
+            }
+            // The current frame is exhausted, all alternates did not match.
+            None => {
+                // All branches failed, continue with the parent and search for alternative
+                // matches.
+                //
+                // If the current frame is marked optional, we did match and the parent does
+                // not need to try to match alternates or backtrack.
+                matched = frame.optional;
+                frames.pop();
+            }
         }
     }
-
-    true
 }
 
 /// Bundles necessary matchers for [`is_match_impl`].
@@ -239,25 +260,16 @@ impl Matcher for CaseInsensitive {
     }
 }
 
-/// Efficiently skips to the next matching possible match after a wildcard.
-///
-/// Tokens must be indexable with `t_next`.
+/// Efficiently skips to the next possible match after a wildcard.
 ///
 /// Returns `None` if there is no match and the matching can be aborted.
 /// Otherwise returns the amount of tokens consumed, the new save point to backtrack to
 /// and the remaining haystack.
 #[inline(always)]
-fn skip_to_token<'a, T, M>(
-    tokens: &T,
-    t_next: usize,
-    haystack: &'a str,
-) -> Option<(usize, &'a str, &'a str)>
+fn skip_to_token<'a, M>(next: &Token, haystack: &'a str) -> Option<(bool, &'a str, &'a str)>
 where
-    T: TokenIndex + ?Sized,
     M: Matcher,
 {
-    let next = &tokens[t_next];
-
     // TODO: optimize other cases like:
     //  - `[Any(n), Literal(_), ..]` (skip + literal find)
     //  - `[Any(n)]` (minimum remaining length)
@@ -266,7 +278,7 @@ where
             match M::find(haystack, literal) {
                 // We cannot use `offset + literal.len()` as the revert position
                 // to not discard overlapping matches.
-                Some((offset, len)) => (1, &haystack[offset..], &haystack[offset + len..]),
+                Some((offset, len)) => (true, &haystack[offset..], &haystack[offset + len..]),
                 // The literal does not exist in the remaining slice.
                 // No backtracking necessary, we won't ever find it.
                 None => return None,
@@ -274,7 +286,11 @@ where
         }
         Token::Class { negated, ranges } => {
             match M::ranges_find(haystack, *negated, ranges) {
-                Some((offset, c)) => (1, &haystack[offset..], &haystack[offset + c.len_utf8()..]),
+                Some((offset, c)) => (
+                    true,
+                    &haystack[offset..],
+                    &haystack[offset + c.len_utf8()..],
+                ),
                 // None of the remaining characters matches this class.
                 // No backtracking necessary, we won't ever find it.
                 None => return None,
@@ -283,7 +299,7 @@ where
         _ => {
             // We didn't consume and match the token, revert to the previous state and
             // let the generic matching with slower backtracking handle the token.
-            (0, haystack, haystack)
+            (false, haystack, haystack)
         }
     })
 }
@@ -341,110 +357,161 @@ fn recover_offset_len(
         .map_or_else(|e| e, |(_, offset, len)| (offset, len))
 }
 
-/// Minimum requirements to process tokens during matching.
-///
-/// This is very closely coupled to [`is_match_impl`] and the process
-/// of also matching alternate branches of a pattern. We use a trait here
-/// to make use of monomorphization to make sure the alternate matching
-/// can be inlined.
-trait TokenIndex: std::ops::Index<usize, Output = Token> + std::fmt::Debug {
-    /// The type returned from [`Self::with_alternate`].
+/// The stream of tokens which is currently being matched against the haystack.
+#[derive(Default, Clone, Copy, Debug)]
+struct TokenStream<'a> {
+    /// The tokens of the currently active alternation branch.
     ///
-    /// We need an associated type here to not produce and endlessly recursive
-    /// type. Alternates are only allowed for the first 'level' (can't be nested),
-    /// which allows us to avoid the recursion.
-    type WithAlternates<'a>: TokenIndex
-    where
-        Self: 'a;
-
-    fn len(&self) -> usize;
-
-    #[inline(always)]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Merges the current instance with alternate tokens and returns [`Self::WithAlternates`].
-    fn with_alternate<'a>(
-        &'a self,
-        offset: usize,
-        alternate: &'a [Token],
-    ) -> Self::WithAlternates<'a>;
-}
-
-impl TokenIndex for [Token] {
-    type WithAlternates<'a> = AltAndTokens<'a>;
-
-    #[inline(always)]
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    #[inline(always)]
-    fn with_alternate<'a>(
-        &'a self,
-        offset: usize,
-        alternate: &'a [Token],
-    ) -> Self::WithAlternates<'a> {
-        AltAndTokens {
-            alternate,
-            tokens: &self[offset..],
-        }
-    }
-}
-
-/// A [`TokenIndex`] implementation which has been combined with tokens from an alternation.
-///
-/// Each alternate in the pattern creates a new individual matching branch with the alternate
-/// currently being matched, the remaining tokens of the original pattern and the remaining
-/// haystack which is yet to be matched.
-///
-/// If the resulting submatch matches the total pattern matches, if it does not match
-/// another branch is tested.
-#[derive(Debug)]
-struct AltAndTokens<'a> {
-    /// The alternation tokens.
+    /// Empty, if no alternate is being evaluated.
     alternate: &'a [Token],
-    /// The remaining tokens of the original pattern.
+    /// The remaining tokens of the original pattern to match against.
     tokens: &'a [Token],
 }
 
-impl TokenIndex for AltAndTokens<'_> {
-    // Type here does not matter, we implement `with_alternate` by returning the never type.
-    // It just needs to satisfy the `TokenIndex` trait bound.
-    type WithAlternates<'b>
-        = AltAndTokens<'b>
-    where
-        Self: 'b;
-
+impl<'a> TokenStream<'a> {
+    /// Total amount of tokens in the stream.
     #[inline(always)]
     fn len(&self) -> usize {
         self.alternate.len() + self.tokens.len()
     }
 
-    fn with_alternate<'b>(
-        &'b self,
-        offset: usize,
-        alternate: &'b [Token],
-    ) -> Self::WithAlternates<'b> {
-        if offset < self.alternate.len() {
-            unreachable!("No nested alternates")
+    /// Returns the token at position `index`.
+    ///
+    /// Panics if `index` is out of bounds.
+    #[inline(always)]
+    fn get(&self, index: usize) -> &'a Token {
+        match self.alternate.get(index) {
+            Some(token) => token,
+            None => &self.tokens[index - self.alternate.len()],
         }
-        AltAndTokens {
-            alternate,
-            tokens: &self.tokens[offset - self.alternate.len()..],
+    }
+
+    /// Returns the remaining tokens of the original pattern starting at `t_next`.
+    fn base_suffix(&self, t_next: usize) -> &'a [Token] {
+        match t_next.checked_sub(self.alternate.len()) {
+            Some(offset) => &self.tokens[offset..],
+            // This would only happen if `t_next` points into the alternates,
+            // which is not possible since we do not allow nesting alternates.
+            None => unreachable!("No nested alternates"),
         }
     }
 }
 
-impl std::ops::Index<usize> for AltAndTokens<'_> {
-    type Output = Token;
+/// A single matching attempt.
+///
+/// It consists of two parts:
+/// 1. Current matching information
+/// 2. Potential alternates to match
+///
+/// If the current match (1) is exhausted and does not match the haystack,
+/// another alternate is queried from (2) and replaces the failed match
+/// in (1).
+struct Frame<'a> {
+    /// The stream of tokens which is currently being matched.
+    stream: TokenStream<'a>,
+    /// Remainder of the haystack which still needs to be matched.
+    h_current: &'a str,
+    /// Saved haystack position for backtracking.
+    h_revert: &'a str,
+    /// The next token position in `stream` which needs to be evaluated.
+    t_next: usize,
+    /// Revert index for `stream`. In case of backtracking we backtrack to this index.
+    ///
+    /// If `t_revert` is zero, it means there is no currently saved backtracking position.
+    t_revert: usize,
 
-    fn index(&self, index: usize) -> &Self::Output {
-        if index < self.alternate.len() {
-            &self.alternate[index]
-        } else {
-            &self.tokens[index - self.alternate.len()]
+    /// The haystack at the position the alternation token was encountered and needs
+    /// to be matched against.
+    haystack: &'a str,
+    /// The alternations which still need to be tried.
+    ///
+    /// Empty for the root frame.
+    alternates: std::slice::Iter<'a, Tokens>,
+    /// Whether the alternates are optional.
+    ///
+    /// If a frame is optional, none of its alternates need to match for the entire frame
+    /// considered matching.
+    optional: bool,
+    /// The tokens of the original pattern following the alternation token.
+    ///
+    /// Every alternation branch is followed by these tokens.
+    base: &'a [Token],
+}
+
+impl<'a> Frame<'a> {
+    /// Creates the root frame matching the full pattern against the full haystack.
+    fn root(haystack: &'a str, tokens: &'a [Token]) -> Self {
+        Self {
+            stream: TokenStream {
+                alternate: &[],
+                tokens,
+            },
+            h_current: haystack,
+            h_revert: haystack,
+            t_next: 0,
+            t_revert: 0,
+            alternates: Default::default(),
+            optional: false,
+            haystack,
+            base: &[],
+        }
+    }
+
+    /// Creates a child frame starting at the current location with a list of `alternates` to evaluate.
+    ///
+    /// The parent's `t_next` must already point past the alternation token.
+    /// The working state is initialized when the first branch is entered.
+    fn new_branch(&self, alternates: &'a [Tokens], optional: bool) -> Self {
+        Self {
+            stream: TokenStream::default(),
+            h_current: self.h_current,
+            h_revert: self.h_current,
+            t_next: 0,
+            t_revert: 0,
+            alternates: alternates.iter(),
+            optional,
+            haystack: self.h_current,
+            base: self.stream.base_suffix(self.t_next),
+        }
+    }
+
+    /// Enters the next branch of the alternation and resets the working state.
+    ///
+    /// Returns `false` if all alternates are already exhausted.
+    fn enter_next_alternate(&mut self) -> bool {
+        let Some(branch) = self.alternates.next() else {
+            return false;
+        };
+
+        self.stream = TokenStream {
+            alternate: branch.as_slice(),
+            tokens: self.base,
+        };
+        self.h_current = self.haystack;
+        self.h_revert = self.haystack;
+        self.t_next = 0;
+        self.t_revert = 0;
+
+        true
+    }
+
+    /// Efficiently skips to the next possible match after a wildcard.
+    ///
+    /// Like [`skip_to_token`] but advances the frame state.
+    ///
+    /// Returns `false` if no match is possible and matching can be aborted.
+    #[inline(always)]
+    fn skip_to_next_token<M: Matcher>(&mut self) -> bool {
+        let next = self.stream.get(self.t_next);
+
+        match skip_to_token::<M>(next, self.h_current) {
+            Some((consumed, revert, remaining)) => {
+                self.t_next += consumed as usize;
+                self.h_revert = revert;
+                self.h_current = remaining;
+                true
+            }
+            None => false,
         }
     }
 }

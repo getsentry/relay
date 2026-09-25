@@ -13,28 +13,34 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
+use relay_conventions::attributes::*;
+use relay_conventions::interpolate;
+use relay_conventions::measurements::{
+    APP_START_COLD, APP_START_WARM, FRAMES_FROZEN, FRAMES_FROZEN_RATE, FRAMES_SLOW,
+    FRAMES_SLOW_RATE, FRAMES_TOTAL, STALL_PERCENTAGE,
+};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
-    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
-    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event,
+    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    PerformanceScoreContext, ReplayContext, Request, Span, SpanId, SpanV2, Tags, Timestamp,
+    TraceContext, TraceId, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
+use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
-use crate::normalize::AiOperationTypeMap;
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
-use crate::span::tag_extraction::extract_span_tags_from_event;
+use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
-    ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
 };
@@ -121,9 +127,6 @@ pub struct NormalizationConfig<'a> {
     /// When enabled, adds errors in the meta to the event's errors.
     pub emit_event_errors: bool,
 
-    /// When `true`, infers the device class from CPU and model.
-    pub device_class_synthesis_config: bool,
-
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
 
@@ -135,14 +138,11 @@ pub struct NormalizationConfig<'a> {
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
-    /// Configuration for generating performance score measurements for web vitals
+    /// Configuration for generating performance score measurements for web vitals.
     pub performance_score: Option<&'a PerformanceScoreConfig>,
 
-    /// Configuration for calculating the cost of AI model runs
-    pub ai_model_costs: Option<&'a ModelCosts>,
-
-    /// Configuration for mapping AI operation types from span.op to gen_ai.operation.type
-    pub ai_operation_type_map: Option<&'a AiOperationTypeMap>,
+    /// Metadata for AI models including costs and context size.
+    pub ai_model_metadata: Option<&'a ModelMetadata>,
 
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
@@ -162,14 +162,26 @@ pub struct NormalizationConfig<'a> {
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
 
-    /// Controls list of hosts to be excluded from scrubbing
+    /// Controls list of hosts to be excluded from scrubbing.
     pub span_allowed_hosts: &'a [String],
 
     /// Rules to infer `span.op` from other span fields.
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 
-    /// Set a flag to enable performance issue detection on spans.
-    pub performance_issues_spans: bool,
+    /// Forces a valid trace context for error events.
+    ///
+    /// Sentry requires a valid trace context for events. This ensures a valid trace context always
+    /// exists.
+    ///
+    /// If the error does not contain a trace context, one will be created. If there is already an
+    /// existing trace context, it ensures it's valid and has a trace id.
+    ///
+    /// This is never applied to transaction events, which require a valid transaction context from
+    /// the SDK.
+    pub force_trace_context: bool,
+
+    /// Dynamic sampling context used for dsc span normalization.
+    pub dsc: Option<&'a DynamicSamplingContext>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -191,21 +203,20 @@ impl Default for NormalizationConfig<'_> {
             is_renormalize: Default::default(),
             remove_other: Default::default(),
             emit_event_errors: Default::default(),
-            device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
-            ai_model_costs: Default::default(),
-            ai_operation_type_map: Default::default(),
+            ai_model_metadata: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
-            performance_issues_spans: Default::default(),
+            force_trace_context: Default::default(),
+            dsc: None,
         }
     }
 }
@@ -252,6 +263,12 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 
 /// Normalizes the given event based on the given config.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    // This must run first, as the following normalizations rely on the latest version of
+    // conventions.
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        span::normalize_conventions(event);
+    }
+
     // Normalize the transaction.
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
@@ -266,9 +283,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, client_ip, &config.user_agent);
-
-    // Process NEL reports to ensure all props.
-    normalize_nel_report(event, client_ip);
 
     // Insert IP addrs before recursing, since geo lookup depends on it.
     normalize_ip_addresses(
@@ -310,17 +324,12 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
-    if config.device_class_synthesis_config {
-        normalize_device_class(event);
-    }
+    normalize_device_class(event);
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_event_measurements(
-        event,
-        config.measurements.clone(),
-        config.max_name_and_unit_len,
-    ); // Measurements are part of the metric extraction
+    normalize_event_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
+    backfill_app_vitals_start(event);
     if let Some(version) = normalize_performance_score(event, config.performance_score) {
         event
             .contexts
@@ -328,27 +337,28 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    enrich_ai_event_data(event, config.ai_model_costs, config.ai_operation_type_map);
+    enrich_ai_event_data(event, config.ai_model_metadata);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
+    normalize_replay_context(event, config.replay_id);
 
     let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
         Ok(())
     });
 
+    if config.force_trace_context && event.ty.value() != Some(&EventType::Transaction) {
+        normalize_force_trace_context(event);
+    }
+
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::reparent_broken_spans::reparent_broken_spans(event);
-        crate::normalize::normalize_app_start_spans(event);
+        span::normalize_dsc_for_event_spans(event, config);
+        span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
-    }
-
-    if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
-        event.performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {
@@ -357,34 +367,21 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             config.max_tag_value_length,
             config.span_allowed_hosts,
         );
+        extract_segment_name_from_event(event);
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
         context.client_sample_rate = Annotated::from(config.client_sample_rate);
     }
-    normalize_replay_context(event, config.replay_id);
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(contexts) = event.contexts.value_mut()
-        && let Some(replay_id) = replay_id
-    {
+    if let Some(replay_id) = replay_id {
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
         contexts.add(ReplayContext {
             replay_id: Annotated::new(EventId(replay_id)),
             other: Object::default(),
         });
-    }
-}
-
-/// Backfills the client IP address on for the NEL reports.
-fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
-    if event.context::<NelContext>().is_none() {
-        return;
-    }
-
-    if let Some(client_ip) = client_ip {
-        let user = event.user.value_mut().get_or_insert_with(User::default);
-        user.ip_address = Annotated::new(client_ip.to_owned());
     }
 }
 
@@ -421,9 +418,6 @@ fn normalize_security_report(
 
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
-        || event.expectct.value().is_some()
-        || event.expectstaple.value().is_some()
-        || event.hpkp.value().is_some()
 }
 
 /// Backfills IP addresses in various places.
@@ -880,8 +874,84 @@ pub fn normalize_measurements(
     }
 }
 
+/// Trait for containers that behave like a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_score`] work for both
+/// [`Measurements`] and [`Attributes`].
+pub trait MeasurementsLike {
+    /// Returns `true` if this collection contains the named measurement.
+    fn contains_measurement(&self, key: &str) -> bool;
+    /// Gets the value of the named measurement if this collection contains it.
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64>;
+    /// Inserts a measurement into this collection.
+    fn insert_measurement(&mut self, key: String, value: Measurement);
+}
+
+impl MeasurementsLike for Measurements {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        self.get_value(key)
+    }
+
+    fn insert_measurement(&mut self, key: String, value: Measurement) {
+        self.insert(key, value.into());
+    }
+}
+
+impl MeasurementsLike for Attributes {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.0
+            .contains_key(relay_conventions::canonical(key).unwrap_or(key))
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
+        match value {
+            Value::F64(v) => FiniteF64::new(*v),
+            Value::U64(v) => FiniteF64::new(*v as f64),
+            Value::I64(v) => FiniteF64::new(*v as f64),
+            _ => None,
+        }
+    }
+
+    fn insert_measurement(&mut self, key: String, measurement: Measurement) {
+        self.0
+            .insert(key, measurement.value.map_value(|v| v.to_f64().into()));
+    }
+}
+
+/// Trait for types that provide mutable access to a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_score`] work for [`Event`]s,
+/// [`V1 Spans`](Span), and [`V2 Spans`](SpanV2).
 pub trait MutMeasurements {
-    fn measurements(&mut self) -> &mut Annotated<Measurements>;
+    type MeasurementsContainer: MeasurementsLike;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer>;
+}
+
+impl MutMeasurements for Event {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for Span {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for SpanV2 {
+    type MeasurementsContainer = Attributes;
+
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.attributes
+    }
 }
 
 /// Computes performance score measurements for an event.
@@ -904,7 +974,7 @@ pub fn normalize_performance_score(
             if let Some(measurements) = event.measurements().value_mut() {
                 let mut should_add_total = false;
                 if profile.score_components.iter().any(|c| {
-                    !measurements.contains_key(c.measurement.as_str())
+                    !measurements.contains_measurement(c.measurement.as_str())
                         && c.weight.abs() >= f64::EPSILON
                         && !c.optional
                 }) {
@@ -918,7 +988,7 @@ pub fn normalize_performance_score(
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
-                        && !measurements.contains_key(component.measurement.as_str())
+                        && !measurements.contains_measurement(component.measurement.as_str())
                     {
                         continue;
                     }
@@ -933,7 +1003,9 @@ pub fn normalize_performance_score(
                     // Optional measurements that are not present are given a weight of 0.
                     let mut normalized_component_weight = FiniteF64::ZERO;
 
-                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                    if let Some(value) =
+                        measurements.get_measurement_value(component.measurement.as_str())
+                    {
                         normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
                             value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
@@ -943,13 +1015,12 @@ pub fn normalize_performance_score(
 
                         let cdf = Annotated::try_from(cdf);
 
-                        measurements.insert(
-                            format!("score.ratio.{}", component.measurement),
+                        measurements.insert_measurement(
+                            interpolate::score__ratio__key(&component.measurement),
                             Measurement {
                                 value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
 
                         let component_score =
@@ -963,34 +1034,31 @@ pub fn normalize_performance_score(
                             should_add_total = true;
                         }
 
-                        measurements.insert(
-                            format!("score.{}", component.measurement),
+                        measurements.insert_measurement(
+                            interpolate::score__key(&component.measurement),
                             Measurement {
                                 value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
                     }
 
-                    measurements.insert(
-                        format!("score.weight.{}", component.measurement),
+                    measurements.insert_measurement(
+                        interpolate::score__weight__key(&component.measurement),
                         Measurement {
                             value: normalized_component_weight.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
                 if should_add_total {
                     version.clone_from(&profile.version);
-                    measurements.insert(
-                        "score.total".to_owned(),
+                    measurements.insert_measurement(
+                        SCORE__TOTAL.to_owned(),
                         Measurement {
                             value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
             }
@@ -1007,42 +1075,36 @@ fn normalize_trace_context_tags(event: &mut Event) {
         && let Some(trace_context) = contexts.get::<TraceContext>()
         && let Some(data) = trace_context.data.value()
     {
-        if let Some(lcp_element) = data.lcp_element.value()
+        if let Some(lcp_element) = data.get_str(BROWSER__WEB_VITAL__LCP__ELEMENT)
             && !tags.contains("lcp.element")
         {
             let tag_name = "lcp.element".to_owned();
-            tags.insert(tag_name, Annotated::new(lcp_element.clone()));
+            tags.insert(tag_name, Annotated::new(lcp_element.to_owned()));
         }
-        if let Some(lcp_size) = data.lcp_size.value()
+        if let Some(lcp_size) = data
+            .get_value(BROWSER__WEB_VITAL__LCP__SIZE)
+            .and_then(|value| match value {
+                Value::U64(value) => Some(*value),
+                Value::I64(value) => u64::try_from(*value).ok(),
+                _ => None,
+            })
             && !tags.contains("lcp.size")
         {
             let tag_name = "lcp.size".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
         }
-        if let Some(lcp_id) = data.lcp_id.value() {
+        if let Some(lcp_id) = data.get_str(BROWSER__WEB_VITAL__LCP__ID) {
             let tag_name = "lcp.id".to_owned();
             if !tags.contains("lcp.id") {
-                tags.insert(tag_name, Annotated::new(lcp_id.clone()));
+                tags.insert(tag_name, Annotated::new(lcp_id.to_owned()));
             }
         }
-        if let Some(lcp_url) = data.lcp_url.value() {
+        if let Some(lcp_url) = data.get_str(BROWSER__WEB_VITAL__LCP__URL) {
             let tag_name = "lcp.url".to_owned();
             if !tags.contains("lcp.url") {
-                tags.insert(tag_name, Annotated::new(lcp_url.clone()));
+                tags.insert(tag_name, Annotated::new(lcp_url.to_owned()));
             }
         }
-    }
-}
-
-impl MutMeasurements for Event {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
-    }
-}
-
-impl MutMeasurements for Span {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
     }
 }
 
@@ -1059,22 +1121,22 @@ fn compute_measurements(
     transaction_duration_ms: Option<FiniteF64>,
     measurements: &mut Measurements,
 ) {
-    if let Some(frames_total) = measurements.get_value("frames_total")
+    if let Some(frames_total) = measurements.get_value(FRAMES_TOTAL)
         && frames_total > 0.0
     {
-        if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
+        if let Some(frames_frozen) = measurements.get_value(FRAMES_FROZEN) {
             let frames_frozen_rate = Measurement {
                 value: (frames_frozen / frames_total).into(),
                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
             };
-            measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
+            measurements.insert(FRAMES_FROZEN_RATE.to_owned(), frames_frozen_rate.into());
         }
-        if let Some(frames_slow) = measurements.get_value("frames_slow") {
+        if let Some(frames_slow) = measurements.get_value(FRAMES_SLOW) {
             let frames_slow_rate = Measurement {
                 value: (frames_slow / frames_total).into(),
                 unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
             };
-            measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
+            measurements.insert(FRAMES_SLOW_RATE.to_owned(), frames_slow_rate.into());
         }
     }
 
@@ -1095,7 +1157,7 @@ fn compute_measurements(
             value: (stall_total_time / transaction_duration_ms).into(),
             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
         };
-        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+        measurements.insert(STALL_PERCENTAGE.to_owned(), stall_percentage.into());
     }
 }
 
@@ -1157,8 +1219,11 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-/// Infers the `EventType` from the event's interfaces.
-fn infer_event_type(event: &Event) -> EventType {
+/// Infers the [`EventType`] from the event's interfaces.
+///
+/// This is the type normalization assigns. A declared type is only honoured for transactions and
+/// user feedback.
+pub fn infer_event_type(event: &Event) -> EventType {
     // The event type may be set explicitly when constructing the event items from specific
     // items. This is DEPRECATED, and each distinct event type may get its own base class. For
     // the time being, this is only implemented for transactions, so be specific:
@@ -1181,14 +1246,6 @@ fn infer_event_type(event: &Event) -> EventType {
         EventType::Error
     } else if event.csp.value().is_some() {
         EventType::Csp
-    } else if event.hpkp.value().is_some() {
-        EventType::Hpkp
-    } else if event.expectct.value().is_some() {
-        EventType::ExpectCt
-    } else if event.expectstaple.value().is_some() {
-        EventType::ExpectStaple
-    } else if event.context::<NelContext>().is_some() {
-        EventType::Nel
     } else {
         EventType::Default
     }
@@ -1311,6 +1368,23 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
     }
 }
 
+/// Creates a new trace context if it is missing and ensures the context has a valid trace and span id.
+///
+/// The function keeps existing meta on trace and span id intact, still surfacing user errors in the
+/// original payload.
+fn normalize_force_trace_context(event: &mut Event) {
+    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+    let trace = contexts.get_or_default::<TraceContext>();
+
+    let trace_id = trace.trace_id.get_or_insert_with(|| {
+        TraceId::try_from(*event.id.get_or_insert_with(Default::default))
+            .unwrap_or_else(|_| TraceId::random())
+    });
+    let _ = trace
+        .span_id
+        .get_or_insert_with(|| SpanId::derive_from_trace_id(trace_id));
+}
+
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
@@ -1320,9 +1394,6 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
         contexts.0.remove("reprocessing");
 
         for annotated in &mut contexts.0.values_mut() {
-            if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
-                context.status.get_or_insert_with(|| SpanStatus::Unknown);
-            }
             if let Some(context_inner) = annotated.value_mut() {
                 crate::normalize::contexts::normalize_context(&mut context_inner.0);
             }
@@ -1337,8 +1408,9 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
 /// Drop those outlier measurements for older SDKs.
 fn filter_mobile_outliers(measurements: &mut Measurements) {
     for key in [
-        "app_start_cold",
-        "app_start_warm",
+        APP_START_COLD,
+        APP_START_WARM,
+        // TODO: Regrettably, these measurements are not defined in conventions.
         "time_to_initial_display",
         "time_to_full_display",
     ] {
@@ -1353,6 +1425,120 @@ fn filter_mobile_outliers(measurements: &mut Measurements) {
 fn normalize_mobile_measurements(measurements: &mut Measurements) {
     normalize_app_start_measurements(measurements);
     filter_mobile_outliers(measurements);
+}
+
+const APP_START_SOURCES: [(&str, Option<&str>); 5] = [
+    (APP_START_COLD, Some("cold")),
+    (APP_START_WARM, Some("warm")),
+    (APP__VITALS__START__VALUE, None),
+    (APP__VITALS__START__COLD__VALUE, None),
+    (APP__VITALS__START__WARM__VALUE, None),
+];
+
+fn backfill_app_vitals_start(event: &mut Event) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return;
+    }
+
+    backfill_app_vitals_start_screen(event);
+
+    let already_set = event
+        .tags
+        .value()
+        .is_some_and(|tags| tags.get(APP__VITALS__START__TYPE).is_some())
+        || event
+            .measurements
+            .value()
+            .is_some_and(|m| m.contains_key(APP__VITALS__START__VALUE));
+    if already_set {
+        return;
+    }
+
+    let Some((start_type, value)) =
+        APP_START_SOURCES
+            .iter()
+            .find_map(|(measurement_name, start_type)| {
+                let start_type = (*start_type)?;
+                let measurement = event
+                    .measurements
+                    .value()?
+                    .get(*measurement_name)?
+                    .value()?;
+                if measurement.unit.value()
+                    != Some(&MetricUnit::Duration(DurationUnit::MilliSecond))
+                {
+                    return None;
+                }
+
+                let value = *measurement.value.value()?;
+                Some((start_type, value))
+            })
+    else {
+        return;
+    };
+
+    event
+        .measurements
+        .get_or_insert_with(Default::default)
+        .insert(
+            APP__VITALS__START__VALUE.to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(value),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+    event
+        .tags
+        .value_mut()
+        .get_or_insert_with(Tags::default)
+        .0
+        .insert(
+            String::from(APP__VITALS__START__TYPE),
+            Annotated::new(start_type.to_owned()),
+        );
+}
+
+/// Backfills `app.vitals.start.screen` into root span data.
+///
+/// This runs from the transaction-only app-start backfill and writes only when:
+/// - the transaction name is a concrete screen name;
+/// - the trace op is `"ui.load"`;
+/// - the event contains an app-start measurement;
+/// - the SDK did not already provide `app.vitals.start.screen`.
+fn backfill_app_vitals_start_screen(event: &mut Event) {
+    let Some(screen) = event.transaction.value() else {
+        return;
+    };
+    // TransactionsProcessor writes this placeholder for missing names before this backfill runs.
+    if screen.is_empty() || screen == "<unlabeled transaction>" {
+        return;
+    }
+
+    let has_app_start_measurement = event.measurements.value().is_some_and(|measurements| {
+        APP_START_SOURCES
+            .iter()
+            .any(|(measurement_name, _)| measurements.contains_key(*measurement_name))
+    });
+    if !has_app_start_measurement {
+        return;
+    }
+
+    let screen = screen.to_owned();
+    let Some(trace_context) = event.context_mut::<TraceContext>() else {
+        return;
+    };
+    if trace_context.op.as_str() != Some("ui.load")
+        || trace_context
+            .data
+            .value()
+            .is_some_and(|data| data.contains(APP__VITALS__START__SCREEN))
+    {
+        return;
+    }
+
+    let data = trace_context.data.get_or_insert_with(Default::default);
+    data.insert_value(APP__VITALS__START__SCREEN, screen);
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -1466,6 +1652,8 @@ fn remove_invalid_measurements(
 /// For known measurements, this returns `Some(MetricUnit)`, which can also include
 /// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
 fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
+    // TODO: Might be neat to resolve this via conventions, but might also not
+    // be worth the trouble.
     match measurement_name {
         // Web
         "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -1504,11 +1692,12 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
 /// The dot.case app start measurements keys are treated as custom measurements.
 /// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 fn normalize_app_start_measurements(measurements: &mut Measurements) {
+    use relay_conventions::measurements::{APP_START_COLD, APP_START_WARM};
     if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
-        measurements.insert("app_start_cold".to_owned(), app_start_cold_value);
+        measurements.insert(APP_START_COLD.to_owned(), app_start_cold_value);
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
-        measurements.insert("app_start_warm".to_owned(), app_start_warm_value);
+        measurements.insert(APP_START_WARM.to_owned(), app_start_warm_value);
     }
 }
 
@@ -1528,7 +1717,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCostV2};
+    use crate::eap;
+    use crate::{ClientHints, MeasurementsConfig, ModelCostV2, ModelMetadataEntry};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -1586,6 +1776,43 @@ mod tests {
             .map(|span| Annotated::new(get_value!(span.data!).clone()))
             .collect::<Vec<_>>()
             .try_into()
+            .unwrap()
+    }
+
+    fn trace_context_data(event: &Event) -> &Annotated<SpanData> {
+        &event.context::<TraceContext>().unwrap().data
+    }
+
+    fn app_vitals_start_screen_event(
+        ty: &str,
+        transaction: Option<&str>,
+        trace_op: &str,
+        measurement: Option<&str>,
+        existing_screen: Option<&str>,
+    ) -> Event {
+        let mut payload = json!({
+            "type": ty,
+            "contexts": {"trace": {"op": trace_op}},
+            "measurements": {},
+        });
+
+        if let Some(transaction) = transaction {
+            payload["transaction"] = json!(transaction);
+        }
+
+        if let Some(measurement) = measurement {
+            payload["measurements"] = json!({
+                measurement: {"value": 1234.0, "unit": "millisecond"}
+            });
+        }
+
+        if let Some(screen) = existing_screen {
+            payload["contexts"]["trace"]["data"] = json!({APP__VITALS__START__SCREEN: screen});
+        }
+
+        Annotated::<Event>::from_json(&payload.to_string())
+            .unwrap()
+            .into_value()
             .unwrap()
     }
 
@@ -2262,7 +2489,7 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.model_id": "claude-2.1"
+                            "gen_ai.request.model": "claude-2.1"
                         }
                     },
                     {
@@ -2282,7 +2509,7 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.model_id": "gpt4-21-04"
+                            "gen_ai.request.model": "gpt4-21-04"
                         }
                     }
                 ]
@@ -2294,25 +2521,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.03,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.02,
-                                output_per_token: 0.03,
-                                output_reasoning_per_token: 0.04,
-                                input_cached_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.02,
+                                    output_per_token: 0.03,
+                                    output_reasoning_per_token: 0.04,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2325,26 +2560,36 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 2000.0,
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 50.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 10.0,
           "gen_ai.cost.output_tokens": 40.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 50.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 2000.0,
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 80.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 20.0,
           "gen_ai.cost.output_tokens": 60.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 80.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2365,8 +2610,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2407,25 +2652,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.04,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.03,
+                                    input_cached_per_token: 0.04,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.09,
-                                output_per_token: 0.05,
-                                output_reasoning_per_token: 0.0,
-                                input_cached_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.09,
+                                    output_per_token: 0.05,
+                                    output_reasoning_per_token: 0.0,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2438,40 +2691,54 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 75.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 50.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.cost.reasoning.output_tokens": 30.0,
+          "gen_ai.cost.total_tokens": 75.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.usage.cache_read.input_tokens": 500,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.response.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 2000.0
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.response.model": "gpt4-21-04",
+          "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2502,15 +2769,19 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([(
                         Pattern::new("claude-2.1").unwrap(),
-                        ModelCostV2 {
-                            input_per_token: 0.01,
-                            output_per_token: 0.02,
-                            output_reasoning_per_token: 0.03,
-                            input_cached_per_token: 0.0,
+                        ModelMetadataEntry {
+                            costs: Some(ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
+                            }),
+                            context_size: None,
                         },
                     )]),
                 }),
@@ -2522,7 +2793,9 @@ mod tests {
 
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.request.model": "claude-2.1"
+          "gen_ai.operation.type": "agent",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1"
         }
         "#);
     }
@@ -2543,8 +2816,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2571,25 +2844,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.0,
-                                input_cached_per_token: 0.04,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.0,
+                                    input_cached_per_token: 0.04,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.09,
-                                output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
-                                input_cached_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.09,
+                                    output_per_token: 0.05,
+                                    output_reasoning_per_token: 0.06,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2602,28 +2883,38 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 65.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 40.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.cost.reasoning.output_tokens": 20.0,
+          "gen_ai.cost.total_tokens": 65.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.usage.cache_read.input_tokens": 500,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
-          "gen_ai.response.tokens_per_second": 62500.0
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
+          "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2652,8 +2943,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2665,8 +2956,9 @@ mod tests {
         // Should not set response_tokens_per_second when there are no output tokens
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.usage.total_tokens": 500.0,
-          "gen_ai.usage.input_tokens": 500
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.usage.input_tokens": 500,
+          "gen_ai.usage.total_tokens": 500.0
         }
         "#);
     }
@@ -2695,8 +2987,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2708,8 +3000,9 @@ mod tests {
         // Should not set response_tokens_per_second when duration is zero
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.usage.total_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 1000
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.usage.output_tokens": 1000,
+          "gen_ai.usage.total_tokens": 1000.0
         }
         "#);
     }
@@ -2742,40 +3035,13 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types: HashMap::from([
-                (Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned()),
-                (
-                    Pattern::new("gen_ai.execute_tool").unwrap(),
-                    "execute_tool".to_owned(),
-                ),
-                (
-                    Pattern::new("gen_ai.handoff").unwrap(),
-                    "handoff".to_owned(),
-                ),
-                (
-                    Pattern::new("gen_ai.invoke_agent").unwrap(),
-                    "invoke_agent".to_owned(),
-                ),
-                // fallback to agent
-                (Pattern::new("gen_ai.*").unwrap(), "agent".to_owned()),
-            ]),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let [span1, span2, span3] = collect_span_data(event);
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.operation.type": "chat"
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -2785,86 +3051,9 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
-          "gen_ai.operation.type": "agent"
+          "gen_ai.operation.type": "ai_client"
         }
         "#);
-    }
-
-    #[test]
-    fn test_ai_operation_type_disabled_map() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "transaction": "test-transaction",
-                "spans": [
-                    {
-                        "op": "gen_ai.chat",
-                        "description": "AI chat completion",
-                        "data": {}
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 0, // Disabled version
-            operation_types: HashMap::from([(
-                Pattern::new("gen_ai.chat").unwrap(),
-                "chat".to_owned(),
-            )]),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
-
-        let [span] = collect_span_data(event);
-
-        // Should not set operation type when map is disabled
-        assert_annotated_snapshot!(span, @"{}");
-    }
-
-    #[test]
-    fn test_ai_operation_type_empty_map() {
-        let json = r#"
-            {
-                "type": "transaction",
-                "transaction": "test-transaction",
-                "spans": [
-                    {
-                        "op": "gen_ai.chat",
-                        "description": "AI chat completion",
-                        "data": {}
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        let operation_type_map = AiOperationTypeMap {
-            version: 1,
-            operation_types: HashMap::new(),
-        };
-
-        normalize_event(
-            &mut event,
-            &NormalizationConfig {
-                ai_operation_type_map: Some(&operation_type_map),
-                ..NormalizationConfig::default()
-            },
-        );
-
-        let [span] = collect_span_data(event);
-
-        // Should not set operation type when map is empty
-        assert_annotated_snapshot!(span, @"{}");
     }
 
     #[test]
@@ -2909,7 +3098,505 @@ mod tests {
     }
 
     #[test]
-    fn test_computed_performance_score() {
+    fn test_backfill_app_vitals_start_cold() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1234.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_warm() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_warm": {"value": 567.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_cold_preferred_over_warm() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app_start_warm": {"value": 200.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 200.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_no_app_start_noop() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"lcp": {"value": 100.0}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "lcp": Measurement {
+                    value: 100.0,
+                    unit: ~,
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_respects_outlier_filter() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        normalize_event_measurements(&mut event, None, None);
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @"
+        Measurements(
+            {},
+        )
+        ");
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_non_transaction_payload_noop() {
+        let json = r#"{
+            "type": "error",
+            "measurements": {
+                "app_start_cold": {"value": 1234.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_does_not_overwrite_value() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app.vitals.start.value": {"value": 999.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 999.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_does_not_overwrite_type() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 100.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        event
+            .tags
+            .value_mut()
+            .get_or_insert_with(Tags::default)
+            .0
+            .insert(
+                String::from(APP__VITALS__START__TYPE),
+                Annotated::new("warm".to_owned()),
+            );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_invalid_unit_noop() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1.5, "unit": "second"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.5,
+                    unit: Duration(
+                        Second,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_from_legacy_measurement() {
+        let json = r#"{
+            "type": "transaction",
+            "transaction": "MainActivity",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 1234.0,
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "MainActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_from_dotted_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("SettingsActivity"),
+            "ui.load",
+            Some(APP__VITALS__START__WARM__VALUE),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "SettingsActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_from_start_value_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("ProfileActivity"),
+            "ui.load",
+            Some(APP__VITALS__START__VALUE),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "ProfileActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_ui_load() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "navigation",
+            Some("app_start_cold"),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_app_start_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "ui.load",
+            None,
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_only_requires_measurement_key() {
+        let json = r#"{
+            "type": "transaction",
+            "transaction": "MainActivity",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "MainActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_preserves_existing_value() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "ui.load",
+            Some("app_start_cold"),
+            Some("SDKScreen"),
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "SDKScreen"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_transaction_name() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("<unlabeled transaction>"),
+            "ui.load",
+            Some("app_start_cold"),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_computed_performance_score_transaction() {
         let json = r#"
         {
             "type": "transaction",
@@ -3064,6 +3751,181 @@ mod tests {
             "score.weight.ttfb": {
               "value": 0.0,
               "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    /// A version of `test_computed_performance_score_transaction` for
+    /// V2 spans. Results are _mutatis mutandis_ the same.
+    ///
+    /// The `"condition"` on the profile is written as a disjunction,
+    /// checking for the browser name in both `event.context` and in
+    /// `span.attributes`.
+    #[test]
+    fn test_computed_performance_score_spanv2() {
+        let json = r#"
+        {
+            "end_timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "attributes": {
+                "browser.name": {"value": "Chrome", "type": "string"},
+                "browser.version": {"value": "120.1.1", "type": "string"},
+                "fid": {"value": 213, "type": "double"},
+                "browser.web_vital.fcp.value": {"value": 1237.0, "type": "double"},
+                "lcp": {"value": 6596, "type": "double"},
+                "browser.web_vital.cls.value": {"value": 0.11, "type": "double"}
+            }
+        }
+        "#;
+
+        let mut span = Annotated::<SpanV2>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op": "or",
+                        "inner": [{
+                            "op":"eq",
+                            "name": "event.context.browser.name",
+                            "value": "Chrome"
+                        }, {
+                            "op":"eq",
+                            "name": "span.attributes.browser.name.value",
+                            "value": "Chrome"
+                        }]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        eap::normalize_attribute_names(&mut span.attributes);
+        normalize_performance_score(&mut span, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(span)), {}, @r###"
+        {
+          "start_timestamp": 1619420400.0,
+          "end_timestamp": 1619420405.0,
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome",
+            },
+            "browser.version": {
+              "type": "string",
+              "value": "120.1.1",
+            },
+            "browser.web_vital.cls.value": {
+              "type": "double",
+              "value": 0.11,
+            },
+            "browser.web_vital.fcp.value": {
+              "type": "double",
+              "value": 1237.0,
+            },
+            "browser.web_vital.lcp.value": {
+              "type": "double",
+              "value": 6596,
+            },
+            "fid": {
+              "type": "double",
+              "value": 213,
+            },
+            "lcp": {
+              "type": "double",
+              "value": 6596,
+            },
+            "score.cls": {
+              "type": "double",
+              "value": 0.21864170607444863,
+            },
+            "score.fcp": {
+              "type": "double",
+              "value": 0.10750855443790831,
+            },
+            "score.fid": {
+              "type": "double",
+              "value": 0.19657361348282545,
+            },
+            "score.lcp": {
+              "type": "double",
+              "value": 0.009238896571386584,
+            },
+            "score.ratio.cls": {
+              "type": "double",
+              "value": 0.8745668242977945,
+            },
+            "score.ratio.fcp": {
+              "type": "double",
+              "value": 0.7167236962527221,
+            },
+            "score.ratio.fid": {
+              "type": "double",
+              "value": 0.6552453782760849,
+            },
+            "score.ratio.lcp": {
+              "type": "double",
+              "value": 0.03079632190462195,
+            },
+            "score.total": {
+              "type": "double",
+              "value": 0.531962770566569,
+            },
+            "score.weight.cls": {
+              "type": "double",
+              "value": 0.25,
+            },
+            "score.weight.fcp": {
+              "type": "double",
+              "value": 0.15,
+            },
+            "score.weight.fid": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.lcp": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.ttfb": {
+              "type": "double",
+              "value": 0.0,
             },
           },
         }
@@ -4089,6 +4951,44 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_adds_trace_context() {
+        let json = r#"
+        {
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                force_trace_context: true,
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {
+            ".event_id" => "[event-id]",
+            ".trace.trace_id" => "[trace-id]",
+            ".trace.span_id" => "[span-id]"
+        }, @r#"
+        {
+          "trace": {
+            "trace_id": "[trace-id]",
+            "span_id": "[span-id]",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
+    }
+
+    #[test]
     fn test_computes_standalone_cls_performance_score() {
         let json = r#"
         {
@@ -4957,10 +5857,10 @@ mod tests {
             "contexts": {
                 "trace": {
                     "data": {
-                        "lcp.element": "body > div#app > div > h1#header",
-                        "lcp.size": 24827,
-                        "lcp.id": "header",
-                        "lcp.url": "http://example.com/image.jpg"
+                        "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                        "browser.web_vital.lcp.size": 24827,
+                        "browser.web_vital.lcp.id": "header",
+                        "browser.web_vital.lcp.url": "http://example.com/image.jpg"
                     }
                 }
             },
@@ -4978,10 +5878,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#header",
-                "lcp.size": 24827,
-                "lcp.id": "header",
-                "lcp.url": "http://example.com/image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                "browser.web_vital.lcp.id": "header",
+                "browser.web_vital.lcp.size": 24827,
+                "browser.web_vital.lcp.url": "http://example.com/image.jpg",
               },
               "type": "trace",
             },
@@ -5023,10 +5923,10 @@ mod tests {
           "contexts": {
               "trace": {
                   "data": {
-                      "lcp.element": "body > div#app > div > h1#id",
-                      "lcp.size": 33333,
-                      "lcp.id": "id",
-                      "lcp.url": "http://example.com/another-image.jpg"
+                      "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                      "browser.web_vital.lcp.size": 33333,
+                      "browser.web_vital.lcp.id": "id",
+                      "browser.web_vital.lcp.url": "http://example.com/another-image.jpg"
                   }
               }
           },
@@ -5050,10 +5950,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#id",
-                "lcp.size": 33333,
-                "lcp.id": "id",
-                "lcp.url": "http://example.com/another-image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                "browser.web_vital.lcp.id": "id",
+                "browser.web_vital.lcp.size": 33333,
+                "browser.web_vital.lcp.url": "http://example.com/another-image.jpg",
               },
               "type": "trace",
             },

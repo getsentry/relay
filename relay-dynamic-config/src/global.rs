@@ -1,19 +1,16 @@
 use std::collections::HashMap;
-use std::collections::btree_map::Entry;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{
-    AiOperationTypeMap, MeasurementsConfig, ModelCosts, SpanOpDefaults,
-};
+use relay_event_normalization::{MeasurementsConfig, ModelMetadata, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
 
-use crate::{ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups, defaults};
+use crate::{ErrorBoundary, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -48,13 +45,9 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "is_ok_and_empty")]
     pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
 
-    /// Configuration for AI span measurements.
-    #[serde(skip_serializing_if = "is_model_costs_empty")]
-    pub ai_model_costs: ErrorBoundary<ModelCosts>,
-
-    /// Configuration to derive the `gen_ai.operation.type` field from other fields
-    #[serde(skip_serializing_if = "is_ai_operation_type_map_empty")]
-    pub ai_operation_type_map: ErrorBoundary<AiOperationTypeMap>,
+    /// Metadata for AI models including costs and context size.
+    #[serde(skip_serializing_if = "is_model_metadata_empty")]
+    pub ai_model_metadata: ErrorBoundary<ModelMetadata>,
 
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
@@ -88,23 +81,12 @@ impl GlobalConfig {
         }
     }
 
-    /// Modifies the global config after deserialization.
-    ///
-    /// - Adds hard-coded groups to metrics extraction configs.
-    pub fn normalize(&mut self) {
-        if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
-            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
-                // We only define these groups if they haven't been defined by the upstream yet.
-                // This ensures that the innermost Relay always defines the metrics.
-                if let Entry::Vacant(entry) = config.groups.entry(group_name) {
-                    entry.insert(MetricExtractionGroup {
-                        is_enabled: false, // must be enabled via project config
-                        metrics,
-                        tags,
-                    });
-                }
-            }
-        }
+    /// Returns the AI model metadata if configured and enabled.
+    pub fn ai_model_metadata(&self) -> Option<&ModelMetadata> {
+        self.ai_model_metadata
+            .as_ref()
+            .ok()
+            .filter(|m| m.is_enabled())
     }
 }
 
@@ -115,29 +97,16 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
     }
 }
 
+// Temporary until we understand why we see false killswitch values sometimes appearing.
+fn default_killswitched() -> bool {
+    relay_log::info!("using default for endpoint fetch config");
+    bool::default()
+}
+
 /// All options passed down from Sentry to Relay.
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
-    /// Kill switch for controlling the cardinality limiter.
-    #[serde(
-        rename = "relay.cardinality-limiter.mode",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_mode: CardinalityLimiterMode,
-
-    /// Sample rate for Cardinality Limiter Sentry errors.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
-    #[serde(
-        rename = "relay.cardinality-limiter.error-sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_error_sample_rate: f32,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
@@ -153,21 +122,6 @@ pub struct Options {
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
 
-    /// Overall sampling of span extraction.
-    ///
-    /// This number represents the fraction of transactions for which
-    /// spans are extracted.
-    ///
-    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
-    ///
-    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
-    #[serde(
-        rename = "relay.span-extraction.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub span_extraction_sample_rate: Option<f32>,
-
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
@@ -177,14 +131,6 @@ pub struct Options {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub http_span_allowed_hosts: Vec<String>,
-
-    /// Disables Relay from sending replay-events to Snuba.
-    #[serde(
-        rename = "replay.relay-snuba-publishing-disabled.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub replay_relay_snuba_publish_disabled_sample_rate: f32,
 
     /// Instructs relay to store attachments in objectstore instead of sending chunks via kafka.
     ///
@@ -197,44 +143,70 @@ pub struct Options {
     )]
     pub objectstore_attachments_sample_rate: f32,
 
+    /// Rollout rate for the EAP (Event Analytics Platform) double-write for user sessions.
+    ///
+    /// When rolled out, session data is sent both through the legacy metrics pipeline
+    /// and directly to the `snuba-items` topic as `TRACE_ITEM_TYPE_USER_SESSION`.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    #[serde(
+        rename = "relay.sessions-eap.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub sessions_eap_rollout_rate: f32,
+
+    /// Kill-switch for fetching project configs in endpoints.
+    #[serde(
+        default = "default_killswitched",
+        rename = "relay.endpoint-fetch-config.enabled",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub endpoint_fetch_config_enabled: bool,
+
+    /// The limit under which relay in-lines attachments into the envelope even if uploading to
+    /// objectstore is enabled.
+    ///
+    /// If the attachment is smaller than the attachment reference obtained by
+    /// uploading, there is no point in uploading.
+    #[serde(
+        rename = "relay.attachment-inline.limit",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub attachment_inline_limit: usize,
+
+    /// The desired chunk size for TUS uploads.
+    ///
+    /// Will be communicated to the client if the value is non-zero.
+    #[serde(
+        rename = "relay.upload-chunk.size",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub upload_chunk_size: usize,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
-}
-
-/// Kill switch for controlling the cardinality limiter.
-#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum CardinalityLimiterMode {
-    /// Cardinality limiter is enabled.
-    #[default]
-    // De-serialize from the empty string, because the option was added to
-    // Sentry incorrectly which makes Sentry send the empty string as a default.
-    #[serde(alias = "")]
-    Enabled,
-    /// Cardinality limiter is enabled but cardinality limits are not enforced.
-    Passive,
-    /// Cardinality limiter is disabled.
-    Disabled,
 }
 
 /// Configuration container to control [`BucketEncoding`] per namespace.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct BucketEncodings {
-    transactions: BucketEncoding,
     spans: BucketEncoding,
+    transactions: BucketEncoding,
     profiles: BucketEncoding,
-    custom: BucketEncoding,
 }
 
 impl BucketEncodings {
     /// Returns the configured encoding for a specific namespace.
     pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
-            MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
-            MetricNamespace::Custom => self.custom,
+            MetricNamespace::Transactions => self.transactions,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -266,10 +238,9 @@ where
         {
             let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
             Ok(BucketEncodings {
-                transactions: encoding,
                 spans: encoding,
+                transactions: encoding,
                 profiles: encoding,
-                custom: encoding,
             })
         }
 
@@ -347,12 +318,8 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
     )
 }
 
-fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
-    matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
-}
-
-fn is_ai_operation_type_map_empty(value: &ErrorBoundary<AiOperationTypeMap>) -> bool {
-    matches!(value, ErrorBoundary::Ok(ai_operation_type_map) if ai_operation_type_map.is_empty())
+fn is_model_metadata_empty(value: &ErrorBoundary<ModelMetadata>) -> bool {
+    matches!(value, ErrorBoundary::Ok(metadata) if metadata.is_empty())
 }
 
 #[cfg(test)]
@@ -421,38 +388,6 @@ mod tests {
     }
 
     #[test]
-    fn test_global_config_invalid_value_is_default() {
-        let options: Options = serde_json::from_str(
-            r#"{
-                "relay.cardinality-limiter.mode": "passive"
-            }"#,
-        )
-        .unwrap();
-
-        let expected = Options {
-            cardinality_limiter_mode: CardinalityLimiterMode::Passive,
-            ..Default::default()
-        };
-
-        assert_eq!(options, expected);
-    }
-
-    #[test]
-    fn test_cardinality_limiter_mode_de_serialize() {
-        let m: CardinalityLimiterMode = serde_json::from_str("\"\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"enabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"disabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Disabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"passive\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Passive);
-
-        let m = serde_json::to_string(&CardinalityLimiterMode::Enabled).unwrap();
-        assert_eq!(m, "\"enabled\"");
-    }
-
-    #[test]
     fn test_minimal_serialization() {
         let config = r#"{"options":{"foo":"bar"}}"#;
         let deserialized: GlobalConfig = serde_json::from_str(config).unwrap();
@@ -473,19 +408,17 @@ mod tests {
         assert_eq!(
             o.metric_bucket_set_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
+                transactions: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
             o.metric_bucket_dist_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
+                transactions: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd,
             }
         );
     }
@@ -493,10 +426,9 @@ mod tests {
     #[test]
     fn test_metric_bucket_encodings_de_from_obj() {
         let original = BucketEncodings {
-            transactions: BucketEncoding::Base64,
             spans: BucketEncoding::Zstd,
+            transactions: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
-            custom: BucketEncoding::Zstd,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

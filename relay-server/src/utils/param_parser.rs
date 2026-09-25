@@ -1,4 +1,14 @@
+use std::collections::BTreeMap;
+
 use serde_json::Value;
+
+use crate::services::processor::ProcessingError;
+
+/// Maximum number of nested keys accepted in a path like the form-data key path `sentry[a][b][c]…`.
+///
+/// This number needs to be limited due to the recursion taking place when building the JSON object
+/// in [`update_nested_value`], and when serializing, normalizing, and dropping it.
+const MAX_PATH_DEPTH: usize = 15;
 
 enum IndexingState {
     LookingForLeftParenthesis,
@@ -7,18 +17,25 @@ enum IndexingState {
 }
 
 /// Updates a json Value at the specified path.
-pub fn update_nested_value<V>(target: &mut Value, path: &[&str], value: V)
+pub fn update_nested_value<V>(
+    target: &mut Value,
+    path: &[&str],
+    value: V,
+) -> Result<(), ProcessingError>
 where
     V: Into<String>,
 {
+    if path.len() > MAX_PATH_DEPTH {
+        return Err(ProcessingError::NestingTooDeep);
+    }
     let map = match target {
         Value::Object(map) => map,
-        _ => return,
+        _ => return Ok(()),
     };
 
     let (key, rest) = match path.split_first() {
         Some(tuple) => tuple,
-        None => return,
+        None => return Ok(()),
     };
 
     let entry = map.entry(key.to_owned());
@@ -27,26 +44,29 @@ where
         entry.or_insert_with(|| Value::String(value.into()));
     } else {
         let sub_object = entry.or_insert_with(|| Value::Object(Default::default()));
-        update_nested_value(sub_object, rest, value);
+        update_nested_value(sub_object, rest, value)?;
     }
+
+    Ok(())
 }
 
-/// Merge two serde values.
+/// Merge two [`serde_json::Value`] items.
+///
+/// Fills the value `a` with values from `b`. This does not overwrite values from `a` with `b`.
 ///
 /// Taken (with small changes) from stack overflow answer:
 /// <https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust>.
 pub fn merge_values(a: &mut Value, b: Value) {
     match (a, b) {
-        //recursively merge dicts
-        (a @ &mut Value::Object(_), Value::Object(b)) => {
-            let a = a.as_object_mut().unwrap();
+        // Recursively merge dicts
+        (Value::Object(a), Value::Object(b)) => {
             for (k, v) in b {
                 merge_values(a.entry(k).or_insert(Value::Null), v);
             }
         }
-        //fill in missing left values
+        // Fill in missing left values
         (a @ &mut Value::Null, b) => *a = b,
-        //do not override existing values that are not maps
+        // Do not override existing values that are not maps
         (_a, _b) => {}
     }
 }
@@ -97,6 +117,8 @@ pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
 ///
 /// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
 /// incrementing counter. Assemble these chunks here and then decode them below.
+///
+/// If the index is unparsable from `key`, `None` is returned.
 pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
     key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
 }
@@ -104,7 +126,7 @@ pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
 /// Aggregates slices of strings in random order.
 #[derive(Clone, Debug, Default)]
 pub struct ChunkedFormDataAggregator<'a> {
-    parts: Vec<&'a str>,
+    parts: BTreeMap<usize, &'a str>,
 }
 
 impl<'a> ChunkedFormDataAggregator<'a> {
@@ -114,15 +136,8 @@ impl<'a> ChunkedFormDataAggregator<'a> {
     }
 
     /// Adds a part with the given index.
-    ///
-    /// Fills up unpopulated indexes with empty strings, if there are holes between the last index
-    /// and this one. This effectively skips them when calling `join` in the end.
     pub fn insert(&mut self, index: usize, value: &'a str) {
-        if index >= self.parts.len() {
-            self.parts.resize(index + 1, "");
-        }
-
-        self.parts[index] = value;
+        self.parts.insert(index, value);
     }
 
     /// Returns `true` if no parts have been added.
@@ -132,7 +147,7 @@ impl<'a> ChunkedFormDataAggregator<'a> {
 
     /// Returns the string consisting of all parts.
     pub fn join(&self) -> String {
-        self.parts.join("")
+        self.parts.values().copied().collect()
     }
 }
 
@@ -166,7 +181,7 @@ mod tests {
     fn test_update_value() {
         let mut val = Value::Object(serde_json::Map::new());
 
-        update_nested_value(&mut val, &["x", "y", "z"], "xx");
+        update_nested_value(&mut val, &["x", "y", "z"], "xx").unwrap();
 
         insta::assert_json_snapshot!(val, @r###"
         {
@@ -178,9 +193,9 @@ mod tests {
         }
         "###);
 
-        update_nested_value(&mut val, &["x", "y", "k"], "kk");
-        update_nested_value(&mut val, &["w", ""], "w");
-        update_nested_value(&mut val, &["z1"], "val1");
+        update_nested_value(&mut val, &["x", "y", "k"], "kk").unwrap();
+        update_nested_value(&mut val, &["w", ""], "w").unwrap();
+        update_nested_value(&mut val, &["z1"], "val1").unwrap();
         insta::assert_json_snapshot!(val, @r###"
         {
           "w": {

@@ -8,7 +8,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
@@ -43,8 +43,8 @@ impl PolymorphicEnvelopeBuffer {
     /// Returns true if the implementation stores all envelopes in RAM.
     pub fn is_memory(&self) -> bool {
         match self {
-            PolymorphicEnvelopeBuffer::InMemory(_) => true,
-            PolymorphicEnvelopeBuffer::Sqlite(_) => false,
+            Self::InMemory(_) => true,
+            Self::Sqlite(_) => false,
         }
     }
 
@@ -52,7 +52,7 @@ impl PolymorphicEnvelopeBuffer {
     /// depending on the given configuration.
     pub async fn from_config(
         partition_id: u8,
-        config: &Config,
+        config: &ConfigSnapshot,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path(partition_id).is_some() {
@@ -91,10 +91,9 @@ impl PolymorphicEnvelopeBuffer {
                 match self {
                     Self::Sqlite(buffer) => buffer.push(envelope).await,
                     Self::InMemory(buffer) => buffer.push(envelope).await,
-                }?;
+                }
             }
-        );
-        Ok(())
+        )
     }
 
     /// Returns a reference to the next-in-line envelope.
@@ -113,17 +112,16 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = relay_statsd::metric!(
+        relay_statsd::metric!(
             timer(RelayTimers::BufferPop),
             partition_id = self.partition_tag(),
             {
                 match self {
                     Self::Sqlite(buffer) => buffer.pop().await,
                     Self::InMemory(buffer) => buffer.pop().await,
-                }?
+                }
             }
-        );
-        Ok(envelope)
+        )
     }
 
     /// Marks a project as ready or not ready.
@@ -185,13 +183,16 @@ impl PolymorphicEnvelopeBuffer {
         // Currently, we want to flush the buffer only for disk, since the in memory implementation
         // tries to not do anything and pop as many elements as possible within the shutdown
         // timeout.
-        let Self::Sqlite(buffer) = self else {
-            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
-            return false;
-        };
-        buffer.flush().await;
-
-        true
+        match self {
+            Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
+                buffer.flush().await;
+                true
+            }
+            _ => {
+                relay_log::trace!("shutdown procedure not needed");
+                false
+            }
+        }
     }
 
     /// Returns the partition tag for this [`PolymorphicEnvelopeBuffer`].
@@ -277,7 +278,10 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, EnvelopeBufferError> {
+    pub async fn new(
+        partition_id: u8,
+        config: &ConfigSnapshot,
+    ) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
@@ -576,7 +580,7 @@ where
             false => "false",
         };
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopesCount) = total_count,
+            gauge(RelayGauges::BufferEnvelopesCount) = total_count,
             initialized = initialized,
             stack_type = self.stack_provider.stack_type(),
             partition_id = &self.partition_tag
@@ -712,7 +716,9 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
+    use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use std::str::FromStr;
@@ -747,6 +753,7 @@ mod tests {
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
                 public_key: sampling_key,
+                project_id: Some(ProjectId::new(42)),
                 trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
                 release: None,
                 user: Default::default(),
@@ -1072,8 +1079,11 @@ mod tests {
             .into_string()
             .unwrap();
         let config = mock_config(&path);
-        let mut store = SqliteEnvelopeStore::prepare(0, &config).await.unwrap();
-        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &config)
+        let current_config = config.current();
+        let mut store = SqliteEnvelopeStore::prepare(0, &current_config)
+            .await
+            .unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &current_config)
             .await
             .unwrap();
 

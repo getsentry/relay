@@ -4,7 +4,6 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
@@ -27,7 +26,6 @@ pub struct ManagedTestBuilder<T> {
     outcome_aggregator_rx: UnboundedReceiver<TrackOutcome>,
     received_at: DateTime<Utc>,
     scoping: Scoping,
-    event_id: Option<EventId>,
     remote_addr: Option<IpAddr>,
 }
 
@@ -46,9 +44,14 @@ impl<T> ManagedTestBuilder<T> {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(3),
             },
-            event_id: None,
             remote_addr: None,
         }
+    }
+
+    /// Sets the scoping of the managed test instance.
+    pub fn scoping(mut self, scoping: Scoping) -> Self {
+        self.scoping = scoping;
+        self
     }
 
     /// Creates a new [`Managed`] instance and a [`ManagedTestHandle`] to assert outcomes.
@@ -62,7 +65,6 @@ impl<T> ManagedTestBuilder<T> {
                 outcome_aggregator: self.outcome_aggregator,
                 received_at: self.received_at,
                 scoping: self.scoping,
-                event_id: self.event_id,
                 remote_addr: self.remote_addr,
             }),
         );
@@ -70,7 +72,6 @@ impl<T> ManagedTestBuilder<T> {
             outcomes: self.outcome_aggregator_rx,
             received_at: self.received_at,
             scoping: self.scoping,
-            event_id: self.event_id,
             remote_addr: self.remote_addr,
         };
 
@@ -83,7 +84,6 @@ pub struct ManagedTestHandle {
     outcomes: UnboundedReceiver<TrackOutcome>,
     received_at: DateTime<Utc>,
     scoping: Scoping,
-    event_id: Option<EventId>,
     remote_addr: Option<IpAddr>,
 }
 
@@ -99,7 +99,7 @@ impl ManagedTestHandle {
 
     /// Asserts a single emitted outcome.
     #[track_caller]
-    pub fn assert_outcome(&mut self, outcome: &Outcome, category: DataCategory, quantity: u32) {
+    pub fn assert_outcome(&mut self, outcome: &Outcome, category: DataCategory, quantity: u64) {
         match self.outcomes.try_recv() {
             Ok(next) => {
                 assert_eq!(&next.outcome, outcome);
@@ -107,7 +107,7 @@ impl ManagedTestHandle {
                 assert_eq!(next.quantity, quantity);
                 assert_eq!(next.timestamp, self.received_at);
                 assert_eq!(next.scoping, self.scoping);
-                assert_eq!(next.event_id, self.event_id);
+                assert_eq!(next.event_id, None);
                 assert_eq!(next.remote_addr, self.remote_addr);
             }
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => panic!(
@@ -121,7 +121,7 @@ impl ManagedTestHandle {
     /// A shorthand for [`Self::assert_outcome`] with a [`Outcome::Invalid`] /
     /// [`DiscardReason::Internal`].
     #[track_caller]
-    pub fn assert_internal_outcome(&mut self, category: DataCategory, quantity: u32) {
+    pub fn assert_internal_outcome(&mut self, category: DataCategory, quantity: u64) {
         self.assert_outcome(
             &Outcome::Invalid(DiscardReason::Internal),
             category,

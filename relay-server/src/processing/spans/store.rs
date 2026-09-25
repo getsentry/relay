@@ -44,7 +44,9 @@ pub fn convert(span: IndexedSpanOnly, ctx: &Context) -> Result<Box<StoreSpanV2>>
         routing_key,
         retention_days: ctx.retention.standard,
         downsampled_retention_days: ctx.retention.downsampled,
+        event_id: None,
         item: span,
+        performance_issues_spans: false,
     }))
 }
 
@@ -58,5 +60,8 @@ fn inject_server_sample_rate(
     };
 
     let attributes = attributes.get_or_insert_with(Default::default);
-    attributes.insert("sentry.server_sample_rate", server_sample_rate.to_f64());
+    attributes.insert(
+        "sentry.server_sample_rate",
+        server_sample_rate.to_f64().clamp(1e-9, 1.0),
+    );
 }

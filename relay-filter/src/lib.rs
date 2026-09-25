@@ -30,6 +30,7 @@ mod common;
 mod config;
 mod interface;
 mod releases;
+mod statsd;
 
 #[cfg(test)]
 mod testutils;
@@ -46,30 +47,37 @@ pub use interface::{Filterable, UserAgent};
 /// The reason is the message returned by the first filter that didn't pass.
 ///
 /// The `client_ip` parameter is the "client IP" extracted from the envelope. It's
-/// used for client IP filtering and should not be confused with a "user IP" that may
-/// be contained in the item, which is used for localhost filtering.
+/// used for client IP filtering and exposed to generic filters as `envelope.client_ip`.
+/// It should not be confused with a "user IP" that may be contained in the item, which
+/// is used for localhost filtering.
 pub fn should_filter<F: Filterable + Getter>(
     item: &F,
     client_ip: Option<IpAddr>,
     config: &ProjectFiltersConfig,
     global_config: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
-    // In order to maintain backwards compatibility, we still want to run the old matching logic,
-    // but we will try to match generic filters first, since the goal is to eventually fade out
-    // the normal filters except for the ones that have complex conditions.
-    generic::should_filter(item, &config.generic, global_config)?;
+    relay_statsd::metric!(
+        timer(statsd::FilterTimers::ShouldFilter),
+        item = std::any::type_name::<F>(),
+        {
+            // In order to maintain backwards compatibility, we still want to run the old matching logic,
+            // but we will try to match generic filters first, since the goal is to eventually fade out
+            // the normal filters except for the ones that have complex conditions.
+            generic::should_filter(item, client_ip, &config.generic, global_config)?;
 
-    // The order of applying filters should not matter as they are additive. Still, be careful
-    // when making changes to this order.
-    csp::should_filter(item, &config.csp)?;
-    client_ips::should_filter(client_ip, &config.client_ips)?;
-    releases::should_filter(item, &config.releases)?;
-    error_messages::should_filter(item, &config.error_messages)?;
-    localhost::should_filter(item, &config.localhost)?;
-    browser_extensions::should_filter(item, &config.browser_extensions)?;
-    legacy_browsers::should_filter(item, &config.legacy_browsers)?;
-    web_crawlers::should_filter(item, &config.web_crawlers)?;
-    transaction_name::should_filter(item, &config.ignore_transactions)?;
+            // The order of applying filters should not matter as they are additive. Still, be careful
+            // when making changes to this order.
+            csp::should_filter(item, &config.csp)?;
+            client_ips::should_filter(client_ip, &config.client_ips)?;
+            releases::should_filter(item, &config.releases)?;
+            error_messages::should_filter(item, &config.error_messages)?;
+            localhost::should_filter(item, &config.localhost)?;
+            browser_extensions::should_filter(item, &config.browser_extensions)?;
+            legacy_browsers::should_filter(item, &config.legacy_browsers)?;
+            web_crawlers::should_filter(item, &config.web_crawlers)?;
+            transaction_name::should_filter(item, &config.ignore_transactions)?;
+        }
+    );
 
     Ok(())
 }

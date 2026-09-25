@@ -2,28 +2,34 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::{Attributes, SpanId, TraceAttachmentMeta};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
-    AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
+    extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
+    quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
+use crate::services::objectstore::StoreTraceAttachment;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::upload::StoreAttachment;
+
+/// The trace item attribute that carries the content type of the attachment.
+pub const CONTENT_TYPE_ATTRIBUTE: &str = "sentry.content-type";
 
 /// Converts an expanded attachment to a storable unit.
 pub fn convert(
     attachment: Managed<ExpandedAttachment>,
     retention: Retention,
     server_sample_rate: Option<f64>,
-) -> Result<Managed<StoreAttachment>, Rejected<()>> {
+) -> Result<Managed<StoreTraceAttachment>, Rejected<()>> {
     let scoping = attachment.scoping();
     let received_at = attachment.received_at();
     attachment.try_map(|attachment, _record_keeper| {
+        let quantities = attachment.quantities();
+
         let ExpandedAttachment {
             parent_id,
             meta,
@@ -36,10 +42,18 @@ pub fn convert(
             retention,
             server_sample_rate,
         };
-        let trace_item = attachment_to_trace_item(meta, ctx)
+        let content_type = meta.value().and_then(|m| m.content_type.value().cloned());
+        let filename = meta.value().and_then(|m| m.filename.value().cloned());
+        let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
-        Ok::<_, Outcome>(StoreAttachment { trace_item, body })
+        Ok::<_, Outcome>(StoreTraceAttachment {
+            trace_item,
+            body,
+            content_type,
+            filename,
+            retention: retention.standard,
+        })
     })
 }
 
@@ -61,6 +75,7 @@ struct Context {
 
 fn attachment_to_trace_item(
     meta: Annotated<TraceAttachmentMeta>,
+    quantities: Quantities,
     ctx: Context,
 ) -> Option<TraceItem> {
     let meta = meta.into_value()?;
@@ -89,7 +104,7 @@ fn attachment_to_trace_item(
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
         trace_id: trace_id.into_value()?.to_string(),
-        item_id: attachment_id.into_value()?.into_bytes().to_vec(),
+        item_id: uuid_to_item_id(*attachment_id.into_value()?),
         item_type: TraceItemType::Attachment.into(),
         timestamp: Some(proto_timestamp(timestamp.into_value()?.0)),
         attributes: convert_attributes(annotated_meta, attributes, fields),
@@ -98,6 +113,7 @@ fn attachment_to_trace_item(
         retention_days: ctx.retention.standard as u32,
         received: Some(proto_timestamp(ctx.received_at)),
         downsampled_retention_days: ctx.retention.downsampled as u32,
+        outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
     Some(trace_item)
 }
@@ -118,13 +134,6 @@ fn convert_attributes(
     result.reserve(attributes.0.len() + 5);
 
     for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
         let value = attribute
             .into_value()
             .and_then(|v| v.value.value.into_value());
@@ -157,7 +166,7 @@ fn convert_attributes(
     } = fields;
 
     result.insert(
-        "sentry.content-type".to_owned(),
+        CONTENT_TYPE_ATTRIBUTE.to_owned(),
         AnyValue {
             value: Some(any_value::Value::StringValue(
                 content_type.as_str().to_owned(),

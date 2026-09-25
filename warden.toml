@@ -1,0 +1,34 @@
+# Warden Configuration
+# https://github.com/getsentry/warden
+#
+# Skills are pulled from the shared getsentry/warden-skills repo (remote) or
+# resolved from builtins by name. Add skills with: warden add <skill-name>
+
+version = 1
+
+[defaults]
+# failOn: minimum severity that fails the check
+failOn = "high"
+# reportOn: minimum severity that creates PR annotations
+reportOn = "medium"
+
+# Preserve the org App's PR security-review under repo-config resolution.
+# In layered config the base config wins this name collision; this explicit
+# trigger guards the repo-only resolution case so the file can't drop it.
+[[skills]]
+name = "security-review"
+paths = ["**/*.rs"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
+
+# DoS / resource-exhaustion review, pulled from the shared warden-skills repo.
+[[skills]]
+name = "wrdn-dos-review"
+remote = "getsentry/warden-skills"
+paths = ["**/*.rs"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]

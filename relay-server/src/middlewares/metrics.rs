@@ -2,6 +2,8 @@ use axum::RequestExt;
 use axum::extract::{MatchedPath, Request};
 use axum::middleware::Next;
 use axum::response::Response;
+use http::header;
+use relay_config::HttpEncoding;
 use std::time::Instant;
 
 use crate::extractors::ReceivedAt;
@@ -24,6 +26,7 @@ pub async fn metrics(mut request: Request, next: Next) -> Response {
         counter(RelayCounters::Requests) += 1,
         route = route,
         method = method.as_str(),
+        content_encoding = content_encoding_tag(&request),
     );
 
     let response = next.run(request).await;
@@ -41,4 +44,14 @@ pub async fn metrics(mut request: Request, next: Next) -> Response {
     );
 
     response
+}
+
+fn content_encoding_tag(request: &Request) -> &str {
+    request
+        .headers()
+        .get(header::CONTENT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .map(HttpEncoding::parse)
+        .and_then(|enc| enc.name())
+        .unwrap_or("other")
 }

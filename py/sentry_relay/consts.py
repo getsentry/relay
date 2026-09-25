@@ -50,6 +50,10 @@ class DataCategory(IntEnum):
     INSTALLABLE_BUILD = 32
     TRACE_METRIC = 33
     SEER_USER = 34
+    PROFILE_BACKEND = 35
+    PROFILE_UI = 36
+    TRACE_METRIC_BYTE = 37
+    SNAPSHOT_IMAGE = 38
     UNKNOWN = -1
     # end generated
 
@@ -200,8 +204,8 @@ def _check_category_unit_generated():
 
 _check_category_unit_generated()
 
-SPAN_STATUS_CODE_TO_NAME = {}
-SPAN_STATUS_NAME_TO_CODE = {}
+SPAN_STATUS_CODE_TO_NAME: dict[int, str] = {}
+SPAN_STATUS_NAME_TO_CODE: dict[str, int] = {}
 
 
 def _make_span_statuses():

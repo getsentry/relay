@@ -142,6 +142,10 @@ pub struct Replay {
     #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub trace_ids: Annotated<Array<Uuid>>,
 
+    /// A list of segment names discovered during the lifetime of the segment.
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
+    pub segment_names: Annotated<Array<String>>,
+
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(skip_serialization = "empty")]
     pub contexts: Annotated<Contexts>,
@@ -372,15 +376,14 @@ impl Getter for Replay {
             path => {
                 if let Some(rest) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(rest)?.into()
-                } else if let Some(rest) = path.strip_prefix("request.headers.") {
+                } else {
+                    let rest = path.strip_prefix("request.headers.")?;
                     self.request
                         .value()?
                         .headers
                         .value()?
                         .get_header(rest)?
                         .into()
-                } else {
-                    return None;
                 }
             }
         })

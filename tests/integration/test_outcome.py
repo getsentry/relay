@@ -1,4 +1,3 @@
-import contextlib
 import json
 import signal
 import time
@@ -6,216 +5,42 @@ import uuid
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
-from queue import Empty
-
-from pytest_localserver.http import itertools
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-)
 
 import pytest
 import requests
-from requests.exceptions import HTTPError
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
-
-from .test_metrics import metrics_by_name
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
 HOUR_MILLISEC = 1000 * 3600
 
 
-def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consumer):
+def _align_time():
     """
-    Tests outcomes are sent to the kafka outcome topic
-
-    Send one event to a processing Relay and verify that the event is placed on the
-    kafka outcomes topic and the event has the proper information.
+    Sleep until we're at the start of the next second.  Useful for tests where bucketing of things
+    happen on the second boundary.
     """
-    relay = relay_with_processing()
-
-    outcomes_consumer = outcomes_consumer()
-
-    message_text = f"some message {datetime.now()}"
-    event_id = "11122233344455566677788899900011"
-    start = datetime.now(UTC).replace(
-        microsecond=0
-    )  # Outcome aggregator rounds down to seconds
-
-    relay.send_event(
-        42,
-        {
-            "event_id": event_id,
-            "message": message_text,
-            "extra": {"msg_text": message_text},
-        },
-    )
-
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome["project_id"] == 42
-    assert outcome.get("event_id") is None
-    assert outcome.get("org_id") is None
-    assert outcome.get("key_id") is None
-    assert outcome["outcome"] == 3
-    assert outcome["reason"] == "project_id"
-    assert outcome.get("remote_addr") is None
-
-    # deal with the timestamp separately (we can't control it exactly)
-    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
-    end = datetime.now(UTC)
-    assert start <= event_emission <= end
+    time.sleep(1 - (time.time() % 1))
 
 
-def test_outcomes_custom_topic(
-    mini_sentry, outcomes_consumer, processing_config, relay, get_topic_name
-):
-    """
-    Tests outcomes are sent to the kafka outcome topic, but this
-    time use secondary_kafka_configs to set up the outcomes topic.
-    Since we are unlikely to be able to run multiple kafka clusters,
-    we set the primary/default kafka config to some nonsense that for
-    sure won't work, so asserting that an outcome comes through
-    effectively tests that the secondary config is used.
-    """
-    options = processing_config(None)
-    kafka_config = options["processing"]["kafka_config"]
-
-    # This kafka config becomes invalid, rdkafka warns on stdout that it will drop everything on this client
-    options["processing"]["kafka_config"] = []
-
-    options["processing"]["secondary_kafka_configs"] = {}
-    options["processing"]["secondary_kafka_configs"]["foo"] = kafka_config
-
-    # ...however, we use a custom topic config to make it work again
-    options["processing"]["topics"]["outcomes"] = {
-        "name": get_topic_name("outcomes"),
-        "config": "foo",
-    }
-
-    relay = relay(mini_sentry, options=options)
-
-    outcomes_consumer = outcomes_consumer()
-
-    message_text = f"some message {datetime.now()}"
-    event_id = "11122233344455566677788899900011"
-    start = datetime.now(UTC).replace(
-        microsecond=0
-    )  # Outcome aggregator rounds down to seconds
-
-    relay.send_event(
-        42,
-        {
-            "event_id": event_id,
-            "message": message_text,
-            "extra": {"msg_text": message_text},
-        },
-    )
-
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome["project_id"] == 42
-    assert outcome.get("event_id") is None
-    assert outcome.get("org_id") is None
-    assert outcome.get("key_id") is None
-    assert outcome["outcome"] == 3
-    assert outcome["reason"] == "project_id"
-    assert outcome.get("remote_addr") is None
-
-    # deal with the timestamp separately (we can't control it exactly)
-    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
-    end = datetime.now(UTC)
-    assert start <= event_emission <= end
-
-
-def test_outcomes_two_configs(
-    get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
-):
-    """
-    Tests routing outcomes to the billing and the default topic based on the outcome ID.
-    """
-    project_config = mini_sentry.add_basic_project_config(44)
+def _disable_quota(project_config, event_type="error", reason="rate_limited"):
     project_config["config"]["quotas"] = [
         {
-            "categories": ["error"],
+            "id": "drop-everything",
+            "categories": [event_type],
             "limit": 0,
-            "reasonCode": "static_disabled_quota",
+            "reasonCode": reason,
         }
     ]
-
-    # Change from default, which would inherit the outcomes topic
-    options = processing_config(None)
-    # Create an additional config for outcomes_billing topic
-    default_config = options["processing"]["kafka_config"]
-    options["processing"]["secondary_kafka_configs"] = {"bar": default_config}
-    options["processing"]["topics"]["outcomes_billing"] = {
-        "name": get_topic_name("outbilling"),
-        "config": "bar",
-    }
-
-    relay = relay(mini_sentry, options=options)
-    billing_consumer = outcomes_consumer(topic="outbilling")
-    outcomes_consumer = outcomes_consumer()
-
-    relay.send_event(44, {"message": "this is rate limited"})
-    relay.send_event(99, {"message": "wrong project"})
-
-    rate_limited = billing_consumer.get_outcome()
-    assert rate_limited["project_id"] == 44
-    assert rate_limited["outcome"] == 2
-
-    invalid = outcomes_consumer.get_outcome()
-    assert invalid["project_id"] == 99
-    assert invalid["outcome"] == 3
-
-    billing_consumer.assert_empty()
-    outcomes_consumer.assert_empty()
-
-
-def test_outcomes_two_topics(
-    get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
-):
-    """
-    Tests routing outcomes to the billing and the default topic based on the outcome ID.
-    """
-    project_config = mini_sentry.add_basic_project_config(42)
-    project_config["config"]["quotas"] = [
-        {
-            "categories": ["error"],
-            "limit": 0,
-            "reasonCode": "static_disabled_quota",
-        }
-    ]
-
-    # Change from default, which would inherit the outcomes topic
-    options = processing_config(None)
-    options["processing"]["topics"]["outcomes_billing"] = get_topic_name("billing")
-
-    relay = relay(mini_sentry, options=options)
-    billing_consumer = outcomes_consumer(topic="billing")
-    outcomes_consumer = outcomes_consumer()
-
-    relay.send_event(42, {"message": "this is rate limited"})
-    relay.send_event(99, {"message": "wrong project"})
-
-    rate_limited = billing_consumer.get_outcome()
-    assert rate_limited["project_id"] == 42
-    assert rate_limited["outcome"] == 2
-
-    invalid = outcomes_consumer.get_outcome()
-    assert invalid["project_id"] == 99
-    assert invalid["outcome"] == 3
-
-    billing_consumer.assert_empty()
-    outcomes_consumer.assert_empty()
 
 
 def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_id=None):
     """
     Send an event to the given project.
-
-    If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
     """
     trace_id = trace_id or uuid.uuid4().hex
     event_id = event_id or uuid.uuid1().hex
@@ -256,6 +81,92 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
     return event_id
 
 
+def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consumer):
+    """
+    Tests outcomes are sent to the Kafka outcome topic
+
+    Send one event to a processing Relay and verify that the event is placed on the
+    Kafka outcomes topic and the event has the proper information.
+    """
+    outcomes_consumer = outcomes_consumer()
+
+    _disable_quota(mini_sentry.add_full_project_config(42))
+
+    relay = relay_with_processing()
+
+    event = {
+        "event_id": "11122233344455566677788899900011",
+        "message": "hello world",
+    }
+    relay.send_event(42, event)
+
+    assert outcomes_consumer.get_outcome() == {
+        "category": DataCategory.ERROR,
+        "key_id": 123,
+        "org_id": 1,
+        "outcome": Outcome.RATE_LIMITED,
+        "project_id": 42,
+        "quantity": 1,
+        "reason": "rate_limited",
+        "timestamp": time_within_delta(),
+    }
+
+
+def test_outcomes_custom_topic(
+    mini_sentry,
+    outcomes_consumer,
+    processing_config,
+    relay_with_processing,
+    get_topic_name,
+):
+    """
+    Tests outcomes are sent to the Kafka outcome topic, but this
+    time use secondary_kafka_configs to set up the outcomes topic.
+    Since we are unlikely to be able to run multiple Kafka clusters,
+    we set the primary/default Kafka config to some nonsense that for
+    sure won't work, so asserting that an outcome comes through
+    effectively tests that the secondary config is used.
+    """
+    options = processing_config(None)
+    kafka_config = options["processing"]["kafka_config"]
+
+    # This kafka config becomes invalid, rdkafka warns on stdout that it will drop everything on this client
+    options["processing"]["kafka_config"] = []
+
+    options["processing"]["secondary_kafka_configs"] = {}
+    options["processing"]["secondary_kafka_configs"]["foo"] = kafka_config
+
+    # ...however, we use a custom topic config to make it work again
+    options["processing"]["topics"]["outcomes"] = {
+        "name": get_topic_name("outcomes"),
+        "config": "foo",
+    }
+
+    outcomes_consumer = outcomes_consumer()
+
+    project_config = mini_sentry.add_full_project_config(42)
+    project_config["config"]["filterSettings"] = {"errorMessages": {"patterns": ["*"]}}
+
+    relay = relay_with_processing(options=options)
+
+    event = {
+        "event_id": "11122233344455566677788899900011",
+        "message": "hello world",
+    }
+    relay.send_event(42, event)
+
+    assert outcomes_consumer.get_outcome() == {
+        "category": DataCategory.ERROR,
+        "key_id": 123,
+        "org_id": 1,
+        "outcome": Outcome.FILTERED,
+        "project_id": 42,
+        "quantity": 1,
+        "reason": "error-message",
+        "timestamp": time_within_delta(),
+    }
+
+
 @pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
@@ -264,7 +175,9 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
     Send one event that generates an outcome and verify that we get an outcomes batch
     with all necessary information set.
     """
-    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
+    config = {"outcomes": {"emit_outcomes": True, "source": "my-layer"}}
+
+    _disable_quota(mini_sentry.add_full_project_config(42), event_type=event_type)
 
     relay = relay(mini_sentry, config)
 
@@ -281,29 +194,19 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         else [DataCategory.ERROR]
     )
 
-    outcomes = []
-    for _ in expected_categories:
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
-    assert len(outcomes) == len(expected_categories)
-    outcomes.sort(key=lambda x: x["category"])
-
-    expected_outcomes = [
+    assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "project_id": 42,
-            "outcome": 3,  # invalid
-            "reason": "project_id",  # missing project id
+            "outcome": Outcome.RATE_LIMITED,
+            "reason": "rate_limited",
+            "source": "my-layer",
             "category": category,
             "quantity": 1,
-            "timestamp": time_within_delta(),
         }
         for category in expected_categories
     ]
 
-    assert outcomes == expected_outcomes
-
     # no events received since all have been for an invalid project id
     assert mini_sentry.captured_envelopes.empty()
-    assert mini_sentry.captured_outcomes.empty()
 
 
 def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
@@ -313,133 +216,27 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     Set batching to a very short interval and verify that we don't receive any outcome
     when we disable outcomes.
     """
-    config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1}
-    }
+    config = {"outcomes": {"emit_outcomes": False}}
 
-    relay = relay(mini_sentry, config)
-
-    try:
-        mini_sentry.captured_outcomes.get(timeout=0.2)
-        # we should not be here ( previous call should have failed)
-        assert False
-    except Empty:
-        pass  # we do expect not to get anything since we have outcomes disabled
-
-
-def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
-    """
-    Test that outcomes are not batched more than max specified time.
-    Send events at an  interval longer than max_batch_time and expect
-    not to have them batched although we have a very large batch size.
-    """
-    events_to_send = 3
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1000,  # a huge batch size
-            "batch_interval": 1,  # very short batch time
-        }
-    }
-    relay = relay(mini_sentry, config)
-
-    event_ids = set()
-    # send one less events than the batch size (and check we don't send anything)
-    for _ in range(events_to_send):
-        event_id = _send_event(relay)
-        event_ids.add(event_id)
-        time.sleep(0.12)  # sleep more than the batch time
-
-    # we should get one batch per event sent
-    batches = []
-    for _ in range(events_to_send):
-        batch = mini_sentry.captured_outcomes.get(timeout=1)
-        batches.append(batch)
-
-    # verify that the batches contain one outcome each and the event_ids are ok
-    for batch in batches:
-        outcomes = batch.get("outcomes")
-        assert len(outcomes) == 1  # one outcome per batch
-
-
-def test_outcomes_non_processing_batching(relay, mini_sentry):
-    """
-    Test that outcomes are batched according to max size.
-
-    Send max_outcome_batch_size events with a very large max_batch_time and expect all
-    to come in one batch.
-    """
-    batch_size = 3
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": batch_size,
-            "batch_interval": HOUR_MILLISEC,  # batch every hour
-        }
-    }
-
-    relay = relay(mini_sentry, config)
-
-    event_ids = set()
-    # send one less events than the batch size (and check we don't send anything)
-    for _ in range(batch_size - 1):
-        event_id = _send_event(relay)
-        event_ids.add(event_id)
-
-    # nothing should be sent at this time
-    try:
-        mini_sentry.captured_outcomes.get(timeout=0.2)
-        assert False  # the request should timeout, there is no outcome coming
-    except Empty:
-        pass  # yes we expect to timout since there should not be any outcome sent yet
-
-    event_id = _send_event(relay)
-    event_ids.add(event_id)
-
-    # now we should be getting a batch
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
-    # we should have received only one outcomes batch (check nothing left)
-    assert mini_sentry.captured_outcomes.qsize() == 0
-
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == batch_size
-
-    # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_envelopes.empty()
-
-
-def test_outcome_source(relay, mini_sentry):
-    """
-    Test that the source is picked from configuration and passed in outcomes
-    """
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "my-layer",
-        }
-    }
+    _disable_quota(mini_sentry.add_full_project_config(42))
 
     relay = relay(mini_sentry, config)
 
     _send_event(relay)
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
-
-    outcome = outcomes[0]
-
-    assert outcome.get("source") == "my-layer"
+    assert mini_sentry.get_aggregated_outcomes(timeout=0.2) == []
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
 @pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcome_forwarding(
-    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays, event_type
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    num_intermediate_relays,
+    event_type,
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -448,15 +245,18 @@ def test_outcome_forwarding(
     and verify that the outcomes sent by the first (downstream relay)
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     processing_config = {
         "outcomes": {
             "emit_outcomes": False,  # The default, overridden by processing.enabled: true
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "processing-layer",
         }
+    }
+
+    project_config = mini_sentry.add_full_project_config(42)
+    project_config["config"]["filterSettings"] = {
+        "releases": {"releases": ["foo@1.2.3"]}
     }
 
     # The innermost Relay needs to be in processing mode
@@ -465,10 +265,11 @@ def test_outcome_forwarding(
     intermediate_config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "intermediate-layer",
-        }
+        },
+        "http": {
+            "global_metrics": True,
+        },
     }
 
     # build a chain of identical relays
@@ -491,9 +292,11 @@ def test_outcome_forwarding(
     assert outcomes == [
         {
             "project_id": 42,
-            "outcome": 3,  # Invalid
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.FILTERED,
             "source": "downstream-layer",
-            "reason": "project_id",
+            "reason": "release-version",
             "category": category,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -522,8 +325,6 @@ def test_outcomes_forwarding_rate_limited(
     processing_config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "processing-layer",
         }
     }
@@ -533,10 +334,11 @@ def test_outcomes_forwarding_rate_limited(
     config_downstream = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "downstream-layer",
-        }
+        },
+        "http": {
+            "global_metrics": True,
+        },
     }
     downstream_relay = relay(upstream, config_downstream)
 
@@ -563,10 +365,10 @@ def test_outcomes_forwarding_rate_limited(
         "reason": "rate_limited",
         "org_id": 1,
         "key_id": 123,
-        "outcome": 2,
+        "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "source": "processing-layer",
-        "category": 1,
+        "category": DataCategory.ERROR,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -659,87 +461,6 @@ def _get_event_payload(data_category):
         raise Exception("Invalid event type")
 
 
-def _get_profile_payload(metadata_only=True):
-    profile = {
-        "event_id": "41fed0925670468bb0457f61a74688ec",
-        "version": "1",
-        "os": {"name": "iOS", "version": "16.0", "build_number": "19H253"},
-        "device": {
-            "architecture": "arm64e",
-            "is_emulator": False,
-            "locale": "en_US",
-            "manufacturer": "Apple",
-            "model": "iPhone14,3",
-        },
-        "timestamp": "2022-09-01T09:45:00.000Z",
-        "release": "0.1 (199)",
-        "platform": "cocoa",
-        "debug_meta": {
-            "images": [
-                {
-                    "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
-                    "image_addr": "0x000000010258c000",
-                    "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
-                    "type": "macho",
-                    "image_size": 1720320,
-                    "image_vmaddr": "0x0000000100000000",
-                }
-            ]
-        },
-        "transactions": [
-            {
-                "name": "example_ios_movies_sources.MoviesViewController",
-                "trace_id": "4b25bc58f14243d8b208d1e22a054164",
-                "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
-                "active_thread_id": "259",
-                "relative_start_ns": "500500",
-                "relative_end_ns": "50500500",
-            }
-        ],
-    }
-    if metadata_only:
-        return profile
-    profile["profile"] = {
-        "samples": [
-            {
-                "stack_id": 0,
-                "thread_id": "1",
-                "queue_address": "0x0000000102adc700",
-                "elapsed_since_start_ns": "10500500",
-            },
-            {
-                "stack_id": 1,
-                "thread_id": "1",
-                "queue_address": "0x0000000102adc700",
-                "elapsed_since_start_ns": "20500500",
-            },
-            {
-                "stack_id": 0,
-                "thread_id": "1",
-                "queue_address": "0x0000000102adc700",
-                "elapsed_since_start_ns": "30500500",
-            },
-            {
-                "stack_id": 1,
-                "thread_id": "1",
-                "queue_address": "0x0000000102adc700",
-                "elapsed_since_start_ns": "40500500",
-            },
-        ],
-        "stacks": [[0], [1]],
-        "frames": [
-            {"instruction_addr": "0xa722447ffffffffc"},
-            {"instruction_addr": "0x442e4b81f5031e58"},
-        ],
-        "thread_metadata": {"1": {"priority": 31}, "2": {}},
-        "queue_metadata": {
-            "0x0000000102adc700": {"label": "com.apple.main-thread"},
-            "0x000000016d8fb180": {"label": "com.apple.network.connections"},
-        },
-    }
-    return profile
-
-
 def _get_span_payload():
     now = datetime.now(UTC)
     return {
@@ -769,11 +490,11 @@ def test_outcomes_rate_limit(
 
     Pass a transaction that is rate limited and check whether a rate limit outcome is emitted.
     """
-
-    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
-    relay = relay_with_processing(config)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+
+    relay = relay_with_processing()
+
     reason_code = "transactions are banned"
     project_config["config"]["quotas"] = [
         {
@@ -817,12 +538,9 @@ def test_outcomes_rate_limit(
 
 
 def test_outcome_to_client_report(relay, mini_sentry):
-    # Create project config
     project_id = 42
+
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -844,9 +562,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         {
             "outcomes": {
                 "emit_outcomes": True,
-                "emit_client_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
             }
         },
     )
@@ -857,45 +572,23 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
 
     _send_event(downstream, event_type="transaction")
 
-    outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=3.2),
-        mini_sentry.captured_outcomes.get(timeout=3.2),
-    ]
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-
-    outcomes = list(
-        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
-    )
-    outcomes.sort(key=lambda o: o["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
     ]
@@ -913,16 +606,13 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
 
     _send_event(relay, event_type="error")
 
-    report = mini_sentry.get_client_report(timeout=10)
+    report = mini_sentry.get_client_report()
     del report["timestamp"]
     assert report == {
         "discarded_events": [],
@@ -930,66 +620,6 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
             {"reason": "release-version", "category": "error", "quantity": 1}
         ],
     }
-
-
-def test_filtered_event_outcome_kafka(relay, mini_sentry):
-    """Make sure that an event filtered by non-processing relay will create outcomes in kafka"""
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
-
-    upstream = relay(
-        mini_sentry,
-        {
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 1,
-                },
-            }
-        },
-    )
-
-    downstream = relay(
-        upstream,
-        {
-            "outcomes": {
-                "emit_outcomes": "as_client_reports",
-                "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
-            }
-        },
-    )
-
-    _send_event(downstream, event_type="error")
-
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-    assert mini_sentry.captured_envelopes.qsize() == 0
-
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
-
-    outcome = outcomes[0]
-
-    del outcome["timestamp"]
-
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        # no event ID because it was a client report
-        "outcome": 1,
-        "reason": "release-version",
-        "category": 1,
-        "quantity": 1,
-        # no remote_addr because it was a client report
-    }
-    assert outcome == expected_outcome
 
 
 def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
@@ -1013,20 +643,11 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
-
     upstream = relay(
         mini_sentry,
         {
             "outcomes": {
                 "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
@@ -1034,35 +655,17 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     _send_event(upstream, event_type="transaction")
     _send_event(upstream, event_type="transaction")
 
-    outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-    ]
-    assert mini_sentry.captured_outcomes.qsize() == 0
-
-    outcomes = list(
-        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
-    )
-    outcomes.sort(key=lambda o: o["category"])
-    assert outcomes == [
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 2,
         },
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 2,
         },
     ]
@@ -1080,36 +683,26 @@ def test_outcomes_aggregate_inbound_filters(
         {
             "outcomes": {
                 "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
 
-    outcomes_consumer = outcomes_consumer(timeout=1.2)
+    outcomes_consumer = outcomes_consumer()
+
+    _align_time()
 
     # Send empty body twice
     _send_event(relay)
     _send_event(relay)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=5)
-    assert len(outcomes) == 1, outcomes
-
-    for outcome in outcomes:
-        del outcome["timestamp"]
-
-    # Results in a single aggregated outcome:
-    assert outcomes == [
+    assert outcomes_consumer.get_aggregated_outcomes(n=1) == [
         {
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 2,
         }
     ]
@@ -1119,9 +712,6 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -1144,11 +734,6 @@ def test_graceful_shutdown(relay, mini_sentry):
             "limits": {"shutdown_timeout": 1},
             "outcomes": {
                 "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 10,
-                },
             },
         },
     )
@@ -1161,36 +746,17 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Shutdown relay
     relay.shutdown(sig=signal.SIGTERM)
 
-    # We should have outcomes almost immediately through force flush:
-    outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-    ]
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-
-    outcomes = list(
-        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
-    )
-    outcomes.sort(key=lambda o: o["category"])
-    assert outcomes == [
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
-            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
     ]
@@ -1213,17 +779,16 @@ def test_profile_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=5)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
     metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    }
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1243,17 +808,10 @@ def test_profile_outcomes(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
             "source": "processing-relay",
         },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
+        "http": {
+            "global_metrics": True,
         },
     }
 
@@ -1266,6 +824,7 @@ def test_profile_outcomes(
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
             config["outcomes"]["source"] = "external-relay"
@@ -1299,9 +858,6 @@ def test_profile_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
@@ -1310,65 +866,66 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": DataCategory.ATTACHMENT.value,  # attachment
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.ACCEPTED,
+            "project_id": 42,
+            "quantity": 2,
+            "source": "processing-relay",
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 6,  # len(b"foobar")
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
-            "quantity": 2,
+            "quantity": 4,
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,  # number of attachments
             "reason": "Sampled:3000",
             "source": expected_source,
         },
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
 
-    metrics = [
-        m
-        for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "c:transactions/usage@none"
-    ]
-    assert sum(metric["value"] for metric in metrics) == 2
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
 
     assert profiles_consumer.get_profile()
@@ -1391,36 +948,25 @@ def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_consumer,
     profile_payload,
     expected_outcome,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
-    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-
-    project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
 
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
         },
     }
-
     upstream = relay_with_processing(config)
 
     # Create an envelope with an invalid profile:
@@ -1447,40 +993,44 @@ def test_profile_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.ACCEPTED,
+            "project_id": 42,
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        },
+        {
+            "category": DataCategory.PROFILE,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.PROFILE_INDEXED.value,
+            "category": DataCategory.PROFILE_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "timestamp": time_within_delta(),
         },
     ]
-
-    # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 8)
-    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
-    assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 def test_profile_outcomes_too_many(
@@ -1492,26 +1042,19 @@ def test_profile_outcomes_too_many(
     """
     Tests that Relay reports duplicate profiles as invalid
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    }
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
 
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
         },
     }
 
@@ -1539,64 +1082,94 @@ def test_profile_outcomes_too_many(
         return envelope
 
     envelope = make_envelope()
-    upstream.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.PROFILE_INDEXED.value,
+            "category": DataCategory.PROFILE,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.PROFILE_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.SPAN,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
         },
     ]
 
-    # One profile was accepted
-    assert profiles_consumer.get_profile()
+    profiles_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
+@pytest.mark.parametrize(
+    "quota_category",
+    ["transaction", "profile", "profile_ui"],
+)
+@pytest.mark.parametrize("with_platform_header", [True, False])
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     quota_category,
+    with_platform_header,
 ):
     """
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
     Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -1609,15 +1182,8 @@ def test_profile_outcomes_rate_limited(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
-        },
+        }
     }
-
     upstream = relay_with_processing(config)
 
     with open(
@@ -1635,16 +1201,27 @@ def test_profile_outcomes_rate_limited(
             type="transaction",
         )
     )
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile",
+            headers=dict(platform="cocoa") if with_platform_header else dict(),
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_categories = [
         (DataCategory.PROFILE, 1),
         (DataCategory.PROFILE_INDEXED, 1),
     ]
+    # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
+    # if the header is missing, it can only be enforced with consistent rate limiting, which only
+    # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
+    if with_platform_header or quota_category == "profile_ui":
+        expected_categories.append((DataCategory.PROFILE_UI, 1))
+
     if quota_category == "transaction":
         # Transaction got rate limited as well:
         expected_categories += [
@@ -1653,34 +1230,48 @@ def test_profile_outcomes_rate_limited(
             (DataCategory.SPAN, 2),
             (DataCategory.SPAN_INDEXED, 2),
         ]
-    expected_categories.sort()
 
     expected_outcomes = [
         {
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,  # RateLimited
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": quantity,
             "reason": "profiles_exceeded",
-            "timestamp": time_within_delta(),
         }
         for (category, quantity) in expected_categories
     ]
 
-    if quota_category == "profile":
+    if quota_category != "transaction":
         expected_outcomes.append(
             {
-                "category": DataCategory.SPAN_INDEXED,
+                "category": DataCategory.TRANSACTION,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 0,
+                "outcome": Outcome.ACCEPTED,
                 "project_id": 42,
-                "quantity": 2,
-                "timestamp": time_within_delta(),
+                "quantity": 1,
             }
         )
+
+        expected_outcomes.append(
+            {
+                "category": DataCategory.SPAN,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.ACCEPTED,
+                "project_id": 42,
+                "quantity": 2,
+            }
+        )
+
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+
+    outcomes.sort(key=lambda o: sorted(o.items()))
+    expected_outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1694,7 +1285,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -1707,16 +1297,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 0,
-            },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
@@ -1736,102 +1316,27 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     relay.send_envelope(project_id, envelope)
 
     if quota_category == "transaction":
-        (outcome1,) = mini_sentry.captured_outcomes.get(timeout=10)["outcomes"]
-        (outcome2,) = mini_sentry.captured_outcomes.get(timeout=1)["outcomes"]
-        outcome1, outcome2 = sorted([outcome1, outcome2], key=lambda o: o["category"])
-        assert outcome1["outcome"] == 2  # rate limited
-        assert outcome1["category"] == DataCategory.PROFILE
-        assert outcome1["quantity"] == 1
-        assert outcome2["outcome"] == 2  # rate limited
-        assert outcome2["category"] == DataCategory.PROFILE_INDEXED
-        assert outcome2["quantity"] == 1
-
-        assert mini_sentry.captured_envelopes.empty()
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.PROFILE,
+                "outcome": Outcome.RATE_LIMITED,
+                "quantity": 1,
+                "reason": "profiles_exceeded",
+            },
+            {
+                "category": DataCategory.PROFILE_INDEXED,
+                "outcome": Outcome.RATE_LIMITED,
+                "quantity": 1,
+                "reason": "profiles_exceeded",
+            },
+        ]
     else:
         # Do not rate limit if there is only a transaction_indexed quota.
         envelope = mini_sentry.get_captured_envelope()
         assert envelope.items[0].headers["type"] == "profile"
 
         assert mini_sentry.captured_outcomes.empty()
-
-
-def test_global_rate_limit(
-    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
-):
-    metrics_consumer = metrics_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    bucket_interval = 1  # second
-    relay = relay_with_processing(
-        {
-            "processing": {"max_rate_limit": 2 * 86400},
-            "aggregator": {
-                "bucket_interval": bucket_interval,
-                "initial_delay": 0,
-            },
-        }
-    )
-
-    metric_bucket_limit = 9
-
-    project_id = 42
-    projectconfig = mini_sentry.add_full_project_config(project_id)
-    mini_sentry.add_dsn_key_to_project(project_id)
-
-    now = datetime.now(UTC).timestamp()
-
-    projectconfig["config"]["quotas"] = [
-        {
-            "id": "test_rate_limiting" + str(uuid.uuid4()),
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": metric_bucket_limit,
-            # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
-            "window": int(now),
-            "reasonCode": "global rate limit hit",
-        }
-    ]
-
-    def send_buckets(n):
-        buckets = [
-            {
-                "org_id": 1,
-                "project_id": project_id,
-                "timestamp": now,
-                "name": "d:transactions/measurements.lcp@millisecond",
-                "type": "d",
-                "value": [1.0],
-                "width": bucket_interval,
-                "tags": {"foo": str(i)},
-            }
-            for i in range(n)
-        ]
-
-        relay.send_metrics_buckets(project_id, buckets)
-        time.sleep(5)
-
-    def assert_metrics_outcomes(n_metrics, n_outcomes):
-        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
-        outcomes = outcomes_consumer.get_outcomes()
-
-        assert len(produced_buckets) == n_metrics
-        assert len(outcomes) == n_outcomes
-
-        for outcome in outcomes:
-            assert outcome["reason"] == "global rate limit hit"
-
-    # Send the exact amount allowed
-    send_buckets(metric_bucket_limit)
-    assert_metrics_outcomes(metric_bucket_limit, 0)
-
-    # Send more once the limit is hit and make sure they are rejected.
-    send_buckets(1)
-    assert_metrics_outcomes(0, 1)
-
-    # Subsequent requests should expose the rate limit via 429
-    with pytest.raises(HTTPError, match="429 Client Error"):
-        send_buckets(1)
-    assert_metrics_outcomes(0, 1)
+        assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -1839,6 +1344,7 @@ def test_span_outcomes(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     outcomes_consumer,
     num_intermediate_relays,
 ):
@@ -1849,13 +1355,13 @@ def test_span_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=5)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1875,34 +1381,30 @@ def test_span_outcomes(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
             "source": "processing-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
-    # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(config)
+    # The innermost Relay needs to be in processing mode and trust the PoP Relay.
+    pop_credentials = relay_credentials()
+    upstream = relay_with_processing(config, static_credentials=pop_credentials)
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
         config = deepcopy(config)
         if i == 0:
             # Emulate a PoP Relay
+            credentials = pop_credentials
             config["outcomes"]["source"] = "pop-relay"
+            config.setdefault("cache", {})["project_request_full_config"] = True
         if i == 1:
             # Emulate a customer Relay
+            credentials = None
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
-        upstream = relay(upstream, config)
+            config.setdefault("cache", {})["project_request_full_config"] = False
+
+        upstream = relay(upstream, config, credentials=credentials)
 
     def make_envelope(transaction_name):
         payload = _get_event_payload("transaction")
@@ -1923,43 +1425,47 @@ def test_span_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
         2: "pop-relay",
     }[num_intermediate_relays]
 
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == [
         {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.ACCEPTED,
+            "project_id": 42,
+            "quantity": 2,
+            "source": "processing-relay",
+        },
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
-            "quantity": 2,
+            "quantity": 4,
             "source": "processing-relay",
         },
         {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
@@ -1976,34 +1482,15 @@ def test_span_outcomes_invalid(
     """
     Tests that Relay reports correct outcomes for invalid spans as `Span` or `Transaction`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)["config"]
-
-    project_config.setdefault("features", []).extend(
-        [
-            "organizations:standalone-span-ingestion",
-        ]
-    )
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
+    mini_sentry.add_full_project_config(project_id)
 
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
             "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
     upstream = relay_with_processing(config)
@@ -2032,7 +1519,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=6)
+    outcomes = outcomes_consumer.get_outcomes(n=6)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -2040,147 +1527,22 @@ def test_span_outcomes_invalid(
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
-            "quantity": 1,
+            "quantity": quantity,
             "reason": reason,
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for (category, reason) in [
-            (DataCategory.TRANSACTION, "invalid_transaction"),
-            (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
-            (DataCategory.SPAN, "invalid_span"),
-            (DataCategory.SPAN, "invalid_transaction"),
-            (DataCategory.SPAN_INDEXED, "invalid_span"),
-            (DataCategory.SPAN_INDEXED, "invalid_transaction"),
+        for (category, quantity, reason) in [
+            (DataCategory.TRANSACTION, 1, "invalid_transaction"),
+            (DataCategory.TRANSACTION_INDEXED, 1, "invalid_transaction"),
+            (DataCategory.SPAN, 1, "invalid_span"),
+            (DataCategory.SPAN, 2, "invalid_transaction"),
+            (DataCategory.SPAN_INDEXED, 1, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, 2, "invalid_transaction"),
         ]
     ]
-
-
-def test_global_rate_limit_by_namespace(
-    mini_sentry, relay_with_processing, outcomes_consumer, metrics_consumer
-):
-    """
-    Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
-    """
-    outcomes_consumer = outcomes_consumer()
-    metrics_consumer = metrics_consumer()
-
-    bucket_interval = 1  # second
-    relay = relay_with_processing(
-        {
-            "processing": {"max_rate_limit": 2 * 86400},
-            "aggregator": {
-                "bucket_interval": bucket_interval,
-                "initial_delay": 0,
-            },
-        }
-    )
-
-    metric_bucket_limit = 9
-    transaction_limit = 5
-
-    project_id = 42
-    projectconfig = mini_sentry.add_full_project_config(project_id)
-    mini_sentry.add_dsn_key_to_project(project_id)
-
-    global_reason_code = "global rate limit hit"
-    transaction_reason_code = "global rate limit for transactions hit"
-    expect_429 = False
-
-    unique_id = str(uuid.uuid4())
-    projectconfig["config"]["quotas"] = [
-        {
-            "id": "testlimit" + unique_id,
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": metric_bucket_limit,
-            "window": int(datetime.now(UTC).timestamp()) - 1,
-            "reasonCode": global_reason_code,
-        },
-        {
-            "id": "testlimit" + unique_id,
-            "scope": "global",
-            "categories": ["metric_bucket"],
-            "limit": transaction_limit,
-            "namespace": "transactions",
-            "window": int(datetime.now(UTC).timestamp()) - 1,
-            "reasonCode": transaction_reason_code,
-        },
-    ]
-
-    # Truncate the timestamp and add a slight offset to never be on the border of the rate limiting window.
-    ts = datetime.now(UTC).timestamp()
-
-    def send_buckets(n, name, value, ty):
-        for i in range(n):
-            bucket = [
-                {
-                    "org_id": 1,
-                    "project_id": project_id,
-                    "timestamp": ts,
-                    "name": name,
-                    "type": ty,
-                    "value": value,
-                    "width": bucket_interval,
-                    "tags": {"foo": str(i)},
-                }
-            ]
-
-            envelope = Envelope()
-            envelope.add_item(
-                Item(payload=PayloadRef(json=bucket), type="metric_buckets")
-            )
-
-            maybe_raises = (
-                pytest.raises(HTTPError, match="429 Client Error")
-                if expect_429
-                else contextlib.nullcontext()
-            )
-            with maybe_raises:
-                relay.send_envelope(project_id, envelope)
-
-        time.sleep(3)
-
-    transaction_name = "d:transactions/measurements.lcp@millisecond"
-    transaction_value = [1.0]
-
-    session_name = "s:sessions/user@none"
-    session_value = [12345423]
-
-    # Send as many transactions as we can.
-    send_buckets(transaction_limit, transaction_name, transaction_value, "d")
-
-    metrics = metrics_consumer.get_metrics(timeout=10, n=5)
-    assert len(metrics) == 5
-
-    # The next request will trigger a rate limit, AFTER this request we should get 429s
-    send_buckets(1, transaction_name, transaction_value, "d")
-    expect_429 = True
-
-    # assert we hit the transaction throughput limit configured.
-    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == transaction_reason_code
-    metrics_consumer.assert_empty()
-
-    # Fill up the global limit
-    global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining, session_name, session_value, "s")
-
-    # Assert we didn't get ratelimited
-    metrics = metrics_consumer.get_metrics(timeout=10, n=4)
-    assert len(metrics) == 4
-    outcomes_consumer.assert_empty()
-
-    # Send more than we have of global quota.
-    send_buckets(1, session_name, session_value, "s")
-
-    # Assert we hit the global limit
-    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == global_reason_code
 
 
 def test_replay_outcomes_item_failed(
@@ -2192,7 +1554,7 @@ def test_replay_outcomes_item_failed(
     """
     Assert Relay records a single outcome even though both envelope items fail.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     metrics_consumer = metrics_consumer()
 
     project_id = 42
@@ -2203,17 +1565,7 @@ def test_replay_outcomes_item_failed(
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
             "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
         },
     }
 
@@ -2237,9 +1589,9 @@ def test_replay_outcomes_item_failed(
     assert len(outcomes) == 1
 
     expected = {
-        "category": 7,
+        "category": DataCategory.REPLAY,
         "key_id": 123,
-        "outcome": 3,
+        "outcome": Outcome.INVALID,
         "project_id": 42,
         "quantity": 2,
         "reason": "invalid_replay",
@@ -2247,3 +1599,169 @@ def test_replay_outcomes_item_failed(
     }
     expected["timestamp"] = outcomes[0]["timestamp"]
     assert outcomes[0] == expected
+
+
+def test_outcomes_as_metrics_forwarded_as_metrics(relay, mini_sentry):
+    """
+    Test forwarding of outcomes as metrics to the next upstream.
+    """
+    config = {"outcomes": {"emit_outcomes": True}}
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    relay = relay(mini_sentry, config)
+
+    relay.send_client_report(
+        project_id,
+        {
+            "timestamp": datetime.now(tz=timezone.utc).timestamp(),
+            "discarded_events": [
+                {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            ],
+        },
+    )
+
+    assert mini_sentry.get_outcomes(n=1) == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.CLIENT_DISCARD,
+            "quantity": 42,
+            "reason": "queue_overflow",
+            "timestamp": time_within_delta(),
+        }
+    ]
+
+    assert mini_sentry.captured_outcomes.empty()
+    assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize("to_billing", ["two_configs", "two_topics", False])
+def test_outcomes_as_metrics_forwarded_to_kafka_billing(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    relay_credentials,
+    outcomes_consumer,
+    processing_config,
+    get_topic_name,
+    to_billing,
+):
+    """
+    Test forwarding of outcomes as metrics and production to Kafka.
+
+    Outcomes need to be produced to the billing topic if configured.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        },
+        # This quota should not affect the metric outcomes.
+        {
+            "categories": ["metric_bucket"],
+            "limit": 0,
+            "reasonCode": "metric_bucket_quota",
+        },
+    ]
+
+    billing_consumer = outcomes_consumer(topic="outbilling")
+    outcomes_consumer = outcomes_consumer()
+
+    consumer_with_outcome, consumer_empty = (
+        (billing_consumer, outcomes_consumer)
+        if to_billing
+        else (outcomes_consumer, billing_consumer)
+    )
+
+    credentials = relay_credentials()
+    static_relays = {
+        credentials["id"]: {
+            "public_key": credentials["public_key"],
+            "internal": True,
+        },
+    }
+    # Change from default, which would inherit the outcomes topic
+    processing = processing_config(None)
+    if to_billing == "two_configs":
+        # Create an additional processing for outcomes_billing topic
+        processing["processing"]["secondary_kafka_config"] = {
+            "bar": processing["processing"]["kafka_config"]
+        }
+        processing["processing"]["topics"]["outcomes_billing"] = {
+            "name": get_topic_name("outbilling"),
+            "processing": "bar",
+        }
+    elif to_billing == "two_topics":
+        processing["processing"]["topics"]["outcomes_billing"] = get_topic_name(
+            "outbilling"
+        )
+
+    relay = relay(
+        relay_with_processing(options=processing, static_relays=static_relays),
+        options={"outcomes": {"emit_outcomes": True, "source": "aaa"}},
+        credentials=credentials,
+    )
+
+    # First event does not have a cached rate limit in the first Relay.
+    relay.send_event(42, {"message": "this is rate limited"})
+    assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
+        {
+            "category": DataCategory.ERROR,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.RATE_LIMITED,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "static_disabled_quota",
+        },
+    ]
+    consumer_empty.assert_empty()
+
+    # Second event now will actually be sent as a metric, we can verify that with the source.
+    with pytest.raises(requests.HTTPError, match="429 Client Error"):
+        relay.send_event(42, {"message": "this is rate limited"})
+    assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
+        {
+            "category": DataCategory.ERROR,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.RATE_LIMITED,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "static_disabled_quota",
+            "source": "aaa",
+        },
+    ]
+    consumer_empty.assert_empty()
+
+
+def test_outcomes_as_metrics_forwarded_non_internal(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
+    """
+    Test making sure Relay does not accept outcome metrics from non-internal Relays.
+    """
+    config = {"outcomes": {"emit_outcomes": True}}
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    outcomes_consumer = outcomes_consumer()
+
+    relay = relay(relay_with_processing(), options=config)
+
+    relay.send_client_report(
+        project_id,
+        {
+            "timestamp": datetime.now(tz=timezone.utc).timestamp(),
+            "discarded_events": [
+                {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            ],
+        },
+    )
+
+    outcomes_consumer.assert_empty()

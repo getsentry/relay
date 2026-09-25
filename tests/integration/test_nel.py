@@ -1,8 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
-from unittest import mock
+from time import sleep
 
-from .asserts import time_within_delta
+from .asserts import matches_any, time_within_delta
 
 
 def test_nel_converted_to_logs(mini_sentry, relay):
@@ -20,9 +20,10 @@ def test_nel_converted_to_logs(mini_sentry, relay):
 
     assert [item.type for item in envelope.items] == ["log"]
     assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
         "items": [
             {
-                "__header": mock.ANY,
+                "__header": matches_any(),
                 "attributes": {
                     "sentry.origin": {
                         "type": "string",
@@ -60,21 +61,41 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "http.error",
                     },
-                    "sentry.browser.name": {
+                    "browser.name": {
                         "type": "string",
-                        "value": "Python Requests",
+                        "value": "Firefox",
                     },
-                    "sentry.browser.version": {"type": "string", "value": "2.32"},
+                    "browser.version": {"type": "string", "value": "42.0"},
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                    },
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),
                     },
+                    "sentry.relay.ingress": {"type": "string", "value": "integration"},
                 },
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "warn",
                 "timestamp": time_within_delta(expected_ts),
-                "trace_id": mock.ANY,
+                "trace_id": matches_any(),
             }
         ],
     }
     assert mini_sentry.captured_envelopes.empty()
+
+
+def test_nel_rate_limited(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+    project_config["config"]["quotas"] = [
+        {"categories": [], "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+    relay = relay(mini_sentry)
+
+    # Nel never returns 429
+    relay.send_nel_event(project_id)
+    sleep(1)
+    relay.send_nel_event(project_id)

@@ -1,16 +1,16 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Literal
 import uuid
 import json
-
-from .asserts import only_items
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-)
+import signal
 
 import pytest
+from sentry_relay.auth import SecretKey
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
+from .consts import Outcome
+from .test_projectconfigs import get_response
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -78,10 +78,11 @@ def _outcomes_enabled_config():
     return {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "relay",
-        }
+        },
+        "http": {
+            "global_metrics": True,
+        },
     }
 
 
@@ -191,6 +192,8 @@ def _create_transaction_envelope(
     **kwargs,
 ):
     envelope = Envelope()
+    if event_id:
+        envelope.headers["event_id"] = event_id
     transaction_event, trace_id, event_id = _create_transaction_item(
         trace_id=trace_id, event_id=event_id, transaction=transaction, **kwargs
     )
@@ -239,9 +242,6 @@ def test_it_removes_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
 
     public_key = config["publicKeys"][0]["publicKey"]
 
@@ -253,15 +253,91 @@ def test_it_removes_events(mini_sentry, relay):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
-    # the event should be removed by Relay sampling
-    assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
     assert mini_sentry.captured_envelopes.empty()
 
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcomes is not None
-    outcome = outcomes["outcomes"][0]
-    assert outcome.get("outcome") == 1
-    assert outcome.get("reason") == "Sampled:0"
+
+def test_external_relay_does_not_sample_or_extract_metrics(mini_sentry, relay):
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    config["config"]["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
+            {"category": "transaction", "mri": "c:spans/test_transaction@none"},
+            {"category": "span", "mri": "c:spans/test_span@none"},
+        ],
+    }
+
+    trusted = relay(mini_sentry)
+    external = relay(mini_sentry, _outcomes_enabled_config(), external=True)
+    # Authorize project access without making this an internal Relay.
+    config["config"]["trustedRelays"].append(external.public_key)
+
+    # Query the trusted Relay as an external client, even requesting the full config.
+    packed, signature = SecretKey.parse(external.secret_key).pack(
+        {"publicKeys": [public_key], "fullConfig": True}
+    )
+    response, _ = get_response(trusted, packed, signature, relay_id=external.relay_id)
+    limited_config = response["configs"][public_key]
+    assert "sampling" not in limited_config["config"]
+    assert "metricExtraction" not in limited_config["config"]
+
+    # Serve the returned config to the external Relay.
+    mini_sentry.project_configs[project_id] = limited_config
+
+    now = datetime.now(timezone.utc).timestamp()
+    trace_id = uuid.uuid4().hex
+    envelope, _, event_id = _create_transaction_envelope(
+        public_key,
+        trace_id=trace_id,
+        event_id=uuid.uuid4().hex,
+        start_timestamp=now - 1,
+        timestamp=now,
+        spans=[
+            {
+                "trace_id": trace_id,
+                "span_id": "b" * 16,
+                "parent_span_id": "FA90FDEAD5F74052",
+                "op": "db",
+                "start_timestamp": now - 0.5,
+                "timestamp": now,
+            }
+        ],
+    )
+    external.send_envelope(project_id, envelope)
+
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.type for item in forwarded.items] == ["transaction"]
+    transaction = forwarded.get_transaction_event()
+    assert transaction["event_id"] == event_id
+    assert len(transaction["spans"]) == 1
+    assert not forwarded.items[0].headers.get("metrics_extracted", False)
+
+    # Flush before checking that no metrics or sampling outcomes were produced.
+    external.shutdown(sig=signal.SIGTERM)
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_metrics.empty()
+    assert mini_sentry.get_aggregated_outcomes(timeout=0.2) == []
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
@@ -302,12 +378,16 @@ def test_it_does_not_sample_error(mini_sentry, relay):
         (False, 0.0),
     ],
 )
-def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
+def test_it_tags_error(
+    mini_sentry, relay_with_processing, events_consumer, expected_sampled, sample_rate
+):
     """
     Tests that it tags an incoming error if the trace connected to it its sampled or not.
     """
+    events_consumer = events_consumer()
+
     project_id = 42
-    relay = relay(mini_sentry, _outcomes_enabled_config())
+    relay = relay_with_processing(_outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
@@ -323,18 +403,11 @@ def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
-    # test that error is kept by Relay
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope is not None
-    # double check that we get back our object
-    # we put the id in extra since Relay overrides the initial event_id
-    items = [item for item in envelope]
-    assert len(items) == 1
-    evt = items[0].payload.json
-    # we check if it is marked as sampled
-    assert evt["contexts"]["trace"]["sampled"] == expected_sampled
-    evt_id = evt.setdefault("extra", {}).get("id")
-    assert evt_id == event_id
+
+    # The event must always be kept, independent of the sampling decision
+    event, _ = events_consumer.get_event()
+    assert event["contexts"]["trace"]["sampled"] == expected_sampled
+    assert event.setdefault("extra", {}).get("id") == event_id
 
 
 def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
@@ -352,10 +425,8 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     # What the transaction is transformed into, which the dynamic sampling rules should respect.
     parametrized_transaction = "/auth/login/*/"
 
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    public_key = project_config["publicKeys"][0]["publicKey"]
 
     sampling_config = mini_sentry.add_basic_project_config(43)
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
@@ -401,8 +472,24 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     relay.send_envelope(project_id, envelope)
 
-    outcome = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcome["outcomes"][0]["reason"] == "Sampled:0"
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
 
 
 def test_it_keeps_events(mini_sentry, relay):
@@ -465,18 +552,12 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # create basic project configs
     project_id1 = 42
     config1 = mini_sentry.add_basic_project_config(project_id1)
-    config1["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
 
     public_key1 = config1["publicKeys"][0]["publicKey"]
     add_sampling_config(config1, sample_rate=0, rule_type="trace")
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
-    config2["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key2 = config2["publicKeys"][0]["publicKey"]
     add_sampling_config(config2, sample_rate=1, rule_type="trace")
 
@@ -489,17 +570,30 @@ def test_uses_trace_public_key(mini_sentry, relay):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
-    # the event should be removed by Relay sampling
-    assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
+    # Dynamic sampling metrics
+    metrics_batch = mini_sentry.get_global_metrics()
+    print(metrics_batch)
+    assert metrics_batch is not None
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key2,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key2,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
     assert mini_sentry.captured_envelopes.empty()
-
-    # and it should create an outcome
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Spans
-    assert outcomes is not None
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Transactions
-    assert outcomes is not None
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_outcomes.get(timeout=1)
+    assert mini_sentry.captured_metrics.empty()
 
     # Second
     # send trace with project_id2 context (should go through)
@@ -516,8 +610,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     assert evt is not None
 
     # no outcome should be generated (since the event is passed along to the upstream)
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_outcomes.get(timeout=2)
+    assert mini_sentry.get_aggregated_outcomes(timeout=2) == []
 
 
 @pytest.mark.parametrize(
@@ -541,9 +634,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
@@ -568,11 +658,42 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         # send the event, the transaction should be removed.
         relay.send_envelope(project_id, envelope)
         # the event should be removed by Relay sampling
-        assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
         assert mini_sentry.captured_envelopes.empty()
 
-        outcomes = mini_sentry.captured_outcomes.get(timeout=2)
-        assert outcomes is not None
+        assert mini_sentry.get_aggregated_outcomes(n=4) == [
+            {
+                "category": DataCategory.ATTACHMENT,
+                "outcome": Outcome.FILTERED,
+                "public_key": public_key,
+                "quantity": 52,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.TRANSACTION_INDEXED,
+                "outcome": Outcome.FILTERED,
+                "public_key": public_key,
+                "quantity": 1,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED,
+                "outcome": Outcome.FILTERED,
+                "public_key": public_key,
+                "quantity": 1,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM,
+                "outcome": Outcome.FILTERED,
+                "public_key": public_key,
+                "quantity": 2,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+        ]
 
 
 @pytest.mark.parametrize(
@@ -613,9 +734,6 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key = config["publicKeys"][0]["publicKey"]
 
     # the closer to 0, the less flaky the test is
@@ -728,12 +846,6 @@ def test_relay_chain_keep_unsampled_profile(
     else:
         relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
-    config["config"]["features"] = [
-        "organizations:profiling",
-    ]
 
     public_key = config["publicKeys"][0]["publicKey"]
     add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
@@ -875,9 +987,6 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
 
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key = config["publicKeys"][0]["publicKey"]
 
     # Reject all transactions with dynamic sampling
@@ -887,3 +996,396 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
 
     relay.send_envelope(project_id, envelope)
     assert mini_sentry.get_captured_envelope()
+
+
+def test_invalid_metric_extraction_config_skips_dynamic_sampling(mini_sentry, relay):
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # Unsupported metric extraction config, so no metrics can be extracted
+    config["config"]["metricExtraction"] = {
+        "version": 666,  # this version is too new for this relay
+        "metrics": [],
+    }
+
+    # Reject all transactions with dynamic sampling
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
+
+    envelope, _, _ = _create_transaction_envelope(public_key)
+
+    relay.send_envelope(project_id, envelope)
+    assert mini_sentry.get_captured_envelope()
+
+
+def get_transaction_envelope(
+    trace_id: str,
+    segment_id: str,
+    child_id_1: str,
+    child_id_2: str,
+    dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
+    sampling_project_config: dict,
+    dsc_transaction: str = "/dsc/",
+):
+    ts = datetime.now(timezone.utc)
+
+    # Create transaction
+    event = {
+        "type": "transaction",
+        "timestamp": ts.timestamp(),
+        "start_timestamp": ts.timestamp(),
+        "spans": [],
+        "contexts": {
+            "trace": {
+                "op": "/trace/",
+                "trace_id": trace_id,
+                "span_id": segment_id,
+            }
+        },
+        "transaction": "/event/",
+    }
+
+    # Add child spans
+    event["spans"] = [
+        {
+            "trace_id": trace_id,
+            "span_id": child_id_1,
+            "parent_span_id": segment_id,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+        },
+        {
+            "trace_id": trace_id,
+            "span_id": child_id_2,
+            "parent_span_id": segment_id,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "data": {
+                "sentry.dsc.trace_id": trace_id,
+                "sentry.dsc.transaction": "/spandata/",
+                "sentry.dsc.project_id": "41",
+            },
+        },
+    ]
+
+    # Add transaction to envelope
+    envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(json=event), type="transaction"))
+
+    # Add DSC to envelope
+    if dsc != "no_dsc":
+        envelope.headers["trace"] = {
+            "trace_id": trace_id,
+            "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+            "sample_rate": "1",
+            "sample_rand": "0.9",
+            "sampled": "true",
+            "release": "some_release",
+            "environment": "some_environment",
+            **({"transaction": dsc_transaction} if dsc == "dsc_with_tx" else {}),
+            "org_id": sampling_project_config["organizationId"],
+        }
+
+    return envelope
+
+
+def get_v2_envelope(
+    trace_id: str,
+    segment_id: str,
+    child_id_1: str,
+    child_id_2: str,
+    dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
+    sampling_project_config: dict,
+):
+    ts = datetime.now(timezone.utc)
+
+    spans = [
+        # Segment span.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": segment_id,
+            "is_segment": True,
+            "name": "root",
+            "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
+        },
+        # Child span.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.3,
+            "trace_id": trace_id,
+            "span_id": child_id_1,
+            "parent_span_id": segment_id,
+            "is_segment": False,
+            "name": "child1",
+            "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
+        },
+        # Child span which already has `sentry.dsc.*` attributes set.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.3,
+            "trace_id": trace_id,
+            "span_id": child_id_2,
+            "parent_span_id": segment_id,
+            "is_segment": False,
+            "name": "child2",
+            "status": "ok",
+            "attributes": {
+                "sentry.dsc.trace_id": {"type": "string", "value": trace_id},
+                "sentry.dsc.transaction": {"type": "string", "value": "/spandata/"},
+                "sentry.dsc.project_id": {"type": "string", "value": "41"},
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
+        },
+    ]
+
+    # Add spans to envelope
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": spans}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": len(spans)},
+        )
+    )
+
+    # Add DSC to envelope
+    trace_info = (
+        {
+            "trace_id": trace_id,
+            "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+            "sample_rate": "1",
+            "sampled": "true",
+            "release": "some_release",
+            "environment": "some_environment",
+            **({"transaction": "/dsc/"} if dsc == "dsc_with_tx" else {}),
+        }
+        if dsc != "no_dsc"
+        else None
+    )
+    envelope.headers["trace"] = trace_info
+
+    return envelope
+
+
+def test_dsc_transaction_parametrization_applied_with_reconstructed_dsc(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+):
+    project_id = 42
+    sampling_project_id = 43
+
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": 1})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": 2}
+    )
+    relay = relay(relay_with_processing())
+    transactions_consumer = transactions_consumer()
+
+    transaction = "/users/1234/"
+
+    timestamp = datetime.now(timezone.utc).timestamp()
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                json={
+                    "type": "transaction",
+                    "transaction": transaction,
+                    "transaction_info": {"source": "url"},
+                    "start_timestamp": timestamp,
+                    "timestamp": timestamp + 1,
+                    "contexts": {
+                        "trace": {
+                            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            "span_id": "a" * 16,
+                            "op": "navigation",
+                            "data": {
+                                "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "sentry.dsc.transaction": transaction,
+                            },
+                        }
+                    },
+                    "spans": [],
+                }
+            ),
+        )
+    )
+    envelope.headers["trace"] = {
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+        "transaction": transaction,
+        "org_id": sampling_project_config["organizationId"],
+    }
+
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event()
+
+    parametrized_transaction = "/users/*/"
+    assert event["transaction"] == parametrized_transaction
+    assert event["_dsc"]["transaction"] == parametrized_transaction
+    assert (
+        event["contexts"]["trace"]["data"]["sentry.dsc.transaction"]
+        == parametrized_transaction
+    )
+
+
+@pytest.mark.parametrize("span_type", ["tx", "v2"])
+@pytest.mark.parametrize("org", ["same_org", "diff_org"])
+@pytest.mark.parametrize("dsc", ["dsc_with_tx", "dsc_no_tx", "no_dsc"])
+def test_dsc_normalization(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    dsc,
+    org,
+    span_type,
+):
+    segment_id = "a" * 16
+    child_id_1 = "b" * 16
+    child_id_2 = "c" * 16
+    trace_id = "a0fa8803753e40fd8124b21eeb2986b5"
+    project_id = 42
+    sampling_project_id = 43
+    org_id = 1
+    sampling_org_id = 1 if org == "same_org" else 2
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": org_id})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": sampling_org_id}
+    )
+    relay = relay(relay_with_processing())
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+    # Expected results based on the parameters
+    expected_tx, expected_project_id, _ = {
+        # DSC with tx + same org
+        ("dsc_with_tx", "same_org", "tx"): ("/dsc/", sampling_project_id, org_id),
+        ("dsc_with_tx", "same_org", "v2"): ("/dsc/", sampling_project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC without tx + same org
+        ("dsc_no_tx", "same_org", "tx"): (None, sampling_project_id, org_id),
+        ("dsc_no_tx", "same_org", "v2"): (None, sampling_project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC with tx + different org
+        ("dsc_with_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("dsc_with_tx", "diff_org", "v2"): (None, project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC without tx + different org
+        ("dsc_no_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("dsc_no_tx", "diff_org", "v2"): (None, project_id, org_id),
+        # ----------------------------------------------------------------------
+        # No DSC
+        ("no_dsc", "same_org", "tx"): ("/event/", project_id, org_id),
+        ("no_dsc", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("no_dsc", "same_org", "v2"): (None, None, None),  # rejected, see early return
+        ("no_dsc", "diff_org", "v2"): (None, None, None),  # rejected, see early return
+        # ----------------------------------------------------------------------
+    }[dsc, org, span_type]
+
+    envelope = (
+        get_transaction_envelope(
+            trace_id=trace_id,
+            segment_id=segment_id,
+            child_id_1=child_id_1,
+            child_id_2=child_id_2,
+            dsc=dsc,
+            sampling_project_config=sampling_project_config,
+        )
+        if span_type == "tx"
+        else get_v2_envelope(
+            trace_id=trace_id,
+            segment_id=segment_id,
+            child_id_1=child_id_1,
+            child_id_2=child_id_2,
+            dsc=dsc,
+            sampling_project_config=sampling_project_config,
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+
+    if dsc == "no_dsc" and span_type == "v2":
+        assert len(spans) == 0
+        return
+
+    def get_dsc_attr(attr: str, span_id: str):
+        return spans[span_id]["attributes"].get(f"sentry.dsc.{attr}", {}).get("value")
+
+    # Segment span
+    assert spans[segment_id]["is_segment"] is True
+    assert get_dsc_attr("transaction", segment_id) == expected_tx
+    assert get_dsc_attr("project_id", segment_id) == str(expected_project_id)
+    assert get_dsc_attr("trace_id", segment_id) == trace_id
+
+    # Child span
+    assert spans[child_id_1]["is_segment"] is False
+    assert get_dsc_attr("transaction", child_id_1) == expected_tx
+    assert get_dsc_attr("project_id", child_id_1) == str(expected_project_id)
+    assert get_dsc_attr("trace_id", child_id_1) == trace_id
+
+    # Child span with sentry.dsc.* attributes already set in its span data
+    assert spans[child_id_2]["is_segment"] is False
+    assert get_dsc_attr("transaction", child_id_2) == expected_tx
+    assert get_dsc_attr("project_id", child_id_2) == str(expected_project_id)
+    assert get_dsc_attr("trace_id", child_id_2) == trace_id
+
+
+@pytest.mark.parametrize(
+    ("dsc_transaction", "expected_transaction"),
+    [
+        pytest.param("t" * 10, "t" * 10, id="at-limit"),
+        pytest.param("t" * 11, "", id="over-limit"),
+    ],
+)
+def test_dsc_transaction_tag_length(
+    mini_sentry,
+    relay,
+    dsc_transaction,
+    expected_transaction,
+):
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(
+        mini_sentry,
+        options={
+            "aggregator": {"max_tag_value_length": 10},
+            "normalization": {"level": "full"},
+        },
+    )
+
+    envelope = get_transaction_envelope(
+        trace_id="a0fa8803753e40fd8124b21eeb2986b5",
+        segment_id="a" * 16,
+        child_id_1="b" * 16,
+        child_id_2="c" * 16,
+        dsc="dsc_with_tx",
+        sampling_project_config=project_config,
+        dsc_transaction=dsc_transaction,
+    )
+
+    relay.send_envelope(project_id, envelope)
+    event = mini_sentry.get_captured_envelope().get_transaction_event()
+
+    for data in (
+        event["contexts"]["trace"]["data"],
+        event["spans"][0]["data"],
+        # The second span has an intentionally different dsc
+    ):
+        assert data.get("sentry.dsc.transaction") == expected_transaction

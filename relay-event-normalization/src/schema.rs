@@ -1,7 +1,7 @@
 use relay_event_schema::processor::{
-    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor, Required,
 };
-use relay_protocol::{Array, Empty, Error, ErrorKind, Meta, Object};
+use relay_protocol::{Annotated, Array, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 /// Mode how `required` values should be validated in a [`SchemaProcessor`].
@@ -65,6 +65,7 @@ pub enum RequiredMode {
 #[derive(Debug, Default)]
 pub struct SchemaProcessor {
     required: RequiredMode,
+    verbose_errors: bool,
     stack: SmallVec<[SchemaState; 10]>,
 }
 
@@ -77,6 +78,12 @@ impl SchemaProcessor {
     /// Configures how `required` values should be validated.
     pub fn with_required(mut self, mode: RequiredMode) -> Self {
         self.required = mode;
+        self
+    }
+
+    /// If enabled the processor adds additional metadata to errors.
+    pub fn with_verbose_errors(mut self, verbose: bool) -> Self {
+        self.verbose_errors = verbose;
         self
     }
 }
@@ -132,8 +139,15 @@ impl Processor for SchemaProcessor {
             RequiredMode::DeleteParent => {
                 self.stack.push(SchemaState::default());
             }
+
             RequiredMode::DeleteValue => {
-                if value.is_none() && state.attrs().required && !meta.has_errors() {
+                let required_violation = match state.attrs().required {
+                    Required::Value if value.is_none() => true,
+                    Required::ValueOrMeta if value.is_none() && meta.is_empty() => true,
+                    _ => false,
+                };
+
+                if required_violation && !meta.has_errors() {
                     meta.add_error(ErrorKind::MissingAttribute);
                 }
             }
@@ -152,35 +166,92 @@ impl Processor for SchemaProcessor {
             return Ok(());
         }
 
-        let Some(current) = self.stack.pop() else {
+        let Some(mut current) = self.stack.pop() else {
             debug_assert!(false, "processing stack should always have a value");
             return Ok(());
         };
 
-        // There is a required validation if the field is required and the value is `None`, or
-        // the current object had any required violations already.
-        let is_required_violation =
-            state.attrs().required && (value.is_none() || current.has_required_violation);
-
-        // Propagate the violation to the parent container, to make sure the parent is deleted.
-        if is_required_violation && let Some(parent) = self.stack.last_mut() {
-            parent.has_required_violation = true;
+        // A local violation indicates that the current field violates a required requirement.
+        // In such a case the parent must be deleted.
+        let mut local_violation = None;
+        match state.attrs().required {
+            Required::Value => {
+                local_violation = current.required_violation.take();
+                if value.is_none() {
+                    let violation = local_violation.get_or_insert_default();
+                    if self.verbose_errors {
+                        violation.add(state);
+                    }
+                }
+            }
+            Required::ValueOrMeta => {
+                local_violation = current.required_violation.take();
+                if value.is_none() && meta.is_empty() {
+                    let violation = local_violation.get_or_insert_default();
+                    if self.verbose_errors {
+                        violation.add(state);
+                    }
+                }
+            }
+            Required::False => {}
         }
 
-        // Delete the current value if it is a container containing a violation.
-        match current.has_required_violation {
-            true => {
-                meta.add_error(ErrorKind::MissingAttribute);
-                Err(ProcessingAction::DeleteValueHard)
-            }
-            false => Ok(()),
+        if let Some(violation) = local_violation {
+            if let Some(parent) = self.stack.last_mut() {
+                // Just attaching the violation to the parent is enough,
+                // as the parent will delete itself and annotate the error.
+                match &mut parent.required_violation {
+                    p @ None => *p = Some(violation),
+                    Some(p) => p.merge_with(violation),
+                }
+            } else {
+                // There is no parent we can attach the error to, this must be the root element and
+                // we have to attach the violation to this node as an error.
+                meta.add_error(violation)
+            };
+            Err(ProcessingAction::DeleteValueHard)
+        } else if let Some(violation) = current.required_violation {
+            // A child violated a required requirement, but this node itself is not required,
+            // the parent does not need to be deleted and we can attach the violation information
+            // to the current node.
+            meta.add_error(violation);
+            Err(ProcessingAction::DeleteValueHard)
+        } else {
+            Ok(())
         }
     }
 }
 
 #[derive(Debug, Default)]
 struct SchemaState {
-    has_required_violation: bool,
+    required_violation: Option<RequiredViolation>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct RequiredViolation {
+    path: Vec<Annotated<Value>>,
+}
+
+impl RequiredViolation {
+    fn add(&mut self, state: &ProcessingState<'_>) {
+        self.path
+            .push(Annotated::new(state.path().to_string().into()));
+    }
+
+    fn merge_with(&mut self, other: Self) {
+        let Self { path } = other;
+        self.path.extend(path);
+    }
+}
+
+impl From<RequiredViolation> for Error {
+    fn from(value: RequiredViolation) -> Self {
+        let mut error: Error = ErrorKind::MissingAttribute.into();
+        if !value.path.is_empty() {
+            error.insert("path", value.path);
+        }
+        error
+    }
 }
 
 fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
@@ -455,6 +526,43 @@ mod tests {
 
         processor::process_value(
             &mut item,
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "req_non_empty"
+                    ]
+                  }
+                ]
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_level_nonempty_not_verbose() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("".to_owned()),
+            req: Annotated::new("something".to_owned()),
+            other: Annotated::new("something".to_owned()),
+        });
+
+        processor::process_value(
+            &mut item,
             &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
             ProcessingState::root(),
         )
@@ -483,7 +591,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -493,7 +603,14 @@ mod tests {
           "_meta": {
             "": {
               "err": [
-                "missing_attribute"
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "req"
+                    ]
+                  }
+                ]
               ]
             }
           }
@@ -511,7 +628,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -521,7 +640,52 @@ mod tests {
           "_meta": {
             "": {
               "err": [
-                "missing_attribute"
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "req"
+                    ]
+                  }
+                ]
+              ]
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_required_delete_parent_top_multiple_missing() {
+        let mut item = Annotated::new(TestItem {
+            req_non_empty: Annotated::new("".to_owned()),
+            req: Annotated::empty(),
+            other: Annotated::empty(),
+        });
+
+        processor::process_value(
+            &mut item,
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(item, @r#"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "req_non_empty",
+                      "req"
+                    ]
+                  }
+                ]
               ]
             }
           }
@@ -539,7 +703,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -570,7 +736,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -580,7 +748,14 @@ mod tests {
           "_meta": {
             "": {
               "err": [
-                "missing_attribute"
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "req_non_empty.req_non_empty"
+                    ]
+                  }
+                ]
               ]
             }
           }
@@ -612,7 +787,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -622,7 +799,14 @@ mod tests {
           "_meta": {
             "": {
               "err": [
-                "missing_attribute"
+                [
+                  "missing_attribute",
+                  {
+                    "path": [
+                      "bar.value"
+                    ]
+                  }
+                ]
               ]
             }
           }
@@ -653,7 +837,9 @@ mod tests {
 
         processor::process_value(
             &mut item,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(true),
             ProcessingState::root(),
         )
         .unwrap();
@@ -666,7 +852,14 @@ mod tests {
             "bar": {
               "": {
                 "err": [
-                  "missing_attribute"
+                  [
+                    "missing_attribute",
+                    {
+                      "path": [
+                        "bar.value"
+                      ]
+                    }
+                  ]
                 ]
               }
             }

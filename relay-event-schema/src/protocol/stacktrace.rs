@@ -104,6 +104,14 @@ pub struct Frame {
     #[metastructure(skip_serialization = "null")]
     pub context_line: Annotated<String>,
 
+    /// The index of the parent frame, used for flamegraphs provided by iOS.
+    #[metastructure(skip_serialization = "null")]
+    pub parent_index: Annotated<i64>,
+
+    /// The number of times this frame was sampled, used for flamegraphs provided by iOS.
+    #[metastructure(skip_serialization = "null")]
+    pub sample_count: Annotated<u64>,
+
     /// Source code of the lines after `lineno`.
     #[metastructure(skip_serialization = "empty")]
     pub post_context: Annotated<Array<String>>,
@@ -600,6 +608,8 @@ mod tests {
                 thread_id: Annotated::new(ThreadId::Int(7)),
                 other: Default::default(),
             }),
+            parent_index: Annotated::empty(),
+            sample_count: Annotated::empty(),
             other: {
                 let mut vars = Object::new();
                 vars.insert(

@@ -8,13 +8,20 @@ use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
-use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
-#[cfg(feature = "processing")]
-use crate::services::global_rate_limits::GlobalRateLimitsService;
+use crate::services::config_reload::ConfigReloadService;
+use crate::services::global_config::{
+    GlobalConfigHandle, GlobalConfigManager, GlobalConfigService,
+};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
-use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
-use crate::services::outcome_aggregator::OutcomeAggregator;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::Objectstore;
+#[cfg(feature = "processing")]
+use crate::services::objectstore::ObjectstoreService;
+use crate::services::outcome::{
+    ClientReportOutcomeProducerService, NullOutcomeProducerService, OutcomeProducerService,
+    TrackOutcome,
+};
 use crate::services::processor::{
     self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
 };
@@ -25,8 +32,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
-#[cfg(feature = "processing")]
-use crate::services::upload::UploadService;
+use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -35,7 +41,7 @@ use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_cogs::Cogs;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot, EmitOutcomes, RelayMode};
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
@@ -44,6 +50,8 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
+#[cfg(feature = "processing")]
+use relay_system::ConcurrentService;
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 
 /// Indicates the type of failure of the server.
@@ -67,15 +75,18 @@ pub enum ServiceError {
 #[derive(Clone, Debug)]
 pub struct Registry {
     pub health_check: Addr<HealthCheck>,
-    pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: PartitionedEnvelopeBuffer,
+    pub envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
+    #[cfg(feature = "processing")]
+    pub objectstore: Option<Addr<Objectstore>>,
+    pub upload: Addr<Upload>,
+    pub global_config_handle: GlobalConfigHandle,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -100,7 +111,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool> {
+fn create_processor_pool(config: &ConfigSnapshot) -> Result<EnvelopeProcessorServicePool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -120,13 +131,13 @@ fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
+fn create_store_pool(config: &ConfigSnapshot) -> Result<StoreServicePool> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
     // Ideally in the future the store will be single threaded again, after we move
     // all the heavy processing (de- and re-serialization) into the processor.
-    let thread_count = config.cpu_concurrency().div_ceil(12);
+    let thread_count = config.cpu_concurrency().div_ceil(8);
     relay_log::info!("starting {thread_count} store workers");
 
     let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
@@ -158,11 +169,12 @@ impl ServiceState {
         config: Arc<Config>,
     ) -> Result<Self> {
         let upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
+        let current_config = config.current();
 
         #[cfg(feature = "processing")]
-        let redis_clients = config
+        let redis_clients = current_config
             .redis()
-            .filter(|_| config.processing_enabled())
+            .filter(|_| current_config.processing_enabled())
             .map(create_redis_clients)
             .transpose()
             .context(ServiceError::Redis)?;
@@ -180,22 +192,30 @@ impl ServiceState {
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.
-        let memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
+        let memory_stat = MemoryStat::new(current_config.memory_stat_refresh_frequency_ms());
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
-        let (processor, processor_rx) = match config.relay_mode() {
-            relay_config::RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            relay_config::RelayMode::Managed => channel(EnvelopeProcessorService::name()),
+        let (processor, processor_rx) = match current_config.relay_mode() {
+            RelayMode::Proxy => channel(ProxyProcessorService::name()),
+            RelayMode::Managed => channel(EnvelopeProcessorService::name()),
         };
 
-        let outcome_producer = services.start(OutcomeProducerService::create(
-            config.clone(),
-            upstream_relay.clone(),
-            processor.clone(),
-        )?);
-        let outcome_aggregator =
-            services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
+        let (aggregator, aggregator_rx) = channel(RouterService::name());
+
+        let outcome_aggregator = match current_config.emit_outcomes() {
+            EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
+            _ => match current_config.relay_mode() {
+                RelayMode::Proxy => services.start(ClientReportOutcomeProducerService::new(
+                    &current_config,
+                    processor.clone(),
+                )),
+                RelayMode::Managed => services.start(OutcomeProducerService::new(
+                    Arc::clone(&config),
+                    aggregator.clone(),
+                )),
+            },
+        };
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -219,16 +239,15 @@ impl ServiceState {
         let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
-        let store_pool = create_store_pool(&config)?;
+        let store_pool = create_store_pool(&current_config)?;
         #[cfg(feature = "processing")]
-        let store = config
+        let store = current_config
             .processing_enabled()
             .then(|| {
                 StoreService::create(
                     store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
-                    outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
                 .map(|s| services.start(s))
@@ -236,15 +255,16 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let upload = UploadService::new(config.upload(), store.clone())?.map(|s| services.start(s));
-
-        #[cfg(feature = "processing")]
-        let global_rate_limits = redis_clients
-            .as_ref()
-            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
+        let objectstore = ObjectstoreService::new(current_config.objectstore(), store.clone())?
+            .map(|s| {
+                let concurrent = ConcurrentService::new(s)
+                    .with_backlog_limit(current_config.objectstore().max_backlog)
+                    .with_concurrency_limit(current_config.objectstore().max_concurrent_requests);
+                services.start(concurrent)
+            });
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
-            config.spool_partitions(),
+            current_config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
@@ -254,8 +274,8 @@ impl ServiceState {
             services,
         );
 
-        let (processor_pool, aggregator_handle, autoscaling) = match config.relay_mode() {
-            relay_config::RelayMode::Proxy => {
+        let (processor_pool, aggregator_handle, autoscaling) = match current_config.relay_mode() {
+            RelayMode::Proxy => {
                 services.start_with(
                     ProxyProcessorService::new(
                         config.clone(),
@@ -269,27 +289,30 @@ impl ServiceState {
                 );
                 (None, None, None)
             }
-            relay_config::RelayMode::Managed => {
-                let processor_pool = create_processor_pool(&config)?;
+            RelayMode::Managed => {
+                let processor_pool = create_processor_pool(&current_config)?;
 
-                let aggregator = RouterService::new(
+                let router = RouterService::new(
                     handle.clone(),
-                    config.default_aggregator_config().clone(),
-                    config.secondary_aggregator_configs().clone(),
+                    current_config.default_aggregator_config().clone(),
+                    current_config.secondary_aggregator_configs().clone(),
                     Some(processor.clone().recipient()),
                     project_cache_handle.clone(),
                 );
-                let aggregator_handle = aggregator.handle();
-                let aggregator = services.start(aggregator);
+                let router_handle = router.handle();
+                services.start_with(router, aggregator_rx);
 
-                let cogs = CogsService::new(&config);
-                let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
+                let cogs = CogsService::new(&current_config);
+                let cogs = Cogs::new(CogsServiceRecorder::new(
+                    &current_config,
+                    services.start(cogs),
+                ));
 
                 services.start_with(
                     EnvelopeProcessorService::new(
                         processor_pool.clone(),
                         config.clone(),
-                        global_config_handle,
+                        global_config_handle.clone(),
                         project_cache_handle.clone(),
                         cogs,
                         #[cfg(feature = "processing")]
@@ -298,12 +321,10 @@ impl ServiceState {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            upload,
+                            objectstore: objectstore.clone(),
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
-                            #[cfg(feature = "processing")]
-                            global_rate_limits,
                         },
                         metric_outcomes.clone(),
                     ),
@@ -317,11 +338,7 @@ impl ServiceState {
                     processor_pool.clone(),
                 ));
 
-                (
-                    Some(processor_pool),
-                    Some(aggregator_handle),
-                    Some(autoscaling),
-                )
+                (Some(processor_pool), Some(router_handle), Some(autoscaling))
             }
         };
 
@@ -349,10 +366,18 @@ impl ServiceState {
             upstream_relay.clone(),
         ));
 
+        let upload = services.start(upload::create_service(
+            &config,
+            &upstream_relay,
+            #[cfg(feature = "processing")]
+            &objectstore,
+        ));
+
+        let _ = services.start(ConfigReloadService::new(config.clone()));
+
         let registry = Registry {
             processor,
             health_check,
-            outcome_producer,
             outcome_aggregator,
             relay_cache,
             global_config,
@@ -360,6 +385,10 @@ impl ServiceState {
             upstream_relay,
             envelope_buffer,
             autoscaling,
+            #[cfg(feature = "processing")]
+            objectstore,
+            upload,
+            global_config_handle,
         };
 
         let state = StateInner {
@@ -373,9 +402,9 @@ impl ServiceState {
         })
     }
 
-    /// Returns a reference to the Relay configuration.
-    pub fn config(&self) -> &Config {
-        &self.inner.config
+    /// Returns a snapshot of the Relay configuration.
+    pub fn config(&self) -> ConfigSnapshot {
+        self.inner.config.current()
     }
 
     /// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the
@@ -409,17 +438,12 @@ impl ServiceState {
         &self.inner.registry.health_check
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
-    pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
-        &self.inner.registry.outcome_producer
-    }
-
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`UpstreamRelay`] service.
     pub fn upstream_relay(&self) -> &Addr<UpstreamRelay> {
         &self.inner.registry.upstream_relay
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`EnvelopeProcessor`] service.
     pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
         &self.inner.registry.processor
     }
@@ -429,9 +453,24 @@ impl ServiceState {
         &self.inner.registry.global_config
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`TrackOutcome`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+
+    #[cfg(feature = "processing")]
+    /// Returns the address of the [`Objectstore`] service.
+    pub fn objectstore(&self) -> Option<&Addr<Objectstore>> {
+        self.inner.registry.objectstore.as_ref()
+    }
+
+    /// Returns the address of the [`Upload`] service.
+    pub fn upload(&self) -> &Addr<Upload> {
+        &self.inner.registry.upload
+    }
+
+    pub fn global_config_handle(&self) -> &GlobalConfigHandle {
+        &self.inner.registry.global_config_handle
     }
 }
 
@@ -444,7 +483,6 @@ impl ServiceState {
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
-    const CARDINALITY_REDIS_CLIENT: &str = "cardinality";
     const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
     const QUOTA_REDIS_CLIENT: &str = "quotas";
     const UNIFIED_REDIS_CLIENT: &str = "unified";
@@ -455,23 +493,19 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 
             Ok(RedisClients {
                 project_configs: client.clone(),
-                cardinality: client.clone(),
                 quotas: client,
             })
         }
         RedisConfigsRef::Individual {
             project_configs,
-            cardinality,
             quotas,
         } => {
             let project_configs =
                 create_async_redis_client(PROJECT_CONFIG_REDIS_CLIENT, &project_configs)?;
-            let cardinality = create_async_redis_client(CARDINALITY_REDIS_CLIENT, &cardinality)?;
             let quotas = create_async_redis_client(QUOTA_REDIS_CLIENT, &quotas)?;
 
             Ok(RedisClients {
                 project_configs,
-                cardinality,
                 quotas,
             })
         }
@@ -500,10 +534,13 @@ async fn initialize_redis_scripts_for_client(
 ) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
-    let clients = [&redis_clients.cardinality, &redis_clients.quotas];
-    for client in clients {
-        initialize_redis_scripts(client, &scripts).await?;
-    }
+    let RedisClients {
+        project_configs,
+        quotas,
+    } = redis_clients;
+
+    initialize_redis_scripts(project_configs, &scripts).await?;
+    initialize_redis_scripts(quotas, &scripts).await?;
 
     Ok(())
 }
@@ -511,7 +548,7 @@ async fn initialize_redis_scripts_for_client(
 #[cfg(feature = "processing")]
 async fn initialize_redis_scripts(
     client: &AsyncRedisClient,
-    scripts: &[&Script; 3],
+    scripts: &[&Script],
 ) -> Result<(), RedisError> {
     let mut connection = client.get_connection().await?;
 

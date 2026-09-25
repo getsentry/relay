@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
@@ -246,13 +246,9 @@ impl DiskUsage {
 
         let partition_tag = self.partition_tag.clone();
         relay_system::spawn!(async move {
-            loop {
-                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
-                // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
-                let Some(last_known_usage) = last_known_usage_weak.upgrade() else {
-                    break;
-                };
-
+            // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+            // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
+            while let Some(last_known_usage) = last_known_usage_weak.upgrade() {
                 let usage = Self::estimate_usage(&partition_tag, &db).await;
                 let Ok(usage) = usage else {
                     relay_log::error!("failed to update the disk usage asynchronously");
@@ -317,7 +313,7 @@ impl SqliteEnvelopeStore {
     /// the folders where data will be stored.
     pub async fn prepare(
         partition_id: u8,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
         let Some(path) = config.spool_envelopes_path(partition_id) else {

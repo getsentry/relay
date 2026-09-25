@@ -30,6 +30,11 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
+    /// Number of elements in the envelope buffer across all the stacks.
+    ///
+    /// This metric is tagged with:
+    /// - `storage_type`: The type of storage used in the envelope buffer.
+    BufferEnvelopesCount,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -77,40 +82,34 @@ pub enum RelayGauges {
     /// - `service`: the service name.
     /// - `instance_id`: a for the service name unique identifier for the running service
     ServiceUtilization,
-    /// Number of attachment uploads currently in flight.
-    #[cfg(feature = "processing")]
-    ConcurrentAttachmentUploads,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
-            RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
-            RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
-            RelayGauges::AsyncPoolActivity => "async_pool.activity",
-            RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::BufferStackCount => "buffer.stack_count",
-            RelayGauges::BufferDiskUsed => "buffer.disk_used",
-            RelayGauges::SystemMemoryUsed => "health.system_memory.used",
-            RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            Self::AsyncPoolQueueSize => "async_pool.queue_size",
+            Self::AsyncPoolUtilization => "async_pool.utilization",
+            Self::AsyncPoolActivity => "async_pool.activity",
+            Self::NetworkOutage => "upstream.network_outage",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count.gauge",
+            Self::BufferStackCount => "buffer.stack_count",
+            Self::BufferDiskUsed => "buffer.disk_used",
+            Self::SystemMemoryUsed => "health.system_memory.used",
+            Self::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolConnections => "redis.pool.connections",
+            Self::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            Self::RedisPoolIdleConnections => "redis.pool.idle_connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolMaxConnections => "redis.pool.max_connections",
+            Self::RedisPoolMaxConnections => "redis.pool.max_connections",
             #[cfg(feature = "processing")]
-            RelayGauges::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
-            RelayGauges::ProjectCacheNotificationChannel => {
-                "project_cache.notification_channel.size"
-            }
-            RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
-            RelayGauges::ServerActiveConnections => "server.http.connections",
+            Self::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
+            Self::ProjectCacheNotificationChannel => "project_cache.notification_channel.size",
+            Self::ProjectCacheScheduledFetches => "project_cache.fetches.size",
+            Self::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
-            RelayGauges::MetricDelayMax => "metrics.delay.max",
-            RelayGauges::ServiceUtilization => "service.utilization",
-            #[cfg(feature = "processing")]
-            RelayGauges::ConcurrentAttachmentUploads => "attachment.upload.concurrent",
+            Self::MetricDelayMax => "metrics.delay.max",
+            Self::ServiceUtilization => "service.utilization",
         }
     }
 }
@@ -226,12 +225,6 @@ pub enum RelayDistributions {
     ///  - `item_type`: The type of the items being counted.
     ///  - `is_container`: Whether this item is a container holding multiple items.
     EnvelopeItemSize,
-
-    /// Number of elements in the envelope buffer across all the stacks.
-    ///
-    /// This metric is tagged with:
-    /// - `storage_type`: The type of storage used in the envelope buffer.
-    BufferEnvelopesCount,
     /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
@@ -309,24 +302,25 @@ pub enum RelayDistributions {
     /// Counts the number of retries for each upstream http request.
     ///
     /// This metric is tagged with:
-    ///
-    ///   - `result`: What happened to the request, an enumeration with the following values:
-    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
-    ///     * `response_error`: The request was sent and it returned an HTTP error.
-    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
-    ///     * `send_failed`: Failed to send the request due to a network error.
-    ///     * `rate_limited`: The request was rate limited.
-    ///     * `invalid_json`: The response could not be parsed back into JSON.
-    ///   - `route`: The endpoint that was called on the upstream.
-    ///   - `status-code`: The status code of the request when available, otherwise "-".
+    ///  - `result`: What happened to the request, an enumeration with the following values:
+    ///    * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///    * `response_error`: The request was sent and it returned an HTTP error.
+    ///    * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///    * `send_failed`: Failed to send the request due to a network error.
+    ///    * `rate_limited`: The request was rate limited.
+    ///    * `invalid_json`: The response could not be parsed back into JSON.
+    ///  - `upstream`: The upstream the request is sent to.
+    ///  - `route`: The endpoint that was called on the upstream.
+    ///  - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
-    /// Size of envelopes sent over HTTP in bytes.
-    UpstreamQueryBodySize,
-    /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
-    /// Relay over HTTP in bytes.
-    UpstreamEnvelopeBodySize,
-    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
-    UpstreamMetricsBodySize,
+    /// Size of request bodies sent over HTTP in bytes.
+    ///
+    /// This does not include requests with streaming bodies.
+    ///
+    /// This metric is tagged with:
+    ///  - `upstream`: The upstream the request is sent to.
+    ///  - `route`: The endpoint that was called on the upstream.
+    UpstreamBodySize,
     /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
@@ -343,6 +337,13 @@ pub enum RelayDistributions {
     ///  - `item`: the trace item type.
     ///  - `too_large`: `true` or `false`, whether the item is bigger than the allowed size limit.
     TraceItemCanonicalSize,
+    /// The Content-Length of incoming HTTP requests in bytes.
+    ///
+    /// This metric is tagged with:
+    ///  - `has_content_length`: Whether the Content-Length header was present ("true"/"false").
+    ///  - `route`: The matched route pattern.
+    ///  - `status_code`: The HTTP response status code.
+    ContentLength,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -352,7 +353,6 @@ impl DistributionMetric for RelayDistributions {
             Self::EventSpans => "event.spans",
             Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             Self::BucketsPerBatch => "metrics.buckets.per_batch",
-            Self::BufferEnvelopesCount => "buffer.envelopes_count",
             Self::BufferEnvelopeBodySize => "buffer.envelope_body_size",
             Self::BufferEnvelopeSize => "buffer.envelope_size",
             Self::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
@@ -367,12 +367,11 @@ impl DistributionMetric for RelayDistributions {
             Self::ProjectStateSizeBytesDecompressed => "project_state.size_bytes.decompressed",
             Self::UpstreamMessageQueueSize => "http_queue.size",
             Self::UpstreamRetries => "upstream.retries",
-            Self::UpstreamQueryBodySize => "upstream.query.body_size",
-            Self::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
-            Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            Self::UpstreamBodySize => "upstream.body_size",
             Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
+            Self::ContentLength => "requests.content_length",
         }
     }
 }
@@ -405,6 +404,11 @@ pub enum RelayTimers {
     EventProcessingSerialization,
     /// Time used to extract span metrics from an event.
     EventProcessingSpanMetricsExtraction,
+    /// Time in milliseconds spent in each processor.
+    ///
+    /// This metric is tagged with:
+    ///  - `processor`: The processor executed.
+    EventProcessingProcess,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -424,6 +428,10 @@ pub enum RelayTimers {
     ///  - `event_processing.process`
     ///  - `event_processing.filtering`
     ///  - `event_processing.rate_limiting`
+    ///
+    /// This metric is tagged with:
+    /// - `is_intermediate`: Whether this envelope contains "intermediates",
+    ///   i.e. items produced by one processor for processing by others.
     EnvelopeProcessingTime,
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
@@ -470,15 +478,13 @@ pub enum RelayTimers {
     RequestsDuration,
     /// Time spent on minidump scrubbing.
     ///
-    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
-    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-    /// the parsed minidump, this duration is reported here with status of "n/a".
+    /// This is the total time spent on parsing and scrubbing the minidump.
     ///
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
     ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///   but no scurbbing rules applied.
+    ///   but no scrubbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -487,7 +493,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing
+    ///   scrubbing. "n/a" means unchanged.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -500,6 +506,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///   - `attachment_type`: The type of attachment, e.g. "minidump".
+    ///   - `status`: "ok" means successful scrubbed. "n/a" means not changed.
     AttachmentScrubbing,
     /// Total time spent to send request to upstream Relay and handle the response.
     ///
@@ -531,8 +538,6 @@ pub enum RelayTimers {
     ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
     ///    `security`, or `session`.
     TimestampDelay,
-    /// The time it takes the outcome aggregator to flush aggregated outcomes.
-    OutcomeAggregatorFlushTime,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
@@ -548,6 +553,11 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     ProjectCacheTaskDuration,
+    /// Timing in milliseconds for awaiting a loaded project state.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: Outcome of the fetch.
+    ProjectStateReadyDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -584,6 +594,10 @@ pub enum RelayTimers {
     /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
     ///
     /// Contains the time it takes to pack multiple envelopes into a single memory blob.
+    ///
+    /// This metric is tagged with:
+    /// - `partition_id`
+    /// - `reason`: "size" or "timeout".
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
     BufferSqlWrite,
@@ -610,10 +624,24 @@ pub enum RelayTimers {
     SignatureCreationDuration,
     /// Time needed to upload an attachment to objectstore.
     ///
+    /// This metric measures the duration of a download attempt.
+    /// Every retry contributes to the metric individually.
+    ///
     /// Tagged by:
     /// - `type`: "envelope" or "attachment_v2".
     #[cfg(feature = "processing")]
     AttachmentUploadDuration,
+
+    /// Time spent waiting for the producer of an async stream.
+    ///
+    /// Tagged by:
+    /// - `name`: Name of the stream, for example "upload".
+    StreamProducerLatency,
+    /// Time spent waiting for the consumer of an async stream.
+    ///
+    /// Tagged by:
+    /// - `name`: Name of the stream, for example "upload".
+    StreamConsumerLatency,
 }
 
 impl TimerMetric for RelayTimers {
@@ -628,6 +656,7 @@ impl TimerMetric for RelayTimers {
                 "event_processing.span_metrics_extraction"
             }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
+            RelayTimers::EventProcessingProcess => "event_processing.process",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
@@ -636,13 +665,13 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
             RelayTimers::ProjectCacheFetchDuration => "project_cache.fetch.duration",
+            RelayTimers::ProjectStateReadyDuration => "project_state.ready",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
-            RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
@@ -669,12 +698,16 @@ impl TimerMetric for RelayTimers {
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
             #[cfg(feature = "processing")]
             RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
+            RelayTimers::StreamProducerLatency => "stream.producer.latency",
+            RelayTimers::StreamConsumerLatency => "stream.consumer.latency",
         }
     }
 }
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Amount of times the configuration was reloaded.
+    ConfigReload,
     /// Tracks the number of tasks driven to completion by the async pool.
     ///
     /// This metric is tagged with:
@@ -724,17 +757,21 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the envelope. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     EnvelopeItemBytes,
+    /// Number of envelopes rejected because of size limits.
+    ///
+    /// This metric is tagged with:
+    ///  - `item`: The type of the items being counted.
+    ///  - `limit`: Which limit was breached.
+    EnvelopeSizeLimited,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
-    /// Number of envelopes spool to disk.
-    BufferSpooledEnvelopes,
-    /// Number of envelopes unspooled from disk.
-    BufferUnspooledEnvelopes,
     /// Number of project changed updates received by the buffer.
     BufferProjectChangedEvent,
     /// Number of times one or more projects of an envelope were pending when trying to pop
     /// their envelope.
     BufferProjectPending,
+    /// Number of iterations of the envelope buffer service loop.
+    BufferServiceLoopIteration,
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -821,7 +858,7 @@ pub enum RelayCounters {
     ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
-    ProcessingMessageProduced,
+    ProcessingMessageEnqueued,
     /// Number of spans produced in the new format.
     #[cfg(feature = "processing")]
     SpanV2Produced,
@@ -880,8 +917,6 @@ pub enum RelayCounters {
     RefreshStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
-    /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
-    MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
     ///
     /// This metric is tagged with:
@@ -939,12 +974,36 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times the sampling project was unresolved.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: what item the decision is taken for (transaction vs span).
+    SamplingProjectUnresolved,
     /// The number of times a sampling decision was made.
     ///
     /// This metric is tagged with:
     /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
-    /// The number of times an upload of an attachment occurs.
+    /// Number of items discarded by dynamic sampling on untrusted relays, reported via client reports.
+    ///
+    /// This metric is tagged with:
+    /// - `category`: the data category of the discarded items.
+    SamplingDroppedExternal,
+    /// How often a call to the upload endpoint was rejected because of the global kill switch.
+    ///
+    /// This is intended as a temporary metric to debug 503 flakiness.
+    UploadKillswitched,
+    /// The number of times an upload location is created through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadCreate,
+    /// The number of times an upload location is created through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadUpload,
+    /// The number of times an objectstore upload of an attachment occurs.
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
@@ -957,22 +1016,38 @@ pub enum RelayCounters {
     /// - `dsc`: yes or no
     /// - `sdk`: low-cardinality client name
     EnvelopeWithLogs,
+    /// Amount of profile chunks without a platform item header.
+    ///
+    /// The metric is emitted when processing profile chunks, profile chunks which are fast path
+    /// rate limited are not counted in this metric.
+    ProfileChunksWithoutPlatform,
+    /// Amount of errors have been processed by the error processing pipeline.
+    ///
+    /// This metric is tagged with:
+    /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
+    ErrorProcessed,
+    /// The number of times a trace metric has a nil trace ID.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    TraceMetricNilTraceId,
 }
 
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::ConfigReload => "config.reload",
             RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
+            RelayCounters::EnvelopeSizeLimited => "envelope.rejected.size",
             RelayCounters::BufferTryPop => "buffer.try_pop",
-            RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
-            RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
             RelayCounters::BufferProjectPending => "buffer.project_pending",
+            RelayCounters::BufferServiceLoopIteration => "buffer.service_loop_iteration",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::OutcomeQuantity => "events.outcome_quantity",
             RelayCounters::ProjectStateRequest => "project_state.request",
@@ -983,7 +1058,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheSchedule => "project_cache.schedule",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
-            RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            RelayCounters::ProcessingMessageEnqueued => "processing.event.enqueued",
             #[cfg(feature = "processing")]
             RelayCounters::SpanV2Produced => "store.produced.span_v2",
             RelayCounters::EventProtocol => "event.protocol",
@@ -994,7 +1069,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::RefreshStaleProjectCaches => "project_cache.refresh",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
-            RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
@@ -1010,10 +1084,18 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
+            RelayCounters::SamplingProjectUnresolved => "sampling.project_unresolved",
             RelayCounters::SamplingDecision => "sampling.decision",
+            RelayCounters::SamplingDroppedExternal => "sampling.dropped_external",
+            RelayCounters::UploadKillswitched => "upload.killswitched",
+            RelayCounters::UploadCreate => "upload.create",
+            RelayCounters::UploadUpload => "upload.upload",
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
+            RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
+            RelayCounters::ErrorProcessed => "event.error.processed",
+            RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }
     }
 }

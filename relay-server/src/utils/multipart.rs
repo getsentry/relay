@@ -1,26 +1,24 @@
-use std::convert::Infallible;
+use std::future::Future;
 use std::io;
-use std::task::Poll;
 
-use axum::RequestExt;
-use axum::extract::{FromRequest, FromRequestParts, Request};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use bytes::{Bytes, BytesMut};
-use futures::{StreamExt, TryStreamExt};
+use axum::extract::Request;
+use bytes::Bytes;
+use futures::TryStreamExt;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
+use tokio_util::io::StreamReader;
 
+use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-use crate::extractors::{BadEventMeta, PartialDsn, Remote, RequestMeta};
-use crate::service::ServiceState;
+use crate::extractors::RequestMeta;
+use crate::managed::Managed;
 use crate::services::outcome::{
     DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
 };
-use crate::utils::ApiErrorResponse;
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -96,7 +94,7 @@ impl<'a> FormDataEntry<'a> {
 ///
 /// This writer is used to serialize multiple plain fields from a multipart form data request into a
 /// single envelope item. Use `FormDataIter` to iterate all entries.
-struct FormDataWriter {
+pub struct FormDataWriter {
     data: Vec<u8>,
 }
 
@@ -112,6 +110,10 @@ impl FormDataWriter {
 
     pub fn into_inner(self) -> Vec<u8> {
         self.data
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -164,90 +166,153 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum BadMultipart {
-    #[error("event metadata error: {0}")]
-    EventMeta(#[from] BadEventMeta),
-    #[error("multipart error: {0}")]
-    Multipart(#[from] multer::Error),
+/// Strategy for how to infer attachment type and add a multipart attachment to an envelope item.
+///
+/// This enables different endpoints to have different ways of dealing with multipart attachments,
+/// for instance, one endpoint can upload attachments and add a ref to the item, while another
+/// endpoint can add attachments to items directly.
+pub trait AttachmentStrategy {
+    fn infer_type(&self, field: &Field) -> AttachmentType;
+
+    /// Defines how individual multipart items should be handled.
+    ///
+    /// Returns
+    ///  - `Ok(Some(item))` if everything was successful.
+    ///  - `Ok(None)` if there was an error adding the attachment, but the rest of the request
+    ///    should still be handled.
+    ///  - `Err(..)` if there was an unexpected error adding the attachment and the request should
+    ///    be cancelled.
+    fn add_to_item(
+        &self,
+        field: Field<'static>,
+        item: Managed<Item>,
+        config: &ConfigSnapshot,
+    ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
 }
 
-impl From<Infallible> for BadMultipart {
-    fn from(infallible: Infallible) -> Self {
-        match infallible {}
-    }
-}
-
-impl IntoResponse for BadMultipart {
-    fn into_response(self) -> Response {
-        let status_code = match self {
-            BadMultipart::Multipart(
-                multer::Error::FieldSizeExceeded { .. } | multer::Error::StreamSizeExceeded { .. },
-            ) => StatusCode::PAYLOAD_TOO_LARGE,
-            _ => StatusCode::BAD_REQUEST,
+pub fn read_bytes_into_item(
+    bytes: Bytes,
+    mut item: Managed<Item>,
+    content_type: Option<ContentType>,
+) -> Managed<Item> {
+    item.modify(|inner, records| {
+        if let Some(content_type) = content_type {
+            inner.set_payload(content_type, bytes);
+        } else {
+            inner.set_payload_without_content_type(bytes);
         };
+        records.lenient(DataCategory::Attachment);
+    });
 
-        (status_code, ApiErrorResponse::from_error(&self)).into_response()
+    item
+}
+
+async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
+    let mut buf = Vec::new();
+    StreamReader::new(field.map_err(io::Error::other))
+        .take((limit) as u64)
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+    Ok(buf)
+}
+
+pub async fn read_field_into_item(
+    field: Field<'static>,
+    mut item: Managed<Item>,
+    config: &ConfigSnapshot,
+) -> Result<Managed<Item>, multer::Error> {
+    let content_type = field
+        .content_type()
+        .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
+    let field_name = field.name().map(String::from);
+    let limit = config.max_attachment_size();
+    let bytes = Bytes::from(read_field_data(field, limit + 1).await?); // Extra byte needed to determine if limit was exceeded.
+    let n_bytes = bytes.len();
+    item.modify(|inner, records| {
+        if let Some(content_type) = content_type {
+            inner.set_payload(content_type, bytes);
+        } else {
+            inner.set_payload_without_content_type(bytes);
+        };
+        records.lenient(DataCategory::Attachment);
+    });
+
+    if n_bytes > limit {
+        let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
+        let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
+        let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
+
+        Err(multer::Error::FieldSizeExceeded {
+            limit: limit as u64,
+            field_name,
+        })
+    } else {
+        Ok(item)
     }
 }
 
-async fn multipart_items<F, G>(
-    mut multipart: Multipart<'_>,
-    mut infer_type: F,
-    mut emit_outcome: G,
-    config: &Config,
-    ignore_large_fields: bool,
-) -> Result<Items, multer::Error>
-where
-    F: FnMut(Option<&str>, &str) -> AttachmentType,
-    G: FnMut(Outcome, u32),
-{
-    let mut items = Items::new();
+pub async fn multipart_items(
+    mut multipart: Multipart<'static>,
+    config: &ConfigSnapshot,
+    attachment_strategy: impl AttachmentStrategy,
+    request_meta: &RequestMeta,
+    outcome_aggregator: &Addr<TrackOutcome>,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let mut items =
+        Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, Items::new());
     let mut form_data = FormDataWriter::new();
     let mut attachments_size = 0;
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type(infer_type(field.name(), file_name));
+            let attachment_type = attachment_strategy.infer_type(&field);
+            item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-
-            let content_type = field.content_type().cloned();
-            let field = LimitedField::new(field, config.max_attachment_size());
-            match field.bytes().await {
-                Err(multer::Error::FieldSizeExceeded { limit, .. }) if ignore_large_fields => {
-                    emit_outcome(
-                        Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
-                            DiscardAttachmentType::Attachment,
-                        ))),
-                        u32::try_from(limit).unwrap_or(u32::MAX),
-                    );
-                    continue;
-                }
-                Err(err) => return Err(err),
-                Ok(bytes) => {
-                    attachments_size += bytes.len();
-
-                    if attachments_size > config.max_attachments_size() {
-                        return Err(multer::Error::StreamSizeExceeded {
-                            limit: config.max_attachments_size() as u64,
-                        });
+            let item = items.wrap(item);
+            let item = attachment_strategy
+                .add_to_item(field, item, config)
+                .await
+                .inspect_err(|e| {
+                    if matches!(
+                        e,
+                        BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+                    ) {
+                        let attachment_type = DiscardAttachmentType::from(attachment_type);
+                        let item_type = DiscardItemType::Attachment(attachment_type);
+                        let discard_reason = DiscardReason::ItemTooLarge(item_type);
+                        let _ = items.reject_err(Outcome::Invalid(discard_reason));
                     }
-
-                    if let Some(content_type) = content_type {
-                        item.set_payload(content_type.as_ref().into(), bytes);
-                    } else {
-                        item.set_payload_without_content_type(bytes);
-                    }
+                })?;
+            if let Some(item) = item {
+                // This increases the attachments byte count even if the item is an attachment ref.
+                // This is by design as the total number of bytes read into memory should be
+                // constrained.
+                attachments_size += item.len();
+                items.merge_with(item, |items, item, _| items.push(item));
+                if attachments_size > config.max_attachments_size() {
+                    let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
+                    let _ =
+                        items.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
+                    return Err(BadStoreRequest::RequestTooLarge);
                 }
             }
-
-            items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
+            // Since the FormData ends up in an event use the event size limit.
+            let limit = config.max_event_size();
+            // Extra byte needed to determine if limit was exceeded.
+            let data = read_field_data(field, limit + 1).await?;
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
-            let string = field.text().await?;
+            let string = String::from_utf8_lossy(&data);
             form_data.append(&field_name, &string);
+
+            if form_data.len() > limit {
+                return Err(items
+                    .reject_err(BadStoreRequest::ItemTooLarge(DiscardItemType::FormData))
+                    .into());
+            }
         } else {
             relay_log::trace!("multipart content without name or file_name");
         }
@@ -259,189 +324,23 @@ where
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
         item.set_payload(ContentType::Text, form_data);
-        items.push(item);
+        items.merge_with(items.wrap(item), |items, item, _| items.push(item));
     }
 
     Ok(items)
 }
 
-/// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
-/// size limit is exceeded.
-///
-/// The idea being that you can process fields in a multi-part form even if one fields is too large.
-struct LimitedField<'a> {
-    field: Field<'a>,
-    consumed_size: usize,
-    size_limit: usize,
-    inner_finished: bool,
-}
-
-impl<'a> LimitedField<'a> {
-    fn new(field: Field<'a>, limit: usize) -> Self {
-        LimitedField {
-            field,
-            consumed_size: 0,
-            size_limit: limit,
-            inner_finished: false,
-        }
-    }
-
-    async fn bytes(self) -> Result<Bytes, multer::Error> {
-        self.try_fold(BytesMut::new(), |mut acc, x| async move {
-            acc.extend_from_slice(&x);
-            Ok(acc)
-        })
-        .await
-        .map(|x| x.freeze())
-    }
-}
-
-impl futures::Stream for LimitedField<'_> {
-    type Item = Result<Bytes, multer::Error>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        if self.inner_finished {
-            return Poll::Ready(None);
-        }
-
-        match self.field.poll_next_unpin(cx) {
-            err @ Poll::Ready(Some(Err(_))) => err,
-            Poll::Ready(Some(Ok(t))) => {
-                self.consumed_size += t.len();
-                match self.consumed_size <= self.size_limit {
-                    true => Poll::Ready(Some(Ok(t))),
-                    false => {
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
-                }
-            }
-            Poll::Ready(None) if self.consumed_size > self.size_limit => {
-                self.inner_finished = true;
-                Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
-                    limit: self.consumed_size as u64,
-                    field_name: self.field.name().map(Into::into),
-                })))
-            }
-            Poll::Ready(None) => {
-                self.inner_finished = true;
-                Poll::Ready(None)
-            }
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-/// Wrapper around [`multer::Multipart`] that checks each field is smaller than
-/// `max_attachment_size` and that the combined size of all fields is smaller than
-/// 'max_attachments_size'.
-pub struct ConstrainedMultipart(pub Multipart<'static>);
-
-impl FromRequest<ServiceState> for ConstrainedMultipart {
-    type Rejection = Remote<multer::Error>;
-
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
-        // Still want to enforce multer limits here so that we avoid parsing large fields.
-        let limits =
-            multer::SizeLimit::new().whole_stream(state.config().max_attachments_size() as u64);
-
-        multipart_from_request(request, multer::Constraints::new().size_limit(limits))
-            .map(Self)
-            .map_err(Remote)
-    }
-}
-
-impl ConstrainedMultipart {
-    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
-    where
-        F: FnMut(Option<&str>, &str) -> AttachmentType,
-    {
-        // The emit outcome closure here does nothing since in this code branch we don't want to
-        // emit outcomes as we already return an error to the request.
-        multipart_items(self.0, infer_type, |_, _| (), config, false).await
-    }
-}
-
-/// Wrapper around [`multer::Multipart`] that skips over fields which are larger than
-/// `max_attachment_size`. These fields are also not taken into account when checking that the
-/// combined size of all fields is smaller than `max_attachments_size`.
-#[allow(dead_code)]
-pub struct UnconstrainedMultipart {
-    multipart: Multipart<'static>,
-    outcome_aggregator: Addr<TrackOutcome>,
-    request_meta: RequestMeta,
-}
-
-impl FromRequest<ServiceState> for UnconstrainedMultipart {
-    type Rejection = BadMultipart;
-
-    async fn from_request(
-        mut request: Request,
-        state: &ServiceState,
-    ) -> Result<Self, Self::Rejection> {
-        let mut parts = request.extract_parts().await?;
-        let request_meta = RequestMeta::<PartialDsn>::from_request_parts(&mut parts, state).await?;
-
-        let multipart = multipart_from_request(request, multer::Constraints::new())?;
-        Ok(UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator: state.outcome_aggregator().clone(),
-            request_meta,
-        })
-    }
-}
-
-#[cfg_attr(not(any(test, sentry)), expect(dead_code))]
-impl UnconstrainedMultipart {
-    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
-    where
-        F: FnMut(Option<&str>, &str) -> AttachmentType,
-    {
-        let UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator,
-            request_meta,
-        } = self;
-
-        multipart_items(
-            multipart,
-            infer_type,
-            |outcome, quantity| {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp: request_meta.received_at(),
-                    scoping: request_meta.get_partial_scoping().into_scoping(),
-                    outcome,
-                    event_id: None,
-                    remote_addr: request_meta.remote_addr(),
-                    category: DataCategory::Attachment,
-                    quantity,
-                })
-            },
-            config,
-            true,
-        )
-        .await
-    }
-}
-
-pub fn multipart_from_request(
-    request: Request,
-    constraints: multer::Constraints,
-) -> Result<Multipart<'static>, multer::Error> {
+pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, BadStoreRequest> {
     let content_type = request
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    let boundary = multer::parse_boundary(content_type)?;
-
-    Ok(Multipart::with_constraints(
+    let boundary =
+        multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
+    Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
-        constraints,
     ))
 }
 
@@ -449,7 +348,16 @@ pub fn multipart_from_request(
 mod tests {
     use std::convert::Infallible;
 
+    use relay_config::Config;
+
     use super::*;
+
+    fn mock_request_meta() -> RequestMeta {
+        let dsn = "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        RequestMeta::new(dsn)
+    }
 
     #[test]
     fn test_get_boundary() {
@@ -538,25 +446,37 @@ mod tests {
                 "max_attachment_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
-        let mut mock_outcomes = vec![];
-        let items = multipart_items(
+        struct MockAttachmentStrategy;
+        impl AttachmentStrategy for MockAttachmentStrategy {
+            async fn add_to_item(
+                &self,
+                field: Field<'static>,
+                item: Managed<Item>,
+                config: &ConfigSnapshot,
+            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+                Ok(Some(read_field_into_item(field, item, config).await?))
+            }
+
+            fn infer_type(&self, _: &Field) -> AttachmentType {
+                AttachmentType::Attachment
+            }
+        }
+
+        let res = multipart_items(
             multipart,
-            |_, _| AttachmentType::Attachment,
-            |_, x| mock_outcomes.push(x),
             &config,
-            true,
+            MockAttachmentStrategy,
+            &mock_request_meta(),
+            &Addr::dummy(),
         )
-        .await
-        .unwrap();
-
-        // The large field is skipped so only the small one should make it through.
-        assert_eq!(items.len(), 1);
-        let item = &items[0];
-        assert_eq!(item.filename(), Some("small.txt"));
-        assert_eq!(item.payload(), Bytes::from("ok"));
-        assert_eq!(mock_outcomes, vec![27]);
+        .await;
+        assert!(res.is_err_and(|x| matches!(
+            x,
+            BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+        )));
     }
 
     #[tokio::test]
@@ -580,23 +500,37 @@ mod tests {
                 "max_attachments_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        let result = UnconstrainedMultipart {
-            multipart,
-            outcome_aggregator: Addr::dummy(),
-            request_meta: RequestMeta::new(
-                "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-                    .parse()
-                    .unwrap(),
-            ),
+        struct MockAttachmentStrategy;
+        impl AttachmentStrategy for MockAttachmentStrategy {
+            async fn add_to_item(
+                &self,
+                field: Field<'static>,
+                item: Managed<Item>,
+                config: &ConfigSnapshot,
+            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+                Ok(Some(read_field_into_item(field, item, config).await?))
+            }
+
+            fn infer_type(&self, _: &Field) -> AttachmentType {
+                AttachmentType::Attachment
+            }
         }
-        .items(|_, _| AttachmentType::Attachment, &config)
+
+        let result = multipart_items(
+            multipart,
+            &config,
+            MockAttachmentStrategy,
+            &mock_request_meta(),
+            &Addr::dummy(),
+        )
         .await;
 
         // Should be warned if the overall stream limit is being breached.
-        assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
+        assert!(result.is_err_and(|x| matches!(x, BadStoreRequest::RequestTooLarge)));
     }
 }

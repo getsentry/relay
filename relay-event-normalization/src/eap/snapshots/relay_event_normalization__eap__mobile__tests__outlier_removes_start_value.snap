@@ -1,0 +1,5 @@
+---
+source: relay-event-normalization/src/eap/mobile.rs
+expression: attributes
+---
+{}
