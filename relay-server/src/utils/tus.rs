@@ -33,8 +33,8 @@ pub enum Error {
         upload_defer_length: Option<usize>,
     },
     /// The `Upload-Offset` header is missing or invalid
-    #[error("expected Upload-Offset: 0, got: {0:?}")]
-    UploadOffset(Option<usize>),
+    #[error("expected Upload-Offset >= 0")]
+    UploadOffset,
     /// The `Content-Type` header is not what TUS expects.
     #[error("expected Content-Type: {expected}, got: {received}")]
     ContentType {
@@ -60,12 +60,11 @@ impl IntoResponse for Error {
                 body,
             )
                 .into_response(),
-            Error::UploadOffset(Some(_)) => (StatusCode::CONFLICT, body).into_response(),
             Error::ContentType { .. } => (StatusCode::UNSUPPORTED_MEDIA_TYPE, body).into_response(),
             Error::UploadLength { .. }
             | Error::InvalidMetadataBase64(_)
             | Error::InvalidMetadata(_)
-            | Error::UploadOffset(_) => (StatusCode::BAD_REQUEST, body).into_response(),
+            | Error::UploadOffset => (StatusCode::BAD_REQUEST, body).into_response(),
         }
     }
 }
@@ -154,6 +153,7 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
     let upload_defer_length: Option<usize> = parse_header(headers, UPLOAD_DEFER_LENGTH);
 
+    // FIXME: Do we really want to support this?
     // Exactly one of Upload-Length and Upload-Defer-Length must be present.
     // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol).
     let upload_length = match (upload_length, upload_defer_length) {
@@ -174,7 +174,9 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
 }
 
 /// Validates TUS protocol headers and returns the expected upload length.
-pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
+///
+/// Returns the offset from which the upload is resumed.
+pub fn validate_patch_headers(headers: &HeaderMap) -> Result<usize, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -193,14 +195,8 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
         });
     }
 
-    let upload_offset: usize =
-        parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset(None))?;
-    if upload_offset != 0 {
-        // Only allow full uploads for now.
-        return Err(Error::UploadOffset(Some(upload_offset)));
-    }
-
-    Ok(())
+    let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
+    Ok(upload_offset)
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -226,10 +222,10 @@ pub fn add_creation_headers(
 }
 
 /// Prepares the required TUS request headers for upstream requests.
-pub fn add_upload_headers(builder: &mut RequestBuilder) {
+pub fn add_upload_headers(builder: &mut RequestBuilder, offset: usize) {
     builder.header(TUS_RESUMABLE, TUS_VERSION);
     builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-    builder.header(UPLOAD_OFFSET, "0"); // always zero until we implement retries / chunking
+    builder.header(UPLOAD_OFFSET, offset.to_string());
 }
 
 /// Prepares the required TUS response headers.
@@ -516,7 +512,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(None))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]
@@ -524,9 +520,9 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("512"));
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("-512"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(Some(512)))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]

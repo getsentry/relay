@@ -11,10 +11,11 @@ use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, SessionToken, TokenGenerator,
+    UploadProgress, Usecase,
 };
 
-use objectstore_types::multipart::{InvalidUploadId, UploadId};
+use objectstore_types::resumable::InvalidSessionToken;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -46,7 +47,7 @@ pub enum Objectstore {
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
     Create(Create, Sender<Result<UploadRef, Error>>),
-    Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
+    Stream(Stream, Sender<Result<UploadRef, Error>>),
 }
 
 impl Objectstore {
@@ -131,7 +132,7 @@ impl MessageKind {
     }
 }
 
-/// A request to create a new objectstore multipart upload.
+/// A request to create a new objectstore resumable upload.
 pub struct Create {
     /// The sentry org.
     pub organization_id: OrganizationId,
@@ -139,6 +140,8 @@ pub struct Create {
     pub project_id: ProjectId,
     /// The desired objectstore key.
     pub key: String,
+    /// The total length of the object to be uploaded.
+    pub object_length: u64,
     /// Retention for the uploaded object (in days).
     pub retention: u16,
 }
@@ -161,9 +164,9 @@ pub struct Stream {
 }
 
 impl FromMessage<Stream> for Objectstore {
-    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+    fn from_message(message: Stream, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Stream(message, sender)
     }
 }
@@ -278,6 +281,8 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
+    #[error("invalid upload offset {client_offset} expected {offset}")]
+    InvalidOffset { client_offset: u64, offset: u64 },
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -292,6 +297,7 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidScoping => "invalid_scoping",
+            Self::InvalidOffset { .. } => "invalid_offset",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
@@ -333,19 +339,29 @@ impl ObjectstoreKey {
 pub struct UploadRef {
     /// They key of the file (chosen by relay).
     pub key: String,
-    /// The ID of the multipart upload session (chosen by objectstore).
+    /// The ID of the resumable upload session (chosen by objectstore).
     /// `None` if the upload is not a resumable session.
-    pub upload_id: Option<UploadId>,
+    pub session_token: Option<SessionToken>,
+    /// The byte offset from which to resume the upload.
+    pub offset: usize,
 }
 
 impl UploadRef {
     /// Validates the upload ID and returns a new upload reference.
-    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
-        let upload_id = match upload_id {
-            Some(s) => Some(UploadId::new(s)?),
+    pub fn new(
+        key: String,
+        session_token: Option<String>,
+        offset: usize,
+    ) -> Result<Self, InvalidSessionToken> {
+        let session_token = match session_token {
+            Some(s) => Some(SessionToken::from_base64url(&s)?),
             None => None,
         };
-        Ok(Self { key, upload_id })
+        Ok(Self {
+            key,
+            session_token,
+            offset,
+        })
     }
 }
 
@@ -572,8 +588,8 @@ impl ObjectstoreServiceInner {
                 .await;
 
             match result {
-                Ok(stored_key) => {
-                    attachment.modify(|a, _| a.set_stored_key(stored_key.into_inner()));
+                Ok(UploadRef { key, .. }) => {
+                    attachment.modify(|a, _| a.set_stored_key(key));
                 }
                 Err(error) => {
                     error.log(MessageKind::Event);
@@ -637,11 +653,9 @@ impl ObjectstoreServiceInner {
         };
 
         match upload_result {
-            Ok(stored_key) => {
+            Ok(UploadRef { key, .. }) => {
                 attachment.modify(|attachment, _| {
-                    attachment
-                        .attachment
-                        .set_stored_key(stored_key.into_inner());
+                    attachment.attachment.set_stored_key(key);
                 });
                 self.store.send(attachment);
             }
@@ -714,7 +728,7 @@ impl ObjectstoreServiceInner {
                 filename,
             };
 
-            let _stored_key = self
+            let _upload_ref = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
@@ -726,7 +740,7 @@ impl ObjectstoreServiceInner {
                 .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
-            debug_assert_eq!(_stored_key.into_inner(), original_key);
+            debug_assert_eq!(_upload_ref.key, original_key);
         }
 
         // Only after successful upload forward the attachment to the store.
@@ -748,12 +762,12 @@ impl ObjectstoreServiceInner {
             .try_upload_raw_profile(payload, content_type, store_message.retention_days, scoping)
             .await
         {
-            Ok(Some(stored_id)) => {
+            Ok(Some(UploadRef { key, .. })) => {
                 store_message.modify(|message, _| {
                     message.attachments.push(ProfileAttachment {
                         name,
                         content_type,
-                        stored_id,
+                        stored_id: ObjectstoreKey(key),
                     })
                 });
             }
@@ -774,7 +788,7 @@ impl ObjectstoreServiceInner {
         content_type: ContentType,
         retention: u16,
         scoping: Scoping,
-    ) -> Result<Option<ObjectstoreKey>, Error> {
+    ) -> Result<Option<UploadRef>, Error> {
         if payload.is_empty() {
             return Ok(None);
         }
@@ -807,20 +821,31 @@ impl ObjectstoreServiceInner {
             organization_id,
             project_id,
             key,
-            retention: _,
+            object_length,
+            retention,
         } = create;
-        let _session = self.session(&self.event_attachments, organization_id, project_id)?;
-
-        // This is intentionally a stub. Once Objectstore implements resumable uploads,
-        // create an upload session here.
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+        // FIXME: General: Defered-Upload-Lenght will never work here?
+        // FIXME: Decided on providing the `content_type` here
+        // FIXME: This currently swallows a declined resumable upload.
+        let session_token = session
+            .create_upload(object_length)
+            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                u64::from(retention) * 24,
+            )))
+            .key(&key)
+            .send()
+            .await?
+            .map(|upload| upload.token().to_owned());
 
         Ok(UploadRef {
             key,
-            upload_id: None,
+            session_token,
+            offset: 0,
         })
     }
 
-    async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
+    async fn handle_stream(&self, stream: Stream) -> Result<UploadRef, Error> {
         let Stream {
             organization_id,
             project_id,
@@ -849,7 +874,7 @@ impl ObjectstoreServiceInner {
         payload: Bytes,
         retention: u16,
         attributes: ObjectAttributes,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<UploadRef, Error> {
         let ObjectAttributes {
             key,
             content_type,
@@ -875,7 +900,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: Upload,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<UploadRef, Error> {
         let mut attempts = 0;
         let timeout = match &body {
             Upload::Bytes { .. } => self.timeout,
@@ -924,7 +949,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<ObjectstoreKey, objectstore_client::Error> {
+    ) -> Result<UploadRef, AttemptUploadError> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -933,6 +958,7 @@ impl ObjectstoreServiceInner {
                 content_type,
                 filename,
             } => {
+                let offset = body.len();
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type);
@@ -945,6 +971,7 @@ impl ObjectstoreServiceInner {
                         Duration::from_hours(retention_hours.into()),
                     ));
                 }
+                // Note: This is fine since it can't be hit from external relays.
                 if let Some(key) = key {
                     request = request.key(key);
                 }
@@ -955,24 +982,62 @@ impl ObjectstoreServiceInner {
                     request.send().await?
                 });
 
-                Ok(ObjectstoreKey(response.key))
+                Ok(UploadRef {
+                    key: response.key,
+                    session_token: None,
+                    offset,
+                })
             }
             UploadAttempt::Stream {
                 body,
                 upload_ref,
                 retention,
             } => {
-                let UploadRef { key, upload_id: _ } = upload_ref;
+                let UploadRef {
+                    key,
+                    session_token,
+                    offset,
+                } = upload_ref;
 
-                let request = session.put_stream(body.boxed()).key(key).compress(None);
-                let response = request
-                    .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
-                        u64::from(retention) * 24,
-                    )))
-                    .send()
-                    .await?;
+                match session_token {
+                    Some(token) => {
+                        let resumable_upload = session.resume_upload(key, token);
 
-                Ok(ObjectstoreKey(response.key))
+                        // FIXME: progress, put_stream, progress seems a bit wasteful
+                        let client_offset = offset as u64;
+                        let progress = resumable_upload.progress().send().await?;
+                        if let UploadProgress::Incomplete { offset } = progress
+                            && offset != client_offset
+                        {
+                            return Err(AttemptUploadError::InvalidOffset {
+                                client_offset,
+                                offset,
+                            });
+                        } else if let UploadProgress::Complete = progress {
+                            todo!("Figure out what should happen here")
+                        }
+
+                        todo!("Error: Either uploading to done upload or wrong offset");
+                    }
+
+                    None => {
+                        // Note: We don't use the key we already have here (since that one is a dummy).
+                        // Instead let objectstore make a new one for us and communicate that one back.
+                        let request = session.put_stream(body.boxed()).compress(None);
+                        let response = request
+                            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                                u64::from(retention) * 24,
+                            )))
+                            .send()
+                            .await?;
+
+                        Ok(UploadRef {
+                            key: response.key,
+                            session_token: None,
+                            offset: 0, // FIXME: Should be the length of the entire one-shotted stream.
+                        })
+                    }
+                }
             }
         }
     }
@@ -990,6 +1055,29 @@ impl ObjectstoreServiceInner {
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)?;
         Ok(session)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum AttemptUploadError {
+    #[error(transparent)]
+    Objectstore(#[from] objectstore_client::Error),
+    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
+    InvalidOffset { client_offset: u64, offset: u64 },
+}
+
+impl From<AttemptUploadError> for ErrorKind {
+    fn from(value: AttemptUploadError) -> Self {
+        match value {
+            AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
+            AttemptUploadError::InvalidOffset {
+                client_offset,
+                offset,
+            } => ErrorKind::InvalidOffset {
+                client_offset,
+                offset,
+            },
+        }
     }
 }
 
@@ -1076,9 +1164,9 @@ enum UploadAttempt {
     },
 }
 
-fn is_retryable(error: &objectstore_client::Error) -> bool {
+fn is_retryable(error: &AttemptUploadError) -> bool {
     match error {
-        objectstore_client::Error::Reqwest(error) => {
+        AttemptUploadError::Objectstore(objectstore_client::Error::Reqwest(error)) => {
             error.is_connect()
                 || error.is_timeout()
                 || matches!(
@@ -1179,7 +1267,8 @@ mod tests {
                 project_id: ProjectId::new(1),
                 upload_ref: UploadRef {
                     key: "my_file".to_owned(),
-                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
+                    session_token: Some(SessionToken::new("my_upload".to_owned())),
+                    offset: 0,
                 },
                 retention: DEFAULT_EVENT_RETENTION,
                 stream,

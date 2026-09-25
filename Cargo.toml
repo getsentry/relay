@@ -163,7 +163,7 @@ metrics-exporter-dogstatsd = "0.9"
 metrics-util = { version = "0.20", default-features = false }
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = { version = "0.2" }
+objectstore-client = { version = "0.2.7", features = ["resumable-upload-api"] }
 objectstore-types = { version = "0.2" }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
