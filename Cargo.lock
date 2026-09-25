@@ -5083,6 +5083,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-serialization",
  "relay-spans",
  "relay-statsd",
  "relay-system",

@@ -17,6 +17,7 @@ pub fn expand(
     item: Item,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
+    max_ops: usize,
 ) -> Option<(Settings, ContainerItems<OurLog>)> {
     let integration = match item.integration() {
         Some(Integration::Logs(integration)) => integration,
@@ -46,7 +47,7 @@ pub fn expand(
 
     let settings = match integration {
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
-        LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+        LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, max_ops, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
     };
     let settings = match settings {
