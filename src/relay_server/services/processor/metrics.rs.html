@@ -14,9 +14,9 @@
 <a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub fn </span>is_valid_namespace(bucket: <span class="kw-2">&amp;</span>Bucket, source: BucketSource) -&gt; bool {
 <a href=#15 id=15 data-nosnippet>15</a>    <span class="kw">match </span>bucket.name.namespace() {
 <a href=#16 id=16 data-nosnippet>16</a>        MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
-<a href=#17 id=17 data-nosnippet>17</a>        MetricNamespace::Spans =&gt; <span class="bool-val">true</span>,
-<a href=#18 id=18 data-nosnippet>18</a>        MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
-<a href=#19 id=19 data-nosnippet>19</a>        MetricNamespace::Outcomes =&gt; source == BucketSource::Internal,
+<a href=#17 id=17 data-nosnippet>17</a>        MetricNamespace::Spans | MetricNamespace::Transactions | MetricNamespace::Outcomes =&gt; {
+<a href=#18 id=18 data-nosnippet>18</a>            source == BucketSource::Internal
+<a href=#19 id=19 data-nosnippet>19</a>        }
 <a href=#20 id=20 data-nosnippet>20</a>        MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
 <a href=#21 id=21 data-nosnippet>21</a>    }
 <a href=#22 id=22 data-nosnippet>22</a>}
