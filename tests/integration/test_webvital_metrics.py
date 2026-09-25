@@ -22,13 +22,14 @@ def v1_transaction_envelope(*payloads: dict, data: dict) -> Envelope:
                         "start_timestamp": spans[0]["start_timestamp"],
                         "spans": spans,
                         "contexts": {
+                            "browser": {"name": "Chrome", "type": "browser"},
                             "trace": {
                                 "op": "pageload",
                                 "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
                                 "span_id": "968cff94913ebb07",
                                 "sentry.origin": "manual",
                                 "data": data,
-                            }
+                            },
                         },
                         "transaction": "pageload",
                         "environment": "production",
@@ -127,12 +128,13 @@ def test_v1_transaction(
                     "boolValue": True
                 },
                 "sentry.value": {"doubleValue": 100.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
@@ -161,12 +163,13 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 200.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
@@ -197,12 +200,13 @@ def test_v1_transaction(
                 "sentry._internal.cooccuring.name.browser.web_vital.inp": {
                     "boolValue": True
                 },
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "a6f029fbe0e2389a"},
-                "sentry.payload_size_bytes": {"intValue": "209"},
+                "sentry.payload_size_bytes": {"intValue": "227"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
@@ -232,10 +236,11 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 400.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "175"},
+                "sentry.payload_size_bytes": {"intValue": "193"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
@@ -267,10 +272,11 @@ def test_v1_transaction(
                 "sentry.metric_unit": {"stringValue": "millisecond"},
                 "sentry.sdk.version": {"stringValue": "2.6.3"},
                 "sentry.value": {"doubleValue": 500.0},
+                "browser.name": {"stringValue": "Chrome"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.span_id": {"stringValue": "968cff94913ebb07"},
-                "sentry.payload_size_bytes": {"intValue": "176"},
+                "sentry.payload_size_bytes": {"intValue": "194"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.timestamp_precise": {
@@ -452,11 +458,13 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
                 },
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "score.weight.cls": {"doubleValue": 0.25},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "176"},
+                "sentry.payload_size_bytes": {"intValue": "214"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
@@ -489,10 +497,12 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
                 },
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "176"},
+                "sentry.payload_size_bytes": {"intValue": "214"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
@@ -521,6 +531,8 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
                 },
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry._internal.cooccuring.name.browser.web_vital.inp": {
                     "boolValue": True
                 },
@@ -529,7 +541,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "cd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "227"},
+                "sentry.payload_size_bytes": {"intValue": "265"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "score.weight.inp": {"doubleValue": 1.0},
@@ -565,6 +577,8 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
                 },
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.value": {"doubleValue": 400.0},
                 "score.lcp": {"doubleValue": 0.29986141375718806},
                 "sentry.metric.source": {"stringValue": "span"},
@@ -572,7 +586,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "176"},
+                "sentry.payload_size_bytes": {"intValue": "214"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
@@ -603,12 +617,14 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
                 },
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "180"},
+                "sentry.payload_size_bytes": {"intValue": "218"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
@@ -753,24 +769,180 @@ def test_v2(
 
     items = items_consumer.get_items()
     items.sort(key=lambda item: item["attributes"]["sentry.metric_name"]["stringValue"])
-    assert len(items) == 5
-    assert (
-        items[0]["attributes"]["sentry.metric_name"]["stringValue"]
-        == "browser.web_vital.cls"
-    )
-    assert (
-        items[1]["attributes"]["sentry.metric_name"]["stringValue"]
-        == "browser.web_vital.fcp"
-    )
-    assert (
-        items[2]["attributes"]["sentry.metric_name"]["stringValue"]
-        == "browser.web_vital.inp"
-    )
-    assert (
-        items[3]["attributes"]["sentry.metric_name"]["stringValue"]
-        == "browser.web_vital.lcp"
-    )
-    assert (
-        items[4]["attributes"]["sentry.metric_name"]["stringValue"]
-        == "browser.web_vital.ttfb"
-    )
+    assert items == [
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": "5b8efff798038103d269b633813fc60c",
+            "itemId": matches_any(),
+            "itemType": "TRACE_ITEM_TYPE_METRIC",
+            "timestamp": time_within_delta(),
+            "attributes": {
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.metric_name": {"stringValue": "browser.web_vital.cls"},
+                "sentry._internal.cooccuring.unit.none": {"boolValue": True},
+                "sentry.metric_unit": {"stringValue": "none"},
+                "sentry._internal.cooccuring.name.browser.web_vital.cls": {
+                    "boolValue": True
+                },
+                "sentry.value": {"doubleValue": 100.0},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+                },
+                "sentry.metric.source": {"stringValue": "span"},
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(expect_resolution="ns")
+                },
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+                "sentry.metric_type": {"stringValue": "distribution"},
+                "browser.name": {"stringValue": "Firefox"},
+            },
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "retentionDays": 90,
+            "received": time_within_delta(),
+            "downsampledRetentionDays": 90,
+        },
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": "5b8efff798038103d269b633813fc60c",
+            "itemId": matches_any(),
+            "itemType": "TRACE_ITEM_TYPE_METRIC",
+            "timestamp": time_within_delta(),
+            "attributes": {
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.metric_name": {"stringValue": "browser.web_vital.fcp"},
+                "sentry._internal.cooccuring.name.browser.web_vital.fcp": {
+                    "boolValue": True
+                },
+                "sentry.metric_unit": {"stringValue": "millisecond"},
+                "sentry.value": {"doubleValue": 200.0},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+                },
+                "sentry.metric.source": {"stringValue": "span"},
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(expect_resolution="ns")
+                },
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+                "sentry.metric_type": {"stringValue": "distribution"},
+                "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
+                "browser.name": {"stringValue": "Firefox"},
+            },
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "retentionDays": 90,
+            "received": time_within_delta(),
+            "downsampledRetentionDays": 90,
+        },
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": "5b8efff798038103d269b633813fc60c",
+            "itemId": matches_any(),
+            "itemType": "TRACE_ITEM_TYPE_METRIC",
+            "timestamp": time_within_delta(),
+            "attributes": {
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.metric_name": {"stringValue": "browser.web_vital.inp"},
+                "sentry.metric_unit": {"stringValue": "millisecond"},
+                "sentry.value": {"doubleValue": 100.0},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+                },
+                "sentry._internal.cooccuring.name.browser.web_vital.inp": {
+                    "boolValue": True
+                },
+                "sentry.metric.source": {"stringValue": "span"},
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(expect_resolution="ns")
+                },
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b176"},
+                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry.metric_type": {"stringValue": "distribution"},
+                "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+                "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
+                "browser.name": {"stringValue": "Firefox"},
+            },
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "retentionDays": 90,
+            "received": time_within_delta(),
+            "downsampledRetentionDays": 90,
+        },
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": "5b8efff798038103d269b633813fc60c",
+            "itemId": matches_any(),
+            "itemType": "TRACE_ITEM_TYPE_METRIC",
+            "timestamp": time_within_delta(),
+            "attributes": {
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.metric_name": {"stringValue": "browser.web_vital.lcp"},
+                "sentry._internal.cooccuring.name.browser.web_vital.lcp": {
+                    "boolValue": True
+                },
+                "sentry.metric_unit": {"stringValue": "millisecond"},
+                "sentry.value": {"doubleValue": 400.0},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+                },
+                "sentry.metric.source": {"stringValue": "span"},
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(expect_resolution="ns")
+                },
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+                "sentry.metric_type": {"stringValue": "distribution"},
+                "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
+                "browser.name": {"stringValue": "Firefox"},
+            },
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "retentionDays": 90,
+            "received": time_within_delta(),
+            "downsampledRetentionDays": 90,
+        },
+        {
+            "organizationId": "1",
+            "projectId": "42",
+            "traceId": "5b8efff798038103d269b633813fc60c",
+            "itemId": matches_any(),
+            "itemType": "TRACE_ITEM_TYPE_METRIC",
+            "timestamp": time_within_delta(),
+            "attributes": {
+                "browser.version": {"stringValue": "42.0"},
+                "sentry.metric_name": {"stringValue": "browser.web_vital.ttfb"},
+                "sentry._internal.cooccuring.name.browser.web_vital.ttfb": {
+                    "boolValue": True
+                },
+                "sentry.metric_unit": {"stringValue": "millisecond"},
+                "sentry.value": {"doubleValue": 500.0},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+                },
+                "sentry.metric.source": {"stringValue": "span"},
+                "sentry.metric_type": {"stringValue": "distribution"},
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.payload_size_bytes": {"intValue": "151"},
+                "sentry.timestamp_precise": {
+                    "intValue": time_within_delta(expect_resolution="ns")
+                },
+                "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+                "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
+                "browser.name": {"stringValue": "Firefox"},
+            },
+            "clientSampleRate": 1.0,
+            "serverSampleRate": 1.0,
+            "retentionDays": 90,
+            "received": time_within_delta(),
+            "downsampledRetentionDays": 90,
+        },
+    ]

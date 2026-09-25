@@ -23,6 +23,7 @@
 
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
+- Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 
 **Internal**:
 
