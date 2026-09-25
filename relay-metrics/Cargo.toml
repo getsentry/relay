@@ -36,7 +36,6 @@ serde_json = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
-unescaper = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -46,6 +45,7 @@ relay-statsd = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
+unescaper = { workspace = true }
 
 [[bench]]
 name = "benches"

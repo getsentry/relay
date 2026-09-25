@@ -179,12 +179,6 @@ impl fmt::Display for MetricNamespace {
 /// MRIs have the format `<type>:<namespace>/<name>[@<unit>]`. The unit is optional and defaults to
 /// [`MetricUnit::None`].
 ///
-/// # Statsd Format
-///
-/// In the statsd submission payload, MRIs are sent in a more relaxed format:
-/// `<namespace>/<name>[@<unit>]`. The difference to the internal MRI format is that types are not
-/// part of metric naming. Instead, the type is declared in a separate field following the value.
-///
 /// # Background
 ///
 /// MRIs follow three core principles:

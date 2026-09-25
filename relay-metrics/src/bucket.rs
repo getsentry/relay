@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::iter::FusedIterator;
 use std::{fmt, mem};
 
 use relay_common::time::UnixTimestamp;
@@ -7,12 +6,13 @@ use relay_protocol::FiniteF64;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::ParseMetricError;
 use crate::protocol::{
-    self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
-    MetricType, SetType, hash_set_value,
+    CounterType, DistributionType, GaugeType, MetricName, MetricType, SetType, hash_set_value,
 };
+#[cfg(test)]
+use crate::{MetricResourceIdentifier, ParseMetricError, protocol};
 
+#[cfg(test)]
 const VALUE_SEPARATOR: char = ':';
 
 /// Type of [`Bucket::tags`].
@@ -125,11 +125,8 @@ macro_rules! dist {
 
 /// A set of unique values.
 ///
-/// Set values can be specified as strings in the submission protocol. They are always hashed
-/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
-/// 32-bit integer, it will be used directly, instead.
-///
-/// See the [bucket docs](crate::Bucket) for more information on set hashing.
+/// Values are represented as 32-bit integer hashes. Use [`BucketValue::set_from_str`] to hash a
+/// string value before adding it to a set.
 pub type SetValue = BTreeSet<SetType>;
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
@@ -140,17 +137,6 @@ pub enum BucketValue {
     ///
     /// Counters can be incremented and decremented. The default operation is to increment a counter
     /// by `1`, although increments by larger values are equally possible.
-    ///
-    /// # Statsd Format
-    ///
-    /// Counters are declared as `"c"`. Alternatively, `"m"` is allowed.
-    ///
-    /// There can be a variable number of floating point values. If more than one value is given,
-    /// the values are summed into a single counter value:
-    ///
-    /// ```text
-    /// endpoint.hits:4.5:21:17.0|c
-    /// ```
     ///
     /// # Serialization
     ///
@@ -169,17 +155,6 @@ pub enum BucketValue {
     /// average of the reported values, as well as statistical quantiles. With an increasing number
     /// of values in the distribution, its accuracy becomes approximate.
     ///
-    /// # Statsd Format
-    ///
-    /// Distributions are declared as `"d"`. Alternatively, `"d"` and `"ms"` are allowed.
-    ///
-    /// There can be a variable number of floating point values. These values are collected directly
-    /// in a list per bucket.
-    ///
-    /// ```text
-    /// endpoint.response_time@millisecond:36:49:57:68|d
-    /// ```
-    ///
     /// # Serialization
     ///
     /// This variant serializes to a list of double precision floats, see [`DistributionValue`].
@@ -195,9 +170,9 @@ pub enum BucketValue {
 
     /// Counts the number of unique reported values.
     ///
-    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
-    /// count. With an increasing number of unique values in the set, its accuracy becomes
-    /// approximate. It is not possible to query individual values from a set.
+    /// Sets represent arbitrary discrete values as hashes and track their deduplicated count. With
+    /// an increasing number of unique values in the set, its accuracy becomes approximate. It is
+    /// not possible to query individual values from a set.
     ///
     /// # Serialization
     ///
@@ -205,9 +180,8 @@ pub enum BucketValue {
     ///
     /// # Aggregation
     ///
-    /// Set values are internally represented as 32-bit integer hashes of the original value. These
-    /// hashes can be ingested directly as seen in the first example above. If raw strings are sent,
-    /// they will be hashed on-the-fly.
+    /// Set values are represented as 32-bit integer hashes of the original value. Buckets merge
+    /// by taking the union of these hashes.
     ///
     /// Internally, set metrics are stored in data sketches that expose an approximate cardinality.
     #[serde(rename = "s")]
@@ -219,18 +193,6 @@ pub enum BucketValue {
     /// minimum and sum of all values, as well as the last reported value. Note that the "last"
     /// component of this aggregation is not commutative. Which value is preserved as last value is
     /// implementation-defined.
-    ///
-    /// # Statsd Format
-    ///
-    /// Gauges are declared as `"g"`. There are two ways to ingest gauges:
-    ///  1. As a single value. In this case, the provided value is assumed as the last, minimum,
-    ///     maximum, and the sum.
-    ///  2. As a sequence of five values in the order: `last`, `min`, `max`, `sum`, `count`.
-    ///
-    /// ```text
-    /// endpoint.parallel_requests:25|g
-    /// endpoint.parallel_requests:25:17:42:220:85|g
-    /// ```
     ///
     /// # Serialization
     ///
@@ -264,7 +226,7 @@ impl BucketValue {
         Self::Set(std::iter::once(value).collect())
     }
 
-    /// Returns a bucket value representing a set with a single given string value.
+    /// Returns a bucket value representing a set with the 32-bit hash of the given string.
     pub fn set_from_str(string: &str) -> Self {
         Self::set(hash_set_value(string))
     }
@@ -339,6 +301,7 @@ impl BucketValue {
 }
 
 /// Parses a list of counter values separated by colons and sums them up.
+#[cfg(test)]
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
     for component in string.split(VALUE_SEPARATOR) {
@@ -348,6 +311,7 @@ fn parse_counter(string: &str) -> Option<CounterType> {
 }
 
 /// Parses a distribution from a list of floating point values separated by colons.
+#[cfg(test)]
 fn parse_distribution(string: &str) -> Option<DistributionValue> {
     let mut dist = DistributionValue::default();
     for component in string.split(VALUE_SEPARATOR) {
@@ -357,6 +321,7 @@ fn parse_distribution(string: &str) -> Option<DistributionValue> {
 }
 
 /// Parses a set of hashed numeric values.
+#[cfg(test)]
 fn parse_set(string: &str) -> Option<SetValue> {
     let mut set = SetValue::default();
     for component in string.split(VALUE_SEPARATOR) {
@@ -372,6 +337,7 @@ fn parse_set(string: &str) -> Option<SetValue> {
 ///
 /// The gauge can either be given as a single floating point value, or as a list of exactly five
 /// values in the order of [`GaugeValue`] fields.
+#[cfg(test)]
 fn parse_gauge(string: &str) -> Option<GaugeValue> {
     let mut components = string.split(VALUE_SEPARATOR);
 
@@ -392,6 +358,7 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
 /// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
+#[cfg(test)]
 fn parse_tags(string: &str) -> Option<MetricTags> {
     let mut map = MetricTags::new();
 
@@ -412,6 +379,7 @@ fn parse_tags(string: &str) -> Option<MetricTags> {
 }
 
 /// Parses a unix UTC timestamp.
+#[cfg(test)]
 fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
     string.parse().ok().map(UnixTimestamp::from_secs)
 }
@@ -440,96 +408,34 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// Metrics are represented as structured data in JSON.
 /// The data type of the `value` field is determined by the metric type.
 ///
-/// In addition to the submission protocol, buckets have a required [`width`](Self::width) field in
-/// their JSON representation.
+/// Buckets have a required [`width`](Self::width) field in their JSON representation.
 ///
 /// ```json
 #[doc = include_str!("../tests/fixtures/buckets.json")]
 /// ```
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Bucket {
-    /// The start time of the bucket's time window.
-    ///
-    /// If a timestamp is not supplied as part of the submission payload, the default timestamp
-    /// supplied to [`Bucket::parse`] or [`Bucket::parse_all`] is associated with the metric. It is
-    /// then aligned with the aggregation window.
-    ///
-    /// # Statsd Format
-    ///
-    /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
-    /// with the literal character `'T'` followed by the UNIX timestamp.
-    ///
-    /// The timestamp must be a positive integer in decimal notation representing the value of the
-    /// UNIX timestamp.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// endpoint.hits:1|c|T1615889440
-    /// ```
+    /// The start time of the bucket's time window, in seconds since the Unix epoch.
     pub timestamp: UnixTimestamp,
 
     /// The length of the time window in seconds.
     ///
     /// To initialize a new bucket, choose `0` as width. Once the bucket is tracked by Relay's
-    /// aggregator, the width is aligned with configuration for the namespace and the  timestamp is
+    /// aggregator, the width is aligned with configuration for the namespace and the timestamp is
     /// adjusted accordingly.
-    ///
-    /// # Statsd Format
-    ///
-    /// Specifying the bucket width in statsd is not supported.
     pub width: u64,
 
     /// The name of the metric in MRI (metric resource identifier) format.
     ///
-    /// MRIs have the format `<type>:<ns>/<name>@<unit>`. See [`MetricResourceIdentifier`] for
+    /// MRIs have the format `<type>:<ns>/<name>@<unit>`. See [`crate::MetricResourceIdentifier`] for
     /// information on fields and representations.
-    ///
-    /// # Statsd Format
-    ///
-    /// MRIs are sent in a more relaxed format: `<namespace>/<name>[@unit]`. The value type is not
-    /// part of the metric name.
-    ///
-    /// Namespaces and units must consist of ASCII characters and match the regular expression
-    /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/\w[\w\-.]*/`. Note that the name must begin with a letter.
-    ///
-    /// Per convention, dots separate metric names into components, where the leading components are
-    /// considered namespaces and the final component is the name of the metric within its
-    /// namespace.
-    ///
-    /// # Examples
-    ///
-    /// ```text
-    /// transactions/endpoint.hits:1|c
-    /// transactions/endpoint.duration@millisecond:21.5|d
-    /// ```
     pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
-    /// Buckets support multiple values that are aggregated and can be accessed using a range of
-    /// aggregation functions depending on the value type. While always a variable number of values
-    /// can be sent in, some aggregations reduce the raw values to a fixed set of aggregates.
+    /// The metric type determines how values are aggregated and represented in JSON.
     ///
     /// See [`BucketValue`] for more examples and semantics.
-    ///
-    /// # Statsd Payload
-    ///
-    /// The bucket value and its type are specified in separate fields following the metric name in
-    /// the format: `<name>:<value>|<type>`. Values must be base-10 floating point numbers with
-    /// optional decimal places.
-    ///
-    /// It is possible to pack multiple values into a single datagram, but note that the type and
-    /// the value representation must match for this. Refer to the [`BucketValue`] docs for more
-    /// examples.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// endpoint.hits:21|c
-    /// endpoint.hits:4.5|c
-    /// ```
     #[serde(flatten)]
     pub value: BucketValue,
 
@@ -538,29 +444,6 @@ pub struct Bucket {
     /// Tags allow to compute separate aggregates to filter or group metric values by any number of
     /// dimensions. Tags consist of a unique tag key and one associated value. For tags with missing
     /// values, an empty `""` value is assumed at query time.
-    ///
-    /// # Statsd Format
-    ///
-    /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
-    /// can either be a tag name, or a `name:value` combination. Tags are optional and can be
-    /// omitted.
-    ///
-    /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[\w\-.\/]+/`.
-    ///
-    /// Tag values can contain unicode characters with the following escaping rules:
-    ///  - Tab is escaped as `\t`.
-    ///  - Carriage return is escaped as `\r`.
-    ///  - Line feed is escaped as `\n`.
-    ///  - Backslash is escaped as `\\`.
-    ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`,
-    ///    respectively.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// endpoint.hits:1|c|#route:user_index,environment:production,release:1.4.0
-    /// ```
     #[serde(default, skip_serializing_if = "MetricTags::is_empty")]
     pub tags: MetricTags,
 
@@ -573,11 +456,12 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Parses a statsd-compatible payload.
+    /// Parses the StatsD-like shorthand used in tests.
     ///
     /// ```text
-    /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
+    /// <ns>/<name>[@<unit>]:<value>|<type>[|#<tags>][|T<timestamp>]
     /// ```
+    #[cfg(test)]
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 
@@ -616,7 +500,7 @@ impl Bucket {
         Some(bucket)
     }
 
-    /// Function used to parse short statsd-like representations in tests.
+    /// Parses the StatsD-like shorthand used in tests.
     #[cfg(test)]
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
         let string = std::str::from_utf8(slice).map_err(|_| ParseMetricError)?;
@@ -709,50 +593,6 @@ impl Default for BucketMetadata {
         }
     }
 }
-
-/// Iterator over parsed metrics returned from [`Bucket::parse_all`].
-#[derive(Clone, Debug)]
-pub struct ParseBuckets<'a> {
-    slice: &'a [u8],
-    timestamp: UnixTimestamp,
-}
-
-impl Default for ParseBuckets<'_> {
-    fn default() -> Self {
-        Self {
-            slice: &[],
-            // The timestamp will never be returned.
-            timestamp: UnixTimestamp::from_secs(4711),
-        }
-    }
-}
-
-impl Iterator for ParseBuckets<'_> {
-    type Item = Result<Bucket, ParseMetricError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.slice.is_empty() {
-                return None;
-            }
-
-            let mut split = self.slice.splitn(2, |&b| b == b'\n');
-            let current = split.next()?;
-            self.slice = split.next().unwrap_or_default();
-
-            let string = match std::str::from_utf8(current) {
-                Ok(string) => string.strip_suffix('\r').unwrap_or(string),
-                Err(_) => return Some(Err(ParseMetricError)),
-            };
-
-            if !string.is_empty() {
-                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseMetricError));
-            }
-        }
-    }
-}
-
-impl FusedIterator for ParseBuckets<'_> {}
 
 #[cfg(test)]
 mod tests {

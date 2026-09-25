@@ -10,8 +10,8 @@ pub use relay_base_schema::metrics::{
 };
 #[doc(inline)]
 pub use relay_common::time::UnixTimestamp;
-#[doc(inline)]
-pub use unescaper::Error as UnescapeError;
+#[cfg(test)]
+use unescaper::Error as UnescapeError;
 
 use crate::{Bucket, MetricTags};
 
@@ -114,7 +114,7 @@ pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
 ///  - Line feed is escaped as `\n`.
 ///  - Backslash is escaped as `\\`.
 ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`, respectively.
-#[allow(unused)]
+#[cfg(test)]
 pub(crate) fn escape_tag_value(raw: &str) -> String {
     let mut escaped = String::with_capacity(raw.len());
 
@@ -142,6 +142,7 @@ pub(crate) fn escape_tag_value(raw: &str) -> String {
 ///
 /// Control characters are stripped from the resulting string. This is equivalent to
 /// [`normalize_tag_value`].
+#[cfg(test)]
 pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
     let mut unescaped = unescaper::unescape(escaped)?;
     normalize_tag_value(&mut unescaped);
@@ -158,8 +159,7 @@ pub(crate) fn normalize_tag_value(tag_value: &mut String) {
 
 /// Hashes the given set value.
 ///
-/// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
-/// parsing, they are hashed and only used as hashes subsequently.
+/// Converts a string to the 32-bit FNV hash stored in a set bucket.
 pub(crate) fn hash_set_value(string: &str) -> u32 {
     let mut hasher = FnvHasher::default();
     hasher.write(string.as_bytes());

@@ -264,14 +264,10 @@ pub struct ProcessEnvelope {
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
 }
 
-/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+/// Parses metric buckets and pushes them to the project's aggregator.
 ///
-/// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
-///    ignored independently.
-///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
-///    dropped together on parsing failure.
-///  - Other envelope items will be ignored with an error message.
+/// Each [`MetricBuckets`](ItemType::MetricBuckets) item contains a JSON list of buckets. The entire
+/// list is dropped on parsing failure. Other envelope items are ignored with an error message.
 ///
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
@@ -2284,7 +2280,17 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, "sessions/foo:3182887624:4267882815|s");
+        item.set_payload(
+            ContentType::Json,
+            serde_json::json!([{
+                "timestamp": received_at.timestamp(),
+                "width": 0,
+                "name": "s:sessions/foo@none",
+                "type": "s",
+                "value": [3182887624u32, 4267882815u32],
+            }])
+            .to_string(),
+        );
         for (source, expected_received_at) in [
             (
                 BucketSource::External,
