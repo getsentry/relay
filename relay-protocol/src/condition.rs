@@ -10,7 +10,6 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::release::parse_version;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -84,8 +83,8 @@ impl EqCondition {
     {
         match (instance.get_value(self.name.as_str()), &self.value) {
             (None, Value::Null) => true,
-            (Some(Val::String(f) | Val::Release(f)), Value::String(val)) => self.cmp(f, val),
-            (Some(Val::String(f) | Val::Release(f)), Value::Array(arr)) => arr
+            (Some(Val::String(f)), Value::String(val)) => self.cmp(f, val),
+            (Some(Val::String(f)), Value::Array(arr)) => arr
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
@@ -106,14 +105,12 @@ macro_rules! impl_cmp_condition {
     ($struct_name:ident, $operator:tt, $doc:literal) => {
         #[doc = $doc]
         ///
-        /// Numbers compare numerically. A release field ([`Val::Release`]) compares by version
-        /// against a version in `value`, such as `"1.2.0"`, and never matches if either side has
-        /// no version. Other strings compare lexicographically.
+        /// Strings are explicitly not supported by this.
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct $struct_name {
             /// Path of the field that should match the value.
             pub name: String,
-            /// The value to check against.
+            /// The numeric value to check against.
             pub value: Value,
         }
 
@@ -133,13 +130,6 @@ macro_rules! impl_cmp_condition {
                 let Some(value) = instance.get_value(self.name.as_str()) else {
                     return false;
                 };
-
-                if let (Val::Release(a), Some(b)) = (value, self.value.as_str()) {
-                    return match (parse_version(a), parse_version(b)) {
-                        (Some(a), Some(b)) => a $operator b,
-                        _ => false,
-                    };
-                }
 
                 // Try various conversion functions in order of expensiveness and likelihood
                 // - as_i64 is not really fast, but most values in sampling rules can be i64, so we
@@ -195,7 +185,7 @@ impl GlobCondition {
         T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
-            Some(Val::String(s) | Val::Release(s)) => self.value.is_match(s),
+            Some(Val::String(s)) => self.value.is_match(s),
             _ => false,
         }
     }
@@ -993,7 +983,7 @@ mod tests {
                 "trace_id" => (&self.trace_id).into(),
                 "span_id" => Val::HexId(HexId(&self.span_id[..])),
                 "transaction" => self.transaction.as_str().into(),
-                "release" => Val::Release(self.release.as_str()),
+                "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
                 "user.ip" => self.user_ip.as_str().into(),
@@ -1322,42 +1312,6 @@ mod tests {
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
         assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
-    }
-
-    #[test]
-    fn test_cmp_release_version() {
-        let trace = mock_trace();
-
-        assert!(RuleCondition::gte("trace.release", "1.1.1").matches(&trace));
-        assert!(RuleCondition::gte("trace.release", "1.1").matches(&trace));
-        assert!(RuleCondition::gt("trace.release", "1.1.0").matches(&trace));
-        assert!(RuleCondition::gt("trace.release", "1.1.1-rc1").matches(&trace));
-        assert!(RuleCondition::lte("trace.release", "1.1.1").matches(&trace));
-        assert!(RuleCondition::lt("trace.release", "1.10.0").matches(&trace));
-        assert!(RuleCondition::lt("trace.release", "myapp@1.2.0+build").matches(&trace));
-        assert!(
-            (RuleCondition::gte("trace.release", "1.1")
-                & RuleCondition::lt("trace.release", "1.2"))
-            .matches(&trace)
-        );
-
-        assert!(!RuleCondition::gt("trace.release", "1.1.1").matches(&trace));
-        assert!(!RuleCondition::lt("trace.release", "1.1.1").matches(&trace));
-        assert!(!RuleCondition::gte("trace.release", "1.2").matches(&trace));
-        assert!(!RuleCondition::gte("trace.release", "a4b7e0f9c2d1").matches(&trace));
-        assert!(!RuleCondition::gte("trace.release", "not a version").matches(&trace));
-        assert!(!RuleCondition::gte("trace.release", 1).matches(&trace));
-        assert!(!RuleCondition::gte("trace.missing", "1.0.0").matches(&trace));
-    }
-
-    #[test]
-    fn test_release_matches_as_string() {
-        let trace = mock_trace();
-
-        assert!(RuleCondition::eq("trace.release", "1.1.1").matches(&trace));
-        assert!(RuleCondition::eq("trace.release", &["2.0.0", "1.1.1"][..]).matches(&trace));
-        assert!(RuleCondition::glob("trace.release", "1.1.*").matches(&trace));
-        assert!(!RuleCondition::eq("trace.release", "1.1.1.0").matches(&trace));
     }
 
     #[test]

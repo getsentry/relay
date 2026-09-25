@@ -400,10 +400,6 @@ pub enum Val<'a> {
     F64(f64),
     /// A string value.
     String(&'a str),
-    /// A release such as `myapp@1.2.3+build`.
-    ///
-    /// Comparison conditions order releases by version. Everywhere else, a release is a string.
-    Release(&'a str),
     /// A hexadecimal ID (UUID, span ID, &c).
     HexId(HexId<'a>),
     /// An IPv4 or IPv6 address.
@@ -451,10 +447,10 @@ impl<'a> Val<'a> {
         }
     }
 
-    /// Returns the string if this value is a string or a release, otherwise `None`.
+    /// Returns the string if this value is a string, otherwise `None`.
     pub fn as_str(&self) -> Option<&'a str> {
         match self {
-            Self::String(value) | Self::Release(value) => Some(value),
+            Self::String(value) => Some(value),
 
             _ => None,
         }
@@ -556,7 +552,6 @@ impl PartialEq for Val<'_> {
             (Self::U64(l0), Self::I64(r0)) => Ok(*l0) == (*r0).try_into(),
             (Self::F64(l0), Self::F64(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
-            (Self::Release(l0), Self::Release(r0)) => l0 == r0,
             (Self::HexId(l0), Self::HexId(r0)) => l0 == r0,
             (Self::IpAddr(l0), Self::IpAddr(r0)) => l0 == r0,
             (Self::Array(_), Self::Array(_)) => false,
