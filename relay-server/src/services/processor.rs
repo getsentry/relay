@@ -213,8 +213,7 @@ impl ProcessingExtractedMetrics {
         extracted: ExtractedMetrics,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        self.extend_project_metrics(extracted.project_metrics, sampling_decision);
-        self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
+        self.extend_project_metrics(extracted.0, sampling_decision);
     }
 
     /// Extends the contained project metrics.
@@ -225,62 +224,21 @@ impl ProcessingExtractedMetrics {
     ) where
         I: IntoIterator<Item = Bucket>,
     {
-        self.metrics
-            .project_metrics
-            .extend(buckets.into_iter().map(|mut bucket| {
-                bucket.metadata.extracted_from_indexed =
-                    sampling_decision == Some(SamplingDecision::Keep);
-                bucket
-            }));
-    }
-
-    /// Extends the contained sampling metrics.
-    pub fn extend_sampling_metrics<I>(
-        &mut self,
-        buckets: I,
-        sampling_decision: Option<SamplingDecision>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
-        self.metrics
-            .sampling_metrics
-            .extend(buckets.into_iter().map(|mut bucket| {
-                bucket.metadata.extracted_from_indexed =
-                    sampling_decision == Some(SamplingDecision::Keep);
-                bucket
-            }));
+        self.metrics.0.extend(buckets.into_iter().map(|mut bucket| {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
+            bucket
+        }));
     }
 }
 
-fn send_metrics(
-    metrics: ExtractedMetrics,
-    project_key: ProjectKey,
-    sampling_key: Option<ProjectKey>,
-    aggregator: &Addr<Aggregator>,
-) {
-    let ExtractedMetrics {
-        project_metrics,
-        sampling_metrics,
-    } = metrics;
+fn send_metrics(metrics: ExtractedMetrics, project_key: ProjectKey, aggregator: &Addr<Aggregator>) {
+    let ExtractedMetrics(project_metrics) = metrics;
 
     if !project_metrics.is_empty() {
         aggregator.send(MergeBuckets {
             project_key,
             buckets: project_metrics,
-        });
-    }
-
-    if !sampling_metrics.is_empty() {
-        // If no sampling project state is available, we associate the sampling
-        // metrics with the current project.
-        //
-        // project_without_tracing         -> metrics goes to self
-        // dependent_project_with_tracing  -> metrics goes to root
-        // root_project_with_tracing       -> metrics goes to root == self
-        let sampling_project_key = sampling_key.unwrap_or(project_key);
-        aggregator.send(MergeBuckets {
-            project_key: sampling_project_key,
-            buckets: sampling_metrics,
         });
     }
 }
@@ -754,7 +712,7 @@ impl EnvelopeProcessorService {
                 if let Some(metrics) = metrics {
                     let agg = &self.inner.addrs.aggregator;
                     metrics.accept(|metrics| {
-                        send_metrics(metrics, project_key, sampling_key, agg);
+                        send_metrics(metrics, project_key, agg);
                     });
                 }
 
@@ -2363,7 +2321,7 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
+        item.set_payload(ContentType::Text, "sessions/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,
