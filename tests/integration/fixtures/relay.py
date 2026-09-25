@@ -2,6 +2,7 @@ import json
 import os
 from queue import Queue
 import sys
+from typing import Any, Literal, Mapping
 import uuid
 import signal
 import stat
@@ -130,15 +131,12 @@ def relay_credentials():
 @pytest.fixture
 def relay(mini_sentry, random_port, background_process, config_dir, get_relay_binary):
     def inner(
-        upstream,
-        options=None,
-        prepare=None,
-        external=None,
-        wait_health_check="ready",
-        static_relays=None,
-        static_credentials=None,
-        credentials=None,
-        version="latest",
+        upstream: SentryLike,
+        *,
+        options: Mapping[str, dict[str, Any]] | None = None,
+        mode=Literal["proxy", "managed", "trusted"],
+        wait_health_check: Literal["live", "ready"] | None = "ready",
+        version: str = "latest",
     ):
         relay_bin = get_relay_binary(version)
         host = "127.0.0.1"
@@ -155,7 +153,10 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             },
             "sentry": {"dsn": mini_sentry.internal_error_dsn, "enabled": True},
             "limits": {"max_api_file_upload_size": "1MiB", "max_thread_count": 1},
-            "cache": {"batch_interval": 0},
+            "cache": {
+                "batch_interval": 0,
+                "project_request_full_config": mode == "trusted",
+            },
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
@@ -165,17 +166,8 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 "initial_delay": 0,
                 "shift_key": "none",
             },
+            "auth": {"static_relays": {}},
         }
-
-        if static_relays is not None:
-            default_opts["auth"] = {"static_relays": static_relays}
-        if static_credentials is not None:
-            auth = default_opts.setdefault("auth", {})
-            static_relays = auth.setdefault("static_relays", {})
-            static_relays[static_credentials["id"]] = {
-                "public_key": static_credentials["public_key"],
-                "internal": True,
-            }
 
         if options is not None:
             for key, value in options.items():
@@ -187,15 +179,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         dir = config_dir("relay")
         dir.join("config.yml").write(yaml.dump(default_opts))
 
-        if credentials is None:
+        if mode != "proxy":
             subprocess.check_output(
                 relay_bin + ["-c", str(dir), "credentials", "generate"]
             )
             with open(dir.join("credentials.json")) as f:
                 credentials = json.load(f)
-        else:
-            with open(dir.join("credentials.json"), "w") as f:
-                f.write(json.dumps(credentials))
 
         public_key = credentials.get("public_key")
         assert public_key is not None
@@ -204,14 +193,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         relay_id = credentials.get("id")
         assert relay_id is not None
 
-        if prepare is not None:
-            prepare(dir)
-
-        mini_sentry.known_relays[relay_id] = {
-            "publicKey": public_key,
-            "internal": not external,
-            "version": version,
-        }
+        if mode != "proxy":
+            mini_sentry.known_relays[relay_id] = {
+                "publicKey": public_key,
+                "internal": mode == "trusted",
+                "version": version,
+            }
 
         process = background_process(relay_bin + ["-c", str(dir), "run"])
 
@@ -233,7 +220,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 relay.wait_health_check("ready")
 
             # Filter out health check failures, which can happen during startup
-            filtered_test_failures = Queue()
+            filtered_test_failures: Queue = Queue()
             for f in mini_sentry.current_test_failures():
                 if "Health check probe" not in str(f):
                     filtered_test_failures.put(f)

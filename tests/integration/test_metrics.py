@@ -1119,24 +1119,14 @@ def test_missing_global_filters_enables_metric_extraction(
 
 @pytest.mark.parametrize("mode", ["default", "chain"])
 def test_metrics_received_at(
-    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+    mini_sentry, relay, relay_with_processing, metrics_consumer, mode
 ):
     metrics_consumer = metrics_consumer()
 
     if mode == "default":
         relay = relay_with_processing()
     elif mode == "chain":
-        credentials = relay_credentials()
-        static_relays = {
-            credentials["id"]: {
-                "public_key": credentials["public_key"],
-                "internal": True,
-            },
-        }
-        relay = relay(
-            relay_with_processing(static_relays=static_relays),
-            credentials=credentials,
-        )
+        relay = relay(relay_with_processing(), mode="trusted")
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
@@ -1154,7 +1144,7 @@ def test_histogram_outliers(mini_sentry, relay):
         "version": 3,
         "globalGroups": {"histogram_outliers": {"isEnabled": True}},
     }
-    project_config["sampling"] = {  # Drop everything, to trigger metrics extractino
+    project_config["sampling"] = {  # Drop everything, to trigger metrics extraction
         "version": 2,
         "rules": [
             {

@@ -1,5 +1,4 @@
 import json
-import os
 import queue
 import socket
 import threading
@@ -174,11 +173,8 @@ def test_store_proxy_config(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    def configure_proxy(dir):
-        os.remove(dir.join("credentials.json"))
-
     relay_options = {"relay": {"mode": "proxy"}}
-    relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
+    relay = relay(mini_sentry, options=relay_options)
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
     raw_payload = {"message": "Hello, World!"}
@@ -769,7 +765,7 @@ def test_no_auth(relay, mini_sentry):
     Tests that relays that run in proxy mode do NOT authenticate
     """
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_basic_project_config(project_id)
 
     old_handler = mini_sentry.app.view_functions["get_challenge"]
     has_registered = [False]
@@ -781,15 +777,8 @@ def test_no_auth(relay, mini_sentry):
 
     mini_sentry.app.view_functions["get_challenge"] = register_challenge
 
-    def configure_static_project(dir):
-        os.remove(dir.join("credentials.json"))
-        os.makedirs(dir.join("projects"))
-        dir.join("projects").join(f"{project_id}.json").write(
-            json.dumps(project_config)
-        )
-
     relay_options = {"relay": {"mode": "proxy"}}
-    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
+    relay = relay(mini_sentry, options=relay_options, mode="proxy")
 
     raw_payload = {"message": "123"}
     relay.send_event(project_id, raw_payload)
