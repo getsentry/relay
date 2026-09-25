@@ -163,7 +163,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "shift_key": "none",
+                "shift_key": "none" if version > "23.12.0" else "bucket",
             },
         }
 
