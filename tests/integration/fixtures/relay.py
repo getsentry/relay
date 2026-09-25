@@ -159,9 +159,11 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
+            "outcomes": {"emit_outcomes": True},
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
+                "shift_key": "none" if version > "23.12.0" else "bucket",
             },
         }
 

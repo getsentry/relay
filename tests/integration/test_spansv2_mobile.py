@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from .test_spansv2 import TEST_CONFIG, envelope_with_spans
+from .test_spansv2 import envelope_with_spans
 
 
 def test_spansv2_mobile_attributes(
@@ -23,7 +23,7 @@ def test_spansv2_mobile_attributes(
         }
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
@@ -80,7 +80,7 @@ def test_spansv2_mobile_outlier_filtering(
         }
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
