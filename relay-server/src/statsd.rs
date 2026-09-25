@@ -1027,6 +1027,9 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
+    /// A processor returned intermediate items which need
+    /// to be processed separately.
+    IntermediateItems,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1092,6 +1095,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
+            RelayCounters::IntermediateItems => "event.intermediate_items",
         }
     }
 }

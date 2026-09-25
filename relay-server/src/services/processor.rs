@@ -759,6 +759,10 @@ impl EnvelopeProcessorService {
                 }
 
                 if let Some(intermediates) = intermediates {
+                    metric!(
+                        counter(RelayCounters::IntermediateItems) +=
+                            intermediates.envelope().len() as u64
+                    );
                     envelopes.push(intermediates)
                 }
             }
