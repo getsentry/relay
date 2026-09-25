@@ -299,9 +299,13 @@ def test_profile_chunk_outcomes_rate_limited_fast(
         envelope = mini_sentry.get_captured_envelope()
         assert [item.type for item in envelope.items] == ["profile_chunk"]
     else:
-        outcome = mini_sentry.get_client_report()
-        assert outcome["rate_limited_events"] == [
-            {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.parse(category),
+                "outcome": Outcome.RATE_LIMITED,
+                "quantity": 1,
+                "reason": "profile_chunks_exceeded",
+            }
         ]
         assert mini_sentry.captured_envelopes.empty()
 

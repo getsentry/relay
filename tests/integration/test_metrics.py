@@ -10,9 +10,11 @@ import queue
 import pytest
 import requests
 from requests.exceptions import HTTPError
+from sentry_relay.consts import DataCategory
 import yaml
 
 from .asserts import time_after, time_within_delta
+from .consts import Outcome
 
 
 def _session_payload(timestamp: datetime, started: datetime):
@@ -745,18 +747,31 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay = relay(mini_sentry)
     relay.send_transaction(project_id, tx)
 
-    # The only envelopes received should be outcomes for Transaction{,Indexed}:
-    reports = [mini_sentry.get_client_report() for _ in range(1)]
-    filtered_events = [
-        outcome for report in reports for outcome in report["filtered_events"]
-    ]
-    filtered_events.sort(key=lambda x: x["category"])
-
-    assert filtered_events == [
-        {"reason": "release-version", "category": "span", "quantity": 2},
-        {"reason": "release-version", "category": "span_indexed", "quantity": 2},
-        {"reason": "release-version", "category": "transaction", "quantity": 1},
-        {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
+    assert mini_sentry.get_aggregated_outcomes(n=4) == [
+        {
+            "reason": "release-version",
+            "category": DataCategory.TRANSACTION,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        },
+        {
+            "reason": "release-version",
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        },
+        {
+            "reason": "release-version",
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.FILTERED,
+            "quantity": 2,
+        },
+        {
+            "reason": "release-version",
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "quantity": 2,
+        },
     ]
 
     assert mini_sentry.captured_envelopes.empty()
