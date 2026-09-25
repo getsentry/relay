@@ -2,26 +2,22 @@
 
 use std::cmp::Ordering;
 
-use semver::{BuildMetadata, Prerelease, Version};
-use sentry_release_parser::{Release, Version as ReleaseVersion};
+use sentry_release_parser::{Release, Version};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A list of version constraints, of which a release must satisfy at least one.
 ///
 /// Serialized as a list of strings. Each entry is a comma-separated list of comparators that must
-/// all hold, such as `">=1.2.0, <2.0.0"`. A comparator is an operator followed by a version. The
-/// operators are `=`, `!=`, `>`, `>=`, `<`, `<=`, and `~>`. A version without an operator means
-/// `=`.
+/// all hold, such as `">=1.2.0, <2.0.0"`. A comparator is one of the operators `>`, `>=`, `<`, or
+/// `<=` followed by a version.
 ///
-/// Versions have one to three numeric components, an optional pre-release tag, and an optional
-/// build code. Missing components are zero, so `>=1.2` means `>=1.2.0`. The `~>` operator allows
-/// the rightmost given component to grow: `~>1.2.3` means `>=1.2.3, <1.3.0` and `~>1.2` means
-/// `>=1.2.0, <2.0.0`.
+/// Versions have one to four numeric components and an optional pre-release tag. Missing
+/// components are zero, so `>=1.2` means `>=1.2.0`. A pre-release orders below its final release,
+/// and pre-release tags compare as text, like Sentry orders releases.
 ///
-/// Releases are parsed as Sentry releases, so `myapp@1.2.3+build` compares as `1.2.3`. A
-/// pre-release orders below its final release, build codes are ignored, and a release without a
-/// version, such as a commit hash, satisfies no constraint. Entries that do not parse are skipped
-/// while deserializing, like invalid glob patterns.
+/// Releases are parsed as Sentry releases, so `myapp@1.2.3+build` compares as `1.2.3`. Build codes
+/// are ignored, and a release without a version, such as a commit hash, satisfies no constraint.
+/// Entries that do not parse are skipped while deserializing, like invalid glob patterns.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct VersionConstraints(Vec<VersionConstraint>);
 
@@ -38,12 +34,12 @@ impl VersionConstraints {
         if release.build_hash() == Some(version_raw) {
             return false;
         }
-        let Ok(version) = ReleaseVersion::parse(version_raw) else {
+        let Ok(version) = Version::parse(version_raw) else {
             return false;
         };
 
-        let version = version.as_semver1();
-        self.0.iter().any(|constraint| constraint.matches(&version))
+        let key = VersionKey::from(&version);
+        self.0.iter().any(|constraint| constraint.matches(&key))
     }
 }
 
@@ -81,23 +77,12 @@ impl VersionConstraint {
     fn parse(raw: &str) -> Option<Self> {
         let mut comparators = Vec::new();
         for part in raw.split(',') {
-            let part = part.trim();
-
-            if let Some(version) = part.strip_prefix("~>") {
-                let (version, components) = parse_version(version.trim())?;
-                let upper = if components == 3 {
-                    Version::new(version.major, version.minor.checked_add(1)?, 0)
-                } else {
-                    Version::new(version.major.checked_add(1)?, 0, 0)
-                };
-                comparators.push(Comparator::new(Op::Gte, version));
-                comparators.push(Comparator::new(Op::Lt, upper));
-                continue;
-            }
-
-            let (op, version) = Op::strip(part);
-            let (version, _) = parse_version(version.trim())?;
-            comparators.push(Comparator::new(op, version));
+            let (op, version) = Op::strip(part.trim())?;
+            let version = Version::parse(version.trim()).ok()?;
+            comparators.push(Comparator {
+                op,
+                version: VersionKey::from(&version),
+            });
         }
 
         Some(Self {
@@ -106,45 +91,49 @@ impl VersionConstraint {
         })
     }
 
-    fn matches(&self, version: &Version) -> bool {
+    fn matches(&self, version: &VersionKey) -> bool {
         self.comparators
             .iter()
             .all(|comparator| comparator.matches(version))
     }
 }
 
-/// Parses a version of one to three components and returns it with the number of components.
-fn parse_version(input: &str) -> Option<(Version, u8)> {
-    let (input, _build) = input.split_once('+').unwrap_or((input, ""));
-    let (numbers, pre) = match input.split_once('-') {
-        Some((numbers, pre)) => (numbers, Prerelease::new(pre).ok()?),
-        None => (input, Prerelease::EMPTY),
-    };
+/// The parts of a version that take part in ordering.
+///
+/// Orders by the numeric components first. On a tie, a final release orders above a pre-release,
+/// and two pre-release tags compare as text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VersionKey {
+    quad: (u64, u64, u64, u64),
+    pre: Option<String>,
+}
 
-    let mut parts = numbers.split('.');
-    let major = parts.next()?.parse().ok()?;
-    let minor = parts.next().map(str::parse).transpose().ok()?;
-    let patch = parts.next().map(str::parse).transpose().ok()?;
-    if parts.next().is_some() {
-        return None;
+impl From<&Version<'_>> for VersionKey {
+    fn from(version: &Version<'_>) -> Self {
+        Self {
+            quad: version.quad(),
+            pre: version.pre().map(str::to_owned),
+        }
     }
+}
 
-    let components = 1 + u8::from(minor.is_some()) + u8::from(patch.is_some());
-    let version = Version {
-        major,
-        minor: minor.unwrap_or(0),
-        patch: patch.unwrap_or(0),
-        pre,
-        build: BuildMetadata::EMPTY,
-    };
+impl Ord for VersionKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.quad
+            .cmp(&other.quad)
+            .then_with(|| self.pre.is_none().cmp(&other.pre.is_none()))
+            .then_with(|| self.pre.cmp(&other.pre))
+    }
+}
 
-    Some((version, components))
+impl PartialOrd for VersionKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Op {
-    Eq,
-    Ne,
     Gt,
     Gte,
     Lt,
@@ -152,27 +141,22 @@ enum Op {
 }
 
 impl Op {
-    const PREFIXES: [(&str, Op); 6] = [
+    const PREFIXES: [(&str, Op); 4] = [
         (">=", Op::Gte),
         ("<=", Op::Lte),
-        ("!=", Op::Ne),
         (">", Op::Gt),
         ("<", Op::Lt),
-        ("=", Op::Eq),
     ];
 
-    /// Splits the operator off the start of a comparator. Without an operator, it is `=`.
-    fn strip(comparator: &str) -> (Op, &str) {
+    /// Splits the operator off the start of a comparator.
+    fn strip(comparator: &str) -> Option<(Op, &str)> {
         Self::PREFIXES
             .iter()
             .find_map(|(prefix, op)| comparator.strip_prefix(prefix).map(|rest| (*op, rest)))
-            .unwrap_or((Op::Eq, comparator))
     }
 
     fn holds(self, ordering: Ordering) -> bool {
         match self {
-            Op::Eq => ordering.is_eq(),
-            Op::Ne => ordering.is_ne(),
             Op::Gt => ordering.is_gt(),
             Op::Gte => ordering.is_ge(),
             Op::Lt => ordering.is_lt(),
@@ -184,16 +168,12 @@ impl Op {
 #[derive(Debug, Clone, PartialEq)]
 struct Comparator {
     op: Op,
-    version: Version,
+    version: VersionKey,
 }
 
 impl Comparator {
-    fn new(op: Op, version: Version) -> Self {
-        Self { op, version }
-    }
-
-    fn matches(&self, version: &Version) -> bool {
-        self.op.holds(version.cmp_precedence(&self.version))
+    fn matches(&self, version: &VersionKey) -> bool {
+        self.op.holds(version.cmp(&self.version))
     }
 }
 
@@ -208,18 +188,22 @@ mod tests {
     #[test]
     fn test_operators() {
         let cases = [
-            ("1.2.3", &["1.2.2", "1.2.4"][..], &["1.2.3"][..]),
-            ("=1.2.3", &["1.2.2", "1.2.4"], &["1.2.3"]),
-            ("!=1.2.3", &["1.2.3"], &["1.2.2", "1.2.4"]),
-            (">1.2.3", &["1.2.3"], &["1.2.4", "1.10.0", "2.0.0"]),
+            (">1.2.3", &["1.2.3"][..], &["1.2.4", "1.10.0", "2.0.0"][..]),
             (">=1.2.3", &["1.2.2"], &["1.2.3", "1.2.4"]),
             ("<1.2.3", &["1.2.3", "1.10.0"], &["1.2.2", "0.9.9"]),
             ("<=1.2.3", &["1.2.4"], &["1.2.3", "1.2.2"]),
-            ("~>1.2.3", &["1.2.2", "1.3.0"], &["1.2.3", "1.2.10"]),
-            ("~>1.2", &["1.1.9", "2.0.0"], &["1.2.0", "1.9.0"]),
-            ("~>1", &["0.9.0", "2.0.0"], &["1.0.0", "1.9.9"]),
             (">=1.2.0, <2.0.0", &["1.1.0", "2.0.0"], &["1.2.0", "1.99.0"]),
+            (">=1.2.3, <=1.2.3", &["1.2.2", "1.2.4"], &["1.2.3"]),
             (" >= 1.2 , < 2 ", &["1.1.0", "2.0.0"], &["1.2.0", "1.99.0"]),
+            (">1.2.3.4", &["1.2.3.4", "1.2.3"], &["1.2.3.5", "1.2.4"]),
+            // Missing components are zero, like in Sentry's release search.
+            (
+                ">1.2",
+                &["1.2", "1.2.0", "1.1.9"],
+                &["1.2.1", "1.2.3", "1.3.0"],
+            ),
+            ("<=1.2", &["1.2.1"], &["1.2", "1.2.0", "1.1.9"]),
+            (">=2", &["1.99.99"], &["2", "2.0.0", "2.0.1"]),
         ];
 
         for (constraint, rejected, accepted) in cases {
@@ -241,7 +225,9 @@ mod tests {
         assert!(!constraints.matches("2.0.0"));
 
         let constraints = parse(&[">=1.0.0-beta.2"]);
-        assert!(constraints.matches("1.0.0-beta.10"));
+        assert!(constraints.matches("1.0.0-beta.2"));
+        assert!(constraints.matches("1.0.0-beta.3"));
+        assert!(constraints.matches("1.0.0-rc1"));
         assert!(constraints.matches("1.0.0"));
         assert!(!constraints.matches("1.0.0-beta.1"));
         assert!(!constraints.matches("1.0.0-alpha"));
@@ -263,6 +249,14 @@ mod tests {
     }
 
     #[test]
+    fn test_build_code_is_ignored() {
+        let constraints = parse(&["<=1.2.3"]);
+        assert!(constraints.matches("1.2.3+build.7"));
+        assert!(constraints.matches("myapp@1.2.3+a4b7e0f9c2d1"));
+        assert!(!constraints.matches("1.2.4+build.1"));
+    }
+
+    #[test]
     fn test_any_entry_matches() {
         let constraints = parse(&["<1.0.0", ">=2.0.0"]);
         assert!(constraints.matches("0.9.0"));
@@ -273,7 +267,18 @@ mod tests {
 
     #[test]
     fn test_invalid_entries_are_skipped() {
-        let constraints = parse(&["", "garbage", ">=", "1.2.3.4", ">=1.2.3, ", ">=2.0.0"]);
+        let constraints = parse(&[
+            "",
+            "garbage",
+            "1.2.3",
+            "=1.2.3",
+            "!=1.2.3",
+            "~>1.2",
+            ">=",
+            ">=1.2.3.4.5",
+            ">=1.2.3, ",
+            ">=2.0.0",
+        ]);
         assert_eq!(
             serde_json::to_value(&constraints).unwrap(),
             serde_json::json!([">=2.0.0"])
@@ -284,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let json = serde_json::json!([">=1.2.0, <2.0.0", "~>3.1"]);
+        let json = serde_json::json!([">=1.2.0, <2.0.0", "<1.0.0"]);
         let constraints: VersionConstraints = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(serde_json::to_value(&constraints).unwrap(), json);
     }

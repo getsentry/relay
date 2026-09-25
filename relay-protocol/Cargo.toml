@@ -18,7 +18,6 @@ num-traits = { workspace = true }
 relay-common = { workspace = true }
 relay-pattern = { workspace = true }
 relay-protocol-derive = { workspace = true, optional = true }
-semver = { workspace = true }
 sentry-release-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

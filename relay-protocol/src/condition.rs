@@ -777,8 +777,9 @@ impl RuleCondition {
 
     /// Creates a condition that matches release versions against one or more constraints.
     ///
-    /// Each entry is a comma-separated list of comparators such as `">=1.2.0, <2.0.0"`. The
-    /// condition matches if any entry holds. Entries that do not parse are ignored.
+    /// Each entry is a comma-separated list of comparators such as `">=1.2.0, <2.0.0"`, using the
+    /// operators `>`, `>=`, `<`, and `<=`. The condition matches if any entry holds. Entries that
+    /// do not parse are ignored.
     ///
     /// # Example
     ///
@@ -789,7 +790,7 @@ impl RuleCondition {
     /// let condition = RuleCondition::version("obj.release", ">=1.2.0, <2.0.0");
     ///
     /// // Match any of a list of constraints:
-    /// let condition = RuleCondition::version("obj.release", &["<1.0.0", "~>2.1"][..]);
+    /// let condition = RuleCondition::version("obj.release", &["<1.0.0", ">=2.1.0"][..]);
     /// ```
     pub fn version(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Version(VersionCondition::new(field, value))
@@ -1123,7 +1124,7 @@ mod tests {
             {
                 "op":"version",
                 "name": "field_release",
-                "value": [">=1.2.0, <2.0.0","~>3.1","not-a-constraint"]
+                "value": [">=1.2.0, <2.0.0","<1.0.0","not-a-constraint"]
             },
             {
                 "op":"not",
@@ -1214,7 +1215,7 @@ mod tests {
             name: "field_release",
             value: [
               ">=1.2.0, <2.0.0",
-              "~>3.1",
+              "<1.0.0",
             ],
           ),
           NotCondition(
@@ -1402,12 +1403,11 @@ mod tests {
     fn test_version_condition() {
         let trace = mock_trace();
 
-        assert!(RuleCondition::version("trace.release", "1.1.1").matches(&trace));
         assert!(RuleCondition::version("trace.release", ">=1.1, <1.2").matches(&trace));
-        assert!(RuleCondition::version("trace.release", "~>1.0").matches(&trace));
+        assert!(RuleCondition::version("trace.release", "<=1.1.1").matches(&trace));
         assert!(RuleCondition::version("trace.release", &["<1.0.0", ">1.1.0"][..]).matches(&trace));
         assert!(!RuleCondition::version("trace.release", ">1.1.1").matches(&trace));
-        assert!(!RuleCondition::version("trace.release", "!=1.1.1").matches(&trace));
+        assert!(!RuleCondition::version("trace.release", "1.1.1").matches(&trace));
         assert!(!RuleCondition::version("trace.release", Vec::<String>::new()).matches(&trace));
         assert!(!RuleCondition::version("trace.missing", ">=1.0.0").matches(&trace));
         assert!(!RuleCondition::version("trace.transaction", ">=1.0.0").matches(&trace));
