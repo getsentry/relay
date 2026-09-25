@@ -616,6 +616,13 @@ impl Bucket {
         Some(bucket)
     }
 
+    /// Function used to parse short statsd-like representations in tests.
+    #[cfg(test)]
+    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
+        let string = std::str::from_utf8(slice).map_err(|_| ParseMetricError)?;
+        Self::parse_str(string, timestamp).ok_or(ParseMetricError)
+    }
+
     /// Returns the value of the specified tag if it exists.
     pub fn tag(&self, name: &str) -> Option<&str> {
         self.tags.get(name).map(|s| s.as_str())
@@ -750,8 +757,6 @@ impl FusedIterator for ParseBuckets<'_> {}
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
-
-    use crate::protocol::{DurationUnit, MetricUnit};
 
     use super::*;
 
