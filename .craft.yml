@@ -1,6 +1,9 @@
-minVersion: "2.15.0"
+minVersion: "2.18.0"
 changelog:
   policy: auto
+
+versioning:
+  policy: calver
 
 statusProvider:
   name: github
