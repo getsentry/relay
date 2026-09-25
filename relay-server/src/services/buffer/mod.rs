@@ -22,6 +22,7 @@ use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
+use crate::services::buffer::unspool_throttle::UnspoolThrottle;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
@@ -54,6 +55,7 @@ mod envelope_stack;
 mod envelope_store;
 mod stack_provider;
 mod testutils;
+mod unspool_throttle;
 
 /// Message interface for [`EnvelopeBufferService`].
 #[derive(Debug)]
@@ -98,6 +100,11 @@ impl PartitionedEnvelopeBuffer {
     ) -> Arc<Self> {
         let partitioning = Partitioning::new(config.current().spool_partitioning());
 
+        let unspool_throttle = config
+            .current()
+            .spool_max_unspool_envelopes_per_second()
+            .map(|limit| Arc::new(UnspoolThrottle::new(limit)));
+
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
             let envelope_buffer = EnvelopeBufferService::new(
@@ -105,6 +112,7 @@ impl PartitionedEnvelopeBuffer {
                 config.clone(),
                 memory_stat.clone(),
                 global_config_rx.clone(),
+                unspool_throttle.clone(),
                 Services {
                     project_cache_handle: project_cache_handle.clone(),
                     envelope_processor: envelope_processor.clone(),
@@ -289,6 +297,7 @@ pub struct EnvelopeBufferService {
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
+    unspool_throttle: Option<Arc<UnspoolThrottle>>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
@@ -307,6 +316,7 @@ impl EnvelopeBufferService {
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
+        unspool_throttle: Option<Arc<UnspoolThrottle>>,
         services: Services,
     ) -> Self {
         Self {
@@ -314,6 +324,7 @@ impl EnvelopeBufferService {
             config,
             memory_stat,
             global_config_rx,
+            unspool_throttle,
             services,
             metrics: Arc::new(EnvelopeBufferMetrics {
                 has_capacity: AtomicBool::new(true),
@@ -617,6 +628,7 @@ impl Service for EnvelopeBufferService {
             self.partition_id,
             &self.config.current(),
             memory_checker,
+            self.unspool_throttle.clone(),
         )
         .await
         .expect("failed to start the envelope buffer service");
@@ -864,6 +876,7 @@ mod tests {
             config,
             memory_stat,
             global_rx,
+            None,
             Services {
                 project_cache_handle: project_cache_handle.clone(),
                 envelope_processor,
@@ -1088,6 +1101,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
+            None,
             services.clone(),
         );
 
@@ -1096,6 +1110,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx,
+            None,
             services,
         );
 
@@ -1155,6 +1170,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
+            None,
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);
@@ -1163,6 +1179,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
+            None,
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);

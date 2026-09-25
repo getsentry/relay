@@ -104,6 +104,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
                                 None,
+                                None,
                             );
 
                             let mut envelopes = Vec::with_capacity(size);
@@ -141,6 +142,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     true,
+                                    None,
                                     None,
                                 );
 
@@ -183,6 +185,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
+                                None,
                                 None,
                             );
 
@@ -268,6 +271,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
+                        None,
                     )
                     .await
                     .unwrap();
@@ -303,6 +307,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
+                        None,
                     )
                     .await
                     .unwrap();

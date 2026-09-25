@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use std::time::Duration;
 
 use relay_config::ConfigSnapshot;
@@ -11,6 +12,7 @@ use crate::services::buffer::envelope_store::sqlite::{
 use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
+use crate::services::buffer::unspool_throttle::UnspoolThrottle;
 use crate::statsd::RelayTimers;
 use crate::{EnvelopeStack, SqliteEnvelopeStack};
 
@@ -22,6 +24,7 @@ pub struct SqliteStackProvider {
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,
+    unspool_throttle: Option<Arc<UnspoolThrottle>>,
 }
 
 #[warn(dead_code)]
@@ -30,6 +33,7 @@ impl SqliteStackProvider {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
+        unspool_throttle: Option<Arc<UnspoolThrottle>>,
     ) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
@@ -39,6 +43,7 @@ impl SqliteStackProvider {
             max_disk_size: config.spool_envelopes_max_disk_size(),
             partition_id,
             ephemeral: config.spool_ephemeral(),
+            unspool_throttle,
         })
     }
 
@@ -87,6 +92,7 @@ impl StackProvider for SqliteStackProvider {
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
             self.flush_timeout,
+            self.unspool_throttle.clone(),
         );
 
         CachingEnvelopeStack::new(inner)
@@ -171,7 +177,7 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let mut stack_provider = SqliteStackProvider::new(0, &config.current())
+        let mut stack_provider = SqliteStackProvider::new(0, &config.current(), None)
             .await
             .unwrap();
 
