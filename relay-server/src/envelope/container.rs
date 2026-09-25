@@ -32,8 +32,7 @@ pub enum ContainerParseError {
         expected: Option<u32>,
         actual: usize,
     },
-    /// The item container specified length does not match the amount of items contained in the
-    /// container.
+    /// Deserializing items in the container consumed too many operations.
     #[error("container deserialization exceeded operations limit {limit}")]
     LimitExceeded { limit: usize },
     /// The container is malformed and cannot be deserialized.
