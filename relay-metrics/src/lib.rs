@@ -5,37 +5,8 @@
 //! errors and transactions, metrics carry relatively little context information in tags with low
 //! cardinality.
 //!
-//! # Protocol
-//!
-//! Clients submit metrics in a [text-based protocol](Bucket) based on StatsD. See the [field
-//! documentation](Bucket#fields) on `Bucket` for more information on the components. A sample
-//! submission looks like this:
-//!
-//! ```text
-#![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
-//! ```
-//!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 //! metric name for multiple metric types, which will result in multiple metrics being recorded.
-//!
-//! # Metric Envelopes
-//!
-//! To send one or more metrics to Relay, the raw protocol is enclosed in an envelope item of type
-//! `metrics`:
-//!
-//! ```text
-//! {}
-//! {"type": "statsd", ...}
-#![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
-//! ...
-//! ```
-//!
-//! Note that the name format used in the statsd protocol is different from the MRI: Metric names
-//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol.
-//!
-//! Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
-//! to be a valid Unix timestamp (UTC) and must be prefixed with `T`. If it is omitted, the
-//! `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!
