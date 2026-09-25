@@ -340,8 +340,6 @@ pub fn split_indexed_and_total_with_extracted_spans(
     spans: Option<Managed<ExtractedSpans>>,
     ctx: Context<'_>,
 ) -> IndexedTransactionAndSpanAndMetrics {
-    let scoping = transaction.scoping();
-
     debug_assert!(ctx.is_processing());
 
     let (transaction, metrics) = transaction.split_once(|mut tx, r| {
@@ -352,8 +350,6 @@ pub fn split_indexed_and_total_with_extracted_spans(
             &mut tx.event,
             &mut metrics,
             ExtractMetricsContext {
-                dsc: tx.headers.dsc(),
-                project_id: scoping.project_id,
                 // We can fall back to the default, we're in a processing Relay in which the config
                 // must always be valid, worst case we fall back to a default empty config, because
                 // we can't really do anything else.
@@ -432,8 +428,6 @@ pub fn split_indexed_and_total(
     sampling_decision: SamplingDecision,
     config: CombinedMetricExtractionConfig<'_>,
 ) -> IndexedAndMetrics {
-    let scoping = work.scoping();
-
     work.split_once(|mut work, r| {
         r.lenient(DataCategory::MetricBucket);
 
@@ -444,8 +438,6 @@ pub fn split_indexed_and_total(
             &mut metrics,
             ExtractMetricsContext {
                 config,
-                dsc: work.headers.dsc(),
-                project_id: scoping.project_id,
                 ctx,
                 sampling_decision,
                 extract_span_metrics: true,

@@ -252,9 +252,6 @@ pub fn extract_metrics(
 
         records.modify_by(DataCategory::MetricBucket, metrics.len() as isize);
 
-        ExtractedMetrics {
-            project_metrics: metrics,
-            sampling_metrics: Vec::new(),
-        }
+        ExtractedMetrics(metrics)
     })
 }

@@ -675,20 +675,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_metrics() == [
         {
             "metadata": matches_any(),
-            "name": "c:spans/count_per_root_project@none",
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-            "width": 1,
-        },
-        {
-            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
