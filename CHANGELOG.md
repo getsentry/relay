@@ -23,6 +23,10 @@
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
 
+**Bug Fixes**:
+
+- Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6369](https://github.com/getsentry/relay/pull/6369))
+
 **Internal**:
 
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
