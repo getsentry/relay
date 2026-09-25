@@ -13,12 +13,6 @@ from .asserts import time_within_delta
 from .test_store import make_transaction
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "aggregator": {
-        "shift_key": "none",
-    }
-}
-
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
 def test_span_extraction(
@@ -37,7 +31,7 @@ def test_span_extraction(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
@@ -414,7 +408,7 @@ def _send_transaction_with_measurements(
     measurements,
 ):
     spans_consumer = spans_consumer()
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -842,7 +836,7 @@ def test_rate_limit_consistent_extracted(
     outcomes_consumer,
 ):
     """Rate limits for spans that are extracted from transactions"""
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).append(
@@ -918,7 +912,7 @@ def test_rate_limit_spans_in_envelope(
     outcomes_consumer,
 ):
     """Rate limits for total spans are enforced and no metrics are emitted."""
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
@@ -974,7 +968,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     """
     Rate limits are consistent between transactions and nested spans.
     """
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
@@ -1089,7 +1083,7 @@ def test_discard_transaction(
         "projects:discard-transaction"
     )
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
@@ -1134,7 +1128,7 @@ def test_span_filtering_with_generic_inbound_filter(
         ],
     }
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
 
@@ -1442,7 +1436,7 @@ def test_segment_span_preserves_contexts_breadcrumbs_extra(
 ):
     spans_consumer = spans_consumer()
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
 
@@ -1494,7 +1488,7 @@ def test_segment_span_scrubs_extra_before_serializing(
 ):
     spans_consumer = spans_consumer()
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("datascrubbingSettings", {}).update(

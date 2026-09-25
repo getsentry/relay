@@ -13,14 +13,6 @@ from .asserts import time_within_delta, time_within, matches, matches_any
 import pytest
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {"emit_outcomes": True},
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
-
 
 def envelope_with_sentry_logs(*payloads: dict, metadata=None) -> Envelope:
     envelope = Envelope()
@@ -66,7 +58,7 @@ def test_ourlog_multiple_containers_not_allowed(
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
+    config = {"http": {"global_metrics": True}}
     relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
@@ -142,7 +134,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         for category in categories
     ]
 
-    relay = relay(mini_sentry, TEST_CONFIG)
+    relay = relay(mini_sentry)
     start = datetime.now(timezone.utc).replace(microsecond=0)
 
     envelope = envelope_with_sentry_logs(
@@ -233,14 +225,11 @@ def test_ourlog_extraction_with_sentry_logs(
 
     credentials = relay_credentials()
     relay = relay_fn(
-        relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
+        relay_with_processing(static_credentials=credentials),
         credentials=credentials,
-        options=TEST_CONFIG,
     )
     if external_mode is not None:
-        relay = relay_fn(
-            relay, options={"relay": {"mode": external_mode}, **TEST_CONFIG}
-        )
+        relay = relay_fn(relay, options={"relay": {"mode": external_mode}})
 
     ts = datetime.now(timezone.utc)
 
@@ -432,7 +421,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -516,7 +505,7 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
         },
     )
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -561,7 +550,7 @@ def test_ourlog_default_pii_body(
     ]
     non_destructive.install(project_config)
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -629,7 +618,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "applications": {"**": ["remove_custom_field"]},
     }
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -707,7 +696,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -769,7 +758,7 @@ def test_ourlog_extraction_is_disabled_without_feature(
     items_consumer,
 ):
     items_consumer = items_consumer()
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["retentions"] = {
@@ -865,7 +854,7 @@ def test_browser_name_version_extraction(
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
-    relay = relay(relay_with_processing(options=TEST_CONFIG))
+    relay = relay(relay_with_processing())
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -1036,7 +1025,7 @@ def test_filters_are_applied_to_logs(
 
     project_config["config"]["filterSettings"] = filter_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1103,7 +1092,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "log": {"standard": 1, "downsampled": 100},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1171,7 +1160,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     ts = datetime.now(timezone.utc)
     seq_shift_in_secs = 1.0
@@ -1305,7 +1294,7 @@ def test_ourlog_container_metadata(
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay(mini_sentry, TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 

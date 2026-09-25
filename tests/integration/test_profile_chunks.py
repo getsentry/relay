@@ -1,6 +1,5 @@
 import json
 import uuid
-from copy import deepcopy
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -11,15 +10,6 @@ from .asserts import time_within_delta
 from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
-
-
-TEST_CONFIG = {
-    "outcomes": {"emit_outcomes": True},
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-    },
-}
 
 
 def sample_profile_v2_envelope(platform=None):
@@ -98,11 +88,11 @@ def test_profile_chunk_outcomes(
     )
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
-        config = deepcopy(TEST_CONFIG)
+        config = {"outcomes": {}}
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
@@ -146,7 +136,7 @@ def test_profile_chunk_outcomes_invalid(
         ]
     )
 
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     envelope = Envelope()
     envelope.add_item(
@@ -228,7 +218,7 @@ def test_profile_chunk_outcomes_rate_limited(
 
     # Create and send envelope containing the profile chunk
     envelope = envelope(item_header_platform)
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
     upstream.send_envelope(project_id, envelope)
 
     # Verify the rate limited outcome was emitted with correct properties
@@ -343,7 +333,7 @@ def test_profile_chunk_version_is_forwarded(
         "organizations:continuous-profiling"
     )
 
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
     upstream.send_envelope(project_id, envelope_factory())
 
     profile, headers = profiles_consumer.get_profile()
