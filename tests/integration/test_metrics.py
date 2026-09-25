@@ -152,15 +152,38 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
     assert item.get_bytes().decode() == metrics_payload
 
 
-def test_metrics(mini_sentry, relay):
-    relay = relay(mini_sentry)
+@pytest.mark.parametrize("source", ["trusted_client", "untrusted_client"])
+def test_metrics(mini_sentry, relay, relay_credentials, source):
+    is_trusted = source == "trusted_client"
+    if is_trusted:
+        credentials = relay_credentials()
+
+        relay = relay(
+            mini_sentry,
+            {
+                "auth": {
+                    "static_relays": {
+                        credentials["id"]: {
+                            "internal": True,
+                            "public_key": credentials["public_key"],
+                        }
+                    }
+                }
+            },
+        )
+    else:
+        relay = relay(mini_sentry)
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"spans/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
-    relay.send_metrics(project_id, metrics_payload)
+    metrics_payload = (
+        f"sessions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
+
+    headers = {"X-Sentry-Relay-Id": credentials["id"]} if is_trusted else {}
+    relay.send_metrics(project_id, metrics_payload, headers)
 
     envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
@@ -171,22 +194,24 @@ def test_metrics(mini_sentry, relay):
     received_metrics = metrics_without_keys(
         json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
     )
-    assert received_metrics == [
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:spans/foo@none",
-            "value": 42.0,
-            "type": "c",
-        },
-        {
+    assert received_metrics.pop(0) == {
+        "timestamp": time_after(timestamp),
+        "width": 1,
+        "name": "c:sessions/foo@none",
+        "value": 42.0,
+        "type": "c",
+    }
+
+    if is_trusted:
+        assert received_metrics.pop(0) == {
             "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
-        },
-    ]
+        }
+
+    assert not received_metrics
 
 
 def test_metrics_backdated(mini_sentry, relay):
@@ -196,7 +221,7 @@ def test_metrics_backdated(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp()) - 24 * 60 * 60
-    metrics_payload = f"spans/foo:42|c|T{timestamp}"
+    metrics_payload = f"sessions/foo:42|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.get_captured_envelope()
@@ -212,7 +237,7 @@ def test_metrics_backdated(mini_sentry, relay):
         {
             "timestamp": time_after(timestamp),
             "width": 1,
-            "name": "c:spans/foo@none",
+            "name": "c:sessions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -223,13 +248,13 @@ def test_metrics_backdated(mini_sentry, relay):
     "metrics_partitions,expected_header",
     [
         # With no partitions defined, partition count is auto assigned.
-        (None, "26"),
+        (None, "15"),
         # With zero partitions defined, all the buckets will be forwarded to a single partition.
         (0, "0"),
         # With zero partitions defined, all the buckets will be forwarded to a single partition.
         (1, "0"),
         # With more than zero partitions defined, the buckets will be forwarded to one of the partitions.
-        (128, "90"),
+        (128, "79"),
     ],
 )
 def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
@@ -259,7 +284,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
         },
     )
 
-    metrics_payload = "spans/foo:42|c|T999994711"
+    metrics_payload = "sessions/foo:42|c|T999994711"
     relay.send_metrics(project_id, metrics_payload)
 
     mini_sentry.get_captured_envelope()
@@ -293,7 +318,9 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    metrics_payload = "spans/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T999994711"
+    metrics_payload = (
+        "sessions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T999994711"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     for _ in range(expected_events):
@@ -337,37 +364,53 @@ def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
     )
 
 
-def test_global_metrics(mini_sentry, relay):
-    relay = relay(mini_sentry, options={"http": {"global_metrics": True}})
+@pytest.mark.parametrize("source", ["trusted_client", "untrusted_client"])
+def test_global_metrics(mini_sentry, relay, relay_credentials, source):
+    options = {"http": {"global_metrics": True}}
+    is_trusted = source == "trusted_client"
+    if is_trusted:
+        credentials = relay_credentials()
+        options["auth"] = {
+            "static_relays": {
+                credentials["id"]: {
+                    "internal": True,
+                    "public_key": credentials["public_key"],
+                }
+            }
+        }
+    relay = relay(mini_sentry, options)
 
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"spans/foo:42|c\nspans/bar:17|c|T{timestamp}"
-    relay.send_metrics(project_id, metrics_payload)
+    metrics_payload = f"sessions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    headers = {"X-Sentry-Relay-Id": credentials["id"]} if is_trusted else {}
+    relay.send_metrics(project_id, metrics_payload, headers)
 
     metrics_batch = mini_sentry.captured_metrics.get(timeout=5)
     assert mini_sentry.captured_metrics.qsize() == 0  # we had only one batch
 
     metrics = metrics_without_keys(metrics_batch[public_key], keys={"metadata"})
-    assert metrics == [
-        {
+    assert metrics.pop(0) == {
+        "timestamp": time_after(timestamp),
+        "width": 1,
+        "name": "c:sessions/foo@none",
+        "value": 42.0,
+        "type": "c",
+    }
+
+    if is_trusted:
+        assert metrics.pop(0) == {
             "timestamp": time_after(timestamp),
             "width": 1,
-            "name": "c:spans/bar@none",
+            "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
-        },
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:spans/foo@none",
-            "value": 42.0,
-            "type": "c",
-        },
-    ]
+        }
+
+    assert not metrics
 
 
 def test_global_metrics_no_config(mini_sentry, relay):
@@ -400,10 +443,11 @@ def test_global_metrics_no_config(mini_sentry, relay):
     assert received_metrics == metrics
 
 
-def test_global_metrics_batching(mini_sentry, relay):
+def test_global_metrics_batching(mini_sentry, relay, relay_credentials):
     # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
     MAX_FLUSH_SIZE = 200
 
+    credentials = relay_credentials()
     relay = relay(
         mini_sentry,
         options={
@@ -413,6 +457,14 @@ def test_global_metrics_batching(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "max_flush_bytes": MAX_FLUSH_SIZE,
+            },
+            "auth": {
+                "static_relays": {
+                    credentials["id"]: {
+                        "internal": True,
+                        "public_key": credentials["public_key"],
+                    }
+                }
             },
         },
     )
@@ -425,7 +477,8 @@ def test_global_metrics_batching(mini_sentry, relay):
     metrics_payload = (
         f"spans/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T{timestamp}"
     )
-    relay.send_metrics(project_id, metrics_payload)
+    headers = {"X-Sentry-Relay-Id": credentials["id"]}
+    relay.send_metrics(project_id, metrics_payload, headers)
 
     batch1 = mini_sentry.captured_metrics.get(timeout=5)
     batch2 = mini_sentry.captured_metrics.get(timeout=1)
@@ -767,18 +820,18 @@ def test_graceful_shutdown(mini_sentry, relay):
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
 
     past_timestamp = timestamp - 1000 + 30
-    metrics_payload = f"spans/past:42|c|T{past_timestamp}"
+    metrics_payload = f"sessions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     future_timestamp = timestamp + 30
-    metrics_payload = f"spans/future:17|c|T{future_timestamp}"
+    metrics_payload = f"sessions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
     relay.process.send_signal(signal.SIGTERM)
 
     time.sleep(0.1)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"spans/now:666|c|T{timestamp}"
+    metrics_payload = f"sessions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
@@ -803,14 +856,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": time_within_delta(past_timestamp, timedelta(seconds=1)),
             "width": 1,
-            "name": "c:spans/past@none",
+            "name": "c:sessions/past@none",
             "value": 42.0,
             "type": "c",
         },
         {
             "timestamp": time_within_delta(future_timestamp, timedelta(seconds=1)),
             "width": 1,
-            "name": "c:spans/future@none",
+            "name": "c:sessions/future@none",
             "value": 17.0,
             "type": "c",
         },
