@@ -4700,6 +4700,7 @@ dependencies = [
  "relay-protocol",
  "relay-statsd",
  "relay-ua",
+ "sentry-release-parser",
  "serde",
  "serde_json",
  "url",

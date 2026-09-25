@@ -4,9 +4,11 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
+use std::cmp::Ordering;
 use std::iter::FusedIterator;
 use std::net::IpAddr;
 
+use crate::release::Release;
 use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
 
 use relay_protocol::{Getter, GetterIter, RuleCondition, Val};
@@ -56,7 +58,54 @@ pub fn are_generic_filters_supported(
 fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
     // TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
-    condition.is_some_and(|condition| condition.matches(item))
+    condition.is_some_and(|condition| matches_condition(item, condition))
+}
+
+/// Evaluates a condition, comparing strings as releases.
+///
+/// [`RuleCondition::matches`] compares strings lexicographically, which puts `1.10.0` below
+/// `1.9.0`. Generic filters compare a string field in `gt`, `gte`, `lt`, and `lte` as a
+/// [`Release`] instead, so a filter on a release field orders by version. Both sides must have a
+/// version for the condition to match. Numbers compare as usual.
+///
+/// The logical conditions recurse here so that nested comparisons get the same treatment.
+fn matches_condition<F: Getter>(item: &F, condition: &RuleCondition) -> bool {
+    match condition {
+        RuleCondition::Gt(c) => {
+            compare(item, condition, &c.name, c.value.as_str(), Ordering::is_gt)
+        }
+        RuleCondition::Gte(c) => {
+            compare(item, condition, &c.name, c.value.as_str(), Ordering::is_ge)
+        }
+        RuleCondition::Lt(c) => {
+            compare(item, condition, &c.name, c.value.as_str(), Ordering::is_lt)
+        }
+        RuleCondition::Lte(c) => {
+            compare(item, condition, &c.name, c.value.as_str(), Ordering::is_le)
+        }
+        RuleCondition::And(c) => c.inner.iter().all(|inner| matches_condition(item, inner)),
+        RuleCondition::Or(c) => c.inner.iter().any(|inner| matches_condition(item, inner)),
+        RuleCondition::Not(c) => !matches_condition(item, &c.inner),
+        other => other.matches(item),
+    }
+}
+
+/// Compares a string field as a release. Any other field compares as `condition` does itself.
+fn compare<F: Getter>(
+    item: &F,
+    condition: &RuleCondition,
+    name: &str,
+    version: Option<&str>,
+    holds: fn(Ordering) -> bool,
+) -> bool {
+    let Some(Val::String(release)) = item.get_value(name) else {
+        return condition.matches(item);
+    };
+
+    match (Release::parse(release), version.and_then(Release::parse)) {
+        (Some(release), Some(version)) => holds(release.cmp(&version)),
+        _ => false,
+    }
 }
 
 /// Filters events by any generic condition.
@@ -210,7 +259,9 @@ mod tests {
 
     use super::*;
 
-    use relay_event_schema::protocol::{Event, LenientString, SessionAggregates, SessionUpdate};
+    use relay_event_schema::protocol::{
+        Event, LenientString, OurLog, SessionAggregates, SessionUpdate,
+    };
     use relay_protocol::{Annotated, FromValue as _};
 
     fn mock_filters() -> GenericFiltersMap {
@@ -994,6 +1045,133 @@ mod tests {
             should_filter(&session_aggregates("2.0.0"), None, &config, None),
             Ok(())
         );
+    }
+
+    /// Comparison conditions order releases by version, not as strings.
+    #[test]
+    fn test_should_filter_by_release_version() {
+        let condition = RuleCondition::gte("event.release", "1.9")
+            .or(RuleCondition::gte(
+                "log.attributes.sentry.release.value",
+                "1.9",
+            ))
+            .or(RuleCondition::gte(
+                "trace_metric.attributes.sentry.release.value",
+                "1.9",
+            ));
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "oldReleases".to_owned(),
+                is_enabled: true,
+                condition: Some(condition),
+            }]
+            .into(),
+        };
+        let filtered = Err(FilterStatKey::GenericFilter("oldReleases".to_owned()));
+
+        let event = |release: &str| Event {
+            release: Annotated::new(LenientString(release.to_owned())),
+            ..Default::default()
+        };
+        assert_eq!(
+            should_filter(&event("1.10.0"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&event("myapp@1.9.0+build"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&event("1.9.0-rc1"), None, &config, None),
+            Ok(())
+        );
+        assert_eq!(should_filter(&event("1.8.9"), None, &config, None), Ok(()));
+        assert_eq!(
+            should_filter(&event("a4b7e0f9c2d1"), None, &config, None),
+            Ok(())
+        );
+
+        assert_eq!(
+            should_filter(&session_update("1.10.0"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&session_update("1.8.9"), None, &config, None),
+            Ok(())
+        );
+
+        let log = |release: &str| {
+            OurLog::from_value(
+                serde_json::json!({
+                    "timestamp": 1_700_000_000.0,
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "level": "info",
+                    "body": "hello",
+                    "attributes": {"sentry.release": {"type": "string", "value": release}}
+                })
+                .into(),
+            )
+        };
+        assert_eq!(
+            should_filter(log("1.10.0").value().unwrap(), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(log("1.8.9").value().unwrap(), None, &config, None),
+            Ok(())
+        );
+    }
+
+    struct Item {
+        release: &'static str,
+        count: u64,
+    }
+
+    impl Getter for Item {
+        fn get_value(&self, path: &str) -> Option<Val<'_>> {
+            Some(match path {
+                "item.release" => self.release.into(),
+                "item.count" => self.count.into(),
+                _ => return None,
+            })
+        }
+    }
+
+    #[test]
+    fn test_matches_condition_compares_strings_as_releases() {
+        let item = Item {
+            release: "1.10.0",
+            count: 5,
+        };
+        let matches = |condition: RuleCondition| matches_condition(&item, &condition);
+
+        assert!(matches(RuleCondition::gt("item.release", "1.9.0")));
+        assert!(matches(RuleCondition::gte("item.release", "1.10")));
+        assert!(matches(RuleCondition::lt("item.release", "1.11")));
+        assert!(matches(RuleCondition::lte(
+            "item.release",
+            "myapp@1.10.0+build"
+        )));
+        assert!(!matches(RuleCondition::gt("item.release", "1.10.0")));
+        assert!(!matches(RuleCondition::lt("item.release", "1.9.0")));
+        assert!(!matches(RuleCondition::gte("item.release", "a4b7e0f9c2d1")));
+        assert!(!matches(RuleCondition::gte("item.release", 1)));
+        assert!(!matches(RuleCondition::gte("item.missing", "1.0")));
+
+        assert!(matches(
+            RuleCondition::gte("item.release", "1.9") & RuleCondition::lt("item.release", "2")
+        ));
+        assert!(matches(
+            RuleCondition::lt("item.release", "1.0") | RuleCondition::gt("item.release", "1.9")
+        ));
+        assert!(matches(!RuleCondition::gt("item.release", "1.10.0")));
+        assert!(!matches(!(RuleCondition::gt("item.release", "1.9.0"))));
+
+        assert!(matches(RuleCondition::gte("item.count", 5)));
+        assert!(!matches(RuleCondition::gt("item.count", 5)));
+        assert!(matches(RuleCondition::eq("item.release", "1.10.0")));
+        assert!(matches(RuleCondition::glob("item.release", "1.*")));
     }
 
     /// A filter that only lists other data types' release paths must never match a session.

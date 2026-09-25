@@ -29,6 +29,7 @@ pub mod web_crawlers;
 mod common;
 mod config;
 mod interface;
+mod release;
 mod releases;
 mod statsd;
 
