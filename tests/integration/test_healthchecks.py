@@ -153,8 +153,24 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
         {"aggregator": {"max_total_bucket_bytes": 1, "initial_delay": 30}},
     )
 
-    metrics_payload = "sessions/foo:42|c\nspans/bar:17|c"
-    relay.send_metrics(42, metrics_payload)
+    timestamp = int(time.time())
+    metrics_payload = [
+        {
+            "timestamp": timestamp,
+            "width": 0,
+            "name": "c:sessions/foo@none",
+            "type": "c",
+            "value": 42,
+        },
+        {
+            "timestamp": timestamp,
+            "width": 0,
+            "name": "c:spans/bar@none",
+            "type": "c",
+            "value": 17,
+        },
+    ]
+    relay.send_metrics_buckets(42, metrics_payload)
 
     for _ in range(100):
         response = wait_get(relay, "/api/relay/healthcheck/ready/", is_internal=True)

@@ -363,17 +363,10 @@ class SentryLike:
         envelope.add_item(Item(PayloadRef(json=payload), type="user_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload, headers=None):
-        envelope = Envelope()
-        envelope.add_item(
-            Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
-        )
-        return self.send_envelope(project_id, envelope, headers)
-
-    def send_metrics_buckets(self, project_id, payload):
+    def send_metrics_buckets(self, project_id, payload, headers=None):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
-        return self.send_envelope(project_id, envelope)
+        return self.send_envelope(project_id, envelope, headers=headers)
 
     def send_metrics_batch(self, payload):
         packed, signature = SecretKey.parse(self.secret_key).pack(payload)
