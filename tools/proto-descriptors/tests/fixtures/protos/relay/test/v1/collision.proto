@@ -1,0 +1,17 @@
+// `FooBar` and `Foo.Bar` both flatten to the static `FOO_BAR`. Only used to assert that the
+// generator reports the collision instead of emitting the same static twice.
+syntax = "proto3";
+
+package relay.test.v1;
+
+message FooBar {
+  string value = 1;
+}
+
+message Foo {
+  message Bar {
+    string value = 1;
+  }
+
+  Bar bar = 1;
+}
