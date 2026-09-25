@@ -23,11 +23,11 @@ pub fn expand(
     error: Managed<SerializedError>,
     ctx: Context<'_>,
 ) -> Result<(Managed<ExpandedError>, Option<ManagedEnvelope>), Rejected<Error>> {
-    let (error, unprocessable) = error
+    let (error, intermediates) = error
         .try_map(|error, records| do_expand(error, ctx, records))?
-        .split_once(|(error, unprocessable), _| (error, unprocessable));
-    let unprocessable = unprocessable.transpose().map(ManagedEnvelope::from);
-    Ok((error, unprocessable))
+        .split_once(|(error, intermediates), _| (error, intermediates));
+    let intermediates = intermediates.transpose().map(ManagedEnvelope::from);
+    Ok((error, intermediates))
 }
 
 fn do_expand(
@@ -75,10 +75,10 @@ fn do_expand(
         }
     }
 
-    let unprocessable = if !parsed.unprocessable.is_empty() {
+    let intermediates = if !parsed.intermediates.is_empty() {
         Some(Envelope::from_parts(
             error.headers.clone(),
-            parsed.unprocessable.into(),
+            parsed.intermediates.into(),
         ))
     } else {
         None
@@ -95,7 +95,7 @@ fn do_expand(
         other: error.items,
     };
 
-    Ok((expanded_error, unprocessable))
+    Ok((expanded_error, intermediates))
 }
 
 pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {

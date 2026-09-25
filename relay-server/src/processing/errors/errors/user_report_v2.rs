@@ -38,7 +38,7 @@ impl SentryError for UserReportV2 {
             )?),
             attachments,
             user_reports: Default::default(),
-            unprocessable: Default::default(),
+            intermediates: Default::default(),
             error: Self,
             metrics,
             fully_normalized: false,
