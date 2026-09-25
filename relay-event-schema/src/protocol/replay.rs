@@ -253,7 +253,7 @@ impl Getter for Replay {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path.strip_prefix("event.")? {
             // Simple fields
-            "release" => self.release.as_str()?.into(),
+            "release" => Val::Release(self.release.as_str()?),
             "dist" => self.dist.as_str()?.into(),
             "environment" => self.environment.as_str()?.into(),
             "platform" => self.platform.as_str().unwrap_or("other").into(),

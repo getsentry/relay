@@ -210,7 +210,9 @@ mod tests {
 
     use super::*;
 
-    use relay_event_schema::protocol::{Event, LenientString, SessionAggregates, SessionUpdate};
+    use relay_event_schema::protocol::{
+        Event, LenientString, OurLog, SessionAggregates, SessionUpdate,
+    };
     use relay_protocol::{Annotated, FromValue as _};
 
     fn mock_filters() -> GenericFiltersMap {
@@ -992,6 +994,82 @@ mod tests {
         );
         assert_eq!(
             should_filter(&session_aggregates("2.0.0"), None, &config, None),
+            Ok(())
+        );
+    }
+
+    /// Comparison conditions order releases by version, not as strings.
+    #[test]
+    fn test_should_filter_by_release_version() {
+        let condition = RuleCondition::gte("event.release", "1.9")
+            .or(RuleCondition::gte(
+                "log.attributes.sentry.release.value",
+                "1.9",
+            ))
+            .or(RuleCondition::gte(
+                "trace_metric.attributes.sentry.release.value",
+                "1.9",
+            ));
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "oldReleases".to_owned(),
+                is_enabled: true,
+                condition: Some(condition),
+            }]
+            .into(),
+        };
+        let filtered = Err(FilterStatKey::GenericFilter("oldReleases".to_owned()));
+
+        let event = |release: &str| Event {
+            release: Annotated::new(LenientString(release.to_owned())),
+            ..Default::default()
+        };
+        assert_eq!(
+            should_filter(&event("1.10.0"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&event("myapp@1.9.0+build"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&event("1.9.0-rc1"), None, &config, None),
+            Ok(())
+        );
+        assert_eq!(should_filter(&event("1.8.9"), None, &config, None), Ok(()));
+        assert_eq!(
+            should_filter(&event("a4b7e0f9c2d1"), None, &config, None),
+            Ok(())
+        );
+
+        assert_eq!(
+            should_filter(&session_update("1.10.0"), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(&session_update("1.8.9"), None, &config, None),
+            Ok(())
+        );
+
+        let log = |release: &str| {
+            OurLog::from_value(
+                serde_json::json!({
+                    "timestamp": 1_700_000_000.0,
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "level": "info",
+                    "body": "hello",
+                    "attributes": {"sentry.release": {"type": "string", "value": release}}
+                })
+                .into(),
+            )
+        };
+        assert_eq!(
+            should_filter(log("1.10.0").value().unwrap(), None, &config, None),
+            filtered
+        );
+        assert_eq!(
+            should_filter(log("1.8.9").value().unwrap(), None, &config, None),
             Ok(())
         );
     }

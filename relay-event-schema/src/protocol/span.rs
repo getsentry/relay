@@ -189,7 +189,7 @@ impl Getter for Span {
         // for a span.
         let event_prefix = path.strip_prefix("event.")?;
         Some(match event_prefix {
-            "release" => self.data.value()?.get_str(SENTRY__RELEASE)?.into(),
+            "release" => Val::Release(self.data.value()?.get_str(SENTRY__RELEASE)?),
             "environment" => self.data.value()?.get_str(SENTRY__ENVIRONMENT)?.into(),
             "transaction" => self.data.value()?.get_str(SENTRY__SEGMENT__NAME)?.into(),
             "contexts.browser.name" => self.data.value()?.get_str(BROWSER__NAME)?.into(),
@@ -927,7 +927,7 @@ mod tests {
         .into_value()
         .unwrap();
 
-        assert_eq!(span.get_value("event.release"), Some(Val::String("1.0")));
+        assert_eq!(span.get_value("event.release"), Some(Val::Release("1.0")));
         assert_eq!(
             span.get_value("event.environment"),
             Some(Val::String("prod"))

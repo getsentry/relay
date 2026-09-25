@@ -10,7 +10,7 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-pub use crate::version::VersionConstraints;
+use crate::release::parse_version;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -84,8 +84,8 @@ impl EqCondition {
     {
         match (instance.get_value(self.name.as_str()), &self.value) {
             (None, Value::Null) => true,
-            (Some(Val::String(f)), Value::String(val)) => self.cmp(f, val),
-            (Some(Val::String(f)), Value::Array(arr)) => arr
+            (Some(Val::String(f) | Val::Release(f)), Value::String(val)) => self.cmp(f, val),
+            (Some(Val::String(f) | Val::Release(f)), Value::Array(arr)) => arr
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
@@ -106,12 +106,14 @@ macro_rules! impl_cmp_condition {
     ($struct_name:ident, $operator:tt, $doc:literal) => {
         #[doc = $doc]
         ///
-        /// Strings are explicitly not supported by this.
+        /// Numbers compare numerically. A release field ([`Val::Release`]) compares by version
+        /// against a version in `value`, such as `"1.2.0"`, and never matches if either side has
+        /// no version. Other strings compare lexicographically.
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct $struct_name {
             /// Path of the field that should match the value.
             pub name: String,
-            /// The numeric value to check against.
+            /// The value to check against.
             pub value: Value,
         }
 
@@ -131,6 +133,13 @@ macro_rules! impl_cmp_condition {
                 let Some(value) = instance.get_value(self.name.as_str()) else {
                     return false;
                 };
+
+                if let (Val::Release(a), Some(b)) = (value, self.value.as_str()) {
+                    return match (parse_version(a), parse_version(b)) {
+                        (Some(a), Some(b)) => a $operator b,
+                        _ => false,
+                    };
+                }
 
                 // Try various conversion functions in order of expensiveness and likelihood
                 // - as_i64 is not really fast, but most values in sampling rules can be i64, so we
@@ -186,7 +195,7 @@ impl GlobCondition {
         T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
-            Some(Val::String(s)) => self.value.is_match(s),
+            Some(Val::String(s) | Val::Release(s)) => self.value.is_match(s),
             _ => false,
         }
     }
@@ -313,43 +322,6 @@ impl CidrCondition {
         };
 
         self.value.contains(ip)
-    }
-}
-
-/// A condition that compares the version of a release against version constraints.
-///
-/// The field must hold a release string such as `1.2.3` or `myapp@1.2.3+build`. The condition
-/// matches if the version satisfies any entry in `value`. See [`VersionConstraints`] for the
-/// constraint syntax.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct VersionCondition {
-    /// Path of the field that holds the release.
-    pub name: String,
-    /// Version constraints to check against, such as `">=1.2.0, <2.0.0"`.
-    ///
-    /// Note that this cannot be a single value, it must be a list of values.
-    pub value: VersionConstraints,
-}
-
-impl VersionCondition {
-    /// Creates a condition that matches release versions against one or more constraints.
-    ///
-    /// Entries that do not parse as a constraint are skipped.
-    pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
-        Self {
-            name: field.into(),
-            value: value.into_strings().into_iter().collect(),
-        }
-    }
-
-    fn matches<T>(&self, instance: &T) -> bool
-    where
-        T: Getter + ?Sized,
-    {
-        match instance.get_value(self.name.as_str()) {
-            Some(Val::String(release)) => self.value.matches(release),
-            _ => false,
-        }
     }
 }
 
@@ -612,17 +584,6 @@ pub enum RuleCondition {
     /// ```
     Cidr(CidrCondition),
 
-    /// A condition that compares the version of a release against version constraints.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use relay_protocol::RuleCondition;
-    ///
-    /// let condition = RuleCondition::version("obj.release", ">=1.2.0, <2.0.0");
-    /// ```
-    Version(VersionCondition),
-
     /// Combines multiple conditions using logical OR.
     ///
     /// # Example
@@ -773,27 +734,6 @@ impl RuleCondition {
     /// ```
     pub fn cidr(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Cidr(CidrCondition::new(field, value))
-    }
-
-    /// Creates a condition that matches release versions against one or more constraints.
-    ///
-    /// Each entry is a comma-separated list of comparators such as `">=1.2.0, <2.0.0"`, using the
-    /// operators `>`, `>=`, `<`, and `<=`. The condition matches if any entry holds. Entries that
-    /// do not parse are ignored.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use relay_protocol::RuleCondition;
-    ///
-    /// // Match a range:
-    /// let condition = RuleCondition::version("obj.release", ">=1.2.0, <2.0.0");
-    ///
-    /// // Match any of a list of constraints:
-    /// let condition = RuleCondition::version("obj.release", &["<1.0.0", ">=2.1.0"][..]);
-    /// ```
-    pub fn version(field: impl Into<String>, value: impl IntoStrings) -> Self {
-        Self::Version(VersionCondition::new(field, value))
     }
 
     /// Creates a condition that applies `>`.
@@ -957,8 +897,7 @@ impl RuleCondition {
             | RuleCondition::Lt(_)
             | RuleCondition::Eq(_)
             | RuleCondition::Glob(_)
-            | RuleCondition::Cidr(_)
-            | RuleCondition::Version(_) => true,
+            | RuleCondition::Cidr(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -981,7 +920,6 @@ impl RuleCondition {
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
             RuleCondition::Cidr(condition) => condition.matches(value),
-            RuleCondition::Version(condition) => condition.matches(value),
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
@@ -1055,7 +993,7 @@ mod tests {
                 "trace_id" => (&self.trace_id).into(),
                 "span_id" => Val::HexId(HexId(&self.span_id[..])),
                 "transaction" => self.transaction.as_str().into(),
-                "release" => self.release.as_str().into(),
+                "release" => Val::Release(self.release.as_str()),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
                 "user.ip" => self.user_ip.as_str().into(),
@@ -1120,11 +1058,6 @@ mod tests {
                 "op":"cidr",
                 "name": "field_ip",
                 "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32","not-an-ip"]
-            },
-            {
-                "op":"version",
-                "name": "field_release",
-                "value": [">=1.2.0, <2.0.0","<1.0.0","not-a-constraint"]
             },
             {
                 "op":"not",
@@ -1208,14 +1141,6 @@ mod tests {
             value: [
               "10.0.0.0/8",
               "192.168.1.1/32",
-            ],
-          ),
-          VersionCondition(
-            op: "version",
-            name: "field_release",
-            value: [
-              ">=1.2.0, <2.0.0",
-              "<1.0.0",
             ],
           ),
           NotCondition(
@@ -1400,32 +1325,39 @@ mod tests {
     }
 
     #[test]
-    fn test_version_condition() {
+    fn test_cmp_release_version() {
         let trace = mock_trace();
 
-        assert!(RuleCondition::version("trace.release", ">=1.1, <1.2").matches(&trace));
-        assert!(RuleCondition::version("trace.release", "<=1.1.1").matches(&trace));
-        assert!(RuleCondition::version("trace.release", &["<1.0.0", ">1.1.0"][..]).matches(&trace));
-        assert!(!RuleCondition::version("trace.release", ">1.1.1").matches(&trace));
-        assert!(!RuleCondition::version("trace.release", "1.1.1").matches(&trace));
-        assert!(!RuleCondition::version("trace.release", Vec::<String>::new()).matches(&trace));
-        assert!(!RuleCondition::version("trace.missing", ">=1.0.0").matches(&trace));
-        assert!(!RuleCondition::version("trace.transaction", ">=1.0.0").matches(&trace));
-        assert!(!RuleCondition::version("trace.client_ip", ">=1.0.0").matches(&trace));
+        assert!(RuleCondition::gte("trace.release", "1.1.1").matches(&trace));
+        assert!(RuleCondition::gte("trace.release", "1.1").matches(&trace));
+        assert!(RuleCondition::gt("trace.release", "1.1.0").matches(&trace));
+        assert!(RuleCondition::gt("trace.release", "1.1.1-rc1").matches(&trace));
+        assert!(RuleCondition::lte("trace.release", "1.1.1").matches(&trace));
+        assert!(RuleCondition::lt("trace.release", "1.10.0").matches(&trace));
+        assert!(RuleCondition::lt("trace.release", "myapp@1.2.0+build").matches(&trace));
+        assert!(
+            (RuleCondition::gte("trace.release", "1.1")
+                & RuleCondition::lt("trace.release", "1.2"))
+            .matches(&trace)
+        );
+
+        assert!(!RuleCondition::gt("trace.release", "1.1.1").matches(&trace));
+        assert!(!RuleCondition::lt("trace.release", "1.1.1").matches(&trace));
+        assert!(!RuleCondition::gte("trace.release", "1.2").matches(&trace));
+        assert!(!RuleCondition::gte("trace.release", "a4b7e0f9c2d1").matches(&trace));
+        assert!(!RuleCondition::gte("trace.release", "not a version").matches(&trace));
+        assert!(!RuleCondition::gte("trace.release", 1).matches(&trace));
+        assert!(!RuleCondition::gte("trace.missing", "1.0.0").matches(&trace));
     }
 
     #[test]
-    fn test_version_condition_skips_invalid_entries() {
-        let condition: RuleCondition = serde_json::from_str(
-            r#"{"op": "version", "name": "trace.release", "value": ["garbage", ">=1.0.0"]}"#,
-        )
-        .unwrap();
+    fn test_release_matches_as_string() {
+        let trace = mock_trace();
 
-        assert!(condition.matches(&mock_trace()));
-        assert_eq!(
-            serde_json::to_string(&condition).unwrap(),
-            r#"{"op":"version","name":"trace.release","value":[">=1.0.0"]}"#
-        );
+        assert!(RuleCondition::eq("trace.release", "1.1.1").matches(&trace));
+        assert!(RuleCondition::eq("trace.release", &["2.0.0", "1.1.1"][..]).matches(&trace));
+        assert!(RuleCondition::glob("trace.release", "1.1.*").matches(&trace));
+        assert!(!RuleCondition::eq("trace.release", "1.1.1.0").matches(&trace));
     }
 
     #[test]

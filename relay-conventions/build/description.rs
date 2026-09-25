@@ -102,7 +102,7 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
                     Val::I64(i) => write!(f, "{i}"),
                     Val::U64(u) => write!(f, "{u}"),
                     Val::F64(fl) => write!(f, "{fl}"),
-                    Val::String(s) => f.write_str(s),
+                    Val::String(s) | Val::Release(s) => f.write_str(s),
                     Val::HexId(_) | Val::IpAddr(_) | Val::Array(_) | Val::Object(_) => Ok(()),
                 }
             }
