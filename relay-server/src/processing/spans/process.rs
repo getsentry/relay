@@ -21,7 +21,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
+pub fn expand(
+    spans: Managed<SerializedSpans>,
+    max_ops: usize,
+) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
             headers,
@@ -43,7 +46,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
         };
 
         let (settings, spans) = match items {
-            SpanItems::Container(item) => expand_span_container(&item)?,
+            SpanItems::Container(item) => expand_span_container(&item, max_ops)?,
             SpanItems::Legacy(items) => expand_legacy_spans(items, records),
             SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
             SpanItems::None => (Default::default(), Vec::new()),
@@ -99,11 +102,20 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
     })
 }
 
-fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2>)> {
-    let (metadata, spans) = ItemContainer::<SpanV2>::parse(item)
+fn expand_span_container(
+    item: &Item,
+    max_ops: usize,
+) -> Result<(Settings, ContainerItems<SpanV2>)> {
+    let (metadata, spans) = ItemContainer::<SpanV2>::parse(item, max_ops)
         .map_err(|err| {
             relay_log::debug!("failed to parse span container: {err}");
-            Error::Invalid(DiscardReason::InvalidJson)
+
+            match err {
+                crate::envelope::ContainerParseError::LimitExceeded { limit: _ } => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                _ => Error::Invalid(DiscardReason::InvalidJson),
+            }
         })?
         .into_parts();
 
@@ -466,6 +478,23 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn test_expand_span_container_operations_limit() {
+        let payload = r#"{"items":[{"start_timestamp":1544719859.0,"end_timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","span_id":"eee19b7ec3c1b174","name":"test"}]}"#;
+
+        let mut item = Item::new(crate::envelope::ItemType::Span);
+        item.set_payload_with_item_count(crate::envelope::ContentType::SpanV2Container, payload, 1);
+
+        // With a sufficient budget the container parses.
+        assert!(expand_span_container(&item, usize::MAX).is_ok());
+
+        // With a budget of a single operation the container is rejected.
+        assert!(matches!(
+            expand_span_container(&item, 1),
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
+        ));
+    }
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
