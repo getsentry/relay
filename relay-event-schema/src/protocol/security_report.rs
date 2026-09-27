@@ -540,6 +540,28 @@ struct IntegrityRaw {
     other: BTreeMap<String, serde_json::Value>,
 }
 
+impl ViolationRaw {
+    fn get_message(&self) -> String {
+        "Integrity policy violation".to_owned()
+    }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.document_url.clone()),
+            ..Request::default()
+        }
+    }
+
+    fn into_protocol(self) -> Integrity {
+        Integrity {
+            document_url: Annotated::from(self.document_url),
+            blocked_url: Annotated::from(self.blocked_url),
+            destination: Annotated::from(self.destination),
+            report_only: Annotated::from(self.report_only),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 struct IntegrityVariant {
     body: IntegrityRaw,
