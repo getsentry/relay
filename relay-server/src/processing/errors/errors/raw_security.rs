@@ -1,5 +1,5 @@
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
+use relay_event_schema::protocol::{Csp, Integrity, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
