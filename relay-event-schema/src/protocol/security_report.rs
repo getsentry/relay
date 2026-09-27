@@ -540,7 +540,7 @@ struct IntegrityRaw {
     other: BTreeMap<String, serde_json::Value>,
 }
 
-impl ViolationRaw {
+impl IntegrityRaw {
     fn get_message(&self) -> String {
         "Integrity policy violation".to_owned()
     }
@@ -681,7 +681,7 @@ impl Integrity {
         Ok(())
     }
 
-    fn extract_report(event: &mut Event, raw: ViolationRaw) {
+    fn extract_report(event: &mut Event, raw: IntegrityRaw) {
         event.logentry = Annotated::new(LogEntry::from(raw.get_message()));
         event.request = Annotated::new(raw.get_request());
         event.integrity = Annotated::new(raw.into_protocol());
