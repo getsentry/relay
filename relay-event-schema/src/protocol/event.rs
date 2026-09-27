@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
+    AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, Integrity, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, Fingerprint, GpuContext, LenientString,
     Level, LogEntry, Measurements, Metrics, MonitorContext, OsContext, ProfileContext, RelayInfo,
     Request, ResponseContext, RuntimeContext, Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread,
@@ -443,6 +443,10 @@ pub struct Event {
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub csp: Annotated<Csp>,
+
+    /// Integrity Policy security reports.
+    #[metastructure(omit_from_schema)]
+    pub integrity: Annotated<Integrity>,
 
     /// Spans for tracing.
     #[metastructure(max_bytes = 819200)]
