@@ -32,9 +32,12 @@ impl SentryError for Security {
             event.ty.set_value(None);
         }
 
-        // CSP is the only remaining security report. Older Relays may still forward the removed
+        // CSP and integrity is are only remaining security report. Older Relays may still forward the removed
         // `hpkp`, `expectct` and `expectstaple` types, which no longer parse into one.
-        if event.value().map(infer_event_type) != Some(EventType::Csp) {
+        if !matches!(
+            event.value().map(infer_event_type),
+            Some(EventType::Csp | EventType::Integrity)
+        ) {
             return Err(ProcessingError::InvalidSecurityType(payload).into());
         }
 

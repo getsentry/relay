@@ -1,5 +1,5 @@
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
+use relay_event_schema::protocol::{Csp, Integrity, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
@@ -83,6 +83,7 @@ fn event_from_security_report(
 
     let (apply_result, event_type) = match report_type {
         SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::Integrity => (Integrity::apply_to_event(data, &mut event), EventType::Integrity),
         SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 

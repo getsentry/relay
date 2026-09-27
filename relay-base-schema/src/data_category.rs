@@ -409,6 +409,7 @@ impl From<EventType> for DataCategory {
             EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
             EventType::Csp => Self::Security,
+            EventType::Integrity => Self::Security,
             EventType::UserReportV2 => Self::UserReportV2,
         }
     }

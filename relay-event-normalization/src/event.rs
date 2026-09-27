@@ -396,7 +396,11 @@ fn normalize_security_report(
         return;
     }
 
-    event.logger.get_or_insert_with(|| "csp".to_owned());
+    if event.csp.value().is_some() {
+        event.logger.get_or_insert_with(|| "csp".to_owned());
+    } else if event.integrity.value().is_some() {
+        event.logger.get_or_insert_with(|| "integrity".to_owned());
+    }
 
     if let Some(client_ip) = client_ip {
         let user = event.user.value_mut().get_or_insert_with(User::default);
@@ -417,7 +421,7 @@ fn normalize_security_report(
 }
 
 fn is_security_report(event: &Event) -> bool {
-    event.csp.value().is_some()
+    event.csp.value().is_some() || event.integrity.value().is_some()
 }
 
 /// Backfills IP addresses in various places.
@@ -1246,6 +1250,8 @@ pub fn infer_event_type(event: &Event) -> EventType {
         EventType::Error
     } else if event.csp.value().is_some() {
         EventType::Csp
+    } else if event.integrity.value().is_some() {
+        EventType::Integrity
     } else {
         EventType::Default
     }

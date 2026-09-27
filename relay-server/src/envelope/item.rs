@@ -829,6 +829,7 @@ impl ItemType {
             EventType::Transaction => ItemType::Transaction,
             EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp => ItemType::Security,
+            EventType::Integrity => ItemType::Security,
         }
     }
 

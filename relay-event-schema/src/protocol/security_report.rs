@@ -523,11 +523,61 @@ enum CspVariant {
     CspViolation { body: CspRaw },
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+struct IntegrityRaw {
+    #[serde(rename = "documentURL")]
+    document_url: Option<String>,
+
+    #[serde(rename = "blockedURL")]
+    blocked_url: Option<String>,
+
+    destination: Option<String>,
+
+    #[serde(rename = "reportOnly")]
+    report_only: Option<bool>,
+
+    #[serde(flatten)]
+    other: BTreeMap<String, serde_json::Value>,
+}
+
+impl IntegrityRaw {
+    fn get_message(&self) -> String {
+        "Integrity policy violation".to_owned()
+    }
+
+    fn get_request(&self) -> Request {
+        Request {
+            url: Annotated::from(self.document_url.clone()),
+            ..Request::default()
+        }
+    }
+
+    fn into_protocol(self) -> Integrity {
+        Integrity {
+            document_url: Annotated::from(self.document_url),
+            blocked_url: Annotated::from(self.blocked_url),
+            destination: Annotated::from(self.destination),
+            report_only: Annotated::from(self.report_only),
+            other: self
+                .other
+                .into_iter()
+                .map(|(k, v)| (k, Annotated::from(v)))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+struct IntegrityVariant {
+    body: IntegrityRaw,
+}
+
 /// The type of the CSP report which comes through the Reporting API.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum CspViolationType {
+enum ViolationType {
     CspViolation,
+    IntegrityViolation,
     #[serde(other)]
     Other,
 }
@@ -606,9 +656,42 @@ impl Csp {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct Integrity {
+    #[metastructure(pii = "true")]
+    pub document_url: Annotated<String>,
+
+    #[metastructure(pii = "true")]
+    pub blocked_url: Annotated<String>,
+
+    pub destination: Annotated<String>,
+
+    pub report_only: Annotated<bool>,
+
+    #[metastructure(pii = "true", additional_properties)]
+    pub other: Object<Value>,
+}
+
+impl Integrity {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
+        let variant = serde_json::from_slice::<IntegrityVariant>(data)?;
+
+        Integrity::extract_report(event, variant.body);
+
+        Ok(())
+    }
+
+    fn extract_report(event: &mut Event, raw: IntegrityRaw) {
+        event.logentry = Annotated::new(LogEntry::from(raw.get_message()));
+        event.request = Annotated::new(raw.get_request());
+        event.integrity = Annotated::new(raw.into_protocol());
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
     Csp,
+    Integrity,
     Unsupported,
 }
 
@@ -622,7 +705,7 @@ impl SecurityReportType {
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport {
             #[serde(rename = "type")]
-            ty: Option<CspViolationType>,
+            ty: Option<ViolationType>,
             csp_report: Option<IgnoredAny>,
         }
 
@@ -630,9 +713,11 @@ impl SecurityReportType {
 
         Ok(if helper.csp_report.is_some() {
             Some(SecurityReportType::Csp)
-        } else if let Some(CspViolationType::CspViolation) = helper.ty {
+        } else if let Some(ViolationType::CspViolation) = helper.ty {
             Some(SecurityReportType::Csp)
-        } else if let Some(CspViolationType::Other) = helper.ty {
+        } else if let Some(ViolationType::IntegrityViolation) = helper.ty {
+            Some(SecurityReportType::Integrity)
+        } else if let Some(ViolationType::Other) = helper.ty {
             Some(SecurityReportType::Unsupported)
         } else {
             None
