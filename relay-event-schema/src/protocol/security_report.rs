@@ -526,8 +526,9 @@ enum CspVariant {
 /// The type of the CSP report which comes through the Reporting API.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum CspViolationType {
+enum ViolationType {
     CspViolation,
+    IntegrityViolation,
     #[serde(other)]
     Other,
 }
@@ -609,6 +610,7 @@ impl Csp {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
     Csp,
+    Integrity,
     Unsupported,
 }
 
@@ -622,7 +624,7 @@ impl SecurityReportType {
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport {
             #[serde(rename = "type")]
-            ty: Option<CspViolationType>,
+            ty: Option<ViolationType>,
             csp_report: Option<IgnoredAny>,
         }
 
@@ -630,9 +632,11 @@ impl SecurityReportType {
 
         Ok(if helper.csp_report.is_some() {
             Some(SecurityReportType::Csp)
-        } else if let Some(CspViolationType::CspViolation) = helper.ty {
+        } else if let Some(ViolationType::CspViolation) = helper.ty {
             Some(SecurityReportType::Csp)
-        } else if let Some(CspViolationType::Other) = helper.ty {
+        } else if let Some(ViolationType::IntegrityViolation) = helper.ty {
+            Some(SecurityReportType::Integrity)
+        } else if let Some(ViolationType::Other) = helper.ty {
             Some(SecurityReportType::Unsupported)
         } else {
             None
