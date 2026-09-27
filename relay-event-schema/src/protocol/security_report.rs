@@ -656,6 +656,46 @@ impl Csp {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct Integrity {
+    #[metastructure(pii = "true")]
+    pub document_url: Annotated<String>,
+
+    #[metastructure(pii = "true")]
+    pub blocked_url: Annotated<String>,
+
+    pub destination: Annotated<String>,
+
+    pub report_only: Annotated<bool>,
+
+    #[metastructure(pii = "true", additional_properties)]
+    pub other: Object<Value>,
+}
+
+impl Integrity {
+    pub fn apply_to_event(
+        data: &[u8],
+        event: &mut Event,
+    ) -> Result<(), serde_json::Error> {
+        let variant = serde_json::from_slice::<IntegrityVariant>(data)?;
+
+        Integrity::extract_report(event, variant.body);
+
+        Ok(())
+    }
+
+    fn extract_report(event: &mut Event, raw: ViolationRaw) {
+        event.logentry =
+            Annotated::new(LogEntry::from(raw.get_message()));
+
+        event.request =
+            Annotated::new(raw.get_request());
+
+        event.integrity =
+            Annotated::new(raw.into_protocol());
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
     Csp,
