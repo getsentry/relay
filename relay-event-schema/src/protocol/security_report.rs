@@ -607,6 +607,23 @@ impl Csp {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct IntegrityRaw {
+    #[serde(rename = "documentURL")]
+    document_url: Option<String>,
+
+    #[serde(rename = "blockedURL")]
+    blocked_url: Option<String>,
+
+    destination: Option<String>,
+
+    #[serde(rename = "reportOnly")]
+    report_only: Option<bool>,
+
+    #[serde(flatten)]
+    other: BTreeMap<String, serde_json::Value>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
     Csp,
