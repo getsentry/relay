@@ -523,6 +523,28 @@ enum CspVariant {
     CspViolation { body: CspRaw },
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+struct IntegrityRaw {
+    #[serde(rename = "documentURL")]
+    document_url: Option<String>,
+
+    #[serde(rename = "blockedURL")]
+    blocked_url: Option<String>,
+
+    destination: Option<String>,
+
+    #[serde(rename = "reportOnly")]
+    report_only: Option<bool>,
+
+    #[serde(flatten)]
+    other: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+struct IntegrityVariant {
+    body: IntegrityRaw,
+}
+
 /// The type of the CSP report which comes through the Reporting API.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -605,23 +627,6 @@ impl Csp {
 
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct IntegrityRaw {
-    #[serde(rename = "documentURL")]
-    document_url: Option<String>,
-
-    #[serde(rename = "blockedURL")]
-    blocked_url: Option<String>,
-
-    destination: Option<String>,
-
-    #[serde(rename = "reportOnly")]
-    report_only: Option<bool>,
-
-    #[serde(flatten)]
-    other: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
