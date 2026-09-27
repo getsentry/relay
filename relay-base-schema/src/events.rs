@@ -50,6 +50,7 @@ impl EventType {
             EventType::Default => "default",
             EventType::Error => "error",
             EventType::Csp => "csp",
+            EventType::Integrity => "integrity",
             EventType::Transaction => "transaction",
             EventType::UserReportV2 => "feedback",
         }
@@ -76,6 +77,7 @@ impl FromStr for EventType {
             "default" => EventType::Default,
             "error" => EventType::Error,
             "csp" => EventType::Csp,
+            "integrity" => EventType::Integrity,
             "transaction" => EventType::Transaction,
             "feedback" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),
