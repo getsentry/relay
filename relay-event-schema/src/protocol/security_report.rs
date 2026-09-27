@@ -558,6 +558,11 @@ impl ViolationRaw {
             blocked_url: Annotated::from(self.blocked_url),
             destination: Annotated::from(self.destination),
             report_only: Annotated::from(self.report_only),
+            other: self
+                .other
+                .into_iter()
+                .map(|(k, v)| (k, Annotated::from(v)))
+                .collect(),
         }
     }
 }
