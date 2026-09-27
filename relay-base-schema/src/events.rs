@@ -29,6 +29,8 @@ pub enum EventType {
     Error,
     /// A CSP violation payload.
     Csp,
+    /// Integrity policy violation payload
+    Integrity,
     /// Performance monitoring transactions carrying spans.
     Transaction,
     /// User feedback payload.
