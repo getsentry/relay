@@ -673,10 +673,7 @@ pub struct Integrity {
 }
 
 impl Integrity {
-    pub fn apply_to_event(
-        data: &[u8],
-        event: &mut Event,
-    ) -> Result<(), serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let variant = serde_json::from_slice::<IntegrityVariant>(data)?;
 
         Integrity::extract_report(event, variant.body);
@@ -685,14 +682,9 @@ impl Integrity {
     }
 
     fn extract_report(event: &mut Event, raw: ViolationRaw) {
-        event.logentry =
-            Annotated::new(LogEntry::from(raw.get_message()));
-
-        event.request =
-            Annotated::new(raw.get_request());
-
-        event.integrity =
-            Annotated::new(raw.into_protocol());
+        event.logentry = Annotated::new(LogEntry::from(raw.get_message()));
+        event.request = Annotated::new(raw.get_request());
+        event.integrity = Annotated::new(raw.into_protocol());
     }
 }
 
