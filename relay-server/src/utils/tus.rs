@@ -153,7 +153,6 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
     let upload_defer_length: Option<usize> = parse_header(headers, UPLOAD_DEFER_LENGTH);
 
-    // FIXME: Do we really want to support this?
     // Exactly one of Upload-Length and Upload-Defer-Length must be present.
     // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol).
     let upload_length = match (upload_length, upload_defer_length) {

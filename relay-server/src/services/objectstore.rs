@@ -825,7 +825,6 @@ impl ObjectstoreServiceInner {
             retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        // FIXME: General: Defered-Upload-Lenght will never work here?
         // FIXME: Decided on providing the `content_type` here
         // FIXME: This currently swallows a declined resumable upload.
         let session_token = session
