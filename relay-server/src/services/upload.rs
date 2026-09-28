@@ -343,7 +343,7 @@ impl Service {
                                 organization_id,
                                 project_id,
                                 key,
-                                object_length: length as u64, // FIXME: Decide if the location should already have a u64.
+                                upload_length: length as u64, // FIXME: Decide if the location should already have a u64.
                                 retention: project.retention,
                             })
                             .await
