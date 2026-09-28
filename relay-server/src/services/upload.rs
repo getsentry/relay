@@ -396,12 +396,11 @@ impl Service {
                     other,
                 } = location.verify(received, &config)?;
 
-                // TODO: Maybe need to assert that if length is none so must upload_id.
+                // FIXME: Maybe need to assert that if length is none so must upload_id (find a better structure).
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
-                let byte_counter = stream.byte_counter();
 
                 let upload_ref = UploadRef::new(key, upload_id, offset)?;
                 let upload_ref = addr
@@ -415,12 +414,10 @@ impl Service {
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
-                // FIXME: This is hacky rather move it into the object-store service.
-                let (offset, length) = if let Some(length) = length.0 {
-                    (upload_ref.offset, Final(length))
-                } else {
-                    (byte_counter.get(), Final(byte_counter.get()))
-                };
+                // If the location contains a length, communicate that back as is. If it doesn't
+                // (due to Upload-Defer-Length) the upload above was a oneshoot and we derive the
+                // length based on the offset (progress).
+                let length = Final(length.0.unwrap_or(upload_ref.offset));
 
                 Ok(StreamResult {
                     location: Location {
@@ -431,7 +428,7 @@ impl Service {
                         other,
                     }
                     .try_sign(&config)?,
-                    offset,
+                    offset: upload_ref.offset,
                 })
             }
         }

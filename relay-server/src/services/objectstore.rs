@@ -36,7 +36,9 @@ use crate::services::store::{
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
+use crate::utils::{
+    BoundedStream, ByteCounter, MeteredStream, RetryableStream, TakeOnce, find_error_source,
+};
 
 use super::outcome::Outcome;
 
@@ -853,6 +855,7 @@ impl ObjectstoreServiceInner {
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
+        let byte_counter = stream.byte_counter();
 
         self.upload(
             MessageKind::Stream,
@@ -861,6 +864,7 @@ impl ObjectstoreServiceInner {
                 body: TakeOnce::new(stream),
                 upload_ref,
                 retention,
+                byte_counter,
             },
         )
         .await
@@ -991,6 +995,7 @@ impl ObjectstoreServiceInner {
                 body,
                 upload_ref,
                 retention,
+                byte_counter,
             } => {
                 let UploadRef {
                     key,
@@ -1033,7 +1038,7 @@ impl ObjectstoreServiceInner {
                         Ok(UploadRef {
                             key: response.key,
                             session_token: None,
-                            offset: 0, // FIXME: Should be the length of the entire one-shotted stream.
+                            offset: byte_counter.get(),
                         })
                     }
                 }
@@ -1113,6 +1118,7 @@ enum Upload {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
         retention: u16,
+        byte_counter: ByteCounter,
     },
 }
 
@@ -1136,10 +1142,12 @@ impl Upload {
                 body,
                 upload_ref,
                 retention,
+                byte_counter,
             } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
                 body,
                 upload_ref: upload_ref.clone(),
                 retention: *retention,
+                byte_counter: byte_counter.clone(),
             }),
         }
     }
@@ -1160,6 +1168,7 @@ enum UploadAttempt {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
         retention: u16,
+        byte_counter: ByteCounter,
     },
 }
 
