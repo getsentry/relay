@@ -1,11 +1,8 @@
-from .test_metrics import TEST_CONFIG
-
-
 def test_generic_metrics_are_not_produced(
     mini_sentry, relay_with_processing, metrics_consumer
 ):
     metrics_consumer = metrics_consumer()
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
