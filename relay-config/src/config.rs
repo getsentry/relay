@@ -525,15 +525,6 @@ pub struct Relay {
     ///
     /// Defaults to [`Self::port`].
     pub internal_port: Option<u16>,
-    /// Optional port to bind for the encrypted relay HTTPS server.
-    #[serde(skip_serializing)]
-    pub tls_port: Option<u16>,
-    /// The path to the identity (DER-encoded PKCS12) to use for TLS.
-    #[serde(skip_serializing)]
-    pub tls_identity_path: Option<PathBuf>,
-    /// Password for the PKCS12 archive.
-    #[serde(skip_serializing)]
-    pub tls_identity_password: Option<String>,
     /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///
     /// Enable this setting for Relays used to redirect traffic to a migrated Sentry instance.
@@ -562,9 +553,6 @@ impl Default for Relay {
             port: 3000,
             internal_host: None,
             internal_port: None,
-            tls_port: None,
-            tls_identity_path: None,
-            tls_identity_password: None,
             override_project_ids: false,
             config_reload_interval: None,
         }
@@ -2190,26 +2178,6 @@ impl ConfigSnapshot {
             (Some(host), Some(port)) => Some((host, port).into()),
             (None, None) => None,
         }
-    }
-
-    /// Returns the TLS listen address.
-    pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.inner.values.relay.tls_identity_path.is_some() {
-            let port = self.inner.values.relay.tls_port.unwrap_or(3443);
-            Some((self.inner.values.relay.host, port).into())
-        } else {
-            None
-        }
-    }
-
-    /// Returns the path to the identity bundle
-    pub fn tls_identity_path(&self) -> Option<&Path> {
-        self.inner.values.relay.tls_identity_path.as_deref()
-    }
-
-    /// Returns the password for the identity bundle
-    pub fn tls_identity_password(&self) -> Option<&str> {
-        self.inner.values.relay.tls_identity_password.as_deref()
     }
 
     /// Returns `true` when project IDs should be overriden rather than validated.
