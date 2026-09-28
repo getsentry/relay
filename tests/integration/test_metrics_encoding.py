@@ -1,3 +1,6 @@
+import time
+
+
 def test_generic_metrics_are_not_produced(
     mini_sentry, relay_with_processing, metrics_consumer
 ):
