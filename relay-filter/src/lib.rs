@@ -29,8 +29,8 @@ pub mod web_crawlers;
 mod common;
 mod config;
 mod interface;
-mod release;
 mod releases;
+mod semver;
 mod statsd;
 
 #[cfg(test)]

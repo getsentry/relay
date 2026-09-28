@@ -454,6 +454,70 @@ def test_global_filters_drop_events(
     assert outcomes[0]["reason"] == "premature-releases"
 
 
+@pytest.mark.parametrize(
+    "release, should_filter",
+    [
+        ("1.10.0", True),
+        ("myapp@2.0.0-rc.1+build", True),
+        ("1.9.0", False),
+        ("1.9.1-rc.1", False),
+        ("1.10", False),
+        ("a4b7e0f9c2d1", False),
+    ],
+    ids=[
+        "inside range",
+        "prerelease inside range",
+        "below range",
+        "prerelease below range",
+        "not semver",
+        "commit hash",
+    ],
+)
+def test_generic_filters_compare_release_versions(
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    outcomes_consumer,
+    release,
+    should_filter,
+):
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["generic"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "release-range",
+                "isEnabled": True,
+                "condition": {
+                    "op": "and",
+                    "inner": [
+                        {"op": "gt", "name": "event.release", "value": "1.9.0"},
+                        {"op": "lte", "name": "event.release", "value": "2.0.0"},
+                    ],
+                },
+            }
+        ],
+    }
+    relay = relay_with_processing()
+
+    relay.send_event(project_id, {"release": release})
+
+    if should_filter:
+        events_consumer.assert_empty()
+        outcomes = outcomes_consumer.get_outcomes()
+        assert len(outcomes) == 1
+        assert outcomes[0]["outcome"] == Outcome.FILTERED
+        assert outcomes[0]["reason"] == "release-range"
+    else:
+        event, _ = events_consumer.get_event()
+        assert event["release"] == release
+        outcomes_consumer.assert_empty()
+
+
 def profile_transaction_item():
     now = datetime.datetime.now(datetime.UTC)
     transaction = {
