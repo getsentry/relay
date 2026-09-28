@@ -10,8 +10,6 @@ pub use relay_base_schema::metrics::{
 };
 #[doc(inline)]
 pub use relay_common::time::UnixTimestamp;
-#[cfg(test)]
-use unescaper::Error as UnescapeError;
 
 use crate::{Bucket, MetricTags};
 
@@ -106,49 +104,6 @@ pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
     true
 }
 
-/// Replaces restricted characters with escape sequences.
-///
-/// All other characters are replaced with the following rules:
-///  - Tab is escaped as `\t`.
-///  - Carriage return is escaped as `\r`.
-///  - Line feed is escaped as `\n`.
-///  - Backslash is escaped as `\\`.
-///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`, respectively.
-#[cfg(test)]
-pub(crate) fn escape_tag_value(raw: &str) -> String {
-    let mut escaped = String::with_capacity(raw.len());
-
-    for c in raw.chars() {
-        match c {
-            '\t' => escaped.push_str("\\t"),
-            '\n' => escaped.push_str("\\n"),
-            '\r' => escaped.push_str("\\r"),
-            '\\' => escaped.push_str("\\\\"),
-            '|' => escaped.push_str("\\u{7c}"),
-            ',' => escaped.push_str("\\u{2c}"),
-            _ if c.is_control() => (),
-            _ => escaped.push(c),
-        }
-    }
-
-    escaped
-}
-
-/// Decodes and normalizes a potentially escaped tag value into a raw string.
-///
-/// This replaces escape sequences following the rules of [`escape_tag_value`] with their original
-/// unicode characters. In addition to that, unicode escape sequences for all characters will be
-/// resolved.
-///
-/// Control characters are stripped from the resulting string. This is equivalent to
-/// [`normalize_tag_value`].
-#[cfg(test)]
-pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
-    let mut unescaped = unescaper::unescape(escaped)?;
-    normalize_tag_value(&mut unescaped);
-    Ok(unescaped)
-}
-
 /// Normalizes a tag value.
 ///
 /// Tag values are never entirely rejected, but invalid characters (control characters) are stripped
@@ -173,64 +128,6 @@ mod tests {
     use crate::BucketValue;
 
     use super::*;
-
-    #[test]
-    fn test_unescape_tag_value() {
-        // No escaping
-        assert_eq!(unescape_tag_value("plain").unwrap(), "plain");
-        assert_eq!(unescape_tag_value("plain text").unwrap(), "plain text");
-        assert_eq!(unescape_tag_value("plain%text").unwrap(), "plain%text");
-
-        // Escape sequences
-        assert_eq!(
-            unescape_tag_value("plain \\\\ text").unwrap(),
-            "plain \\ text"
-        );
-        assert_eq!(
-            unescape_tag_value("plain\\u{2c}text").unwrap(),
-            "plain,text"
-        );
-        assert_eq!(
-            unescape_tag_value("plain\\u{7c}text").unwrap(),
-            "plain|text"
-        );
-        assert_eq!(unescape_tag_value("plain 😅").unwrap(), "plain 😅");
-
-        // Alternate escape sequences
-        assert_eq!(
-            unescape_tag_value("plain \\u{5c} text").unwrap(),
-            "plain \\ text"
-        );
-
-        // These are control characters and therefore stripped
-        assert_eq!(unescape_tag_value("plain\\ntext").unwrap(), "plaintext");
-        assert_eq!(unescape_tag_value("plain\\rtext").unwrap(), "plaintext");
-        assert_eq!(unescape_tag_value("plain\\ttext").unwrap(), "plaintext");
-        assert_eq!(unescape_tag_value("plain\u{7}text").unwrap(), "plaintext");
-    }
-
-    #[test]
-    fn test_escape_tag_value() {
-        // No escaping
-        assert_eq!(escape_tag_value("plain"), "plain");
-        assert_eq!(escape_tag_value("plain text"), "plain text");
-        assert_eq!(escape_tag_value("plain%text"), "plain%text");
-
-        // Escape sequences
-        assert_eq!(escape_tag_value("plain \\ text"), "plain \\\\ text");
-        assert_eq!(escape_tag_value("plain,text"), "plain\\u{2c}text");
-        assert_eq!(escape_tag_value("plain|text"), "plain\\u{7c}text");
-        assert_eq!(escape_tag_value("plain 😅"), "plain 😅");
-
-        // Escapable control characters (may be stripped by the parser)
-        assert_eq!(escape_tag_value("plain\ntext"), "plain\\ntext");
-        assert_eq!(escape_tag_value("plain\rtext"), "plain\\rtext");
-        assert_eq!(escape_tag_value("plain\ttext"), "plain\\ttext");
-
-        // Unescapable control characters
-        assert_eq!(escape_tag_value("plain\u{07}text"), "plaintext");
-        assert_eq!(escape_tag_value("plain\u{9c}text"), "plaintext");
-    }
 
     #[test]
     fn test_normalize_invalid_name() {

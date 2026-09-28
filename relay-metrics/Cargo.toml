@@ -45,7 +45,6 @@ relay-statsd = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
-unescaper = { workspace = true }
 
 [[bench]]
 name = "benches"

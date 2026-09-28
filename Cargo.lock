@@ -4768,7 +4768,6 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.18",
  "tokio",
- "unescaper",
 ]
 
 [[package]]
@@ -6886,15 +6885,6 @@ name = "unarray"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
-
-[[package]]
-name = "unescaper"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7285e83a80ce76f5e7bce79fa41f68d78ba62d1003cf27bf748ab24413808cf4"
-dependencies = [
- "thiserror 2.0.18",
-]
 
 [[package]]
 name = "unicase"

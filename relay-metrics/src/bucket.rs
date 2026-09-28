@@ -9,11 +9,6 @@ use smallvec::SmallVec;
 use crate::protocol::{
     CounterType, DistributionType, GaugeType, MetricName, MetricType, SetType, hash_set_value,
 };
-#[cfg(test)]
-use crate::{MetricResourceIdentifier, ParseMetricError, protocol};
-
-#[cfg(test)]
-const VALUE_SEPARATOR: char = ':';
 
 /// Type of [`Bucket::tags`].
 pub type MetricTags = BTreeMap<String, String>;
@@ -300,90 +295,6 @@ impl BucketValue {
     }
 }
 
-/// Parses a list of counter values separated by colons and sums them up.
-#[cfg(test)]
-fn parse_counter(string: &str) -> Option<CounterType> {
-    let mut sum = CounterType::default();
-    for component in string.split(VALUE_SEPARATOR) {
-        sum = sum.saturating_add(component.parse().ok()?);
-    }
-    Some(sum)
-}
-
-/// Parses a distribution from a list of floating point values separated by colons.
-#[cfg(test)]
-fn parse_distribution(string: &str) -> Option<DistributionValue> {
-    let mut dist = DistributionValue::default();
-    for component in string.split(VALUE_SEPARATOR) {
-        dist.push(component.parse().ok()?);
-    }
-    Some(dist)
-}
-
-/// Parses a set of hashed numeric values.
-#[cfg(test)]
-fn parse_set(string: &str) -> Option<SetValue> {
-    let mut set = SetValue::default();
-    for component in string.split(VALUE_SEPARATOR) {
-        let hash = component
-            .parse()
-            .unwrap_or_else(|_| protocol::hash_set_value(component));
-        set.insert(hash);
-    }
-    Some(set)
-}
-
-/// Parses a gauge from a value.
-///
-/// The gauge can either be given as a single floating point value, or as a list of exactly five
-/// values in the order of [`GaugeValue`] fields.
-#[cfg(test)]
-fn parse_gauge(string: &str) -> Option<GaugeValue> {
-    let mut components = string.split(VALUE_SEPARATOR);
-
-    let last = components.next()?.parse().ok()?;
-    Some(if let Some(min) = components.next() {
-        GaugeValue {
-            last,
-            min: min.parse().ok()?,
-            max: components.next()?.parse().ok()?,
-            sum: components.next()?.parse().ok()?,
-            count: components.next()?.parse().ok()?,
-        }
-    } else {
-        GaugeValue::single(last)
-    })
-}
-
-/// Parses tags in the format `tag1,tag2:value`.
-///
-/// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-#[cfg(test)]
-fn parse_tags(string: &str) -> Option<MetricTags> {
-    let mut map = MetricTags::new();
-
-    for pair in string.split(',') {
-        let mut name_value = pair.splitn(2, ':');
-
-        let name = name_value.next()?;
-        if !protocol::is_valid_tag_key(name) {
-            continue;
-        }
-
-        if let Ok(value) = protocol::unescape_tag_value(name_value.next().unwrap_or_default()) {
-            map.insert(name.to_owned(), value);
-        }
-    }
-
-    Some(map)
-}
-
-/// Parses a unix UTC timestamp.
-#[cfg(test)]
-fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
-    string.parse().ok().map(UnixTimestamp::from_secs)
-}
-
 /// An aggregation of metric values.
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
@@ -456,57 +367,6 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Parses the StatsD-like shorthand used in tests.
-    ///
-    /// ```text
-    /// <ns>/<name>[@<unit>]:<value>|<type>[|#<tags>][|T<timestamp>]
-    /// ```
-    #[cfg(test)]
-    fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
-        let mut components = string.split('|');
-
-        let (mri_str, values_str) = components.next()?.split_once(':')?;
-        let ty = components.next().and_then(|s| s.parse().ok())?;
-
-        let mri = MetricResourceIdentifier::parse_with_type(mri_str, ty).ok()?;
-        let value = match ty {
-            MetricType::Counter => BucketValue::Counter(parse_counter(values_str)?),
-            MetricType::Distribution => BucketValue::Distribution(parse_distribution(values_str)?),
-            MetricType::Set => BucketValue::Set(parse_set(values_str)?),
-            MetricType::Gauge => BucketValue::Gauge(parse_gauge(values_str)?),
-        };
-
-        let mut bucket = Bucket {
-            timestamp,
-            width: 0,
-            name: mri.to_string().into(),
-            value,
-            tags: Default::default(),
-            metadata: Default::default(),
-        };
-
-        for component in components {
-            match component.chars().next() {
-                Some('#') => {
-                    bucket.tags = parse_tags(component.get(1..)?)?;
-                }
-                Some('T') => {
-                    bucket.timestamp = parse_timestamp(component.get(1..)?)?;
-                }
-                _ => (),
-            }
-        }
-
-        Some(bucket)
-    }
-
-    /// Parses the StatsD-like shorthand used in tests.
-    #[cfg(test)]
-    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = std::str::from_utf8(slice).map_err(|_| ParseMetricError)?;
-        Self::parse_str(string, timestamp).ok_or(ParseMetricError)
-    }
-
     /// Returns the value of the specified tag if it exists.
     pub fn tag(&self, name: &str) -> Option<&str> {
         self.tags.get(name).map(|s| s.as_str())
