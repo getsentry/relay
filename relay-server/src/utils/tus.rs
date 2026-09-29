@@ -10,11 +10,12 @@ use std::str::FromStr;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use data_encoding::BASE64;
-use http::header::{AsHeaderName, CONTENT_LENGTH};
+use http::header::AsHeaderName;
 use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
 
+use crate::constants::X_DECODED_CONTENT_LENGTH;
 use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder};
 use crate::services::upload::StreamMode;
@@ -205,7 +206,7 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error
     }
 
     let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
-    let content_length = parse_header(headers, http::header::CONTENT_LENGTH);
+    let content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
 
     Ok(PatchHeaders {
         upload_offset,
@@ -241,7 +242,7 @@ pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &StreamMode) {
     builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
     builder.header(UPLOAD_OFFSET, mode.offset().unwrap_or_default().to_string());
     if let Some(length) = mode.length() {
-        builder.header(CONTENT_LENGTH, length.to_string());
+        builder.header(X_DECODED_CONTENT_LENGTH, length.to_string());
     }
 }
 
@@ -289,7 +290,6 @@ fn parse_header<K: AsHeaderName, V: FromStr>(headers: &HeaderMap, header_name: K
 
 #[cfg(test)]
 mod tests {
-    use http::header::CONTENT_LENGTH;
     use http::{HeaderValue, header};
 
     use super::*;
@@ -313,7 +313,7 @@ mod tests {
     fn test_validate_tus_headers_invalid_with_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(hyper::header::CONTENT_LENGTH, 1024.into());
+        headers.insert(X_DECODED_CONTENT_LENGTH, 1024.into());
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers);
@@ -496,7 +496,7 @@ mod tests {
     fn test_validate_patch_headers_wrong_version() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
@@ -507,7 +507,7 @@ mod tests {
     fn test_validate_patch_headers_missing_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
         assert!(matches!(result, Err(Error::ContentType { .. })));
@@ -517,7 +517,7 @@ mod tests {
     fn test_validate_patch_headers_wrong_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(
             http::header::CONTENT_TYPE,
             HeaderValue::from_static("application/octet-stream"),
@@ -531,7 +531,7 @@ mod tests {
     fn test_validate_patch_headers_missing_upload_offset() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_patch_headers(&headers);
         assert!(matches!(result, Err(Error::UploadOffset)));
@@ -541,7 +541,7 @@ mod tests {
     fn test_validate_patch_headers_nonzero_upload_offset() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("-512"));
         let result = validate_patch_headers(&headers);
@@ -552,7 +552,7 @@ mod tests {
     fn test_validate_patch_headers_valid() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);

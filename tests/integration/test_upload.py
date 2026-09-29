@@ -466,10 +466,7 @@ def test_timeout(
 
 @pytest.mark.parametrize(
     "chain",
-    [
-        pytest.param(False, id="processing_only"),
-        #   pytest.param(True, id="chain") FIXME: Nice little bug, AFAICT because of https://github.com/tower-rs/tower-http/blob/tower-http-0.6.6/tower-http/src/decompression/request/service.rs#L90-L96
-    ],
+    [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")],
 )
 def test_create_processing(
     mini_sentry, relay, relay_with_processing, chain, project_config, events_consumer
@@ -493,7 +490,7 @@ def test_create_processing(
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
+            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -508,7 +505,7 @@ def test_create_processing(
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -533,7 +530,7 @@ def test_processing_invalid_length(
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
+            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": "10",
         },
@@ -548,7 +545,7 @@ def test_processing_invalid_length(
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -620,7 +617,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
         return relay.patch(
             f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
             headers={
-                "Content-Length": str(len(data)),
+                "X-Decoded-Content-Length": str(len(data)),
                 "Content-Type": "application/offset+octet-stream",
                 "Tus-Resumable": "1.0.0",
                 "Upload-Offset": "0",
@@ -679,7 +676,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     response = relay.patch(
         signed_location,
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -766,7 +763,7 @@ def upload_something(relay, project_id, project_key):
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
+            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -776,7 +773,7 @@ def upload_something(relay, project_id, project_key):
     return relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -797,7 +794,7 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     create = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
+            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -809,7 +806,7 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     patch = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",

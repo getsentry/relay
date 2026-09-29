@@ -53,3 +53,6 @@ pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
 
 /// The file name that Nintendo uses to in the events they forward.
 pub const NNSWITCH_DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+
+/// Header for communicating the uncompressed content length.
+pub const X_DECODED_CONTENT_LENGTH: &str = "X-Decoded-Content-Length";
