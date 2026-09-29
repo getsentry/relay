@@ -8,7 +8,7 @@ use sentry_release_parser::{Release, Version};
 ///
 /// A release is a version such as `1.2.3-rc.1+build`, optionally behind a package, such as
 /// `myapp@1.2.3`. The version has one to four numeric components. Missing components are zero.
-pub(crate) struct Semver<'a> {
+pub struct Semver<'a> {
     package: Option<&'a str>,
     version: Version<'a>,
 }
@@ -17,7 +17,7 @@ impl<'a> Semver<'a> {
     /// Parses a release.
     ///
     /// Returns `None` if the release does not carry a version, such as a commit hash.
-    pub(crate) fn parse(release: &'a str) -> Option<Self> {
+    pub fn parse(release: &'a str) -> Option<Self> {
         let release = Release::parse(release).ok()?;
 
         // The parser only extracts a version behind a package, so parse the version part
@@ -40,7 +40,7 @@ impl<'a> Semver<'a> {
     ///
     /// Versions order by their numeric components, then by semver precedence of the pre-release.
     /// A pre-release orders below its final release. Build codes are ignored.
-    pub(crate) fn compare(&self, other: &Self) -> Option<Ordering> {
+    pub fn compare(&self, other: &Self) -> Option<Ordering> {
         if other.package.is_some() && other.package != self.package {
             return None;
         }
