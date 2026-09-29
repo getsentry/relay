@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>
 <a href=#191 id=191 data-nosnippet>191</a>        dynamic_sampling::validate_configs(ctx);
 <a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span><span class="kw-2">mut </span>spans = process::expand(spans)<span class="question-mark">?</span>;
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span><span class="kw-2">mut </span>spans = process::expand(spans, ctx.config.max_expanded_span_operations())<span class="question-mark">?</span>;
 <a href=#194 id=194 data-nosnippet>194</a>
 <a href=#195 id=195 data-nosnippet>195</a>        dynamic_sampling::validate_and_set_dsc(<span class="kw-2">&amp;mut </span>spans, <span class="kw-2">&amp;</span>ctx)<span class="question-mark">?</span>;
 <a href=#196 id=196 data-nosnippet>196</a>

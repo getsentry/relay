@@ -1,9 +1,9 @@
 (function() {
-    const implementors = Object.fromEntries([["relay_base_schema",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/borrow/trait.Borrow.html\" title=\"trait core::borrow::Borrow\">Borrow</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.98.1/std/primitive.str.html\">str</a>&gt; for <a class=\"struct\" href=\"relay_base_schema/metrics/struct.MetricName.html\" title=\"struct relay_base_schema::metrics::MetricName\">MetricName</a>",0]]],["relay_pattern",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/borrow/trait.Borrow.html\" title=\"trait core::borrow::Borrow\">Borrow</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.98.1/std/primitive.str.html\">str</a>&gt; for <a class=\"struct\" href=\"relay_pattern/struct.Pattern.html\" title=\"struct relay_pattern::Pattern\">Pattern</a>",0]]]]);
+    const implementors = Object.fromEntries([["relay_base_schema",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/borrow/trait.Borrow.html\" title=\"trait core::borrow::Borrow\">Borrow</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.98.1/std/primitive.str.html\">str</a>&gt; for <a class=\"struct\" href=\"relay_base_schema/metrics/struct.MetricName.html\" title=\"struct relay_base_schema::metrics::MetricName\">MetricName</a>",0]]],["relay_event_normalization",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/borrow/trait.Borrow.html\" title=\"trait core::borrow::Borrow\">Borrow</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.98.1/std/primitive.str.html\">str</a>&gt; for <a class=\"struct\" href=\"relay_event_normalization/struct.ModelPattern.html\" title=\"struct relay_event_normalization::ModelPattern\">ModelPattern</a>",0]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":59,"fragment_lengths":[429,392]}
+//{"start":59,"fragment_lengths":[429,443]}
