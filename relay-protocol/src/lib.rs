@@ -23,6 +23,7 @@ mod finite;
 mod impls;
 mod macros;
 mod meta;
+mod semver;
 mod size;
 mod traits;
 mod value;

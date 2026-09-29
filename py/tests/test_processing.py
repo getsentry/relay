@@ -251,6 +251,24 @@ def test_validate_cidr_condition():
     sentry_relay.validate_rule_condition(condition)
 
 
+def test_validate_semver_condition():
+    condition = '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "1.2.0"}'
+    sentry_relay.validate_rule_condition(condition)
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "1.2"}',
+        '{"op": "semver", "name": "event.release", "comparator": "ne", "value": "1.2.0"}',
+    ],
+    ids=["not semver", "unknown comparator"],
+)
+def test_invalid_semver_condition(condition):
+    with pytest.raises(ValueError):
+        sentry_relay.validate_rule_condition(condition)
+
+
 def test_invalid_sampling_condition():
     """
     Tests that invalid conditions are caught

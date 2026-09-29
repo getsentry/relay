@@ -30,7 +30,6 @@ mod common;
 mod config;
 mod interface;
 mod releases;
-mod semver;
 mod statsd;
 
 #[cfg(test)]

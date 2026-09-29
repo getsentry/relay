@@ -23,7 +23,6 @@ relay-pattern = { workspace = true }
 relay-protocol = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
-semver = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
 

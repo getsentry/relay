@@ -473,7 +473,7 @@ def test_global_filters_drop_events(
         "commit hash",
     ],
 )
-def test_generic_filters_compare_release_versions(
+def test_generic_filters_semver_condition(
     mini_sentry,
     relay_with_processing,
     events_consumer,
@@ -495,8 +495,18 @@ def test_generic_filters_compare_release_versions(
                 "condition": {
                     "op": "and",
                     "inner": [
-                        {"op": "gt", "name": "event.release", "value": "1.9.0"},
-                        {"op": "lte", "name": "event.release", "value": "2.0.0"},
+                        {
+                            "op": "semver",
+                            "name": "event.release",
+                            "comparator": "gt",
+                            "value": "1.9.0",
+                        },
+                        {
+                            "op": "semver",
+                            "name": "event.release",
+                            "comparator": "lte",
+                            "value": "2.0.0",
+                        },
                     ],
                 },
             }

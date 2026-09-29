@@ -10,6 +10,7 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+use crate::semver::Semver;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -315,6 +316,88 @@ impl CidrCondition {
     }
 }
 
+/// The comparison a [`SemverCondition`] applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SemverComparator {
+    /// The version of the field is equal to the value.
+    ///
+    /// Unlike [`EqCondition`], this ignores the package and the build metadata of the release.
+    Eq,
+    /// The version of the field is greater than the value.
+    Gt,
+    /// The version of the field is greater than or equal to the value.
+    Gte,
+    /// The version of the field is less than the value.
+    Lt,
+    /// The version of the field is less than or equal to the value.
+    Lte,
+    /// An unsupported comparator for future compatibility. It never matches.
+    #[serde(other)]
+    Unsupported,
+}
+
+/// A condition that compares the semantic version of a release.
+///
+/// The field must hold a release with a full semantic version, such as `1.2.3-rc.1+build`, or a
+/// Sentry release with a package, such as `myapp@1.2.3`. Ordering follows semver precedence: a
+/// pre-release orders below its final release, and build metadata is ignored.
+///
+/// The condition does not match if the field or `value` is not a semantic version, such as `1.2`
+/// or a commit hash. A condition with such a `value` is not [supported](RuleCondition::supported),
+/// so that the author of the condition can reject it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SemverCondition {
+    /// Path of the field that holds the release.
+    pub name: String,
+    /// The comparison to apply between the field and the value.
+    pub comparator: SemverComparator,
+    /// The semantic version to compare the field against.
+    pub value: String,
+}
+
+impl SemverCondition {
+    /// Creates a condition that compares the semantic version of a release.
+    pub fn new(
+        field: impl Into<String>,
+        comparator: SemverComparator,
+        value: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: field.into(),
+            comparator,
+            value: value.into(),
+        }
+    }
+
+    fn supported(&self) -> bool {
+        self.comparator != SemverComparator::Unsupported && Semver::parse(&self.value).is_some()
+    }
+
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let Some(Val::String(release)) = instance.get_value(self.name.as_str()) else {
+            return false;
+        };
+        let (Some(release), Some(value)) = (Semver::parse(release), Semver::parse(&self.value))
+        else {
+            return false;
+        };
+
+        let ordering = release.cmp(&value);
+        match self.comparator {
+            SemverComparator::Eq => ordering.is_eq(),
+            SemverComparator::Gt => ordering.is_gt(),
+            SemverComparator::Gte => ordering.is_ge(),
+            SemverComparator::Lt => ordering.is_lt(),
+            SemverComparator::Lte => ordering.is_le(),
+            SemverComparator::Unsupported => false,
+        }
+    }
+}
+
 /// Combines multiple conditions using logical OR.
 ///
 /// This condition matches if **any** of the inner conditions match. The default value for this
@@ -574,6 +657,18 @@ pub enum RuleCondition {
     /// ```
     Cidr(CidrCondition),
 
+    /// A condition that compares the semantic version of a release.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    /// use relay_protocol::condition::SemverComparator;
+    ///
+    /// let condition = RuleCondition::semver("obj.release", SemverComparator::Gte, "1.2.0");
+    /// ```
+    Semver(SemverCondition),
+
     /// Combines multiple conditions using logical OR.
     ///
     /// # Example
@@ -724,6 +819,28 @@ impl RuleCondition {
     /// ```
     pub fn cidr(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Cidr(CidrCondition::new(field, value))
+    }
+
+    /// Creates a condition that compares the semantic version of a release.
+    ///
+    /// The condition does not match if the field or `value` is not a semantic version.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    /// use relay_protocol::condition::SemverComparator;
+    ///
+    /// // Match a range of versions:
+    /// let condition = RuleCondition::semver("obj.release", SemverComparator::Gte, "1.2.0")
+    ///     & RuleCondition::semver("obj.release", SemverComparator::Lt, "2.0.0");
+    /// ```
+    pub fn semver(
+        field: impl Into<String>,
+        comparator: SemverComparator,
+        value: impl Into<String>,
+    ) -> Self {
+        Self::Semver(SemverCondition::new(field, comparator, value))
     }
 
     /// Creates a condition that applies `>`.
@@ -888,6 +1005,7 @@ impl RuleCondition {
             | RuleCondition::Eq(_)
             | RuleCondition::Glob(_)
             | RuleCondition::Cidr(_) => true,
+            RuleCondition::Semver(condition) => condition.supported(),
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -910,6 +1028,7 @@ impl RuleCondition {
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
             RuleCondition::Cidr(condition) => condition.matches(value),
+            RuleCondition::Semver(condition) => condition.matches(value),
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
@@ -1050,6 +1169,12 @@ mod tests {
                 "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32","not-an-ip"]
             },
             {
+                "op":"semver",
+                "name": "field_release",
+                "comparator": "gte",
+                "value": "1.2.0"
+            },
+            {
                 "op":"not",
                 "inner": {
                     "op":"glob",
@@ -1132,6 +1257,12 @@ mod tests {
               "10.0.0.0/8",
               "192.168.1.1/32",
             ],
+          ),
+          SemverCondition(
+            op: "semver",
+            name: "field_release",
+            comparator: gte,
+            value: "1.2.0",
           ),
           NotCondition(
             op: "not",
@@ -1312,6 +1443,94 @@ mod tests {
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
         assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
+    }
+
+    #[test]
+    fn test_semver_condition() {
+        use SemverComparator::{Eq, Gt, Gte, Lt, Lte};
+
+        let mut trace = mock_trace();
+        trace.release = "myapp@1.10.0+build.7".to_owned();
+
+        let cases = [
+            (Eq, "1.10.0", true),
+            (Eq, "other@1.10.0+build.1", true),
+            (Eq, "1.10.0-rc.1", false),
+            (Eq, "1.10.1", false),
+            (Eq, "1.1.0", false),
+            (Gt, "1.9.0", true),
+            (Gt, "1.10.0", false),
+            (Gt, "1.10.0-rc.1", true),
+            (Gte, "1.10.0", true),
+            (Gte, "1.10.1", false),
+            (Lt, "1.11.0", true),
+            (Lt, "2.0.0-rc.1", true),
+            (Lt, "1.10.0", false),
+            (Lt, "1.9.0", false),
+            (Lte, "1.10.0", true),
+            (Lte, "other@1.10.0+build.1", true),
+            (Lte, "1.9.9", false),
+        ];
+
+        for (comparator, value, expected) in cases {
+            let condition = RuleCondition::semver("trace.release", comparator, value);
+            assert_eq!(
+                condition.matches(&trace),
+                expected,
+                "{comparator:?} {value}"
+            );
+        }
+
+        let range = RuleCondition::semver("trace.release", Gte, "1.9.0")
+            & RuleCondition::semver("trace.release", Lt, "2.0.0");
+        assert!(range.matches(&trace));
+        assert!(!(!range).matches(&trace));
+    }
+
+    #[test]
+    fn test_semver_condition_without_semver() {
+        use SemverComparator::{Gte, Lte};
+
+        let mut trace = mock_trace();
+        trace.release = "1.10.0".to_owned();
+
+        for value in ["1.10", "1", "1.2.3.4", "a4b7e0f9c2d1", "not a version", ""] {
+            assert!(!RuleCondition::semver("trace.release", Gte, value).matches(&trace));
+            assert!(!RuleCondition::semver("trace.release", Lte, value).matches(&trace));
+            assert!(!RuleCondition::semver("trace.release", Gte, value).supported());
+        }
+
+        assert!(!RuleCondition::semver("trace.missing", Gte, "1.0.0").matches(&trace));
+        assert!(!RuleCondition::semver("trace.client_ip", Gte, "1.0.0").matches(&trace));
+
+        for release in ["1.10", "a4b7e0f9c2d1", "myapp@a4b7e0f9c2d1", ""] {
+            trace.release = release.to_owned();
+            assert!(!RuleCondition::semver("trace.release", Gte, "0.0.1").matches(&trace));
+            assert!(!RuleCondition::semver("trace.release", Lte, "99.0.0").matches(&trace));
+        }
+    }
+
+    #[test]
+    fn test_semver_condition_roundtrip() {
+        let json = r#"{"op":"semver","name":"trace.release","comparator":"lte","value":"1.2.0"}"#;
+        let condition: RuleCondition = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            condition,
+            RuleCondition::semver("trace.release", SemverComparator::Lte, "1.2.0")
+        );
+        assert!(condition.supported());
+        assert_eq!(serde_json::to_string(&condition).unwrap(), json);
+    }
+
+    #[test]
+    fn test_semver_condition_unknown_comparator() {
+        let json = r#"{"op":"semver","name":"trace.release","comparator":"ne","value":"1.1.1"}"#;
+        let condition: RuleCondition = serde_json::from_str(json).unwrap();
+
+        assert!(!condition.supported());
+        assert!(!condition.matches(&mock_trace()));
+        assert!(!(RuleCondition::all() & condition).supported());
     }
 
     #[test]

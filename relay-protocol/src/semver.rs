@@ -1,4 +1,4 @@
-//! Semantic versions for generic filter conditions.
+//! Semantic versions for the `semver` rule condition.
 
 use std::cmp::Ordering;
 
