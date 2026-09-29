@@ -12,6 +12,7 @@
 const REJECT_ALL_SECS: u64 = 60;
 
 /// The string key for a rate-limitable item with no dimensions.
+#[cfg(feature = "redis")]
 const EMPTY_DIMENSIONS: &str = "_";
 
 mod quota;
