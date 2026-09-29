@@ -7,7 +7,7 @@ use tokio::time::Instant;
 /// Paces how quickly something happens.
 #[derive(Debug)]
 pub struct Throttle {
-    rate: f64, // x per second
+    rate: f64,
     state: Mutex<ThrottleState>,
 }
 
@@ -19,6 +19,8 @@ struct ThrottleState {
 
 impl Throttle {
     /// Creates a new [`Throttle`] with the given rate.
+    ///
+    /// `rate` is per second.
     pub fn new(rate: NonZeroU32) -> Self {
         let rate = f64::from(rate.get());
         Self {
