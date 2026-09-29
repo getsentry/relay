@@ -1050,9 +1050,8 @@ pub struct EnvelopeSpool {
     /// Maximum number of envelopes unspooled from disk per second.
     ///
     /// The limit applies per Relay instance, not per spool partition.
-    /// Set to `None` to disable the limit.
     ///
-    /// Defaults to 1000.
+    /// Defaults to `None`, which disables the limit.
     pub max_unspool_envelopes_per_second: Option<NonZeroU32>,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
@@ -1076,7 +1075,7 @@ impl Default for EnvelopeSpool {
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
             flush_timeout_secs: None,
-            max_unspool_envelopes_per_second: Some(NonZeroU32::new(1000).unwrap()),
+            max_unspool_envelopes_per_second: None,
         }
     }
 }

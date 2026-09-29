@@ -21,7 +21,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-use crate::services::buffer::unspool_throttle::UnspoolThrottle;
+use crate::services::buffer::throttle::Throttle;
 use crate::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
@@ -56,12 +56,13 @@ impl PolymorphicEnvelopeBuffer {
         partition_id: u8,
         config: &ConfigSnapshot,
         memory_checker: MemoryChecker,
-        throttle: Option<Arc<UnspoolThrottle>>,
+        throttle: Option<Arc<Throttle>>,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path(partition_id).is_some() {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
-            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(partition_id, config, throttle);
-            Self::Sqlite(buffer.await?)
+            let buffer =
+                EnvelopeBuffer::<SqliteStackProvider>::new(partition_id, config, throttle).await?;
+            Self::Sqlite(buffer)
         } else {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(partition_id, memory_checker);
@@ -284,7 +285,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
-        throttle: Option<Arc<UnspoolThrottle>>,
+        throttle: Option<Arc<Throttle>>,
     ) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),

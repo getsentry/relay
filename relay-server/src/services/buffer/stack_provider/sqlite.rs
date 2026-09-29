@@ -6,13 +6,14 @@ use relay_config::ConfigSnapshot;
 
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::caching::CachingEnvelopeStack;
+use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackConfig;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
-use crate::services::buffer::unspool_throttle::UnspoolThrottle;
+use crate::services::buffer::throttle::Throttle;
 use crate::statsd::RelayTimers;
 use crate::{EnvelopeStack, SqliteEnvelopeStack};
 
@@ -24,7 +25,7 @@ pub struct SqliteStackProvider {
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,
-    unspool_throttle: Option<Arc<UnspoolThrottle>>,
+    unspool_throttle: Option<Arc<Throttle>>,
 }
 
 #[warn(dead_code)]
@@ -33,7 +34,7 @@ impl SqliteStackProvider {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
-        unspool_throttle: Option<Arc<UnspoolThrottle>>,
+        unspool_throttle: Option<Arc<Throttle>>,
     ) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
@@ -80,9 +81,13 @@ impl StackProvider for SqliteStackProvider {
         project_key_pair: ProjectKeyPair,
     ) -> Self::Stack {
         let inner = SqliteEnvelopeStack::new(
-            self.partition_id,
+            SqliteEnvelopeStackConfig {
+                partition_id: self.partition_id,
+                batch_size_bytes: self.batch_size_bytes,
+                flush_timeout: self.flush_timeout,
+                unspool_throttle: self.unspool_throttle.clone(),
+            },
             self.envelope_store.clone(),
-            self.batch_size_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
@@ -91,8 +96,6 @@ impl StackProvider for SqliteStackProvider {
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
-            self.flush_timeout,
-            self.unspool_throttle.clone(),
         );
 
         CachingEnvelopeStack::new(inner)

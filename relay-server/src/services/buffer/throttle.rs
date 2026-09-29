@@ -4,40 +4,37 @@ use std::time::Duration;
 
 use tokio::time::Instant;
 
-/// Paces how quickly envelopes are read back from disk.
-///
-/// The throttle is shared between all partitions of the envelope buffer. This is needed because
-/// with round-robin, a project's stacks exist on multiple partitions.
+/// Paces how quickly something happens.
 #[derive(Debug)]
-pub struct UnspoolThrottle {
-    envelopes_per_second: f64,
+pub struct Throttle {
+    rate: f64, // x per second
     state: Mutex<ThrottleState>,
 }
 
 #[derive(Debug)]
 struct ThrottleState {
-    remaining: f64,
+    budget: f64,
     last_refill: Instant,
 }
 
-impl UnspoolThrottle {
-    /// Creates a new [`UnspoolThrottle`] with the given rate.
-    pub fn new(envelopes_per_second: NonZeroU32) -> Self {
-        let envelopes_per_second = f64::from(envelopes_per_second.get());
+impl Throttle {
+    /// Creates a new [`Throttle`] with the given rate.
+    pub fn new(rate: NonZeroU32) -> Self {
+        let rate = f64::from(rate.get());
         Self {
-            envelopes_per_second,
+            rate,
             state: Mutex::new(ThrottleState {
-                remaining: envelopes_per_second,
+                budget: rate,
                 last_refill: Instant::now(),
             }),
         }
     }
 
-    /// Accounts `envelopes` against the throttle and waits until the rate is back within
+    /// Accounts units against the throttle and waits until the rate is back within
     /// the configured limit.
     ///
-    /// The envelopes are deducted immediately and any debt is paid off by waiting.
-    pub async fn acquire(&self, envelopes: usize) {
+    /// The units are deducted immediately and any debt is paid off by waiting.
+    pub async fn acquire(&self, units: usize) {
         let wait = {
             let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
 
@@ -45,12 +42,11 @@ impl UnspoolThrottle {
             let elapsed = now.duration_since(state.last_refill).as_secs_f64();
             state.last_refill = now;
 
-            state.remaining += elapsed * self.envelopes_per_second;
-            state.remaining = state.remaining.min(self.envelopes_per_second);
-            state.remaining -= envelopes as f64;
+            state.budget += elapsed * self.rate;
+            state.budget = state.budget.min(self.rate);
+            state.budget -= units as f64;
 
-            (state.remaining < 0.0)
-                .then(|| Duration::from_secs_f64(-state.remaining / self.envelopes_per_second))
+            (state.budget < 0.0).then(|| Duration::from_secs_f64(-state.budget / self.rate))
         };
 
         if let Some(wait) = wait {
@@ -63,8 +59,8 @@ impl UnspoolThrottle {
 mod tests {
     use super::*;
 
-    fn throttle(envelopes_per_second: u32) -> UnspoolThrottle {
-        UnspoolThrottle::new(NonZeroU32::new(envelopes_per_second).unwrap())
+    fn throttle(rate: u32) -> Throttle {
+        Throttle::new(NonZeroU32::new(rate).unwrap())
     }
 
     #[tokio::test(start_paused = true)]
@@ -99,7 +95,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_remaining_envelopes_refill_over_time() {
+    async fn test_budget_units_refill_over_time() {
         let throttle = throttle(100);
         throttle.acquire(100).await;
         tokio::time::advance(Duration::from_secs(1)).await;
@@ -111,7 +107,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_refill_is_capped_at_envelopes_per_second() {
+    async fn test_refill_is_capped_at_rate() {
         let throttle = throttle(100);
         tokio::time::advance(Duration::from_secs(60)).await;
 

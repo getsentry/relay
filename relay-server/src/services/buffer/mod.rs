@@ -22,7 +22,7 @@ use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
-use crate::services::buffer::unspool_throttle::UnspoolThrottle;
+use crate::services::buffer::throttle::Throttle;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
@@ -40,7 +40,7 @@ pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 // pub for benchmarks
-pub use envelope_stack::sqlite::SqliteEnvelopeStack;
+pub use envelope_stack::sqlite::{SqliteEnvelopeStack, SqliteEnvelopeStackConfig};
 // pub for benchmarks
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
@@ -55,7 +55,7 @@ mod envelope_stack;
 mod envelope_store;
 mod stack_provider;
 mod testutils;
-mod unspool_throttle;
+mod throttle;
 
 /// Message interface for [`EnvelopeBufferService`].
 #[derive(Debug)]
@@ -103,7 +103,7 @@ impl PartitionedEnvelopeBuffer {
         let unspool_throttle = config
             .current()
             .spool_max_unspool_envelopes_per_second()
-            .map(|limit| Arc::new(UnspoolThrottle::new(limit)));
+            .map(|limit| Arc::new(Throttle::new(limit)));
 
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -297,7 +297,7 @@ pub struct EnvelopeBufferService {
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
-    unspool_throttle: Option<Arc<UnspoolThrottle>>,
+    unspool_throttle: Option<Arc<Throttle>>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
@@ -316,7 +316,7 @@ impl EnvelopeBufferService {
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
-        unspool_throttle: Option<Arc<UnspoolThrottle>>,
+        unspool_throttle: Option<Arc<Throttle>>,
         services: Services,
     ) -> Self {
         Self {
