@@ -1450,25 +1450,32 @@ mod tests {
         let mut trace = mock_trace();
         trace.release = "myapp@1.10.0+build".to_owned();
 
-        // Whether the comparator matches a value below, equal to, and above the release.
         let cases = [
-            (Eq, [false, true, false]),
-            (Gt, [true, false, false]),
-            (Gte, [true, true, false]),
-            (Lt, [false, false, true]),
-            (Lte, [false, true, true]),
+            (Eq, "1.9.0", false),
+            (Eq, "1.10.0", true),
+            (Eq, "1.11.0", false),
+            (Gt, "1.9.0", true),
+            (Gt, "1.10.0", false),
+            (Gt, "1.11.0", false),
+            (Gte, "1.9.0", true),
+            (Gte, "1.10.0", true),
+            (Gte, "1.11.0", false),
+            (Lt, "1.9.0", false),
+            (Lt, "1.10.0", false),
+            (Lt, "1.11.0", true),
+            (Lte, "1.9.0", false),
+            (Lte, "1.10.0", true),
+            (Lte, "1.11.0", true),
         ];
 
-        for (comparator, expected) in cases {
-            for (value, expected) in ["1.9.0", "1.10.0", "1.11.0"].into_iter().zip(expected) {
-                let condition = RuleCondition::semver("trace.release", comparator, value);
-                assert!(condition.supported());
-                assert_eq!(
-                    condition.matches(&trace),
-                    expected,
-                    "{comparator:?} {value}"
-                );
-            }
+        for (comparator, value, expected) in cases {
+            let condition = RuleCondition::semver("trace.release", comparator, value);
+            assert!(condition.supported());
+            assert_eq!(
+                condition.matches(&trace),
+                expected,
+                "{comparator:?} {value}"
+            );
         }
     }
 
