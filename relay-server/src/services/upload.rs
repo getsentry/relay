@@ -532,7 +532,6 @@ impl UploadLength for Provisional {
     }
 }
 
-// FIXME: The final name here is misleading
 /// A final upload length that represents the actual amount of bytes uploaded to objectstore.
 ///
 /// See also [`Provisional`].
@@ -567,7 +566,6 @@ pub struct Location<L> {
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
     pub length: L,
-    // FIXME: Decide on weather we want to rename this
     /// Identifies the upload in case the created location has a resumable upload assigned to it.
     ///
     /// Note that if Defer-Length-1 then this is always None.
