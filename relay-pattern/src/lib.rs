@@ -103,7 +103,7 @@ impl fmt::Display for Error {
 /// `Pattern` represents a successfully parsed Relay pattern.
 #[derive(Debug, Clone)]
 pub struct Pattern {
-    pattern: String,
+    pattern: Box<str>,
     options: Options,
     strategy: MatchStrategy,
 }
@@ -276,7 +276,7 @@ impl PatternBuilder<'_> {
             })?;
 
         Ok(Pattern {
-            pattern: self.pattern.to_owned(),
+            pattern: self.pattern.into(),
             options: self.options,
             strategy,
         })
