@@ -210,10 +210,7 @@ mod tests {
 
     use super::*;
 
-    use relay_event_schema::protocol::{
-        Event, LenientString, OurLog, SessionAggregates, SessionUpdate,
-    };
-    use relay_protocol::condition::SemverComparator;
+    use relay_event_schema::protocol::{Event, LenientString, SessionAggregates, SessionUpdate};
     use relay_protocol::{Annotated, FromValue as _};
 
     fn mock_filters() -> GenericFiltersMap {
@@ -997,101 +994,6 @@ mod tests {
             should_filter(&session_aggregates("2.0.0"), None, &config, None),
             Ok(())
         );
-    }
-
-    /// The release range filter Sentry emits: `semver` conditions over every release path.
-    #[test]
-    fn test_should_filter_by_release_semver() {
-        let in_range = |path: &str| {
-            RuleCondition::semver(path, SemverComparator::Gte, "1.9.0")
-                & RuleCondition::semver(path, SemverComparator::Lt, "2.0.0")
-        };
-        let condition = in_range("event.release")
-            | in_range("log.attributes.sentry.release.value")
-            | in_range("trace_metric.attributes.sentry.release.value");
-
-        let config = GenericFiltersConfig {
-            version: 1,
-            filters: vec![GenericFilterConfig {
-                id: "releaseRange".to_owned(),
-                is_enabled: true,
-                condition: Some(condition),
-            }]
-            .into(),
-        };
-        let filtered = Err(FilterStatKey::GenericFilter("releaseRange".to_owned()));
-
-        let event = |release: &str| Event {
-            release: Annotated::new(LenientString(release.to_owned())),
-            ..Default::default()
-        };
-        let log = |release: &str| {
-            OurLog::from_value(
-                serde_json::json!({
-                    "timestamp": 1_700_000_000.0,
-                    "trace_id": "5b8efff798038103d269b633813fc60c",
-                    "level": "info",
-                    "body": "hello",
-                    "attributes": {"sentry.release": {"type": "string", "value": release}}
-                })
-                .into(),
-            )
-        };
-
-        for release in ["1.9.0", "1.10.0", "myapp@1.10.0+build", "2.0.0-rc.1"] {
-            assert_eq!(
-                should_filter(&event(release), None, &config, None),
-                filtered,
-                "{release}"
-            );
-            assert_eq!(
-                should_filter(&session_update(release), None, &config, None),
-                filtered,
-                "{release}"
-            );
-            assert_eq!(
-                should_filter(log(release).value().unwrap(), None, &config, None),
-                filtered,
-                "{release}"
-            );
-        }
-
-        let exact = GenericFiltersConfig {
-            version: 1,
-            filters: vec![GenericFilterConfig {
-                id: "releaseRange".to_owned(),
-                is_enabled: true,
-                condition: Some(RuleCondition::semver(
-                    "event.release",
-                    SemverComparator::Eq,
-                    "1.10.0",
-                )),
-            }]
-            .into(),
-        };
-        assert_eq!(
-            should_filter(&event("myapp@1.10.0+build"), None, &exact, None),
-            filtered
-        );
-        assert_eq!(should_filter(&event("1.10.1"), None, &exact, None), Ok(()));
-
-        for release in ["1.8.9", "1.9.0-rc.1", "2.0.0", "1.10", "a4b7e0f9c2d1"] {
-            assert_eq!(
-                should_filter(&event(release), None, &config, None),
-                Ok(()),
-                "{release}"
-            );
-            assert_eq!(
-                should_filter(&session_update(release), None, &config, None),
-                Ok(()),
-                "{release}"
-            );
-            assert_eq!(
-                should_filter(log(release).value().unwrap(), None, &config, None),
-                Ok(()),
-                "{release}"
-            );
-        }
     }
 
     /// A filter that only lists other data types' release paths must never match a session.

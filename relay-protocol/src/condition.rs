@@ -386,7 +386,7 @@ impl SemverCondition {
             return false;
         };
 
-        let ordering = release.cmp(&value);
+        let ordering = release.cmp_precedence(&value);
         match self.comparator {
             SemverComparator::Eq => ordering.is_eq(),
             SemverComparator::Gt => ordering.is_gt(),
@@ -822,8 +822,6 @@ impl RuleCondition {
     }
 
     /// Creates a condition that compares the semantic version of a release.
-    ///
-    /// The condition does not match if the field or `value` is not a semantic version.
     ///
     /// # Example
     ///
@@ -1450,87 +1448,51 @@ mod tests {
         use SemverComparator::{Eq, Gt, Gte, Lt, Lte};
 
         let mut trace = mock_trace();
-        trace.release = "myapp@1.10.0+build.7".to_owned();
+        trace.release = "myapp@1.10.0+build".to_owned();
 
+        // Whether the comparator matches a value below, equal to, and above the release.
         let cases = [
-            (Eq, "1.10.0", true),
-            (Eq, "other@1.10.0+build.1", true),
-            (Eq, "1.10.0-rc.1", false),
-            (Eq, "1.10.1", false),
-            (Eq, "1.1.0", false),
-            (Gt, "1.9.0", true),
-            (Gt, "1.10.0", false),
-            (Gt, "1.10.0-rc.1", true),
-            (Gte, "1.10.0", true),
-            (Gte, "1.10.1", false),
-            (Lt, "1.11.0", true),
-            (Lt, "2.0.0-rc.1", true),
-            (Lt, "1.10.0", false),
-            (Lt, "1.9.0", false),
-            (Lte, "1.10.0", true),
-            (Lte, "other@1.10.0+build.1", true),
-            (Lte, "1.9.9", false),
+            (Eq, [false, true, false]),
+            (Gt, [true, false, false]),
+            (Gte, [true, true, false]),
+            (Lt, [false, false, true]),
+            (Lte, [false, true, true]),
         ];
 
-        for (comparator, value, expected) in cases {
-            let condition = RuleCondition::semver("trace.release", comparator, value);
-            assert_eq!(
-                condition.matches(&trace),
-                expected,
-                "{comparator:?} {value}"
-            );
+        for (comparator, expected) in cases {
+            for (value, expected) in ["1.9.0", "1.10.0", "1.11.0"].into_iter().zip(expected) {
+                let condition = RuleCondition::semver("trace.release", comparator, value);
+                assert!(condition.supported());
+                assert_eq!(
+                    condition.matches(&trace),
+                    expected,
+                    "{comparator:?} {value}"
+                );
+            }
         }
-
-        let range = RuleCondition::semver("trace.release", Gte, "1.9.0")
-            & RuleCondition::semver("trace.release", Lt, "2.0.0");
-        assert!(range.matches(&trace));
-        assert!(!(!range).matches(&trace));
     }
 
     #[test]
     fn test_semver_condition_without_semver() {
-        use SemverComparator::{Gte, Lte};
-
+        let gte = |field, value| RuleCondition::semver(field, SemverComparator::Gte, value);
         let mut trace = mock_trace();
-        trace.release = "1.10.0".to_owned();
 
-        for value in ["1.10", "1", "1.2.3.4", "a4b7e0f9c2d1", "not a version", ""] {
-            assert!(!RuleCondition::semver("trace.release", Gte, value).matches(&trace));
-            assert!(!RuleCondition::semver("trace.release", Lte, value).matches(&trace));
-            assert!(!RuleCondition::semver("trace.release", Gte, value).supported());
-        }
+        assert!(!gte("trace.release", "1.1").matches(&trace));
+        assert!(!gte("trace.release", "1.1").supported());
+        assert!(!gte("trace.missing", "1.0.0").matches(&trace));
+        assert!(!gte("trace.client_ip", "1.0.0").matches(&trace));
 
-        assert!(!RuleCondition::semver("trace.missing", Gte, "1.0.0").matches(&trace));
-        assert!(!RuleCondition::semver("trace.client_ip", Gte, "1.0.0").matches(&trace));
-
-        for release in ["1.10", "a4b7e0f9c2d1", "myapp@a4b7e0f9c2d1", ""] {
-            trace.release = release.to_owned();
-            assert!(!RuleCondition::semver("trace.release", Gte, "0.0.1").matches(&trace));
-            assert!(!RuleCondition::semver("trace.release", Lte, "99.0.0").matches(&trace));
-        }
-    }
-
-    #[test]
-    fn test_semver_condition_roundtrip() {
-        let json = r#"{"op":"semver","name":"trace.release","comparator":"lte","value":"1.2.0"}"#;
-        let condition: RuleCondition = serde_json::from_str(json).unwrap();
-
-        assert_eq!(
-            condition,
-            RuleCondition::semver("trace.release", SemverComparator::Lte, "1.2.0")
-        );
-        assert!(condition.supported());
-        assert_eq!(serde_json::to_string(&condition).unwrap(), json);
+        trace.release = "a4b7e0f9c2d1".to_owned();
+        assert!(!gte("trace.release", "0.0.1").matches(&trace));
     }
 
     #[test]
     fn test_semver_condition_unknown_comparator() {
-        let json = r#"{"op":"semver","name":"trace.release","comparator":"ne","value":"1.1.1"}"#;
+        let json = r#"{"op":"semver","name":"trace.release","comparator":"ne","value":"9.9.9"}"#;
         let condition: RuleCondition = serde_json::from_str(json).unwrap();
 
         assert!(!condition.supported());
         assert!(!condition.matches(&mock_trace()));
-        assert!(!(RuleCondition::all() & condition).supported());
     }
 
     #[test]

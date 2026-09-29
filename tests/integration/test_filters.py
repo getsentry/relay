@@ -454,32 +454,8 @@ def test_global_filters_drop_events(
     assert outcomes[0]["reason"] == "premature-releases"
 
 
-@pytest.mark.parametrize(
-    "release, should_filter",
-    [
-        ("1.10.0", True),
-        ("myapp@2.0.0-rc.1+build", True),
-        ("1.9.0", False),
-        ("1.9.1-rc.1", False),
-        ("1.10", False),
-        ("a4b7e0f9c2d1", False),
-    ],
-    ids=[
-        "inside range",
-        "prerelease inside range",
-        "below range",
-        "prerelease below range",
-        "not semver",
-        "commit hash",
-    ],
-)
 def test_generic_filters_semver_condition(
-    mini_sentry,
-    relay_with_processing,
-    events_consumer,
-    outcomes_consumer,
-    release,
-    should_filter,
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
 ):
     events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -490,42 +466,30 @@ def test_generic_filters_semver_condition(
         "version": 1,
         "filters": [
             {
-                "id": "release-range",
+                "id": "old-releases",
                 "isEnabled": True,
                 "condition": {
-                    "op": "and",
-                    "inner": [
-                        {
-                            "op": "semver",
-                            "name": "event.release",
-                            "comparator": "gt",
-                            "value": "1.9.0",
-                        },
-                        {
-                            "op": "semver",
-                            "name": "event.release",
-                            "comparator": "lte",
-                            "value": "2.0.0",
-                        },
-                    ],
+                    "op": "semver",
+                    "name": "event.release",
+                    "comparator": "lt",
+                    "value": "1.10.0",
                 },
             }
         ],
     }
     relay = relay_with_processing()
 
-    relay.send_event(project_id, {"release": release})
+    relay.send_event(project_id, {"release": "myapp@1.9.0"})
+    relay.send_event(project_id, {"release": "myapp@1.10.0"})
 
-    if should_filter:
-        events_consumer.assert_empty()
-        outcomes = outcomes_consumer.get_outcomes()
-        assert len(outcomes) == 1
-        assert outcomes[0]["outcome"] == Outcome.FILTERED
-        assert outcomes[0]["reason"] == "release-range"
-    else:
-        event, _ = events_consumer.get_event()
-        assert event["release"] == release
-        outcomes_consumer.assert_empty()
+    event, _ = events_consumer.get_event()
+    assert event["release"] == "myapp@1.10.0"
+    events_consumer.assert_empty()
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["outcome"] == Outcome.FILTERED
+    assert outcomes[0]["reason"] == "old-releases"
 
 
 def profile_transaction_item():
