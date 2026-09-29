@@ -143,7 +143,7 @@ pub struct Create {
     /// The desired objectstore key.
     pub key: String,
     /// The total length of the object to be uploaded.
-    pub upload_length: u64,
+    pub upload_length: usize,
     /// Retention for the uploaded object (in days).
     pub retention: u16,
 }
@@ -871,7 +871,7 @@ impl ObjectstoreServiceInner {
         // FIXME: Decided on providing the `content_type` here
         // FIXME: This currently swallows a declined resumable upload.
         let session_token = session
-            .create_upload(upload_length)
+            .create_upload(upload_length as u64)
             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                 u64::from(retention) * 24,
             )))

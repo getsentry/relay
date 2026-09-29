@@ -350,7 +350,6 @@ impl Service {
                 use crate::services::objectstore::UploadRef;
                 let config = config.current();
 
-                // TODO: Do we really need the key creation here?
                 // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
                 #[cfg(debug_assertions)]
@@ -367,7 +366,7 @@ impl Service {
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
                     None => (key, None),
-                    Some(length) => {
+                    Some(upload_length) => {
                         let UploadRef {
                             key,
                             session_token: upload_id,
@@ -377,7 +376,7 @@ impl Service {
                                 organization_id,
                                 project_id,
                                 key,
-                                upload_length: length as u64, // FIXME: Decide if the location should already have a u64.
+                                upload_length,
                                 retention: project.retention,
                             })
                             .await
