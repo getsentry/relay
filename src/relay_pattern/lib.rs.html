@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a><span class="doccomment">/// `Pattern` represents a successfully parsed Relay pattern.
 <a href=#104 id=104 data-nosnippet>104</a></span><span class="attr">#[derive(Debug, Clone)]
 <a href=#105 id=105 data-nosnippet>105</a></span><span class="kw">pub struct </span>Pattern {
-<a href=#106 id=106 data-nosnippet>106</a>    pattern: String,
+<a href=#106 id=106 data-nosnippet>106</a>    pattern: Box&lt;str&gt;,
 <a href=#107 id=107 data-nosnippet>107</a>    options: Options,
 <a href=#108 id=108 data-nosnippet>108</a>    strategy: MatchStrategy,
 <a href=#109 id=109 data-nosnippet>109</a>}
@@ -276,7 +276,7 @@
 <a href=#276 id=276 data-nosnippet>276</a>            })<span class="question-mark">?</span>;
 <a href=#277 id=277 data-nosnippet>277</a>
 <a href=#278 id=278 data-nosnippet>278</a>        <span class="prelude-val">Ok</span>(Pattern {
-<a href=#279 id=279 data-nosnippet>279</a>            pattern: <span class="self">self</span>.pattern.to_owned(),
+<a href=#279 id=279 data-nosnippet>279</a>            pattern: <span class="self">self</span>.pattern.into(),
 <a href=#280 id=280 data-nosnippet>280</a>            options: <span class="self">self</span>.options,
 <a href=#281 id=281 data-nosnippet>281</a>            strategy,
 <a href=#282 id=282 data-nosnippet>282</a>        })
