@@ -242,7 +242,7 @@ fn normalize_span(
 
     if let Some(span) = span.value_mut() {
         let duration = span_duration(span);
-        let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
+        let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_ref();
         let model_metdata = ctx.global_config.ai_model_metadata();
         let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
             user_agent: meta.user_agent(),
@@ -519,8 +519,9 @@ mod tests {
         datascrubbing_settings.sensitive_fields = vec![
             "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
             "very_sensitive_data".to_owned(),
-        ];
-        datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()];
+        ]
+        .into_boxed_slice();
+        datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()].into_boxed_slice();
 
         let ctx = Context {
             project_info: &ProjectInfo {

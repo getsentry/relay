@@ -21,9 +21,9 @@ use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 #[serde(default, rename_all = "camelCase")]
 pub struct ProjectConfig {
     /// URLs that are permitted for cross original JavaScript requests.
-    pub allowed_domains: Vec<String>,
+    pub allowed_domains: Box<[String]>,
     /// List of relay public keys that are permitted to access this project.
-    pub trusted_relays: Vec<PublicKey>,
+    pub trusted_relays: Box<[PublicKey]>,
     /// Configuration for trusted Relay behaviour.
     #[serde(skip_serializing_if = "TrustedRelayConfig::is_empty")]
     pub trusted_relay_settings: TrustedRelayConfig,
@@ -51,8 +51,8 @@ pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "TrimmingConfigs::is_empty")]
     pub trimming: TrimmingConfigs,
     /// Usage quotas for this project.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub quotas: Vec<Quota>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub quotas: Box<[Quota]>,
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(alias = "dynamicSampling", skip_serializing_if = "Option::is_none")]
     pub sampling: Option<ErrorBoundary<SamplingConfig>>,
@@ -73,14 +73,14 @@ pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     /// Rules for applying metrics tags depending on the event's content.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub metric_conditional_tagging: Box<[TaggingRule]>,
     /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
     /// Transaction renaming rules.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tx_name_rules: Vec<TransactionNameRule>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub tx_name_rules: Box<[TransactionNameRule]>,
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
     #[serde(skip_serializing_if = "is_false")]
     pub tx_name_ready: bool,
@@ -89,7 +89,7 @@ pub struct ProjectConfig {
     /// These are currently not used by Relay, and only here to be forwarded to old
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+    pub span_description_rules: Option<Box<[SpanDescriptionRule]>>,
 }
 
 impl ProjectConfig {
@@ -110,7 +110,9 @@ impl ProjectConfig {
     }
 
     fn remove_invalid_quotas(&mut self, report_errors: bool) {
-        let invalid_quotas: Vec<_> = self.quotas.extract_if(.., |q| !q.is_valid()).collect();
+        let mut quotas = std::mem::take(&mut self.quotas).into_vec();
+        let invalid_quotas: Vec<_> = quotas.extract_if(.., |q| !q.is_valid()).collect();
+        self.quotas = quotas.into_boxed_slice();
         if report_errors {
             if !invalid_quotas.is_empty() {
                 {
@@ -143,8 +145,8 @@ impl ProjectConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         ProjectConfig {
-            allowed_domains: vec!["*".to_owned()],
-            trusted_relays: vec![],
+            allowed_domains: vec!["*".to_owned()].into_boxed_slice(),
+            trusted_relays: Box::new([]),
             trusted_relay_settings: TrustedRelayConfig::default(),
             pii_config: None,
             grouping_config: None,
@@ -154,16 +156,16 @@ impl Default for ProjectConfig {
             downsampled_event_retention: None,
             retentions: Default::default(),
             trimming: Default::default(),
-            quotas: Vec::new(),
+            quotas: Box::new([]),
             sampling: None,
             measurements: None,
             breakdowns_v2: None,
             performance_score: Default::default(),
             session_metrics: SessionMetricsConfig::default(),
             metric_extraction: Default::default(),
-            metric_conditional_tagging: Vec::new(),
+            metric_conditional_tagging: Box::new([]),
             features: Default::default(),
-            tx_name_rules: Vec::new(),
+            tx_name_rules: Box::new([]),
             tx_name_ready: false,
             span_description_rules: None,
         }
@@ -184,8 +186,8 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectConfig")]
 pub struct LimitedProjectConfig {
-    pub allowed_domains: Vec<String>,
-    pub trusted_relays: Vec<PublicKey>,
+    pub allowed_domains: Box<[String]>,
+    pub trusted_relays: Box<[PublicKey]>,
     pub pii_config: Option<PiiConfig>,
     #[serde(skip_serializing_if = "ProjectFiltersConfig::is_empty")]
     pub filter_settings: ProjectFiltersConfig,
@@ -195,8 +197,8 @@ pub struct LimitedProjectConfig {
     pub trimming: TrimmingConfigs,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub metric_conditional_tagging: Box<[TaggingRule]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -205,8 +207,8 @@ pub struct LimitedProjectConfig {
     pub performance_score: Option<PerformanceScoreConfig>,
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tx_name_rules: Vec<TransactionNameRule>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub tx_name_rules: Box<[TransactionNameRule]>,
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
     #[serde(skip_serializing_if = "is_false")]
     pub tx_name_ready: bool,
@@ -215,7 +217,7 @@ pub struct LimitedProjectConfig {
     /// These are currently not used by Relay, and only here to be forwarded to old
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+    pub span_description_rules: Option<Box<[SpanDescriptionRule]>>,
 }
 
 /// Per-Category settings for retention policy.
@@ -303,5 +305,41 @@ mod tests {
         for feature in GRADUATED_FEATURE_FLAGS {
             assert!(project_config.features.has(*feature));
         }
+    }
+
+    #[test]
+    fn sanitize_removes_invalid_quotas() {
+        let mut config: ProjectConfig =
+            serde_json::from_str(r#"{"quotas":[{"limit":0},{"limit":1},{"limit":0}]}"#).unwrap();
+
+        config.sanitize(false);
+
+        assert_eq!(config.quotas.len(), 2);
+        assert!(config.quotas.iter().all(Quota::is_valid));
+    }
+
+    #[test]
+    fn sanitize_extends_metric_extraction() {
+        let mut config: ProjectConfig = serde_json::from_value(serde_json::json!({
+            "metricConditionalTagging": [{
+                "condition": {"op": "and", "inner": []},
+                "targetMetrics": ["c:spans/custom@none"],
+                "targetTag": "key",
+                "tagValue": "value"
+            }],
+            "metricExtraction": {
+                "version": MetricExtractionConfig::MAX_SUPPORTED_VERSION,
+                "metrics": [{"category": "span", "mri": "c:spans/custom@none"}]
+            }
+        }))
+        .unwrap();
+
+        config.sanitize(false);
+
+        let extraction = config.metric_extraction.ok().unwrap();
+        assert_eq!(extraction.metrics.len(), 2);
+        assert_eq!(extraction.metrics[1].mri, "c:spans/usage@none");
+        assert_eq!(extraction.tags.len(), 1);
+        assert_eq!(extraction.tags[0].tags[0].key, "key");
     }
 }

@@ -80,7 +80,7 @@ pub struct SpanOperationsConfig {
     /// The match is successful if the span operation name starts with any string in the array. If
     /// any string in the array has at least one match, then a breakdown group is created, and its
     /// name will be the matched string.
-    pub matches: Vec<String>,
+    pub matches: Box<[String]>,
 }
 
 impl EmitBreakdowns for SpanOperationsConfig {
@@ -348,7 +348,7 @@ mod tests {
             let mut config = HashMap::new();
 
             let span_ops_config = BreakdownConfig::SpanOperations(SpanOperationsConfig {
-                matches: vec!["http".to_owned(), "db".to_owned()],
+                matches: vec!["http".to_owned(), "db".to_owned()].into_boxed_slice(),
             });
 
             config.insert("span_ops".to_owned(), span_ops_config.clone());

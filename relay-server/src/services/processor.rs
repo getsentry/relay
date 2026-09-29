@@ -1943,7 +1943,7 @@ mod tests {
                 };
 
                 let mut config = ProjectConfig::default();
-                config.quotas.push(quota);
+                config.quotas = vec![quota].into_boxed_slice();
 
                 Arc::new(ProjectInfo {
                     config,
