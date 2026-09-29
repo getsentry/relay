@@ -786,6 +786,7 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config["eventRetention"] = 20
+    config.setdefault("features", []).append("projects:resumable-uploads")
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     relay = relay_with_processing()
