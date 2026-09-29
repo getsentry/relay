@@ -1836,7 +1836,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            group_by: group_by,
+            group_by,
         }
     }
 

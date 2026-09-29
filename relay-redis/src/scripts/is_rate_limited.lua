@@ -12,7 +12,7 @@
 --  * [boolean] If set to `true` - reject only if the previous update already reached the limit.
 --  * [string]  The (hashed) dimensions and dimension tags of the quota, as a colon-separated
 --       string.  Looks like ':1:<hash1>:2:<hash1>'
---  * [number]  The maximum cardinality of the hash set to allow, or -1 for no limit.
+--  * [number]  The maximum cardinality of the hash set to allow.
 --
 -- For example, to check the following two quotas each with a timeout of 10 minutes from now:
 --  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
