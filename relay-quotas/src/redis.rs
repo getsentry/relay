@@ -14,7 +14,7 @@ use crate::cache::OpportunisticQuotaCache;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::statsd::{QuotaCounters, QuotaTimers};
-use crate::{EMPTY_DIMENSIONS, REJECT_ALL_SECS, cache};
+use crate::{REJECT_ALL_SECS, cache};
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -401,7 +401,7 @@ impl RedisRateLimiter {
                     redis_key += ":hash";
                 }
 
-                let redis_dims_key = redis_dims_key.as_deref().unwrap_or(EMPTY_DIMENSIONS);
+                let redis_dims_key = redis_dims_key.as_deref().unwrap_or(crate::EMPTY_DIMENSIONS);
 
                 let max_cardinality = quota.max_dimensions_cardinality();
 
