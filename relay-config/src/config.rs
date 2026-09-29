@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::{NonZeroU8, NonZeroU16};
+use std::num::{NonZeroU8, NonZeroU16, NonZeroU32};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -1044,6 +1044,12 @@ pub struct EnvelopeSpool {
     /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
     /// trade-offs.
     pub partitioning: EnvelopeSpoolPartitioning,
+    /// Maximum number of envelopes unspooled from disk per second.
+    ///
+    /// The limit applies per Relay instance, not per spool partition.
+    ///
+    /// Defaults to `None`, which disables the limit.
+    pub max_unspool_envelopes_per_second: Option<NonZeroU32>,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
     /// With `ephemeral: true`, Relay does not spool in-flight data to disk
@@ -1066,6 +1072,7 @@ impl Default for EnvelopeSpool {
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
             flush_timeout_secs: None,
+            max_unspool_envelopes_per_second: None,
         }
     }
 }
@@ -2485,6 +2492,15 @@ impl ConfigSnapshot {
             .envelopes
             .flush_timeout_secs
             .map(Duration::from_secs)
+    }
+
+    /// Maximum number of envelopes unspooled from disk per second.
+    pub fn spool_max_unspool_envelopes_per_second(&self) -> Option<NonZeroU32> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .max_unspool_envelopes_per_second
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.

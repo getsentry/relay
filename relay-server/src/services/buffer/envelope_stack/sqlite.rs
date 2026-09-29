@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -11,6 +12,7 @@ use crate::services::buffer::envelope_store::sqlite::{
     DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
     SqliteEnvelopeStoreError,
 };
+use crate::services::buffer::throttle::Throttle;
 use crate::statsd::RelayTimers;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
@@ -47,30 +49,44 @@ pub struct SqliteEnvelopeStack {
     flush_timeout: Option<Duration>,
     /// Time of last flush to disk (or creation time of the envelope stack).
     last_flush: Instant,
+    /// Optional throttle which paces how quickly envelopes are unspooled from disk.
+    unspool_throttle: Option<Arc<Throttle>>,
+}
+
+/// Configuration for a [`SqliteEnvelopeStack`].
+#[derive(Debug, Clone)]
+pub struct SqliteEnvelopeStackConfig {
+    /// The partition of the envelope buffer to which the stack belongs.
+    pub partition_id: u8,
+    /// Maximum number of bytes in the in-memory cache before writing to disk.
+    pub batch_size_bytes: usize,
+    /// Time after which to flush the buffer to disk.
+    pub flush_timeout: Option<Duration>,
+    /// Optional throttle which paces how quickly envelopes are unspooled from disk.
+    pub unspool_throttle: Option<Arc<Throttle>>,
 }
 
 impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
-        partition_id: u8,
+        config: SqliteEnvelopeStackConfig,
         envelope_store: SqliteEnvelopeStore,
-        batch_size_bytes: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
-        flush_timeout: Option<Duration>,
     ) -> Self {
         Self {
             envelope_store,
-            batch_size_bytes: NonZeroUsize::new(batch_size_bytes)
+            batch_size_bytes: NonZeroUsize::new(config.batch_size_bytes)
                 .expect("batch bytes should be > 0"),
             own_key,
             sampling_key,
             batch: vec![],
             check_disk,
-            partition_tag: partition_id.to_string(),
-            flush_timeout,
+            partition_tag: config.partition_id.to_string(),
+            flush_timeout: config.flush_timeout,
             last_flush: Instant::now(),
+            unspool_throttle: config.unspool_throttle,
         }
     }
 
@@ -145,6 +161,9 @@ impl SqliteEnvelopeStack {
         match batch {
             Some(batch) => {
                 self.batch = batch.into();
+                if let Some(throttle) = &self.unspool_throttle {
+                    throttle.acquire(self.batch.len()).await;
+                }
             }
             None => self.check_disk = false,
         }
@@ -237,13 +256,16 @@ mod tests {
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: 10,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         let envelope = mock_envelope(Utc::now());
@@ -262,13 +284,16 @@ mod tests {
         let threshold_size = calculate_compressed_size(&envelopes) - 1;
 
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: threshold_size,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
@@ -304,13 +329,16 @@ mod tests {
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: 2,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         // We pop with an invalid db.
@@ -325,13 +353,16 @@ mod tests {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: 2,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         // We pop with no elements.
@@ -344,13 +375,16 @@ mod tests {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: 9999,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            9999,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         let envelopes = mock_envelopes(5);
@@ -387,13 +421,16 @@ mod tests {
         let envelopes = mock_envelopes(4);
         let timeout = Duration::from_secs(3600);
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: calculate_compressed_size(&envelopes),
+                flush_timeout: Some(timeout),
+                unspool_throttle: None,
+            },
             envelope_store.clone(),
-            calculate_compressed_size(&envelopes),
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             false,
-            Some(timeout),
         );
 
         // First push: no spool
@@ -437,13 +474,16 @@ mod tests {
 
         // Create stack with threshold just below the size of first 5 envelopes
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: threshold_size,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store,
-            threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         // We push 7 envelopes.
@@ -506,13 +546,16 @@ mod tests {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
-            0,
+            SqliteEnvelopeStackConfig {
+                partition_id: 0,
+                batch_size_bytes: 10 * COMPRESSED_ENVELOPE_SIZE,
+                flush_timeout: None,
+                unspool_throttle: None,
+            },
             envelope_store.clone(),
-            10 * COMPRESSED_ENVELOPE_SIZE,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            None,
         );
 
         let envelopes = mock_envelopes(5);
