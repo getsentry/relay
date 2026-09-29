@@ -1,9 +1,8 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_monitors::{CheckIn, ProcessCheckInError};
-use relay_quotas::{DataCategory, Dimension, RateLimits};
+use relay_quotas::{DataCategory, DimensionMap, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -197,7 +196,7 @@ impl Counted for ExpandedCheckIn {
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 
-    fn dimensions(&self) -> Option<Arc<BTreeMap<Dimension, String>>> {
+    fn dimensions(&self) -> Option<DimensionMap> {
         let dims = [
             (
                 relay_quotas::Dimension::CheckInEnvironment,
@@ -209,13 +208,14 @@ impl CountRateLimited for Managed<ExpandedCheckIn> {
             ),
         ];
 
-        Some(BTreeMap::from(dims).into())
+        Some(DimensionMap::from(dims))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::EventId;
+    use relay_quotas::Dimension;
 
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedTestHandle;
@@ -254,13 +254,10 @@ mod tests {
 
         assert_eq!(
             check_in.dimensions(),
-            Some(
-                BTreeMap::from([
-                    (Dimension::CheckInEnvironment, "production".to_owned()),
-                    (Dimension::CheckInSlug, "my-monitor".to_owned()),
-                ])
-                .into()
-            )
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, "production".to_owned()),
+                (Dimension::CheckInSlug, "my-monitor".to_owned()),
+            ]))
         );
 
         drop(check_in);
@@ -281,13 +278,10 @@ mod tests {
         // it would not match a quota which keys on the environment.
         assert_eq!(
             check_in.dimensions(),
-            Some(
-                BTreeMap::from([
-                    (Dimension::CheckInEnvironment, String::new()),
-                    (Dimension::CheckInSlug, "my-monitor".to_owned()),
-                ])
-                .into()
-            )
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, String::new()),
+                (Dimension::CheckInSlug, "my-monitor".to_owned()),
+            ]))
         );
 
         drop(check_in);

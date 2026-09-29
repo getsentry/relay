@@ -573,8 +573,8 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
-    use crate::MetricNamespaceScoping;
     use crate::quota::DataCategory;
+    use crate::{DimensionMap, MetricNamespaceScoping};
 
     #[test]
     fn test_parse_retry_after() {
@@ -640,7 +640,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -652,7 +652,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -675,7 +675,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -687,7 +687,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -710,7 +710,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -722,7 +722,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -747,14 +747,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         let general_rate_limit = RateLimit {
@@ -769,14 +769,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -801,7 +801,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -813,7 +813,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -1184,7 +1184,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         });
 
         // Check that the error limit is applied
@@ -1236,7 +1236,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Arc::default(),
+            dimensions: DimensionMap::default(),
         };
 
         let quotas = &[Quota {

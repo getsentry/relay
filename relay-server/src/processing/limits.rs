@@ -1,8 +1,5 @@
-use std::collections::BTreeMap;
+use relay_quotas::{DimensionMap, ItemScoping, Quota, RateLimits};
 use std::fmt;
-use std::sync::Arc;
-
-use relay_quotas::{Dimension, ItemScoping, Quota, RateLimits};
 
 use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
@@ -149,7 +146,7 @@ where
 pub trait CountRateLimited {
     type Error: From<RateLimits> + OutcomeError;
 
-    fn dimensions(&self) -> Option<Arc<BTreeMap<Dimension, String>>> {
+    fn dimensions(&self) -> Option<DimensionMap> {
         None
     }
 }
