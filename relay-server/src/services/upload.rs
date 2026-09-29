@@ -37,6 +37,7 @@ use crate::http::{HttpError, RequestBuilder, Response};
 
 #[cfg(feature = "processing")]
 use crate::services::objectstore::{self, Objectstore};
+#[cfg(feature = "processing")]
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -432,6 +433,7 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::StreamContext;
                 let config = config.current();
 
                 let Location {
@@ -457,9 +459,9 @@ impl Service {
                             return Err(Error::InvalidFromClient("missing chunk length"));
                         };
 
-                        objectstore::StreamContext::new(key, token, offset, length, total)?
+                        StreamContext::new(key, token, offset, length, total)?
                     }
-                    None => objectstore::StreamContext::Oneshot(stream.byte_counter()),
+                    None => StreamContext::Oneshot(stream.byte_counter()),
                 };
 
                 let upload_ref = addr

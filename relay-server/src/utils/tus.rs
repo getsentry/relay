@@ -180,7 +180,7 @@ pub struct PatchHeaders {
     /// The declared `Upload-Offset` at which the body is appended to the upload.
     pub upload_offset: usize,
     /// The decoded length of the body in bytes, or `None` if it is not known up front.
-    pub content_length: Option<usize>,
+    pub decoded_content_length: Option<usize>,
 }
 
 /// Validates TUS protocol headers and returns [`PatchHeaders`].
@@ -208,7 +208,7 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error
 
     Ok(PatchHeaders {
         upload_offset,
-        content_length,
+        decoded_content_length: content_length,
     })
 }
 

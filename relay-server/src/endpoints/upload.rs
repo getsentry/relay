@@ -241,7 +241,7 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     let PatchHeaders {
         upload_offset,
-        content_length,
+        decoded_content_length: content_length,
     } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(

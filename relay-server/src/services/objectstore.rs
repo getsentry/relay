@@ -167,7 +167,7 @@ pub enum StreamContext {
         session_token: SessionToken,
         /// The byte offset from which to resume the upload.
         offset: usize,
-        /// Length of the next chunk.
+        /// Length of the current chunk.
         chunk_length: usize,
         /// Total length of the upload.
         total_length: usize,
@@ -1047,8 +1047,6 @@ impl ObjectstoreServiceInner {
     ) -> Result<UploadRef, AttemptUploadError> {
         match context {
             StreamContext::Oneshot(byte_counter) => {
-                // Note: We don't use the key we already have here (since that one is a dummy).
-                // Instead let objectstore make a new one for us and communicate that one back.
                 let request = session.put_stream(body.boxed()).compress(None);
                 let response = request
                     .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
@@ -1078,10 +1076,9 @@ impl ObjectstoreServiceInner {
                     .send()
                     .await?;
 
-                let offset = if let UploadProgress::Incomplete { offset } = progress {
-                    offset as usize
-                } else {
-                    total_length
+                let offset = match progress {
+                    UploadProgress::Incomplete { offset } => offset as usize,
+                    UploadProgress::Complete => total_length,
                 };
 
                 Ok(UploadRef {
@@ -1102,17 +1099,18 @@ impl ObjectstoreServiceInner {
     ) -> Result<usize, AttemptUploadError> {
         let progress = resumable_upload.progress().send().await?;
 
-        if let UploadProgress::Incomplete { offset } = progress
-            && offset != client_offset as u64
-        {
-            Err(AttemptUploadError::InvalidOffset {
-                client_offset,
-                offset: offset as usize,
-            })
-        } else if let UploadProgress::Complete = progress {
-            Err(AttemptUploadError::UploadCompleted)
-        } else {
-            Ok(client_offset)
+        match progress {
+            UploadProgress::Incomplete { offset } => {
+                if offset == client_offset as u64 {
+                    Ok(client_offset)
+                } else {
+                    Err(AttemptUploadError::InvalidOffset {
+                        client_offset,
+                        offset: offset as usize,
+                    })
+                }
+            }
+            UploadProgress::Complete => Err(AttemptUploadError::UploadCompleted),
         }
     }
 

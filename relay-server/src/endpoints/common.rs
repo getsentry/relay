@@ -616,10 +616,7 @@ where
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?;
 
-    let StreamResult {
-        location,
-        offset: _,
-    } = result
+    let StreamResult { location, offset } = result
         .inspect_err(|e| {
             relay_log::warn!(
                 error = e as &dyn std::error::Error,
@@ -640,6 +637,8 @@ where
                 BadStoreRequest::UploadFailed
             }
         })?;
+
+    debug_assert_eq!(offset, byte_counter.get());
 
     let location = location
         .try_to_uri()
