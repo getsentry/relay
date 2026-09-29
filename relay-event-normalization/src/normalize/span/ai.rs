@@ -540,7 +540,6 @@ fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) 
 mod tests {
     use std::collections::HashMap;
 
-    use relay_pattern::Pattern;
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use serde_json::json;
 
@@ -1234,7 +1233,7 @@ mod tests {
         ModelMetadata {
             version: 1,
             models: HashMap::from([(
-                Pattern::new("claude-2.1").unwrap(),
+                "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
                     costs: Some(ModelCostV2 {
                         input_per_token: 0.01,
@@ -1285,7 +1284,7 @@ mod tests {
         let metadata = ModelMetadata {
             version: 1,
             models: HashMap::from([(
-                Pattern::new("claude-2.1").unwrap(),
+                "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
                     costs: None,
                     context_size: None,

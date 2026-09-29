@@ -1703,9 +1703,7 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 
 #[cfg(test)]
 mod tests {
-
     use relay_event_schema::protocol::SpanData;
-    use relay_pattern::Pattern;
     use relay_protocol::assert_annotated_snapshot;
     use std::collections::BTreeMap;
     use std::collections::HashMap;
@@ -2525,7 +2523,7 @@ mod tests {
                     version: 1,
                     models: HashMap::from([
                         (
-                            Pattern::new("claude-2.1").unwrap(),
+                            "claude-2.1".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.01,
@@ -2538,7 +2536,7 @@ mod tests {
                             },
                         ),
                         (
-                            Pattern::new("gpt4-21-04").unwrap(),
+                            "gpt4-21-04".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.02,
@@ -2656,7 +2654,7 @@ mod tests {
                     version: 1,
                     models: HashMap::from([
                         (
-                            Pattern::new("claude-2.1").unwrap(),
+                            "claude-2.1".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.01,
@@ -2669,7 +2667,7 @@ mod tests {
                             },
                         ),
                         (
-                            Pattern::new("gpt4-21-04").unwrap(),
+                            "gpt4-21-04".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.09,
@@ -2772,7 +2770,7 @@ mod tests {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
                     models: HashMap::from([(
-                        Pattern::new("claude-2.1").unwrap(),
+                        "claude-2.1".parse().unwrap(),
                         ModelMetadataEntry {
                             costs: Some(ModelCostV2 {
                                 input_per_token: 0.01,
@@ -2848,7 +2846,7 @@ mod tests {
                     version: 1,
                     models: HashMap::from([
                         (
-                            Pattern::new("claude-2.1").unwrap(),
+                            "claude-2.1".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.01,
@@ -2861,7 +2859,7 @@ mod tests {
                             },
                         ),
                         (
-                            Pattern::new("gpt4-21-04").unwrap(),
+                            "gpt4-21-04".parse().unwrap(),
                             ModelMetadataEntry {
                                 costs: Some(ModelCostV2 {
                                     input_per_token: 0.09,
