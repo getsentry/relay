@@ -115,9 +115,8 @@ impl IntoResponse for Error {
                 | upload::Error::SigningFailed
                 | upload::Error::InvalidFromUpstream { .. } => StatusCode::INTERNAL_SERVER_ERROR,
                 #[cfg(feature = "processing")]
-                upload::Error::InvalidSessionToken(_) | upload::Error::InvalidFromClient(_) => {
-                    StatusCode::BAD_REQUEST
-                }
+                upload::Error::InvalidSessionToken(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidFromClient(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
