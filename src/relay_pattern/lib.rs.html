@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a><span class="doccomment">/// A collection of [`Pattern`]s sharing the same configuration.
 <a href=#178 id=178 data-nosnippet>178</a></span><span class="attr">#[derive(Debug, Clone)]
 <a href=#179 id=179 data-nosnippet>179</a></span><span class="kw">pub struct </span>Patterns {
-<a href=#180 id=180 data-nosnippet>180</a>    strategies: Vec&lt;MatchStrategy&gt;,
+<a href=#180 id=180 data-nosnippet>180</a>    strategies: Box&lt;[MatchStrategy]&gt;,
 <a href=#181 id=181 data-nosnippet>181</a>    options: Options,
 <a href=#182 id=182 data-nosnippet>182</a>}
 <a href=#183 id=183 data-nosnippet>183</a>
@@ -193,7 +193,7 @@
 <a href=#193 id=193 data-nosnippet>193</a>    /// ```
 <a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
 <a href=#195 id=195 data-nosnippet>195</a>        <span class="self">Self </span>{
-<a href=#196 id=196 data-nosnippet>196</a>            strategies: Vec::new(),
+<a href=#196 id=196 data-nosnippet>196</a>            strategies: Default::default(),
 <a href=#197 id=197 data-nosnippet>197</a>            options: Options::default(),
 <a href=#198 id=198 data-nosnippet>198</a>        }
 <a href=#199 id=199 data-nosnippet>199</a>    }
@@ -345,7 +345,7 @@
 <a href=#345 id=345 data-nosnippet>345</a>    <span class="doccomment">/// Builds a [`Patterns`] from the contained patterns.
 <a href=#346 id=346 data-nosnippet>346</a>    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; Patterns {
 <a href=#347 id=347 data-nosnippet>347</a>        Patterns {
-<a href=#348 id=348 data-nosnippet>348</a>            strategies: <span class="self">self</span>.strategies,
+<a href=#348 id=348 data-nosnippet>348</a>            strategies: <span class="self">self</span>.strategies.into_boxed_slice(),
 <a href=#349 id=349 data-nosnippet>349</a>            options: <span class="self">self</span>.options,
 <a href=#350 id=350 data-nosnippet>350</a>        }
 <a href=#351 id=351 data-nosnippet>351</a>    }
@@ -355,7 +355,7 @@
 <a href=#355 id=355 data-nosnippet>355</a>    /// The builder can still be used afterwards, it keeps the configuration.
 <a href=#356 id=356 data-nosnippet>356</a>    </span><span class="kw">pub fn </span>take(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Patterns {
 <a href=#357 id=357 data-nosnippet>357</a>        Patterns {
-<a href=#358 id=358 data-nosnippet>358</a>            strategies: std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.strategies),
+<a href=#358 id=358 data-nosnippet>358</a>            strategies: std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.strategies).into_boxed_slice(),
 <a href=#359 id=359 data-nosnippet>359</a>            options: <span class="self">self</span>.options,
 <a href=#360 id=360 data-nosnippet>360</a>        }
 <a href=#361 id=361 data-nosnippet>361</a>    }
