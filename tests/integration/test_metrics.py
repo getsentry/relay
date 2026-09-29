@@ -1090,7 +1090,7 @@ def test_limit_custom_measurements(
     metrics_consumer.assert_empty()
 
 
-def test_generic_metric_extraction(mini_sentry, relay):
+def test_span_usage_ignores_metric_extraction_config(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
 
@@ -1134,14 +1134,20 @@ def test_generic_metric_extraction(mini_sentry, relay):
     metrics = metrics_without_keys(
         json.loads(item.get_bytes().decode()), keys={"metadata"}
     )
-    assert {
-        "timestamp": time_after(int(timestamp.timestamp())),
-        "width": 1,
-        "name": "c:spans/on_demand@none",
-        "type": "c",
-        "value": 1.0,
-        "tags": {"query_hash": "c91c2e4d"},
-    } in metrics
+    assert len(metrics) == 2
+    assert all(metric["name"] == "c:spans/usage@none" for metric in metrics)
+    for tags in [
+        {"is_segment": "true", "was_transaction": "true"},
+        {"is_segment": "false"},
+    ]:
+        assert {
+            "timestamp": time_after(int(timestamp.timestamp())),
+            "width": 1,
+            "name": "c:spans/usage@none",
+            "type": "c",
+            "value": 1.0,
+            "tags": tags,
+        } in metrics
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))
@@ -1339,101 +1345,6 @@ def test_metrics_received_at(
     )
 
     assert metrics_consumer.poll(timeout=2) is None
-
-
-def test_metrics_extraction_with_computed_context_filters(
-    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer
-):
-    """
-    Test that metrics extraction filters work with computed contexts like os, runtime and browser.
-    """
-    metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
-
-    relay = relay_with_processing()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["metricExtraction"] = {
-        "version": 1,
-        "metrics": [
-            {
-                "category": "transaction",
-                "mri": "c:spans/on_demand_os@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.os",
-                    "value": "Windows 10",
-                },
-            },
-            {
-                "category": "transaction",
-                "mri": "c:spans/on_demand_runtime@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.runtime",
-                    "value": "Python 3.9.0",
-                },
-            },
-            {
-                "category": "transaction",
-                "mri": "c:spans/on_demand_browser@none",
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.browser",
-                    "value": "Firefox 89.0",
-                },
-            },
-        ],
-    }
-
-    # Create a transaction with matching contexts
-    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
-    transaction["contexts"].update(
-        {
-            "os": {
-                "name": "Windows",
-                "version": "10",
-            },
-            "runtime": {
-                "name": "Python",
-                "version": "3.9.0",
-            },
-            "browser": {
-                "name": "Firefox",
-                "version": "89.0",
-            },
-        }
-    )
-
-    # Set timestamps to avoid metrics being dropped due to age
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = timestamp.isoformat()
-    transaction["start_timestamp"] = (timestamp - timedelta(seconds=1)).isoformat()
-
-    relay.send_transaction(project_id, transaction)
-
-    # Get the transaction event to verify it was processed
-    event, _ = transactions_consumer.get_event()
-    assert event["contexts"]["os"]["os"] == "Windows 10"
-    assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
-    assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
-
-    # Send another transaction with non-matching contexts
-    transaction["contexts"].update(
-        {
-            "os": {"name": "Linux", "version": "5.4", "type": "os"},
-            "runtime": {"name": "Node", "version": "16.0.0", "type": "runtime"},
-            "browser": {"name": "Chrome", "version": "95.0", "type": "browser"},
-        }
-    )
-    relay.send_transaction(project_id, transaction)
-
-    # Get the transaction event
-    event, _ = transactions_consumer.get_event()
-    assert event["contexts"]["os"]["os"] == "Linux 5.4"
-
-    metrics_consumer.assert_empty()
 
 
 def test_profiles_metrics(mini_sentry, relay):

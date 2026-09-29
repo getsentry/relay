@@ -293,8 +293,6 @@ def test_get_global_config(mini_sentry, relay):
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
     data, _ = get_response(relay, packed, signature, version="3")
 
-    data["global"].pop("metricExtraction", None)
-
     assert data["global"] == mini_sentry.global_config
 
 

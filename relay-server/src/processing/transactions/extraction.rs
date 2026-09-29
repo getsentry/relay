@@ -1,4 +1,3 @@
-use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::MetricNamespace;
@@ -26,7 +25,6 @@ pub fn extract_segment_span(
 
 /// Input arguments for [`extract_metrics`].
 pub struct ExtractMetricsContext<'a> {
-    pub config: CombinedMetricExtractionConfig<'a>,
     pub ctx: Context<'a>,
     pub sampling_decision: SamplingDecision,
     pub extract_span_metrics: bool,
@@ -39,7 +37,6 @@ pub fn extract_metrics(
     ctx: ExtractMetricsContext,
 ) {
     let ExtractMetricsContext {
-        config,
         ctx,
         sampling_decision,
         extract_span_metrics,
@@ -52,7 +49,6 @@ pub fn extract_metrics(
     let metrics = crate::metrics_extraction::event::extract_metrics(
         event,
         crate::metrics_extraction::event::ExtractMetricsConfig {
-            config,
             max_tag_value_size: ctx
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
