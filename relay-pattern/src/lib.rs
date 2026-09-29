@@ -180,7 +180,7 @@ impl<'de> serde::Deserialize<'de> for Pattern {
 /// A collection of [`Pattern`]s sharing the same configuration.
 #[derive(Debug, Clone)]
 pub struct Patterns {
-    strategies: Vec<MatchStrategy>,
+    strategies: Box<[MatchStrategy]>,
     options: Options,
 }
 
@@ -196,7 +196,7 @@ impl Patterns {
     /// ```
     pub fn empty() -> Self {
         Self {
-            strategies: Vec::new(),
+            strategies: Default::default(),
             options: Options::default(),
         }
     }
@@ -349,7 +349,7 @@ impl PatternsBuilderConfigured {
     /// Builds a [`Patterns`] from the contained patterns.
     pub fn build(self) -> Patterns {
         Patterns {
-            strategies: self.strategies,
+            strategies: self.strategies.into_boxed_slice(),
             options: self.options,
         }
     }
@@ -359,7 +359,7 @@ impl PatternsBuilderConfigured {
     /// The builder can still be used afterwards, it keeps the configuration.
     pub fn take(&mut self) -> Patterns {
         Patterns {
-            strategies: std::mem::take(&mut self.strategies),
+            strategies: std::mem::take(&mut self.strategies).into_boxed_slice(),
             options: self.options,
         }
     }
