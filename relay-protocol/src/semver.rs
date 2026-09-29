@@ -1,23 +1,90 @@
-//! Versions of releases for the `semver` rule condition.
+//! Releases for the `semver` rule condition.
 
 use std::cmp::Ordering;
 
+use semver::Prerelease;
 use sentry_release_parser::{Release, Version};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// The package and the version of a release, as Sentry parses releases.
+/// A release to compare the versions of other releases against.
 ///
 /// A release is a version such as `1.2.3-rc.1+build`, optionally behind a package, such as
 /// `myapp@1.2.3`. The version has one to four numeric components. Missing components are zero.
-pub struct Semver<'a> {
-    package: Option<&'a str>,
-    version: Version<'a>,
+///
+/// Serialized as the release string, which is parsed once when deserializing. A string without a
+/// version, such as a commit hash, still deserializes. It is not [valid](Self::is_valid) and
+/// compares with no release.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Semver {
+    raw: String,
+    parsed: Option<Parsed<String>>,
 }
 
-impl<'a> Semver<'a> {
+impl Semver {
     /// Parses a release.
+    pub fn new(release: impl Into<String>) -> Self {
+        let raw = release.into();
+        let parsed = Parsed::parse(&raw).map(|parsed| Parsed {
+            package: parsed.package.map(str::to_owned),
+            quad: parsed.quad,
+            pre: parsed.pre,
+        });
+
+        Self { raw, parsed }
+    }
+
+    /// Returns `true` if the release carries a version.
+    pub fn is_valid(&self) -> bool {
+        self.parsed.is_some()
+    }
+
+    /// Returns how the version of `release` orders relative to this version.
     ///
-    /// Returns `None` if the release does not carry a version, such as a commit hash.
-    pub fn parse(release: &'a str) -> Option<Self> {
+    /// Returns `None` if either release has no version, or if this release names a package and
+    /// `release` has a different one. Without a package, this compares with releases of every
+    /// package.
+    ///
+    /// Versions order by their numeric components, then by semver precedence of the pre-release.
+    /// A pre-release orders below its final release. Build codes are ignored.
+    pub fn compare(&self, release: &str) -> Option<Ordering> {
+        let expected = self.parsed.as_ref()?;
+        let release = Parsed::parse(release)?;
+
+        if expected.package.is_some() && expected.package.as_deref() != release.package {
+            return None;
+        }
+
+        let ordering = release
+            .quad
+            .cmp(&expected.quad)
+            .then_with(|| release.pre.cmp(&expected.pre));
+
+        Some(ordering)
+    }
+}
+
+impl Serialize for Semver {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.raw.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Semver {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(Self::new)
+    }
+}
+
+/// The parts of a release that take part in comparisons.
+#[derive(Debug, Clone, PartialEq)]
+struct Parsed<P> {
+    package: Option<P>,
+    quad: (u64, u64, u64, u64),
+    pre: Prerelease,
+}
+
+impl<'a> Parsed<&'a str> {
+    fn parse(release: &'a str) -> Option<Self> {
         let release = Release::parse(release).ok()?;
 
         // The parser only extracts a version behind a package, so parse the version part
@@ -26,32 +93,13 @@ impl<'a> Semver<'a> {
         if release.build_hash() == Some(version) {
             return None;
         }
+        let version = Version::parse(version).ok()?;
 
         Some(Self {
             package: release.package(),
-            version: Version::parse(version).ok()?,
+            quad: version.quad(),
+            pre: version.as_semver1().pre,
         })
-    }
-
-    /// Compares the version of this release with the version of `other`.
-    ///
-    /// Returns `None` if `other` names a package and this release has a different one. If `other`
-    /// names no package, it compares with releases of every package.
-    ///
-    /// Versions order by their numeric components, then by semver precedence of the pre-release.
-    /// A pre-release orders below its final release. Build codes are ignored.
-    pub fn compare(&self, other: &Self) -> Option<Ordering> {
-        if other.package.is_some() && other.package != self.package {
-            return None;
-        }
-
-        let (version, other) = (&self.version, &other.version);
-        let ordering = version
-            .quad()
-            .cmp(&other.quad())
-            .then_with(|| version.as_semver1().pre.cmp(&other.as_semver1().pre));
-
-        Some(ordering)
     }
 }
 
@@ -59,14 +107,11 @@ impl<'a> Semver<'a> {
 mod tests {
     use super::*;
 
-    fn compare(release: &str, other: &str) -> Option<Ordering> {
-        Semver::parse(release)?.compare(&Semver::parse(other)?)
-    }
-
     #[test]
-    fn test_parse_rejects_releases_without_version() {
+    fn test_releases_without_version() {
         for release in ["a4b7e0f9c2d1", "myapp@a4b7e0f9c2d1", "123456789012", ""] {
-            assert!(Semver::parse(release).is_none(), "{release}");
+            assert!(!Semver::new(release).is_valid(), "{release}");
+            assert_eq!(Semver::new("1.0.0").compare(release), None, "{release}");
         }
     }
 
@@ -82,7 +127,8 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            assert_eq!(compare(release, other), Some(expected), "{release} {other}");
+            let ordering = Semver::new(other).compare(release);
+            assert_eq!(ordering, Some(expected), "{release} {other}");
         }
     }
 
@@ -97,7 +143,16 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            assert_eq!(compare(release, other), expected, "{release} {other}");
+            let ordering = Semver::new(other).compare(release);
+            assert_eq!(ordering, expected, "{release} {other}");
+        }
+    }
+
+    #[test]
+    fn test_serde_keeps_the_release_string() {
+        for json in [r#""myapp@1.2.0+build""#, r#""a4b7e0f9c2d1""#] {
+            let semver: Semver = serde_json::from_str(json).unwrap();
+            assert_eq!(serde_json::to_string(&semver).unwrap(), json);
         }
     }
 }

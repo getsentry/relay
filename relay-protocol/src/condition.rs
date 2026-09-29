@@ -10,7 +10,7 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::semver::Semver;
+pub use crate::semver::Semver;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -339,13 +339,8 @@ pub enum SemverComparator {
 
 /// A condition that compares the version of a release.
 ///
-/// The field and `value` are Sentry releases: a version such as `1.2.3-rc.1+build`, optionally
-/// behind a package, such as `myapp@1.2.3`. The version has one to four numeric components, and
-/// missing components are zero. A pre-release orders below its final release, and build codes are
-/// ignored.
-///
-/// If `value` names a package, the condition only matches releases of that package. Without a
-/// package, it matches releases of every package.
+/// The field must hold a release, which compares against `value` as [`Semver::compare`]
+/// describes. If `value` names a package, the condition only matches releases of that package.
 ///
 /// The condition does not match if the field or `value` has no version, such as a commit hash. A
 /// condition with such a `value` is not [supported](RuleCondition::supported), so that the author
@@ -357,7 +352,7 @@ pub struct SemverCondition {
     /// The comparison to apply between the field and the value.
     pub comparator: SemverComparator,
     /// The release to compare the field against, such as `1.2.0` or `myapp@1.2.0`.
-    pub value: String,
+    pub value: Semver,
 }
 
 impl SemverCondition {
@@ -370,12 +365,12 @@ impl SemverCondition {
         Self {
             name: field.into(),
             comparator,
-            value: value.into(),
+            value: Semver::new(value),
         }
     }
 
     fn supported(&self) -> bool {
-        self.comparator != SemverComparator::Unsupported && Semver::parse(&self.value).is_some()
+        self.comparator != SemverComparator::Unsupported && self.value.is_valid()
     }
 
     fn matches<T>(&self, instance: &T) -> bool
@@ -385,12 +380,7 @@ impl SemverCondition {
         let Some(Val::String(release)) = instance.get_value(self.name.as_str()) else {
             return false;
         };
-        let (Some(release), Some(value)) = (Semver::parse(release), Semver::parse(&self.value))
-        else {
-            return false;
-        };
-
-        let Some(ordering) = release.compare(&value) else {
+        let Some(ordering) = self.value.compare(release) else {
             return false;
         };
 
