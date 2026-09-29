@@ -24,6 +24,7 @@
 
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
+- Support resumable uploads (feature-flagged). ([#6421](https://github.com/getsentry/relay/pull/6421))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
 
 ## 26.9.0
