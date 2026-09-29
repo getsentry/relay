@@ -11,8 +11,8 @@ use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, SessionToken, TokenGenerator,
-    UploadProgress, Usecase,
+    Client, ExpirationPolicy, ResumableUpload, SecretKey as SigningKey, Session, SessionToken,
+    TokenGenerator, UploadProgress, Usecase,
 };
 
 use objectstore_types::resumable::InvalidSessionToken;
@@ -156,11 +156,49 @@ impl FromMessage<Create> for Objectstore {
     }
 }
 
+#[derive(Clone)]
+/// Context for a stream that can be uploaded to objectstore.
+pub enum StreamContext {
+    Oneshot(ByteCounter),
+    Resumable {
+        /// They key of the file (chosen by relay).
+        key: String,
+        /// The ID of the resumable upload session (chosen by objectstore).
+        /// `None` if the upload is not a resumable session.
+        session_token: SessionToken,
+        /// The byte offset from which to resume the upload.
+        offset: usize,
+        /// Length of the next chunk.
+        chunk_length: usize,
+        /// Total length of the upload.
+        total_length: usize,
+    },
+}
+
+impl StreamContext {
+    /// Validates the session token and returns a new upload reference.
+    pub fn new(
+        key: String,
+        session_token: String,
+        offset: usize,
+        chunk_length: usize,
+        total_length: usize,
+    ) -> Result<Self, InvalidSessionToken> {
+        Ok(Self::Resumable {
+            key,
+            session_token: SessionToken::from_base64url(&session_token)?,
+            offset,
+            chunk_length,
+            total_length,
+        })
+    }
+}
+
 /// A stream that can be uploaded to objectstore.
 pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub upload_ref: UploadRef,
+    pub context: StreamContext,
     pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
@@ -284,7 +322,9 @@ pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
     #[error("invalid upload offset {client_offset} expected {offset}")]
-    InvalidOffset { client_offset: u64, offset: u64 },
+    InvalidOffset { client_offset: usize, offset: usize },
+    #[error("upload already completed")]
+    UploadCompleted,
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -300,6 +340,7 @@ impl ErrorKind {
         match self {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
+            Self::UploadCompleted => "upload_completed",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
@@ -850,21 +891,19 @@ impl ObjectstoreServiceInner {
         let Stream {
             organization_id,
             project_id,
-            upload_ref,
+            context,
             retention,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        let byte_counter = stream.byte_counter();
 
         self.upload(
             MessageKind::Stream,
             &session,
             Upload::Stream {
                 body: TakeOnce::new(stream),
-                upload_ref,
+                context,
                 retention,
-                byte_counter,
             },
         )
         .await
@@ -993,56 +1032,90 @@ impl ObjectstoreServiceInner {
             }
             UploadAttempt::Stream {
                 body,
-                upload_ref,
+                context,
                 retention,
-                byte_counter,
             } => {
-                let UploadRef {
-                    key,
-                    session_token,
-                    offset,
-                } = upload_ref;
-
-                match session_token {
-                    Some(token) => {
-                        let resumable_upload = session.resume_upload(key, token);
-
-                        // FIXME: progress, put_stream, progress seems a bit wasteful
-                        let client_offset = offset as u64;
-                        let progress = resumable_upload.progress().send().await?;
-                        if let UploadProgress::Incomplete { offset } = progress
-                            && offset != client_offset
-                        {
-                            return Err(AttemptUploadError::InvalidOffset {
-                                client_offset,
-                                offset,
-                            });
-                        } else if let UploadProgress::Complete = progress {
-                            todo!("Figure out what should happen here")
-                        }
-
-                        todo!("Error: Either uploading to done upload or wrong offset");
-                    }
-
-                    None => {
-                        // Note: We don't use the key we already have here (since that one is a dummy).
-                        // Instead let objectstore make a new one for us and communicate that one back.
-                        let request = session.put_stream(body.boxed()).compress(None);
-                        let response = request
-                            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
-                                u64::from(retention) * 24,
-                            )))
-                            .send()
-                            .await?;
-
-                        Ok(UploadRef {
-                            key: response.key,
-                            session_token: None,
-                            offset: byte_counter.get(),
-                        })
-                    }
-                }
+                self.attempt_upload_stream(session, body, context, retention)
+                    .await
             }
+        }
+    }
+
+    async fn attempt_upload_stream(
+        &self,
+        session: &Session,
+        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        context: StreamContext,
+        retention: u16,
+    ) -> Result<UploadRef, AttemptUploadError> {
+        match context {
+            StreamContext::Oneshot(byte_counter) => {
+                // Note: We don't use the key we already have here (since that one is a dummy).
+                // Instead let objectstore make a new one for us and communicate that one back.
+                let request = session.put_stream(body.boxed()).compress(None);
+                let response = request
+                    .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                        u64::from(retention) * 24,
+                    )))
+                    .send()
+                    .await?;
+
+                Ok(UploadRef {
+                    key: response.key,
+                    session_token: None,
+                    offset: byte_counter.get(),
+                })
+            }
+            StreamContext::Resumable {
+                key,
+                session_token,
+                offset,
+                chunk_length,
+                total_length,
+            } => {
+                let resumable_upload = session.resume_upload(&key, session_token.clone());
+                let offset = Self::verify_offset(offset, &resumable_upload).await?;
+
+                let progress = resumable_upload
+                    .put_stream(offset as u64, chunk_length as u64, body.boxed())
+                    .send()
+                    .await?;
+
+                let offset = if let UploadProgress::Incomplete { offset } = progress {
+                    offset as usize
+                } else {
+                    total_length
+                };
+
+                Ok(UploadRef {
+                    key,
+                    session_token: Some(session_token),
+                    offset,
+                })
+            }
+        }
+    }
+
+    /// Verify the client offset against objectstore.
+    ///
+    /// Returns an error if the offset is wrong (including when the upload is already done).
+    async fn verify_offset(
+        client_offset: usize,
+        resumable_upload: &ResumableUpload,
+    ) -> Result<usize, AttemptUploadError> {
+        let progress = resumable_upload.progress().send().await?;
+
+        if let UploadProgress::Incomplete { offset } = progress
+            && offset != client_offset as u64
+        {
+            Err(AttemptUploadError::InvalidOffset {
+                client_offset,
+                offset: offset as usize,
+            })
+        } else if let UploadProgress::Complete = progress {
+            Err(AttemptUploadError::UploadCompleted)
+        } else {
+            Ok(client_offset)
         }
     }
 
@@ -1067,7 +1140,9 @@ enum AttemptUploadError {
     #[error(transparent)]
     Objectstore(#[from] objectstore_client::Error),
     #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: u64, offset: u64 },
+    InvalidOffset { client_offset: usize, offset: usize },
+    #[error("upload already completed")]
+    UploadCompleted,
 }
 
 impl From<AttemptUploadError> for ErrorKind {
@@ -1081,6 +1156,7 @@ impl From<AttemptUploadError> for ErrorKind {
                 client_offset,
                 offset,
             },
+            AttemptUploadError::UploadCompleted => ErrorKind::UploadCompleted,
         }
     }
 }
@@ -1116,9 +1192,8 @@ enum Upload {
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        upload_ref: UploadRef,
+        context: StreamContext,
         retention: u16,
-        byte_counter: ByteCounter,
     },
 }
 
@@ -1140,14 +1215,12 @@ impl Upload {
             }),
             Self::Stream {
                 body,
-                upload_ref,
+                context,
                 retention,
-                byte_counter,
             } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
                 body,
-                upload_ref: upload_ref.clone(),
+                context: context.clone(),
                 retention: *retention,
-                byte_counter: byte_counter.clone(),
             }),
         }
     }
@@ -1166,9 +1239,8 @@ enum UploadAttempt {
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
-        upload_ref: UploadRef,
+        context: StreamContext,
         retention: u16,
-        byte_counter: ByteCounter,
     },
 }
 
@@ -1273,11 +1345,7 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                upload_ref: UploadRef {
-                    key: "my_file".to_owned(),
-                    session_token: Some(SessionToken::new("my_upload".to_owned())),
-                    offset: 0,
-                },
+                context: StreamContext::Oneshot(stream.byte_counter()),
                 retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })

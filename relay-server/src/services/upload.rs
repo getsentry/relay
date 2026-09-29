@@ -71,6 +71,8 @@ pub enum Error {
     SigningFailed,
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] SignatureError),
+    #[error("invalid input: {0}")]
+    InvalidFromClient(&'static str),
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
@@ -96,6 +98,7 @@ impl Error {
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
+            Error::InvalidFromClient { .. } => "invalid_from_client",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
@@ -115,7 +118,7 @@ pub enum Upload {
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Stream, InstrumentedSender<StreamResult>),
+    Upload(Box<Stream>, InstrumentedSender<StreamResult>),
 }
 
 impl Interface for Upload {}
@@ -154,10 +157,41 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
-    /// The offset from which to resume the upload.
-    pub offset: usize,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    /// Stream mode, either Oneshot or Resumable.
+    ///
+    /// Resumable Streams contain more state than Oneshot streams.
+    pub mode: StreamMode,
+}
+
+/// Indicating weather the stream is oneshot or resumable.
+pub enum StreamMode {
+    Oneshot,
+    Resumable {
+        /// The offset from which to resume the upload.
+        offset: usize,
+        /// The declared length of the stream.
+        length: usize,
+    },
+}
+
+impl StreamMode {
+    /// Returns the stream offset if the stream is resumable.
+    pub fn offset(&self) -> Option<usize> {
+        match self {
+            StreamMode::Oneshot => None,
+            StreamMode::Resumable { offset, .. } => Some(*offset),
+        }
+    }
+
+    /// Returns the stream chunk length if the stream is resumable.
+    pub fn length(&self) -> Option<usize> {
+        match self {
+            StreamMode::Oneshot => None,
+            StreamMode::Resumable { length, .. } => Some(*length),
+        }
+    }
 }
 
 /// The result of a [`Stream`] operation.
@@ -209,7 +243,7 @@ impl FromMessage<Stream> for Upload {
 
     fn from_message(message: Stream, sender: Sender<Result<StreamResult, Error>>) -> Self {
         Self::Upload(
-            message,
+            Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
                 inner: sender,
@@ -372,20 +406,19 @@ impl Service {
             received,
             project,
             location,
-            offset,
             stream,
+            mode,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
                 let (request, rx) =
-                    UploadRequest::upload(project, location.try_to_uri()?, offset, stream);
+                    UploadRequest::upload(project, location.try_to_uri()?, mode, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 StreamResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::UploadRef;
                 let config = config.current();
 
                 let Location {
@@ -396,18 +429,32 @@ impl Service {
                     other,
                 } = location.verify(received, &config)?;
 
-                // FIXME: Maybe need to assert that if length is none so must upload_id (find a better structure).
-
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
 
-                let upload_ref = UploadRef::new(key, upload_id, offset)?;
+                // FIXME: We can catch these earlier with better typing.
+                let context = match upload_id {
+                    Some(token) => {
+                        let Some(total) = length.value() else {
+                            return Err(Error::InvalidFromClient(
+                                "upload_id without `Upload-Length`",
+                            ));
+                        };
+                        let StreamMode::Resumable { offset, length } = mode else {
+                            return Err(Error::InvalidFromClient("missing chunk length"));
+                        };
+
+                        objectstore::StreamContext::new(key, token, offset, length, total)?
+                    }
+                    None => objectstore::StreamContext::Oneshot(stream.byte_counter()),
+                };
+
                 let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        upload_ref,
+                        context,
                         retention: project.retention,
                         stream,
                     })
@@ -451,7 +498,7 @@ impl SimpleService for Service {
                 sender.send(self.timeout(self.create(create)).await);
             }
             Upload::Upload(stream, sender) => {
-                sender.send(self.timeout(self.upload(stream)).await);
+                sender.send(self.timeout(self.upload(*stream)).await);
             }
         }
     }
@@ -771,7 +818,7 @@ enum RequestKind {
     },
     Upload {
         uri: String,
-        offset: usize,
+        mode: StreamMode,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -811,7 +858,7 @@ impl UploadRequest {
     fn upload(
         project: ProjectContext,
         uri: String,
-        offset: usize,
+        mode: StreamMode,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
@@ -823,7 +870,7 @@ impl UploadRequest {
                 project,
                 kind: RequestKind::Upload {
                     uri,
-                    offset,
+                    mode,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
@@ -906,7 +953,7 @@ impl UpstreamRequest for UploadRequest {
             }
             RequestKind::Upload {
                 uri: _,
-                offset,
+                mode,
                 stream,
                 encoding,
             } => {
@@ -914,7 +961,7 @@ impl UpstreamRequest for UploadRequest {
                     relay_log::error!("upload request stream was already consumed");
                     return Err(HttpError::Misconfigured);
                 };
-                tus::add_upload_headers(builder, *offset);
+                tus::add_upload_headers(builder, mode);
 
                 let body = encode_body(body, *encoding);
                 builder.content_encoding(*encoding);

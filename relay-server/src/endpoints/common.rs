@@ -24,7 +24,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::upload::{Create, ProjectContext, Stream, StreamResult, Upload};
+use crate::services::upload::{Create, ProjectContext, Stream, StreamMode, StreamResult, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
@@ -610,8 +610,8 @@ where
             received: Utc::now(),
             project,
             location,
-            offset: 0,
             stream,
+            mode: StreamMode::Oneshot,
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?;

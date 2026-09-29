@@ -37,6 +37,7 @@ use crate::services::upload::{
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
+use crate::utils::tus::PatchHeaders;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
@@ -114,14 +115,18 @@ impl IntoResponse for Error {
                 | upload::Error::SigningFailed
                 | upload::Error::InvalidFromUpstream { .. } => StatusCode::INTERNAL_SERVER_ERROR,
                 #[cfg(feature = "processing")]
-                upload::Error::InvalidSessionToken(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidSessionToken(_) | upload::Error::InvalidFromClient(_) => {
+                    StatusCode::BAD_REQUEST
+                }
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
-                    objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::CONFLICT,
+                    objectstore::ErrorKind::InvalidOffset { .. }
+                    | objectstore::ErrorKind::UploadCompleted => StatusCode::CONFLICT,
+
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
@@ -235,7 +240,10 @@ async fn handle_patch(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    let offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let PatchHeaders {
+        upload_offset,
+        content_length,
+    } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -273,15 +281,23 @@ async fn handle_patch(
         None => (0, config.max_upload_size()),
         Some(u) => {
             let remaining_bytes = u
-                .checked_sub(offset)
-                .ok_or(Error::InvalidOffset(offset, u))?;
+                .checked_sub(upload_offset)
+                .ok_or(Error::InvalidOffset(upload_offset, u))?;
             (0, remaining_bytes)
         }
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, offset, stream).await;
+    let result = upload(
+        &state,
+        project_context,
+        location,
+        upload_offset,
+        content_length,
+        stream,
+    )
+    .await;
     let StreamResult { location, offset } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -327,7 +343,7 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
 async fn create(
     state: &ServiceState,
     project: ProjectContext,
-    headers: &tus::Headers,
+    headers: &tus::PostHeaders,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -346,16 +362,24 @@ async fn upload(
     project: ProjectContext,
     location: SignedLocation<Provisional>,
     offset: usize,
+    length: Option<usize>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<StreamResult, Error> {
+    // FIXME: Type this better by combining it with the location.
+    let mode = if let Some(length) = length {
+        upload::StreamMode::Resumable { offset, length }
+    } else {
+        upload::StreamMode::Oneshot
+    };
+
     let location = state
         .upload()
         .send(upload::Stream {
             received: Utc::now(),
             project,
             location,
-            offset,
             stream,
+            mode,
         })
         .await??;
 
@@ -369,7 +393,7 @@ async fn upload(
 async fn validate_and_limit(
     state: &ServiceState,
     meta: RequestMeta,
-    headers: &tus::Headers,
+    headers: &tus::PostHeaders,
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
