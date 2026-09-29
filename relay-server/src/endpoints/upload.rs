@@ -364,7 +364,6 @@ async fn upload(
     length: Option<usize>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<StreamResult, Error> {
-    // FIXME: Type this better by combining it with the location.
     let mode = if let Some(length) = length {
         upload::StreamMode::Resumable { offset, length }
     } else {

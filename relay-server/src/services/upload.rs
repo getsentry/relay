@@ -444,7 +444,6 @@ impl Service {
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
 
-                // FIXME: We can catch these earlier with better typing.
                 let context = match upload_id {
                     Some(token) => {
                         let Some(total) = length.value() else {
@@ -473,7 +472,7 @@ impl Service {
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 // If the location contains a length, communicate that back as is. If it doesn't
-                // (due to Upload-Defer-Length) the upload above was a oneshoot and we derive the
+                // (due to Upload-Defer-Length) the upload above was a oneshot and we derive the
                 // length based on the offset (progress).
                 let length = Final(length.0.unwrap_or(upload_ref.offset));
 
