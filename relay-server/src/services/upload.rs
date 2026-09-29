@@ -37,6 +37,7 @@ use crate::http::{HttpError, RequestBuilder, Response};
 
 #[cfg(feature = "processing")]
 use crate::services::objectstore::{self, Objectstore};
+use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
@@ -256,6 +257,7 @@ impl FromMessage<Stream> for Upload {
 pub fn create_service(
     config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
+    project_cache: ProjectCacheHandle,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
     let current_config = config.current();
@@ -268,6 +270,7 @@ pub fn create_service(
     let service = Service {
         timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
+        project_cache,
     };
     ConcurrentService::new(service)
         .with_backlog_limit(0)
@@ -298,6 +301,7 @@ fn create_backend(
 pub struct Service {
     timeout: Duration,
     backend: Backend,
+    project_cache: ProjectCacheHandle,
 }
 
 /// A response channel that emits a metric for each response.
@@ -348,6 +352,8 @@ impl Service {
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::UploadRef;
+                use crate::services::projects::project::ProjectState;
+                use relay_dynamic_config::Feature;
                 let config = config.current();
 
                 // Create the key:
@@ -361,12 +367,14 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, upload_id) = match length {
-                    // If the create has a `Upload-Defer-Length: 1` than skip going to object store.
-                    // This is because objectstore requires us to know the size of a resumable upload
-                    // when creating it (which we don't).
-                    None => (key, None),
-                    Some(upload_length) => {
+                let resumable_enabled =
+                    match self.project_cache.get(project.scoping.project_key).state() {
+                        ProjectState::Enabled(info) => info.has_feature(Feature::ResumableUpload),
+                        _ => false,
+                    };
+
+                let (key, upload_id) = match (resumable_enabled, length) {
+                    (true, Some(upload_length)) => {
                         let UploadRef {
                             key,
                             session_token: upload_id,
@@ -385,6 +393,10 @@ impl Service {
                         debug_assert_eq!(&key, &original_key);
                         (key, upload_id)
                     }
+                    // If the create has a `Upload-Defer-Length: 1` than skip going to object store.
+                    // This is because objectstore requires us to know the size of a resumable upload
+                    // when creating it (which we don't).
+                    _ => (key, None),
                 };
 
                 Location {

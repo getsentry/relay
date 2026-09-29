@@ -868,8 +868,6 @@ impl ObjectstoreServiceInner {
             retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        // FIXME: Decided on providing the `content_type` here
-        // FIXME: This currently swallows a declined resumable upload.
         let session_token = session
             .create_upload(upload_length as u64)
             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
