@@ -183,9 +183,7 @@ pub struct PatchHeaders {
     pub content_length: Option<usize>,
 }
 
-/// Validates TUS protocol headers and returns the expected upload length.
-///
-/// Returns the offset from which the upload is resumed.
+/// Validates TUS protocol headers and returns [`PatchHeaders`].
 pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {

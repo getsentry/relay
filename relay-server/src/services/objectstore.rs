@@ -161,10 +161,9 @@ impl FromMessage<Create> for Objectstore {
 pub enum StreamContext {
     Oneshot(ByteCounter),
     Resumable {
-        /// They key of the file (chosen by relay).
+        /// The key of the file (chosen by relay).
         key: String,
         /// The ID of the resumable upload session (chosen by objectstore).
-        /// `None` if the upload is not a resumable session.
         session_token: SessionToken,
         /// The byte offset from which to resume the upload.
         offset: usize,
@@ -380,7 +379,7 @@ impl ObjectstoreKey {
 /// Identifier needed to resume an existing upload.
 #[derive(Debug, Clone)]
 pub struct UploadRef {
-    /// They key of the file (chosen by relay).
+    /// The key of the file (chosen by relay).
     pub key: String,
     /// The ID of the resumable upload session (chosen by objectstore).
     /// `None` if the upload is not a resumable session.

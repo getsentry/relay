@@ -166,7 +166,7 @@ pub struct Stream {
     pub mode: StreamMode,
 }
 
-/// Indicating weather the stream is oneshot or resumable.
+/// Indicating whether the stream is oneshot or resumable.
 pub enum StreamMode {
     Oneshot,
     Resumable {
@@ -199,7 +199,7 @@ impl StreamMode {
 pub struct StreamResult {
     /// The signed location of the upload.
     ///
-    /// This is "final" because we have either a pre-commited `Upload-Length` or
+    /// This is "final" because we have either a pre-committed `Upload-Length` or
     /// a oneshot upload.
     pub location: SignedLocation<Final>,
     /// The byte offset stored on the server after the operation.
@@ -395,7 +395,7 @@ impl Service {
                         debug_assert_eq!(&key, &original_key);
                         (key, upload_id)
                     }
-                    // If the create has a `Upload-Defer-Length: 1` than skip going to object store.
+                    // If the create has `Upload-Defer-Length: 1` then skip going to object store.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
                     _ => (key, None),
