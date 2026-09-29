@@ -322,7 +322,7 @@ impl CidrCondition {
 pub enum SemverComparator {
     /// The version of the field is equal to the value.
     ///
-    /// Unlike [`EqCondition`], this ignores the package and the build metadata of the release.
+    /// Unlike [`EqCondition`], this ignores the build code of the release.
     Eq,
     /// The version of the field is greater than the value.
     Gt,
@@ -337,27 +337,31 @@ pub enum SemverComparator {
     Unsupported,
 }
 
-/// A condition that compares the semantic version of a release.
+/// A condition that compares the version of a release.
 ///
-/// The field must hold a release with a full semantic version, such as `1.2.3-rc.1+build`, or a
-/// Sentry release with a package, such as `myapp@1.2.3`. Ordering follows semver precedence: a
-/// pre-release orders below its final release, and build metadata is ignored.
+/// The field and `value` are Sentry releases: a version such as `1.2.3-rc.1+build`, optionally
+/// behind a package, such as `myapp@1.2.3`. The version has one to four numeric components, and
+/// missing components are zero. A pre-release orders below its final release, and build codes are
+/// ignored.
 ///
-/// The condition does not match if the field or `value` is not a semantic version, such as `1.2`
-/// or a commit hash. A condition with such a `value` is not [supported](RuleCondition::supported),
-/// so that the author of the condition can reject it.
+/// If `value` names a package, the condition only matches releases of that package. Without a
+/// package, it matches releases of every package.
+///
+/// The condition does not match if the field or `value` has no version, such as a commit hash. A
+/// condition with such a `value` is not [supported](RuleCondition::supported), so that the author
+/// of the condition can reject it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SemverCondition {
     /// Path of the field that holds the release.
     pub name: String,
     /// The comparison to apply between the field and the value.
     pub comparator: SemverComparator,
-    /// The semantic version to compare the field against.
+    /// The release to compare the field against, such as `1.2.0` or `myapp@1.2.0`.
     pub value: String,
 }
 
 impl SemverCondition {
-    /// Creates a condition that compares the semantic version of a release.
+    /// Creates a condition that compares the version of a release.
     pub fn new(
         field: impl Into<String>,
         comparator: SemverComparator,
@@ -386,7 +390,10 @@ impl SemverCondition {
             return false;
         };
 
-        let ordering = release.cmp_precedence(&value);
+        let Some(ordering) = release.compare(&value) else {
+            return false;
+        };
+
         match self.comparator {
             SemverComparator::Eq => ordering.is_eq(),
             SemverComparator::Gt => ordering.is_gt(),
@@ -657,7 +664,7 @@ pub enum RuleCondition {
     /// ```
     Cidr(CidrCondition),
 
-    /// A condition that compares the semantic version of a release.
+    /// A condition that compares the version of a release.
     ///
     /// # Example
     ///
@@ -821,7 +828,7 @@ impl RuleCondition {
         Self::Cidr(CidrCondition::new(field, value))
     }
 
-    /// Creates a condition that compares the semantic version of a release.
+    /// Creates a condition that compares the version of a release.
     ///
     /// # Example
     ///
@@ -1484,8 +1491,9 @@ mod tests {
         let gte = |field, value| RuleCondition::semver(field, SemverComparator::Gte, value);
         let mut trace = mock_trace();
 
-        assert!(!gte("trace.release", "1.1").matches(&trace));
-        assert!(!gte("trace.release", "1.1").supported());
+        assert!(!gte("trace.release", "a4b7e0f9c2d1").matches(&trace));
+        assert!(!gte("trace.release", "a4b7e0f9c2d1").supported());
+        assert!(!gte("trace.release", "myapp@1.0.0").matches(&trace));
         assert!(!gte("trace.missing", "1.0.0").matches(&trace));
         assert!(!gte("trace.client_ip", "1.0.0").matches(&trace));
 

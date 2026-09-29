@@ -257,9 +257,7 @@ def test_validate_semver_condition():
 
 
 def test_invalid_semver_condition():
-    condition = (
-        '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "1.2"}'
-    )
+    condition = '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "a4b7e0f"}'
     with pytest.raises(ValueError):
         sentry_relay.validate_rule_condition(condition)
 
