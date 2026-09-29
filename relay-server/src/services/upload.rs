@@ -257,7 +257,7 @@ impl FromMessage<Stream> for Upload {
 pub fn create_service(
     config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
-    project_cache: ProjectCacheHandle,
+    #[cfg(feature = "processing")] project_cache: ProjectCacheHandle,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
     let current_config = config.current();
@@ -270,6 +270,7 @@ pub fn create_service(
     let service = Service {
         timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
+        #[cfg(feature = "processing")]
         project_cache,
     };
     ConcurrentService::new(service)
@@ -301,6 +302,7 @@ fn create_backend(
 pub struct Service {
     timeout: Duration,
     backend: Backend,
+    #[cfg(feature = "processing")]
     project_cache: ProjectCacheHandle,
 }
 
