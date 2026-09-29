@@ -7,6 +7,7 @@
 - Stop producing generic metrics (spans/transactions metric buckets) to Kafka and remove the
   `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
   unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
+- Stop accepting metrics in statsd format. ([#6428](https://github.com/getsentry/relay/pull/6428))
 
 **Features**:
 
