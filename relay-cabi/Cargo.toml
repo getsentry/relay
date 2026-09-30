@@ -26,6 +26,7 @@ relay-dynamic-config = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-ffi = { workspace = true }
+relay-pattern = { workspace = true }
 relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-sampling = { workspace = true }

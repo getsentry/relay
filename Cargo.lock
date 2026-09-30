@@ -4474,6 +4474,7 @@ dependencies = [
  "relay-event-normalization",
  "relay-event-schema",
  "relay-ffi",
+ "relay-pattern",
  "relay-pii",
  "relay-protocol",
  "relay-sampling",
