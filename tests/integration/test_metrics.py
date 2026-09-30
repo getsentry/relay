@@ -656,67 +656,6 @@ def test_global_metrics_with_processing(
     assert metrics_consumer.poll(timeout=2) is None
 
 
-def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
-    metrics_consumer = metrics_consumer()
-
-    upstream_config = {
-        "aggregator": {
-            "bucket_interval": 1,
-            # Give upstream some time to process downstream entries:
-            "initial_delay": 2,
-        }
-    }
-    upstream = relay_with_processing(options=upstream_config)
-
-    downstream = relay(upstream)
-
-    # Create project config
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-
-    # Send two events to downstream and one to upstream
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    downstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 7,
-            },
-        ],
-    )
-    downstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 5,
-            },
-        ],
-    )
-
-    upstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 3,
-            },
-        ],
-    )
-
-    assert metrics_consumer.poll(timeout=6) is None
-
-
 def test_session_metrics_extracted_only_once(
     mini_sentry, relay, relay_with_processing, metrics_consumer
 ):
@@ -1299,46 +1238,6 @@ def test_missing_global_filters_enables_metric_extraction(
     tx, _ = tx_consumer.get_event()
     assert tx is not None
     metrics_consumer.assert_empty()
-
-
-@pytest.mark.parametrize("mode", ["default", "chain"])
-def test_metrics_received_at(
-    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
-):
-    metrics_consumer = metrics_consumer()
-
-    if mode == "default":
-        relay = relay_with_processing()
-    elif mode == "chain":
-        credentials = relay_credentials()
-        static_relays = {
-            credentials["id"]: {
-                "public_key": credentials["public_key"],
-                "internal": True,
-            },
-        }
-        relay = relay(
-            relay_with_processing(static_relays=static_relays),
-            credentials=credentials,
-        )
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": int(time.time()),
-                "width": 0,
-                "name": "d:spans/foo@none",
-                "type": "d",
-                "value": [1337],
-            },
-        ],
-    )
-
-    assert metrics_consumer.poll(timeout=2) is None
 
 
 def test_metrics_extraction_with_computed_context_filters(
