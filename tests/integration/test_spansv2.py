@@ -13,12 +13,6 @@ import json
 import pytest
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    }
-}
-
 
 def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
     envelope = Envelope()
@@ -38,7 +32,7 @@ def test_spansv2_broken_segment_id(mini_sentry, relay):
     """Verify the outcome emitted for a malformed segment ID."""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     trace_id = uuid.uuid4().hex
     ts = datetime.now(timezone.utc).timestamp()
@@ -105,7 +99,7 @@ def test_spansv2_basic(
         ["organizations:relay-generate-billing-outcome"]
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -269,7 +263,6 @@ def test_spansv2_trimming_basic(
         "limits": {
             "max_removed_attribute_key_size": 30,
         },
-        **TEST_CONFIG,
     }
 
     relay = relay(relay_with_processing(options=config), options=config)
@@ -436,7 +429,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -527,7 +520,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         }
     ]
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     envelope = envelope_with_spans(
         {
@@ -612,7 +605,7 @@ def test_spansv2_client_sample_rate(
     trace_id = "5b8efff798038103d269b633813fc60c"
     public_key = project_config["publicKeys"][0]["publicKey"]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
@@ -700,7 +693,7 @@ def test_spansv2_ds_sampled(
 
     trace_id = "5b8efff798038103d269b633813fc60c"
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -775,7 +768,6 @@ def test_spansv2_ds_root_in_different_org(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
-            **TEST_CONFIG,
             "cache": {"project_request_full_config": True},
             "http": {"global_metrics": True},
         },
@@ -922,7 +914,7 @@ def test_spanv2_inbound_filters(
 
     project_config["config"]["filterSettings"] = filter_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -988,7 +980,7 @@ def test_spans_v2_multiple_containers_not_allowed(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -1055,7 +1047,7 @@ def test_spans_v2_dsc_validations(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -1120,7 +1112,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1206,7 +1198,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
         },
     )
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1256,7 +1248,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
         "scrubDefaults": True,
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1355,7 +1347,7 @@ def test_spansv2_attribute_normalization(
         {"retentions": {"span": {"standard": 42, "downsampled": 1337}}}
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
@@ -1539,7 +1531,7 @@ def test_invalid_spans(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1651,7 +1643,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "span": {"standard": 1, "downsampled": 100},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 

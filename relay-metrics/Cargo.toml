@@ -36,7 +36,6 @@ serde_json = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
-unescaper = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

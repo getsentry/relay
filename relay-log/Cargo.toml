@@ -17,14 +17,13 @@ workspace = true
 default = []
 test = ["dep:tracing-subscriber"]
 init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
-crash-handler = ["init", "dep:minidumper-child"]
+crash-handler = ["init", "sentry/minidump"]
 sentry = ["dep:sentry"]
 
 [dependencies]
 relay-common = { workspace = true }
 
 console = { workspace = true, optional = true }
-minidumper-child = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",

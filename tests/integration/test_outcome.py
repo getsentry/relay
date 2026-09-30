@@ -1402,6 +1402,8 @@ def test_span_outcomes(
             credentials = None
             config["outcomes"]["source"] = "external-relay"
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
+            config.setdefault("cache", {})["project_request_full_config"] = False
+
         upstream = relay(upstream, config, credentials=credentials)
 
     def make_envelope(transaction_name):

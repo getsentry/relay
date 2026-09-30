@@ -123,7 +123,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
-        ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
@@ -755,7 +754,6 @@ impl Enforcement {
             | ItemType::RawSecurity
             | ItemType::UnrealReport
             | ItemType::Sessions
-            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2  // This is an event type.

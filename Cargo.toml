@@ -129,7 +129,6 @@ either = "1"
 flate2 = "1"
 flume = { version = "0.11", default-features = false }
 futures = { version = "0.3", default-features = false, features = ["std"] }
-globset = "0.4"
 hash32 = "1"
 hashbrown = "0.15"
 hex = "0.4"
@@ -147,7 +146,6 @@ itertools = "0.14"
 json-forensics = "0.1"
 libc = "0.2"
 liblzma = "0.4"
-lru = "0.16"
 lz4_flex = "0.13.1"
 maxminddb = "0.27"
 md5 = "0.8"
@@ -156,7 +154,6 @@ mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
 mime_guess = "2.0.5"
 minidump = "0.26"
-minidumper-child = "0.4.1"
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
@@ -197,7 +194,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 rmp-serde = "1"
 semver = "1"
-sentry = { version = "0.48", default-features = false, features = [
+sentry = { version = "0.49", default-features = false, features = [
     # default features, except `release-health` is disabled
     "backtrace",
     "contexts",
@@ -206,12 +203,12 @@ sentry = { version = "0.48", default-features = false, features = [
     "transport",
 ] }
 sentry_arroyo = "2.44.1"
-sentry-core = "0.48"
+sentry-core = "0.49"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [
     "semver-1",
 ] }
-sentry-types = "0.41"
+sentry-types = "0.49"
 sentry_protos = "0.7"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1"
@@ -244,7 +241,6 @@ tower-http = { version = "0.6", default-features = false }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uaparser = "0.6"
-unescaper = "0.1"
 unicase = "2"
 url = "2"
 utf16string = "0.2"

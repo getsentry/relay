@@ -1,8 +1,8 @@
 use relay_conventions::attributes::{
-    BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__WEB_VITAL__CLS__VALUE,
-    BROWSER__WEB_VITAL__FCP__VALUE, BROWSER__WEB_VITAL__INP__INTERACTION_TYPE,
-    BROWSER__WEB_VITAL__INP__TARGET, BROWSER__WEB_VITAL__INP__VALUE,
-    BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
+    BROWSER__NAME, BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__VERSION,
+    BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE,
+    BROWSER__WEB_VITAL__INP__INTERACTION_TYPE, BROWSER__WEB_VITAL__INP__TARGET,
+    BROWSER__WEB_VITAL__INP__VALUE, BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
     BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
     BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
@@ -18,6 +18,12 @@ use std::collections::BTreeMap;
 
 const MAX_CLS_SOURCES: u32 = 128;
 
+#[allow(
+    deprecated,
+    reason = "Spans converted from a transaction carry the browser name as a legacy span tag."
+)]
+const LEGACY_BROWSER_NAME: &str = relay_conventions::attributes::SENTRY__BROWSER__NAME;
+
 const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "pageload",
     "ui.webvital.lcp",
@@ -28,7 +34,9 @@ const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "ui.interaction.press",
 ];
 
-const COMMON_ATTRIBUTES: [&str; 11] = [
+const COMMON_ATTRIBUTES: [&str; 13] = [
+    BROWSER__NAME,
+    BROWSER__VERSION,
     BROWSER__NAVIGATION__TYPE,
     BROWSER__NAVIGATION__ID,
     SENTRY__PAGELOAD__SPAN_ID,
@@ -152,6 +160,12 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
             }
         }
 
+        if !attributes.contains_key(BROWSER__NAME)
+            && let Some(v) = attrs.get_attribute(LEGACY_BROWSER_NAME)
+        {
+            attributes.insert(BROWSER__NAME, v.value.clone());
+        }
+
         // This is for attribution: we'll be able to tell on a metric if it came from relay.
         attributes.insert(SENTRY__METRIC__SOURCE, "span");
 
@@ -179,9 +193,39 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::protocol::Span as SpanV1;
     use relay_protocol::{Annotated, SerializableAnnotated};
 
     use super::*;
+
+    #[test]
+    fn test_browser_name_legacy_span() {
+        let span = Annotated::<SpanV1>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "op": "ui.interaction.press",
+                "origin": "auto.http.browser.inp",
+                "start_timestamp": 1742921669.25,
+                "timestamp": 1742921669.75,
+                "measurements": {"inp": {"value": 104.0, "unit": "millisecond"}},
+                "sentry_tags": {"browser.name": "Safari"}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = crate::span_v1_to_span_v2(span, true);
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 1);
+
+        let attributes = metrics[0].attributes.value().unwrap();
+        assert_eq!(
+            attributes.get_value(BROWSER__NAME).and_then(|v| v.as_str()),
+            Some("Safari")
+        );
+    }
 
     #[test]
     fn test_inp_attributes() {

@@ -572,7 +572,7 @@ mod tests {
     #[test]
     fn test_empty_config() -> Result<(), serde_json::Error> {
         let filters_config = serde_json::from_str::<ProjectFiltersConfig>("{}")?;
-        insta::assert_debug_snapshot!(filters_config, @r###"
+        insta::assert_debug_snapshot!(filters_config, @r"
         ProjectFiltersConfig {
             browser_extensions: FilterConfig {
                 is_enabled: false,
@@ -587,7 +587,12 @@ mod tests {
                 disallowed_sources: [],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: [],
+                patterns: Patterns {
+                    strategies: [],
+                    options: Options {
+                        case_insensitive: true,
+                    },
+                },
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
@@ -597,10 +602,20 @@ mod tests {
                 is_enabled: false,
             },
             releases: ReleasesFilterConfig {
-                releases: [],
+                releases: Patterns {
+                    strategies: [],
+                    options: Options {
+                        case_insensitive: true,
+                    },
+                },
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
-                patterns: [],
+                patterns: Patterns {
+                    strategies: [],
+                    options: Options {
+                        case_insensitive: true,
+                    },
+                },
                 is_enabled: false,
             },
             generic: GenericFiltersConfig {
@@ -610,7 +625,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        ");
         Ok(())
     }
 
@@ -660,7 +675,7 @@ mod tests {
             },
         };
 
-        insta::assert_json_snapshot!(filters_config, @r###"
+        insta::assert_json_snapshot!(filters_config, @r#"
         {
           "browserExtensions": {
             "isEnabled": true
@@ -680,7 +695,7 @@ mod tests {
           },
           "errorMessages": {
             "patterns": [
-              "Panic"
+              "panic"
             ]
           },
           "legacyBrowsers": {
@@ -719,7 +734,7 @@ mod tests {
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

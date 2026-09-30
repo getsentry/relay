@@ -614,7 +614,6 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::UserReport => Self::UserReport,
             ItemType::Session => Self::Session,
             ItemType::Sessions => Self::Sessions,
-            ItemType::Statsd => Self::Statsd,
             ItemType::MetricBuckets => Self::MetricBuckets,
             ItemType::ClientReport => Self::ClientReport,
             ItemType::Profile => Self::Profile,
