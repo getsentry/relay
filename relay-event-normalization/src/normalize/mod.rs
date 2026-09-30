@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
 pub mod contexts;
+pub mod integrity;
 pub mod nel;
 pub mod request;
 pub mod span;

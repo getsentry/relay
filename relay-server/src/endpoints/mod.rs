@@ -98,6 +98,7 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .route("/api/{project_id}/security/", security_report::route(config))
         .route("/api/{project_id}/csp-report/", security_report::route(config))
         .route("/api/{project_id}/nel/", nel::route(config))
+        .route("/api/{project_id}/integration/integrity/", integrations::integrity::route(config))
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
