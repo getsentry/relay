@@ -37,8 +37,7 @@
 //!
 //! For untrusted user input it is highly recommended to limit the maximum complexity.
 
-use std::borrow::Borrow;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::num::NonZeroUsize;
 
 mod typed;
@@ -101,9 +100,17 @@ impl fmt::Display for Error {
 }
 
 /// `Pattern` represents a successfully parsed Relay pattern.
-#[derive(Debug, Clone)]
+///
+/// A pattern can be parsed/de-serialized from a string, serializing a pattern again may not produce
+/// the same original pattern but a normalized variant of the pattern.
+///
+/// ```
+/// # use relay_pattern::Pattern;
+/// let pattern = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// assert_eq!(&pattern.to_string(), "foo*");
+/// ```
+#[derive(Clone)]
 pub struct Pattern {
-    pattern: Box<str>,
     options: Options,
     strategy: MatchStrategy,
 }
@@ -130,29 +137,19 @@ impl Pattern {
     }
 }
 
+impl fmt::Debug for Pattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Pattern")
+            .field("<pattern>", &self.to_string())
+            .field("options", &self.options)
+            .field("strategy", &self.strategy)
+            .finish()
+    }
+}
+
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.pattern)
-    }
-}
-
-impl PartialEq for Pattern {
-    fn eq(&self, other: &Self) -> bool {
-        self.pattern == other.pattern
-    }
-}
-
-impl Eq for Pattern {}
-
-impl Borrow<str> for Pattern {
-    fn borrow(&self) -> &str {
-        &self.pattern
-    }
-}
-
-impl std::hash::Hash for Pattern {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pattern.hash(state);
+        self.strategy.fmt(f)
     }
 }
 
@@ -162,7 +159,7 @@ impl serde::Serialize for Pattern {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.pattern)
+        serializer.collect_str(&self)
     }
 }
 
@@ -180,7 +177,7 @@ impl<'de> serde::Deserialize<'de> for Pattern {
 /// A collection of [`Pattern`]s sharing the same configuration.
 #[derive(Debug, Clone)]
 pub struct Patterns {
-    strategies: Vec<MatchStrategy>,
+    strategies: Box<[MatchStrategy]>,
     options: Options,
 }
 
@@ -196,7 +193,7 @@ impl Patterns {
     /// ```
     pub fn empty() -> Self {
         Self {
-            strategies: Vec::new(),
+            strategies: Default::default(),
             options: Options::default(),
         }
     }
@@ -276,7 +273,6 @@ impl PatternBuilder<'_> {
             })?;
 
         Ok(Pattern {
-            pattern: self.pattern.into(),
             options: self.options,
             strategy,
         })
@@ -349,7 +345,7 @@ impl PatternsBuilderConfigured {
     /// Builds a [`Patterns`] from the contained patterns.
     pub fn build(self) -> Patterns {
         Patterns {
-            strategies: self.strategies,
+            strategies: self.strategies.into_boxed_slice(),
             options: self.options,
         }
     }
@@ -359,7 +355,7 @@ impl PatternsBuilderConfigured {
     /// The builder can still be used afterwards, it keeps the configuration.
     pub fn take(&mut self) -> Patterns {
         Patterns {
-            strategies: std::mem::take(&mut self.strategies),
+            strategies: std::mem::take(&mut self.strategies).into_boxed_slice(),
             options: self.options,
         }
     }
@@ -441,6 +437,31 @@ impl MatchStrategy {
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, options),
             MatchStrategy::Static(matches) => *matches,
             MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, options),
+        }
+    }
+}
+
+impl fmt::Display for MatchStrategy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MatchStrategy::Literal(literal) => literal.fmt(f),
+            MatchStrategy::Prefix(literal) => {
+                literal.fmt(f)?;
+                f.write_char('*')
+            }
+            MatchStrategy::Suffix(literal) => {
+                f.write_char('*')?;
+                literal.fmt(f)
+            }
+            MatchStrategy::Contains(literal) => {
+                f.write_char('*')?;
+                literal.fmt(f)?;
+                f.write_char('*')
+            }
+            MatchStrategy::Static(true) => f.write_char('*'),
+            // This is the empty glob, which never matches.
+            MatchStrategy::Static(false) => Ok(()),
+            MatchStrategy::Wildmatch(tokens) => tokens.fmt(f),
         }
     }
 }
@@ -759,7 +780,7 @@ impl Tokens {
             } else if alternates.len() > 1 {
                 if contains_empty {
                     // Case: {foo,bar,} -> Optional({foo,bar})
-                    token = Token::Optional(Tokens(vec![Token::Alternates(alternates)]));
+                    token = Token::OptionalAlternates(alternates);
                 } else {
                     // Case: {foo, bar} -> can stay as it is
                     token = Token::Alternates(alternates);
@@ -794,6 +815,16 @@ impl Tokens {
     }
 }
 
+impl fmt::Display for Tokens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for token in &self.0 {
+            token.fmt(f)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Represents a token in a Relay pattern.
 #[derive(Clone, Debug)]
 enum Token {
@@ -807,12 +838,68 @@ enum Token {
     Class { negated: bool, ranges: Ranges },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
+    /// A list of nested alternate tokens, where none need to match.
+    ///
+    /// There is no dedicated syntax for this, it is parsed from an alternate
+    /// group with an empty alternate: `{a,b,}`.
+    OptionalAlternates(Vec<Tokens>),
     /// A list of optional tokens.
     ///
-    /// This has no syntax of its own, it's parsed
-    /// from alternatives containing empty branches
-    /// like `{a,b,}`.
+    /// This has no syntax of its own, it's parsed from an alternate with two
+    /// alternations where one of them is empty: `{a,}`.
     Optional(Tokens),
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Literal(literal) => literal.fmt(f),
+            Token::Any(num) => {
+                for _ in 0..num.get() {
+                    f.write_char('?')?;
+                }
+                Ok(())
+            }
+            Token::Wildcard => f.write_char('*'),
+            Token::Class { negated, ranges } => {
+                f.write_char('[')?;
+                if *negated {
+                    f.write_char('!')?;
+                }
+                ranges.fmt(f)?;
+                f.write_char(']')
+            }
+            Token::Alternates(items) => {
+                f.write_char('{')?;
+                let mut is_first = true;
+                for item in items {
+                    if !is_first {
+                        f.write_char(',')?;
+                    } else {
+                        is_first = false;
+                    }
+                    item.fmt(f)?;
+                }
+                f.write_char('}')
+            }
+            Token::OptionalAlternates(items) => {
+                f.write_char('{')?;
+                for item in items {
+                    item.fmt(f)?;
+                    // This will always produce an empty group as the last item in the alternate,
+                    // which is exactly what this token is built from.
+                    f.write_char(',')?;
+                }
+                f.write_char('}')
+            }
+            Token::Optional(tokens) => {
+                f.write_char('{')?;
+                tokens.fmt(f)?;
+                f.write_char(',')?;
+                f.write_char('}')
+            }
+        }
+    }
 }
 
 /// A string literal.
@@ -847,6 +934,24 @@ impl Literal {
     /// Returns a reference to the case converted string as bytes.
     fn as_case_converted_bytes(&self) -> &[u8] {
         self.as_case_converted_str().as_bytes()
+    }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn print_escaped_char(c: char, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // A comma must be escaped if the surrounding context is an alternation,
+            // to not make the printing context dependent the comma is always escaped.
+            if matches!(c, '*' | '?' | '[' | ']' | '{' | '}' | '\\' | ',') {
+                f.write_char('\\')?;
+            }
+            f.write_char(c)
+        }
+
+        for c in self.0.chars() {
+            print_escaped_char(c, f)?;
+        }
+        Ok(())
     }
 }
 
@@ -921,6 +1026,21 @@ impl Ranges {
     }
 }
 
+impl fmt::Display for Ranges {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ranges::Empty => Ok(()),
+            Ranges::Single(range) => range.fmt(f),
+            Ranges::Multiple(ranges) => {
+                for range in ranges {
+                    range.fmt(f)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 /// Represents a character range in a [`Token::Class`].
 #[derive(Clone, Copy, Debug)]
 struct Range {
@@ -953,39 +1073,76 @@ impl Range {
     }
 }
 
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn print_escaped_char(c: char, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // The `!` only needs to be escaped if the range is the first range in a class,
+            // to not make the escaping context dependent it's always escaped. Similar reasoning
+            // applies also to `-`.
+            if matches!(c, '[' | ']' | '\\' | '!' | '-') {
+                f.write_char('\\')?;
+            }
+            f.write_char(c)
+        }
+
+        print_escaped_char(self.start, f)?;
+        if self.start != self.end {
+            f.write_char('-')?;
+            print_escaped_char(self.end, f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[track_caller]
+    fn build_pattern(p: &str, options: &str) -> Pattern {
+        let mut pattern = Pattern::builder(p);
+        for opt in options.chars() {
+            match opt {
+                'i' => {
+                    pattern.case_insensitive(true);
+                }
+                _ => unimplemented!("{opt} not implemented"),
+            }
+        }
+        pattern.build().unwrap()
+    }
+
     macro_rules! assert_pattern {
         ($pattern:expr, $s:expr $(,$options:tt)?) => {{
-            let mut pattern = Pattern::builder($pattern);
-            for opt in stringify!($($options)?).chars() {
-                match opt {
-                    'i' => { pattern.case_insensitive(true); }
-                    _ => {}
-                }
-            }
-            let pattern = pattern.build().unwrap();
+            let options = stringify!($($options)?);
+            let pattern = build_pattern($pattern, options);
             assert!(
                 pattern.is_match($s),
                 "expected pattern '{}' to match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
+            let pattern = build_pattern(&pattern.to_string(), options);
+            assert!(
+                pattern.is_match($s),
+                "expected round-tripped pattern '{}' to match '{}' - {pattern:?}",
+                $pattern,
+                $s
+            );
         }};
         ($pattern:expr, NOT $s:expr $(,$options:tt)?) => {{
-            let mut pattern = Pattern::builder($pattern);
-            for opt in stringify!($($options)?).chars() {
-                match opt {
-                    'i' => { pattern.case_insensitive(true); }
-                    _ => {}
-                }
-            }
-            let pattern = pattern.build().unwrap();
+            let options = stringify!($($options)?);
+            let pattern = build_pattern($pattern, options);
             assert!(
                 !pattern.is_match($s),
                 "expected pattern '{}' to not match '{}' - {pattern:?}",
+                $pattern,
+                $s
+            );
+            let pattern = build_pattern(&pattern.to_string(), options);
+            assert!(
+                !pattern.is_match($s),
+                "expected round-tripped pattern '{}' to not match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
@@ -1065,6 +1222,8 @@ mod tests {
     fn test_prefix() {
         assert_pattern!("foo*", "foo___");
         assert_pattern!("foo*", "foo");
+        assert_pattern!(r"foo\?*", "foo?___");
+        assert_pattern!(r"foo\?*", NOT "foox___");
         assert_pattern!("foo**", "foo");
         assert_pattern!("foo*?*", NOT "foo");
         assert_pattern!("foo*?*", "foo_");
@@ -1116,6 +1275,8 @@ mod tests {
     fn test_suffix() {
         assert_pattern!("*foo", "___foo");
         assert_pattern!("*foo", "foo");
+        assert_pattern!(r"*\?foo", "___?foo");
+        assert_pattern!(r"*\?foo", NOT "___xfoo");
         assert_pattern!("**foo", "foo");
         assert_pattern!("*?*foo", NOT "foo");
         assert_pattern!("*?*foo", "_foo");
@@ -1167,6 +1328,8 @@ mod tests {
     #[test]
     fn test_contains() {
         assert_pattern!("*foo*", "foo");
+        assert_pattern!(r"*\?foo*", "___?foo___");
+        assert_pattern!(r"*\?foo*", NOT "___xfoo___");
         assert_pattern!("*foo*", "foo___");
         assert_pattern!("*foo*", "___foo");
         assert_pattern!("*foo*", "___foo___");
@@ -1315,6 +1478,8 @@ mod tests {
         assert_pattern!(r"f\\o", r"f\o");
         assert_pattern!(r"f\*o", r"f*o");
         assert_pattern!(r"f\*o", NOT r"f\*o");
+        assert_pattern!(r"f\?o", "f?o");
+        assert_pattern!(r"f\?o", NOT "fao");
         assert_pattern!(r"f\\*o", r"f\*o");
         assert_pattern!(r"f\\*o", r"f\o");
         assert_pattern!(r"f\\*o", r"f\___o");
@@ -1324,6 +1489,7 @@ mod tests {
         assert_pattern!(r"f\[a-z\]o", r"f[a-z]o");
         assert_pattern!(r"f\[o", r"f[o");
         assert_pattern!(r"f\]o", r"f]o");
+        assert_pattern!(r"f\,o", "f,o");
         assert_pattern!(r"\[", r"[");
     }
 
@@ -1431,6 +1597,36 @@ mod tests {
         assert_pattern!(r"[\[]", "[");
         assert_pattern!(r"[\[]", NOT "a");
         assert_pattern!(r"[\]]", NOT r"\");
+        assert_pattern!(r"[\!]", "!");
+        assert_pattern!(r"[\!]", NOT "a");
+        assert_pattern!(r"[a\-c]", "-");
+        assert_pattern!(r"[a\-c]", NOT "b");
+        assert_pattern!(r"[\!--]", "!");
+        assert_pattern!(r"[\!--]", "-");
+        assert_pattern!(r"[\!--]", NOT "a");
+        assert_pattern!(r"[\[-a]", "[");
+        assert_pattern!(r"[\[-a]", "a");
+        assert_pattern!(r"[\[-a]", NOT "b");
+        assert_pattern!(r"[A-\]]", "]");
+        assert_pattern!(r"[A-\]]", "Z");
+        assert_pattern!(r"[A-\]]", NOT "a");
+        assert_pattern!(r"[A-\\]", r"\");
+        assert_pattern!(r"[A-\\]", NOT "a");
+        assert_pattern!(r"[\]-z]", "]");
+        assert_pattern!(r"[\]-z]", "z");
+        assert_pattern!(r"[\]-z]", NOT r"\");
+        assert_pattern!(r"[\\-z]", r"\");
+        assert_pattern!(r"[\\-z]", "z");
+        assert_pattern!(r"[\\-z]", NOT "[");
+        assert_pattern!(r"[\--z]", "-");
+        assert_pattern!(r"[\--z]", "z");
+        assert_pattern!(r"[\--z]", NOT "!");
+        assert_pattern!("[*?{},]", "*");
+        assert_pattern!("[*?{},]", "?");
+        assert_pattern!("[*?{},]", "{");
+        assert_pattern!("[*?{},]", "}");
+        assert_pattern!("[*?{},]", ",");
+        assert_pattern!("[*?{},]", NOT "a");
 
         assert_pattern!("a[X-]b", "a-b");
         assert_pattern!("a[X-]b", "aXb");
@@ -1452,6 +1648,8 @@ mod tests {
     #[test]
     fn test_classes_negated() {
         assert_pattern!("[!]", NOT "");
+        assert_pattern!(r"[!\!]", "a");
+        assert_pattern!(r"[!\!]", NOT "!");
         assert_pattern!("[!a]", "b");
         assert_pattern!("[!a]", "A");
         assert_pattern!("[!a]", "B");
@@ -1505,6 +1703,16 @@ mod tests {
         assert_pattern!("{foo}", NOT "bar");
         assert_pattern!("{foo,bar}", "foo");
         assert_pattern!("{foo,bar}", "bar");
+        assert_pattern!(r"{foo,bar,baz\,}", "foo");
+        assert_pattern!(r"{foo,bar,baz\,}", "baz,");
+        assert_pattern!(r"{foo,bar,baz\,}", NOT "baz");
+        assert_pattern!(r"{foo,bar,baz\,}", NOT "");
+        assert_pattern!(r"{foo\,,}", "foo,");
+        assert_pattern!(r"{foo\,,}", "");
+        assert_pattern!(r"{foo\,,}", NOT "foo");
+        assert_pattern!(r"{foo,bar\,,}", "bar,");
+        assert_pattern!(r"{foo,bar\,,}", "");
+        assert_pattern!(r"{foo,bar\,,}", NOT "bar");
         assert_pattern!("{foo,bar}", NOT "Foo");
         assert_pattern!("{foo,bar}", NOT "fOo");
         assert_pattern!("{foo,bar}", NOT "BAR");

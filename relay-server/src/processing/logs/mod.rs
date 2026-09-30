@@ -157,7 +157,7 @@ impl processing::Processor for LogsProcessor {
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        let mut logs = process::expand(logs)?;
+        let mut logs = process::expand(logs, ctx.config.max_expanded_log_operations())?;
 
         validate::size(&mut logs, ctx);
 

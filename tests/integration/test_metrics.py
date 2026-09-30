@@ -341,7 +341,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
 
 
 @pytest.mark.parametrize(
-    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 5), (50, 0)]
+    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 6), (50, 0)]
 )
 def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_events):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever

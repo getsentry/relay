@@ -297,7 +297,7 @@ pub struct ModelMetadata {
 
     /// The mappings of model ID => metadata as a dictionary.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<Pattern, ModelMetadataEntry>,
+    pub models: HashMap<ModelPattern, ModelMetadataEntry>,
 }
 
 impl ModelMetadata {
@@ -348,6 +348,72 @@ impl ModelMetadata {
                 None
             }
         })
+    }
+}
+
+/// A [`Pattern`] which remembers its original pattern and can be stored in a hash-map.
+#[derive(Debug, Clone)]
+pub struct ModelPattern {
+    original: Box<str>,
+    pattern: Pattern,
+}
+
+impl ModelPattern {
+    /// Returns `true` if the pattern matches the passed string.
+    pub fn is_match(&self, haystack: &str) -> bool {
+        self.pattern.is_match(haystack)
+    }
+}
+
+impl std::cmp::PartialEq for ModelPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.original == other.original
+    }
+}
+
+impl std::cmp::Eq for ModelPattern {}
+
+impl std::hash::Hash for ModelPattern {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.original.hash(state);
+    }
+}
+
+impl std::borrow::Borrow<str> for ModelPattern {
+    fn borrow(&self) -> &str {
+        &self.original
+    }
+}
+
+impl std::str::FromStr for ModelPattern {
+    type Err = relay_pattern::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            original: s.into(),
+            pattern: Pattern::new(s)?,
+        })
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for ModelPattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let original = Box::<str>::deserialize(deserializer)?;
+        let pattern = Pattern::new(&original).map_err(serde::de::Error::custom)?;
+
+        Ok(Self { original, pattern })
+    }
+}
+
+impl serde::ser::Serialize for ModelPattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.original)
     }
 }
 
