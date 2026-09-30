@@ -156,8 +156,8 @@ impl FromMessage<Create> for Objectstore {
     }
 }
 
-#[derive(Clone)]
 /// Context for a stream that can be uploaded to objectstore.
+#[derive(Clone)]
 pub enum StreamContext {
     Oneshot(ByteCounter),
     Resumable {

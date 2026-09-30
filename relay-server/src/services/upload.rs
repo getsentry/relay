@@ -580,7 +580,7 @@ pub struct Location<L> {
     pub length: L,
     /// Identifies the upload in case the created location has a resumable upload assigned to it.
     ///
-    /// Note that if Defer-Length-1 then this is always None.
+    /// Note that if `Upload-Defer-Length: 1` then this is always None.
     pub upload_id: Option<String>,
     pub other: UploadParams,
 }
