@@ -1096,7 +1096,7 @@
 <a href=#1096 id=1096 data-nosnippet>1096</a>        <span class="kw">let </span>rules: <span class="prelude-ty">Result</span>&lt;Vec&lt;RuleCondition&gt;, <span class="kw">_</span>&gt; = serde_json::from_str(serialized_rules);
 <a href=#1097 id=1097 data-nosnippet>1097</a>        <span class="macro">assert!</span>(rules.is_ok());
 <a href=#1098 id=1098 data-nosnippet>1098</a>        <span class="kw">let </span>rules = rules.unwrap();
-<a href=#1099 id=1099 data-nosnippet>1099</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rules, @<span class="string">r###"
+<a href=#1099 id=1099 data-nosnippet>1099</a>        <span class="macro">insta::assert_ron_snapshot!</span>(rules, @<span class="string">r#"
 <a href=#1100 id=1100 data-nosnippet>1100</a>        [
 <a href=#1101 id=1101 data-nosnippet>1101</a>          EqCondition(
 <a href=#1102 id=1102 data-nosnippet>1102</a>            op: "eq",
@@ -1174,7 +1174,7 @@
 <a href=#1174 id=1174 data-nosnippet>1174</a>              op: "glob",
 <a href=#1175 id=1175 data-nosnippet>1175</a>              name: "value",
 <a href=#1176 id=1176 data-nosnippet>1176</a>              value: [
-<a href=#1177 id=1177 data-nosnippet>1177</a>                "*Exception",
+<a href=#1177 id=1177 data-nosnippet>1177</a>                "*exception",
 <a href=#1178 id=1178 data-nosnippet>1178</a>              ],
 <a href=#1179 id=1179 data-nosnippet>1179</a>            ),
 <a href=#1180 id=1180 data-nosnippet>1180</a>          ),
@@ -1185,12 +1185,12 @@
 <a href=#1185 id=1185 data-nosnippet>1185</a>              op: "glob",
 <a href=#1186 id=1186 data-nosnippet>1186</a>              name: "value",
 <a href=#1187 id=1187 data-nosnippet>1187</a>              value: [
-<a href=#1188 id=1188 data-nosnippet>1188</a>                "*Exception",
+<a href=#1188 id=1188 data-nosnippet>1188</a>                "*exception",
 <a href=#1189 id=1189 data-nosnippet>1189</a>              ],
 <a href=#1190 id=1190 data-nosnippet>1190</a>            ),
 <a href=#1191 id=1191 data-nosnippet>1191</a>          ),
 <a href=#1192 id=1192 data-nosnippet>1192</a>        ]
-<a href=#1193 id=1193 data-nosnippet>1193</a>        "###</span>);
+<a href=#1193 id=1193 data-nosnippet>1193</a>        "#</span>);
 <a href=#1194 id=1194 data-nosnippet>1194</a>    }
 <a href=#1195 id=1195 data-nosnippet>1195</a>
 <a href=#1196 id=1196 data-nosnippet>1196</a>    <span class="attr">#[test]
