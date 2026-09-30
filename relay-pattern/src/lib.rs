@@ -109,7 +109,24 @@ impl fmt::Display for Error {
 /// let pattern = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
 /// assert_eq!(&pattern.to_string(), "foo*");
 /// ```
-#[derive(Clone)]
+///
+/// Patterns can be compared with other patterns, a pattern is considered equal with another pattern
+/// if its parsed and normalized forms and options are the same. Two patterns with the same options
+/// but built from different strings may compare equal if their normalized forms are the same.
+///
+/// ```
+/// # use relay_pattern::Pattern;
+/// let pattern1 = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// let pattern2 = Pattern::builder("foo*").case_insensitive(true).build().unwrap();
+/// assert_eq!(&pattern1, &pattern2);
+/// # assert_eq!(&pattern2, &pattern1);
+///
+/// let pattern1 = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// let pattern2 = Pattern::builder("foo*").case_insensitive(false).build().unwrap();
+/// assert_ne!(&pattern1, &pattern2);
+/// # assert_ne!(&pattern2, &pattern1);
+/// ```
+#[derive(Clone, PartialEq, Eq)]
 pub struct Pattern {
     options: Options,
     strategy: MatchStrategy,
@@ -175,7 +192,7 @@ impl<'de> serde::Deserialize<'de> for Pattern {
 }
 
 /// A collection of [`Pattern`]s sharing the same configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Patterns {
     strategies: Box<[MatchStrategy]>,
     options: Options,
@@ -220,6 +237,54 @@ impl Patterns {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Patterns {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        struct AsDisplay<'a>(&'a MatchStrategy);
+        impl serde::Serialize for AsDisplay<'_> {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.collect_str(self.0)
+            }
+        }
+
+        serializer.collect_seq(self.strategies.iter().map(AsDisplay))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Patterns {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Patterns;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sequence of patterns")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut builder = Patterns::builder().patterns();
+                while let Some(pattern) = seq.next_element::<std::borrow::Cow<'_, str>>()? {
+                    builder.add(&pattern).map_err(serde::de::Error::custom)?;
+                }
+                Ok(builder.build())
+            }
+        }
+
+        deserializer.deserialize_seq(Visitor)
+    }
+}
+
 /// A builder for a [`Pattern`].
 #[derive(Debug)]
 pub struct PatternBuilder<'a> {
@@ -241,6 +306,9 @@ impl PatternBuilder<'_> {
     ///
     /// Attempting to build a pattern with a complexity higher
     /// than the maximum specified here will fail.
+    ///
+    /// Complexity is a constraint enforced when building a pattern,
+    /// it does not change [`PartialEq`] and [`Eq`] comparisons.
     ///
     /// Defaults to `u64::MAX`.
     pub fn max_complexity(&mut self, max_complexity: u64) -> &mut Self {
@@ -362,7 +430,7 @@ impl PatternsBuilderConfigured {
 }
 
 /// Options to influence [`Pattern`] matching behaviour.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Options {
     case_insensitive: bool,
 }
@@ -371,7 +439,7 @@ struct Options {
 ///
 /// Certain patterns can be matched more efficiently while the complex
 /// patterns fallback to [`wildmatch::is_match`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum MatchStrategy {
     /// The pattern is a single literal string.
     ///
@@ -734,7 +802,7 @@ impl<'a> Parser<'a> {
 /// - A [`Token::Any`] is never followed by [`Token::Any`].
 /// - A [`Token::Literal`] is never followed by [`Token::Literal`].
 /// - A [`Token::Class`] is never empty.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Tokens(Vec<Token>);
 
 impl Tokens {
@@ -826,7 +894,7 @@ impl fmt::Display for Tokens {
 }
 
 /// Represents a token in a Relay pattern.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Token {
     /// A literal token.
     Literal(Literal),
@@ -907,7 +975,7 @@ impl fmt::Display for Token {
 /// The contained literal is only available as a case converted string.
 /// Depending on whether the pattern is case sensitive or case insensitive the literal is either
 /// the original string or converted to lowercase.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Literal(String);
 
 impl Literal {
@@ -960,7 +1028,7 @@ impl fmt::Display for Literal {
 ///
 /// For example the pattern `[a-z]` contains the range from `a` to `z`,
 /// the pattern `[ax-zbf-h]` contains the ranges `x-z`, `f-h`, `a-a` and `b-b`.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 enum Ranges {
     /// An empty, default range not containing any characters.
     ///
@@ -1042,7 +1110,7 @@ impl fmt::Display for Ranges {
 }
 
 /// Represents a character range in a [`Token::Class`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Range {
     start: char,
     end: char,
@@ -1103,26 +1171,54 @@ mod tests {
         let mut pattern = Pattern::builder(p);
         for opt in options.chars() {
             match opt {
-                'i' => {
-                    pattern.case_insensitive(true);
-                }
+                'i' => drop(pattern.case_insensitive(true)),
                 _ => unimplemented!("{opt} not implemented"),
             }
         }
         pattern.build().unwrap()
     }
 
+    #[track_caller]
+    fn build_patterns(patterns: &[&str], options: &str) -> Patterns {
+        let mut builder = Patterns::builder();
+        for opt in options.chars() {
+            match opt {
+                'i' => drop(builder.case_insensitive(true)),
+                _ => unimplemented!("{opt} not implemented"),
+            }
+        }
+        let mut builder = builder.patterns();
+        for pattern in patterns {
+            builder.add(pattern).unwrap();
+        }
+        builder.build()
+    }
+
+    macro_rules! pattern {
+        ($pattern:expr $(,$options:tt)?) => {
+            build_pattern($pattern, stringify!($($options)?))
+        };
+    }
+
+    macro_rules! patterns {
+        ($($pattern:expr),* $(,)?) => {
+            build_patterns(&[$($pattern),*], "")
+        };
+        ($($pattern:expr,)* @ $options:tt) => {
+            build_patterns(&[$($pattern),*], stringify!($options))
+        };
+    }
+
     macro_rules! assert_pattern {
         ($pattern:expr, $s:expr $(,$options:tt)?) => {{
-            let options = stringify!($($options)?);
-            let pattern = build_pattern($pattern, options);
+            let pattern = pattern!($pattern $(,$options)?);
             assert!(
                 pattern.is_match($s),
                 "expected pattern '{}' to match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
-            let pattern = build_pattern(&pattern.to_string(), options);
+            let pattern = pattern!(&pattern.to_string() $(,$options)?);
             assert!(
                 pattern.is_match($s),
                 "expected round-tripped pattern '{}' to match '{}' - {pattern:?}",
@@ -1131,15 +1227,14 @@ mod tests {
             );
         }};
         ($pattern:expr, NOT $s:expr $(,$options:tt)?) => {{
-            let options = stringify!($($options)?);
-            let pattern = build_pattern($pattern, options);
+            let pattern = pattern!($pattern $(,$options)?);
             assert!(
                 !pattern.is_match($s),
                 "expected pattern '{}' to not match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
-            let pattern = build_pattern(&pattern.to_string(), options);
+            let pattern = pattern!(&pattern.to_string() $(,$options)?);
             assert!(
                 !pattern.is_match($s),
                 "expected round-tripped pattern '{}' to not match '{}' - {pattern:?}",
@@ -2144,16 +2239,7 @@ mod tests {
 
     #[test]
     fn test_patterns() {
-        let patterns = Patterns::builder()
-            .add("foobaR")
-            .unwrap()
-            .add("a*")
-            .unwrap()
-            .add("*a")
-            .unwrap()
-            .add("[0-9]*baz")
-            .unwrap()
-            .take();
+        let patterns = patterns!("foobaR", "a*", "*a", "[0-9]*baz");
 
         assert!(patterns.is_match("foobaR"));
         assert!(patterns.is_match("abc"));
@@ -2166,17 +2252,7 @@ mod tests {
 
     #[test]
     fn test_patterns_case_insensitive() {
-        let patterns = Patterns::builder()
-            .case_insensitive(true)
-            .add("fOObar")
-            .unwrap()
-            .add("a*")
-            .unwrap()
-            .add("*a")
-            .unwrap()
-            .add("[0-9]*baz")
-            .unwrap()
-            .take();
+        let patterns = patterns!("fOObar", "a*", "*a", "[0-9]*baz", @ i);
 
         assert!(patterns.is_match("FooBar"));
         assert!(patterns.is_match("abC"));
@@ -2191,12 +2267,185 @@ mod tests {
         let mut builder = Patterns::builder().add("foo").unwrap();
 
         let patterns = builder.take();
+        assert_eq!(patterns, patterns!("foo"));
         assert!(patterns.is_match("foo"));
         assert!(!patterns.is_match("bar"));
 
         builder.add("bar").unwrap();
         let patterns = builder.build();
+        assert_eq!(patterns, patterns!("bar"));
         assert!(!patterns.is_match("foo"));
         assert!(patterns.is_match("bar"));
+    }
+
+    #[test]
+    fn test_pattern_eq() {
+        let pattern1 = pattern!("Foo**", i);
+        let pattern2 = pattern!("Foo**", i);
+        let pattern3 = pattern!("foo*", i);
+        assert_eq!(&pattern1, &pattern1);
+        assert_eq!(&pattern1, &pattern2);
+        assert_eq!(&pattern1, &pattern3);
+        assert_eq!(&pattern2, &pattern3);
+
+        let pattern = Pattern::builder("foo*").max_complexity(1).build().unwrap();
+        assert_eq!(pattern, Pattern::new("foo*").unwrap());
+    }
+
+    #[test]
+    fn test_pattern_neq() {
+        assert_ne!(pattern!("Foo**"), pattern!("foo*"));
+        assert_ne!(pattern!("foo*"), pattern!("foo*", i));
+        assert_ne!(pattern!("foo*"), pattern!("bar*"));
+    }
+
+    #[test]
+    fn test_patterns_eq() {
+        let patterns1 = patterns!("Foo**", "*[rt]X", @ i);
+        let patterns2 = patterns1.clone();
+        let patterns3 = patterns!("foo*", "*[rt]x", @ i);
+        assert_eq!(&patterns1, &patterns1);
+        assert_eq!(&patterns1, &patterns2);
+        assert_eq!(&patterns1, &patterns3);
+        assert_eq!(&patterns2, &patterns3);
+        assert_eq!(Patterns::empty(), patterns!());
+    }
+
+    #[test]
+    fn test_patterns_neq() {
+        let patterns = patterns!("foo*", "bar");
+        let case_insensitive = patterns!("foo*", "bar", @ i);
+        let reordered = patterns!("bar", "foo*");
+        assert_ne!(patterns, case_insensitive);
+        assert_ne!(patterns, reordered);
+        assert_ne!(patterns, patterns!("foo*"));
+        assert_ne!(patterns, patterns!());
+        assert_ne!(patterns!(), patterns!(@ i));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_deserialize() {
+        let pattern: Pattern = serde_json::from_str(r#""**[rt]x""#).unwrap();
+        assert_eq!(pattern, Pattern::new("*[rt]x").unwrap());
+        assert!(pattern.is_match("foobar_rx"));
+        assert!(pattern.is_match("foobar_tx"));
+        assert!(!pattern.is_match("foobar_RX"));
+        assert!(!pattern.is_match("foobar"));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_deserialize_err() {
+        for json in [r#""[invalid""#, "null", "true", "42", "[]", "{}"] {
+            assert!(serde_json::from_str::<Pattern>(json).is_err(), "{json}");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_serialize() {
+        for (source, expected) in [
+            ("", r#""""#),
+            ("**", r#""*""#),
+            ("Foobar", r#""Foobar""#),
+            ("Foo**", r#""Foo*""#),
+            ("**Bar", r#""*Bar""#),
+            ("**Foo**", r#""*Foo*""#),
+            ("*[rt]x", r#""*[rt]x""#),
+            (r"f\*o", r#""f\\*o""#),
+            (r#"f"o"#, r#""f\"o""#),
+        ] {
+            let pattern = Pattern::new(source).unwrap();
+            assert_eq!(serde_json::to_string(&pattern).unwrap(), expected);
+        }
+
+        let pattern = pattern!("Foo**", i);
+        assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""foo*""#);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_serde_roundtrip() {
+        for source in [
+            "",
+            "*",
+            "Foobar",
+            "Foo**",
+            "*Bar",
+            "*Foo*",
+            "*[rt]x",
+            "{foo,bar}",
+            r"f\*o",
+            r#"f"o"#,
+            "Grüße",
+        ] {
+            let pattern = Pattern::new(source).unwrap();
+            let json = serde_json::to_string(&pattern).unwrap();
+            let deserialized: Pattern = serde_json::from_str(&json).unwrap();
+            assert_eq!(pattern, deserialized);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize() {
+        let patterns: Patterns = serde_json::from_str(r#"["**[rt]x","Foobar"]"#).unwrap();
+        let expected = patterns!("*[rt]x", "Foobar");
+        assert_eq!(patterns, expected);
+        assert!(patterns.is_match("foobar_rx"));
+        assert!(patterns.is_match("Foobar"));
+        assert!(!patterns.is_match("foobar_RX"));
+        assert!(!patterns.is_match("FOOBAR"));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize_err() {
+        for json in [
+            r#"["[invalid","foobar"]"#,
+            r#"["foobar","[invalid"]"#,
+            r#"["foobar",42]"#,
+            r#"["foobar",null]"#,
+            r#"["foobar",[]]"#,
+            r#""foobar""#,
+            "null",
+            "true",
+            "42",
+            "{}",
+        ] {
+            assert!(serde_json::from_str::<Patterns>(json).is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_serialize() {
+        let p = patterns!(
+            "", "**", "Foobar", "Foo**", "**Bar", "**Foo**", "*[rt]x", r"f\*o",
+        );
+        assert_eq!(
+            serde_json::to_string(&p).unwrap(),
+            r#"["","*","Foobar","Foo*","*Bar","*Foo*","*[rt]x","f\\*o"]"#,
+        );
+
+        let p = patterns!(
+            "", "**", "Foobar", "Foo**", "**Bar", "**Foo**", "*[rt]x", r"f\*o", @ i
+        );
+        assert_eq!(
+            serde_json::to_string(&p).unwrap(),
+            r#"["","*","foobar","foo*","*bar","*foo*","*[rt]x","f\\*o"]"#,
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_serde_empty() {
+        let patterns: Patterns = serde_json::from_str("[]").unwrap();
+        assert_eq!(patterns, patterns!());
+        assert!(patterns.is_empty());
+        assert!(!patterns.is_match(""));
+        assert!(!patterns.is_match("foobar"));
+        assert_eq!(serde_json::to_string(&patterns).unwrap(), "[]");
     }
 }
