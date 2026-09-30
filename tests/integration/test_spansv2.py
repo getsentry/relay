@@ -13,12 +13,6 @@ import json
 import pytest
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    }
-}
-
 
 def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
     envelope = Envelope()
@@ -32,6 +26,53 @@ def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Enve
     )
     envelope.headers["trace"] = trace_info
     return envelope
+
+
+def test_spansv2_broken_segment_id(mini_sentry, relay):
+    """Verify the outcome emitted for a malformed segment ID."""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    trace_id = uuid.uuid4().hex
+    ts = datetime.now(timezone.utc).timestamp()
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts,
+            "end_timestamp": ts + 0.5,
+            "trace_id": trace_id,
+            "span_id": uuid.uuid4().hex[:16],
+            "is_segment": True,
+            "name": "broken segment ID",
+            "status": "ok",
+            "attributes": {
+                "sentry.segment.id": {"type": "string", "value": "[phone]bf9"},
+            },
+        },
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "invalid_span",
+        },
+    ]
+
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_spansv2_basic(
@@ -58,7 +99,7 @@ def test_spansv2_basic(
         ["organizations:relay-generate-billing-outcome"]
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -222,7 +263,6 @@ def test_spansv2_trimming_basic(
         "limits": {
             "max_removed_attribute_key_size": 30,
         },
-        **TEST_CONFIG,
     }
 
     relay = relay(relay_with_processing(options=config), options=config)
@@ -389,7 +429,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -444,20 +484,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     assert mini_sentry.get_metrics() == [
         {
             "metadata": matches_any(),
-            "name": "c:spans/count_per_root_project@none",
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-            "width": 1,
-        },
-        {
-            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -494,7 +520,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         }
     ]
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     envelope = envelope_with_spans(
         {
@@ -539,19 +565,6 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         assert mini_sentry.get_metrics() == [
             {
                 "metadata": matches_any(),
-                "name": "c:spans/count_per_root_project@none",
-                "tags": {
-                    "decision": "keep",
-                    "is_segment": "true",
-                    "target_project_id": "42",
-                },
-                "timestamp": time_within_delta(),
-                "type": "c",
-                "value": 1.0,
-                "width": 1,
-            },
-            {
-                "metadata": matches_any(),
                 "name": "c:spans/usage@none",
                 "tags": {
                     "was_transaction": "false",
@@ -592,7 +605,7 @@ def test_spansv2_client_sample_rate(
     trace_id = "5b8efff798038103d269b633813fc60c"
     public_key = project_config["publicKeys"][0]["publicKey"]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
@@ -680,7 +693,7 @@ def test_spansv2_ds_sampled(
 
     trace_id = "5b8efff798038103d269b633813fc60c"
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -741,42 +754,24 @@ def test_spansv2_ds_sampled(
     ]
 
 
-def test_spansv2_ds_root_in_different_org(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    spans_consumer,
-    metrics_consumer,
-):
-    """
-    The test asserts that traces where the root originates from a different Sentry organization,
-    correctly uses the dynamic sampling rules of the current project and emits the count_per_root metric
-    into the current project.
-    """
-    outcomes_consumer = outcomes_consumer()
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
+def test_spansv2_ds_root_in_different_org(mini_sentry, relay):
+    """A trace root in another org uses the current project's sampling rules and metrics."""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
-    sampling_config["config"].setdefault("features", []).extend(
-        ["organizations:relay-generate-billing-outcome"]
-    )
-
     sampling_config["organizationId"] = 99
     add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
-    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
-    relay = relay(relay_with_processing(options=config), options=config)
+    relay = relay(
+        mini_sentry,
+        options={
+            "cache": {"project_request_full_config": True},
+            "http": {"global_metrics": True},
+        },
+    )
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -787,6 +782,7 @@ def test_spansv2_ds_root_in_different_org(
             "span_id": "eee19b7ec3c1b175",
             "is_segment": False,
             "name": "some op",
+            "status": "ok",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
         trace_info={
@@ -797,29 +793,23 @@ def test_spansv2_ds_root_in_different_org(
 
     relay.send_envelope(project_id, envelope)
 
-    assert outcomes_consumer.get_outcomes(n=2) == [
+    public_key = project_config["publicKeys"][0]["publicKey"]
+    assert mini_sentry.get_aggregated_outcomes(n=1) == [
         {
             "category": DataCategory.SPAN_INDEXED,
-            "key_id": 123,
-            "org_id": 1,
+            "public_key": public_key,
             "outcome": Outcome.FILTERED,
-            "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": Outcome.ACCEPTED,
-            "project_id": 42,
-            "quantity": 1,
-            "timestamp": time_within_delta(),
         },
     ]
 
-    spans_consumer.assert_empty()
+    metrics = mini_sentry.get_global_metrics()
+    assert set(metrics) == {public_key}
+    assert {bucket["name"]: bucket["value"] for bucket in metrics[public_key]} == {
+        "c:spans/usage@none": 1,
+    }
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -924,7 +914,7 @@ def test_spanv2_inbound_filters(
 
     project_config["config"]["filterSettings"] = filter_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -990,7 +980,7 @@ def test_spans_v2_multiple_containers_not_allowed(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -1057,7 +1047,7 @@ def test_spans_v2_dsc_validations(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -1122,7 +1112,7 @@ def test_spanv2_with_string_pii_scrubbing(
 
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1208,7 +1198,7 @@ def test_spanv2_default_pii_scrubbing_attributes(
         },
     )
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1258,7 +1248,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
         "scrubDefaults": True,
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
@@ -1357,7 +1347,7 @@ def test_spansv2_attribute_normalization(
         {"retentions": {"span": {"standard": 42, "downsampled": 1337}}}
     )
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
 
@@ -1541,7 +1531,7 @@ def test_invalid_spans(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1653,7 +1643,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "span": {"standard": 1, "downsampled": 100},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 

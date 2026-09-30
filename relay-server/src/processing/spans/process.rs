@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanId, SpanV2};
+use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
@@ -20,7 +21,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
+pub fn expand(
+    spans: Managed<SerializedSpans>,
+    max_ops: usize,
+) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
             headers,
@@ -42,7 +46,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
         };
 
         let (settings, spans) = match items {
-            SpanItems::Container(item) => expand_span_container(&item)?,
+            SpanItems::Container(item) => expand_span_container(&item, max_ops)?,
             SpanItems::Legacy(items) => expand_legacy_spans(items, records),
             SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
             SpanItems::None => (Default::default(), Vec::new()),
@@ -98,11 +102,20 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
     })
 }
 
-fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2>)> {
-    let (metadata, spans) = ItemContainer::<SpanV2>::parse(item)
+fn expand_span_container(
+    item: &Item,
+    max_ops: usize,
+) -> Result<(Settings, ContainerItems<SpanV2>)> {
+    let (metadata, spans) = ItemContainer::<SpanV2>::parse(item, max_ops)
         .map_err(|err| {
             relay_log::debug!("failed to parse span container: {err}");
-            Error::Invalid(DiscardReason::InvalidJson)
+
+            match err {
+                crate::envelope::ContainerParseError::LimitExceeded { limit: _ } => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                _ => Error::Invalid(DiscardReason::InvalidJson),
+            }
         })?
         .into_parts();
 
@@ -257,6 +270,7 @@ fn normalize_span(
         // normalize_sentry_op must be called before normalize_span_category
         // because category derivation depends on having the sentry.op attribute
         // available.
+        validate_segment_id(&span.attributes)?;
         eap::normalize_sentry_op(&mut span.attributes);
         if settings.clear_web_vital_segment_info {
             eap::normalize_web_vital_span_segment(span);
@@ -374,6 +388,28 @@ fn validate_timestamps(span: &SpanV2) -> Result<()> {
     }
 }
 
+/// Rejects invalid segment IDs.
+///
+/// The segment ID is not a top-level field, so it not guaranteed to contain a valid span ID.
+///
+/// Validate it here so that downstream consumers don't have to.
+/// relies on it being a valid span ID.
+fn validate_segment_id(attributes: &Annotated<Attributes>) -> Result<()> {
+    let Some(attributes) = attributes.value() else {
+        return Ok(());
+    };
+    let Some(value) = attributes.get_value(SENTRY__SEGMENT__ID) else {
+        return Ok(());
+    };
+    let Some(value) = value.as_str() else {
+        return Err(Error::Invalid(DiscardReason::InvalidSpan));
+    };
+    let _: SpanId = value
+        .parse()
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidSpan))?;
+    Ok(())
+}
+
 /// Applies PII scrubbing to individual spans.
 pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
     spans.retain(
@@ -442,6 +478,23 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn test_expand_span_container_operations_limit() {
+        let payload = r#"{"items":[{"start_timestamp":1544719859.0,"end_timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","span_id":"eee19b7ec3c1b174","name":"test"}]}"#;
+
+        let mut item = Item::new(crate::envelope::ItemType::Span);
+        item.set_payload_with_item_count(crate::envelope::ContentType::SpanV2Container, payload, 1);
+
+        // With a sufficient budget the container parses.
+        assert!(expand_span_container(&item, usize::MAX).is_ok());
+
+        // With a budget of a single operation the container is rejected.
+        assert!(matches!(
+            expand_span_container(&item, 1),
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
+        ));
+    }
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {

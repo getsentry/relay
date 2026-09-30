@@ -482,6 +482,7 @@ def test_sends_metric_bucket_outcome(
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
+    public_key = projectconfig["publicKeys"][0]["publicKey"]
 
     projectconfig["config"]["quotas"] = [
         {
@@ -492,8 +493,25 @@ def test_sends_metric_bucket_outcome(
     ]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"spans/foo:42|c\ntransactions/bar@second:17|c|T{timestamp}"
-    relay.send_metrics(project_id, metrics_payload)
+    metrics = [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:spans/foo@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/bar@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
+    relay.send_metrics_batch(
+        {"buckets": {public_key: metrics}},
+    )
 
     outcome = outcomes_consumer.get_outcome(timeout=3)
 

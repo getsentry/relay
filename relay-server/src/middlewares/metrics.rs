@@ -1,18 +1,27 @@
 use axum::RequestExt;
-use axum::extract::{MatchedPath, Request};
+use axum::extract::{MatchedPath, Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
 use http::header;
+use relay_cogs::AppFeature;
 use relay_config::HttpEncoding;
-use std::time::Instant;
+use relay_system::{MonitoredFuture, RawMetrics};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
 use crate::extractors::ReceivedAt;
+use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayTimers};
 
 /// A middleware that logs web request timings as statsd metrics.
 ///
-/// Use this with [`axum::middleware::from_fn`].
-pub async fn metrics(mut request: Request, next: Next) -> Response {
+/// Use this with [`axum::middleware::from_fn_with_state`].
+pub async fn metrics(
+    State(state): State<ServiceState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let request_start = Instant::now();
 
     let received_at = ReceivedAt::now();
@@ -29,7 +38,14 @@ pub async fn metrics(mut request: Request, next: Next) -> Response {
         content_encoding = content_encoding_tag(&request),
     );
 
-    let response = next.run(request).await;
+    let metrics = Default::default();
+    let _cogs = state.cogs().timed_with(
+        relay_cogs::ResourceId::Relay,
+        AppFeature::UnattributedRequest,
+        CpuClock(Arc::clone(&metrics)),
+    );
+
+    let response = MonitoredFuture::wrap_with_metrics(next.run(request), metrics).await;
 
     relay_statsd::metric!(
         timer(RelayTimers::RequestsDuration) = request_start.elapsed(),
@@ -54,4 +70,19 @@ fn content_encoding_tag(request: &Request) -> &str {
         .map(HttpEncoding::parse)
         .and_then(|enc| enc.name())
         .unwrap_or("other")
+}
+
+struct CpuClock(Arc<RawMetrics>);
+
+impl relay_cogs::time::Clock for CpuClock {
+    fn now(&self) -> relay_cogs::time::Instant {
+        // Note that this measurement is slightly off, as the metric only updates at the end of the
+        // poll and not during the poll. So if there is a measurement started during a poll, the start
+        // of that measurement is before whatever happened during the latest poll starting the measurement.
+        //
+        // Since the main purpose here is to estimate time and collect the _total_ duration of the request
+        // in CPU time, this is acceptable.
+        let duration = Duration::from_nanos(self.0.total_duration_ns.load(Ordering::Relaxed));
+        relay_cogs::time::Instant::from_duration(duration)
+    }
 }

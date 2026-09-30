@@ -35,9 +35,6 @@ These are a set of jsonnet and libsonnet files which are used
 to generate the relay pipelines. This avoids duplication across
 our GoCD pipeline files as we deploy to multiple regions.
 
-The `gocd/templates/processing.jsonnet` and `gocd/templates/pops.jsonnet` files are the entry points for the
-relay pipelines.
-
 `gocd/templates/libs/*.libsonnet` define the pipeline behaviors for
 deploy relay and relay-pops. These libraries are used to create a
 GoCD pipeline, following the same naming as the

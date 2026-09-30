@@ -313,9 +313,13 @@ def test_client_ip_filters_are_applied(
     event = {"message": "foo"}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "1.2.3.4"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "ip-address", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "ip-address",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -351,9 +355,13 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
     event = {"user": None, "request": {"headers": headers}}
     relay.send_event(project_id, event)
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -381,9 +389,13 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
     event = {"user": "{{auto}}", "request": {"headers": headers}}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "81.41.165.209"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()

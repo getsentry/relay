@@ -213,8 +213,7 @@ impl ProcessingExtractedMetrics {
         extracted: ExtractedMetrics,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        self.extend_project_metrics(extracted.project_metrics, sampling_decision);
-        self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
+        self.extend_project_metrics(extracted.0, sampling_decision);
     }
 
     /// Extends the contained project metrics.
@@ -225,62 +224,21 @@ impl ProcessingExtractedMetrics {
     ) where
         I: IntoIterator<Item = Bucket>,
     {
-        self.metrics
-            .project_metrics
-            .extend(buckets.into_iter().map(|mut bucket| {
-                bucket.metadata.extracted_from_indexed =
-                    sampling_decision == Some(SamplingDecision::Keep);
-                bucket
-            }));
-    }
-
-    /// Extends the contained sampling metrics.
-    pub fn extend_sampling_metrics<I>(
-        &mut self,
-        buckets: I,
-        sampling_decision: Option<SamplingDecision>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
-        self.metrics
-            .sampling_metrics
-            .extend(buckets.into_iter().map(|mut bucket| {
-                bucket.metadata.extracted_from_indexed =
-                    sampling_decision == Some(SamplingDecision::Keep);
-                bucket
-            }));
+        self.metrics.0.extend(buckets.into_iter().map(|mut bucket| {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
+            bucket
+        }));
     }
 }
 
-fn send_metrics(
-    metrics: ExtractedMetrics,
-    project_key: ProjectKey,
-    sampling_key: Option<ProjectKey>,
-    aggregator: &Addr<Aggregator>,
-) {
-    let ExtractedMetrics {
-        project_metrics,
-        sampling_metrics,
-    } = metrics;
+fn send_metrics(metrics: ExtractedMetrics, project_key: ProjectKey, aggregator: &Addr<Aggregator>) {
+    let ExtractedMetrics(project_metrics) = metrics;
 
     if !project_metrics.is_empty() {
         aggregator.send(MergeBuckets {
             project_key,
             buckets: project_metrics,
-        });
-    }
-
-    if !sampling_metrics.is_empty() {
-        // If no sampling project state is available, we associate the sampling
-        // metrics with the current project.
-        //
-        // project_without_tracing         -> metrics goes to self
-        // dependent_project_with_tracing  -> metrics goes to root
-        // root_project_with_tracing       -> metrics goes to root == self
-        let sampling_project_key = sampling_key.unwrap_or(project_key);
-        aggregator.send(MergeBuckets {
-            project_key: sampling_project_key,
-            buckets: sampling_metrics,
         });
     }
 }
@@ -306,14 +264,10 @@ pub struct ProcessEnvelope {
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
 }
 
-/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+/// Parses metric buckets and pushes them to the project's aggregator.
 ///
-/// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
-///    ignored independently.
-///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
-///    dropped together on parsing failure.
-///  - Other envelope items will be ignored with an error message.
+/// Each [`MetricBuckets`](ItemType::MetricBuckets) item contains a JSON list of buckets. The entire
+/// list is dropped on parsing failure. Other envelope items are ignored with an error message.
 ///
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
@@ -345,8 +299,7 @@ impl MetricData {
     /// Consumes the metric data and parses the contained buckets.
     ///
     /// If the contained data is already parsed the buckets are returned unchanged.
-    /// Raw buckets are parsed and created with the passed `timestamp`.
-    fn into_buckets(self, timestamp: UnixTimestamp) -> Vec<Bucket> {
+    fn into_buckets(self) -> Vec<Bucket> {
         let items = match self {
             Self::Parsed(buckets) => return buckets,
             Self::Raw(items) => items,
@@ -355,17 +308,7 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
-                for bucket_result in Bucket::parse_all(&payload, timestamp) {
-                    match bucket_result {
-                        Ok(bucket) => buckets.push(bucket),
-                        Err(error) => relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd format",
-                        ),
-                    }
-                }
-            } else if item.ty() == &ItemType::MetricBuckets {
+            if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
@@ -731,22 +674,44 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
-            self.process(message.envelope, ctx).await
-        });
+        let mut envelopes: smallvec::SmallVec<[ManagedEnvelope; 1]> =
+            smallvec::smallvec![message.envelope];
 
-        let ctx = ctx.to_forward();
-        for Output { main, metrics } in outputs {
-            if let Some(metrics) = metrics {
-                let agg = &self.inner.addrs.aggregator;
-                metrics.accept(|metrics| {
-                    send_metrics(metrics, project_key, sampling_key, agg);
-                });
-            }
+        // The first envelope we process is not an intermediate.
+        let mut is_intermediate = false;
 
-            if let Some(output) = main {
-                // Only counting processing time for COGS at the moment.
-                self.submit_upstream(&mut Token::noop(), output, ctx);
+        while let Some(envelope) = envelopes.pop() {
+            let outputs = metric!(
+                timer(RelayTimers::EnvelopeProcessingTime),
+                is_intermediate = if is_intermediate { "true" } else { "false" },
+                { self.process(envelope, ctx).await }
+            );
+
+            let ctx = ctx.to_forward();
+            for Output {
+                main,
+                metrics,
+                intermediates,
+            } in outputs
+            {
+                if let Some(metrics) = metrics {
+                    let agg = &self.inner.addrs.aggregator;
+                    metrics.accept(|metrics| {
+                        send_metrics(metrics, project_key, agg);
+                    });
+                }
+
+                if let Some(output) = main {
+                    // Only counting processing time for COGS at the moment.
+                    self.submit_upstream(&mut Token::noop(), output, ctx);
+                }
+
+                if let Some(intermediates) = intermediates {
+                    envelopes.push(intermediates)
+                }
+
+                // Every envelope past the first is an intermediate.
+                is_intermediate = true;
             }
         }
     }
@@ -763,7 +728,7 @@ impl EnvelopeProcessorService {
         let received_timestamp =
             UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
 
-        let mut buckets = data.into_buckets(received_timestamp);
+        let mut buckets = data.into_buckets();
         if buckets.is_empty() {
             return;
         };
@@ -1896,7 +1861,11 @@ mod tests {
         let mut outputs = processor.process(envelope, ctx).await;
         assert_eq!(outputs.len(), 1);
 
-        let Output { main, metrics } = outputs.pop().unwrap();
+        let Output {
+            main,
+            metrics,
+            intermediates: _,
+        } = outputs.pop().unwrap();
 
         if let Some(metrics) = metrics {
             metrics.accept(drop);
@@ -2336,8 +2305,18 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_payload(
+            ContentType::Json,
+            serde_json::json!([{
+                "timestamp": received_at.timestamp(),
+                "width": 0,
+                "name": "s:sessions/foo@none",
+                "type": "s",
+                "value": [3182887624u32, 4267882815u32],
+            }])
+            .to_string(),
+        );
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

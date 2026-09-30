@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -20,6 +21,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
+use crate::services::buffer::throttle::Throttle;
 use crate::statsd::{RelayDistributions, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
@@ -54,10 +56,12 @@ impl PolymorphicEnvelopeBuffer {
         partition_id: u8,
         config: &ConfigSnapshot,
         memory_checker: MemoryChecker,
+        throttle: Option<Arc<Throttle>>,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path(partition_id).is_some() {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
-            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(partition_id, config).await?;
+            let buffer =
+                EnvelopeBuffer::<SqliteStackProvider>::new(partition_id, config, throttle).await?;
             Self::Sqlite(buffer)
         } else {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
@@ -281,11 +285,12 @@ impl EnvelopeBuffer<SqliteStackProvider> {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
+        throttle: Option<Arc<Throttle>>,
     ) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(partition_id, config).await?,
+            stack_provider: SqliteStackProvider::new(partition_id, config, throttle).await?,
             total_count: 0,
             tracked_count: 0,
             total_count_initialized: false,
@@ -1083,7 +1088,7 @@ mod tests {
         let mut store = SqliteEnvelopeStore::prepare(0, &current_config)
             .await
             .unwrap();
-        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &current_config)
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &current_config, None)
             .await
             .unwrap();
 

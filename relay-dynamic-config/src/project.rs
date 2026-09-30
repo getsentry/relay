@@ -193,12 +193,8 @@ pub struct LimitedProjectConfig {
     pub datascrubbing_settings: DataScrubbingConfig,
     #[serde(skip_serializing_if = "TrimmingConfigs::is_empty")]
     pub trimming: TrimmingConfigs,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling: Option<ErrorBoundary<SamplingConfig>>,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
-    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "Option::is_none")]

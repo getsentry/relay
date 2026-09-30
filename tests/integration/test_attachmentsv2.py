@@ -14,12 +14,6 @@ import uuid
 import pytest
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    }
-}
-
 
 def create_attachment_metadata():
     return {
@@ -53,7 +47,7 @@ def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -199,7 +193,7 @@ def test_standalone_attachment_attribute_meta_store(
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     attachment_metadata = create_attachment_metadata()
     attachment_metadata["attributes"] = {
@@ -267,7 +261,7 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
     project_config["config"]["features"] = [
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -316,7 +310,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     project_config["config"]["features"] = [
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -506,7 +500,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     project_config["config"]["features"] = [
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -607,7 +601,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     span_id = "eee19b7ec3c1b174"
     ts = datetime.now(timezone.utc)
@@ -675,20 +669,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_metrics() == [
         {
             "metadata": matches_any(),
-            "name": "c:spans/count_per_root_project@none",
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-            "width": 1,
-        },
-        {
-            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -721,7 +701,7 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
     sample_rate = 0.0 if should_drop else 1.0
     add_sampling_config(project_config, sample_rate=sample_rate, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     envelope = Envelope()
     envelope.headers["trace"] = {
@@ -788,7 +768,7 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     # Setup the actual rule we want to test against.
     add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     # Envelope with only an attachment, no spans
     envelope = create_attachment_envelope(project_config)
@@ -848,7 +828,7 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         "releases": {"releases": ["foobar@1.0"]}
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b175"
@@ -933,7 +913,7 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     project_config["config"]["features"] = [
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1103,7 +1083,7 @@ def test_span_attachment_independent_rate_limiting(
     ]
     project_config["config"]["quotas"] = quota_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1219,7 +1199,7 @@ def test_attachment_default_pii_scrubbing_meta(
         },
     )
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1308,7 +1288,7 @@ def test_attachment_pii_scrubbing_meta_attribute(
     ]
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1399,7 +1379,7 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
         "applications": {"$attachments.'log.txt'": ["0"]},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
