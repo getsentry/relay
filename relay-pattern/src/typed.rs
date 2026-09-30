@@ -1,5 +1,4 @@
 use core::fmt;
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -50,7 +49,6 @@ impl PatternConfig for CaseInsensitive {
 /// let pattern = MetricPattern::new("[cd]:foo/bar").unwrap();
 /// assert!(pattern.is_match("c:foo/bar"));
 /// ```
-#[derive(Debug)]
 pub struct TypedPattern<C = DefaultPatternConfig> {
     pattern: Pattern,
     _phantom: PhantomData<C>,
@@ -102,6 +100,14 @@ impl<C> serde::Serialize for TypedPattern<C> {
     }
 }
 
+impl<C> PartialEq for TypedPattern<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern.eq(other)
+    }
+}
+
+impl<C> Eq for TypedPattern<C> {}
+
 impl<C> From<TypedPattern<C>> for Pattern {
     fn from(value: TypedPattern<C>) -> Self {
         value.pattern
@@ -122,10 +128,15 @@ impl<C> Deref for TypedPattern<C> {
     }
 }
 
+impl<C> fmt::Debug for TypedPattern<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.pattern.fmt(f)
+    }
+}
+
 /// [`Patterns`] with a compile time configured [`PatternConfig`].
 pub struct TypedPatterns<C = DefaultPatternConfig> {
     patterns: Patterns,
-    raw: Vec<String>,
     _phantom: PhantomData<C>,
 }
 
@@ -137,7 +148,6 @@ impl<C: PatternConfig> TypedPatterns<C> {
 
         TypedPatternsBuilder {
             builder,
-            raw: Vec::new(),
             _phantom: PhantomData,
         }
     }
@@ -151,9 +161,11 @@ impl<C: PatternConfig> Default for TypedPatterns<C> {
 
 impl<C> PartialEq for TypedPatterns<C> {
     fn eq(&self, other: &Self) -> bool {
-        self.raw.eq(&other.raw)
+        self.patterns.eq(other)
     }
 }
+
+impl<C> Eq for TypedPatterns<C> {}
 
 impl<C: PatternConfig> From<String> for TypedPatterns<C> {
     fn from(value: String) -> Self {
@@ -212,7 +224,6 @@ impl<C> Clone for TypedPatterns<C> {
     fn clone(&self) -> Self {
         Self {
             patterns: self.patterns.clone(),
-            raw: self.raw.clone(),
             _phantom: PhantomData,
         }
     }
@@ -220,7 +231,7 @@ impl<C> Clone for TypedPatterns<C> {
 
 impl<C> fmt::Debug for TypedPatterns<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.raw.fmt(f)
+        self.patterns.fmt(f)
     }
 }
 
@@ -269,13 +280,12 @@ impl<C> serde::Serialize for TypedPatterns<C> {
     where
         S: serde::Serializer,
     {
-        self.raw.serialize(serializer)
+        self.patterns.serialize(serializer)
     }
 }
 
 pub struct TypedPatternsBuilder<C> {
     builder: PatternsBuilderConfigured,
-    raw: Vec<String>,
     _phantom: PhantomData<C>,
 }
 
@@ -283,7 +293,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     /// Adds a pattern to the builder.
     pub fn add(&mut self, pattern: String) -> Result<&mut Self, Error> {
         self.builder.add(&pattern)?;
-        self.raw.push(pattern);
         Ok(self)
     }
 
@@ -291,7 +300,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     pub fn build(self) -> TypedPatterns<C> {
         TypedPatterns {
             patterns: self.builder.build(),
-            raw: self.raw,
             _phantom: PhantomData,
         }
     }
@@ -300,7 +308,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     pub fn take(&mut self) -> TypedPatterns<C> {
         TypedPatterns {
             patterns: self.builder.take(),
-            raw: std::mem::take(&mut self.raw),
             _phantom: PhantomData,
         }
     }
@@ -311,7 +318,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default() {
+    fn test_pattern_default() {
         let pattern: TypedPattern = TypedPattern::new("*[rt]x").unwrap();
         assert!(pattern.is_match("f/o_rx"));
         assert!(pattern.is_match("f/o_tx"));
@@ -322,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_case_insensitive() {
+    fn test_pattern_case_insensitive() {
         let pattern: TypedPattern<CaseInsensitive> = TypedPattern::new("*[rt]x").unwrap();
         // case insensitive
         assert!(pattern.is_match("f/o_Tx"));
@@ -330,8 +337,26 @@ mod tests {
     }
 
     #[test]
+    fn test_pattern_eq() {
+        let pattern1: TypedPattern<CaseInsensitive> = TypedPattern::new("Foo**").unwrap();
+        let pattern2: TypedPattern<CaseInsensitive> = TypedPattern::new("Foo**").unwrap();
+        let pattern3: TypedPattern<CaseInsensitive> = TypedPattern::new("foo*").unwrap();
+        assert_eq!(&pattern1, &pattern1);
+        assert_eq!(&pattern1, &pattern2);
+        assert_eq!(&pattern1, &pattern3);
+        assert_eq!(&pattern2, &pattern3);
+    }
+
+    #[test]
+    fn test_pattern_neq() {
+        let pattern1: TypedPattern = TypedPattern::new("Foo**").unwrap();
+        let pattern2: TypedPattern = TypedPattern::new("foo*").unwrap();
+        assert_ne!(&pattern1, &pattern2);
+    }
+
+    #[test]
     #[cfg(feature = "serde")]
-    fn test_deserialize() {
+    fn test_pattern_deserialize() {
         let pattern: TypedPattern<CaseInsensitive> = serde_json::from_str(r#""*[rt]x""#).unwrap();
         assert!(pattern.is_match("foobar_rx"));
     }
@@ -345,7 +370,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "serde")]
-    fn test_deserialize_complexity() {
+    fn test_pattern_deserialize_complexity() {
         struct Test;
         impl PatternConfig for Test {
             const MAX_COMPLEXITY: u64 = 2;
@@ -358,7 +383,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "serde")]
-    fn test_serialize() {
+    fn test_pattern_serialize() {
         let pattern: TypedPattern = TypedPattern::new("*[rt]x").unwrap();
         assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""*[rt]x""#);
         let pattern: TypedPattern<CaseInsensitive> = TypedPattern::new("*[rt]x").unwrap();
