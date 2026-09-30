@@ -370,8 +370,6 @@ impl ServiceState {
             &config,
             &upstream_relay,
             #[cfg(feature = "processing")]
-            project_cache_handle.clone(),
-            #[cfg(feature = "processing")]
             &objectstore,
         ));
 

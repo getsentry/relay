@@ -174,25 +174,6 @@ pub enum StreamContext {
     },
 }
 
-impl StreamContext {
-    /// Validates the session token and returns a new upload reference.
-    pub fn new(
-        key: String,
-        session_token: String,
-        offset: usize,
-        chunk_length: usize,
-        total_length: usize,
-    ) -> Result<Self, InvalidSessionToken> {
-        Ok(Self::Resumable {
-            key,
-            session_token: SessionToken::from_base64url(&session_token)?,
-            offset,
-            chunk_length,
-            total_length,
-        })
-    }
-}
-
 /// A stream that can be uploaded to objectstore.
 pub struct Stream {
     pub organization_id: OrganizationId,

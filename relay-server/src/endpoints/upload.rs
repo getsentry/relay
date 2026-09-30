@@ -199,12 +199,14 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
+    let resumable = resumable_enabled(&project);
+
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+    let result = create(&state, project_context, &headers, resumable).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -339,10 +341,18 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
     Ok(())
 }
 
+fn resumable_enabled(project: &Project<'_>) -> bool {
+    match project.state() {
+        ProjectState::Enabled(info) => info.has_feature(Feature::ResumableUpload),
+        _ => false,
+    }
+}
+
 async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::PostHeaders,
+    resumable: bool,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -350,6 +360,7 @@ async fn create(
             project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
+            resumable,
         })
         .await??;
 

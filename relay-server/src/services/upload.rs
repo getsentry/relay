@@ -37,8 +37,6 @@ use crate::http::{HttpError, RequestBuilder, Response};
 
 #[cfg(feature = "processing")]
 use crate::services::objectstore::{self, Objectstore};
-#[cfg(feature = "processing")]
-use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
@@ -146,6 +144,8 @@ pub struct Create {
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
+    /// Whether this comes from a project that has resumable uploads enabled.
+    pub resumable: bool,
 }
 
 /// The type used to stream a request body.
@@ -258,7 +258,6 @@ impl FromMessage<Stream> for Upload {
 pub fn create_service(
     config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
-    #[cfg(feature = "processing")] project_cache: ProjectCacheHandle,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
     let current_config = config.current();
@@ -271,8 +270,6 @@ pub fn create_service(
     let service = Service {
         timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
-        #[cfg(feature = "processing")]
-        project_cache,
     };
     ConcurrentService::new(service)
         .with_backlog_limit(0)
@@ -303,8 +300,6 @@ fn create_backend(
 pub struct Service {
     timeout: Duration,
     backend: Backend,
-    #[cfg(feature = "processing")]
-    project_cache: ProjectCacheHandle,
 }
 
 /// A response channel that emits a metric for each response.
@@ -343,6 +338,7 @@ impl Service {
             project,
             length,
             attachment_type,
+            resumable: _resumable,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
@@ -355,8 +351,6 @@ impl Service {
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::UploadRef;
-                use crate::services::projects::project::ProjectState;
-                use relay_dynamic_config::Feature;
                 let config = config.current();
 
                 // Create the key:
@@ -370,13 +364,7 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let resumable_enabled =
-                    match self.project_cache.get(project.scoping.project_key).state() {
-                        ProjectState::Enabled(info) => info.has_feature(Feature::ResumableUpload),
-                        _ => false,
-                    };
-
-                let (key, upload_id) = match (resumable_enabled, length) {
+                let (key, upload_id) = match (_resumable, length) {
                     (true, Some(upload_length)) => {
                         let UploadRef {
                             key,
@@ -434,6 +422,8 @@ impl Service {
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::StreamContext;
+                use objectstore_client::SessionToken;
+
                 let config = config.current();
 
                 let Location {
@@ -450,7 +440,7 @@ impl Service {
 
                 let context = match upload_id {
                     Some(token) => {
-                        let Some(total) = length.value() else {
+                        let Some(total_length) = length.value() else {
                             return Err(Error::InvalidFromClient(
                                 "upload_id without `Upload-Length`",
                             ));
@@ -459,7 +449,13 @@ impl Service {
                             return Err(Error::InvalidFromClient("missing chunk length"));
                         };
 
-                        StreamContext::new(key, token, offset, length, total)?
+                        StreamContext::Resumable {
+                            key,
+                            session_token: SessionToken::from_base64url(&token)?,
+                            offset,
+                            chunk_length: length,
+                            total_length,
+                        }
                     }
                     None => StreamContext::Oneshot(stream.byte_counter()),
                 };
