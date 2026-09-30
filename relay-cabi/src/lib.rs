@@ -98,17 +98,13 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 mod auth;
-mod codeowners;
 mod constants;
 mod core;
 mod ffi;
-mod glob;
 mod processing;
 
 pub use crate::auth::*;
-pub use crate::codeowners::*;
 pub use crate::constants::*;
 pub use crate::core::*;
 pub use crate::ffi::*;
-pub use crate::glob::*;
 pub use crate::processing::*;

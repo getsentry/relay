@@ -384,29 +384,6 @@ enum RelayErrorCode {
 typedef uint32_t RelayErrorCode;
 
 /**
- * Controls the globbing behaviors.
- */
-enum GlobFlags {
-  /**
-   * When enabled `**` matches over path separators and `*` does not.
-   */
-  GLOB_FLAGS_DOUBLE_STAR = 1,
-  /**
-   * Enables case insensitive path matching.
-   */
-  GLOB_FLAGS_CASE_INSENSITIVE = 2,
-  /**
-   * Enables path normalization.
-   */
-  GLOB_FLAGS_PATH_NORMALIZE = 4,
-  /**
-   * Allows newlines.
-   */
-  GLOB_FLAGS_ALLOW_NEWLINE = 8,
-};
-typedef uint32_t GlobFlags;
-
-/**
  * Trace status.
  *
  * Values from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status>
@@ -683,12 +660,6 @@ struct RelayStr relay_validate_register_response(const struct RelayBuf *data,
 bool relay_version_supported(const struct RelayStr *version);
 
 /**
- * Returns `true` if the codeowners path matches the value, `false` otherwise.
- */
-bool relay_is_codeowners_path_match(const struct RelayBuf *value,
-                                    const struct RelayStr *pattern);
-
-/**
  * Returns the API name of the given `DataCategory`.
  */
 struct RelayStr relay_data_category_name(RelayDataCategory category);
@@ -786,15 +757,6 @@ struct RelayStr relay_err_get_backtrace(void);
  * Clears the last error.
  */
 void relay_err_clear(void);
-
-/**
- * Performs a glob operation on bytes.
- *
- * Returns `true` if the glob matches, `false` otherwise.
- */
-bool relay_is_glob_match(const struct RelayBuf *value,
-                         const struct RelayStr *pat,
-                         GlobFlags flags);
 
 /**
  * Chunks the given text based on remarks.
