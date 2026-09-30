@@ -301,7 +301,7 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
-    #[error("invalid upload offset {client_offset} expected {offset}")]
+    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
     InvalidOffset { client_offset: usize, offset: usize },
     #[error("upload already completed")]
     UploadCompleted,

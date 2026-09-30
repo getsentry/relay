@@ -338,7 +338,8 @@ impl Service {
             project,
             length,
             attachment_type,
-            resumable: _resumable,
+            #[cfg_attr(not(feature = "processing"), expect(unused))]
+            resumable,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
@@ -364,7 +365,7 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, upload_id) = match (_resumable, length) {
+                let (key, upload_id) = match (resumable, length) {
                     (true, Some(upload_length)) => {
                         let UploadRef {
                             key,

@@ -55,4 +55,7 @@ pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
 pub const NNSWITCH_DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
 
 /// Header for communicating the uncompressed content length.
+///
+/// Sentry-specific extension to the TUS upload protocol, needed since `Content-Length` refers to
+/// the compressed size on the wire.
 pub const X_DECODED_CONTENT_LENGTH: &str = "X-Decoded-Content-Length";
