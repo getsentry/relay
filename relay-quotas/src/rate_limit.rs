@@ -202,7 +202,7 @@ pub struct RateLimit {
     /// this rate limit applies to metrics of all namespaces.
     pub namespaces: SmallVec<[MetricNamespace; 1]>,
 
-    /// Whether this limit was produced by a [`Quota`] with a [`GroupBy`].
+    /// Whether this limit was produced by a Quota with a GroupBy.
     ///
     /// Right now, we cannot cache limits produced by dimensioned quotas, because SDKs (and PoP
     /// relays without a Redis) cannot make sense of per-item rate-limiting for things like
