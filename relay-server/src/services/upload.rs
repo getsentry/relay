@@ -161,38 +161,38 @@ pub struct Stream {
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
-    /// Stream mode, either Oneshot or Resumable.
-    ///
-    /// Resumable Streams contain more state than Oneshot streams.
-    pub mode: StreamMode,
+    /// The upload mode to use, either Oneshot or Resumable.
+    pub mode: UploadMode,
 }
 
-/// Indicating whether the stream is oneshot or resumable.
-pub enum StreamMode {
+/// Indicating whether a stream will be uploaded via oneshot or resumable upload.
+///
+/// For the resumable case this carries additional necessary information.
+pub enum UploadMode {
     Oneshot,
     Resumable {
         /// The offset from which to resume the upload.
         offset: usize,
-        /// The length of the current chunk of the upload.
+        /// The length of the current chunk of the resumable upload.
         chunk_length: usize,
     },
 }
 
-impl StreamMode {
+impl UploadMode {
     /// Returns the stream offset.
     pub fn offset(&self) -> usize {
         match self {
             // Oneshot uploads start from offset 0.
-            StreamMode::Oneshot => 0,
-            StreamMode::Resumable { offset, .. } => *offset,
+            UploadMode::Oneshot => 0,
+            UploadMode::Resumable { offset, .. } => *offset,
         }
     }
 
     /// Returns the stream chunk length if the stream is resumable.
     pub fn chunk_length(&self) -> Option<usize> {
         match self {
-            StreamMode::Oneshot => None,
-            StreamMode::Resumable {
+            UploadMode::Oneshot => None,
+            UploadMode::Resumable {
                 chunk_length: length,
                 ..
             } => Some(*length),
@@ -489,7 +489,7 @@ impl Service {
                 let context = match &kind {
                     Provisional::Oneshoot => StreamContext::Oneshot(stream.byte_counter()),
                     Provisional::Resumable { length, upload_id } => {
-                        let StreamMode::Resumable {
+                        let UploadMode::Resumable {
                             offset,
                             chunk_length,
                         } = mode
@@ -911,7 +911,7 @@ enum RequestKind {
     },
     Upload {
         uri: String,
-        mode: StreamMode,
+        mode: UploadMode,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -951,7 +951,7 @@ impl UploadRequest {
     fn upload(
         project: ProjectContext,
         uri: String,
-        mode: StreamMode,
+        mode: UploadMode,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
