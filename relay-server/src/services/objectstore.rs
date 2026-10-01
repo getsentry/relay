@@ -363,7 +363,7 @@ pub struct UploadRef {
     /// The key of the file (chosen by relay).
     pub key: String,
     /// The ID of the resumable upload session (chosen by objectstore).
-    /// `None` if the upload is not a resumable session.
+    /// `None` if the upload is not a resumable session or finished.
     pub session_token: Option<SessionToken>,
     /// The byte offset from which to resume the upload.
     pub offset: usize,

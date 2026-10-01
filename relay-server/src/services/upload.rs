@@ -193,10 +193,7 @@ impl UploadMode {
     pub fn chunk_length(&self) -> Option<usize> {
         match self {
             UploadMode::Oneshot => None,
-            UploadMode::Resumable {
-                chunk_length: length,
-                ..
-            } => Some(*length),
+            UploadMode::Resumable { chunk_length, .. } => Some(*chunk_length),
         }
     }
 }
@@ -230,6 +227,8 @@ impl StreamResult {
 
 impl StreamResult {
     fn try_from_response(response: Response) -> Result<Self, Error> {
+        let response = response.0.error_for_status().map_err(Error::Upstream)?;
+
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
@@ -239,7 +238,6 @@ impl StreamResult {
             .parse()
             .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
 
-        let response = response.0.error_for_status().map_err(Error::Upstream)?;
         let location = response
             .headers()
             .get(hyper::header::LOCATION)
@@ -248,7 +246,7 @@ impl StreamResult {
             .to_str()
             .map_err(|_| Error::InvalidLocation(Some(location.clone())))?;
 
-        // Final and Provisional are none overlapping so the order here doesn't matter.
+        // Final and Provisional are non-overlapping so the order here doesn't matter.
         if let Some(location) = SignedLocation::<Final>::try_from_str(uri) {
             Ok(Self::Complete { location, offset })
         } else {
@@ -603,7 +601,7 @@ pub trait LocationKind: Sized {
 /// A provisional location which may still be used for uploading.
 ///
 /// See also [`Final`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Provisional {
     Oneshot,
     Resumable { length: usize, upload_id: String },
@@ -638,7 +636,7 @@ impl LocationKind for Provisional {
 /// A final location which no longer can be used for uploading.
 ///
 /// See also [`Provisional`].
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct Final {
     pub length: usize,
 }
