@@ -371,11 +371,11 @@ async fn upload(
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<StreamResult, Error> {
     let mode = match chunk_length {
-        Some(chunk_length) => upload::StreamMode::Resumable {
+        Some(chunk_length) => upload::UploadMode::Resumable {
             offset,
             chunk_length,
         },
-        None => upload::StreamMode::Oneshot,
+        None => upload::UploadMode::Oneshot,
     };
 
     let location = state
