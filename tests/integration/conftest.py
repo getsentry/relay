@@ -48,7 +48,9 @@ from .fixtures.processing import (  # noqa
 )
 
 from .consts import (
+    DUMMY_UPLOAD_FINAL_LOCATION,
     DUMMY_UPLOAD_LOCATION,
+    DUMMY_UPLOAD_ONESHOT_LOCATION,
     ZSTD_MAGIC_HEADER,
 )
 
@@ -308,11 +310,15 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
+        if "Upload-Defer-Length" in request.headers:
+            location = DUMMY_UPLOAD_ONESHOT_LOCATION
+        else:
+            location = DUMMY_UPLOAD_LOCATION
 
         return Response(
             "",
             status=201,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={"Location": location},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -326,7 +332,7 @@ def dummy_upload(mini_sentry):  # noqa
             "",
             status=204,
             headers={
-                "Location": DUMMY_UPLOAD_LOCATION,
+                "Location": DUMMY_UPLOAD_FINAL_LOCATION,
                 "Upload-Offset": len(data),
             },
         )
