@@ -13,7 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import DUMMY_UPLOAD_FINAL_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import Outcome
@@ -1170,7 +1170,7 @@ def test_minidump_objectstore_uploads(
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(logs.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
         }
     else:
         assert (
@@ -1185,7 +1185,7 @@ def test_minidump_objectstore_uploads(
             == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(minidump.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
             "content_type": "application/x-dmp",
         }
     else:
@@ -1742,7 +1742,7 @@ def test_minidump_attachment_inline_limit(mini_sentry, relay, dummy_upload):
     # Large attachment is uploaded to objectstore
     large = by_name["large.txt"]
     assert large.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
-    assert json.loads(large.payload.bytes) == {"location": DUMMY_UPLOAD_LOCATION}
+    assert json.loads(large.payload.bytes) == {"location": DUMMY_UPLOAD_FINAL_LOCATION}
 
 
 def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
@@ -1782,7 +1782,7 @@ def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
     assert item.headers.get("attachment_type") == "event.minidump"
     assert item.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
     assert json.loads(item.payload.bytes) == {
-        "location": DUMMY_UPLOAD_LOCATION,
+        "location": DUMMY_UPLOAD_FINAL_LOCATION,
         "content_type": "application/x-dmp",
     }
 

@@ -25,7 +25,9 @@ from .consts import Outcome
 def project_config(mini_sentry):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
-    config.setdefault("features", []).append("projects:relay-minidump-uploads")
+    config.setdefault("features", []).extend(
+        ["projects:relay-minidump-uploads", "projects:resumable-uploads"]
+    )
     return config
 
 
@@ -111,6 +113,7 @@ def test_forward_patch(
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
@@ -351,6 +354,7 @@ def test_upload_body_size(
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
@@ -449,6 +453,7 @@ def test_timeout(
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
             "Content-Type": "application/offset+octet-stream",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
