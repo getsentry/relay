@@ -608,6 +608,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: false,
             }]
         );
     }
@@ -731,6 +732,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
+                        dimensional: false,
                     }]
                 );
             } else {
@@ -949,6 +951,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
+                        dimensional: false,
                     }]
                 );
             }
@@ -1000,6 +1003,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
+                        dimensional: false,
                     }]
                 );
             } else {
@@ -1645,6 +1649,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: false,
             }]
         );
     }
@@ -1725,6 +1730,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: false,
             }]
         );
     }
@@ -1916,6 +1922,7 @@ mod tests {
                     reason_code: Some(ReasonCode::new("get_lost")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
+                    dimensional: true,
                 }],
                 "second check for {dims:?}"
             );
@@ -2082,6 +2089,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: true,
             }]
         );
 
@@ -2236,5 +2244,78 @@ mod tests {
                 .unwrap()
                 .is_limited()
         );
+    }
+
+    /// Regression test for the project-wide over-application of a per-monitor quota.
+    ///
+    /// Exhausting one monitor's bucket must not produce anything which can be cached on the
+    /// project, because a cached limit would then drop check-ins for every other monitor and be
+    /// propagated to SDKs and downstream Relays as a scope-wide monitor limit.
+    #[tokio::test]
+    async fn test_quota_dimensions_are_not_cacheable() {
+        let quotas = &[monitor_quota(
+            1,
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            }
+            .into(),
+        )];
+
+        let rate_limiter = build_rate_limiter();
+
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+        let cron2 = monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]);
+
+        // Exhaust the bucket of a single monitor.
+        rate_limiter
+            .is_rate_limited(quotas, &cron1, 1, false)
+            .await
+            .unwrap();
+        let limits = rate_limiter
+            .is_rate_limited(quotas, &cron1, 1, false)
+            .await
+            .unwrap();
+
+        // The limit is enforced against the check-in which produced it.
+        assert!(limits.is_limited());
+
+        // It would apply to every other monitor in the project if it were retained, so none of
+        // it survives the filter.
+        assert!(limits.cacheable().is_empty());
+        assert!(!limits.cacheable().check(&cron2).is_limited());
+
+        // The other monitor still has its own bucket in Redis.
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, &cron2, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
+    }
+
+    /// An undimensioned quota on the same category stays cacheable.
+    #[tokio::test]
+    async fn test_quota_without_dimensions_is_cacheable() {
+        let quotas = &[monitor_quota(1, None)];
+
+        let rate_limiter = build_rate_limiter();
+
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+
+        rate_limiter
+            .is_rate_limited(quotas, &cron1, 1, false)
+            .await
+            .unwrap();
+        let limits = rate_limiter
+            .is_rate_limited(quotas, &cron1, 1, false)
+            .await
+            .unwrap();
+
+        // This limit really does apply to the whole project, so it is kept for the cache even
+        // though the item which produced it carried dimensions.
+        assert!(limits.is_limited());
+        assert!(!limits.cacheable().is_empty());
     }
 }
