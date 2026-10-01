@@ -427,14 +427,14 @@ impl Service {
                             },
                             // Event if we have a length objectstore might reject resumable uploads
                             // in that case fallback to oneshoot.
-                            None => Provisional::Oneshoot,
+                            None => Provisional::Oneshot,
                         };
                         (key, kind)
                     }
                     // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, Provisional::Oneshoot),
+                    _ => (key, Provisional::Oneshot),
                 };
 
                 Location {
@@ -488,7 +488,7 @@ impl Service {
                 );
 
                 let context = match &kind {
-                    Provisional::Oneshoot => StreamContext::Oneshot(stream.byte_counter()),
+                    Provisional::Oneshot => StreamContext::Oneshot(stream.byte_counter()),
                     Provisional::Resumable { length, upload_id } => {
                         let UploadMode::Resumable {
                             offset,
@@ -605,14 +605,14 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone, Deserialize)]
 pub enum Provisional {
-    Oneshoot,
+    Oneshot,
     Resumable { length: usize, upload_id: String },
 }
 
 impl LocationKind for Provisional {
     fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
         match (upload_length, upload_id) {
-            (None, None) => Ok(Self::Oneshoot),
+            (None, None) => Ok(Self::Oneshot),
             (Some(length), Some(upload_id)) => Ok(Self::Resumable { length, upload_id }),
             _ => Err(Error::InvalidFromClient(
                 "expected both or neither of upload_length and upload_id",
@@ -622,14 +622,14 @@ impl LocationKind for Provisional {
 
     fn upload_length(&self) -> Option<usize> {
         match self {
-            Provisional::Oneshoot => None,
+            Provisional::Oneshot => None,
             Provisional::Resumable { length, .. } => Some(*length),
         }
     }
 
     fn upload_id(&self) -> Option<&str> {
         match self {
-            Provisional::Oneshoot => None,
+            Provisional::Oneshot => None,
             Provisional::Resumable { upload_id, .. } => Some(upload_id),
         }
     }
@@ -1109,7 +1109,7 @@ mod tests {
             Location {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
-                kind: Provisional::Oneshoot,
+                kind: Provisional::Oneshot,
                 other: UploadParams::default(),
             }
         }

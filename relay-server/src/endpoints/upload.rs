@@ -463,7 +463,7 @@ fn upload_mode(
     chunk_length: Option<usize>,
 ) -> Result<UploadMode, Error> {
     match kind {
-        Provisional::Oneshoot => Ok(UploadMode::Oneshot),
+        Provisional::Oneshot => Ok(UploadMode::Oneshot),
         Provisional::Resumable { .. } => Ok(UploadMode::Resumable {
             offset,
             chunk_length: chunk_length.ok_or(Error::MissingLength)?,
