@@ -21,6 +21,8 @@
 - Copy the INP interaction type to the INP web vital metric. ([#6420](https://github.com/getsentry/relay/pull/6420))
 - Extract session updates from Switch dying messages. ([#6363](https://github.com/getsentry/relay/pull/6363))
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
+- Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
+
 
 **Bug Fixes**:
 
@@ -57,7 +59,6 @@
 - Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))
 - Include the environment in the cron check-in routing key so a monitor's environments no longer share a single Kafka partition. ([#6331](https://github.com/getsentry/relay/pull/6331))
 - Set the `titleId` tag on all PlayStation events. ([#6352](https://github.com/getsentry/relay/pull/6352))
-- Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 
 **Bug Fixes**:
 
