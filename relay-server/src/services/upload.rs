@@ -167,7 +167,8 @@ pub struct Stream {
 
 /// Indicating whether a stream will be uploaded via oneshot or resumable upload.
 ///
-/// For the resumable case this carries additional necessary information.
+/// Note that the mode of a stream needs to match its location.
+/// See also [`Provisional`]
 pub enum UploadMode {
     Oneshot,
     Resumable {
