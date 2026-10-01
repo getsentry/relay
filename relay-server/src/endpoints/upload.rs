@@ -33,7 +33,7 @@ use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
     self, ByteStream, LocationKind, LocationQueryParams, ProjectContext, Provisional,
-    SignedLocation, StreamResult,
+    SignedLocation, StreamResult, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -66,6 +66,9 @@ enum Error {
     #[error("Invalid Upload-Offset {0} for Upload-Length {1}")]
     InvalidOffset(usize, usize),
 
+    #[error("Missing X-Decoded-Content-Length header")]
+    MissingLength,
+
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
 
@@ -91,6 +94,7 @@ impl IntoResponse for Error {
         let status = match self {
             Error::Tus(error) => return error.into_response(),
             Error::InvalidOffset(_, _) => StatusCode::CONFLICT,
+            Error::MissingLength => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -243,10 +247,11 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     let PatchHeaders {
         upload_offset,
-        decoded_content_length: content_length,
+        decoded_content_length,
     } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let kind = Provisional::from_params(upload_length, upload_id).map_err(Error::from)?;
+    let upload_mode = upload_mode(&kind, upload_offset, decoded_content_length)?;
     let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
     let config = state.config();
@@ -284,15 +289,7 @@ async fn handle_patch(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
 
     relay_log::trace!("Uploading");
-    let result = upload(
-        &state,
-        project_context,
-        location,
-        upload_offset,
-        content_length,
-        stream,
-    )
-    .await;
+    let result = upload(&state, project_context, location, upload_mode, stream).await;
     let result = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -366,18 +363,9 @@ async fn upload(
     state: &ServiceState,
     project: ProjectContext,
     location: SignedLocation<Provisional>,
-    offset: usize,
-    chunk_length: Option<usize>,
+    mode: UploadMode,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<StreamResult, Error> {
-    let mode = match chunk_length {
-        Some(chunk_length) => upload::UploadMode::Resumable {
-            offset,
-            chunk_length,
-        },
-        None => upload::UploadMode::Oneshot,
-    };
-
     let location = state
         .upload()
         .send(upload::Stream {
@@ -466,6 +454,21 @@ async fn validate(
         upstream,
         retention: event_retention(&project),
     })
+}
+
+/// Creates the [`UploadMode`] for the Stream based on the Location kind and [`PatchHeaders`].
+fn upload_mode(
+    kind: &Provisional,
+    offset: usize,
+    chunk_length: Option<usize>,
+) -> Result<UploadMode, Error> {
+    match kind {
+        Provisional::Oneshoot => Ok(UploadMode::Oneshot),
+        Provisional::Resumable { .. } => Ok(UploadMode::Resumable {
+            offset,
+            chunk_length: chunk_length.ok_or(Error::MissingLength)?,
+        }),
+    }
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
