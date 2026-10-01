@@ -1057,14 +1057,16 @@ impl ObjectstoreServiceInner {
                     .send()
                     .await?;
 
-                let offset = match progress {
-                    UploadProgress::Incomplete { offset } => offset as usize,
-                    UploadProgress::Complete => total_length,
+                let (session_token, offset) = match progress {
+                    UploadProgress::Incomplete { offset } => (Some(session_token), offset as usize),
+                    // If the upload is completed don't return the session_token,
+                    // so no more uploading is possible.
+                    UploadProgress::Complete => (None, total_length),
                 };
 
                 Ok(UploadRef {
                     key,
-                    session_token: Some(session_token),
+                    session_token,
                     offset,
                 })
             }
