@@ -243,7 +243,7 @@ pub fn routing_hint(check_in: &CheckIn, project_id: &ProjectId) -> Uuid {
 ///
 /// Keep this in sync with `slugify_monitor_slug` in Sentry, which applies Django's `slugify`,
 /// truncates to 50 characters and strips `-`:
-/// https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/types.py
+/// <https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/types.py>
 pub fn slugify_monitor_slug(slug: &str) -> String {
     // Python's `\s` for ASCII, which also matches the separators `\x1c` to `\x1f`.
     fn is_space(c: char) -> bool {
