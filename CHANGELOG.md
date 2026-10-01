@@ -21,6 +21,7 @@
 - Copy the INP interaction type to the INP web vital metric. ([#6420](https://github.com/getsentry/relay/pull/6420))
 - Extract session updates from Switch dying messages. ([#6363](https://github.com/getsentry/relay/pull/6363))
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
+- Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
 
 **Bug Fixes**:
 
