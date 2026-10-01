@@ -25,7 +25,7 @@ pub struct SqliteStackProvider {
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,
-    unspool_throttle: Option<Arc<Throttle>>,
+    unspool_throttle: Arc<Throttle>,
 }
 
 #[warn(dead_code)]
@@ -34,7 +34,7 @@ impl SqliteStackProvider {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
-        unspool_throttle: Option<Arc<Throttle>>,
+        unspool_throttle: Arc<Throttle>,
     ) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
@@ -149,6 +149,8 @@ mod tests {
 
     use relay_base_schema::project::ProjectKey;
     use relay_config::Config;
+
+    use crate::services::buffer::throttle::Throttle;
     use uuid::Uuid;
 
     use crate::EnvelopeStack;
@@ -180,9 +182,10 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let mut stack_provider = SqliteStackProvider::new(0, &config.current(), None)
-            .await
-            .unwrap();
+        let mut stack_provider =
+            SqliteStackProvider::new(0, &config.current(), Arc::new(Throttle::new(None)))
+                .await
+                .unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();

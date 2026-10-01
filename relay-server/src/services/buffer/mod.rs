@@ -100,10 +100,9 @@ impl PartitionedEnvelopeBuffer {
     ) -> Arc<Self> {
         let partitioning = Partitioning::new(config.current().spool_partitioning());
 
-        let unspool_throttle = config
-            .current()
-            .spool_max_unspool_envelopes_per_second()
-            .map(|limit| Arc::new(Throttle::new(limit)));
+        let unspool_throttle = Arc::new(Throttle::new(
+            config.current().spool_max_unspool_envelopes_per_second(),
+        ));
 
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -297,7 +296,7 @@ pub struct EnvelopeBufferService {
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
-    unspool_throttle: Option<Arc<Throttle>>,
+    unspool_throttle: Arc<Throttle>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
@@ -316,7 +315,7 @@ impl EnvelopeBufferService {
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
-        unspool_throttle: Option<Arc<Throttle>>,
+        unspool_throttle: Arc<Throttle>,
         services: Services,
     ) -> Self {
         Self {
@@ -709,6 +708,17 @@ impl Service for EnvelopeBufferService {
                         }
                 }
                 Ok(()) = global_config_rx.changed() => {
+                    if let global_config::Status::Ready(global_config) = &*global_config_rx.borrow()
+                    {
+                        self.unspool_throttle.set_rate(
+                            global_config
+                                .options
+                                .max_unspool_envelopes_per_second
+                                .or_else(|| {
+                                    self.config.current().spool_max_unspool_envelopes_per_second()
+                                }),
+                        );
+                    }
                     sleep = Duration::ZERO;
                 }
                 else => break,
@@ -876,7 +886,7 @@ mod tests {
             config,
             memory_stat,
             global_rx,
-            None,
+            Arc::new(Throttle::new(None)),
             Services {
                 project_cache_handle: project_cache_handle.clone(),
                 envelope_processor,
@@ -1101,7 +1111,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         );
 
@@ -1110,7 +1120,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx,
-            None,
+            Arc::new(Throttle::new(None)),
             services,
         );
 
@@ -1170,7 +1180,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);
@@ -1179,7 +1189,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);
