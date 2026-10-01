@@ -702,8 +702,7 @@ impl EnvelopeProcessorService {
                 }
 
                 if let Some(output) = main {
-                    // Only counting processing time for COGS at the moment.
-                    self.submit_upstream(&mut Token::noop(), output, ctx);
+                    self.submit_upstream(output, ctx);
                 }
 
                 if let Some(intermediates) = intermediates {
@@ -818,14 +817,7 @@ impl EnvelopeProcessorService {
     /// Submits a processor [`Output`] to the appropriate upstream.
     ///
     /// If processing is enabled, the upstream is Kafka.
-    fn submit_upstream(
-        &self,
-        cogs: &mut Token,
-        output: Outputs,
-        ctx: processing::ForwardContext<'_>,
-    ) {
-        let _submit = cogs.start_category("submit");
-
+    fn submit_upstream(&self, output: Outputs, ctx: processing::ForwardContext<'_>) {
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled()
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
