@@ -32,8 +32,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    StreamResult, UploadLength,
+    self, ByteStream, LocationKind, LocationQueryParams, ProjectContext, Provisional,
+    SignedLocation, StreamResult,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -153,7 +153,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl<L: UploadLength> IntoResponse for SignedLocation<L> {
+impl<K: LocationKind> IntoResponse for SignedLocation<K> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -235,7 +235,7 @@ async fn handle_patch(
         upload_id,
         upload_signature,
         other,
-    }): Query<LocationQueryParams<Provisional>>,
+    }): Query<LocationQueryParams>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     check_kill_switch(&state)?;
@@ -246,14 +246,8 @@ async fn handle_patch(
         decoded_content_length: content_length,
     } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let location = SignedLocation::from_parts(
-        project_id,
-        key,
-        upload_length,
-        upload_id,
-        upload_signature,
-        other,
-    );
+    let kind = Provisional::from_params(upload_length, upload_id).map_err(Error::from)?;
+    let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
     let config = state.config();
 
@@ -278,7 +272,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_length.value() {
+    let (lower_bound, upper_bound) = match upload_length {
         None => (0, config.max_upload_size()),
         Some(u) => {
             let remaining_bytes = u
@@ -299,22 +293,23 @@ async fn handle_patch(
         stream,
     )
     .await;
-    let StreamResult { location, offset } = result.inspect_err(|e| {
+    let result = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
     let mut response = NoContent.into_response();
 
+    response
+        .headers_mut()
+        .insert(tus::UPLOAD_OFFSET, result.offset().into());
+
     // Not required by TUS, but we respond with the location header:
     response.headers_mut().insert(
         header::LOCATION,
-        location
-            .into_header_value()
+        result
+            .location_into_header_value()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
-    response
-        .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, offset.into());
 
     Ok(response)
 }
@@ -372,13 +367,15 @@ async fn upload(
     project: ProjectContext,
     location: SignedLocation<Provisional>,
     offset: usize,
-    length: Option<usize>,
+    chunk_length: Option<usize>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<StreamResult, Error> {
-    let mode = if let Some(length) = length {
-        upload::StreamMode::Resumable { offset, length }
-    } else {
-        upload::StreamMode::Oneshot
+    let mode = match chunk_length {
+        Some(chunk_length) => upload::StreamMode::Resumable {
+            offset,
+            chunk_length,
+        },
+        None => upload::StreamMode::Oneshot,
     };
 
     let location = state

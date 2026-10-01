@@ -238,8 +238,8 @@ pub fn add_creation_headers(
 pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &StreamMode) {
     builder.header(TUS_RESUMABLE, TUS_VERSION);
     builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-    builder.header(UPLOAD_OFFSET, mode.offset().unwrap_or_default().to_string());
-    if let Some(length) = mode.length() {
+    builder.header(UPLOAD_OFFSET, mode.offset().to_string());
+    if let Some(length) = mode.chunk_length() {
         builder.header(X_DECODED_CONTENT_LENGTH, length.to_string());
     }
 }
