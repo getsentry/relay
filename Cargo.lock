@@ -4754,6 +4754,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "thiserror 2.0.18",
+ "unicode-normalization",
  "uuid",
 ]
 

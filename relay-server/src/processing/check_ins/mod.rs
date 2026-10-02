@@ -204,7 +204,7 @@ impl CountRateLimited for Managed<ExpandedCheckIn> {
             ),
             (
                 relay_quotas::Dimension::CheckInSlug,
-                self.check_in.monitor_slug.clone(),
+                relay_monitors::slugify_monitor_slug(&self.check_in.monitor_slug),
             ),
         ];
 
@@ -280,6 +280,30 @@ mod tests {
             check_in.dimensions(),
             Some(DimensionMap::from([
                 (Dimension::CheckInEnvironment, String::new()),
+                (Dimension::CheckInSlug, "my-monitor".to_owned()),
+            ]))
+        );
+
+        drop(check_in);
+        handle.assert_internal_outcome(DataCategory::Monitor, 1);
+    }
+
+    #[test]
+    fn test_check_in_dimensions_slugified() {
+        let (check_in, mut handle) = expanded_check_in(
+            r#"{
+                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+                "monitor_slug": "My Monitor",
+                "status": "ok",
+                "environment": "production"
+            }"#,
+        );
+
+        // Sentry stores `My Monitor` as `my-monitor`, so both share a rate limit bucket.
+        assert_eq!(
+            check_in.dimensions(),
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, "production".to_owned()),
                 (Dimension::CheckInSlug, "my-monitor".to_owned()),
             ]))
         );
