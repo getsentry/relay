@@ -35,7 +35,10 @@ pub enum RelayErrorCode {
     InvalidReleaseErrorRestrictedName = 3002,
     InvalidReleaseErrorBadCharacters = 3003,
 
+    // relay_patterh::Error
     PatternError = 4001,
+    // relay_patterh::OutOfGas,
+    PatternOutOfGas = 4002,
 }
 
 impl RelayErrorCode {
@@ -53,6 +56,9 @@ impl RelayErrorCode {
             }
             if cause.downcast_ref::<relay_pattern::Error>().is_some() {
                 return RelayErrorCode::PatternError;
+            }
+            if cause.downcast_ref::<relay_pattern::OutOfGas>().is_some() {
+                return RelayErrorCode::PatternOutOfGas;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
