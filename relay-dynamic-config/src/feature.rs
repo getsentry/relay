@@ -106,6 +106,9 @@ pub enum Feature {
     /// own event.
     #[serde(rename = "organizations:gpu-crash-symbolication")]
     NvGpuCrashSplit,
+    /// Enable resumable uploads to objectstore.
+    #[serde(rename = "projects:resumable-uploads")]
+    ResumableUpload,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.

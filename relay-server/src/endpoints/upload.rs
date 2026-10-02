@@ -32,11 +32,12 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    UploadLength,
+    self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    StreamResult, UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
+use crate::utils::tus::PatchHeaders;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
@@ -62,6 +63,9 @@ enum Error {
     #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
 
+    #[error("Invalid Upload-Offset {0} for Upload-Length {1}")]
+    InvalidOffset(usize, usize),
+
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
 
@@ -86,6 +90,7 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(error) => return error.into_response(),
+            Error::InvalidOffset(_, _) => StatusCode::CONFLICT,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -106,17 +111,21 @@ impl IntoResponse for Error {
                     Some(status) => status,
                     None => StatusCode::INTERNAL_SERVER_ERROR,
                 },
-                upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
+                upload::Error::InvalidLocation(_)
+                | upload::Error::SigningFailed
+                | upload::Error::InvalidFromUpstream { .. } => StatusCode::INTERNAL_SERVER_ERROR,
                 #[cfg(feature = "processing")]
-                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidSessionToken(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidFromClient(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::ErrorKind::InvalidOffset { .. }
+                    | objectstore::ErrorKind::UploadCompleted => StatusCode::CONFLICT,
+
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
@@ -190,12 +199,14 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
+    let resumable = resumable_enabled(&project);
+
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+    let result = create(&state, project_context, &headers, resumable).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -230,7 +241,10 @@ async fn handle_patch(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let PatchHeaders {
+        upload_offset,
+        decoded_content_length: content_length,
+    } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -265,19 +279,29 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match upload_length.value() {
-        None => (1, config.max_upload_size()),
-        Some(u) => (u, u),
+        None => (0, config.max_upload_size()),
+        Some(u) => {
+            let remaining_bytes = u
+                .checked_sub(upload_offset)
+                .ok_or(Error::InvalidOffset(upload_offset, u))?;
+            (0, remaining_bytes)
+        }
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-    let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, stream).await;
-    let location = result.inspect_err(|e| {
+    let result = upload(
+        &state,
+        project_context,
+        location,
+        upload_offset,
+        content_length,
+        stream,
+    )
+    .await;
+    let StreamResult { location, offset } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
-
-    let upload_offset = byte_counter.get();
 
     let mut response = NoContent.into_response();
 
@@ -290,7 +314,7 @@ async fn handle_patch(
     );
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_offset.into());
+        .insert(tus::UPLOAD_OFFSET, offset.into());
 
     Ok(response)
 }
@@ -317,10 +341,18 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
     Ok(())
 }
 
+fn resumable_enabled(project: &Project<'_>) -> bool {
+    match project.state() {
+        ProjectState::Enabled(info) => info.has_feature(Feature::ResumableUpload),
+        _ => false,
+    }
+}
+
 async fn create(
     state: &ServiceState,
     project: ProjectContext,
-    headers: &tus::Headers,
+    headers: &tus::PostHeaders,
+    resumable: bool,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -328,6 +360,7 @@ async fn create(
             project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
+            resumable,
         })
         .await??;
 
@@ -338,8 +371,16 @@ async fn upload(
     state: &ServiceState,
     project: ProjectContext,
     location: SignedLocation<Provisional>,
+    offset: usize,
+    length: Option<usize>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Final>, Error> {
+) -> Result<StreamResult, Error> {
+    let mode = if let Some(length) = length {
+        upload::StreamMode::Resumable { offset, length }
+    } else {
+        upload::StreamMode::Oneshot
+    };
+
     let location = state
         .upload()
         .send(upload::Stream {
@@ -347,6 +388,7 @@ async fn upload(
             project,
             location,
             stream,
+            mode,
         })
         .await??;
 
@@ -360,7 +402,7 @@ async fn upload(
 async fn validate_and_limit(
     state: &ServiceState,
     meta: RequestMeta,
-    headers: &tus::Headers,
+    headers: &tus::PostHeaders,
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
