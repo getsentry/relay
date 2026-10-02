@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CheckInStatus","ProcessCheckInError"],"fn":["normalize","routing_hint"],"struct":["CheckIn","CheckInContexts","CheckInTrace","MonitorConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["CheckInStatus","ProcessCheckInError"],"fn":["normalize","routing_hint","slugify_monitor_slug"],"struct":["CheckIn","CheckInContexts","CheckInTrace","MonitorConfig"]};

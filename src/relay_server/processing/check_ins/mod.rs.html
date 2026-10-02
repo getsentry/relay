@@ -204,7 +204,7 @@
 <a href=#204 id=204 data-nosnippet>204</a>            ),
 <a href=#205 id=205 data-nosnippet>205</a>            (
 <a href=#206 id=206 data-nosnippet>206</a>                relay_quotas::Dimension::CheckInSlug,
-<a href=#207 id=207 data-nosnippet>207</a>                <span class="self">self</span>.check_in.monitor_slug.clone(),
+<a href=#207 id=207 data-nosnippet>207</a>                relay_monitors::slugify_monitor_slug(<span class="kw-2">&amp;</span><span class="self">self</span>.check_in.monitor_slug),
 <a href=#208 id=208 data-nosnippet>208</a>            ),
 <a href=#209 id=209 data-nosnippet>209</a>        ];
 <a href=#210 id=210 data-nosnippet>210</a>
@@ -287,5 +287,29 @@
 <a href=#287 id=287 data-nosnippet>287</a>        drop(check_in);
 <a href=#288 id=288 data-nosnippet>288</a>        handle.assert_internal_outcome(DataCategory::Monitor, <span class="number">1</span>);
 <a href=#289 id=289 data-nosnippet>289</a>    }
-<a href=#290 id=290 data-nosnippet>290</a>}
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="attr">#[test]
+<a href=#292 id=292 data-nosnippet>292</a>    </span><span class="kw">fn </span>test_check_in_dimensions_slugified() {
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">let </span>(check_in, <span class="kw-2">mut </span>handle) = expanded_check_in(
+<a href=#294 id=294 data-nosnippet>294</a>            <span class="string">r#"{
+<a href=#295 id=295 data-nosnippet>295</a>                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+<a href=#296 id=296 data-nosnippet>296</a>                "monitor_slug": "My Monitor",
+<a href=#297 id=297 data-nosnippet>297</a>                "status": "ok",
+<a href=#298 id=298 data-nosnippet>298</a>                "environment": "production"
+<a href=#299 id=299 data-nosnippet>299</a>            }"#</span>,
+<a href=#300 id=300 data-nosnippet>300</a>        );
+<a href=#301 id=301 data-nosnippet>301</a>
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="comment">// Sentry stores `My Monitor` as `my-monitor`, so both share a rate limit bucket.
+<a href=#303 id=303 data-nosnippet>303</a>        </span><span class="macro">assert_eq!</span>(
+<a href=#304 id=304 data-nosnippet>304</a>            check_in.dimensions(),
+<a href=#305 id=305 data-nosnippet>305</a>            <span class="prelude-val">Some</span>(DimensionMap::from([
+<a href=#306 id=306 data-nosnippet>306</a>                (Dimension::CheckInEnvironment, <span class="string">"production"</span>.to_owned()),
+<a href=#307 id=307 data-nosnippet>307</a>                (Dimension::CheckInSlug, <span class="string">"my-monitor"</span>.to_owned()),
+<a href=#308 id=308 data-nosnippet>308</a>            ]))
+<a href=#309 id=309 data-nosnippet>309</a>        );
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>        drop(check_in);
+<a href=#312 id=312 data-nosnippet>312</a>        handle.assert_internal_outcome(DataCategory::Monitor, <span class="number">1</span>);
+<a href=#313 id=313 data-nosnippet>313</a>    }
+<a href=#314 id=314 data-nosnippet>314</a>}
 </code></pre></div></section></main></body></html>
