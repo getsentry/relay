@@ -50,6 +50,7 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
         let payload = item.payload();
         let payload: AttachmentPlaceholder =
             serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        // NOTE: Only Final locations are allowed no Provisional.
         let signed_location: SignedLocation<Final> = SignedLocation::try_from_str(payload.location)
             .ok_or(ProcessingError::InvalidAttachmentRef)?;
         // NOTE: Using the received timestamp here breaks tests without a pop-relay.
