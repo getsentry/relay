@@ -47,7 +47,7 @@ impl PatternConfig for CaseInsensitive {
 /// type MetricPattern = relay_pattern::TypedPattern<MetricConfig>;
 ///
 /// let pattern = MetricPattern::new("[cd]:foo/bar").unwrap();
-/// assert!(pattern.is_match("c:foo/bar"));
+/// assert_eq!(pattern.is_match("c:foo/bar", relay_pattern::Gas::MAX), Ok(true));
 /// ```
 pub struct TypedPattern<C = DefaultPatternConfig> {
     pattern: Pattern,
@@ -58,14 +58,14 @@ impl<C: PatternConfig> TypedPattern<C> {
     /// Creates a new [`TypedPattern`] using the provided pattern and config `C`.
     ///
     /// ```
-    /// use relay_pattern::{Pattern, TypedPattern, CaseInsensitive};
+    /// use relay_pattern::{Pattern, Gas, TypedPattern, CaseInsensitive};
     ///
     /// let pattern = TypedPattern::<CaseInsensitive>::new("foo*").unwrap();
-    /// assert!(pattern.is_match("FOOBAR"));
+    /// assert_eq!(pattern.is_match("FOOBAR", Gas::MAX), Ok(true));
     ///
     /// // Equivalent to:
     /// let pattern = Pattern::builder("foo*").case_insensitive(true).build().unwrap();
-    /// assert!(pattern.is_match("FOOBAR"));
+    /// assert_eq!(pattern.is_match("FOOBAR", Gas::MAX), Ok(true));
     /// ```
     pub fn new(pattern: &str) -> Result<Self, Error> {
         Pattern::builder(pattern)
@@ -315,25 +315,27 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Gas;
+
     use super::*;
 
     #[test]
     fn test_pattern_default() {
         let pattern: TypedPattern = TypedPattern::new("*[rt]x").unwrap();
-        assert!(pattern.is_match("f/o_rx"));
-        assert!(pattern.is_match("f/o_tx"));
-        assert!(pattern.is_match("F/o_tx"));
+        assert_eq!(pattern.is_match("f/o_rx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("f/o_tx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("F/o_tx", Gas::MAX), Ok(true));
         // case sensitive
-        assert!(!pattern.is_match("f/o_Tx"));
-        assert!(!pattern.is_match("f/o_rX"));
+        assert_eq!(pattern.is_match("f/o_Tx", Gas::MAX), Ok(false));
+        assert_eq!(pattern.is_match("f/o_rX", Gas::MAX), Ok(false));
     }
 
     #[test]
     fn test_pattern_case_insensitive() {
         let pattern: TypedPattern<CaseInsensitive> = TypedPattern::new("*[rt]x").unwrap();
         // case insensitive
-        assert!(pattern.is_match("f/o_Tx"));
-        assert!(pattern.is_match("f/o_rX"));
+        assert_eq!(pattern.is_match("f/o_Tx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("f/o_rX", Gas::MAX), Ok(true));
     }
 
     #[test]
@@ -358,7 +360,7 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_pattern_deserialize() {
         let pattern: TypedPattern<CaseInsensitive> = serde_json::from_str(r#""*[rt]x""#).unwrap();
-        assert!(pattern.is_match("foobar_rx"));
+        assert_eq!(pattern.is_match("foobar_rx", Gas::MAX), Ok(true));
     }
 
     #[test]
@@ -398,9 +400,9 @@ mod tests {
             .add("foobar".to_owned())
             .unwrap()
             .take();
-        assert!(patterns.is_match("f/o_rx"));
-        assert!(patterns.is_match("foobar"));
-        assert!(!patterns.is_match("Foobar"));
+        assert_eq!(patterns.is_match("f/o_rx", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("foobar", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("Foobar", Gas::MAX), Ok(false));
     }
 
     #[test]
@@ -411,10 +413,10 @@ mod tests {
             .add("foobar".to_owned())
             .unwrap()
             .take();
-        assert!(patterns.is_match("f/o_rx"));
-        assert!(patterns.is_match("f/o_Rx"));
-        assert!(patterns.is_match("foobar"));
-        assert!(patterns.is_match("Foobar"));
+        assert_eq!(patterns.is_match("f/o_rx", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("f/o_Rx", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("foobar", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("Foobar", Gas::MAX), Ok(true));
     }
 
     #[test]
@@ -422,8 +424,8 @@ mod tests {
     fn test_patterns_deserialize() {
         let pattern: TypedPatterns<CaseInsensitive> =
             serde_json::from_str(r#"["*[rt]x","foobar"]"#).unwrap();
-        assert!(pattern.is_match("foobar_rx"));
-        assert!(pattern.is_match("FOOBAR"));
+        assert_eq!(pattern.is_match("foobar_rx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("FOOBAR", Gas::MAX), Ok(true));
     }
 
     #[test]
@@ -431,8 +433,8 @@ mod tests {
     fn test_patterns_deserialize_err() {
         let r: TypedPatterns<CaseInsensitive> =
             serde_json::from_str(r#"["[invalid","foobar"]"#).unwrap();
-        assert!(r.is_match("foobar"));
-        assert!(r.is_match("FOOBAR"));
+        assert_eq!(r.is_match("foobar", Gas::MAX), Ok(true));
+        assert_eq!(r.is_match("FOOBAR", Gas::MAX), Ok(true));
 
         // The invalid element is dropped.
         assert_eq!(serde_json::to_string(&r).unwrap(), r#"["foobar"]"#);

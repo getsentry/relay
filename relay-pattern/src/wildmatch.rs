@@ -2,30 +2,38 @@ use std::num::NonZeroUsize;
 
 use smallvec::SmallVec;
 
-use crate::{Literal, Options, Ranges, Token, Tokens};
+use crate::{Gas, Literal, MatchOptions, OutOfGas, Ranges, Token, Tokens};
 
-/// Matches [`Tokens`] against a `haystack` with the provided [`Options`].
+/// Matches [`Tokens`] against a `haystack` with the provided [`MatchOptions`].
 ///
 /// This implementation is largely based on the algorithm described by [Kirk J Krauss]
 /// and combining the two loops into a single one and other small modifications to take advantage
 /// of the already pre-processed [`Tokens`] structure and its invariants.
 ///
 /// [Kirk J Krauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
-pub fn is_match(haystack: &str, tokens: &Tokens, options: Options) -> bool {
-    match options.case_insensitive {
-        false => is_match_impl::<CaseSensitive>(haystack, tokens.as_slice()),
-        true => is_match_impl::<CaseInsensitive>(haystack, tokens.as_slice()),
+pub fn is_match(
+    haystack: &str,
+    tokens: &Tokens,
+    options: MatchOptions<'_>,
+) -> Result<bool, OutOfGas> {
+    match options.case_sensitive.0 {
+        true => is_match_impl::<CaseSensitive>(haystack, tokens.as_slice(), options.gas),
+        false => is_match_impl::<CaseInsensitive>(haystack, tokens.as_slice(), options.gas),
     }
 }
 
 #[inline(always)]
-fn is_match_impl<'a, M>(haystack: &'a str, tokens: &'a [Token]) -> bool
+fn is_match_impl<'a, M>(
+    haystack: &'a str,
+    tokens: &'a [Token],
+    gas: &mut Gas,
+) -> Result<bool, OutOfGas>
 where
     M: Matcher,
 {
     // Empty glob never matches.
     if tokens.is_empty() {
-        return false;
+        return Ok(false);
     }
 
     // Stack of matching attempts, the top of the stack is the attempt which is
@@ -41,7 +49,7 @@ where
     loop {
         let Some(frame) = frames.last_mut() else {
             // All alternation branches exhausted -> no match.
-            return false;
+            return Ok(false);
         };
 
         // Matches the current attempt against the haystack, including wildcard backtracking.
@@ -51,6 +59,8 @@ where
         //  - Breaks with a new frame, when an alternate is found.
         //  - Breaks with `None` if the current alternate does not match.
         let new_frame = loop {
+            gas.try_consume()?;
+
             if !matched {
                 if frame.t_revert == 0 {
                     // No backtracking possible, no wildcard was encountered
@@ -75,7 +85,7 @@ where
             if frame.t_next == frame.stream.len() {
                 if frame.h_current.is_empty() {
                     // All tokens and the entire haystack are consumed -> match.
-                    return true;
+                    return Ok(true);
                 }
                 // There is haystack remaining, only backtracking can consume more of it.
                 matched = false;
@@ -110,7 +120,7 @@ where
                 Token::Wildcard => {
                     // `ab*c*` matches `abcd`.
                     if frame.t_next == frame.stream.len() {
-                        return true;
+                        return Ok(true);
                     }
 
                     frame.t_revert = frame.t_next;
@@ -525,17 +535,28 @@ mod tests {
     use super::*;
     use crate::{Range, Ranges};
 
+    use std::assert_matches;
+
+    fn opts() -> MatchOptions<'static> {
+        MatchOptions {
+            case_sensitive: crate::CaseSensitive(true),
+            gas: Box::leak(Box::new(Gas::MAX)),
+        }
+    }
+
+    fn opts_ci() -> MatchOptions<'static> {
+        MatchOptions {
+            case_sensitive: crate::CaseSensitive(false),
+            gas: Box::leak(Box::new(Gas::MAX)),
+        }
+    }
+
     fn literal(s: &str) -> Literal {
-        Literal::new(s.to_owned(), Default::default())
+        Literal::new(s.to_owned(), crate::CaseSensitive(true))
     }
 
     fn literal_ci(s: &str) -> Literal {
-        Literal::new(
-            s.to_owned(),
-            Options {
-                case_insensitive: true,
-            },
-        )
+        Literal::new(s.to_owned(), crate::CaseSensitive(false))
     }
 
     fn range(start: char, end: char) -> Ranges {
@@ -554,9 +575,9 @@ mod tests {
     fn test_literal() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("abc")));
-        assert!(is_match("abc", &tokens, Default::default()));
-        assert!(!is_match("abcd", &tokens, Default::default()));
-        assert!(!is_match("bc", &tokens, Default::default()));
+        assert_eq!(is_match("abc", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("abcd", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("bc", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -568,9 +589,9 @@ mod tests {
             ranges: Ranges::Single(Range::single('b')),
         });
         tokens.push(Token::Literal(literal("c")));
-        assert!(is_match("abc", &tokens, Default::default()));
-        assert!(!is_match("aac", &tokens, Default::default()));
-        assert!(!is_match("abbc", &tokens, Default::default()));
+        assert_eq!(is_match("abc", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aac", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("abbc", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -582,9 +603,9 @@ mod tests {
             ranges: Ranges::Single(Range::single('b')),
         });
         tokens.push(Token::Literal(literal("c")));
-        assert!(!is_match("abc", &tokens, Default::default()));
-        assert!(is_match("aac", &tokens, Default::default()));
-        assert!(!is_match("abbc", &tokens, Default::default()));
+        assert_eq!(is_match("abc", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("aac", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("abbc", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -593,9 +614,9 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::MIN));
         tokens.push(Token::Literal(literal("c")));
-        assert!(is_match("abc", &tokens, Default::default()));
-        assert!(is_match("aඞc", &tokens, Default::default()));
-        assert!(!is_match("abbc", &tokens, Default::default()));
+        assert_eq!(is_match("abc", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aඞc", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("abbc", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -604,12 +625,12 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::new(2).unwrap()));
         tokens.push(Token::Literal(literal("d")));
-        assert!(is_match("abcd", &tokens, Default::default()));
-        assert!(is_match("aඞ_d", &tokens, Default::default()));
-        assert!(!is_match("abbc", &tokens, Default::default()));
-        assert!(!is_match("abcde", &tokens, Default::default()));
-        assert!(!is_match("abc", &tokens, Default::default()));
-        assert!(!is_match("bcd", &tokens, Default::default()));
+        assert_eq!(is_match("abcd", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aඞ_d", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("abbc", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("abcde", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("abc", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("bcd", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -618,11 +639,11 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::new(3).unwrap()));
         tokens.push(Token::Literal(literal("a")));
-        assert!(is_match("abbba", &tokens, Default::default()));
-        assert!(is_match("aඞbඞa", &tokens, Default::default()));
+        assert_eq!(is_match("abbba", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aඞbඞa", &tokens, opts()), Ok(true));
         // `i̇` is `i\u{307}`
-        assert!(is_match("aඞi̇a", &tokens, Default::default()));
-        assert!(!is_match("aඞi̇ඞa", &tokens, Default::default()));
+        assert_eq!(is_match("aඞi̇a", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aඞi̇ඞa", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -630,15 +651,15 @@ mod tests {
         let mut tokens = Tokens::default();
         tokens.push(Token::Wildcard);
         tokens.push(Token::Literal(literal("b")));
-        assert!(is_match("b", &tokens, Default::default()));
-        assert!(is_match("aaaab", &tokens, Default::default()));
-        assert!(is_match("ඞb", &tokens, Default::default()));
-        assert!(is_match("bbbbbbbbb", &tokens, Default::default()));
-        assert!(!is_match("", &tokens, Default::default()));
-        assert!(!is_match("a", &tokens, Default::default()));
-        assert!(!is_match("aa", &tokens, Default::default()));
-        assert!(!is_match("aaa", &tokens, Default::default()));
-        assert!(!is_match("ba", &tokens, Default::default()));
+        assert_eq!(is_match("b", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aaaab", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("ඞb", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("bbbbbbbbb", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("a", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("aa", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("aaa", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("ba", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -646,30 +667,27 @@ mod tests {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Wildcard);
-        assert!(is_match("a", &tokens, Default::default()));
-        assert!(is_match("aaaab", &tokens, Default::default()));
-        assert!(is_match("aඞ", &tokens, Default::default()));
-        assert!(!is_match("", &tokens, Default::default()));
-        assert!(!is_match("b", &tokens, Default::default()));
-        assert!(!is_match("bb", &tokens, Default::default()));
-        assert!(!is_match("bbb", &tokens, Default::default()));
-        assert!(!is_match("ba", &tokens, Default::default()));
+        assert_eq!(is_match("a", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aaaab", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aඞ", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("b", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("bb", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("bbb", &tokens, opts()), Ok(false));
+        assert_eq!(is_match("ba", &tokens, opts()), Ok(false));
     }
 
     #[test]
     fn test_wildcard_end_unicode_case_insensitive() {
-        let options = Options {
-            case_insensitive: true,
-        };
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal(Literal::new("İ".to_owned(), options)));
+        tokens.push(Token::Literal(literal_ci("İ")));
         tokens.push(Token::Wildcard);
 
-        assert!(is_match("İ___", &tokens, options));
-        assert!(is_match("İ", &tokens, options));
-        assert!(is_match("i̇", &tokens, options));
-        assert!(is_match("i\u{307}___", &tokens, options));
-        assert!(!is_match("i____", &tokens, options));
+        assert_eq!(is_match("İ___", &tokens, opts_ci()), Ok(true));
+        assert_eq!(is_match("İ", &tokens, opts_ci()), Ok(true));
+        assert_eq!(is_match("i̇", &tokens, opts_ci()), Ok(true));
+        assert_eq!(is_match("i\u{307}___", &tokens, opts_ci()), Ok(true));
+        assert_eq!(is_match("i____", &tokens, opts_ci()), Ok(false));
     }
 
     #[test]
@@ -689,9 +707,9 @@ mod tests {
             },
         ]));
         tokens.push(Token::Literal(literal("a")));
-        assert!(is_match("aba", &tokens, Default::default()));
-        assert!(is_match("aca", &tokens, Default::default()));
-        assert!(!is_match("ada", &tokens, Default::default()));
+        assert_eq!(is_match("aba", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("aca", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("ada", &tokens, opts()), Ok(false));
     }
 
     #[test]
@@ -701,8 +719,8 @@ mod tests {
         tokens.push(Token::Optional(Tokens(vec![Token::Literal(literal(
             "foo",
         ))])));
-        assert!(is_match("foo", &tokens, Default::default()));
-        assert!(is_match("", &tokens, Default::default()));
+        assert_eq!(is_match("foo", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("", &tokens, opts()), Ok(true));
     }
 
     #[test]
@@ -722,9 +740,9 @@ mod tests {
         ]);
 
         tokens.push(Token::Optional(Tokens(vec![alternates])));
-        assert!(is_match("foo", &tokens, Default::default()));
-        assert!(is_match("bar", &tokens, Default::default()));
-        assert!(is_match("", &tokens, Default::default()));
+        assert_eq!(is_match("foo", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("bar", &tokens, opts()), Ok(true));
+        assert_eq!(is_match("", &tokens, opts()), Ok(true));
     }
 
     #[test]
@@ -964,5 +982,37 @@ mod tests {
         test!("fඞoǧbar", false, ['ǧ' - 'ǧ'], Some((5, 'ǧ')));
         test!("fඞoǧbar", false, ['Ǧ' - 'Ǧ'], Some((5, 'ǧ')));
         test!("fඞoǦbar", false, ['ǧ' - 'ǧ'], Some((5, 'Ǧ')));
+    }
+
+    #[test]
+    fn test_gas() {
+        let alterante = {
+            let mut tokens = Tokens::default();
+            tokens.push(Token::Wildcard);
+            tokens.push(Token::Literal(literal("a")));
+            Token::OptionalAlternates(vec![tokens])
+        };
+
+        // This is the pattern `*{*a,}{*a,}b`.
+        let mut tokens = Tokens::default();
+        tokens.push(Token::Wildcard);
+        tokens.push(alterante.clone());
+        tokens.push(alterante);
+        tokens.push(Token::Literal(literal("b")));
+
+        fn opts(gas: &mut Gas) -> MatchOptions<'_> {
+            MatchOptions {
+                case_sensitive: crate::CaseSensitive(false),
+                gas,
+            }
+        }
+        let mut gas = Gas(1000);
+        let haystack = "a".repeat(10);
+
+        assert_matches!(is_match(&haystack, &tokens, opts(&mut gas)), Ok(false));
+        assert_matches!(
+            is_match(&haystack, &tokens, opts(&mut gas)),
+            Err(OutOfGas(_))
+        );
     }
 }

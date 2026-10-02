@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::net::IpAddr;
 
 use ipnetwork::IpNetwork;
-use relay_pattern::{CaseInsensitive, TypedPatterns};
+use relay_pattern::{CaseInsensitive, Gas, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -185,7 +185,7 @@ impl GlobCondition {
         T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
-            Some(Val::String(s)) => self.value.is_match(s),
+            Some(Val::String(s)) => self.value.is_match(s, Gas::CONSTRAINED).unwrap_or(false),
             _ => false,
         }
     }
