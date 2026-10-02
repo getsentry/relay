@@ -490,9 +490,9 @@ impl ServiceState {
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
-    const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
-    const QUOTA_REDIS_CLIENT: &str = "quotas";
-    const UNIFIED_REDIS_CLIENT: &str = "unified";
+    const PROJECT_CONFIG_REDIS_CLIENT: (&str, &str) = ("projectconfig", "projectconfig_secondary");
+    const QUOTA_REDIS_CLIENT: (&str, &str) = ("quotas", "quotas_secondary");
+    const UNIFIED_REDIS_CLIENT: (&str, &str) = ("unified", "unified_secondary");
 
     match configs {
         RedisConfigsRef::Unified(unified) => {
@@ -521,18 +521,39 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 
 #[cfg(feature = "processing")]
 fn create_async_redis_client(
-    name: &'static str,
+    (name, secondary_name): (&'static str, &'static str),
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
-    match config {
+    let (primary, secondary) = match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
+            secondary,
             options,
-        } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
-        RedisConfigRef::Single { server, options } => {
-            AsyncRedisClient::single(name, server, options)
-        }
-    }
+        } => (
+            AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options)?,
+            secondary,
+        ),
+        RedisConfigRef::Single {
+            server,
+            secondary,
+            options,
+        } => (AsyncRedisClient::single(name, server, options)?, secondary),
+    };
+
+    let Some(secondary) = secondary else {
+        return Ok(primary);
+    };
+
+    let secondary = match (secondary.is_cluster, secondary.nodes) {
+        (true, nodes) => AsyncRedisClient::cluster(
+            secondary_name,
+            nodes.iter().map(String::as_str),
+            &secondary.options,
+        )?,
+        (false, [server]) => AsyncRedisClient::single(secondary_name, server, &secondary.options)?,
+        (false, _) => return Err(RedisError::Configuration),
+    };
+    Ok(AsyncRedisClient::dual(primary, secondary))
 }
 
 #[cfg(feature = "processing")]

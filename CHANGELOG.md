@@ -33,6 +33,7 @@
 
 **Internal**:
 
+- Support duplicating Redis write commands to a `secondary` Redis (single node or cluster) to ease migrations between Redis deployments. ([#6294](https://github.com/getsentry/relay/pull/6294))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
