@@ -76,14 +76,14 @@ pub struct CustomMeasurementConfig {
 #[derive(Debug, Clone, Copy)]
 pub struct CombinedMetricExtractionConfig<'a> {
     global: &'a MetricExtractionGroups,
-    project: &'a MetricExtractionConfig,
+    project: Option<&'a MetricExtractionConfig>,
 }
 
 impl<'a> CombinedMetricExtractionConfig<'a> {
     /// Empty config, used in tests and as a fallback.
     pub const EMPTY: Self = Self {
         global: MetricExtractionGroups::EMPTY,
-        project: &MetricExtractionConfig::empty(),
+        project: None,
     };
 
     /// Creates a new combined view from two references.
@@ -96,12 +96,18 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
             }
         }
 
-        Self { global, project }
+        Self {
+            global,
+            project: Some(project),
+        }
     }
 
     /// Returns an iterator of metric specs.
     pub fn metrics(&self) -> impl Iterator<Item = &MetricSpec> {
-        let project = self.project.metrics.iter();
+        let project = self
+            .project
+            .into_iter()
+            .flat_map(|config| config.metrics.iter());
         let enabled_global = self
             .enabled_groups()
             .flat_map(|template| template.metrics.iter());
@@ -111,7 +117,10 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
 
     /// Returns an iterator of tag mappings.
     pub fn tags(&self) -> impl Iterator<Item = &TagMapping> {
-        let project = self.project.tags.iter();
+        let project = self
+            .project
+            .into_iter()
+            .flat_map(|config| config.tags.iter());
         let enabled_global = self
             .enabled_groups()
             .flat_map(|template| template.tags.iter());
@@ -121,7 +130,10 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
 
     fn enabled_groups(&self) -> impl Iterator<Item = &MetricExtractionGroup> {
         self.global.groups.iter().filter_map(|(key, template)| {
-            let is_enabled_by_override = self.project.global_groups.get(key).map(|c| c.is_enabled);
+            let is_enabled_by_override = self
+                .project
+                .and_then(|project| project.global_groups.get(key))
+                .map(|config| config.is_enabled);
             let is_enabled = is_enabled_by_override.unwrap_or(template.is_enabled);
 
             is_enabled.then_some(template)
@@ -169,15 +181,15 @@ pub struct MetricExtractionGroup {
     pub is_enabled: bool,
 
     /// A list of metric specifications to extract.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub metrics: Vec<MetricSpec>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub metrics: Box<[MetricSpec]>,
 
     /// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagMapping>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub tags: Box<[TagMapping]>,
 }
 
 /// Configuration for generic extraction of metrics from all data categories.
@@ -195,15 +207,15 @@ pub struct MetricExtractionConfig {
     pub global_groups: BTreeMap<GroupKey, MetricExtractionGroupOverride>,
 
     /// A list of metric specifications to extract.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub metrics: Vec<MetricSpec>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub metrics: Box<[MetricSpec]>,
 
     /// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagMapping>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub tags: Box<[TagMapping]>,
 
     /// This config has been extended with fields from `conditional_tagging`.
     ///
@@ -236,12 +248,12 @@ impl MetricExtractionConfig {
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
     /// As opposed to `default()`, this will be enabled once populated with specs.
-    pub const fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             version: Self::MAX_SUPPORTED_VERSION,
             global_groups: BTreeMap::new(),
-            metrics: Vec::new(),
-            tags: Vec::new(),
+            metrics: Box::new([]),
+            tags: Box::new([]),
             _conditional_tags_extended: false,
             _span_metrics_extended: false,
         }
@@ -356,8 +368,8 @@ pub struct MetricSpec {
     /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
     /// possible to list tag keys multiple times, each with different conditions. The first matching
     /// condition will be applied.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagSpec>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub tags: Box<[TagSpec]>,
 }
 
 /// Mapping between extracted metrics and additional tags to extract.
@@ -368,7 +380,7 @@ pub struct TagMapping {
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
-    pub metrics: Vec<LazyGlob>,
+    pub metrics: Box<[LazyGlob]>,
 
     /// A list of tags to add to the metric.
     ///
@@ -376,7 +388,7 @@ pub struct TagMapping {
     /// possible to list tag keys multiple times, each with different conditions. The first matching
     /// condition will be applied.
     #[serde(default)]
-    pub tags: Vec<TagSpec>,
+    pub tags: Box<[TagSpec]>,
 }
 
 impl TagMapping {
@@ -530,10 +542,12 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.tags.extend(TaggingRuleConverter {
+    let mut tags = std::mem::take(&mut config.tags).into_vec();
+    tags.extend(TaggingRuleConverter {
         rules: rules.iter().cloned().peekable(),
         tags: Vec::new(),
     });
+    config.tags = tags.into_boxed_slice();
 
     config._conditional_tags_extended = true;
     if config.version == 0 {
@@ -571,7 +585,7 @@ where
 
             return Some(TagMapping {
                 metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
-                tags: std::mem::take(&mut self.tags),
+                tags: std::mem::take(&mut self.tags).into_boxed_slice(),
             });
         }
     }
@@ -581,6 +595,13 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
+
+    #[test]
+    fn empty_combined_config() {
+        let combined = CombinedMetricExtractionConfig::EMPTY;
+        assert_eq!(combined.metrics().count(), 0);
+        assert_eq!(combined.tags().count(), 0);
+    }
 
     #[test]
     fn parse_tag_spec_value() {

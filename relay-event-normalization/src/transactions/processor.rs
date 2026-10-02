@@ -214,14 +214,14 @@ impl Processor for TransactionsProcessor<'_> {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct SpanOpDefaults {
     /// List of rules to apply. First match wins.
-    pub rules: Vec<SpanOpDefaultRule>,
+    pub rules: Box<[SpanOpDefaultRule]>,
 }
 
 impl SpanOpDefaults {
     /// Gets a borrowed version of this config.
     pub fn borrow(&self) -> BorrowedSpanOpDefaults<'_> {
         BorrowedSpanOpDefaults {
-            rules: self.rules.as_slice(),
+            rules: self.rules.as_ref(),
         }
     }
 }

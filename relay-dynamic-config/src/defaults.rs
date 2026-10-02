@@ -22,7 +22,8 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     // The metric is always tagged with `is_segment` (`true`/`false`) and additionally
     // segment spans are gain the additional tag `was_transaction` if the segment span was created
     // from a transaction.
-    config.metrics.push(MetricSpec {
+    let mut metrics = std::mem::take(&mut config.metrics).into_vec();
+    metrics.push(MetricSpec {
         category: DataCategory::Span,
         mri: "c:spans/usage@none".into(),
         field: None,
@@ -38,8 +39,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ),
             // Fallback, for all non segment spans.
             Tag::with_key("is_segment").with_value("false").always(),
-        ],
+        ]
+        .into_boxed_slice(),
     });
+    config.metrics = metrics.into_boxed_slice();
 
     if config.version == 0 {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;

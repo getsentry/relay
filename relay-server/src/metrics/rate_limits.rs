@@ -10,7 +10,7 @@ use crate::utils;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
-pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
+pub struct MetricsLimiter<Q: AsRef<[Quota]> = Vec<Quota>> {
     /// A list of aggregated metric buckets with some counters.
     buckets: Vec<SummarizedBucket>,
 
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
+impl<Q: AsRef<[Quota]>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain relevant metrics, `metrics` otherwise.

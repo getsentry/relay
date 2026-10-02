@@ -297,7 +297,7 @@ impl ProjectInfo {
 
     /// Returns quotas declared in this project state.
     pub fn get_quotas(&self) -> &[Quota] {
-        self.config.quotas.as_slice()
+        self.config.quotas.as_ref()
     }
 
     /// Validates data in this project state and removes values that are partially invalid.

@@ -23,8 +23,8 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Quotas that apply to all projects.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub quotas: Vec<Quota>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub quotas: Box<[Quota]>,
     /// Configuration for global inbound filters.
     ///
     /// These filters are merged with generic filters in project configs before
@@ -128,9 +128,9 @@ pub struct Options {
     #[serde(
         rename = "relay.span-normalization.allowed_hosts",
         deserialize_with = "default_on_error",
-        skip_serializing_if = "Vec::is_empty"
+        skip_serializing_if = "<[_]>::is_empty"
     )]
-    pub http_span_allowed_hosts: Vec<String>,
+    pub http_span_allowed_hosts: Box<[String]>,
 
     /// Instructs relay to store attachments in objectstore instead of sending chunks via kafka.
     ///

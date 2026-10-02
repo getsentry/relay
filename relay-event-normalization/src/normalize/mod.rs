@@ -61,8 +61,8 @@ impl BuiltinMeasurementKey {
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub builtin_measurements: Vec<BuiltinMeasurementKey>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub builtin_measurements: Box<[BuiltinMeasurementKey]>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     pub max_custom_measurements: usize,
@@ -107,12 +107,12 @@ impl<'a> CombinedMeasurementsConfig<'a> {
     ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> + 'a {
         let project = self
             .project
-            .map(|p| p.builtin_measurements.as_slice())
+            .map(|p| p.builtin_measurements.as_ref())
             .unwrap_or_default();
 
         let global = self
             .global
-            .map(|g| g.builtin_measurements.as_slice())
+            .map(|g| g.builtin_measurements.as_ref())
             .unwrap_or_default();
 
         project
@@ -166,8 +166,8 @@ pub struct PerformanceScoreProfile {
     /// Name of the profile, used for debugging and faceting multiple profiles
     pub name: Option<String>,
     /// Score components
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub score_components: Vec<PerformanceScoreWeightedComponent>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub score_components: Box<[PerformanceScoreWeightedComponent]>,
     /// See [`RuleCondition`] for all available options to specify and combine conditions.
     pub condition: Option<RuleCondition>,
     /// The version of the profile, used to isolate changes to score calculations.
@@ -182,8 +182,8 @@ pub struct PerformanceScoreProfile {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PerformanceScoreConfig {
     /// List of performance profiles, only the first with matching conditions will be applied.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub profiles: Vec<PerformanceScoreProfile>,
+    #[serde(default, skip_serializing_if = "<[_]>::is_empty")]
+    pub profiles: Box<[PerformanceScoreProfile]>,
 }
 
 /// Regex that matches version and/or date patterns at the end of a model name.
@@ -508,13 +508,13 @@ mod tests {
         let baz = BuiltinMeasurementKey::new("baz", MetricUnit::Duration(DurationUnit::Week));
 
         let proj = MeasurementsConfig {
-            builtin_measurements: vec![foo.clone(), bar.clone()],
+            builtin_measurements: vec![foo.clone(), bar.clone()].into_boxed_slice(),
             max_custom_measurements: 4,
         };
 
         let glob = MeasurementsConfig {
             // The 'bar' here will be ignored since it's a duplicate from the project level.
-            builtin_measurements: vec![baz.clone(), bar.clone()],
+            builtin_measurements: vec![baz.clone(), bar.clone()].into_boxed_slice(),
             max_custom_measurements: 4,
         };
         let dynamic_config = CombinedMeasurementsConfig::new(Some(&proj), Some(&glob));
@@ -531,12 +531,12 @@ mod tests {
         assert!(dynamic_config.max_custom_measurements().is_none());
 
         let proj = MeasurementsConfig {
-            builtin_measurements: vec![],
+            builtin_measurements: Box::new([]),
             max_custom_measurements: 3,
         };
 
         let glob = MeasurementsConfig {
-            builtin_measurements: vec![],
+            builtin_measurements: Box::new([]),
             max_custom_measurements: 4,
         };
 

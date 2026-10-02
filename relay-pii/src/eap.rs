@@ -169,11 +169,12 @@ mod tests {
             scrub_data: true,
             scrub_defaults: true,
             scrub_ip_addresses: true,
-            exclude_fields: vec!["public_data".to_owned()],
+            exclude_fields: vec!["public_data".to_owned()].into_boxed_slice(),
             sensitive_fields: vec![
                 "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
                 "very_sensitive_data".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..Default::default()
         };
 
@@ -566,7 +567,8 @@ mod tests {
                 "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
                 "sensitive_custom".to_owned(),
                 "another_sensitive".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..Default::default()
         };
 
@@ -665,7 +667,7 @@ mod tests {
             scrub_data: true,
             scrub_defaults: true,
             scrub_ip_addresses: false,
-            exclude_fields: vec!["secret".to_owned()], // Only 'secret' is safe
+            exclude_fields: vec!["secret".to_owned()].into_boxed_slice(), // Only 'secret' is safe
             ..Default::default()
         };
 

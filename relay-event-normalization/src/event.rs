@@ -136,7 +136,7 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for replacing identifiers in the span description with placeholders.
     ///
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
-    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
+    pub span_description_rules: Option<&'a [SpanDescriptionRule]>,
 
     /// Configuration for generating performance score measurements for web vitals.
     pub performance_score: Option<&'a PerformanceScoreConfig>,

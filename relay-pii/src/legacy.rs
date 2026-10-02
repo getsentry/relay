@@ -15,7 +15,7 @@ use crate::convert;
 #[serde(default, rename_all = "camelCase")]
 pub struct DataScrubbingConfig {
     /// List with the fields to be excluded.
-    pub exclude_fields: Vec<String>,
+    pub exclude_fields: Box<[String]>,
     /// Toggles all data scrubbing on or off.
     #[serde(skip_serializing_if = "crate::is_flag_default")]
     pub scrub_data: bool,
@@ -23,7 +23,7 @@ pub struct DataScrubbingConfig {
     #[serde(skip_serializing_if = "crate::is_flag_default")]
     pub scrub_ip_addresses: bool,
     /// List of sensitive fields to be scrubbed from the messages.
-    pub sensitive_fields: Vec<String>,
+    pub sensitive_fields: Box<[String]>,
     /// Controls whether default fields will be scrubbed.
     #[serde(skip_serializing_if = "crate::is_flag_default")]
     pub scrub_defaults: bool,
@@ -46,10 +46,10 @@ impl DataScrubbingConfig {
         let _ = pii_config.set(None);
 
         DataScrubbingConfig {
-            exclude_fields: vec![],
+            exclude_fields: Box::new([]),
             scrub_data: false,
             scrub_ip_addresses: false,
-            sensitive_fields: vec![],
+            sensitive_fields: Box::new([]),
             scrub_defaults: false,
             pii_config,
         }

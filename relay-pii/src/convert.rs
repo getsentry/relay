@@ -228,7 +228,10 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     Some(PiiConfig {
         rules: custom_rules,
         vars: Vars::default(),
-        applications,
+        applications: applications
+            .into_iter()
+            .map(|(selector, rules)| (selector, rules.into_boxed_slice()))
+            .collect(),
         ..Default::default()
     })
 }
@@ -380,7 +383,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_empty_sensitive_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -415,7 +418,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_sensitive_fields() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
+            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()]
+                .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -461,7 +465,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_exclude_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            exclude_fields: vec!["foobar".to_owned()],
+            exclude_fields: vec!["foobar".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -836,7 +840,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(serde_json::json!({ "extra": extra }).into());
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
+            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()]
+                .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1195,7 +1200,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["mystuff".to_owned()],
+            sensitive_fields: vec!["mystuff".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1215,7 +1220,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["myStuff".to_owned()],
+            sensitive_fields: vec!["myStuff".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1235,7 +1240,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            exclude_fields: vec!["foobar".to_owned()],
+            exclude_fields: vec!["foobar".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1262,8 +1267,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
-            exclude_fields: vec!["".to_owned(), " ".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".to_owned()].into_boxed_slice(),
+            exclude_fields: vec!["".to_owned(), " ".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1292,7 +1297,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             );
 
             let pii_config = to_pii_config(&DataScrubbingConfig {
-                sensitive_fields: vec!["".to_owned()],
+                sensitive_fields: vec!["".to_owned()].into_boxed_slice(),
                 ..simple_enabled_config()
             });
 
@@ -1327,7 +1332,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
+            sensitive_fields: vec!["".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1355,7 +1360,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
+            sensitive_fields: vec!["".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1387,7 +1392,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
+            sensitive_fields: vec!["".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1428,7 +1433,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["session_key".to_owned()],
+            sensitive_fields: vec!["session_key".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1488,7 +1493,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["formatted".to_owned()],
+            sensitive_fields: vec!["formatted".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1516,7 +1521,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()],
+            sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()]
+                .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1543,7 +1549,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],
+            sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1566,11 +1572,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()],
+            sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()]
+                .into_boxed_slice(),
             exclude_fields: vec![
                 "do not ,./<>?!@#$%^&*())'ßtrip'".to_owned(),
                 "2abc".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1583,7 +1591,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_regression_more_odd_keys() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec![],
+            sensitive_fields: Box::new([]),
             exclude_fields: vec![
                 "url".to_owned(),
                 "message".to_owned(),
@@ -1591,7 +1599,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "*url*".to_owned(),
                 "*message*".to_owned(),
                 "*http.request.url*".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1616,12 +1625,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec![],
+            sensitive_fields: Box::new([]),
             exclude_fields: vec![
                 "GITHUB_TOKEN".to_owned(),
                 "access_token".to_owned(),
                 "stripetoken".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..simple_enabled_config()
         });
 
@@ -1680,8 +1690,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec![],
-            exclude_fields: vec!["credentials".to_owned()],
+            sensitive_fields: Box::new([]),
+            exclude_fields: vec!["credentials".to_owned()].into_boxed_slice(),
             ..simple_enabled_config()
         })
         .unwrap();
@@ -1899,7 +1909,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "do_not_scrub_2.**".to_owned(),
                 "extra.'do_not_scrub.dot'.**".to_owned(),
                 "$user.id".to_owned(),
-            ],
+            ]
+            .into_boxed_slice(),
             ..simple_enabled_config()
         })
         .unwrap();
@@ -1941,10 +1952,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             // this triggered legacy behaviour and disabled scrubbing for all fields
-            exclude_fields: vec!["email".to_owned()],
+            exclude_fields: vec!["email".to_owned()].into_boxed_slice(),
             scrub_data: true,
             scrub_ip_addresses: true,
-            sensitive_fields: vec!["email".to_owned(), "password".to_owned()],
+            sensitive_fields: vec!["email".to_owned(), "password".to_owned()].into_boxed_slice(),
             scrub_defaults: true,
             ..Default::default()
         })
