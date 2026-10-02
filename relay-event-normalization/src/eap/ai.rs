@@ -234,7 +234,6 @@ fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a
 mod tests {
     use std::collections::HashMap;
 
-    use relay_pattern::Pattern;
     use relay_protocol::{Empty, assert_annotated_snapshot};
 
     use crate::{ModelCostV2, ModelMetadataEntry};
@@ -254,7 +253,7 @@ mod tests {
             version: 1,
             models: HashMap::from([
                 (
-                    Pattern::new("claude-2.1").unwrap(),
+                    "claude-2.1".parse().unwrap(),
                     ModelMetadataEntry {
                         costs: Some(ModelCostV2 {
                             input_per_token: 0.01,
@@ -267,7 +266,7 @@ mod tests {
                     },
                 ),
                 (
-                    Pattern::new("gpt4-21-04").unwrap(),
+                    "gpt4-21-04".parse().unwrap(),
                     ModelMetadataEntry {
                         costs: Some(ModelCostV2 {
                             input_per_token: 0.09,
@@ -287,7 +286,7 @@ mod tests {
         ModelMetadata {
             version: 1,
             models: HashMap::from([(
-                Pattern::new("claude-2.1").unwrap(),
+                "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
                     costs: Some(ModelCostV2 {
                         input_per_token: 0.01,

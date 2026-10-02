@@ -34,6 +34,8 @@ pub enum RelayErrorCode {
     InvalidReleaseErrorTooLong = 3001,
     InvalidReleaseErrorRestrictedName = 3002,
     InvalidReleaseErrorBadCharacters = 3003,
+
+    PatternError = 4001,
 }
 
 impl RelayErrorCode {
@@ -48,6 +50,9 @@ impl RelayErrorCode {
             }
             if cause.downcast_ref::<GeoIpError>().is_some() {
                 return RelayErrorCode::ProcessingErrorInvalidGeoIp;
+            }
+            if cause.downcast_ref::<relay_pattern::Error>().is_some() {
+                return RelayErrorCode::PatternError;
             }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
