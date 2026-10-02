@@ -231,7 +231,10 @@ mod redis {
                 // this means even with a failing Redis instance no items will be dropped.
                 .unwrap_or_default();
 
-            self.limits.merge(limits.clone());
+            // Only limits which apply to the whole scope may be retained--not dimensioned limits.
+            // Rate limits don't yet understand dimensioned quantities, and so we must not merge
+            // them.
+            self.limits.merge(limits.cacheable());
             limits
         }
     }
