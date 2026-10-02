@@ -23,7 +23,6 @@
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
 - Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 
-
 **Bug Fixes**:
 
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
@@ -39,6 +38,7 @@
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
 - Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))
+  Switch default PyPI index to Socket Firewall. ([#6460](https://github.com/getsentry/relay/pull/6460))
 
 ## 26.9.0
 
