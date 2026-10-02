@@ -32,6 +32,7 @@
 **Internal**:
 
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
+- Constrain pattern matching for user provided and untrusted patterns. ([#6462](https://github.com/getsentry/relay/pull/6462))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))

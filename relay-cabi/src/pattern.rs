@@ -1,6 +1,6 @@
 //! Relay pattern matching for the C-ABI.
 
-use relay_pattern::Pattern;
+use relay_pattern::{Gas, Pattern};
 
 use crate::RelayStr;
 
@@ -25,15 +25,16 @@ pub unsafe extern "C" fn relay_pattern_new(
     Box::into_raw(Box::new(pattern)) as *mut RelayPattern
 }
 
-/// Returns `true` if the pattern matches the UTF-8 string.
+/// Returns `true` if the pattern matches the string.
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_pattern_is_match(
     pattern: *const RelayPattern,
     value: *const RelayStr,
+    gas: u64,
 ) -> bool {
     let pattern = unsafe { &*(pattern as *const Pattern) };
-    pattern.is_match(unsafe { (*value).as_str() })
+    pattern.is_match(unsafe { (*value).as_str() }, Gas::ops(gas))?
 }
 
 /// Formats the pattern using its `Display` implementation.
@@ -72,7 +73,7 @@ mod tests {
             // On panic this leaks memory, but we're in a test and accept that.
             assert!(!pattern.is_null());
             assert_eq!(
-                unsafe { relay_pattern_is_match(pattern, &RelayStr::new($haystack)) },
+                unsafe { relay_pattern_is_match(pattern, &RelayStr::new($haystack), u64::MAX) },
                 $is_match,
             );
             unsafe { relay_pattern_free(pattern) };
