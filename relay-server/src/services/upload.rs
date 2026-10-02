@@ -161,54 +161,74 @@ pub struct Stream {
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
-    /// Stream mode, either Oneshot or Resumable.
-    ///
-    /// Resumable Streams contain more state than Oneshot streams.
-    pub mode: StreamMode,
+    /// The upload mode to use, either Oneshot or Resumable.
+    pub mode: UploadMode,
 }
 
-/// Indicating whether the stream is oneshot or resumable.
-pub enum StreamMode {
+/// Indicating whether a stream will be uploaded via oneshot or resumable upload.
+///
+/// Note that the mode of a stream needs to match its location.
+/// See also [`Provisional`]
+pub enum UploadMode {
     Oneshot,
     Resumable {
         /// The offset from which to resume the upload.
         offset: usize,
-        /// The declared length of the stream.
-        length: usize,
+        /// The length of the current chunk of the resumable upload.
+        chunk_length: usize,
     },
 }
 
-impl StreamMode {
-    /// Returns the stream offset if the stream is resumable.
-    pub fn offset(&self) -> Option<usize> {
+impl UploadMode {
+    /// Returns the stream offset.
+    pub fn offset(&self) -> usize {
         match self {
-            StreamMode::Oneshot => None,
-            StreamMode::Resumable { offset, .. } => Some(*offset),
+            // Oneshot uploads start from offset 0.
+            UploadMode::Oneshot => 0,
+            UploadMode::Resumable { offset, .. } => *offset,
         }
     }
 
     /// Returns the stream chunk length if the stream is resumable.
-    pub fn length(&self) -> Option<usize> {
+    pub fn chunk_length(&self) -> Option<usize> {
         match self {
-            StreamMode::Oneshot => None,
-            StreamMode::Resumable { length, .. } => Some(*length),
+            UploadMode::Oneshot => None,
+            UploadMode::Resumable { chunk_length, .. } => Some(*chunk_length),
         }
     }
 }
 
 /// The result of a [`Stream`] operation.
-pub struct StreamResult {
-    /// The signed location of the upload.
-    ///
-    /// This is "final" because we have either a pre-committed `Upload-Length` or
-    /// a oneshot upload.
-    pub location: SignedLocation<Final>,
-    /// The byte offset stored on the server after the operation.
-    pub offset: usize,
+pub enum StreamResult {
+    Incomplete {
+        location: SignedLocation<Provisional>,
+        offset: usize,
+    },
+    Complete {
+        location: SignedLocation<Final>,
+        offset: usize,
+    },
+}
+
+impl StreamResult {
+    pub fn offset(&self) -> usize {
+        match self {
+            Self::Complete { offset, .. } | Self::Incomplete { offset, .. } => *offset,
+        }
+    }
+
+    pub fn location_into_header_value(self) -> Result<HeaderValue, Error> {
+        match self {
+            StreamResult::Incomplete { location, .. } => location.into_header_value(),
+            StreamResult::Complete { location, .. } => location.into_header_value(),
+        }
+    }
 }
 
 impl StreamResult {
     fn try_from_response(response: Response) -> Result<Self, Error> {
+        let response = response.0.error_for_status().map_err(Error::Upstream)?;
+
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
@@ -217,9 +237,23 @@ impl StreamResult {
             .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
             .parse()
             .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
-        let location = SignedLocation::try_from_response(response)?;
 
-        Ok(Self { location, offset })
+        let location = response
+            .headers()
+            .get(hyper::header::LOCATION)
+            .ok_or(Error::InvalidLocation(None))?;
+        let uri = location
+            .to_str()
+            .map_err(|_| Error::InvalidLocation(Some(location.clone())))?;
+
+        // Final and Provisional are non-overlapping so the order here doesn't matter.
+        if let Some(location) = SignedLocation::<Final>::try_from_str(uri) {
+            Ok(Self::Complete { location, offset })
+        } else {
+            let location = SignedLocation::<Provisional>::try_from_str(uri)
+                .ok_or(Error::InvalidLocation(Some(location.clone())))?;
+            Ok(Self::Incomplete { location, offset })
+        }
     }
 }
 
@@ -365,11 +399,11 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, upload_id) = match (resumable, length) {
+                let (key, kind) = match (resumable, length) {
                     (true, Some(upload_length)) => {
                         let UploadRef {
                             key,
-                            session_token: upload_id,
+                            session_token,
                             offset: _,
                         } = addr
                             .send(objectstore::Create {
@@ -383,19 +417,28 @@ impl Service {
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
                         #[cfg(debug_assertions)]
                         debug_assert_eq!(&key, &original_key);
-                        (key, upload_id)
+
+                        let kind = match session_token {
+                            Some(token) => Provisional::Resumable {
+                                length: upload_length,
+                                upload_id: token.to_base64url(),
+                            },
+                            // Event if we have a length objectstore might reject resumable uploads
+                            // in that case fallback to oneshoot.
+                            None => Provisional::Oneshot,
+                        };
+                        (key, kind)
                     }
-                    // If the create has `Upload-Defer-Length: 1` then skip going to object store.
+                    // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, None),
+                    _ => (key, Provisional::Oneshot),
                 };
 
                 Location {
-                    project_id: project.scoping.project_id,
+                    project_id,
                     key,
-                    length: Provisional(length),
-                    upload_id: upload_id.map(|s| s.to_base64url()),
+                    kind,
                     other: Default::default(),
                 }
                 .try_sign(&config)
@@ -422,7 +465,7 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::StreamContext;
+                use crate::services::objectstore::{StreamContext, UploadRef};
                 use objectstore_client::SessionToken;
 
                 let config = config.current();
@@ -430,38 +473,44 @@ impl Service {
                 let Location {
                     project_id,
                     key,
-                    length,
-                    upload_id,
+                    kind,
                     other,
                 } = location.verify(received, &config)?;
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
+                debug_assert!(
+                    stream
+                        .length()
+                        .is_none_or(|l| Some(l) == kind.upload_length())
+                );
 
-                let context = match upload_id {
-                    Some(token) => {
-                        let Some(total_length) = length.value() else {
-                            return Err(Error::InvalidFromClient(
-                                "upload_id without `Upload-Length`",
-                            ));
-                        };
-                        let StreamMode::Resumable { offset, length } = mode else {
+                let context = match &kind {
+                    Provisional::Oneshot => StreamContext::Oneshot(stream.byte_counter()),
+                    Provisional::Resumable { length, upload_id } => {
+                        let UploadMode::Resumable {
+                            offset,
+                            chunk_length,
+                        } = mode
+                        else {
                             return Err(Error::InvalidFromClient("missing chunk length"));
                         };
 
                         StreamContext::Resumable {
                             key,
-                            session_token: SessionToken::from_base64url(&token)?,
+                            session_token: SessionToken::from_base64url(upload_id)?,
                             offset,
-                            chunk_length: length,
-                            total_length,
+                            chunk_length,
+                            total_length: *length,
                         }
                     }
-                    None => StreamContext::Oneshot(stream.byte_counter()),
                 };
 
-                let upload_ref = addr
+                let UploadRef {
+                    key,
+                    session_token,
+                    offset,
+                } = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
@@ -475,19 +524,35 @@ impl Service {
                 // If the location contains a length, communicate that back as is. If it doesn't
                 // (due to Upload-Defer-Length) the upload above was a oneshot and we derive the
                 // length based on the offset (progress).
-                let length = Final(length.0.unwrap_or(upload_ref.offset));
+                let length = kind.upload_length().unwrap_or(offset);
 
-                Ok(StreamResult {
-                    location: Location {
-                        project_id,
-                        key: upload_ref.key,
-                        length,
-                        upload_id: upload_ref.session_token.map(|t| t.to_base64url()),
-                        other,
+                match session_token {
+                    Some(token) => {
+                        let kind = Provisional::Resumable {
+                            length,
+                            upload_id: token.to_base64url(),
+                        };
+                        let location = Location {
+                            project_id,
+                            key,
+                            kind,
+                            other,
+                        }
+                        .try_sign(&config)?;
+                        Ok(StreamResult::Incomplete { location, offset })
                     }
-                    .try_sign(&config)?,
-                    offset: upload_ref.offset,
-                })
+                    None => {
+                        let kind = Final { length };
+                        let location = Location {
+                            project_id,
+                            key,
+                            kind,
+                            other,
+                        }
+                        .try_sign(&config)?;
+                        Ok(StreamResult::Complete { location, offset })
+                    }
+                }
             }
         }
     }
@@ -524,42 +589,74 @@ impl LoadShed<Upload> for Service {
     }
 }
 
-/// An interface for known or unknown upload lengths.
+/// An interface for different location kinds.
 ///
-/// This allows code sharing between [`Provisional`] and [`Final`] upload locations.
-pub trait UploadLength: for<'de> Deserialize<'de> {
-    fn value(&self) -> Option<usize>;
+/// See also [`Provisional`] and [`Final`].
+pub trait LocationKind: Sized {
+    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error>;
+    fn upload_length(&self) -> Option<usize>;
+    fn upload_id(&self) -> Option<&str>;
 }
 
-/// A provisional upload length which may or may not yet be known.
+/// A provisional location which may still be used for uploading.
 ///
 /// See also [`Final`].
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(transparent)]
-pub struct Provisional(Option<usize>);
+#[derive(Debug, Clone)]
+pub enum Provisional {
+    Oneshot,
+    Resumable { length: usize, upload_id: String },
+}
 
-impl UploadLength for Provisional {
-    fn value(&self) -> Option<usize> {
-        self.0
+impl LocationKind for Provisional {
+    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
+        match (upload_length, upload_id) {
+            (None, None) => Ok(Self::Oneshot),
+            (Some(length), Some(upload_id)) => Ok(Self::Resumable { length, upload_id }),
+            _ => Err(Error::InvalidFromClient(
+                "expected both or neither of upload_length and upload_id",
+            )),
+        }
+    }
+
+    fn upload_length(&self) -> Option<usize> {
+        match self {
+            Provisional::Oneshot => None,
+            Provisional::Resumable { length, .. } => Some(*length),
+        }
+    }
+
+    fn upload_id(&self) -> Option<&str> {
+        match self {
+            Provisional::Oneshot => None,
+            Provisional::Resumable { upload_id, .. } => Some(upload_id),
+        }
     }
 }
 
-/// A final upload length that represents the actual amount of bytes uploaded to objectstore.
+/// A final location which no longer can be used for uploading.
 ///
 /// See also [`Provisional`].
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct Final(usize);
-
-impl Final {
-    /// Get the value.
-    pub fn into_inner(self) -> usize {
-        self.0
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct Final {
+    pub length: usize,
 }
 
-impl UploadLength for Final {
-    fn value(&self) -> Option<usize> {
-        Some(self.0)
+impl LocationKind for Final {
+    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
+        match (upload_length, upload_id) {
+            (Some(length), None) => Ok(Self { length }),
+            _ => Err(Error::InvalidFromClient(
+                "expected upload_length without upload_id",
+            )),
+        }
+    }
+
+    fn upload_length(&self) -> Option<usize> {
+        Some(self.length)
+    }
+
+    fn upload_id(&self) -> Option<&str> {
+        None
     }
 }
 
@@ -571,27 +668,22 @@ impl UploadLength for Final {
 /// Calling [`Self::try_sign`] appends an `&upload_signature=` query parameter that can later be used
 /// to validate whether the URI (especially the length) has been tampered with.
 #[derive(Debug)]
-pub struct Location<L> {
+pub struct Location<K: LocationKind> {
     /// Sentry project ID.
     pub project_id: ProjectId,
     /// Objectstore identifier.
     pub key: String,
-    /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
-    pub length: L,
-    /// Identifies the upload in case the created location has a resumable upload assigned to it.
-    ///
-    /// Note that if `Upload-Defer-Length: 1` then this is always None.
-    pub upload_id: Option<String>,
+    /// The kind of location.
+    pub kind: K,
     pub other: UploadParams,
 }
 
-impl<L: UploadLength> Location<L> {
+impl<K: LocationKind> Location<K> {
     fn try_to_uri(&self) -> Result<String, Error> {
         let Location {
             project_id,
             key,
-            length,
-            upload_id,
+            kind,
             other,
         } = self;
         #[derive(Debug, Serialize)]
@@ -602,8 +694,8 @@ impl<L: UploadLength> Location<L> {
             pub other: &'a UploadParams,
         }
         let params = QueryParams {
-            upload_length: length.value(),
-            upload_id: upload_id.as_deref(),
+            upload_length: kind.upload_length(),
+            upload_id: kind.upload_id(),
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
@@ -614,7 +706,7 @@ impl<L: UploadLength> Location<L> {
     }
 
     #[cfg(feature = "processing")]
-    fn try_sign(self, config: &ConfigSnapshot) -> Result<SignedLocation<L>, Error> {
+    fn try_sign(self, config: &ConfigSnapshot) -> Result<SignedLocation<K>, Error> {
         let uri = self.try_to_uri()?;
         let secret_key = config.upload_signing_key().ok_or(Error::SigningFailed)?;
         let signature = secret_key.sign_with_header(
@@ -641,10 +733,9 @@ pub struct LocationPath {
 
 /// Query parameters for the upload endpoint.
 #[derive(Debug, Deserialize)]
-#[serde(bound = "L: UploadLength")]
-pub struct LocationQueryParams<L: UploadLength> {
+pub struct LocationQueryParams {
     #[serde(alias = "length")]
-    pub upload_length: L,
+    pub upload_length: Option<usize>,
     pub upload_id: Option<String>,
     #[serde(alias = "signature")]
     pub upload_signature: String,
@@ -693,20 +784,19 @@ impl<'de> Deserialize<'de> for UploadParams {
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
-pub struct SignedLocation<L: UploadLength> {
-    location: Location<L>,
+pub struct SignedLocation<K: LocationKind> {
+    location: Location<K>,
     signature: Signature,
 }
 
-impl<L: UploadLength> SignedLocation<L> {
+impl<K: LocationKind> SignedLocation<K> {
     /// Creates an unverified location from path and query params.
     ///
     /// Call `verify` to make sure the signature is correct.
     pub fn from_parts(
         project_id: ProjectId,
         key: String,
-        length: L,
-        upload_id: Option<String>,
+        kind: K,
         signature: String,
         other: UploadParams,
     ) -> Self {
@@ -714,8 +804,7 @@ impl<L: UploadLength> SignedLocation<L> {
             location: Location {
                 project_id,
                 key,
-                length,
-                upload_id,
+                kind,
                 other,
             },
             signature: Signature(signature),
@@ -749,7 +838,7 @@ impl<L: UploadLength> SignedLocation<L> {
         self,
         received: DateTime<Utc>,
         config: &ConfigSnapshot,
-    ) -> Result<Location<L>, Error> {
+    ) -> Result<Location<K>, Error> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
         let public_key = config
@@ -762,13 +851,7 @@ impl<L: UploadLength> SignedLocation<L> {
 
         Ok(self.location)
     }
-}
 
-impl<L> SignedLocation<L>
-where
-    L: UploadLength,
-    LocationQueryParams<L>: for<'de> Deserialize<'de>,
-{
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.0.error_for_status() {
             Ok(response) => {
@@ -808,12 +891,12 @@ where
             upload_signature,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
+        let kind = K::from_params(upload_length, upload_id).ok()?;
 
         Some(Self::from_parts(
             project_id,
             key,
-            upload_length,
-            upload_id,
+            kind,
             upload_signature,
             other,
         ))
@@ -827,7 +910,7 @@ enum RequestKind {
     },
     Upload {
         uri: String,
-        mode: StreamMode,
+        mode: UploadMode,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -867,7 +950,7 @@ impl UploadRequest {
     fn upload(
         project: ProjectContext,
         uri: String,
-        mode: StreamMode,
+        mode: UploadMode,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
@@ -1024,8 +1107,7 @@ mod tests {
             Location {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
-                length: Provisional(Some(123)),
-                upload_id: None,
+                kind: Provisional::Oneshot,
                 other: UploadParams::default(),
             }
         }
@@ -1119,51 +1201,43 @@ mod tests {
     fn parse_location_incomplete() {
         let url = "signature=foo";
 
-        // Can only parse provisional:
-        let provisional: LocationQueryParams<Provisional> =
-            serde_urlencoded::from_str(url).unwrap();
-        assert!(provisional.upload_length.0.is_none());
-        assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
+        let LocationQueryParams {
+            upload_length,
+            upload_id,
+            ..
+        } = serde_urlencoded::from_str(url).unwrap();
+
+        assert!(Provisional::from_params(upload_length, upload_id.clone()).is_ok());
+        assert!(Final::from_params(upload_length, upload_id).is_err());
     }
 
     #[test]
     fn parse_location_complete() {
         let json = r#"signature=foo&length=123"#;
 
-        let provisional: LocationQueryParams<Provisional> =
-            serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(provisional.upload_length.0, Some(123));
-        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(full.upload_length.0, 123);
+        let LocationQueryParams {
+            upload_length,
+            upload_id,
+            ..
+        } = serde_urlencoded::from_str(json).unwrap();
+
+        assert!(Provisional::from_params(upload_length, upload_id.clone()).is_err());
+        assert_eq!(
+            Final::from_params(upload_length, upload_id.clone())
+                .unwrap()
+                .length,
+            123
+        );
     }
 
     #[test]
     fn parse_location_complete_with_upload_id() {
         let json = r#"signature=foo&length=123&upload_id=bar"#;
 
-        let provisional: LocationQueryParams<Provisional> =
-            serde_urlencoded::from_str(json).unwrap();
-        insta::assert_debug_snapshot!(provisional, @r#"
+        let query_params: LocationQueryParams = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(query_params, @r#"
         LocationQueryParams {
-            upload_length: Provisional(
-                Some(
-                    123,
-                ),
-            ),
-            upload_id: Some(
-                "bar",
-            ),
-            upload_signature: "foo",
-            other: UploadParams(
-                {},
-            ),
-        }
-        "#);
-
-        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        insta::assert_debug_snapshot!(full, @r#"
-        LocationQueryParams {
-            upload_length: Final(
+            upload_length: Some(
                 123,
             ),
             upload_id: Some(
@@ -1182,28 +1256,10 @@ mod tests {
         let json =
             r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
 
-        let provisional: LocationQueryParams<Provisional> =
-            serde_urlencoded::from_str(json).unwrap();
-        insta::assert_debug_snapshot!(provisional, @r#"
+        let query_params: LocationQueryParams = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(query_params, @r#"
         LocationQueryParams {
-            upload_length: Provisional(
-                Some(
-                    123,
-                ),
-            ),
-            upload_id: None,
-            upload_signature: "foo",
-            other: UploadParams(
-                {
-                    "upload_type": "bar",
-                },
-            ),
-        }
-        "#);
-        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        insta::assert_debug_snapshot!(full, @r#"
-        LocationQueryParams {
-            upload_length: Final(
+            upload_length: Some(
                 123,
             ),
             upload_id: None,

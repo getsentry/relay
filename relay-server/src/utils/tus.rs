@@ -18,7 +18,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use crate::constants::X_DECODED_CONTENT_LENGTH;
 use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder};
-use crate::services::upload::StreamMode;
+use crate::services::upload::UploadMode;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
@@ -235,11 +235,11 @@ pub fn add_creation_headers(
 }
 
 /// Prepares the required TUS request headers for upstream requests.
-pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &StreamMode) {
+pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &UploadMode) {
     builder.header(TUS_RESUMABLE, TUS_VERSION);
     builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-    builder.header(UPLOAD_OFFSET, mode.offset().unwrap_or_default().to_string());
-    if let Some(length) = mode.length() {
+    builder.header(UPLOAD_OFFSET, mode.offset().to_string());
+    if let Some(length) = mode.chunk_length() {
         builder.header(X_DECODED_CONTENT_LENGTH, length.to_string());
     }
 }

@@ -25,7 +25,9 @@ from .consts import Outcome
 def project_config(mini_sentry):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
-    config.setdefault("features", []).append("projects:relay-minidump-uploads")
+    config.setdefault("features", []).extend(
+        ["projects:relay-minidump-uploads", "projects:resumable-uploads"]
+    )
     return config
 
 
@@ -111,6 +113,7 @@ def test_forward_patch(
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
@@ -351,6 +354,7 @@ def test_upload_body_size(
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
@@ -449,6 +453,7 @@ def test_timeout(
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
             "Content-Type": "application/offset+octet-stream",
+            "X-Decoded-Content-Length": str(len(data)),
         },
         data=data,
     )
@@ -490,7 +495,6 @@ def test_create_processing(
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -530,7 +534,6 @@ def test_processing_invalid_length(
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": "10",
         },
@@ -763,7 +766,6 @@ def upload_something(relay, project_id, project_key):
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -795,7 +797,6 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     create = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
