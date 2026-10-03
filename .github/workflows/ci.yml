@@ -336,8 +336,8 @@ jobs:
     name: Build Relay Binary
     runs-on: |-
       ${{fromJson('{
-        "x86_64-unknown-linux-gnu": "ubuntu-22.04",
-        "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
+        "x86_64-unknown-linux-gnu": "ubuntu-24.04",
+        "aarch64-unknown-linux-gnu": "ubuntu-24.04-arm"
       }')[matrix.target] }}
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -410,8 +410,8 @@ jobs:
     name: Build Internal Relay Binary
     runs-on: |-
       ${{fromJson('{
-        "x86_64-unknown-linux-gnu": "ubuntu-22.04",
-        "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
+        "x86_64-unknown-linux-gnu": "ubuntu-24.04",
+        "aarch64-unknown-linux-gnu": "ubuntu-24.04-arm"
       }')[matrix.target] }}
 
     if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
