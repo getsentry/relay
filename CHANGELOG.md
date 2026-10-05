@@ -32,6 +32,7 @@
 - Limit the number of deserialization ops on ItemContainer. ([#6429](https://github.com/getsentry/relay/pull/6429))
 - Don't cache dimensioned rate-limits. ([#6457](https://github.com/getsentry/relay/pull/6457))
 - Slugify monitor slugs the same way as Sentry for check-in routing and rate limit dimensions. ([#6456](https://github.com/getsentry/relay/pull/6456))
+- Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
 
 **Internal**:
 
