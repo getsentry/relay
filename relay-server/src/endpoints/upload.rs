@@ -279,7 +279,7 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match upload_length.value() {
-        None => (0, config.max_upload_size()),
+        None => (1, config.max_upload_size()),
         Some(u) => {
             let remaining_bytes = u
                 .checked_sub(upload_offset)
