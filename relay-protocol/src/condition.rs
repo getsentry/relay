@@ -342,9 +342,10 @@ pub enum SemverComparator {
 /// The field must hold a release, which compares against `value` as [`Semver::compare`]
 /// describes. If `value` names a package, the condition only matches releases of that package.
 ///
-/// The condition does not match if the field or `value` has no version, such as a commit hash. A
-/// condition with such a `value` is not [supported](RuleCondition::supported), so that the author
-/// of the condition can reject it.
+/// The condition does not match if the field has no version, such as a commit hash. A configured
+/// release without a version deserializes to a `value` of `None`. Such a condition never matches
+/// and is not [supported](RuleCondition::supported), so that the author of the condition can
+/// reject it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SemverCondition {
     /// Path of the field that holds the release.
@@ -352,25 +353,22 @@ pub struct SemverCondition {
     /// The comparison to apply between the field and the value.
     pub comparator: SemverComparator,
     /// The release to compare the field against, such as `1.2.0` or `myapp@1.2.0`.
-    pub value: Semver,
+    #[serde(default, deserialize_with = "deserialize_semver_lenient")]
+    pub value: Option<Semver>,
 }
 
 impl SemverCondition {
     /// Creates a condition that compares the version of a release.
-    pub fn new(
-        field: impl Into<String>,
-        comparator: SemverComparator,
-        value: impl Into<String>,
-    ) -> Self {
+    pub fn new(field: impl Into<String>, comparator: SemverComparator, value: &str) -> Self {
         Self {
             name: field.into(),
             comparator,
-            value: Semver::new(value),
+            value: Semver::parse(value),
         }
     }
 
     fn supported(&self) -> bool {
-        self.comparator != SemverComparator::Unsupported && self.value.is_valid()
+        self.comparator != SemverComparator::Unsupported && self.value.is_some()
     }
 
     fn matches<T>(&self, instance: &T) -> bool
@@ -380,7 +378,7 @@ impl SemverCondition {
         let Some(Val::String(release)) = instance.get_value(self.name.as_str()) else {
             return false;
         };
-        let Some(ordering) = self.value.compare(release) else {
+        let Some(ordering) = self.value.as_ref().and_then(|value| value.compare(release)) else {
             return false;
         };
 
@@ -393,6 +391,13 @@ impl SemverCondition {
             SemverComparator::Unsupported => false,
         }
     }
+}
+
+fn deserialize_semver_lenient<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Semver>, D::Error> {
+    let release = Option::<String>::deserialize(deserializer)?;
+    Ok(release.and_then(|release| Semver::parse(&release)))
 }
 
 /// Combines multiple conditions using logical OR.
@@ -830,11 +835,7 @@ impl RuleCondition {
     /// let condition = RuleCondition::semver("obj.release", SemverComparator::Gte, "1.2.0")
     ///     & RuleCondition::semver("obj.release", SemverComparator::Lt, "2.0.0");
     /// ```
-    pub fn semver(
-        field: impl Into<String>,
-        comparator: SemverComparator,
-        value: impl Into<String>,
-    ) -> Self {
+    pub fn semver(field: impl Into<String>, comparator: SemverComparator, value: &str) -> Self {
         Self::Semver(SemverCondition::new(field, comparator, value))
     }
 
@@ -1257,7 +1258,7 @@ mod tests {
             op: "semver",
             name: "field_release",
             comparator: gte,
-            value: "1.2.0",
+            value: Some("1.2.0"),
           ),
           NotCondition(
             op: "not",

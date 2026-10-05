@@ -1,106 +1,107 @@
 //! Releases for the `semver` rule condition.
 
 use std::cmp::Ordering;
+use std::fmt;
 
 use semver::Prerelease;
 use sentry_release_parser::{Release, Version};
+use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A release to compare the versions of other releases against.
 ///
 /// A release is a version such as `1.2.3-rc.1+build`, optionally behind a package, such as
 /// `myapp@1.2.3`. The version has one to four numeric components. Missing components are zero.
+/// The build code takes no part in comparisons, so it is dropped.
 ///
-/// Serialized as the release string, which is parsed once when deserializing. A string without a
-/// version, such as a commit hash, still deserializes. It is not [valid](Self::is_valid) and
-/// compares with no release.
-#[derive(Debug, Clone, PartialEq)]
+/// Serializes as the normalized release string, such as `myapp@1.2.3-rc.1`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Semver {
-    raw: String,
-    parsed: Option<Parsed<String>>,
+    package: Option<String>,
+    quad: Quad,
+    pre: Prerelease,
 }
+
+/// The numeric components of a version. Missing components are zero.
+type Quad = (u64, u64, u64, u64);
 
 impl Semver {
     /// Parses a release.
-    pub fn new(release: impl Into<String>) -> Self {
-        let raw = release.into();
-        let parsed = Parsed::parse(&raw).map(|parsed| Parsed {
-            package: parsed.package.map(str::to_owned),
-            quad: parsed.quad,
-            pre: parsed.pre,
-        });
-
-        Self { raw, parsed }
-    }
-
-    /// Returns `true` if the release carries a version.
-    pub fn is_valid(&self) -> bool {
-        self.parsed.is_some()
+    ///
+    /// Returns `None` if the release has no version, such as a commit hash.
+    pub fn parse(release: &str) -> Option<Self> {
+        let (package, quad, pre) = parse_parts(release)?;
+        Some(Self {
+            package: package.map(str::to_owned),
+            quad,
+            pre,
+        })
     }
 
     /// Returns how the version of `release` orders relative to this version.
     ///
-    /// Returns `None` if either release has no version, or if this release names a package and
+    /// Returns `None` if `release` has no version, or if this release names a package and
     /// `release` has a different one. Without a package, this compares with releases of every
     /// package.
     ///
     /// Versions order by their numeric components, then by semver precedence of the pre-release.
     /// A pre-release orders below its final release. Build codes are ignored.
     pub fn compare(&self, release: &str) -> Option<Ordering> {
-        let expected = self.parsed.as_ref()?;
-        let release = Parsed::parse(release)?;
+        let (package, quad, pre) = parse_parts(release)?;
 
-        if expected.package.is_some() && expected.package.as_deref() != release.package {
+        if self.package.is_some() && self.package.as_deref() != package {
             return None;
         }
 
-        let ordering = release
-            .quad
-            .cmp(&expected.quad)
-            .then_with(|| release.pre.cmp(&expected.pre));
+        Some(quad.cmp(&self.quad).then_with(|| pre.cmp(&self.pre)))
+    }
+}
 
-        Some(ordering)
+impl fmt::Display for Semver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(package) = &self.package {
+            write!(f, "{package}@")?;
+        }
+
+        let (major, minor, patch, revision) = self.quad;
+        write!(f, "{major}.{minor}.{patch}")?;
+        if revision != 0 {
+            write!(f, ".{revision}")?;
+        }
+        if !self.pre.is_empty() {
+            write!(f, "-{}", self.pre)?;
+        }
+
+        Ok(())
     }
 }
 
 impl Serialize for Semver {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.raw.serialize(serializer)
+        serializer.collect_str(self)
     }
 }
 
 impl<'de> Deserialize<'de> for Semver {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        String::deserialize(deserializer).map(Self::new)
+        let release = String::deserialize(deserializer)?;
+        Self::parse(&release).ok_or_else(|| D::Error::custom("release has no version"))
     }
 }
 
-/// The parts of a release that take part in comparisons.
-#[derive(Debug, Clone, PartialEq)]
-struct Parsed<P> {
-    package: Option<P>,
-    quad: (u64, u64, u64, u64),
-    pre: Prerelease,
-}
+/// Splits a release into the parts that take part in comparisons.
+fn parse_parts(release: &str) -> Option<(Option<&str>, Quad, Prerelease)> {
+    let release = Release::parse(release).ok()?;
 
-impl<'a> Parsed<&'a str> {
-    fn parse(release: &'a str) -> Option<Self> {
-        let release = Release::parse(release).ok()?;
-
-        // The parser only extracts a version behind a package, so parse the version part
-        // directly. Only the parser knows that a version made of digits is a commit hash.
-        let version = release.version_raw();
-        if release.build_hash() == Some(version) {
-            return None;
-        }
-        let version = Version::parse(version).ok()?;
-
-        Some(Self {
-            package: release.package(),
-            quad: version.quad(),
-            pre: version.as_semver1().pre,
-        })
+    // The parser only extracts a version behind a package, so parse the version part
+    // directly. Only the parser knows that a version made of digits is a commit hash.
+    let version = release.version_raw();
+    if release.build_hash() == Some(version) {
+        return None;
     }
+    let version = Version::parse(version).ok()?;
+
+    Some((release.package(), version.quad(), version.as_semver1().pre))
 }
 
 #[cfg(test)]
@@ -110,8 +111,12 @@ mod tests {
     #[test]
     fn test_releases_without_version() {
         for release in ["a4b7e0f9c2d1", "myapp@a4b7e0f9c2d1", "123456789012", ""] {
-            assert!(!Semver::new(release).is_valid(), "{release}");
-            assert_eq!(Semver::new("1.0.0").compare(release), None, "{release}");
+            assert_eq!(Semver::parse(release), None, "{release}");
+            assert_eq!(
+                Semver::parse("1.0.0").unwrap().compare(release),
+                None,
+                "{release}"
+            );
         }
     }
 
@@ -127,7 +132,7 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            let ordering = Semver::new(other).compare(release);
+            let ordering = Semver::parse(other).unwrap().compare(release);
             assert_eq!(ordering, Some(expected), "{release} {other}");
         }
     }
@@ -143,16 +148,33 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            let ordering = Semver::new(other).compare(release);
+            let ordering = Semver::parse(other).unwrap().compare(release);
             assert_eq!(ordering, expected, "{release} {other}");
         }
     }
 
     #[test]
-    fn test_serde_keeps_the_release_string() {
-        for json in [r#""myapp@1.2.0+build""#, r#""a4b7e0f9c2d1""#] {
-            let semver: Semver = serde_json::from_str(json).unwrap();
-            assert_eq!(serde_json::to_string(&semver).unwrap(), json);
+    fn test_serde_normalizes_the_release() {
+        let cases = [
+            ("1.2.0", "1.2.0"),
+            ("1.2", "1.2.0"),
+            ("1.2.3.4", "1.2.3.4"),
+            ("myapp@1.2.0+build", "myapp@1.2.0"),
+            ("myapp@1.2.0-rc.1+build", "myapp@1.2.0-rc.1"),
+        ];
+
+        for (input, normalized) in cases {
+            let semver: Semver = serde_json::from_str(&format!("{input:?}")).unwrap();
+            assert_eq!(
+                serde_json::to_string(&semver).unwrap(),
+                format!("{normalized:?}")
+            );
+            assert_eq!(Semver::parse(normalized), Some(semver), "{input}");
         }
+    }
+
+    #[test]
+    fn test_deserialize_rejects_releases_without_version() {
+        assert!(serde_json::from_str::<Semver>(r#""a4b7e0f9c2d1""#).is_err());
     }
 }
