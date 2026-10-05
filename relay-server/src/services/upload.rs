@@ -132,6 +132,8 @@ pub struct ProjectContext {
     pub upstream: Option<UpstreamDescriptor>,
     /// The retention to use for the uploaded object (in days).
     pub retention: u16,
+    /// Whether the project has resumable uploads enabled.
+    pub resumable: bool,
 }
 
 /// Request to create an upload resource.
@@ -144,8 +146,6 @@ pub struct Create {
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
-    /// Whether this comes from a project that has resumable uploads enabled.
-    pub resumable: bool,
 }
 
 /// The type used to stream a request body.
@@ -372,8 +372,6 @@ impl Service {
             project,
             length,
             attachment_type,
-            #[cfg_attr(not(feature = "processing"), expect(unused))]
-            resumable,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
@@ -399,7 +397,7 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, kind) = match (resumable, length) {
+                let (key, kind) = match (project.resumable, length) {
                     (true, Some(upload_length)) => {
                         let UploadRef {
                             key,
