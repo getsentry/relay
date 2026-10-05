@@ -74,6 +74,7 @@ pub enum ServiceError {
 
 #[derive(Clone, Debug)]
 pub struct Registry {
+    pub cogs: Cogs,
     pub health_check: Addr<HealthCheck>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
@@ -236,6 +237,12 @@ impl ServiceState {
         let project_cache_handle =
             ProjectCacheService::new(Arc::clone(&config), project_source).start_in(services);
 
+        let cogs = CogsService::new(&current_config);
+        let cogs = Cogs::new(CogsServiceRecorder::new(
+            &current_config,
+            services.start(cogs),
+        ));
+
         let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
@@ -302,19 +309,13 @@ impl ServiceState {
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
-                let cogs = CogsService::new(&current_config);
-                let cogs = Cogs::new(CogsServiceRecorder::new(
-                    &current_config,
-                    services.start(cogs),
-                ));
-
                 services.start_with(
                     EnvelopeProcessorService::new(
                         processor_pool.clone(),
                         config.clone(),
                         global_config_handle.clone(),
                         project_cache_handle.clone(),
-                        cogs,
+                        cogs.clone(),
                         #[cfg(feature = "processing")]
                         redis_clients.clone(),
                         processor::Addrs {
@@ -376,6 +377,7 @@ impl ServiceState {
         let _ = services.start(ConfigReloadService::new(config.clone()));
 
         let registry = Registry {
+            cogs,
             processor,
             health_check,
             outcome_aggregator,
@@ -405,6 +407,11 @@ impl ServiceState {
     /// Returns a snapshot of the Relay configuration.
     pub fn config(&self) -> ConfigSnapshot {
         self.inner.config.current()
+    }
+
+    /// Returns a reference to the [`Cogs`] tracking.
+    pub fn cogs(&self) -> &Cogs {
+        &self.inner.registry.cogs
     }
 
     /// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the

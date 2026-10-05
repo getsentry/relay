@@ -132,6 +132,9 @@ where
                 Token::Alternates(alternates) => {
                     break Some(frame.new_branch(alternates.as_slice(), false));
                 }
+                Token::OptionalAlternates(optional) => {
+                    break Some(frame.new_branch(optional, true));
+                }
                 Token::Optional(optional) => {
                     break Some(frame.new_branch(std::slice::from_ref(optional), true));
                 }

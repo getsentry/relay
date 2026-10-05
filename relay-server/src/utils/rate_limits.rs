@@ -99,6 +99,9 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             reason_code,
             retry_after,
             namespaces: namespace,
+            // The wire format cannot express dimensions, so a limit parsed from it is always
+            // a plain limit for the whole scope.
+            dimensional: false,
         });
     }
 
@@ -1385,6 +1388,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![],
+            dimensional: false,
         });
 
         // Add a more specific rate limit for just one category.
@@ -1394,6 +1398,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
             namespaces: smallvec![],
+            dimensional: false,
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -1412,6 +1417,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
+            dimensional: false,
         });
 
         // Rate limit without reason code.
@@ -1421,6 +1427,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Spans],
+            dimensional: false,
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -1466,6 +1473,7 @@ mod tests {
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
+                    dimensional: false,
                 },
                 RateLimit {
                     categories: [
@@ -1478,6 +1486,7 @@ mod tests {
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
                     namespaces: smallvec![],
+                    dimensional: false,
                 }
             ]
         );
@@ -1507,6 +1516,7 @@ mod tests {
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
+                dimensional: false,
             }]
         );
     }
@@ -1533,6 +1543,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("some_reason")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: false,
             }]
         );
     }
@@ -1558,6 +1569,7 @@ mod tests {
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensional: false,
             },]
         );
     }
@@ -1585,6 +1597,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
             namespaces: smallvec![],
+            dimensional: false,
         }
     }
 

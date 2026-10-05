@@ -1738,19 +1738,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
-name = "globset"
-version = "0.4.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52dfc19153a48bde0cbd630453615c8151bce3a5adfac7a0aebfbf0a1e1f57e3"
-dependencies = [
- "aho-corasick",
- "bstr",
- "log",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
 name = "goblin"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1825,8 +1812,6 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 dependencies = [
- "allocator-api2",
- "equivalent",
  "foldhash 0.2.0",
 ]
 
@@ -2641,15 +2626,6 @@ name = "log"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
-
-[[package]]
-name = "lru"
-version = "0.16.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
-dependencies = [
- "hashbrown 0.16.1",
-]
 
 [[package]]
 name = "lz4_flex"
@@ -4490,10 +4466,7 @@ version = "0.9.31"
 dependencies = [
  "anyhow",
  "chrono",
- "globset",
  "json-forensics",
- "lru",
- "regex",
  "relay-auth",
  "relay-base-schema",
  "relay-common",
@@ -4501,6 +4474,7 @@ dependencies = [
  "relay-event-normalization",
  "relay-event-schema",
  "relay-ffi",
+ "relay-pattern",
  "relay-pii",
  "relay-protocol",
  "relay-sampling",
@@ -4780,6 +4754,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "thiserror 2.0.18",
+ "unicode-normalization",
  "uuid",
 ]
 
@@ -4936,6 +4911,7 @@ version = "26.9.0"
 dependencies = [
  "ahash",
  "async-trait",
+ "fnv",
  "hashbrown 0.15.5",
  "insta",
  "itertools 0.14.0",
@@ -5082,6 +5058,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-serialization",
  "relay-spans",
  "relay-statsd",
  "relay-system",

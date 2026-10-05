@@ -190,7 +190,7 @@ impl processing::Processor for SpansProcessor {
 
         dynamic_sampling::validate_configs(ctx);
 
-        let mut spans = process::expand(spans)?;
+        let mut spans = process::expand(spans, ctx.config.max_expanded_span_operations())?;
 
         dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
 

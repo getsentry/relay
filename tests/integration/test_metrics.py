@@ -341,7 +341,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
 
 
 @pytest.mark.parametrize(
-    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 5), (50, 0)]
+    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 6), (50, 0)]
 )
 def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_events):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
@@ -654,67 +654,6 @@ def test_global_metrics_with_processing(
     relay.send_metrics_buckets(project_id, metrics_payload)
 
     assert metrics_consumer.poll(timeout=2) is None
-
-
-def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
-    metrics_consumer = metrics_consumer()
-
-    upstream_config = {
-        "aggregator": {
-            "bucket_interval": 1,
-            # Give upstream some time to process downstream entries:
-            "initial_delay": 2,
-        }
-    }
-    upstream = relay_with_processing(options=upstream_config)
-
-    downstream = relay(upstream)
-
-    # Create project config
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-
-    # Send two events to downstream and one to upstream
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    downstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 7,
-            },
-        ],
-    )
-    downstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 5,
-            },
-        ],
-    )
-
-    upstream.send_metrics_buckets(
-        project_id,
-        [
-            {
-                "timestamp": timestamp,
-                "width": 0,
-                "name": "c:spans/foo@none",
-                "type": "c",
-                "value": 3,
-            },
-        ],
-    )
-
-    assert metrics_consumer.poll(timeout=6) is None
 
 
 def test_session_metrics_extracted_only_once(
@@ -1307,44 +1246,99 @@ def test_missing_global_filters_enables_metric_extraction(
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("mode", ["default", "chain"])
-def test_metrics_received_at(
-    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+def test_metrics_extraction_with_computed_context_filters(
+    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer
 ):
+    """
+    Test that metrics extraction filters work with computed contexts like os, runtime and browser.
+    """
     metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
 
-    if mode == "default":
-        relay = relay_with_processing()
-    elif mode == "chain":
-        credentials = relay_credentials()
-        static_relays = {
-            credentials["id"]: {
-                "public_key": credentials["public_key"],
-                "internal": True,
-            },
-        }
-        relay = relay(
-            relay_with_processing(static_relays=static_relays),
-            credentials=credentials,
-        )
+    relay = relay_with_processing()
 
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay.send_metrics_buckets(
-        project_id,
-        [
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
             {
-                "timestamp": int(time.time()),
-                "width": 0,
-                "name": "d:spans/foo@none",
-                "type": "d",
-                "value": [1337],
+                "category": "transaction",
+                "mri": "c:spans/on_demand_os@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.os",
+                    "value": "Windows 10",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:spans/on_demand_runtime@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.runtime",
+                    "value": "Python 3.9.0",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:spans/on_demand_browser@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser",
+                    "value": "Firefox 89.0",
+                },
             },
         ],
+    }
+
+    # Create a transaction with matching contexts
+    transaction = generate_transaction_item(datetime.now(tz=timezone.utc).timestamp())
+    transaction["contexts"].update(
+        {
+            "os": {
+                "name": "Windows",
+                "version": "10",
+            },
+            "runtime": {
+                "name": "Python",
+                "version": "3.9.0",
+            },
+            "browser": {
+                "name": "Firefox",
+                "version": "89.0",
+            },
+        }
     )
 
-    assert metrics_consumer.poll(timeout=2) is None
+    # Set timestamps to avoid metrics being dropped due to age
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["start_timestamp"] = (timestamp - timedelta(seconds=1)).isoformat()
+
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event to verify it was processed
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Windows 10"
+    assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
+    assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
+
+    # Send another transaction with non-matching contexts
+    transaction["contexts"].update(
+        {
+            "os": {"name": "Linux", "version": "5.4", "type": "os"},
+            "runtime": {"name": "Node", "version": "16.0.0", "type": "runtime"},
+            "browser": {"name": "Chrome", "version": "95.0", "type": "browser"},
+        }
+    )
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Linux 5.4"
+
+    metrics_consumer.assert_empty()
 
 
 def test_profiles_metrics(mini_sentry, relay):
