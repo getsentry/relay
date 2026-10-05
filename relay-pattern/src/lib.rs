@@ -862,9 +862,19 @@ impl Tokens {
         match (self.0.last_mut(), token) {
             // Collapse Any's.
             (Some(Token::Any(n)), Token::Any(n2)) => *n = n.saturating_add(n2.get()),
-            // We can collapse multiple wildcards into a single one.
+            // Collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             (Some(Token::Wildcard), Token::Wildcard) => {}
+            // Collapse wildcards with optionals.
+            (Some(Token::Wildcard), Token::Optional(_) | Token::OptionalAlternates(_)) => {}
+            (Some(Token::Optional(_) | Token::OptionalAlternates(_)), Token::Wildcard) => {
+                self.0.pop();
+                // We can now also remove all other preceding optionals.
+                while let Some(Token::Optional(_) | Token::OptionalAlternates(_)) = self.0.last() {
+                    self.0.pop();
+                }
+                self.0.push(Token::Wildcard);
+            }
             // Collapse multiple literals into one.
             (Some(Token::Literal(last)), Token::Literal(s)) => last.push(&s),
             // Ignore empty class tokens.
@@ -1901,12 +1911,57 @@ mod tests {
     }
 
     #[test]
+    fn test_alternates_optional() {
+        assert_pattern!("{a,}{b,}", "ab");
+        assert_pattern!("{a,}{b,}", "a");
+        assert_pattern!("{a,}{b,}", "b");
+        assert_pattern!("{a,}{b,}", "");
+        assert_pattern!("{a,b,}{c,}", "ac");
+        assert_pattern!("{a,b,}{c,}", "bc");
+        assert_pattern!("{a,b,}{c,}", "a");
+        assert_pattern!("{a,b,}{c,}", "b");
+        assert_pattern!("{a,b,}{c,}", "c");
+        assert_pattern!("{a,b,}{c,}", "");
+        assert_pattern!("{a,b,}{c,}", NOT "ab");
+        assert_pattern!("{a,b,}{c,}", NOT "abc");
+    }
+
+    #[test]
     fn test_alternate_strategy() {
         // Empty alternates can be simplified.
         assert_strategy!("{}foo{}", Literal);
         assert_strategy!("foo{}bar", Literal);
         assert_strategy!("foo{}{}{}bar", Literal);
         assert_strategy!("foo{,,,}bar", Literal);
+    }
+
+    #[test]
+    fn test_optional_wildcard_strategy() {
+        // Optional alternates after a wildcard can be folded into a wildcard.
+        assert_strategy!("*{foo,}", Static);
+        assert_strategy!("*{foo,bar,}", Static);
+        assert_strategy!("foo*{bar,}", Prefix);
+        assert_strategy!("foo*{bar,baz,}", Prefix);
+        assert_strategy!("*{foo,}bar", Suffix);
+        assert_strategy!("*{foo,baz,}bar", Suffix);
+        assert_strategy!("*{bar,}foo*", Contains);
+        assert_strategy!("*{bar,baz,}foo*", Contains);
+
+        // The same is true for the inverse, we can fold alterantes followed by a wildcard into a wildcard.
+        assert_strategy!("{foo,}*", Static);
+        assert_strategy!("{foo,bar,}*", Static);
+        assert_strategy!("foo{bar,}*", Prefix);
+        assert_strategy!("foo{bar,baz,}*", Prefix);
+        assert_strategy!("{foo,}*bar", Suffix);
+        assert_strategy!("{foo,baz,}*bar", Suffix);
+        assert_strategy!("*foo{bar,}*", Contains);
+        assert_strategy!("*foo{bar,baz,}*", Contains);
+
+        // This also applies for multiple chained alternates.
+        assert_strategy!("*{bar,}{baz,qux,}foo", Suffix);
+        assert_strategy!("{*,bar}{baz,qux,}foo", Suffix);
+        assert_strategy!("foo{bar,}{baz,qux,}*", Prefix);
+        assert_strategy!("foo{bar,}{baz,qux,}{bar,*}", Prefix);
     }
 
     #[test]

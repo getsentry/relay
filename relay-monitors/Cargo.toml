@@ -18,6 +18,7 @@ relay-event-schema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+unicode-normalization = { workspace = true }
 uuid = { workspace = true, features = ["v5"] }
 
 [dev-dependencies]

@@ -128,6 +128,7 @@ enumset = "1"
 either = "1"
 flate2 = "1"
 flume = { version = "0.11", default-features = false }
+fnv = "1.0"
 futures = { version = "0.3", default-features = false, features = ["std"] }
 hash32 = "1"
 hashbrown = "0.15"
@@ -242,6 +243,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 uaparser = "0.6"
 unicase = "2"
+unicode-normalization = "0.1.25"
 url = "2"
 utf16string = "0.2"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
