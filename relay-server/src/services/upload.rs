@@ -72,7 +72,7 @@ pub enum Error {
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] SignatureError),
     #[error("invalid input: {0}")]
-    InvalidFromClient(&'static str),
+    InvalidInput(&'static str),
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
@@ -98,7 +98,7 @@ impl Error {
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
-            Error::InvalidFromClient { .. } => "invalid_from_client",
+            Error::InvalidInput { .. } => "invalid_from_client",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
@@ -486,7 +486,7 @@ impl Service {
                             chunk_length,
                         } = mode
                         else {
-                            return Err(Error::InvalidFromClient("missing chunk length"));
+                            return Err(Error::InvalidInput("missing chunk length"));
                         };
 
                         StreamContext::Resumable {
@@ -604,7 +604,7 @@ impl LocationKind for Provisional {
         match (upload_length, upload_id) {
             (None, None) => Ok(Self::Oneshot),
             (Some(length), Some(upload_id)) => Ok(Self::Resumable { length, upload_id }),
-            _ => Err(Error::InvalidFromClient(
+            _ => Err(Error::InvalidInput(
                 "expected both or neither of upload_length and upload_id",
             )),
         }
@@ -637,7 +637,7 @@ impl LocationKind for Final {
     fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
         match (upload_length, upload_id) {
             (Some(length), None) => Ok(Self { length }),
-            _ => Err(Error::InvalidFromClient(
+            _ => Err(Error::InvalidInput(
                 "expected upload_length without upload_id",
             )),
         }
