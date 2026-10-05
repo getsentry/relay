@@ -20,8 +20,9 @@ import sentry_relay
         ("*", "", True),
     ],
 )
-def test_pattern_matching(pattern, value, expected):
-    assert sentry_relay.Pattern(pattern).is_match(value) is expected
+@pytest.mark.parametrize("gas", [None, 1000])
+def test_pattern_matching(pattern, value, expected, gas):
+    assert sentry_relay.Pattern(pattern).is_match(value, gas=gas) is expected
 
 
 @pytest.mark.parametrize("case_insensitive", [False, True])
@@ -53,3 +54,15 @@ def test_pattern_str():
 def test_invalid_pattern(pattern):
     with pytest.raises(sentry_relay.PatternError, match="Error parsing pattern"):
         sentry_relay.Pattern(pattern)
+
+
+def test_pattern_gas():
+    pattern = sentry_relay.Pattern("*{*a}a{*a,b}b")
+    with pytest.raises(
+        sentry_relay.PatternOutOfGas,
+        match="Pattern could not be matched with 5 ops",
+    ):
+        pattern.is_match("aaaaaaaaaaaaaaaaa", gas=5)
+
+    assert not pattern.is_match("aaaaaaaaaaaaaaaaa", gas=1000)
+    assert pattern.is_match("aaaaaaaaaaaaaaaaab", gas=1000)

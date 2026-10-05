@@ -1,12 +1,12 @@
 use criterion::measurement::WallTime;
 use criterion::{BenchmarkGroup, Criterion, criterion_group, criterion_main};
 
-use relay_pattern::Pattern;
+use relay_pattern::{Gas, Pattern};
 
 fn bench(group: &mut BenchmarkGroup<'_, WallTime>, haystack: &str, needle: &str) {
     group.bench_function("case_sensitive", |b| {
         let pattern = Pattern::new(needle).unwrap();
-        b.iter(|| assert!(pattern.is_match(haystack)))
+        b.iter(|| assert!(pattern.is_match(haystack, Gas::MAX).unwrap()))
     });
 
     group.bench_function("case_insensitive", |b| {
@@ -14,7 +14,7 @@ fn bench(group: &mut BenchmarkGroup<'_, WallTime>, haystack: &str, needle: &str)
             .case_insensitive(true)
             .build()
             .unwrap();
-        b.iter(|| assert!(pattern.is_match(haystack)))
+        b.iter(|| assert!(pattern.is_match(haystack, Gas::MAX).unwrap()))
     });
 }
 
