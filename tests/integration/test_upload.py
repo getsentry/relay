@@ -123,16 +123,9 @@ def test_forward_patch(
     [
         pytest.param(
             "Upload-Offset",
-            "10",
-            409,
-            "expected Upload-Offset: 0, got: Some(10)",
-            id="offset mismatch",
-        ),
-        pytest.param(
-            "Upload-Offset",
             None,
             400,
-            "expected Upload-Offset: 0, got: None",
+            "expected Upload-Offset >= 0",
             id="offset missing",
         ),
         pytest.param(
@@ -314,8 +307,8 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     [
         pytest.param(
             10,
-            400,
-            "stream shorter than lower bound: received 10 < 11",
+            204,
+            None,
             id="smaller_than_announced",
         ),
         pytest.param(
@@ -363,9 +356,10 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
-    assert response.text == expected_error or any(
-        expected_error in source for source in response.json()["causes"]
-    ), response.json()
+    if expected_error:
+        assert response.text == expected_error or any(
+            expected_error in source for source in response.json()["causes"]
+        ), response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -426,7 +420,14 @@ def test_timeout(
     @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
+        return Response(
+            "",
+            status=204,
+            headers={
+                "Location": DUMMY_UPLOAD_LOCATION,
+                "Upload-Offset": "0",
+            },
+        )
 
     project_id = 42
     relay = relay(
@@ -464,14 +465,28 @@ def test_timeout(
 
 
 @pytest.mark.parametrize(
-    "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
+    "chain",
+    [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")],
+)
+@pytest.mark.parametrize(
+    "feature_flag",
+    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
 )
 def test_create_processing(
-    mini_sentry, relay, relay_with_processing, chain, project_config, events_consumer
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    chain,
+    feature_flag,
+    project_config,
+    events_consumer,
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
+    if feature_flag:
+        config.setdefault("features", []).append("projects:resumable-uploads")
 
     processing_relay = relay_with_processing()
     if chain:
@@ -488,7 +503,6 @@ def test_create_processing(
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -503,7 +517,7 @@ def test_create_processing(
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            **({"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -511,25 +525,34 @@ def test_create_processing(
         data=data,
     )
 
-    assert response.status_code == 204
+    assert response.status_code == 204, response.text
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
-@pytest.mark.parametrize("length", [9, 11])
+@pytest.mark.parametrize(
+    "feature_flag",
+    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
+)
 def test_processing_invalid_length(
-    mini_sentry, relay, relay_with_processing, project_config, length
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    feature_flag,
 ):
     mini_sentry.fail_on_relay_error = False
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
+    if feature_flag:
+        config.setdefault("features", []).append("projects:resumable-uploads")
 
     relay = relay_with_processing()
 
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": "10",
         },
@@ -540,11 +563,11 @@ def test_processing_invalid_length(
     assert "Upload-Offset" not in response.headers
 
     # Use the location to send a PATCH request that is too long // too short
-    data = length * b"X"
+    data = 11 * b"X"
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            **({"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -591,11 +614,19 @@ def test_upload_with_deferred_length(
         }
 
 
-def test_concurrency_limit(mini_sentry, relay, project_config):
+@pytest.mark.parametrize(
+    "feature_flag",
+    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
+)
+def test_concurrency_limit(mini_sentry, relay, project_config, feature_flag):
     """Exceeding upload.max_concurrent_requests results in 503 Service Unavailable."""
 
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
+    if feature_flag:
+        config.setdefault("features", []).append("projects:resumable-uploads")
+
     timeout = 2
 
     mini_sentry.allow_chunked = True
@@ -616,7 +647,9 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
         return relay.patch(
             f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
             headers={
-                "Content-Length": str(len(data)),
+                **(
+                    {"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}
+                ),
                 "Content-Type": "application/offset+octet-stream",
                 "Tus-Resumable": "1.0.0",
                 "Upload-Offset": "0",
@@ -648,9 +681,18 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
             }, r.text
 
 
-def test_objectstore_retries(mini_sentry, relay_with_processing, project_config):
+@pytest.mark.parametrize(
+    "feature_flag",
+    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
+)
+def test_objectstore_retries(
+    mini_sentry, relay_with_processing, project_config, feature_flag
+):
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
+    if feature_flag:
+        config.setdefault("features", []).append("projects:resumable-uploads")
 
     relay = relay_with_processing(
         options={
@@ -675,7 +717,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     response = relay.patch(
         signed_location,
         headers={
-            "Content-Length": str(len(data)),
+            **({"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -700,9 +742,13 @@ def test_objectstore_upload_uncompressed(
     uploads = []
 
     @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
-    def upload(scope, key):
+    def decline_resumable(scope, key):
+        return "", 501
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/", methods=["POST"])
+    def upload(scope):
         uploads.append((request.headers.get("Content-Encoding"), request.get_data()))
-        return {"key": key}
+        return {"key": "some_key"}
 
     relay = relay_with_processing(
         options={
@@ -729,7 +775,11 @@ def test_objectstore_timeout(
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
-    def slow_upload(**opts):
+    def decline_resumable(scope, key):
+        return "", 501
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/", methods=["POST"])
+    def slow_upload(scope):
         time.sleep(2)
         raise NotImplementedError
 
@@ -754,7 +804,6 @@ def upload_something(relay, project_id, project_key):
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -764,7 +813,7 @@ def upload_something(relay, project_id, project_key):
     return relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -773,11 +822,19 @@ def upload_something(relay, project_id, project_key):
     )
 
 
-def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
+@pytest.mark.parametrize(
+    "feature_flag",
+    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
+)
+def test_objectstore_retention(
+    mini_sentry, relay_with_processing, objectstore, feature_flag
+):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config["eventRetention"] = 20
     project_key = mini_sentry.get_dsn_public_key(project_id)
+    if feature_flag:
+        config.setdefault("features", []).append("projects:resumable-uploads")
 
     relay = relay_with_processing()
 
@@ -785,7 +842,6 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     create = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -797,7 +853,7 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     patch = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            **({"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -805,6 +861,7 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
         data=data,
     )
     assert patch.status_code == 204, patch.text
+    key = urlparse(patch.headers["Location"]).path.rstrip("/").split("/")[-1]
 
     meta = objectstore("attachments", project_id).head(key)
     assert meta.expiration_policy == TimeToLive(timedelta(days=20))

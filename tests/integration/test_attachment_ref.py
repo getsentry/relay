@@ -67,7 +67,6 @@ def upload_and_make_ref(
     create_response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -78,7 +77,7 @@ def upload_and_make_ref(
     patch_response = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",

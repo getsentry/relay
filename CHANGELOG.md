@@ -40,6 +40,7 @@
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
+- Support resumable uploads (feature-flagged). ([#6421](https://github.com/getsentry/relay/pull/6421))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
 - Remove long deprecated TLS settings from Relay's configuration. ([#6434](https://github.com/getsentry/relay/pull/6434))
 - Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))
