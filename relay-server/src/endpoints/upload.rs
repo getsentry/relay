@@ -63,8 +63,14 @@ enum Error {
     #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
 
-    #[error("Invalid Upload-Offset {0} for Upload-Length {1}")]
-    InvalidOffset(usize, usize),
+    #[error("Invalid Upload-Offset {offset} for Upload-Length {length}")]
+    InvalidOffset { offset: usize, length: usize },
+
+    #[error("Chunk of {chunk_length} bytes exceeds the remaining {remaining} bytes")]
+    ChunkTooLarge {
+        chunk_length: usize,
+        remaining: usize,
+    },
 
     #[error("Missing X-Decoded-Content-Length header")]
     MissingLength,
@@ -93,8 +99,8 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(error) => return error.into_response(),
-            Error::InvalidOffset(_, _) => StatusCode::CONFLICT,
-            Error::MissingLength => StatusCode::BAD_REQUEST,
+            Error::InvalidOffset { .. } => StatusCode::CONFLICT,
+            Error::MissingLength | Error::ChunkTooLarge { .. } => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -277,14 +283,9 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_length.value() {
-        None => (1, config.max_upload_size()),
-        Some(u) => {
-            let remaining_bytes = u
-                .checked_sub(upload_offset)
-                .ok_or(Error::InvalidOffset(upload_offset, u))?;
-            (0, remaining_bytes)
-        }
+    let (lower_bound, upper_bound) = match upload_mode {
+        UploadMode::Oneshot => (1, config.max_upload_size()),
+        UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
 
@@ -464,10 +465,24 @@ fn upload_mode(
 ) -> Result<UploadMode, Error> {
     match kind {
         Provisional::Oneshot => Ok(UploadMode::Oneshot),
-        Provisional::Resumable { .. } => Ok(UploadMode::Resumable {
-            offset,
-            chunk_length: chunk_length.ok_or(Error::MissingLength)?,
-        }),
+        Provisional::Resumable { length, .. } => {
+            let chunk_length = chunk_length.ok_or(Error::MissingLength)?;
+            let remaining = length.checked_sub(offset).ok_or(Error::InvalidOffset {
+                offset,
+                length: *length,
+            })?;
+            if chunk_length > remaining {
+                return Err(Error::ChunkTooLarge {
+                    chunk_length,
+                    remaining,
+                });
+            }
+
+            Ok(UploadMode::Resumable {
+                offset,
+                chunk_length,
+            })
+        }
     }
 }
 

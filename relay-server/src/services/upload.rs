@@ -479,11 +479,6 @@ impl Service {
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(
-                    stream
-                        .length()
-                        .is_none_or(|l| Some(l) == kind.upload_length())
-                );
 
                 let context = match &kind {
                     Provisional::Oneshot => StreamContext::Oneshot(stream.byte_counter()),
@@ -522,8 +517,7 @@ impl Service {
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 // If the location contains a length, communicate that back as is. If it doesn't
-                // (due to Upload-Defer-Length) the upload above was a oneshot and we derive the
-                // length based on the offset (progress).
+                // (because it is a oneshoot upload) derive the length based on the offset(progress).
                 let length = kind.upload_length().unwrap_or(offset);
 
                 match session_token {
