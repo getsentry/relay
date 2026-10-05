@@ -466,7 +466,7 @@ def test_global_filters_drop_events(
     assert outcomes[0]["reason"] == "premature-releases"
 
 
-def test_generic_filters_semver_condition(
+def test_generic_filters_release_condition(
     mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
 ):
     events_consumer = events_consumer()
@@ -481,7 +481,7 @@ def test_generic_filters_semver_condition(
                 "id": "old-releases",
                 "isEnabled": True,
                 "condition": {
-                    "op": "semver",
+                    "op": "release",
                     "name": "event.release",
                     "comparator": "lt",
                     "value": "1.10.0",

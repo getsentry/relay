@@ -1,10 +1,10 @@
-//! Releases for the `semver` rule condition.
+//! Releases for the `release` rule condition.
 
 use std::cmp::Ordering;
 use std::fmt;
 
 use semver::Prerelease;
-use sentry_release_parser::{Release, Version};
+use sentry_release_parser::Version;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -16,7 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// Serializes as the normalized release string, such as `myapp@1.2.3-rc.1`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Semver {
+pub struct Release {
     package: Option<String>,
     quad: Quad,
     pre: Prerelease,
@@ -25,7 +25,7 @@ pub struct Semver {
 /// The numeric components of a version. Missing components are zero.
 type Quad = (u64, u64, u64, u64);
 
-impl Semver {
+impl Release {
     /// Parses a release.
     ///
     /// Returns `None` if the release has no version, such as a commit hash.
@@ -57,7 +57,7 @@ impl Semver {
     }
 }
 
-impl fmt::Display for Semver {
+impl fmt::Display for Release {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(package) = &self.package {
             write!(f, "{package}@")?;
@@ -76,13 +76,13 @@ impl fmt::Display for Semver {
     }
 }
 
-impl Serialize for Semver {
+impl Serialize for Release {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_str(self)
     }
 }
 
-impl<'de> Deserialize<'de> for Semver {
+impl<'de> Deserialize<'de> for Release {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let release = String::deserialize(deserializer)?;
         Self::parse(&release).ok_or_else(|| D::Error::custom("release has no version"))
@@ -91,7 +91,7 @@ impl<'de> Deserialize<'de> for Semver {
 
 /// Splits a release into the parts that take part in comparisons.
 fn parse_parts(release: &str) -> Option<(Option<&str>, Quad, Prerelease)> {
-    let release = Release::parse(release).ok()?;
+    let release = sentry_release_parser::Release::parse(release).ok()?;
 
     // The parser only extracts a version behind a package, so parse the version part
     // directly. Only the parser knows that a version made of digits is a commit hash.
@@ -111,9 +111,9 @@ mod tests {
     #[test]
     fn test_releases_without_version() {
         for release in ["a4b7e0f9c2d1", "myapp@a4b7e0f9c2d1", "123456789012", ""] {
-            assert_eq!(Semver::parse(release), None, "{release}");
+            assert_eq!(Release::parse(release), None, "{release}");
             assert_eq!(
-                Semver::parse("1.0.0").unwrap().compare(release),
+                Release::parse("1.0.0").unwrap().compare(release),
                 None,
                 "{release}"
             );
@@ -132,7 +132,7 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            let ordering = Semver::parse(other).unwrap().compare(release);
+            let ordering = Release::parse(other).unwrap().compare(release);
             assert_eq!(ordering, Some(expected), "{release} {other}");
         }
     }
@@ -148,7 +148,7 @@ mod tests {
         ];
 
         for (release, other, expected) in cases {
-            let ordering = Semver::parse(other).unwrap().compare(release);
+            let ordering = Release::parse(other).unwrap().compare(release);
             assert_eq!(ordering, expected, "{release} {other}");
         }
     }
@@ -164,17 +164,17 @@ mod tests {
         ];
 
         for (input, normalized) in cases {
-            let semver: Semver = serde_json::from_str(&format!("{input:?}")).unwrap();
+            let release: Release = serde_json::from_str(&format!("{input:?}")).unwrap();
             assert_eq!(
-                serde_json::to_string(&semver).unwrap(),
+                serde_json::to_string(&release).unwrap(),
                 format!("{normalized:?}")
             );
-            assert_eq!(Semver::parse(normalized), Some(semver), "{input}");
+            assert_eq!(Release::parse(normalized), Some(release), "{input}");
         }
     }
 
     #[test]
     fn test_deserialize_rejects_releases_without_version() {
-        assert!(serde_json::from_str::<Semver>(r#""a4b7e0f9c2d1""#).is_err());
+        assert!(serde_json::from_str::<Release>(r#""a4b7e0f9c2d1""#).is_err());
     }
 }

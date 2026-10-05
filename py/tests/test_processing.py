@@ -251,13 +251,13 @@ def test_validate_cidr_condition():
     sentry_relay.validate_rule_condition(condition)
 
 
-def test_validate_semver_condition():
-    condition = '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "1.2.0"}'
+def test_validate_release_condition():
+    condition = '{"op": "release", "name": "event.release", "comparator": "gte", "value": "1.2.0"}'
     sentry_relay.validate_rule_condition(condition)
 
 
-def test_invalid_semver_condition():
-    condition = '{"op": "semver", "name": "event.release", "comparator": "gte", "value": "a4b7e0f"}'
+def test_invalid_release_condition():
+    condition = '{"op": "release", "name": "event.release", "comparator": "gte", "value": "a4b7e0f"}'
     with pytest.raises(ValueError):
         sentry_relay.validate_rule_condition(condition)
 
