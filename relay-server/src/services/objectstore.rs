@@ -991,7 +991,6 @@ impl ObjectstoreServiceInner {
                         Duration::from_hours(retention_hours.into()),
                     ));
                 }
-                // Note: This is fine since it can't be hit from external relays.
                 if let Some(key) = key {
                     request = request.key(key);
                 }
