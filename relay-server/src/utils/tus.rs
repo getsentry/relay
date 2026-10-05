@@ -204,11 +204,11 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error
     }
 
     let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
-    let content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
+    let decoded_content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
 
     Ok(PatchHeaders {
         upload_offset,
-        decoded_content_length: content_length,
+        decoded_content_length,
     })
 }
 
