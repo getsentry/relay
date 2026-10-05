@@ -1009,6 +1009,36 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_flamegraph() {
+        let payload = r#"{"version":"1","platform":"cocoa","frames":[{"function":"main"}],"trees":[{"roots":[{"frame_id":0,"sample_count":1}]}]}"#;
+        let bytes = Bytes::from(format!(
+            "{{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}}\n\
+             {{\"type\":\"attachment\",\"length\":{},\"filename\":\"flamegraph.json\",\"content_type\":\"application/json\",\"attachment_type\":\"event.flamegraph\"}}\n{payload}\n",
+            payload.len(),
+        ));
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let item = envelope.items().next().unwrap();
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
+        assert_eq!(item.filename(), Some("flamegraph.json"));
+        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert!(!item.creates_event());
+        assert!(item.requires_event());
+        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+
+        let mut serialized = Vec::new();
+        envelope.serialize(&mut serialized).unwrap();
+        let roundtrip = Envelope::parse_bytes(Bytes::from(serialized)).unwrap();
+        let item = roundtrip.items().next().unwrap();
+        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
+        assert_eq!(item.filename(), Some("flamegraph.json"));
+        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+    }
+
+    #[test]
     fn test_parse_empty_items() {
         // Without terminating newline after header
         let items = Envelope::parse_items_bytes(Bytes::from("")).unwrap();
