@@ -317,7 +317,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
         pytest.param(
             12,
             400,
-            "stream exceeded upper bound: received 12 > 11",
+            "Chunk of 12 bytes exceeds the remaining 11 bytes",
             id="larger_than_announced",
         ),
         pytest.param(101, 413, "length limit exceeded", id="larger_than_allowed"),
@@ -361,9 +361,7 @@ def test_upload_body_size(
 
     assert response.status_code == expected_status_code
     if expected_error:
-        assert response.text == expected_error or any(
-            expected_error in source for source in response.json()["causes"]
-        ), response.json()
+        assert expected_error in response.text, response.text
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
