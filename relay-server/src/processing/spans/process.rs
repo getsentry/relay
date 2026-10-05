@@ -1427,7 +1427,7 @@ mod tests {
         deprecated,
         reason = "This test deliberately checks deprecated attributes"
     )]
-    fn test_op_from_deprecated_gen_ai_system() {
+    fn test_attributes_from_deprecated_gen_ai_system() {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[(GEN_AI__SYSTEM, "some system")], &[]);
 
@@ -1444,7 +1444,7 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__OP, "gen_ai"),
+                (SENTRY__OP, "default"),
                 (GEN_AI__PROVIDER__NAME, "some system"),
             ],
             &[],
