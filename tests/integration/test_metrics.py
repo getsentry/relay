@@ -341,9 +341,16 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
 
 
 @pytest.mark.parametrize(
-    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 6), (50, 0)]
+    "max_batch_size,expected_values",
+    [
+        (1000, [list(range(1, 18))]),
+        (200, [list(range(1, 17)), [17]]),
+        (130, [list(range(1, 8)), list(range(8, 15)), [15, 16, 17]]),
+        (100, [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17]]),
+        (50, []),
+    ],
 )
-def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_events):
+def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_values):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
     relay_config = {
         "processing": {
@@ -371,12 +378,30 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
             "value": list(range(1, 18)),
         },
     ]
+    before = int(time.time())
     relay.send_metrics_buckets(project_id, metrics_payload)
 
-    for _ in range(expected_events):
-        mini_sentry.get_captured_envelope()
+    buckets = [bucket for _ in expected_values for bucket in mini_sentry.get_metrics()]
 
-    assert mini_sentry.captured_envelopes.empty()
+    # Requests can arrive out of order; each batch contains one distribution fragment.
+    buckets.sort(key=lambda bucket: bucket["value"])
+    assert buckets == [
+        {
+            "timestamp": 999994711,
+            "width": 1,
+            "name": "d:sessions/foo@none",
+            "type": "d",
+            "value": values,
+            "metadata": {
+                "merges": 1 if index == 0 else 0,
+                "received_at": time_after(before),
+            },
+        }
+        for index, values in enumerate(expected_values)
+    ]
+
+    with pytest.raises(queue.Empty):
+        mini_sentry.get_captured_envelope(timeout=1)
 
 
 @pytest.mark.parametrize("ns", [None, "transactions", "spans"])
