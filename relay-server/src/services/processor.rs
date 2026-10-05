@@ -1630,8 +1630,16 @@ impl<'a> Partition<'a> {
     /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
+    ///
+    /// A bucket that cannot fit even partially into an empty partition is dropped. In that case,
+    /// this returns `None` so callers can continue with the next bucket without retrying forever.
     pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
+
+        if current.is_none() && next.is_some() && self.is_empty() {
+            relay_log::warn!("Metric bucket exceeds maximum batch size, dropping bucket.");
+            return None;
+        }
 
         if let Some(current) = current {
             self.remaining = self.remaining.saturating_sub(current.estimated_size());
@@ -1844,6 +1852,41 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn test_partition_drops_oversized_bucket_and_continues() {
+        let scoping = Scoping {
+            organization_id: relay_base_schema::organization::OrganizationId::new(1),
+            project_id: ProjectId::new(42),
+            project_key: ProjectKey::parse("11111111111111111111111111111111").unwrap(),
+            key_id: None,
+        };
+        let small = Bucket {
+            timestamp: UnixTimestamp::from_secs(5000),
+            width: 1,
+            name: "c:spans/foo@none".into(),
+            value: relay_metrics::BucketValue::counter(1.into()),
+            tags: Default::default(),
+            metadata: Default::default(),
+        };
+        let oversized = Bucket {
+            name: "g:spans/foo@none".into(),
+            value: relay_metrics::BucketValue::gauge(1.into()),
+            ..small.clone()
+        };
+        let mut partition = Partition::new(100);
+
+        assert!(partition.insert(BucketView::new(&small), scoping).is_none());
+        let remaining = partition
+            .insert(BucketView::new(&oversized), scoping)
+            .unwrap();
+        partition.take();
+        // Retrying in an empty partition must terminate instead of returning the same bucket.
+        assert!(partition.insert(remaining, scoping).is_none());
+        assert!(partition.is_empty());
+        assert!(partition.insert(BucketView::new(&small), scoping).is_none());
+        assert_eq!(partition.views[&scoping.project_key].len(), 1);
+    }
 
     async fn process_to_single_envelope<'a>(
         processor: &EnvelopeProcessorService,

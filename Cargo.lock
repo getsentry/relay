@@ -4736,6 +4736,7 @@ dependencies = [
  "relay-statsd",
  "relay-system",
  "relay-test",
+ "rmp-serde",
  "serde",
  "serde_json",
  "similar-asserts",

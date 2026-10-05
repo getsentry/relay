@@ -123,6 +123,8 @@ where
     }
 
     /// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
+    ///
+    /// Buckets that cannot fit even partially into a segment are skipped.
     pub fn by_size(self, size_in_bytes: usize) -> BucketsViewBySizeIter<T> {
         BucketsViewBySizeIter::new(self.inner, self.start, self.end, size_in_bytes)
     }
@@ -278,13 +280,13 @@ where
     type Item = BucketsView<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.current;
+        let mut start = self.current;
 
         let mut remaining_bytes = self.max_size_bytes;
         loop {
             // Make sure, we don't shoot past the end ...
             if (self.current.slice > self.end.slice)
-                || (self.current.slice == self.end.slice && self.end.bucket == 0)
+                || (self.current.slice == self.end.slice && self.current.bucket >= self.end.bucket)
             {
                 break;
             }
@@ -301,7 +303,18 @@ where
 
             // Selection should never fail, because either we select the entire range,
             // or we previously already split the bucket, which means this range is good.
-            let bucket = BucketView::new(bucket).select(self.current.bucket..bucket.value.len());
+            let (end, next) = if self.current.slice == self.end.slice {
+                (self.end.bucket, self.end)
+            } else {
+                (
+                    bucket.value.len(),
+                    Index {
+                        slice: self.current.slice + 1,
+                        bucket: 0,
+                    },
+                )
+            };
+            let bucket = BucketView::new(bucket).select(self.current.bucket..end);
             let Some(bucket) = bucket else {
                 debug_assert!(false, "internal invariant violated, invalid bucket split");
                 relay_log::error!(
@@ -317,10 +330,15 @@ where
             ) {
                 SplitDecision::BucketFits(size) => {
                     remaining_bytes -= size;
-                    self.current = Index {
-                        slice: self.current.slice + 1,
-                        bucket: 0,
-                    };
+                    self.current = next;
+                    continue;
+                }
+                SplitDecision::MoveToNextBatch if start == self.current => {
+                    // No part of this bucket fits into an empty batch. Skip it without losing
+                    // subsequent buckets, which may still fit.
+                    relay_log::warn!("Metric bucket exceeds maximum batch size, dropping bucket.");
+                    self.current = next;
+                    start = next;
                     continue;
                 }
                 SplitDecision::MoveToNextBatch => break,
@@ -335,8 +353,7 @@ where
         }
 
         if start == self.current {
-            // Either no progress could be made (not enough space to fit a bucket),
-            // or we're done.
+            // No buckets remain after skipping any that were too large.
             return None;
         }
 
@@ -384,7 +401,7 @@ where
 pub struct BucketView<'a> {
     /// The source bucket.
     inner: &'a Bucket,
-    /// Non-empty and valid range into the bucket.
+    /// Valid range into the bucket, non-empty unless the source bucket is empty.
     /// The full range is constrained by `0..bucket.value.len()`
     range: Range<usize>,
 }
@@ -501,9 +518,14 @@ impl<'a> BucketView<'a> {
     ///
     /// Returns `None` when:
     /// - the passed range is not contained in the current view.
+    /// - the range is reversed, or empty while the current view is non-empty.
     /// - trying to split a counter or gauge bucket.
     pub fn select(mut self, range: Range<usize>) -> Option<Self> {
-        if range.start < self.range.start || range.end > self.range.end {
+        if range.start > range.end
+            || range.start < self.range.start
+            || range.end > self.range.end
+            || (range.is_empty() && !self.is_empty())
+        {
             return None;
         }
 
@@ -605,10 +627,8 @@ impl Serialize for BucketView<'_> {
             metadata,
         } = self.inner;
 
-        let len = match tags.is_empty() {
-            true => 4,
-            false => 5,
-        };
+        // The flattened value contributes both `type` and `value`.
+        let len = 5 + usize::from(!tags.is_empty()) + usize::from(!metadata.is_default());
 
         let mut state = serializer.serialize_map(Some(len))?;
 
@@ -1204,6 +1224,103 @@ mod tests {
         let partials = view.by_size(178).collect::<Vec<_>>();
 
         assert_json_snapshot!(partials);
+    }
+
+    #[test]
+    fn test_bucket_view_select_reversed_and_empty_ranges() {
+        for value in [
+            BucketValue::Distribution(dist![1, 2, 3, 4, 5]),
+            BucketValue::Set([1, 2, 3, 4, 5].into()),
+        ] {
+            let bucket = bucket("d:spans/foo@none", value);
+            for (start, end) in [(4, 2), (6, 2), (0, 0), (2, 2), (5, 5)] {
+                assert!(BucketView::new(&bucket).select(start..end).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_buckets_view_empty_values() {
+        let buckets = vec![
+            bucket("d:spans/foo@none", BucketValue::Distribution(dist![])),
+            bucket("s:spans/foo@none", BucketValue::Set(Default::default())),
+        ];
+        let view = BucketsView::from(&buckets);
+        assert_eq!(view.iter().count(), 2);
+        assert_eq!(view.by_size(100).flatten().count(), 2);
+    }
+
+    #[test]
+    fn test_buckets_view_rebatch_partial() {
+        let buckets = vec![bucket(
+            "d:spans/foo@none",
+            BucketValue::Distribution(dist![1, 2, 3, 4, 5, 6]),
+        )];
+        let view = BucketsView::from(&buckets);
+        let two_values = view.iter().next().unwrap().estimated_base_size() + 2 * AVG_VALUE_SIZE;
+        for partial in view.by_size(two_values) {
+            let expected: Vec<_> = partial.iter().flat_map(|b| b.range).collect();
+            // Rebatch both into smaller fragments and into a budget larger than the source bucket.
+            for size in [two_values - AVG_VALUE_SIZE, 1000] {
+                let actual: Vec<_> = partial
+                    .by_size(size)
+                    .flatten()
+                    .flat_map(|b| b.range)
+                    .collect();
+                assert_eq!(actual, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn test_buckets_view_skip_oversized_buckets() {
+        let small = bucket("c:spans/foo@none", BucketValue::Counter(1.into()));
+        let oversized = bucket("g:spans/foo@none", gauge());
+        let mut oversized_key = bucket("d:spans/foo@none", BucketValue::Distribution(dist![1]));
+        oversized_key.tags.insert("tag".into(), "x".repeat(100));
+        for buckets in [
+            vec![oversized.clone(), small.clone()],
+            vec![small.clone(), oversized.clone(), small.clone()],
+            vec![oversized, oversized_key, small.clone()],
+        ] {
+            let expected: Vec<_> = buckets.iter().filter(|b| b.name == small.name).collect();
+            let actual: Vec<_> = BucketsView::from(&buckets)
+                .by_size(100)
+                .flatten()
+                .map(|b| b.inner)
+                .collect();
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn test_bucket_view_messagepack_map_length() {
+        let mut buckets = buckets();
+        buckets.push(bucket("g:spans/foo@none", gauge()));
+        for mut bucket in buckets {
+            for with_tags in [false, true] {
+                if with_tags {
+                    bucket.tags.insert("tag".into(), "value".into());
+                }
+                for with_metadata in [false, true] {
+                    bucket.metadata = if with_metadata {
+                        BucketMetadata::new(UnixTimestamp::from_secs(5000))
+                    } else {
+                        BucketMetadata::default()
+                    };
+                    let view = BucketView::new(&bucket);
+                    let mut views = vec![view.clone()];
+                    if view.can_split() {
+                        views.push(view.select(0..1).unwrap());
+                    }
+                    for view in views {
+                        let bytes = rmp_serde::to_vec_named(&view).unwrap();
+                        let decoded: serde_json::Value = rmp_serde::from_slice(&bytes).unwrap();
+                        assert_eq!(decoded, serde_json::to_value(&view).unwrap());
+                    }
+                }
+            }
+        }
     }
 
     #[test]
