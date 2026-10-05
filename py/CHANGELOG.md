@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased 
+## Unreleased
 
 - **Breaking**: Removes codeowners and glob matching, this has been moved into Ophio. ([#6447](https://github.com/getsentry/relay/pull/6447))
 - Adds support for Relay's Pattern. ([#6448](https://github.com/getsentry/relay/pull/6448))
+- Add `projects:relay-automatic-json-expansion` feature to project config. ([#6459](https://github.com/getsentry/relay/pull/6459))
 
 ## 0.9.31
 

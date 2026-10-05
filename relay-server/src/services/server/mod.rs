@@ -47,10 +47,6 @@ pub enum ServerError {
     /// Binding failed.
     #[error("bind to interface failed")]
     BindFailed(#[from] std::io::Error),
-
-    /// TLS support was not compiled in.
-    #[error("SSL is no longer supported by Relay, please use a proxy in front")]
-    TlsNotSupported,
 }
 
 type App = NormalizePath<axum::Router>;
@@ -171,14 +167,6 @@ pub struct HttpServer {
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         let current_config = config.current();
-
-        // Inform the user about a removed feature.
-        if current_config.tls_listen_addr().is_some()
-            || current_config.tls_identity_password().is_some()
-            || current_config.tls_identity_path().is_some()
-        {
-            return Err(ServerError::TlsNotSupported);
-        }
 
         let listener = listen(current_config.listen_addr(), &current_config)?;
         let internal_listener = match current_config.listen_addr_internal() {

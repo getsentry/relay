@@ -73,6 +73,11 @@ pub enum Feature {
     /// Serialized as `organizations:relay-automatic-json-expansion`.
     #[serde(rename = "organizations:relay-automatic-json-expansion")]
     AutomaticJsonExpansion,
+    /// Project-level opt-in for JSON attribute expansion, set via project settings.
+    ///
+    /// Serialized as `projects:relay-automatic-json-expansion`.
+    #[serde(rename = "projects:relay-automatic-json-expansion")]
+    ProjectAutomaticJsonExpansion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
