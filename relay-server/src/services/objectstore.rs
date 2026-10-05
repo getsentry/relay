@@ -333,6 +333,7 @@ impl ErrorKind {
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
+            ErrorKind::InvalidOffset { .. } | ErrorKind::UploadCompleted => true,
             _ => false,
         }
     }
