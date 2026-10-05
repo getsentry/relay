@@ -67,7 +67,6 @@ def upload_and_make_ref(
     create_response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
