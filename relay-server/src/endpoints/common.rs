@@ -10,7 +10,7 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use relay_config::{ConfigSnapshot, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_quotas::{DataCategory, RateLimits};
+use relay_quotas::{DataCategory, PropagatableRateLimits, RateLimits};
 use relay_statsd::metric;
 use relay_system::Addr;
 use serde::Deserialize;
@@ -109,7 +109,7 @@ pub enum BadStoreRequest {
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
-    RateLimited(RateLimits),
+    RateLimited(PropagatableRateLimits),
 
     #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
@@ -119,6 +119,9 @@ pub enum BadStoreRequest {
 
     #[error("failed to upload file")]
     UploadFailed,
+
+    #[error("unexpected rate limit dimensions")]
+    UnexpectedRateLimitDimensions,
 }
 
 impl BadStoreRequest {
@@ -146,6 +149,7 @@ impl BadStoreRequest {
             Self::EventRejected(discard_reason) => *discard_reason,
             Self::ProjectUnavailable => DiscardReason::ProjectUnavailable,
             Self::UploadFailed => DiscardReason::UploadFailed,
+            Self::UnexpectedRateLimitDimensions => DiscardReason::RateLimited,
         };
         Some(Outcome::Invalid(discard_reason))
     }
@@ -192,8 +196,9 @@ impl IntoResponse for BadStoreRequest {
             BadStoreRequest::RateLimited(rate_limits) => {
                 let retry_after_header = rate_limits
                     .longest()
-                    .map(|limit| limit.retry_after.remaining_seconds().to_string())
-                    .unwrap_or_default();
+                    .map(|limit| limit.retry_after.remaining_seconds())
+                    .unwrap_or_default()
+                    .to_string();
 
                 let rate_limits_header = utils::format_rate_limits(rate_limits);
 
@@ -503,8 +508,11 @@ impl HandledEnvelope {
     /// Check if any rate limits were enforced (i.e. led to one or more items being dropped) and
     /// return an error if so.
     pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
-        if self.rate_limits.is_limited() {
-            return Err(BadStoreRequest::RateLimited(self.rate_limits));
+        // Only consider rate-limit verdicts that can even be propagated upstream--dimensioned
+        // ones cannot (yet) be done so, so silently swallow them.
+        let propagatable = self.rate_limits.propagatable();
+        if propagatable.is_limited() {
+            return Err(BadStoreRequest::RateLimited(propagatable));
         }
         Ok(self.event_id)
     }

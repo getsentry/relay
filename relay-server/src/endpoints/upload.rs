@@ -405,8 +405,16 @@ async fn validate_and_limit(
     let rate_limits = project
         .check_envelope(&mut envelope)
         .await
-        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
+        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?
+        .propagatable();
+
     if envelope.is_empty() {
+        if rate_limits.is_empty() {
+            // We were rate-limited, but by a dimensioned quota, which doesn't yet exist for
+            // uploads.
+            return Err(BadStoreRequest::UnexpectedRateLimitDimensions);
+        }
+
         return Err(envelope
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into_inner());
