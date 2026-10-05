@@ -22,7 +22,6 @@ use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
-use crate::services::buffer::throttle::Throttle;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
@@ -45,6 +44,8 @@ pub use envelope_stack::sqlite::{SqliteEnvelopeStack, SqliteEnvelopeStackConfig}
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks
+pub use throttle::Throttle;
 
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 pub use common::ProjectKeyPair;
@@ -708,21 +709,16 @@ impl Service for EnvelopeBufferService {
                         }
                 }
                 Ok(()) = global_config_rx.changed() => {
-                    if let global_config::Status::Ready(global_config) = &*global_config_rx.borrow()
-                    {
-                        self.unspool_throttle.set_rate(
-                            global_config
-                                .options
-                                .max_unspool_envelopes_per_second
-                                .or_else(|| {
-                                    self.config.current().spool_max_unspool_envelopes_per_second()
-                                }),
-                        );
-                    }
                     sleep = Duration::ZERO;
                 }
                 else => break,
             }
+
+            self.unspool_throttle.set_rate(
+                self.config
+                    .current()
+                    .spool_max_unspool_envelopes_per_second(),
+            );
 
             self.sleep = sleep;
             self.update_observable_state(&mut buffer);

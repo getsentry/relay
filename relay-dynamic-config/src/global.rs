@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
-use std::num::NonZeroU32;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
@@ -187,17 +186,6 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub upload_chunk_size: usize,
-
-    /// Maximum number of envelopes that are unspooled from disk per second.
-    ///
-    /// Overrides `spool.envelopes.max_unspool_envelopes_per_second` from the static
-    /// configuration. Defaults to `None`, which falls back to the static configuration.
-    #[serde(
-        rename = "relay.spool.max-unspool-envelopes-per-second",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub max_unspool_envelopes_per_second: Option<NonZeroU32>,
 
     /// All other unknown options.
     #[serde(flatten)]

@@ -1898,6 +1898,22 @@ impl ConfigInner {
             changed = true;
         }
 
+        if self.values.spool.envelopes.max_unspool_envelopes_per_second
+            != other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second
+        {
+            relay_log::debug!("updating spool.envelopes.max_unspool_envelopes_per_second");
+            self.values.spool.envelopes.max_unspool_envelopes_per_second = other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second;
+            changed = true;
+        }
+
         changed
     }
 }

@@ -46,6 +46,15 @@ impl Throttle {
         }
     }
 
+    /// Returns the currently configured rate.
+    #[cfg(test)]
+    pub fn rate(&self) -> Option<f64> {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .rate
+    }
+
     /// Accounts units against the throttle and waits until the rate is back within
     /// the configured limit.
     ///
