@@ -3353,9 +3353,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.2.5"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eedfd4e13317faf71ccf7d2bdae054f63f5f8cf3c5dd54b87bbb56779bcd450a"
+checksum = "28cf958783f091b9431a4a133e15d3fae26ccc125aea5706efa353e263588906"
 dependencies = [
  "async-compression",
  "bytes",
@@ -3376,9 +3376,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.2.5"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2cc60dde93c6b8f1213808194d0036333f11ea173309dea8d936ee23e6604b0"
+checksum = "b315b6f80b640f12233bdbd98c07a8c41d1b02d1035b1a92ee60e7f10cd07db5"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -5193,6 +5193,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-native-tls",
@@ -6288,7 +6289,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "symbolic-common"
 version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
+source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6299,7 +6300,7 @@ dependencies = [
 [[package]]
 name = "symbolic-unreal"
 version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
+source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
 dependencies = [
  "anylog",
  "bytes",

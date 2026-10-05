@@ -7,6 +7,7 @@ import json
 import redis
 from flask import Response, request
 import pytest
+import zstandard
 
 # all tests fixtures must be imported so that pytest finds them
 from .fixtures.gobetween import gobetween  # noqa
@@ -316,10 +317,16 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
     def upload(**opts):
-        assert request.headers["Content-Encoding"] == "zstd"
-        assert request.data.startswith(ZSTD_MAGIC_HEADER)
+        data = request.data
+        if request.data:
+            assert request.headers["Content-Encoding"] == "zstd"
+            assert request.data.startswith(ZSTD_MAGIC_HEADER)
+            data = zstandard.ZstdDecompressor().decompressobj().decompress(data)
         return Response(
             "",
             status=204,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={
+                "Location": DUMMY_UPLOAD_LOCATION,
+                "Upload-Offset": len(data),
+            },
         )
