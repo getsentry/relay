@@ -161,7 +161,8 @@ mod tests {
                     id: RuleId(1),
                     time_range: Default::default(),
                     decaying_fn: DecayingFunction::Constant,
-                }],
+                }]
+                .into_boxed_slice(),
                 ..SamplingConfig::new()
             };
 
@@ -189,7 +190,7 @@ mod tests {
             };
 
             let sampling_config = SamplingConfig {
-                rules: vec![rule],
+                rules: vec![rule].into_boxed_slice(),
                 ..SamplingConfig::new()
             };
 
@@ -226,7 +227,7 @@ mod tests {
         };
 
         let sampling_config = SamplingConfig {
-            rules: vec![rule, unsupported_rule],
+            rules: vec![rule, unsupported_rule].into_boxed_slice(),
             ..SamplingConfig::new()
         };
 
@@ -254,7 +255,7 @@ mod tests {
         };
 
         let sampling_config = SamplingConfig {
-            rules: vec![rule],
+            rules: vec![rule].into_boxed_slice(),
             ..SamplingConfig::new()
         };
 

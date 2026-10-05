@@ -144,7 +144,7 @@ impl Serialize for LegacyBrowser {
 #[serde(rename_all = "camelCase")]
 pub struct ClientIpsFilterConfig {
     /// Blacklisted client ip addresses.
-    pub blacklisted_ips: Vec<String>,
+    pub blacklisted_ips: Box<[String]>,
 }
 
 impl ClientIpsFilterConfig {
@@ -159,7 +159,7 @@ impl ClientIpsFilterConfig {
 #[serde(rename_all = "camelCase")]
 pub struct CspFilterConfig {
     /// Disallowed sources for CSP reports.
-    pub disallowed_sources: Vec<String>,
+    pub disallowed_sources: Box<[String]>,
 }
 
 impl CspFilterConfig {
@@ -640,11 +640,11 @@ mod tests {
         let filters_config = ProjectFiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             client_ips: ClientIpsFilterConfig {
-                blacklisted_ips: vec!["127.0.0.1".to_owned()],
+                blacklisted_ips: vec!["127.0.0.1".to_owned()].into_boxed_slice(),
             },
             web_crawlers: FilterConfig { is_enabled: true },
             csp: CspFilterConfig {
-                disallowed_sources: vec!["https://*".to_owned()],
+                disallowed_sources: vec!["https://*".to_owned()].into_boxed_slice(),
             },
             error_messages: ErrorMessagesFilterConfig {
                 patterns: TypedPatterns::from(["Panic".to_owned()]),

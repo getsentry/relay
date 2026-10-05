@@ -399,7 +399,7 @@ mod tests {
     fn test_filters_known_blocked_source_files() {
         let event = get_csp_event(None, Some("http://known.bad.com"), None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -414,7 +414,7 @@ mod tests {
     fn test_does_not_filter_benign_source_files() {
         let event = get_csp_event(None, Some("http://good.file.com"), None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -429,7 +429,7 @@ mod tests {
     fn test_filters_known_document_uris() {
         let event = get_csp_event(None, None, Some("http://known.bad.com"));
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -444,7 +444,7 @@ mod tests {
     fn test_filters_known_blocked_uris() {
         let event = get_csp_event(Some("http://known.bad.com"), None, None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -459,7 +459,7 @@ mod tests {
     fn test_does_not_filter_benign_uris() {
         let event = get_csp_event(Some("http://good.file.com"), None, None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -475,7 +475,7 @@ mod tests {
         let mut event = get_csp_event(Some("http://known.bad.com"), None, None);
         event.ty = Annotated::from(EventType::Transaction);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_owned()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()].into_boxed_slice(),
         };
 
         let actual = should_filter(&event, &config);
@@ -515,7 +515,7 @@ mod tests {
         for (blocked_uri, source_file) in examples {
             let event = get_csp_event(*blocked_uri, *source_file, None);
             let config = CspFilterConfig {
-                disallowed_sources: get_disallowed_sources(),
+                disallowed_sources: get_disallowed_sources().into_boxed_slice(),
             };
 
             let actual = should_filter(&event, &config);
@@ -538,7 +538,7 @@ mod tests {
         for (blocked_uri, source_file) in examples {
             let event = get_csp_event(*blocked_uri, *source_file, None);
             let config = CspFilterConfig {
-                disallowed_sources: get_disallowed_sources(),
+                disallowed_sources: get_disallowed_sources().into_boxed_slice(),
             };
 
             let actual = should_filter(&event, &config);

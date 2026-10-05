@@ -221,7 +221,7 @@ pub fn normalize(
     let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
     let ai_model_metadata = ctx.global_config.ai_model_metadata();
-    let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
+    let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_ref();
 
     let project_info = ctx.project_info;
     let retention_days: i64 = project_info
@@ -285,7 +285,7 @@ pub fn normalize(
             is_renormalize: false,
             remove_other: full_normalization,
             emit_event_errors: full_normalization,
-            span_description_rules: project_info.config.span_description_rules.as_ref(),
+            span_description_rules: project_info.config.span_description_rules.as_deref(),
             geoip_lookup: Some(geoip_lookup),
             ai_model_metadata,
             enable_trimming: true,

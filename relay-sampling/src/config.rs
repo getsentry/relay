@@ -28,7 +28,7 @@ pub struct SamplingConfig {
 
     /// The ordered sampling rules for the project.
     #[serde(default)]
-    pub rules: Vec<SamplingRule>,
+    pub rules: Box<[SamplingRule]>,
 
     /// **Deprecated**. The ordered sampling rules for the project in legacy format.
     ///
@@ -37,7 +37,7 @@ pub struct SamplingConfig {
     /// both an empty `rules` as well as the actual rules in `rules_v2`. During normalization, these
     /// two arrays are merged together.
     #[serde(default, skip_serializing)]
-    pub rules_v2: Vec<SamplingRule>,
+    pub rules_v2: Box<[SamplingRule]>,
 }
 
 impl SamplingConfig {
@@ -60,7 +60,9 @@ impl SamplingConfig {
     /// Upgrades legacy sampling configs into the latest format.
     pub fn normalize(&mut self) {
         if self.version == Self::legacy_version() {
-            self.rules.append(&mut self.rules_v2);
+            let mut rules = std::mem::take(&mut self.rules).into_vec();
+            rules.extend(std::mem::take(&mut self.rules_v2));
+            self.rules = rules.into_boxed_slice();
             self.version = SAMPLING_CONFIG_VERSION;
         }
     }
@@ -74,8 +76,8 @@ impl Default for SamplingConfig {
     fn default() -> Self {
         Self {
             version: SAMPLING_CONFIG_VERSION,
-            rules: vec![],
-            rules_v2: vec![],
+            rules: Box::new([]),
+            rules_v2: Box::new([]),
         }
     }
 }
@@ -473,7 +475,8 @@ mod tests {
                 id: RuleId(1),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            }],
+            }]
+            .into_boxed_slice(),
             ..SamplingConfig::new()
         };
 

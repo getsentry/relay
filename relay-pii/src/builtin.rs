@@ -45,7 +45,8 @@ declare_builtin_rules! {
                 "@bearer".into(),
                 "@password".into(),
                 "@usssn".into(),
-            ],
+            ]
+            .into_boxed_slice(),
             hide_inner: false,
         }),
         redaction: Redaction::Default,
@@ -62,7 +63,8 @@ declare_builtin_rules! {
                 "@bearer:filter".into(),
                 "@password:filter".into(),
                 "@usssn:filter".into(),
-            ],
+            ]
+            .into_boxed_slice(),
             hide_inner: false,
         }),
         redaction: Redaction::Default,
@@ -456,7 +458,10 @@ mod tests {
             let config = PiiConfig {
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(ValueType::String.into(), vec![$rule.to_string()]);
+                    map.insert(
+                        ValueType::String.into(),
+                        vec![$rule.to_string()].into_boxed_slice(),
+                    );
                     map
                 },
                 ..PiiConfig::default()
@@ -477,7 +482,10 @@ mod tests {
             let config = PiiConfig {
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(ValueType::String.into(), vec![$rule.to_string()]);
+                    map.insert(
+                        ValueType::String.into(),
+                        vec![$rule.to_string()].into_boxed_slice(),
+                    );
                     map
                 },
                 ..PiiConfig::default()
@@ -533,7 +541,10 @@ mod tests {
                 },
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(ValueType::String.into(), vec!["0".to_owned()]);
+                    map.insert(
+                        ValueType::String.into(),
+                        vec!["0".to_owned()].into_boxed_slice(),
+                    );
                     map
                 },
                 ..Default::default()
@@ -899,7 +910,10 @@ mod tests {
         let config = PiiConfig {
             applications: {
                 let mut map = BTreeMap::new();
-                map.insert(ValueType::String.into(), vec!["@email:replace".to_owned()]);
+                map.insert(
+                    ValueType::String.into(),
+                    vec!["@email:replace".to_owned()].into_boxed_slice(),
+                );
                 map
             },
             ..PiiConfig::default()

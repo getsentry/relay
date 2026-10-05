@@ -127,7 +127,7 @@ pub struct PatternRule {
 #[serde(rename_all = "camelCase")]
 pub struct MultipleRule {
     /// A reference to other rules to apply
-    pub rules: Vec<String>,
+    pub rules: Box<[String]>,
     /// When set to true, the outer rule is reported.
     #[serde(default, skip_serializing_if = "is_flag_default")]
     pub hide_inner: bool,
@@ -246,7 +246,7 @@ pub struct PiiConfig {
 
     /// Mapping of selectors to rules.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub applications: BTreeMap<SelectorSpec, Vec<String>>,
+    pub applications: BTreeMap<SelectorSpec, Box<[String]>>,
 
     /// PII config derived from datascrubbing settings.
     ///
