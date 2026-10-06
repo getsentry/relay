@@ -531,9 +531,7 @@ impl<'a> Iterator for RateLimitsIter<'a> {
                 return Some(nxt);
             }
 
-            let Some((_, v)) = self.dimensioned_iter.next() else {
-                return None;
-            };
+            let (_, v) = self.dimensioned_iter.next()?;
             self.iter = v.iter();
         }
     }
