@@ -1029,7 +1029,7 @@ def test_limit_custom_measurements(
     metrics_consumer.assert_empty()
 
 
-def test_generic_metric_extraction(mini_sentry, relay):
+def test_span_usage_ignores_metric_extraction_config(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
 
@@ -1073,14 +1073,20 @@ def test_generic_metric_extraction(mini_sentry, relay):
     metrics = metrics_without_keys(
         json.loads(item.get_bytes().decode()), keys={"metadata"}
     )
-    assert {
-        "timestamp": time_after(int(timestamp.timestamp())),
-        "width": 1,
-        "name": "c:spans/on_demand@none",
-        "type": "c",
-        "value": 1.0,
-        "tags": {"query_hash": "c91c2e4d"},
-    } in metrics
+    assert len(metrics) == 2
+    assert all(metric["name"] == "c:spans/usage@none" for metric in metrics)
+    for tags in [
+        {"is_segment": "true", "was_transaction": "true"},
+        {"is_segment": "false"},
+    ]:
+        assert {
+            "timestamp": time_after(int(timestamp.timestamp())),
+            "width": 1,
+            "name": "c:spans/usage@none",
+            "type": "c",
+            "value": 1.0,
+            "tags": tags,
+        } in metrics
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))

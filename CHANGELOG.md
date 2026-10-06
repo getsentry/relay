@@ -8,6 +8,7 @@
   `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
   unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
 - Stop accepting metrics in statsd format. ([#6428](https://github.com/getsentry/relay/pull/6428))
+- Stop parsing on-demand metrics extraction config. All extracted metrics are now hard-coded. ([#6439](https://github.com/getsentry/relay/pull/6439))
 
 **Features**:
 
