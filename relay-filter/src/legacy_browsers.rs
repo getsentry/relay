@@ -8,11 +8,7 @@ use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig
 
 /// Checks if the event originates from legacy browsers.
 fn matches(user_agent: &UserAgent<'_>, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    // remap IE Mobile to IE (sentry python, filter compatibility)
-    let family = match user_agent.family.as_ref() {
-        "IE Mobile" => "IE",
-        other => other,
-    };
+    let family = desktop_family(user_agent.family.as_ref());
 
     if browsers.contains(&LegacyBrowser::Default) {
         return default_filter(family, user_agent);
@@ -68,6 +64,22 @@ pub fn should_filter<F: Filterable>(
         Err(FilterStatKey::LegacyBrowsers)
     } else {
         Ok(())
+    }
+}
+
+/// Maps the mobile variants of a browser to the desktop family that the filter options refer to.
+///
+/// The user agent parser reports mobile browsers as separate families, but they share the
+/// release numbering of their desktop counterparts, so the same version cutoffs apply.
+fn desktop_family(family: &str) -> &str {
+    match family {
+        "IE Mobile" => "IE",
+        "Mobile Safari" | "Mobile Safari UI/WKWebView" => "Safari",
+        "Chrome Mobile" | "Chrome Mobile iOS" | "Chrome Mobile WebView" => "Chrome",
+        "Firefox Mobile" | "Firefox iOS" => "Firefox",
+        "Edge Mobile" => "Edge",
+        "Opera Mobile" => "Opera",
+        other => other,
     }
 }
 
@@ -152,6 +164,19 @@ mod tests {
     const EDGE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582";
     const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
     const ANDROID_UA: &str = "Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13";
+    const MOBILE_SAFARI_5_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 5_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B179 Safari/7534.48.3";
+    const MOBILE_SAFARI_15_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.8 Mobile/15E148 Safari/604.1";
+    const MOBILE_SAFARI_16_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
+    const WKWEBVIEW_15_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.8 Mobile/15E148";
+    const CHROME_MOBILE_110_UA: &str = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.65 Mobile Safari/537.36";
+    const CHROME_MOBILE_111_UA: &str = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.5563.58 Mobile Safari/537.36";
+    const CHROME_MOBILE_IOS_110_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/110.0.5481.83 Mobile/15E148 Safari/604.1";
+    const CHROME_MOBILE_WEBVIEW_110_UA: &str = "Mozilla/5.0 (Linux; Android 10; K; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.65 Mobile Safari/537.36";
+    const FIREFOX_MOBILE_110_UA: &str =
+        "Mozilla/5.0 (Android 13; Mobile; rv:110.0) Gecko/110.0 Firefox/110.0";
+    const FIREFOX_IOS_110_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/110.0 Mobile/15E148 Safari/605.1.15";
+    const EDGE_ANDROID_110_UA: &str = "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.65 Mobile Safari/537.36 EdgA/110.0.1587.50";
+    const OPERA_MOBILE_64_UA: &str = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 OPR/64.3.3282.60839";
 
     use super::*;
     use crate::testutils;
@@ -192,6 +217,7 @@ mod tests {
             IE9_UA,
             IE_MOBILE9_UA,
             SAFARI_PRE6_UA,
+            MOBILE_SAFARI_5_UA,
             OPERA_PRE15_UA,
             ANDROID_PRE4_UA,
             OPERA_MINI_PRE8_UA,
@@ -214,6 +240,7 @@ mod tests {
         for old_user_agent in &[
             IE10_UA,
             SAFARI_6_UA,
+            MOBILE_SAFARI_15_UA,
             OPERA_15_UA,
             ANDROID_4_UA,
             OPERA_MINI_8_UA,
@@ -284,6 +311,16 @@ mod tests {
             (EDGE_UA, &[LegacyBrowser::Edge][..]),
             (SAFARI_UA, &[LegacyBrowser::Safari][..]),
             (ANDROID_UA, &[LegacyBrowser::Android][..]),
+            (MOBILE_SAFARI_5_UA, &[LegacyBrowser::SafariPre6][..]),
+            (MOBILE_SAFARI_15_UA, &[LegacyBrowser::Safari][..]),
+            (WKWEBVIEW_15_UA, &[LegacyBrowser::Safari][..]),
+            (CHROME_MOBILE_110_UA, &[LegacyBrowser::Chrome][..]),
+            (CHROME_MOBILE_IOS_110_UA, &[LegacyBrowser::Chrome][..]),
+            (CHROME_MOBILE_WEBVIEW_110_UA, &[LegacyBrowser::Chrome][..]),
+            (FIREFOX_MOBILE_110_UA, &[LegacyBrowser::Firefox][..]),
+            (FIREFOX_IOS_110_UA, &[LegacyBrowser::Firefox][..]),
+            (EDGE_ANDROID_110_UA, &[LegacyBrowser::Edge][..]),
+            (OPERA_MOBILE_64_UA, &[LegacyBrowser::Opera][..]),
         ];
 
         for (user_agent, active_filters) in &test_configs {
@@ -313,6 +350,11 @@ mod tests {
             (EDGE_18_UA, LegacyBrowser::Ie10),
             (EDGE_79_UA, LegacyBrowser::EdgePre79),
             (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
+            (EDGE_ANDROID_118_UA, LegacyBrowser::Edge),
+            (MOBILE_SAFARI_15_UA, LegacyBrowser::SafariPre6),
+            (MOBILE_SAFARI_16_UA, LegacyBrowser::Safari),
+            (CHROME_MOBILE_111_UA, LegacyBrowser::Chrome),
+            (OPERA_MOBILE_64_UA, LegacyBrowser::OperaMini),
         ];
 
         for (user_agent, active_filter) in &test_configs {
