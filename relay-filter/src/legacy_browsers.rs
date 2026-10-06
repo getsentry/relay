@@ -8,7 +8,11 @@ use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig
 
 /// Checks if the event originates from legacy browsers.
 fn matches(user_agent: &UserAgent<'_>, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    let family = desktop_family(user_agent.family.as_ref());
+    // remap IE Mobile to IE (sentry python, filter compatibility)
+    let family = match user_agent.family.as_ref() {
+        "IE Mobile" => "IE",
+        other => other,
+    };
 
     if browsers.contains(&LegacyBrowser::Default) {
         return default_filter(family, user_agent);
@@ -16,27 +20,44 @@ fn matches(user_agent: &UserAgent<'_>, browsers: &BTreeSet<LegacyBrowser>) -> bo
 
     for browser_type in browsers {
         let should_filter = match browser_type {
-            LegacyBrowser::IePre9 => filter_browser(family, user_agent, "IE", |x| x <= 8),
-            LegacyBrowser::Ie9 => filter_browser(family, user_agent, "IE", |x| x == 9),
-            LegacyBrowser::Ie10 => filter_browser(family, user_agent, "IE", |x| x == 10),
-            LegacyBrowser::Ie11 => filter_browser(family, user_agent, "IE", |x| x == 11),
+            LegacyBrowser::IePre9 => filter_browser(family, user_agent, &["IE"], |x| x <= 8),
+            LegacyBrowser::Ie9 => filter_browser(family, user_agent, &["IE"], |x| x == 9),
+            LegacyBrowser::Ie10 => filter_browser(family, user_agent, &["IE"], |x| x == 10),
+            LegacyBrowser::Ie11 => filter_browser(family, user_agent, &["IE"], |x| x == 11),
             LegacyBrowser::OperaMiniPre8 => {
-                filter_browser(family, user_agent, "Opera Mini", |x| x < 8)
+                filter_browser(family, user_agent, &["Opera Mini"], |x| x < 8)
             }
-            LegacyBrowser::OperaPre15 => filter_browser(family, user_agent, "Opera", |x| x < 15),
-            LegacyBrowser::AndroidPre4 => filter_browser(family, user_agent, "Android", |x| x < 4),
-            LegacyBrowser::SafariPre6 => filter_browser(family, user_agent, "Safari", |x| x < 6),
-            LegacyBrowser::EdgePre79 => filter_browser(family, user_agent, "Edge", |x| x < 79),
-            LegacyBrowser::Ie => filter_browser(family, user_agent, "IE", |x| x < 12),
+            LegacyBrowser::OperaPre15 => filter_browser(family, user_agent, &["Opera"], |x| x < 15),
+            LegacyBrowser::AndroidPre4 => {
+                filter_browser(family, user_agent, &["Android"], |x| x < 4)
+            }
+            LegacyBrowser::SafariPre6 => filter_browser(family, user_agent, &["Safari"], |x| x < 6),
+            LegacyBrowser::EdgePre79 => filter_browser(family, user_agent, &["Edge"], |x| x < 79),
+            LegacyBrowser::Ie => filter_browser(family, user_agent, &["IE"], |x| x < 12),
             LegacyBrowser::OperaMini => {
-                filter_browser(family, user_agent, "Opera Mini", |x| x < 35)
+                filter_browser(family, user_agent, &["Opera Mini"], |x| x < 35)
             }
-            LegacyBrowser::Opera => filter_browser(family, user_agent, "Opera", |x| x < 100),
-            LegacyBrowser::Android => filter_browser(family, user_agent, "Android", |x| x < 4),
-            LegacyBrowser::Safari => filter_browser(family, user_agent, "Safari", |x| x < 16),
-            LegacyBrowser::Edge => filter_browser(family, user_agent, "Edge", |x| x < 111),
-            LegacyBrowser::Chrome => filter_browser(family, user_agent, "Chrome", |x| x < 111),
-            LegacyBrowser::Firefox => filter_browser(family, user_agent, "Firefox", |x| x < 111),
+            LegacyBrowser::Opera => filter_browser(family, user_agent, &["Opera"], |x| x < 100),
+            LegacyBrowser::Android => filter_browser(family, user_agent, &["Android"], |x| x < 4),
+            LegacyBrowser::Safari => filter_browser(family, user_agent, &["Safari"], |x| x < 16),
+            LegacyBrowser::Edge => filter_browser(family, user_agent, &["Edge"], |x| x < 111),
+            LegacyBrowser::Chrome => filter_browser(family, user_agent, &["Chrome"], |x| x < 111),
+            LegacyBrowser::Firefox => filter_browser(family, user_agent, &["Firefox"], |x| x < 111),
+            LegacyBrowser::ChromeMobile => {
+                filter_browser(family, user_agent, CHROME_MOBILE_FAMILIES, |x| x < 111)
+            }
+            LegacyBrowser::SafariMobile => {
+                filter_browser(family, user_agent, SAFARI_MOBILE_FAMILIES, |x| x < 16)
+            }
+            LegacyBrowser::FirefoxMobile => {
+                filter_browser(family, user_agent, FIREFOX_MOBILE_FAMILIES, |x| x < 111)
+            }
+            LegacyBrowser::EdgeMobile => {
+                filter_browser(family, user_agent, EDGE_MOBILE_FAMILIES, |x| x < 111)
+            }
+            LegacyBrowser::OperaMobile => {
+                filter_browser(family, user_agent, OPERA_MOBILE_FAMILIES, |x| x < 74)
+            }
             LegacyBrowser::Unknown(_) => {
                 // unknown browsers should not be filtered
                 false
@@ -67,21 +88,19 @@ pub fn should_filter<F: Filterable>(
     }
 }
 
-/// Maps the mobile variants of a browser to the desktop family that the filter options refer to.
+/// User agent families the parser reports for the mobile variants of a browser.
 ///
-/// The user agent parser reports mobile browsers as separate families, but they share the
-/// release numbering of their desktop counterparts, so the same version cutoffs apply.
-fn desktop_family(family: &str) -> &str {
-    match family {
-        "IE Mobile" => "IE",
-        "Mobile Safari" | "Mobile Safari UI/WKWebView" => "Safari",
-        "Chrome Mobile" | "Chrome Mobile iOS" | "Chrome Mobile WebView" => "Chrome",
-        "Firefox Mobile" | "Firefox iOS" => "Firefox",
-        "Edge Mobile" => "Edge",
-        "Opera Mobile" => "Opera",
-        other => other,
-    }
-}
+/// The iOS variants share WebKit with Safari but keep their own version numbers, which track
+/// the desktop releases of the same browser.
+const CHROME_MOBILE_FAMILIES: &[&str] = &[
+    "Chrome Mobile",
+    "Chrome Mobile iOS",
+    "Chrome Mobile WebView",
+];
+const SAFARI_MOBILE_FAMILIES: &[&str] = &["Mobile Safari", "Mobile Safari UI/WKWebView"];
+const FIREFOX_MOBILE_FAMILIES: &[&str] = &["Firefox Mobile", "Firefox iOS"];
+const EDGE_MOBILE_FAMILIES: &[&str] = &["Edge Mobile"];
+const OPERA_MOBILE_FAMILIES: &[&str] = &["Opera Mobile"];
 
 fn get_browser_major_version(user_agent: &UserAgent<'_>) -> Option<i32> {
     if let Some(browser_major_version_str) = &user_agent.major
@@ -120,13 +139,13 @@ fn default_filter(mapped_family: &str, user_agent: &UserAgent<'_>) -> bool {
 fn filter_browser<F>(
     mapped_family: &str,
     user_agent: &UserAgent<'_>,
-    family: &str,
+    families: &[&str],
     should_filter: F,
 ) -> bool
 where
     F: FnOnce(i32) -> bool,
 {
-    if mapped_family == family
+    if families.contains(&mapped_family)
         && let Some(browser_major_version) = get_browser_major_version(user_agent)
         && should_filter(browser_major_version)
     {
@@ -177,6 +196,7 @@ mod tests {
     const FIREFOX_IOS_110_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/110.0 Mobile/15E148 Safari/605.1.15";
     const EDGE_ANDROID_110_UA: &str = "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.65 Mobile Safari/537.36 EdgA/110.0.1587.50";
     const OPERA_MOBILE_64_UA: &str = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 OPR/64.3.3282.60839";
+    const OPERA_MOBILE_74_UA: &str = "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.65 Mobile Safari/537.36 OPR/74.0.3922.71199";
 
     use super::*;
     use crate::testutils;
@@ -217,7 +237,6 @@ mod tests {
             IE9_UA,
             IE_MOBILE9_UA,
             SAFARI_PRE6_UA,
-            MOBILE_SAFARI_5_UA,
             OPERA_PRE15_UA,
             ANDROID_PRE4_UA,
             OPERA_MINI_PRE8_UA,
@@ -240,6 +259,7 @@ mod tests {
         for old_user_agent in &[
             IE10_UA,
             SAFARI_6_UA,
+            MOBILE_SAFARI_5_UA,
             MOBILE_SAFARI_15_UA,
             OPERA_15_UA,
             ANDROID_4_UA,
@@ -311,16 +331,23 @@ mod tests {
             (EDGE_UA, &[LegacyBrowser::Edge][..]),
             (SAFARI_UA, &[LegacyBrowser::Safari][..]),
             (ANDROID_UA, &[LegacyBrowser::Android][..]),
-            (MOBILE_SAFARI_5_UA, &[LegacyBrowser::SafariPre6][..]),
-            (MOBILE_SAFARI_15_UA, &[LegacyBrowser::Safari][..]),
-            (WKWEBVIEW_15_UA, &[LegacyBrowser::Safari][..]),
-            (CHROME_MOBILE_110_UA, &[LegacyBrowser::Chrome][..]),
-            (CHROME_MOBILE_IOS_110_UA, &[LegacyBrowser::Chrome][..]),
-            (CHROME_MOBILE_WEBVIEW_110_UA, &[LegacyBrowser::Chrome][..]),
-            (FIREFOX_MOBILE_110_UA, &[LegacyBrowser::Firefox][..]),
-            (FIREFOX_IOS_110_UA, &[LegacyBrowser::Firefox][..]),
-            (EDGE_ANDROID_110_UA, &[LegacyBrowser::Edge][..]),
-            (OPERA_MOBILE_64_UA, &[LegacyBrowser::Opera][..]),
+            (MOBILE_SAFARI_5_UA, &[LegacyBrowser::SafariMobile][..]),
+            (MOBILE_SAFARI_15_UA, &[LegacyBrowser::SafariMobile][..]),
+            (
+                MOBILE_SAFARI_15_UA,
+                &[LegacyBrowser::Safari, LegacyBrowser::SafariMobile][..],
+            ),
+            (WKWEBVIEW_15_UA, &[LegacyBrowser::SafariMobile][..]),
+            (CHROME_MOBILE_110_UA, &[LegacyBrowser::ChromeMobile][..]),
+            (CHROME_MOBILE_IOS_110_UA, &[LegacyBrowser::ChromeMobile][..]),
+            (
+                CHROME_MOBILE_WEBVIEW_110_UA,
+                &[LegacyBrowser::ChromeMobile][..],
+            ),
+            (FIREFOX_MOBILE_110_UA, &[LegacyBrowser::FirefoxMobile][..]),
+            (FIREFOX_IOS_110_UA, &[LegacyBrowser::FirefoxMobile][..]),
+            (EDGE_ANDROID_110_UA, &[LegacyBrowser::EdgeMobile][..]),
+            (OPERA_MOBILE_64_UA, &[LegacyBrowser::OperaMobile][..]),
         ];
 
         for (user_agent, active_filters) in &test_configs {
@@ -350,11 +377,19 @@ mod tests {
             (EDGE_18_UA, LegacyBrowser::Ie10),
             (EDGE_79_UA, LegacyBrowser::EdgePre79),
             (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
-            (EDGE_ANDROID_118_UA, LegacyBrowser::Edge),
-            (MOBILE_SAFARI_15_UA, LegacyBrowser::SafariPre6),
-            (MOBILE_SAFARI_16_UA, LegacyBrowser::Safari),
-            (CHROME_MOBILE_111_UA, LegacyBrowser::Chrome),
+            (EDGE_ANDROID_118_UA, LegacyBrowser::EdgeMobile),
+            (EDGE_ANDROID_110_UA, LegacyBrowser::Edge),
+            (MOBILE_SAFARI_5_UA, LegacyBrowser::SafariPre6),
+            (MOBILE_SAFARI_15_UA, LegacyBrowser::Safari),
+            (MOBILE_SAFARI_16_UA, LegacyBrowser::SafariMobile),
+            (SAFARI_UA, LegacyBrowser::SafariMobile),
+            (CHROME_MOBILE_110_UA, LegacyBrowser::Chrome),
+            (CHROME_MOBILE_111_UA, LegacyBrowser::ChromeMobile),
+            (CHROME_UA, LegacyBrowser::ChromeMobile),
+            (FIREFOX_MOBILE_110_UA, LegacyBrowser::Firefox),
+            (OPERA_MOBILE_64_UA, LegacyBrowser::Opera),
             (OPERA_MOBILE_64_UA, LegacyBrowser::OperaMini),
+            (OPERA_MOBILE_74_UA, LegacyBrowser::OperaMobile),
         ];
 
         for (user_agent, active_filter) in &test_configs {
