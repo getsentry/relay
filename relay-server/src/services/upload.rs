@@ -170,7 +170,9 @@ pub struct Stream {
 /// Note that the mode of a stream needs to match its location.
 /// See also [`Provisional`].
 pub enum UploadMode {
-    Oneshot,
+    Oneshot {
+        length: Option<usize>,
+    },
     Resumable {
         /// The offset from which to resume the upload.
         offset: usize,
@@ -184,7 +186,7 @@ impl UploadMode {
     pub fn offset(&self) -> usize {
         match self {
             // Oneshot uploads start from offset 0.
-            UploadMode::Oneshot => 0,
+            UploadMode::Oneshot { .. } => 0,
             UploadMode::Resumable { offset, .. } => *offset,
         }
     }
@@ -192,7 +194,7 @@ impl UploadMode {
     /// Returns the stream chunk length if the stream is resumable.
     pub fn chunk_length(&self) -> Option<usize> {
         match self {
-            UploadMode::Oneshot => None,
+            UploadMode::Oneshot { .. } => None,
             UploadMode::Resumable { chunk_length, .. } => Some(*chunk_length),
         }
     }
@@ -248,7 +250,9 @@ impl StreamResult {
             .to_str()
             .map_err(|_| Error::InvalidLocation(Some(location.clone())))?;
 
-        // Final and Provisional are non-overlapping so the order here doesn't matter.
+        // Need to parse the final first since it could collide with the Provisional::Oneshot, now
+        // in reality this should never happen because you should not get a Provisional::Oneshot back
+        // after an upload.
         if let Some(location) = SignedLocation::<Final>::try_from_str(uri) {
             Ok(Self::Complete { location, offset })
         } else {
@@ -400,7 +404,7 @@ impl Service {
                 } = project.scoping;
 
                 let (key, kind) = match (project.resumable, length) {
-                    (true, Some(upload_length)) => {
+                    (true, Some(length)) => {
                         let UploadRef {
                             key,
                             session_token,
@@ -410,7 +414,7 @@ impl Service {
                                 organization_id,
                                 project_id,
                                 key,
-                                upload_length,
+                                upload_length: length,
                                 retention: project.retention,
                             })
                             .await
@@ -420,19 +424,28 @@ impl Service {
 
                         let kind = match session_token {
                             Some(token) => Provisional::Resumable {
-                                length: upload_length,
+                                length,
                                 upload_id: token.to_base64url(),
                             },
                             // Even if we have a length, objectstore might reject the resumable
                             // upload. In that case fall back to oneshot.
-                            None => Provisional::Oneshot,
+                            None => Provisional::Oneshot {
+                                length: Some(length),
+                            },
                         };
                         (key, kind)
                     }
+                    // Support legacy clients which would send the length when creating oneshot uploads.
+                    (false, Some(length)) => (
+                        key,
+                        Provisional::Oneshot {
+                            length: Some(length),
+                        },
+                    ),
                     // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, Provisional::Oneshot),
+                    _ => (key, Provisional::Oneshot { length: None }),
                 };
 
                 Location {
@@ -481,7 +494,10 @@ impl Service {
                 debug_assert_eq!(scoping.project_id, project_id);
 
                 let context = match &kind {
-                    Provisional::Oneshot => StreamContext::Oneshot(stream.byte_counter()),
+                    Provisional::Oneshot { length } => StreamContext::Oneshot {
+                        byte_counter: stream.byte_counter(),
+                        key: length.is_some().then_some(key),
+                    },
                     Provisional::Resumable { length, upload_id } => {
                         let UploadMode::Resumable {
                             offset,
@@ -604,11 +620,12 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone)]
 pub enum Provisional {
+    // TODO: Update docs
     /// A location that is uploaded to with a single PATCH request.
     ///
     /// The key in the location is a placeholder, objectstore assigns the key on upload.
     /// This is done to avoid potential abuse.
-    Oneshot,
+    Oneshot { length: Option<usize> },
     /// A location with a resumable upload session in objectstore.
     ///
     /// The session is bound to the key in the location and the total length is fixed at creation.
@@ -618,7 +635,7 @@ pub enum Provisional {
 impl LocationKind for Provisional {
     fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
         match (upload_length, upload_id) {
-            (None, None) => Ok(Self::Oneshot),
+            (length, None) => Ok(Self::Oneshot { length }),
             (Some(length), Some(upload_id)) => Ok(Self::Resumable { length, upload_id }),
             _ => Err(Error::InvalidInput(
                 "expected both or neither of upload_length and upload_id",
@@ -628,14 +645,14 @@ impl LocationKind for Provisional {
 
     fn upload_length(&self) -> Option<usize> {
         match self {
-            Provisional::Oneshot => None,
+            Provisional::Oneshot { length } => *length,
             Provisional::Resumable { length, .. } => Some(*length),
         }
     }
 
     fn upload_id(&self) -> Option<&str> {
         match self {
-            Provisional::Oneshot => None,
+            Provisional::Oneshot { .. } => None,
             Provisional::Resumable { upload_id, .. } => Some(upload_id),
         }
     }
@@ -1115,7 +1132,7 @@ mod tests {
             Location {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
-                kind: Provisional::Oneshot,
+                kind: Provisional::Oneshot { length: None },
                 other: UploadParams::default(),
             }
         }
@@ -1229,7 +1246,12 @@ mod tests {
             ..
         } = serde_urlencoded::from_str(json).unwrap();
 
-        assert!(Provisional::from_params(upload_length, upload_id.clone()).is_err());
+        assert_eq!(
+            Provisional::from_params(upload_length, upload_id.clone())
+                .unwrap()
+                .upload_length(),
+            Some(123)
+        );
         assert_eq!(
             Final::from_params(upload_length, upload_id.clone())
                 .unwrap()

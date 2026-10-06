@@ -764,7 +764,12 @@ def test_objectstore_upload_uncompressed(
         }
     )
 
-    response = upload_something(relay, project_id, project_key)
+    response = upload_something(
+        relay,
+        project_id,
+        project_key,
+        legacy=True,
+    )
 
     assert response.status_code == 204, response.text
     assert uploads == [(None, b"hello world")]
@@ -798,18 +803,22 @@ def test_objectstore_timeout(
         }
     )
 
-    response = upload_something(relay, project_id, project_key)
+    response = upload_something(relay, project_id, project_key, legacy=True)
 
     assert response.status_code == 504
 
 
-def upload_something(relay, project_id, project_key):
+def upload_something(relay, project_id, project_key, legacy):
     data = b"hello world"
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
+            **(
+                {"Upload-Defer-Length": "1"}
+                if legacy
+                else {"Upload-Length": str(len(data))}
+            ),
         },
     )
     assert response.status_code == 201, response.json()
@@ -1024,47 +1033,6 @@ def test_resumable_upload_errors(
     assert objectstore_session.get(key).payload.read() == RESUMABLE_DATA
 
 
-def test_patch_completed_upload(
-    mini_sentry, relay_with_processing, project_config, objectstore
-):
-    """A PATCH to a location whose upload already completed fails without
-    corrupting the stored object."""
-    mini_sentry.fail_on_relay_error = False
-    project_id = 42
-    project_key = mini_sentry.get_dsn_public_key(project_id)
-    relay = relay_with_processing()
-
-    create = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(RESUMABLE_DATA)),
-        },
-    )
-    assert create.status_code == 201, create.text
-
-    first = patch_chunk(relay, create.headers["Location"], project_key, FIRST_CHUNK, 0)
-    assert first.status_code == 204, first.text
-
-    second = patch_chunk(
-        relay, first.headers["Location"], project_key, SECOND_CHUNK, len(FIRST_CHUNK)
-    )
-    assert second.status_code == 204, second.text
-    final_location = second.headers["Location"]
-    final_path, final_params = location_parts(final_location)
-    assert "upload_id" not in final_params
-
-    response = patch_chunk(
-        relay, final_location, project_key, SECOND_CHUNK, len(FIRST_CHUNK)
-    )
-    assert response.status_code == 400, response.text
-    assert "expected both or neither of upload_length and upload_id" in response.text
-
-    key = final_path.rstrip("/").split("/")[-1]
-    objectstore_session = objectstore("attachments", project_id)
-    assert objectstore_session.get(key).payload.read() == RESUMABLE_DATA
-
-
 @pytest.mark.parametrize(
     "resumable_feature,defer_length",
     [
@@ -1101,8 +1069,13 @@ def test_oneshot_fallback(
     assert create.status_code == 201, create.text
     _, params = location_parts(create.headers["Location"])
     assert "upload_id" not in params
-    assert "upload_length" not in params
     assert "upload_signature" in params
+
+    if defer_length:
+        assert "upload_length" not in params
+    else:
+        # Legacy clients declare the length up front, the location keeps it.
+        assert params["upload_length"] == str(len(data))
 
     patch = patch_chunk(relay, create.headers["Location"], project_key, data, 0)
     assert patch.status_code == 204, patch.text

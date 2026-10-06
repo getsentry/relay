@@ -282,7 +282,9 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match upload_mode {
-        UploadMode::Oneshot => (1, config.max_upload_size()),
+        UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+        // If the client provided the length at creation use it to enforce the size.
+        UploadMode::Oneshot { length: Some(l) } => (l, l),
         UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
@@ -462,7 +464,7 @@ fn upload_mode(
     chunk_length: Option<usize>,
 ) -> Result<UploadMode, Error> {
     match kind {
-        Provisional::Oneshot => Ok(UploadMode::Oneshot),
+        Provisional::Oneshot { length } => Ok(UploadMode::Oneshot { length: *length }),
         Provisional::Resumable { length, .. } => {
             let chunk_length = chunk_length.ok_or(Error::MissingLength)?;
             let remaining = length.checked_sub(offset).ok_or(Error::InvalidOffset {

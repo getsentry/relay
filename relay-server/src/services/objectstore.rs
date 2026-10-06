@@ -159,7 +159,12 @@ impl FromMessage<Create> for Objectstore {
 /// Context for a stream that can be uploaded to objectstore.
 #[derive(Clone)]
 pub enum StreamContext {
-    Oneshot(ByteCounter),
+    Oneshot {
+        /// Byte counter for the stream (used to determine the total upload length).
+        byte_counter: ByteCounter,
+        /// The key of the file (chosen by relay).
+        key: Option<String>,
+    },
     Resumable {
         /// The key of the file (chosen by relay).
         key: String,
@@ -1027,8 +1032,13 @@ impl ObjectstoreServiceInner {
         retention: u16,
     ) -> Result<UploadRef, AttemptUploadError> {
         match context {
-            StreamContext::Oneshot(byte_counter) => {
-                let request = session.put_stream(body.boxed()).compress(None);
+            StreamContext::Oneshot { byte_counter, key } => {
+                let mut request = session.put_stream(body.boxed()).compress(None);
+                // If the client specifies the length at creation we can reuse the key since the
+                // upload length is bounded by that length (no abuse).
+                if let Some(key) = key {
+                    request = request.key(key);
+                }
                 let response = request
                     .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                         u64::from(retention) * 24,
@@ -1323,7 +1333,10 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                context: StreamContext::Oneshot(stream.byte_counter()),
+                context: StreamContext::Oneshot {
+                    byte_counter: stream.byte_counter(),
+                    key: None,
+                },
                 retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })

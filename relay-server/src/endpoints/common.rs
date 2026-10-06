@@ -611,7 +611,7 @@ where
             project,
             location,
             stream,
-            mode: UploadMode::Oneshot,
+            mode: UploadMode::Oneshot { length: None },
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?;
