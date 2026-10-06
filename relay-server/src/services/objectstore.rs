@@ -1034,8 +1034,8 @@ impl ObjectstoreServiceInner {
         match context {
             StreamContext::Oneshot { byte_counter, key } => {
                 let mut request = session.put_stream(body.boxed()).compress(None);
-                // If the client specifies the length at creation we can reuse the key since the
-                // upload length is bounded by that length (no abuse).
+                // Legacy clients specify the length at creation and expect the key to not change
+                // so use the creation key here.
                 if let Some(key) = key {
                     request = request.key(key);
                 }

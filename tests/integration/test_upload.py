@@ -1061,16 +1061,15 @@ def test_patch_completed_upload(
     final_path, final_params = location_parts(final_location)
     assert "upload_id" not in final_params
 
-    # For legacy reasons you could do another patch here, but not with more data than `Upload-Length`.
     response = patch_chunk(
         relay,
         final_location,
         project_key,
-        FIRST_CHUNK + SECOND_CHUNK + FIRST_CHUNK,
+        SECOND_CHUNK,
         len(FIRST_CHUNK),
     )
     assert response.status_code == 400, response.text
-    assert "stream exceeded upper bound" in response.text
+    assert "expected both or neither of upload_length and upload_id" in response.text
 
     key = final_path.rstrip("/").split("/")[-1]
     objectstore_session = objectstore("attachments", project_id)

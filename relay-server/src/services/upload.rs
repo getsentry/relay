@@ -170,9 +170,10 @@ pub struct Stream {
 /// Note that the mode of a stream needs to match its location.
 /// See also [`Provisional`].
 pub enum UploadMode {
-    Oneshot {
-        length: Option<usize>,
+    LegacyOneshot {
+        length: usize,
     },
+    Oneshot,
     Resumable {
         /// The offset from which to resume the upload.
         offset: usize,
@@ -186,7 +187,7 @@ impl UploadMode {
     pub fn offset(&self) -> usize {
         match self {
             // Oneshot uploads start from offset 0.
-            UploadMode::Oneshot { .. } => 0,
+            UploadMode::Oneshot | UploadMode::LegacyOneshot { .. } => 0,
             UploadMode::Resumable { offset, .. } => *offset,
         }
     }
@@ -194,7 +195,7 @@ impl UploadMode {
     /// Returns the stream chunk length if the stream is resumable.
     pub fn chunk_length(&self) -> Option<usize> {
         match self {
-            UploadMode::Oneshot { .. } => None,
+            UploadMode::Oneshot | UploadMode::LegacyOneshot { .. } => None,
             UploadMode::Resumable { chunk_length, .. } => Some(*chunk_length),
         }
     }
@@ -429,23 +430,16 @@ impl Service {
                             },
                             // Even if we have a length, objectstore might reject the resumable
                             // upload. In that case fall back to oneshot.
-                            None => Provisional::Oneshot {
-                                length: Some(length),
-                            },
+                            None => Provisional::Oneshot,
                         };
                         (key, kind)
                     }
                     // Support legacy clients which would send the length when creating oneshot uploads.
-                    (false, Some(length)) => (
-                        key,
-                        Provisional::Oneshot {
-                            length: Some(length),
-                        },
-                    ),
+                    (false, Some(length)) => (key, Provisional::LegacyOneshot { length }),
                     // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, Provisional::Oneshot { length: None }),
+                    _ => (key, Provisional::Oneshot),
                 };
 
                 Location {
@@ -494,9 +488,13 @@ impl Service {
                 debug_assert_eq!(scoping.project_id, project_id);
 
                 let context = match &kind {
-                    Provisional::Oneshot { length } => StreamContext::Oneshot {
+                    Provisional::LegacyOneshot { .. } => StreamContext::Oneshot {
                         byte_counter: stream.byte_counter(),
-                        key: length.is_some().then_some(key),
+                        key: Some(key),
+                    },
+                    Provisional::Oneshot => StreamContext::Oneshot {
+                        byte_counter: stream.byte_counter(),
+                        key: None,
                     },
                     Provisional::Resumable { length, upload_id } => {
                         let UploadMode::Resumable {
@@ -606,13 +604,20 @@ pub trait LocationKind: Sized {
     /// Creates the kind from the `upload_length` and `upload_id` query parameters.
     ///
     /// Fails if the combination of parameters is not valid for this kind.
-    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error>;
+    fn from_params(
+        upload_length: Option<usize>,
+        upload_id: Option<String>,
+        upload_legacy: bool,
+    ) -> Result<Self, Error>;
 
     /// Returns the value of the `upload_length` query parameter, if any.
     fn upload_length(&self) -> Option<usize>;
 
     /// Returns the value of the `upload_id` query parameter, if any.
     fn upload_id(&self) -> Option<&str>;
+
+    /// Indicate whether the location is a legacy location.
+    fn legacy(&self) -> bool;
 }
 
 /// A provisional location which may still be used for uploading.
@@ -620,12 +625,15 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone)]
 pub enum Provisional {
-    // TODO: Update docs
+    /// Legacy version of [`Provisional::Oneshot`] which has a length declared at creation.
+    ///
+    /// Needed since old clients expect the key from the creation to be the same as the patch.
+    LegacyOneshot { length: usize },
     /// A location that is uploaded to with a single PATCH request.
     ///
     /// The key in the location is a placeholder, objectstore assigns the key on upload.
     /// This is done to avoid potential abuse.
-    Oneshot { length: Option<usize> },
+    Oneshot,
     /// A location with a resumable upload session in objectstore.
     ///
     /// The session is bound to the key in the location and the total length is fixed at creation.
@@ -633,10 +641,15 @@ pub enum Provisional {
 }
 
 impl LocationKind for Provisional {
-    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
-        match (upload_length, upload_id) {
-            (length, None) => Ok(Self::Oneshot { length }),
-            (Some(length), Some(upload_id)) => Ok(Self::Resumable { length, upload_id }),
+    fn from_params(
+        upload_length: Option<usize>,
+        upload_id: Option<String>,
+        upload_legacy: bool,
+    ) -> Result<Self, Error> {
+        match (upload_length, upload_id, upload_legacy) {
+            (None, None, false) => Ok(Self::Oneshot),
+            (Some(length), Some(upload_id), false) => Ok(Self::Resumable { length, upload_id }),
+            (Some(length), None, true) => Ok(Self::LegacyOneshot { length }),
             _ => Err(Error::InvalidInput(
                 "expected both or neither of upload_length and upload_id",
             )),
@@ -645,16 +658,22 @@ impl LocationKind for Provisional {
 
     fn upload_length(&self) -> Option<usize> {
         match self {
-            Provisional::Oneshot { length } => *length,
-            Provisional::Resumable { length, .. } => Some(*length),
+            Provisional::Oneshot => None,
+            Provisional::Resumable { length, .. } | Provisional::LegacyOneshot { length } => {
+                Some(*length)
+            }
         }
     }
 
     fn upload_id(&self) -> Option<&str> {
         match self {
-            Provisional::Oneshot { .. } => None,
+            Provisional::Oneshot | Provisional::LegacyOneshot { .. } => None,
             Provisional::Resumable { upload_id, .. } => Some(upload_id),
         }
+    }
+
+    fn legacy(&self) -> bool {
+        matches!(self, Provisional::LegacyOneshot { .. })
     }
 }
 
@@ -667,9 +686,13 @@ pub struct Final {
 }
 
 impl LocationKind for Final {
-    fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error> {
-        match (upload_length, upload_id) {
-            (Some(length), None) => Ok(Self { length }),
+    fn from_params(
+        upload_length: Option<usize>,
+        upload_id: Option<String>,
+        upload_legacy: bool,
+    ) -> Result<Self, Error> {
+        match (upload_length, upload_id, upload_legacy) {
+            (Some(length), None, false) => Ok(Self { length }),
             _ => Err(Error::InvalidInput(
                 "expected upload_length without upload_id",
             )),
@@ -682,6 +705,10 @@ impl LocationKind for Final {
 
     fn upload_id(&self) -> Option<&str> {
         None
+    }
+
+    fn legacy(&self) -> bool {
+        false
     }
 }
 
@@ -715,12 +742,16 @@ impl<K: LocationKind> Location<K> {
         struct QueryParams<'a> {
             pub upload_length: Option<usize>,
             pub upload_id: Option<&'a str>,
+            #[serde(skip_serializing_if = "std::ops::Not::not")]
+            pub upload_legacy: bool,
             #[serde(flatten)]
             pub other: &'a UploadParams,
         }
+
         let params = QueryParams {
             upload_length: kind.upload_length(),
             upload_id: kind.upload_id(),
+            upload_legacy: kind.legacy(),
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
@@ -762,6 +793,8 @@ pub struct LocationQueryParams {
     #[serde(alias = "length")]
     pub upload_length: Option<usize>,
     pub upload_id: Option<String>,
+    #[serde(default)]
+    pub upload_legacy: bool,
     #[serde(alias = "signature")]
     pub upload_signature: String,
     #[serde(flatten)]
@@ -914,9 +947,10 @@ impl<K: LocationKind> SignedLocation<K> {
             upload_length,
             upload_id,
             upload_signature,
+            upload_legacy,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
-        let kind = K::from_params(upload_length, upload_id).ok()?;
+        let kind = K::from_params(upload_length, upload_id, upload_legacy).ok()?;
 
         Some(Self::from_parts(
             project_id,
@@ -1132,7 +1166,7 @@ mod tests {
             Location {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
-                kind: Provisional::Oneshot { length: None },
+                kind: Provisional::Oneshot,
                 other: UploadParams::default(),
             }
         }
@@ -1229,11 +1263,12 @@ mod tests {
         let LocationQueryParams {
             upload_length,
             upload_id,
+            upload_legacy,
             ..
         } = serde_urlencoded::from_str(url).unwrap();
 
-        assert!(Provisional::from_params(upload_length, upload_id.clone()).is_ok());
-        assert!(Final::from_params(upload_length, upload_id).is_err());
+        assert!(Provisional::from_params(upload_length, upload_id.clone(), upload_legacy).is_ok());
+        assert!(Final::from_params(upload_length, upload_id, upload_legacy).is_err());
     }
 
     #[test]
@@ -1243,21 +1278,36 @@ mod tests {
         let LocationQueryParams {
             upload_length,
             upload_id,
+            upload_legacy,
             ..
         } = serde_urlencoded::from_str(json).unwrap();
 
+        assert!(Provisional::from_params(upload_length, upload_id.clone(), upload_legacy).is_err());
         assert_eq!(
-            Provisional::from_params(upload_length, upload_id.clone())
-                .unwrap()
-                .upload_length(),
-            Some(123)
-        );
-        assert_eq!(
-            Final::from_params(upload_length, upload_id.clone())
+            Final::from_params(upload_length, upload_id.clone(), upload_legacy)
                 .unwrap()
                 .length,
             123
         );
+    }
+
+    #[test]
+    fn parse_location_legacy() {
+        let json = r#"signature=foo&length=123&upload_legacy=true"#;
+
+        let LocationQueryParams {
+            upload_length,
+            upload_id,
+            upload_legacy,
+            ..
+        } = serde_urlencoded::from_str(json).unwrap();
+
+        assert!(
+            Provisional::from_params(upload_length, upload_id.clone(), upload_legacy)
+                .unwrap()
+                .legacy()
+        );
+        assert!(Final::from_params(upload_length, upload_id.clone(), upload_legacy).is_err());
     }
 
     #[test]
@@ -1273,6 +1323,7 @@ mod tests {
             upload_id: Some(
                 "bar",
             ),
+            upload_legacy: false,
             upload_signature: "foo",
             other: UploadParams(
                 {},
@@ -1293,6 +1344,7 @@ mod tests {
                 123,
             ),
             upload_id: None,
+            upload_legacy: false,
             upload_signature: "foo",
             other: UploadParams(
                 {
@@ -1301,5 +1353,32 @@ mod tests {
             ),
         }
         "#);
+    }
+
+    #[test]
+    fn location_uri_includes_upload_legacy_for_legacy_oneshot() {
+        let location = Location {
+            project_id: ProjectId::new(42),
+            key: "upload-key".to_owned(),
+            kind: Provisional::LegacyOneshot { length: 123 },
+            other: UploadParams::default(),
+        };
+
+        insta::assert_snapshot!(
+            location.try_to_uri().unwrap(),
+            @"/api/42/upload/upload-key/?upload_length=123&upload_legacy=true"
+        );
+    }
+
+    #[test]
+    fn location_uri_omits_upload_legacy_when_false() {
+        let location = Location {
+            project_id: ProjectId::new(42),
+            key: "upload-key".to_owned(),
+            kind: Provisional::Oneshot,
+            other: UploadParams::default(),
+        };
+
+        insta::assert_snapshot!(location.try_to_uri().unwrap(), @"/api/42/upload/upload-key/");
     }
 }

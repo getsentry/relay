@@ -242,6 +242,7 @@ async fn handle_patch(
         upload_length,
         upload_id,
         upload_signature,
+        upload_legacy,
         other,
     }): Query<LocationQueryParams>,
     body: Body,
@@ -254,7 +255,8 @@ async fn handle_patch(
         decoded_content_length,
     } = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let kind = Provisional::from_params(upload_length, upload_id).map_err(Error::from)?;
+    let kind =
+        Provisional::from_params(upload_length, upload_id, upload_legacy).map_err(Error::from)?;
     let upload_mode = upload_mode(&kind, upload_offset, decoded_content_length)?;
     let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
@@ -282,9 +284,9 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match upload_mode {
-        UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+        UploadMode::Oneshot => (1, config.max_upload_size()),
         // If the client provided the length at creation use it to enforce the size.
-        UploadMode::Oneshot { length: Some(l) } => (l, l),
+        UploadMode::LegacyOneshot { length } => (length, length),
         UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
@@ -464,7 +466,8 @@ fn upload_mode(
     chunk_length: Option<usize>,
 ) -> Result<UploadMode, Error> {
     match kind {
-        Provisional::Oneshot { length } => Ok(UploadMode::Oneshot { length: *length }),
+        Provisional::LegacyOneshot { length } => Ok(UploadMode::LegacyOneshot { length: *length }),
+        Provisional::Oneshot => Ok(UploadMode::Oneshot),
         Provisional::Resumable { length, .. } => {
             let chunk_length = chunk_length.ok_or(Error::MissingLength)?;
             let remaining = length.checked_sub(offset).ok_or(Error::InvalidOffset {
