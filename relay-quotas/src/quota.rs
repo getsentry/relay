@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -141,12 +142,20 @@ pub struct ItemScoping {
 }
 
 /// A map of Dimension -> String
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct DimensionMap(Arc<BTreeMap<Dimension, String>>);
 
 impl<const N: usize> From<[(Dimension, String); N]> for DimensionMap {
     fn from(arr: [(Dimension, String); N]) -> Self {
         Self(Arc::new(BTreeMap::from(arr)))
+    }
+}
+
+impl<const N: usize> From<[(Dimension, &str); N]> for DimensionMap {
+    fn from(arr: [(Dimension, &str); N]) -> Self {
+        let owned = arr.map(|(k, v)| (k, v.to_owned()));
+        Self(Arc::new(BTreeMap::from(owned)))
     }
 }
 
@@ -156,7 +165,27 @@ impl FromIterator<(Dimension, String)> for DimensionMap {
     }
 }
 
+impl Deref for DimensionMap {
+    type Target = BTreeMap<Dimension, String>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
 impl DimensionMap {
+    /// Constructs a new DimensionMap, using all and only the dimensions present in the supplied
+    /// `set` and their corresponding value in this DimensionMap.  If `set` contains a
+    /// dimension not present in this map, None is returned.
+    pub fn project(&self, set: &BTreeSet<Dimension>) -> Option<Self> {
+        let projected = set
+            .iter()
+            .map(|dim| self.0.get_key_value(dim).map(|(d, v)| (*d, v.clone())))
+            .collect::<Option<BTreeMap<_, _>>>()?;
+
+        Some(Self(Arc::new(projected)))
+    }
+
     /// Converts the dimensions of this item scoping, for the supplied quota, into a string of the
     /// dimension name and hashed value.  This looks like ':key1:hash1:key2:hash2'.
     /// This function assumes that the quota passed to it already matches this ItemScoping.
@@ -226,6 +255,14 @@ impl ItemScoping {
             .all(|dim| self.dimensions.0.contains_key(dim))
     }
 
+    /// Checks whether this item has every dimension of the supplied quota_dimensions, with the same
+    /// value.  If quota_dimensions is empty, this returns true.
+    pub(crate) fn satisfies_quota_dimensions(&self, quota_dimensions: &DimensionMap) -> bool {
+        quota_dimensions
+            .iter()
+            .all(|(dim, value)| self.dimensions.get(dim) == Some(value))
+    }
+
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
     ///
     /// Matching behavior depends on the passed namespaces and the namespace of the scoping:
@@ -251,7 +288,7 @@ impl ItemScoping {
 /// An efficient container for data categories that avoids allocations.
 ///
 /// It is a read only and has set like properties, allowing for fast comparisons.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DataCategories(u64);
 
 impl Serialize for DataCategories {

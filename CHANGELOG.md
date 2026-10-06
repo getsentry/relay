@@ -24,6 +24,7 @@
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
 - Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 - Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
+- Add dimensions to rate limit caches. ([#6479](https://github.com/getsentry/relay/pull/6479))
 
 **Bug Fixes**:
 
