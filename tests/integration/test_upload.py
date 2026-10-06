@@ -15,6 +15,7 @@ from sentry_relay.auth import SecretKey
 from objectstore_client.metadata import TimeToLive
 
 from .consts import (
+    DUMMY_UPLOAD_ONESHOT_LOCATION,
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
 )
@@ -486,10 +487,9 @@ def test_create_processing(
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
-    if feature_flag:
-        config.setdefault("features", []).append("projects:resumable-uploads")
+    if not feature_flag:
+        project_config.get("features", []).remove("projects:resumable-uploads")
 
     processing_relay = relay_with_processing()
     if chain:
@@ -533,23 +533,15 @@ def test_create_processing(
     assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
-@pytest.mark.parametrize(
-    "feature_flag",
-    [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
-)
 def test_processing_invalid_length(
     mini_sentry,
     relay,
     relay_with_processing,
     project_config,
-    feature_flag,
 ):
     mini_sentry.fail_on_relay_error = False
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
-    if feature_flag:
-        config.setdefault("features", []).append("projects:resumable-uploads")
 
     relay = relay_with_processing()
 
@@ -570,7 +562,7 @@ def test_processing_invalid_length(
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            **({"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -578,7 +570,7 @@ def test_processing_invalid_length(
         data=data,
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 400, response.text
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
@@ -625,10 +617,9 @@ def test_concurrency_limit(mini_sentry, relay, project_config, feature_flag):
     """Exceeding upload.max_concurrent_requests results in 503 Service Unavailable."""
 
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
-    if feature_flag:
-        config.setdefault("features", []).append("projects:resumable-uploads")
+    if not feature_flag:
+        project_config.get("features", []).remove("projects:resumable-uploads")
 
     timeout = 2
 
@@ -647,8 +638,11 @@ def test_concurrency_limit(mini_sentry, relay, project_config, feature_flag):
     data = "hello world"
 
     def do_upload():
+        location = (
+            DUMMY_UPLOAD_LOCATION if feature_flag else DUMMY_UPLOAD_ONESHOT_LOCATION
+        )
         return relay.patch(
-            f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
+            f"{location}&sentry_key={project_key}",
             headers={
                 **(
                     {"X-Decoded-Content-Length": str(len(data))} if feature_flag else {}
@@ -692,10 +686,9 @@ def test_objectstore_retries(
     mini_sentry, relay_with_processing, project_config, feature_flag
 ):
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
     project_key = mini_sentry.get_dsn_public_key(project_id)
-    if feature_flag:
-        config.setdefault("features", []).append("projects:resumable-uploads")
+    if not feature_flag:
+        project_config.get("features", []).remove("projects:resumable-uploads")
 
     relay = relay_with_processing(
         options={
@@ -830,14 +823,13 @@ def upload_something(relay, project_id, project_key):
     [pytest.param(False, id="legacy"), pytest.param(True, id="resumable")],
 )
 def test_objectstore_retention(
-    mini_sentry, relay_with_processing, objectstore, feature_flag
+    mini_sentry, relay_with_processing, objectstore, feature_flag, project_config
 ):
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
-    config["eventRetention"] = 20
+    project_config["eventRetention"] = 20
     project_key = mini_sentry.get_dsn_public_key(project_id)
-    if feature_flag:
-        config.setdefault("features", []).append("projects:resumable-uploads")
+    if not feature_flag:
+        project_config.get("features", []).remove("projects:resumable-uploads")
 
     relay = relay_with_processing()
 
@@ -888,10 +880,10 @@ def test_upload_minidump_opt_in(
     expected_status_code,
 ):
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
-    features = config.setdefault("features", [])
     if opted_in:
-        features.append("projects:relay-minidump-uploads")
+        project_config.setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
+        )
 
     relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
