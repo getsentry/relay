@@ -18,7 +18,7 @@
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::constants::X_DECODED_CONTENT_LENGTH;
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::envelope::AttachmentType;
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder};
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::upload::StreamMode;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::upload::UploadMode;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -235,11 +235,11 @@
 <a href=#235 id=235 data-nosnippet>235</a>}
 <a href=#236 id=236 data-nosnippet>236</a>
 <a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// Prepares the required TUS request headers for upstream requests.
-<a href=#238 id=238 data-nosnippet>238</a></span><span class="kw">pub fn </span>add_upload_headers(builder: <span class="kw-2">&amp;mut </span>RequestBuilder, mode: <span class="kw-2">&amp;</span>StreamMode) {
+<a href=#238 id=238 data-nosnippet>238</a></span><span class="kw">pub fn </span>add_upload_headers(builder: <span class="kw-2">&amp;mut </span>RequestBuilder, mode: <span class="kw-2">&amp;</span>UploadMode) {
 <a href=#239 id=239 data-nosnippet>239</a>    builder.header(TUS_RESUMABLE, TUS_VERSION);
 <a href=#240 id=240 data-nosnippet>240</a>    builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-<a href=#241 id=241 data-nosnippet>241</a>    builder.header(UPLOAD_OFFSET, mode.offset().unwrap_or_default().to_string());
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(length) = mode.length() {
+<a href=#241 id=241 data-nosnippet>241</a>    builder.header(UPLOAD_OFFSET, mode.offset().to_string());
+<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(length) = mode.chunk_length() {
 <a href=#243 id=243 data-nosnippet>243</a>        builder.header(X_DECODED_CONTENT_LENGTH, length.to_string());
 <a href=#244 id=244 data-nosnippet>244</a>    }
 <a href=#245 id=245 data-nosnippet>245</a>}
