@@ -1427,7 +1427,7 @@
 <a href=#1427 id=1427 data-nosnippet>1427</a>        deprecated,
 <a href=#1428 id=1428 data-nosnippet>1428</a>        reason = <span class="string">"This test deliberately checks deprecated attributes"
 <a href=#1429 id=1429 data-nosnippet>1429</a>    </span>)]
-<a href=#1430 id=1430 data-nosnippet>1430</a>    </span><span class="kw">fn </span>test_op_from_deprecated_gen_ai_system() {
+<a href=#1430 id=1430 data-nosnippet>1430</a>    </span><span class="kw">fn </span>test_attributes_from_deprecated_gen_ai_system() {
 <a href=#1431 id=1431 data-nosnippet>1431</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>span, headers, geo_lookup, ctx) =
 <a href=#1432 id=1432 data-nosnippet>1432</a>            prepare_normalize_span_params(<span class="kw-2">&amp;</span>[(GEN_AI__SYSTEM, <span class="string">"some system"</span>)], <span class="kw-2">&amp;</span>[]);
 <a href=#1433 id=1433 data-nosnippet>1433</a>
@@ -1444,7 +1444,7 @@
 <a href=#1444 id=1444 data-nosnippet>1444</a>        assert_attributes_contains(
 <a href=#1445 id=1445 data-nosnippet>1445</a>            <span class="kw-2">&amp;</span>span,
 <a href=#1446 id=1446 data-nosnippet>1446</a>            <span class="kw-2">&amp;</span>[
-<a href=#1447 id=1447 data-nosnippet>1447</a>                (SENTRY__OP, <span class="string">"gen_ai"</span>),
+<a href=#1447 id=1447 data-nosnippet>1447</a>                (SENTRY__OP, <span class="string">"default"</span>),
 <a href=#1448 id=1448 data-nosnippet>1448</a>                (GEN_AI__PROVIDER__NAME, <span class="string">"some system"</span>),
 <a href=#1449 id=1449 data-nosnippet>1449</a>            ],
 <a href=#1450 id=1450 data-nosnippet>1450</a>            <span class="kw-2">&amp;</span>[],
