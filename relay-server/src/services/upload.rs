@@ -98,7 +98,7 @@ impl Error {
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
-            Error::InvalidInput { .. } => "invalid_from_client",
+            Error::InvalidInput { .. } => "invalid_input",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
@@ -165,10 +165,10 @@ pub struct Stream {
     pub mode: UploadMode,
 }
 
-/// Indicating whether a stream will be uploaded via oneshot or resumable upload.
+/// Indicates whether a stream will be uploaded via oneshot or resumable upload.
 ///
 /// Note that the mode of a stream needs to match its location.
-/// See also [`Provisional`]
+/// See also [`Provisional`].
 pub enum UploadMode {
     Oneshot,
     Resumable {
@@ -211,12 +211,14 @@ pub enum StreamResult {
 }
 
 impl StreamResult {
+    /// Returns the byte offset stored on the server after the operation.
     pub fn offset(&self) -> usize {
         match self {
             Self::Complete { offset, .. } | Self::Incomplete { offset, .. } => *offset,
         }
     }
 
+    /// Converts the location into a value for the `Location` response header.
     pub fn location_into_header_value(self) -> Result<HeaderValue, Error> {
         match self {
             StreamResult::Incomplete { location, .. } => location.into_header_value(),
@@ -421,8 +423,8 @@ impl Service {
                                 length: upload_length,
                                 upload_id: token.to_base64url(),
                             },
-                            // Event if we have a length objectstore might reject resumable uploads
-                            // in that case fallback to oneshoot.
+                            // Even if we have a length, objectstore might reject the resumable
+                            // upload. In that case fall back to oneshot.
                             None => Provisional::Oneshot,
                         };
                         (key, kind)
@@ -515,7 +517,7 @@ impl Service {
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 // If the location contains a length, communicate that back as is. If it doesn't
-                // (because it is a oneshoot upload) derive the length based on the offset(progress).
+                // (because it is a oneshot upload) derive the length based on the offset (progress).
                 let length = kind.upload_length().unwrap_or(offset);
 
                 match session_token {
@@ -585,8 +587,15 @@ impl LoadShed<Upload> for Service {
 ///
 /// See also [`Provisional`] and [`Final`].
 pub trait LocationKind: Sized {
+    /// Creates the kind from the `upload_length` and `upload_id` query parameters.
+    ///
+    /// Fails if the combination of parameters is not valid for this kind.
     fn from_params(upload_length: Option<usize>, upload_id: Option<String>) -> Result<Self, Error>;
+
+    /// Returns the value of the `upload_length` query parameter, if any.
     fn upload_length(&self) -> Option<usize>;
+
+    /// Returns the value of the `upload_id` query parameter, if any.
     fn upload_id(&self) -> Option<&str>;
 }
 
@@ -595,7 +604,14 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone)]
 pub enum Provisional {
+    /// A location that is uploaded to with a single PATCH request.
+    ///
+    /// The key in the location is a placeholder, objectstore assigns the key on upload.
+    /// This is done to avoid potential abuse.
     Oneshot,
+    /// A location with a resumable upload session in objectstore.
+    ///
+    /// The session is bound to the key in the location and the total length is fixed at creation.
     Resumable { length: usize, upload_id: String },
 }
 
@@ -658,7 +674,7 @@ impl LocationKind for Final {
 /// used by the TUS protocol.
 ///
 /// Calling [`Self::try_sign`] appends an `&upload_signature=` query parameter that can later be used
-/// to validate whether the URI (especially the length) has been tampered with.
+/// to validate whether the URI (especially the kind/length) has been tampered with.
 #[derive(Debug)]
 pub struct Location<K: LocationKind> {
     /// Sentry project ID.
