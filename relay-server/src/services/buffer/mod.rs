@@ -1,7 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU32};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -298,6 +298,7 @@ pub struct EnvelopeBufferService {
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
     unspool_throttle: Arc<Throttle>,
+    unspool_rate: Option<NonZeroU32>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
@@ -319,12 +320,14 @@ impl EnvelopeBufferService {
         unspool_throttle: Arc<Throttle>,
         services: Services,
     ) -> Self {
+        let unspool_rate = config.current().spool_max_unspool_envelopes_per_second();
         Self {
             partition_id,
             config,
             memory_stat,
             global_config_rx,
             unspool_throttle,
+            unspool_rate,
             services,
             metrics: Arc::new(EnvelopeBufferMetrics {
                 has_capacity: AtomicBool::new(true),
@@ -714,11 +717,14 @@ impl Service for EnvelopeBufferService {
                 else => break,
             }
 
-            self.unspool_throttle.set_rate(
-                self.config
-                    .current()
-                    .spool_max_unspool_envelopes_per_second(),
-            );
+            let unspool_rate = self
+                .config
+                .current()
+                .spool_max_unspool_envelopes_per_second();
+            if unspool_rate != self.unspool_rate {
+                self.unspool_rate = unspool_rate;
+                self.unspool_throttle.set_rate(unspool_rate);
+            }
 
             self.sleep = sleep;
             self.update_observable_state(&mut buffer);
