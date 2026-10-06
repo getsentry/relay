@@ -320,7 +320,7 @@ def test_attachment_ref_resumable_upload_in_chunks(
     attachments_consumer = attachments_consumer()
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
-    # Do some busy work until the global config is loaded in the whole chain.
+    # Wait for the first event so the global config is guaranteed to be loaded.
     events_consumer = events_consumer()
     relay.send_event(project_id)
     events_consumer.get_event()
