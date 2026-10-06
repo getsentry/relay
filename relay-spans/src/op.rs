@@ -42,10 +42,6 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return format!("gen_ai.{operation}");
     }
 
-    if attributes.contains_key(GEN_AI__PROVIDER__NAME) {
-        return String::from("gen_ai");
-    }
-
     if attributes.contains_key(RPC__SERVICE) {
         return String::from("rpc");
     }
@@ -101,7 +97,14 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_ai_op_falls_back_to_provider() {
-        assert_eq!(op_for(&[(GEN_AI__PROVIDER__NAME, "openai")]), "gen_ai");
+    fn test_gen_ai_provider_does_not_imply_operation() {
+        assert_eq!(op_for(&[(GEN_AI__PROVIDER__NAME, "openai")]), "default");
+        assert_eq!(
+            op_for(&[
+                (GEN_AI__PROVIDER__NAME, "openai"),
+                (RPC__SERVICE, "example.Service"),
+            ]),
+            "rpc"
+        );
     }
 }
