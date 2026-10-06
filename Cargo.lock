@@ -4462,7 +4462,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.31"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6289,7 +6289,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "symbolic-common"
 version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
+source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6300,7 +6300,7 @@ dependencies = [
 [[package]]
 name = "symbolic-unreal"
 version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
+source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
 dependencies = [
  "anylog",
  "bytes",
