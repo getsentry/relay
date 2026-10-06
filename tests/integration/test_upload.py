@@ -1033,6 +1033,50 @@ def test_resumable_upload_errors(
     assert objectstore_session.get(key).payload.read() == RESUMABLE_DATA
 
 
+def test_patch_completed_upload(
+    mini_sentry, relay_with_processing, project_config, objectstore
+):
+    mini_sentry.fail_on_relay_error = False
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    relay = relay_with_processing()
+
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(RESUMABLE_DATA)),
+        },
+    )
+    assert create.status_code == 201, create.text
+
+    first = patch_chunk(relay, create.headers["Location"], project_key, FIRST_CHUNK, 0)
+    assert first.status_code == 204, first.text
+
+    second = patch_chunk(
+        relay, first.headers["Location"], project_key, SECOND_CHUNK, len(FIRST_CHUNK)
+    )
+    assert second.status_code == 204, second.text
+    final_location = second.headers["Location"]
+    final_path, final_params = location_parts(final_location)
+    assert "upload_id" not in final_params
+
+    # For legacy reasons you could do another patch here, but not with more data than `Upload-Length`.
+    response = patch_chunk(
+        relay,
+        final_location,
+        project_key,
+        FIRST_CHUNK + SECOND_CHUNK + FIRST_CHUNK,
+        len(FIRST_CHUNK),
+    )
+    assert response.status_code == 400, response.text
+    assert "stream exceeded upper bound" in response.text
+
+    key = final_path.rstrip("/").split("/")[-1]
+    objectstore_session = objectstore("attachments", project_id)
+    assert objectstore_session.get(key).payload.read() == RESUMABLE_DATA
+
+
 @pytest.mark.parametrize(
     "resumable_feature,defer_length",
     [
