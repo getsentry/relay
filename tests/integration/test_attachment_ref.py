@@ -1,7 +1,6 @@
 import json
 import pytest
 import uuid
-from urllib.parse import parse_qs, urlparse
 
 from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
@@ -11,6 +10,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from .asserts import matches_any
 from .consts import DUMMY_UPLOAD_LOCATION
 from .test_store import make_transaction
+from .tus import FIRST_CHUNK, RESUMABLE_DATA, SECOND_CHUNK, location_parts
 
 
 def make_envelope(event_id, relay, project_id, project_key):
@@ -325,20 +325,12 @@ def test_attachment_ref_resumable_upload_in_chunks(
     relay.send_event(project_id)
     events_consumer.get_event()
 
-    first_chunk = b"the first half of a resumable upload|"
-    second_chunk = b"and the second half which completes it"
-    attachment_data = first_chunk + second_chunk
-
-    def location_parts(location):
-        parsed = urlparse(location)
-        return parsed.path, {k: v[0] for k, v in parse_qs(parsed.query).items()}
-
     # First upload
     create_response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(attachment_data)),
+            "Upload-Length": str(len(RESUMABLE_DATA)),
         },
     )
     assert create_response.status_code == 201, create_response.text
@@ -346,45 +338,45 @@ def test_attachment_ref_resumable_upload_in_chunks(
     location = create_response.headers["Location"]
     path, params = location_parts(location)
     assert path.startswith(f"/api/{project_id}/upload/")
-    assert params["upload_length"] == str(len(attachment_data))
+    assert params["upload_length"] == str(len(RESUMABLE_DATA))
     assert "upload_id" in params
     assert "upload_signature" in params
 
     first_response = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": str(len(first_chunk)),
+            "X-Decoded-Content-Length": str(len(FIRST_CHUNK)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
         },
-        data=first_chunk,
+        data=FIRST_CHUNK,
     )
     assert first_response.status_code == 204, first_response.text
-    assert first_response.headers["Upload-Offset"] == str(len(first_chunk))
+    assert first_response.headers["Upload-Offset"] == str(len(FIRST_CHUNK))
     location = first_response.headers["Location"]
     provisional_path, provisional_params = location_parts(location)
     assert provisional_path == path
-    assert provisional_params["upload_length"] == str(len(attachment_data))
+    assert provisional_params["upload_length"] == str(len(RESUMABLE_DATA))
     assert "upload_id" in provisional_params
 
     # Second upload
     second_response = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "X-Decoded-Content-Length": str(len(second_chunk)),
+            "X-Decoded-Content-Length": str(len(SECOND_CHUNK)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
-            "Upload-Offset": str(len(first_chunk)),
+            "Upload-Offset": str(len(FIRST_CHUNK)),
         },
-        data=second_chunk,
+        data=SECOND_CHUNK,
     )
     assert second_response.status_code == 204, second_response.text
-    assert second_response.headers["Upload-Offset"] == str(len(attachment_data))
+    assert second_response.headers["Upload-Offset"] == str(len(RESUMABLE_DATA))
     final_location = second_response.headers["Location"]
     final_path, final_params = location_parts(final_location)
     assert final_path == path
-    assert final_params["upload_length"] == str(len(attachment_data))
+    assert final_params["upload_length"] == str(len(RESUMABLE_DATA))
     assert "upload_id" not in final_params
     assert "upload_signature" in final_params
 
@@ -393,7 +385,7 @@ def test_attachment_ref_resumable_upload_in_chunks(
     envelope.add_item(
         make_ref_item(
             final_location,
-            attachment_length=len(attachment_data),
+            attachment_length=len(RESUMABLE_DATA),
             filename="chunked.txt",
         )
     )
@@ -409,7 +401,7 @@ def test_attachment_ref_resumable_upload_in_chunks(
             "name": "chunked.txt",
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
-            "size": len(attachment_data),
+            "size": len(RESUMABLE_DATA),
             "rate_limited": False,
             "stored_id": matches_any(),
             "retention_days": matches_any(),
@@ -420,4 +412,4 @@ def test_attachment_ref_resumable_upload_in_chunks(
     stored_id = attachment["attachment"]["stored_id"]
     assert stored_id == path.rstrip("/").split("/")[-1]
     objectstore_session = objectstore("attachments", project_id)
-    assert objectstore_session.get(stored_id).payload.read() == attachment_data
+    assert objectstore_session.get(stored_id).payload.read() == RESUMABLE_DATA
