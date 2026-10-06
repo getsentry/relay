@@ -1229,11 +1229,11 @@
 <a href=#1229 id=1229 data-nosnippet>1229</a>            );
 <a href=#1230 id=1230 data-nosnippet>1230</a>
 <a href=#1231 id=1231 data-nosnippet>1231</a>            <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
-<a href=#1232 id=1232 data-nosnippet>1232</a>            <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::from(buckets).by_size(batch_size) {
+<a href=#1232 id=1232 data-nosnippet>1232</a>            <span class="kw">for </span>buckets <span class="kw">in </span>BucketsView::from(buckets).by_size(batch_size) {
 <a href=#1233 id=1233 data-nosnippet>1233</a>                <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
 <a href=#1234 id=1234 data-nosnippet>1234</a>
 <a href=#1235 id=1235 data-nosnippet>1235</a>                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-<a href=#1236 id=1236 data-nosnippet>1236</a>                item.set_source_quantities(<span class="kw">crate</span>::metrics::extract_quantities(batch));
+<a href=#1236 id=1236 data-nosnippet>1236</a>                item.set_source_quantities(<span class="kw">crate</span>::metrics::extract_quantities(buckets));
 <a href=#1237 id=1237 data-nosnippet>1237</a>                item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
 <a href=#1238 id=1238 data-nosnippet>1238</a>                envelope.add_item(item);
 <a href=#1239 id=1239 data-nosnippet>1239</a>
@@ -1244,7 +1244,7 @@
 <a href=#1244 id=1244 data-nosnippet>1244</a>                    .scope(<span class="kw-2">*</span>scoping);
 <a href=#1245 id=1245 data-nosnippet>1245</a>
 <a href=#1246 id=1246 data-nosnippet>1246</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#1247 id=1247 data-nosnippet>1247</a>                    distribution(RelayDistributions::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
+<a href=#1247 id=1247 data-nosnippet>1247</a>                    distribution(RelayDistributions::BucketsPerBatch) = buckets.len() <span class="kw">as </span>u64
 <a href=#1248 id=1248 data-nosnippet>1248</a>                );
 <a href=#1249 id=1249 data-nosnippet>1249</a>
 <a href=#1250 id=1250 data-nosnippet>1250</a>                <span class="self">self</span>.submit_envelope_upstream(envelope, <span class="kw-2">&amp;</span>config, project_info.upstream.clone());
