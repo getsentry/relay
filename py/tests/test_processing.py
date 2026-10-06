@@ -344,6 +344,10 @@ def test_normalize_project_config():
     normalized = sentry_relay.normalize_project_config(config)
     assert config == normalized
 
+    config["features"] = ["projects:relay-automatic-json-expansion"]
+    normalized = sentry_relay.normalize_project_config(config)
+    assert config == normalized
+
     config["foobar"] = True
     normalized = sentry_relay.normalize_project_config(config)
     assert config != normalized
