@@ -215,16 +215,12 @@ impl RateLimit {
     /// This builds a rate limit with the appropriate scope derived from the quota and scoping
     /// information. The categories and other properties are copied from the quota.
     pub fn from_quota(quota: &Quota, scoping: &ItemScoping, retry_after: RetryAfter) -> Self {
-        // If the group_by field is not None, then it must be the case that this item's
-        // dimensions matched the quota--so use them.
         let dimensions = if let Some(group_by) = &quota.group_by {
-            let mut key_vals = Vec::new();
-            for dim in group_by.dimensions.iter() {
-                if let Some(val) = scoping.dimensions.get(dim) {
-                    key_vals.push((*dim, val.clone()));
-                }
-            }
-            DimensionMap::from_iter(key_vals)
+            group_by
+                .dimensions
+                .iter()
+                .filter_map(|dim| Some((*dim, scoping.dimensions.get(dim)?.clone())))
+                .collect()
         } else {
             DimensionMap::default()
         };
@@ -314,10 +310,6 @@ impl RateLimits {
 
         self.dimension_sets
             .insert(dimensions.keys().copied().collect());
-        self.next_expiry = Some(match self.next_expiry {
-            Some(next) => next.min(limit.retry_after),
-            None => limit.retry_after,
-        });
 
         let dims = self.limits.entry(dimensions.clone()).or_default();
 
@@ -326,8 +318,16 @@ impl RateLimits {
         });
 
         match limit_opt {
-            None => dims.push(limit),
-            Some(existing) if existing.retry_after < limit.retry_after => *existing = limit,
+            None => {
+                self.next_expiry = Some(match self.next_expiry {
+                    Some(next) => next.min(limit.retry_after),
+                    None => limit.retry_after,
+                });
+                dims.push(limit);
+            }
+            Some(existing) if existing.retry_after < limit.retry_after => {
+                *existing = limit;
+            }
             Some(_) => (), // keep existing, longer limit
         }
     }
@@ -492,7 +492,7 @@ impl RateLimits {
     pub fn iter(&self) -> RateLimitsIter<'_> {
         RateLimitsIter {
             iter: std::slice::Iter::default(),
-            dimensioned_iter: self.limits.iter(),
+            dimensioned_iter: self.limits.values(),
         }
     }
 
@@ -519,7 +519,7 @@ impl RateLimits {
 /// It yields shared references to the rate limits in the collection.
 pub struct RateLimitsIter<'a> {
     iter: std::slice::Iter<'a, RateLimit>,
-    dimensioned_iter: std::collections::btree_map::Iter<'a, DimensionMap, Vec<RateLimit>>,
+    dimensioned_iter: std::collections::btree_map::Values<'a, DimensionMap, Vec<RateLimit>>,
 }
 
 impl<'a> Iterator for RateLimitsIter<'a> {
@@ -531,8 +531,7 @@ impl<'a> Iterator for RateLimitsIter<'a> {
                 return Some(nxt);
             }
 
-            let (_, v) = self.dimensioned_iter.next()?;
-            self.iter = v.iter();
+            self.iter = self.dimensioned_iter.next()?.iter();
         }
     }
 }
@@ -542,7 +541,7 @@ impl IntoIterator for RateLimits {
     type Item = RateLimit;
 
     fn into_iter(self) -> Self::IntoIter {
-        let dimensioned_iter = self.limits.into_iter();
+        let dimensioned_iter = self.limits.into_values();
 
         RateLimitsIntoIter {
             iter: std::vec::IntoIter::default(),
@@ -557,7 +556,7 @@ impl IntoIterator for RateLimits {
 /// [`IntoIterator`] trait. It yields owned rate limits by value.
 pub struct RateLimitsIntoIter {
     iter: std::vec::IntoIter<RateLimit>,
-    dimensioned_iter: std::collections::btree_map::IntoIter<DimensionMap, Vec<RateLimit>>,
+    dimensioned_iter: std::collections::btree_map::IntoValues<DimensionMap, Vec<RateLimit>>,
 }
 
 impl Iterator for RateLimitsIntoIter {
@@ -570,11 +569,7 @@ impl Iterator for RateLimitsIntoIter {
                 return nxt;
             }
 
-            if let Some((_, v)) = self.dimensioned_iter.next() {
-                self.iter = v.into_iter();
-            } else {
-                return None;
-            }
+            self.iter = self.dimensioned_iter.next()?.into_iter();
         }
     }
 }
@@ -1028,7 +1023,7 @@ mod tests {
           dimension_sets: [
             [],
           ],
-          next_expiry: Some(RetryAfter(1)),
+          next_expiry: Some(RetryAfter(10)),
         )
         "#);
     }
@@ -1457,7 +1452,7 @@ mod tests {
           dimension_sets: [
             [],
           ],
-          next_expiry: Some(RetryAfter(1)),
+          next_expiry: Some(RetryAfter(60)),
         )
         "#);
     }
