@@ -44,6 +44,10 @@ expression: partials
       "tags": {
         "bar": "baz",
         "foo": ""
+      },
+      "metadata": {
+        "merges": 0,
+        "received_at": null
       }
     },
     {
@@ -64,7 +68,11 @@ expression: partials
       "type": "s",
       "value": [
         75
-      ]
+      ],
+      "metadata": {
+        "merges": 0,
+        "received_at": null
+      }
     },
     {
       "timestamp": 5000,

@@ -35,6 +35,7 @@
 - Slugify monitor slugs the same way as Sentry for check-in routing and rate limit dimensions. ([#6456](https://github.com/getsentry/relay/pull/6456))
 - Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
 - Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
+- Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 
 **Internal**:
 
