@@ -100,7 +100,8 @@ impl IntoResponse for Error {
         let status = match self {
             Error::Tus(error) => return error.into_response(),
             Error::InvalidOffset { .. } => StatusCode::CONFLICT,
-            Error::MissingLength | Error::ChunkTooLarge { .. } => StatusCode::BAD_REQUEST,
+            Error::MissingLength => StatusCode::BAD_REQUEST,
+            Error::ChunkTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
