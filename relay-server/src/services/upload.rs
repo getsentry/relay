@@ -620,11 +620,9 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone)]
 pub enum Provisional {
-    // TODO: Update docs
     /// A location that is uploaded to with a single PATCH request.
     ///
-    /// The key in the location is a placeholder, objectstore assigns the key on upload.
-    /// This is done to avoid potential abuse.
+    /// Size doesn't need to be defined at creation, but legacy clients do it.
     Oneshot { length: Option<usize> },
     /// A location with a resumable upload session in objectstore.
     ///
