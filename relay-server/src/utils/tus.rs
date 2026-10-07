@@ -90,7 +90,7 @@ pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 const TUS_EXTENSION: &str = "Tus-Extension";
 
 const SUPPORTED_EXTENSIONS: HeaderValue =
-    HeaderValue::from_static("creation,creation-defer-length");
+    HeaderValue::from_static("creation");
 
 /// TUS protocol header for the total upload length.
 ///
