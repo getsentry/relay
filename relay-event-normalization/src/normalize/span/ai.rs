@@ -182,6 +182,14 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         "gen_ai.execute_tool" | "execute_tool" => "tool",
         "gen_ai.handoff" | "handoff" => "handoff",
         "ai.processor" | "processor_run" => "other",
+        "gen_ai.memory.client"
+        | "create_memory"
+        | "create_memory_store"
+        | "delete_memory"
+        | "delete_memory_store"
+        | "search_memory"
+        | "update_memory"
+        | "upsert_memory" => "memory",
         // Prefix matches:
         op if op.starts_with("ai.streamText.doStream") => "ai_client",
         op if op.starts_with("ai.streamText") => "agent",
@@ -822,6 +830,40 @@ mod tests {
         assert_annotated_snapshot!(span.data, @r#"
         {
           "gen_ai.operation.type": "agent"
+        }
+        "#);
+    }
+
+    /// Test that the memory operation type is inferred from a gen_ai.operation.name attribute.
+    #[test]
+    fn test_infer_ai_operation_type_memory_from_gen_ai_operation_name() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.operation.name": "upsert_memory"
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.name": "upsert_memory",
+          "gen_ai.operation.type": "memory"
+        }
+        "#);
+    }
+
+    /// Test that the memory operation type is inferred from the gen_ai.memory.client span op.
+    #[test]
+    fn test_infer_ai_operation_type_memory_from_span_op() {
+        let mut span = Span {
+            op: "gen_ai.memory.client".to_owned().into(),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(span.data, @r#"
+        {
+          "gen_ai.operation.type": "memory"
         }
         "#);
     }
