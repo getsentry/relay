@@ -181,7 +181,6 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         | "create_agent" => "agent",
         "gen_ai.execute_tool" | "execute_tool" => "tool",
         "gen_ai.handoff" | "handoff" => "handoff",
-        "ai.processor" | "processor_run" => "other",
         "gen_ai.memory.client"
         | "create_memory"
         | "create_memory_store"
@@ -190,6 +189,7 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
         | "search_memory"
         | "update_memory"
         | "upsert_memory" => "memory",
+        "ai.processor" | "processor_run" => "other",
         // Prefix matches:
         op if op.starts_with("ai.streamText.doStream") => "ai_client",
         op if op.starts_with("ai.streamText") => "agent",
