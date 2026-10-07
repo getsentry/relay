@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Preserve MCP transport implementation names and resource URI schemes without backfilling them into network attributes during span normalization.
-- Update conventions with Anthropic tool-result and NEL sampling backfills and scrubbing rules for new AWS and AI attributes.
+- Preserve MCP transport implementation names and resource URI schemes without backfilling them into network attributes during span normalization. ([#6483](https://github.com/getsentry/relay/pull/6483))
+- Update conventions with Anthropic tool-result and NEL sampling backfills and scrubbing rules for new AWS and AI attributes. ([#6483](https://github.com/getsentry/relay/pull/6483))
 
 ## 0.10.0
 
