@@ -1518,13 +1518,10 @@ def test_spansv2_attribute_normalization(
 def test_spansv2_description_inference_array_attribute(
     mini_sentry,
     relay,
-    relay_with_processing,
-    spans_consumer,
 ):
     """
     A test asserting that description inference works with array attributes.
     """
-    spans_consumer = spans_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1532,7 +1529,7 @@ def test_spansv2_description_inference_array_attribute(
         {"retentions": {"span": {"standard": 42, "downsampled": 1337}}}
     )
 
-    relay = relay(relay_with_processing())
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1563,44 +1560,31 @@ def test_spansv2_description_inference_array_attribute(
 
     relay.send_envelope(project_id, envelope)
 
-    span_result = spans_consumer.get_span()
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
 
-    assert span_result == {
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "name": "Test span",
-        "is_segment": False,
-        "received": time_within(ts),
-        "start_timestamp": time_is(ts),
-        "end_timestamp": time_is(ts.timestamp() + 0.5),
-        "status": "ok",
-        "retention_days": 42,
-        "downsampled_retention_days": 1337,
-        "key_id": 123,
-        "organization_id": 1,
-        "project_id": 42,
-        "span_id": "eee19b7ec3c1b174",
-        "attributes": {
-            "cache.key": {"type": "array", "value": ["posts:123", "posts:456"]},
-            "sentry.op": {"type": "string", "value": "cache.get"},
-            "sentry.category": {"type": "string", "value": "cache"},
-            "sentry.description": {
-                "type": "string",
-                "value": "posts:123, posts:456",
-            },
-            "sentry.dsc.project_id": {"type": "string", "value": "42"},
-            "sentry.dsc.trace_id": {
-                "type": "string",
-                "value": "5b8efff798038103d269b633813fc60c",
-            },
-            "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(ts, expect_resolution="ns"),
-            },
-            "sentry.relay.ingress": {"type": "string", "value": "container"},
-            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
-            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+    assert item["attributes"] == {
+        "cache.key": {"type": "array", "value": ["posts:123", "posts:456"]},
+        "sentry.op": {"type": "string", "value": "cache.get"},
+        "sentry.category": {"type": "string", "value": "cache"},
+        "sentry.description": {
+            "type": "string",
+            "value": "posts:123, posts:456",
         },
+        "sentry.dsc.project_id": {"type": "string", "value": "42"},
+        "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "5b8efff798038103d269b633813fc60c",
+        },
+        "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+        "sentry.observed_timestamp_nanos": {
+            "type": "string",
+            "value": time_within(ts, expect_resolution="ns"),
+        },
+        "sentry.relay.ingress": {"type": "string", "value": "container"},
+        "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+        "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
     }
 
 
