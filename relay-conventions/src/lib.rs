@@ -211,7 +211,7 @@ mod tests {
     use std::collections::HashMap;
 
     use phf::phf_map;
-    use relay_protocol::Value;
+    use relay_protocol::{Annotated, Value};
 
     use super::*;
 
@@ -391,6 +391,26 @@ mod tests {
             name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
                 .unwrap(),
             "1.23",
+        );
+    }
+
+    #[test]
+    fn name_handles_arrays() {
+        let attributes = HashMap::from([
+            (
+                "attr2",
+                Value::Array(vec![
+                    Annotated::new("posts:123".into()),
+                    Annotated::new("posts:456".into()),
+                ]),
+            ),
+            ("attr3", Value::U64(789)),
+        ]);
+
+        assert_eq!(
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
+            "posts:123, posts:456 789",
         );
     }
 }
