@@ -48,7 +48,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
                     Some(quote! {
-                        let Some(#ident @ (Value::String(_) | Value::Bool(_) | Value::U64(_) | Value::I64(_) | Value::F64(_))) = get_attribute_value(#name)
+                        let Some(#ident @ (Value::String(_) | Value::Bool(_) | Value::U64(_) | Value::I64(_) | Value::F64(_) | Value::Array(_))) = get_attribute_value(#name)
                     })
                 } else {
                     None
@@ -111,7 +111,25 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
                     Value::U64(u) => write!(f, "{u}"),
                     Value::F64(fl) => write!(f, "{fl}"),
                     Value::String(s) => f.write_str(s),
-                    Value::Array(_) | Value::Object(_) => Ok(()),
+                    Value::Array(vals) => {
+                        let mut first = true;
+
+                        for v in vals {
+                            let Some(v) = v.value() else {
+                                continue;
+                            };
+
+                            if !first {
+                                f.write_str(", ")?;
+                            }
+
+                            write!(f, "{}", DisplayVal(v))?;
+
+                            first = false;
+                        }
+                        Ok(())
+                    }
+                    Value::Object(_) => Ok(()),
                 }
             }
         }
