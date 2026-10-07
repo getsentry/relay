@@ -53,7 +53,7 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
             }).collect::<String>();
             let format_args = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(_, ident) = part {
-                    Some(quote! { DisplayVal(&#ident) })
+                    Some(quote! { DisplayVal(#ident) })
                 } else {
                     None
                 }
