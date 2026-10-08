@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from sentry_relay.consts import DataCategory
@@ -1312,6 +1313,36 @@ def test_ai_spans_example_transaction(
                     "value": "a9351cd574f092f6acad48e250981f11",
                 },
                 "sentry.environment": {"type": "string", "value": "production"},
+                "sentry.event.serialized_contexts": {
+                    "type": "string",
+                    "value": json.dumps(
+                        {
+                            "trace": {
+                                "trace_id": "a9351cd574f092f6acad48e250981f11",
+                                "span_id": "657cf984a6a4e59b",
+                                "op": "gen_ai.invoke_agent",
+                                "status": "ok",
+                                "exclusive_time": 0.0,
+                                "origin": "manual",
+                                "data": {
+                                    "gen_ai.operation.name": "gen_ai.invoke_agent",
+                                    "gen_ai.operation.type": "agent",
+                                    "gen_ai.response.tokens_per_second": 130.0,
+                                    "gen_ai.usage.input_tokens": 245,
+                                    "gen_ai.usage.output_tokens": 65,
+                                    "gen_ai.usage.total_tokens": 310.0,
+                                    "sentry.dsc.project_id": "42",
+                                    "sentry.dsc.trace_id": "a9351cd574f092f6acad48e250981f11",
+                                    "sentry.origin": "manual",
+                                    "sentry.sample_rate": 1,
+                                    "sentry.source": "custom",
+                                },
+                                "type": "trace",
+                            }
+                        },
+                        separators=(",", ":"),
+                    ),
+                },
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": True},
                 "sentry.op": {"type": "string", "value": "gen_ai.invoke_agent"},
