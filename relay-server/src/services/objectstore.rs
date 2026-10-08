@@ -11,8 +11,8 @@ use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
-    Client, ExpirationPolicy, ResumableUpload, SecretKey as SigningKey, Session, SessionToken,
-    TokenGenerator, UploadProgress, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, SessionToken, TokenGenerator,
+    UploadProgress, Usecase,
 };
 
 use objectstore_types::resumable::InvalidSessionToken;
@@ -306,10 +306,15 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
+    #[error("upload offset mismatch (server holds {0} bytes)")]
+    InvalidOffset(usize),
+    #[error(
+        "non-final chunk {chunk_length} is smaller than upload granularity {upload_granularity}"
+    )]
+    ChunkTooSmall {
+        chunk_length: u64,
+        upload_granularity: u64,
+    },
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -325,7 +330,7 @@ impl ErrorKind {
         match self {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
-            Self::UploadCompleted => "upload_completed",
+            Self::ChunkTooSmall { .. } => "chunk_too_small",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
@@ -338,7 +343,7 @@ impl ErrorKind {
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
-            ErrorKind::InvalidOffset { .. } | ErrorKind::UploadCompleted => true,
+            ErrorKind::InvalidOffset { .. } | ErrorKind::ChunkTooSmall { .. } => true,
             _ => false,
         }
     }
@@ -1077,7 +1082,6 @@ impl ObjectstoreServiceInner {
                 total_length,
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
-                let offset = Self::verify_offset(offset, &resumable_upload).await?;
 
                 let progress = resumable_upload
                     .put_stream(offset as u64, chunk_length as u64, body.boxed())
@@ -1100,30 +1104,6 @@ impl ObjectstoreServiceInner {
         }
     }
 
-    /// Verify the client offset against objectstore.
-    ///
-    /// Returns an error if the offset is wrong (including when the upload is already done).
-    async fn verify_offset(
-        client_offset: usize,
-        resumable_upload: &ResumableUpload,
-    ) -> Result<usize, AttemptUploadError> {
-        let progress = resumable_upload.progress().send().await?;
-
-        match progress {
-            UploadProgress::Incomplete { offset } => {
-                if offset == client_offset as u64 {
-                    Ok(client_offset)
-                } else {
-                    Err(AttemptUploadError::InvalidOffset {
-                        client_offset,
-                        offset: offset as usize,
-                    })
-                }
-            }
-            UploadProgress::Complete => Err(AttemptUploadError::UploadCompleted),
-        }
-    }
-
     fn session(
         &self,
         usecase: &Usecase,
@@ -1143,25 +1123,48 @@ impl ObjectstoreServiceInner {
 #[derive(Debug, thiserror::Error)]
 enum AttemptUploadError {
     #[error(transparent)]
-    Objectstore(#[from] objectstore_client::Error),
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
+    Objectstore(objectstore_client::Error),
+    #[error("upload offset mismatch (server holds {0} bytes)")]
+    InvalidOffset(usize),
+    #[error(
+        "non-final chunk {chunk_length} is smaller than upload granularity {upload_granularity}"
+    )]
+    ChunkTooSmall {
+        chunk_length: u64,
+        upload_granularity: u64,
+    },
 }
 
 impl From<AttemptUploadError> for ErrorKind {
     fn from(value: AttemptUploadError) -> Self {
         match value {
             AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
-            AttemptUploadError::InvalidOffset {
-                client_offset,
-                offset,
-            } => ErrorKind::InvalidOffset {
-                client_offset,
-                offset,
+            AttemptUploadError::InvalidOffset(offset) => ErrorKind::InvalidOffset(offset),
+            AttemptUploadError::ChunkTooSmall {
+                chunk_length,
+                upload_granularity,
+            } => ErrorKind::ChunkTooSmall {
+                chunk_length,
+                upload_granularity,
             },
-            AttemptUploadError::UploadCompleted => ErrorKind::UploadCompleted,
+        }
+    }
+}
+
+impl From<objectstore_client::Error> for AttemptUploadError {
+    fn from(value: objectstore_client::Error) -> Self {
+        match value {
+            objectstore_client::Error::UploadOffsetMismatch { offset } => {
+                Self::InvalidOffset(offset as usize)
+            }
+            objectstore_client::Error::ChunkTooSmall {
+                chunk_length,
+                upload_granularity,
+            } => Self::ChunkTooSmall {
+                chunk_length,
+                upload_granularity,
+            },
+            error => Self::Objectstore(error),
         }
     }
 }
