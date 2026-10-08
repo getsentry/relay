@@ -29,6 +29,7 @@
 
 **Bug Fixes**:
 
+- Preserve MCP transport implementation names and resource URI schemes without backfilling them into network attributes. ([#6483](https://github.com/getsentry/relay/pull/6483))
 - Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
@@ -42,6 +43,7 @@
 
 **Internal**:
 
+- Update sentry-conventions through `664f7b4`, adding Anthropic tool-result and NEL sampling backfills, AI evaluation and memory span naming, and explicit scrubbing rules for new AWS and AI attributes. ([#6483](https://github.com/getsentry/relay/pull/6483))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
