@@ -197,12 +197,16 @@ impl AsyncRedisClient {
         if let Ok(pool) = result.clone() {
             relay_system::spawn!(async move {
                 loop {
-                    let result = pool.retain(|_, metrics| {
-                        metrics.last_used() < Duration::from_secs(idle_timeout)
-                    });
-                    if !result.removed.is_empty() {
+                    let removed = pool
+                        .retain(|_, metrics| {
+                            metrics.last_used() < Duration::from_secs(idle_timeout)
+                        })
+                        .removed
+                        .len();
+
+                    if removed > 0 {
                         metric!(
-                            counter(RedisCounters::IdleTimeout) += result.removed.len() as u64,
+                            counter(RedisCounters::IdleTimeout) += removed as u64,
                             client = name,
                         );
                     }
