@@ -42,6 +42,8 @@ use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
 /// Header advertising the maximum/recommended chunk size to clients.
+///
+/// Sentry-specific extension to the TUS upload protocol.
 pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
 
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
@@ -354,7 +356,7 @@ async fn create(
     project: ProjectContext,
     headers: &tus::PostHeaders,
 ) -> Result<CreateResult, Error> {
-    let location = state
+    let result = state
         .upload()
         .send(upload::Create {
             project,
@@ -363,7 +365,7 @@ async fn create(
         })
         .await??;
 
-    Ok(location)
+    Ok(result)
 }
 
 async fn upload(

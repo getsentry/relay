@@ -367,6 +367,7 @@ impl ObjectstoreKey {
         self.0
     }
 }
+
 /// Response to a [`Create`] message.
 pub struct CreateResult {
     /// Identifier for the existing upload.
@@ -878,7 +879,7 @@ impl ObjectstoreServiceInner {
         let (session_token, granularity) = match resumable_upload {
             Some(upload) => (
                 Some(upload.token().to_owned()),
-                upload.granularity().map(|g| g as usize),
+                upload.granularity().filter(|g| *g > 0).map(|g| g as usize),
             ),
             None => (None, None),
         };

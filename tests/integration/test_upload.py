@@ -325,7 +325,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
         ),
         pytest.param(
             12,
-            400,
+            413,
             "Chunk of 12 bytes exceeds the remaining 11 bytes",
             id="larger_than_announced",
         ),
@@ -578,7 +578,7 @@ def test_processing_invalid_length(
         data=data,
     )
 
-    assert response.status_code == 400, response.text
+    assert response.status_code == 413, response.text
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
@@ -939,7 +939,7 @@ def test_upload_minidump_opt_in(
         pytest.param(
             {"offset": 0, "chunk": FIRST_CHUNK},
             409,
-            f"invalid Upload-Offset 0, expected {len(FIRST_CHUNK)}",
+            f"upload offset mismatch (server holds {len(FIRST_CHUNK)} bytes)",
             id="retry_first_chunk",
         ),
         pytest.param(
@@ -956,7 +956,7 @@ def test_upload_minidump_opt_in(
         ),
         pytest.param(
             {"chunk": SECOND_CHUNK + b"!"},
-            400,
+            413,
             f"Chunk of {len(SECOND_CHUNK) + 1} bytes exceeds the remaining {len(SECOND_CHUNK)} bytes",
             id="chunk_exceeds_remaining",
         ),
@@ -1131,3 +1131,44 @@ def test_oneshot_fallback(
 
     key = final_path.rstrip("/").split("/")[-1]
     assert objectstore("attachments", project_id).get(key).payload.read() == data
+
+
+@pytest.mark.parametrize(
+    "granularity",
+    [pytest.param(0), pytest.param(1024)],
+)
+def test_create_granularity_header(
+    mini_sentry, relay_with_processing, project_config, granularity
+):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def create_session(scope, key):
+        assert request.args["upload_type"] == "resumable"
+        return {"key": key, "session": "c2Vzc2lvbg", "granularity": granularity}
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert "upload_id=" in response.headers["Location"]
+    if granularity > 0:
+        assert int(response.headers["Upload-Chunk-Granularity"]) == granularity
+    else:
+        assert "Upload-Chunk-Granularity" not in response.headers, response.headers

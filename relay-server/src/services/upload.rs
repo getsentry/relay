@@ -48,6 +48,8 @@ use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 pub const UPLOAD_PATCH_PATH: &str = "/api/{project_id}/upload/{key}/";
 
 /// Header advertising the chunk granularity.
+///
+/// Sentry-specific extension to the TUS upload protocol.
 pub const UPLOAD_CHUNK_GRANULARITY: &str = "Upload-Chunk-Granularity";
 
 /// An error that occurs during upload.
@@ -115,7 +117,7 @@ impl Error {
 pub enum Upload {
     /// Creates an upload resource.
     ///
-    /// Returns the trusted identifier of the upload.
+    /// Returns the trusted identifier of the upload and metadata.
     Create(Create, InstrumentedSender<CreateResult>),
     /// Upload a stream of bytes for a given location.
     ///
