@@ -288,19 +288,31 @@ use relay_system::{Controller, ServiceSpawnExt as _};
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
 
-/// Wait for envelope buffer to fully drain.
-async fn drained_shutdown(state: ServiceState) {
-    const DRAIN_POLL_INTERVAL: Duration = Duration::from_secs(1);
-    const SETTLE_PERIOD: Duration = Duration::from_secs(30);
-
-    Controller::shutdown_handle().notified().await;
-
-    while state.envelope_buffer_item_count() > 0 {
-        tokio::time::sleep(DRAIN_POLL_INTERVAL).await;
+/// Wait for the envelope buffer to fully drain.
+async fn drained_shutdown(state: ServiceState, interval: Duration) {
+    let mut shutdown = Controller::shutdown_handle();
+    if shutdown.notified().await.timeout.is_none() {
+        return;
     }
 
-    relay_log::info!("envelope buffer drained, settling before shutdown");
-    tokio::time::sleep(SETTLE_PERIOD).await;
+    let mut was_empty = false;
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep(interval) => {}
+            shutdown = shutdown.notified() => {
+                if shutdown.timeout.is_none() {
+                    return;
+                }
+            }
+        }
+
+        let empty = state.envelope_buffer_item_count() == 0;
+        if empty && was_empty {
+            relay_log::info!("envelope buffer drained, finishing shutdown");
+            return;
+        }
+        was_empty = empty;
+    }
 }
 
 /// Runs a relay web server and spawns all internal worker threads.
@@ -328,14 +340,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let state = ServiceState::start(&handle, &services, config.clone()).await?;
         services.start(HttpServer::new(config, state.clone())?);
 
+        let ephemeral_spool = current_config.spool_ephemeral();
         tokio::select! {
             _ = services.join() => {},
             // NOTE: when every service implements a shutdown listener,
             // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
             // that every service finished its main task.
             // See also https://github.com/getsentry/relay/issues/4050.
-            _ = Controller::shutdown_handle().finished() => {}
-            _ = drained_shutdown(state.clone()) => {}
+            _ = Controller::shutdown_handle().finished(), if !ephemeral_spool => {}
+            _ = drained_shutdown(state.clone(), current_config.shutdown_timeout()), if ephemeral_spool => {}
         }
 
         anyhow::Ok(())

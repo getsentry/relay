@@ -38,10 +38,10 @@
 - Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
 - Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
+- Drain ephemeral envelope spools before exiting during graceful shutdown. ([#6484](https://github.com/getsentry/relay/pull/6484))
 
 **Internal**:
 
-- Exit before the end of the shutdown grace period once the envelope buffer is drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
