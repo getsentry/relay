@@ -425,9 +425,9 @@ impl ServiceState {
         self.inner.registry.autoscaling.as_ref()
     }
 
-    /// Returns the total number of envelopes in all envelope buffer partitions.
-    pub fn envelope_buffer_item_count(&self) -> u64 {
-        self.inner.registry.envelope_buffer.item_count()
+    /// Returns `true` if all envelope buffer partitions are empty, in memory and on disk.
+    pub fn envelope_buffer_is_empty(&self) -> bool {
+        self.inner.registry.envelope_buffer.is_empty()
     }
 
     /// Returns the V2 envelope buffer, if present.

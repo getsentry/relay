@@ -306,7 +306,7 @@ async fn drained_shutdown(state: ServiceState, interval: Duration) {
             }
         }
 
-        let empty = state.envelope_buffer_item_count() == 0;
+        let empty = state.envelope_buffer_is_empty();
         if empty && was_empty {
             relay_log::info!("envelope buffer drained, finishing shutdown");
             return;
