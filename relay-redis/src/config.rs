@@ -1,10 +1,24 @@
 use serde::{Deserialize, Serialize};
 
+/// Determines how idle Redis connections are reused by the pool.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RedisPoolQueueMode {
+    /// Reuse the connection that has been idle the longest.
+    #[default]
+    Fifo,
+    /// Reuse the connection that most recently became idle.
+    Lifo,
+}
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct RedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     pub max_connections: u32,
+    /// Determines how idle connections are reused by the pool.
+    #[serde(default)]
+    pub queue_mode: RedisPoolQueueMode,
     /// Sets the idle timeout used by the pool, in seconds.
     ///
     /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
@@ -38,6 +52,7 @@ impl Default for RedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: 24,
+            queue_mode: RedisPoolQueueMode::default(),
             idle_timeout: 60,
             create_timeout: Some(3),
             recycle_timeout: Some(2),

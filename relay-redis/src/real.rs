@@ -1,10 +1,10 @@
 use deadpool::Runtime;
-use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
+use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError, QueueMode};
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
 
-use crate::config::RedisConfigOptions;
+use crate::config::{RedisConfigOptions, RedisPoolQueueMode};
 use crate::pool;
 
 pub use redis;
@@ -179,6 +179,10 @@ impl AsyncRedisClient {
     ) -> Result<Pool<M, W>, BuildError> {
         let result = Pool::builder(manager)
             .max_size(opts.max_connections as usize)
+            .queue_mode(match opts.queue_mode {
+                RedisPoolQueueMode::Fifo => QueueMode::Fifo,
+                RedisPoolQueueMode::Lifo => QueueMode::Lifo,
+            })
             .create_timeout(opts.create_timeout.map(Duration::from_secs))
             .recycle_timeout(opts.recycle_timeout.map(Duration::from_secs))
             .wait_timeout(opts.wait_timeout.map(Duration::from_secs))

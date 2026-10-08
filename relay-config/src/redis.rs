@@ -1,4 +1,4 @@
-use relay_redis::RedisConfigOptions;
+use relay_redis::{RedisConfigOptions, RedisPoolQueueMode};
 use serde::{Deserialize, Serialize};
 
 /// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
@@ -14,6 +14,8 @@ pub struct PartialRedisConfigOptions {
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
+    /// Determines how idle connections are reused by the pool. Defaults to FIFO.
+    pub queue_mode: RedisPoolQueueMode,
     /// Sets the idle timeout used by the pool, in seconds.
     ///
     /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
@@ -50,6 +52,7 @@ impl Default for PartialRedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: None,
+            queue_mode: RedisPoolQueueMode::default(),
             idle_timeout: 60,
             create_timeout: Some(3),
             recycle_timeout: Some(2),
@@ -215,6 +218,7 @@ fn build_redis_config_options(
 
     RedisConfigOptions {
         max_connections,
+        queue_mode: options.queue_mode,
         idle_timeout: options.idle_timeout,
         create_timeout: options.create_timeout,
         recycle_timeout: options.recycle_timeout,
@@ -355,6 +359,7 @@ quotas:
         - "redis://127.0.0.1:6379"
         - "redis://127.0.0.2:6379"
     max_connections: 17
+    queue_mode: lifo
 "#;
 
         let configs: RedisConfigs = serde_yaml::from_str(yaml)
@@ -375,12 +380,22 @@ quotas:
                 ],
                 options: PartialRedisConfigOptions {
                     max_connections: Some(17),
+                    queue_mode: RedisPoolQueueMode::Lifo,
                     ..Default::default()
                 },
             }),
         };
 
         assert_eq!(configs, expected);
+
+        let RedisConfigsRef::Individual { quotas, .. } = build_redis_configs(&configs, 42, 10)
+        else {
+            panic!("expected individual Redis configs");
+        };
+        let RedisConfigRef::Cluster { options, .. } = quotas else {
+            panic!("expected a Redis cluster");
+        };
+        assert_eq!(options.queue_mode, RedisPoolQueueMode::Lifo);
     }
 
     #[test]
@@ -397,6 +412,7 @@ quotas:
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
+          "queue_mode": "fifo",
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
@@ -419,6 +435,7 @@ quotas:
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
+          "queue_mode": "fifo",
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
@@ -538,6 +555,7 @@ max_connections: 20
             "redis://127.0.0.2:6379"
           ],
           "max_connections": 42,
+          "queue_mode": "fifo",
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
@@ -566,6 +584,7 @@ max_connections: 20
             "redis://127.0.0.2:6379"
           ],
           "max_connections": 42,
+          "queue_mode": "fifo",
           "idle_timeout": 60,
           "create_timeout": 3,
           "recycle_timeout": 2,
@@ -601,6 +620,7 @@ max_connections: 20
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
             "max_connections": 42,
+            "queue_mode": "fifo",
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
@@ -612,6 +632,7 @@ max_connections: 20
               "redis://127.0.0.2:6379"
             ],
             "max_connections": 84,
+            "queue_mode": "fifo",
             "idle_timeout": 60,
             "create_timeout": 3,
             "recycle_timeout": 2,
