@@ -12,6 +12,11 @@ pub enum RedisCounters {
     /// This metric is tagged with:
     /// - `client`: The name of the Redis client sending the command.
     RecycleConnection,
+    /// Counter incremented every time an idle connection is removed from the pool.
+    ///
+    /// This metric is tagged with:
+    /// - `client`: The name of the Redis client.
+    IdleTimeout,
 }
 
 impl CounterMetric for RedisCounters {
@@ -19,6 +24,7 @@ impl CounterMetric for RedisCounters {
         match self {
             Self::CreateConnection => "redis.connection.create",
             Self::RecycleConnection => "redis.connection.recycle",
+            Self::IdleTimeout => "redis.connection.idle_timeout",
         }
     }
 }

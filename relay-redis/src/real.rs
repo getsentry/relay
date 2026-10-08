@@ -1,11 +1,13 @@
 use deadpool::Runtime;
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError, QueueMode};
 use redis::{Cmd, Pipeline, RedisFuture, Value};
+use relay_statsd::metric;
 use std::time::Duration;
 use thiserror::Error;
 
 use crate::config::{RedisConfigOptions, RedisPoolQueueMode};
 use crate::pool;
+use crate::statsd::RedisCounters;
 
 pub use redis;
 
@@ -101,7 +103,7 @@ impl AsyncRedisClient {
         let manager = pool::CustomClusterManager::new(name, servers, false, opts.clone())
             .map_err(RedisError::Redis)?;
 
-        let pool = Self::build_pool(manager, opts)?;
+        let pool = Self::build_pool(name, manager, opts)?;
 
         Ok(AsyncRedisClient::Cluster(pool))
     }
@@ -123,7 +125,7 @@ impl AsyncRedisClient {
         let manager = pool::CustomSingleManager::new(name, server, opts.clone())
             .map_err(RedisError::Redis)?;
 
-        let pool = Self::build_pool(manager, opts)?;
+        let pool = Self::build_pool(name, manager, opts)?;
 
         Ok(AsyncRedisClient::Single(pool))
     }
@@ -174,6 +176,7 @@ impl AsyncRedisClient {
 
     /// Builds a [`Pool`] given a type implementing [`Manager`] and [`RedisConfigOptions`].
     fn build_pool<M: Manager + 'static, W: From<Object<M>> + 'static>(
+        name: &'static str,
         manager: M,
         opts: &RedisConfigOptions,
     ) -> Result<Pool<M, W>, BuildError> {
@@ -194,9 +197,15 @@ impl AsyncRedisClient {
         if let Ok(pool) = result.clone() {
             relay_system::spawn!(async move {
                 loop {
-                    pool.retain(|_, metrics| {
+                    let result = pool.retain(|_, metrics| {
                         metrics.last_used() < Duration::from_secs(idle_timeout)
                     });
+                    if !result.removed.is_empty() {
+                        metric!(
+                            counter(RedisCounters::IdleTimeout) += result.removed.len() as u64,
+                            client = name,
+                        );
+                    }
                     tokio::time::sleep(Duration::from_secs(refresh_interval)).await;
                 }
             });
