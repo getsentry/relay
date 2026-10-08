@@ -280,12 +280,28 @@ pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 mod testutils;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::{Controller, ServiceSpawnExt as _};
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
+
+/// Wait for envelope buffer to fully drain.
+async fn drained_shutdown(state: ServiceState) {
+    const DRAIN_POLL_INTERVAL: Duration = Duration::from_secs(1);
+    const SETTLE_PERIOD: Duration = Duration::from_secs(30);
+
+    Controller::shutdown_handle().notified().await;
+
+    while state.envelope_buffer_item_count() > 0 {
+        tokio::time::sleep(DRAIN_POLL_INTERVAL).await;
+    }
+
+    relay_log::info!("envelope buffer drained, settling before shutdown");
+    tokio::time::sleep(SETTLE_PERIOD).await;
+}
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -319,6 +335,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
             // that every service finished its main task.
             // See also https://github.com/getsentry/relay/issues/4050.
             _ = Controller::shutdown_handle().finished() => {}
+            _ = drained_shutdown(state.clone()) => {}
         }
 
         anyhow::Ok(())

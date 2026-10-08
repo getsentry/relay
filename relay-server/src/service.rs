@@ -425,6 +425,11 @@ impl ServiceState {
         self.inner.registry.autoscaling.as_ref()
     }
 
+    /// Returns the total number of envelopes in all envelope buffer partitions.
+    pub fn envelope_buffer_item_count(&self) -> u64 {
+        self.inner.registry.envelope_buffer.item_count()
+    }
+
     /// Returns the V2 envelope buffer, if present.
     pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         self.inner.registry.envelope_buffer.buffer(project_key_pair)

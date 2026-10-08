@@ -41,6 +41,7 @@
 
 **Internal**:
 
+- Exit before the end of the shutdown grace period once the envelope buffer is drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
