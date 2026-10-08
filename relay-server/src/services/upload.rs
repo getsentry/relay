@@ -47,6 +47,9 @@ use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 /// The URL template for uploading bytes to a known location.
 pub const UPLOAD_PATCH_PATH: &str = "/api/{project_id}/upload/{key}/";
 
+/// Header advertising the chunk granularity.
+pub const UPLOAD_CHUNK_GRANULARITY: &str = "Upload-Chunk-Granularity";
+
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -113,7 +116,7 @@ pub enum Upload {
     /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Create(Create, InstrumentedSender<SignedLocation<Provisional>>),
+    Create(Create, InstrumentedSender<CreateResult>),
     /// Upload a stream of bytes for a given location.
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
@@ -134,6 +137,28 @@ pub struct ProjectContext {
     pub retention: u16,
     /// Whether the project has resumable uploads enabled.
     pub resumable: bool,
+}
+
+/// Response to a [`Create`] message.
+pub struct CreateResult {
+    /// The signed location of the created upload.
+    pub location: SignedLocation<Provisional>,
+    /// Chunk granularity required by objectstore, if any.
+    pub granularity: Option<usize>,
+}
+
+impl CreateResult {
+    fn try_from_response(response: &Response) -> Result<Self, Error> {
+        let granularity = response
+            .headers()
+            .get(UPLOAD_CHUNK_GRANULARITY)
+            .and_then(|v| v.to_str().ok()?.parse().ok());
+
+        Ok(Self {
+            location: SignedLocation::try_from_response(response)?,
+            granularity,
+        })
+    }
 }
 
 /// Request to create an upload resource.
@@ -231,8 +256,6 @@ impl StreamResult {
 
 impl StreamResult {
     fn try_from_response(response: Response) -> Result<Self, Error> {
-        let response = response.0.error_for_status().map_err(Error::Upstream)?;
-
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
@@ -242,34 +265,22 @@ impl StreamResult {
             .parse()
             .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
 
-        let location = response
-            .headers()
-            .get(hyper::header::LOCATION)
-            .ok_or(Error::InvalidLocation(None))?;
-        let uri = location
-            .to_str()
-            .map_err(|_| Error::InvalidLocation(Some(location.clone())))?;
-
         // Need to parse the final first since it could collide with the Provisional::Oneshot, now
         // in reality this should never happen because you should not get a Provisional::Oneshot back
         // after an upload.
-        if let Some(location) = SignedLocation::<Final>::try_from_str(uri) {
-            Ok(Self::Complete { location, offset })
-        } else {
-            let location = SignedLocation::<Provisional>::try_from_str(uri)
-                .ok_or(Error::InvalidLocation(Some(location.clone())))?;
-            Ok(Self::Incomplete { location, offset })
+        if let Ok(location) = SignedLocation::<Final>::try_from_response(&response) {
+            return Ok(Self::Complete { location, offset });
         }
+
+        let location = SignedLocation::<Provisional>::try_from_response(&response)?;
+        Ok(Self::Incomplete { location, offset })
     }
 }
 
 impl FromMessage<Create> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
+    type Response = AsyncResponse<Result<CreateResult, Error>>;
 
-    fn from_message(
-        message: Create,
-        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
-    ) -> Self {
+    fn from_message(message: Create, sender: Sender<Result<CreateResult, Error>>) -> Self {
         Self::Create(
             message,
             InstrumentedSender {
@@ -379,13 +390,13 @@ impl Service {
             length,
             attachment_type,
         }: Create,
-    ) -> Result<SignedLocation<Provisional>, Error> {
+    ) -> Result<CreateResult, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
-                SignedLocation::try_from_response(response)
+                CreateResult::try_from_response(&response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
@@ -403,12 +414,16 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, kind) = match (project.resumable, length) {
+                let (key, kind, granularity) = match (project.resumable, length) {
                     (true, Some(length)) => {
-                        let UploadRef {
-                            key,
-                            session_token,
-                            offset: _,
+                        let objectstore::CreateResult {
+                            upload_ref:
+                                UploadRef {
+                                    key,
+                                    session_token,
+                                    offset: _,
+                                },
+                            granularity,
                         } = addr
                             .send(objectstore::Create {
                                 organization_id,
@@ -433,7 +448,7 @@ impl Service {
                                 length: Some(length),
                             },
                         };
-                        (key, kind)
+                        (key, kind, granularity)
                     }
                     // Support legacy clients which would send the length when creating oneshot uploads.
                     (false, Some(length)) => (
@@ -441,20 +456,24 @@ impl Service {
                         Provisional::Oneshot {
                             length: Some(length),
                         },
+                        None,
                     ),
                     // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, Provisional::Oneshot { length: None }),
+                    _ => (key, Provisional::Oneshot { length: None }, None),
                 };
 
-                Location {
-                    project_id,
-                    key,
-                    kind,
-                    other: Default::default(),
-                }
-                .try_sign(&config)
+                Ok(CreateResult {
+                    location: Location {
+                        project_id,
+                        key,
+                        kind,
+                        other: Default::default(),
+                    }
+                    .try_sign(&config)?,
+                    granularity,
+                })
             }
         }
     }
@@ -875,20 +894,16 @@ impl<K: LocationKind> SignedLocation<K> {
         Ok(self.location)
     }
 
-    fn try_from_response(response: Response) -> Result<Self, Error> {
-        match response.0.error_for_status() {
-            Ok(response) => {
-                let header = response
-                    .headers()
-                    .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation(None))?;
-                let uri = header
-                    .to_str()
-                    .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
-                Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
-            }
-            Err(e) => Err(Error::Upstream(e)),
-        }
+    fn try_from_response(response: &Response) -> Result<Self, Error> {
+        let response = response.0.error_for_status_ref().map_err(Error::Upstream)?;
+        let header = response
+            .headers()
+            .get(hyper::header::LOCATION)
+            .ok_or(Error::InvalidLocation(None))?;
+        let uri = header
+            .to_str()
+            .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
+        Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
     }
 
     pub fn try_from_str(uri: &str) -> Option<Self> {

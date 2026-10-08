@@ -32,8 +32,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, LocationKind, LocationQueryParams, ProjectContext, Provisional,
-    SignedLocation, StreamResult, UploadMode,
+    self, ByteStream, CreateResult, LocationKind, LocationQueryParams, ProjectContext, Provisional,
+    SignedLocation, StreamResult, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -151,6 +151,13 @@ impl IntoResponse for Error {
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
+                        objectstore_client::Error::UploadOffsetMismatch { .. } => {
+                            StatusCode::CONFLICT
+                        }
+                        objectstore_client::Error::ResumableUploadUnavailable => {
+                            StatusCode::NOT_FOUND
+                        }
+                        objectstore_client::Error::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
                     objectstore::ErrorKind::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -216,7 +223,10 @@ async fn handle_post(
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
     let result = create(&state, project_context, &headers).await;
-    let location = result.inspect_err(|e| {
+    let CreateResult {
+        location,
+        granularity,
+    } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
 
@@ -229,6 +239,11 @@ async fn handle_post(
         response
             .headers_mut()
             .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+    }
+    if let Some(granularity) = granularity {
+        response
+            .headers_mut()
+            .insert(UPLOAD_CHUNK_GRANULARITY, granularity.into());
     }
 
     Ok(response)
@@ -346,7 +361,7 @@ async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::PostHeaders,
-) -> Result<SignedLocation<Provisional>, Error> {
+) -> Result<CreateResult, Error> {
     let location = state
         .upload()
         .send(upload::Create {

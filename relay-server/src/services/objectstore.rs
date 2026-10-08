@@ -48,7 +48,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(Create, Sender<Result<CreateResult, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
 }
 
@@ -149,9 +149,9 @@ pub struct Create {
 }
 
 impl FromMessage<Create> for Objectstore {
-    type Response = AsyncResponse<Result<UploadRef, Error>>;
+    type Response = AsyncResponse<Result<CreateResult, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: Create, sender: Sender<Result<CreateResult, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -361,6 +361,13 @@ impl ObjectstoreKey {
     pub fn into_inner(self) -> String {
         self.0
     }
+}
+/// Response to a [`Create`] message.
+pub struct CreateResult {
+    /// Identifier for the existing upload.
+    pub upload_ref: UploadRef,
+    /// Chunk granularity required by objectstore, if any.
+    pub granularity: Option<usize>,
 }
 
 /// Identifier needed to resume an existing upload.
@@ -845,7 +852,7 @@ impl ObjectstoreServiceInner {
         Ok(Some(stored_key))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
+    async fn handle_create(&self, create: Create) -> Result<CreateResult, Error> {
         let Create {
             organization_id,
             project_id,
@@ -854,20 +861,30 @@ impl ObjectstoreServiceInner {
             retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        let session_token = session
+        let resumable_upload = session
             .create_upload(upload_length as u64)
             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                 u64::from(retention) * 24,
             )))
             .key(&key)
             .send()
-            .await?
-            .map(|upload| upload.token().to_owned());
+            .await?;
 
-        Ok(UploadRef {
-            key,
-            session_token,
-            offset: 0,
+        let (session_token, granularity) = match resumable_upload {
+            Some(upload) => (
+                Some(upload.token().to_owned()),
+                upload.granularity().map(|g| g as usize),
+            ),
+            None => (None, None),
+        };
+
+        Ok(CreateResult {
+            upload_ref: UploadRef {
+                key,
+                session_token,
+                offset: 0,
+            },
+            granularity,
         })
     }
 
