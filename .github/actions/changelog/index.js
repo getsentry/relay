@@ -1,6 +1,9 @@
 module.exports = async ({ github, context, core }) => {
   const PR_LINK = `[#${context.payload.pull_request.number}](${context.payload.pull_request.html_url})`;
 
+  // Files that change what the Python package sees: the package itself and the C ABI it binds.
+  const PYTHON_INTERFACE_RE = /^(py\/(?!CHANGELOG\.md$)|relay-cabi\/)/;
+
   function getCleanTitle(title) {
     // remove fix(component): prefix
     title = title.split(': ').slice(-1)[0].trim();
@@ -20,6 +23,7 @@ module.exports = async ({ github, context, core }) => {
   function getChangelogDetails(title) {
     return `
   For changes exposed to the _Python package_, please add an entry to \`py/CHANGELOG.md\`. This includes, but is not limited to event normalization, PII scrubbing, and the protocol.
+  Changes under \`py/\` or \`relay-cabi/\` always require an entry in \`py/CHANGELOG.md\`.
   For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under the following heading:
    1. **Features**: For new user-visible functionality.
    2. **Bug Fixes**: For user-visible bug fixes.
@@ -55,6 +59,31 @@ module.exports = async ({ github, context, core }) => {
     return fileContent.match(/## Unreleased(.*?)##/ms)?.[1]?.includes(PR_LINK) || false;
   }
 
+  async function touchesPythonInterface() {
+    const files = await github.paginate(github.rest.pulls.listFiles, {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: context.payload.pull_request.number,
+      per_page: 100,
+    });
+    return files.some(file => PYTHON_INTERFACE_RE.test(file.filename));
+  }
+
+  function failMissingChangelog(pr, file, message) {
+    core.error(message, {
+      title: 'Missing changelog entry.',
+      file,
+      startLine: 3,
+    });
+    const title = getCleanTitle(pr.title);
+    core.summary
+      .addHeading('Instructions and example for changelog')
+      .addRaw(getChangelogDetails(title))
+      .write();
+    core.setFailed(`${file} entry is missing.`);
+    logOutputError(title);
+  }
+
   async function checkChangelog(pr) {
     const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
     if (hasSkipLabel) {
@@ -65,23 +94,25 @@ module.exports = async ({ github, context, core }) => {
       return;
     }
 
-    const hasChangelog =
-      (await containsChangelog('CHANGELOG.md')) ||
-      (await containsChangelog('py/CHANGELOG.md'));
+    const hasPyChangelog = await containsChangelog('py/CHANGELOG.md');
+
+    if (!hasPyChangelog && (await touchesPythonInterface())) {
+      failMissingChangelog(
+        pr,
+        'py/CHANGELOG.md',
+        'This PR changes the Python package or the C ABI. Please add an entry to py/CHANGELOG.md.'
+      );
+      return;
+    }
+
+    const hasChangelog = hasPyChangelog || (await containsChangelog('CHANGELOG.md'));
 
     if (!hasChangelog) {
-      core.error('Please consider adding a changelog entry for the next release.', {
-        title: 'Missing changelog entry.',
-        file: 'CHANGELOG.md',
-        startLine: 3,
-      });
-      const title = getCleanTitle(pr.title);
-      core.summary
-        .addHeading('Instructions and example for changelog')
-        .addRaw(getChangelogDetails(title))
-        .write();
-      core.setFailed('CHANGELOG entry is missing.');
-      logOutputError(title);
+      failMissingChangelog(
+        pr,
+        'CHANGELOG.md',
+        'Please consider adding a changelog entry for the next release.'
+      );
       return;
     }
 
