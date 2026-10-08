@@ -80,6 +80,8 @@ pub enum Error {
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,
+    #[error("resumable upload declined")]
+    ResumableUploadDeclined,
     #[error("internal error")]
     Internal(#[source] http::header::InvalidHeaderValue),
 }
@@ -103,6 +105,7 @@ impl Error {
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
             Error::LoadShed => "load_shed",
+            Error::ResumableUploadDeclined => "resumable_upload_declined",
             Error::Internal(_) => "internal",
         }
     }
@@ -427,15 +430,12 @@ impl Service {
                                 length,
                                 upload_id: token.to_base64url(),
                             },
-                            // Even if we have a length, objectstore might reject the resumable
-                            // upload. In that case fall back to oneshot.
-                            None => Provisional::Oneshot {
-                                length: Some(length),
-                            },
+                            None => return Err(Error::ResumableUploadDeclined),
                         };
                         (key, kind)
                     }
                     // Support legacy clients which would send the length when creating oneshot uploads.
+                    // Note: Need to migrate them before GA resumable uploads.
                     (false, Some(length)) => (
                         key,
                         Provisional::Oneshot {

@@ -155,6 +155,7 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ResumableUploadDeclined => StatusCode::NOT_IMPLEMENTED,
                 upload::Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             },
         };

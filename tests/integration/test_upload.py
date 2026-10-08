@@ -1131,3 +1131,36 @@ def test_oneshot_fallback(
 
     key = final_path.rstrip("/").split("/")[-1]
     assert objectstore("attachments", project_id).get(key).payload.read() == data
+
+
+def test_resumable_upload_declined(mini_sentry, relay_with_processing, project_config):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def decline_resumable(scope, key):
+        assert request.args["upload_type"] == "resumable"
+        return "", 501
+
+    mini_sentry.fail_on_relay_error = False
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == 501, response.text
+    assert "resumable upload declined" in response.json()["detail"]
+    assert "Location" not in response.headers
