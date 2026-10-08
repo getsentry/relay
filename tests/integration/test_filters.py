@@ -466,6 +466,44 @@ def test_global_filters_drop_events(
     assert outcomes[0]["reason"] == "premature-releases"
 
 
+def test_generic_filters_release_condition(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["generic"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "old-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "release",
+                    "name": "event.release",
+                    "comparator": "lt",
+                    "value": "1.10.0",
+                },
+            }
+        ],
+    }
+    relay = relay_with_processing()
+
+    relay.send_event(project_id, {"release": "myapp@1.9.0"})
+    relay.send_event(project_id, {"release": "myapp@1.10.0"})
+
+    event, _ = events_consumer.get_event()
+    assert event["release"] == "myapp@1.10.0"
+    events_consumer.assert_empty()
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["outcome"] == Outcome.FILTERED
+    assert outcomes[0]["reason"] == "old-releases"
+
+
 def profile_transaction_item():
     now = datetime.datetime.now(datetime.UTC)
     transaction = {
