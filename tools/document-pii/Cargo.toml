@@ -21,3 +21,5 @@ walkdir = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+
+[lints]

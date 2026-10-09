@@ -31,3 +31,6 @@ tokio = { workspace = true, features = [
 [[bench]]
 name = "pool"
 harness = false
+
+[lints]
+workspace = true
