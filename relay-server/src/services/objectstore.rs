@@ -306,15 +306,6 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
-    #[error("upload offset mismatch (server holds {0} bytes)")]
-    InvalidOffset(usize),
-    #[error(
-        "non-final chunk {chunk_length} is smaller than upload granularity {upload_granularity}"
-    )]
-    ChunkTooSmall {
-        chunk_length: u64,
-        upload_granularity: u64,
-    },
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -329,10 +320,14 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidScoping => "invalid_scoping",
-            Self::InvalidOffset { .. } => "invalid_offset",
-            Self::ChunkTooSmall { .. } => "chunk_too_small",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
+            Self::UploadFailed(objectstore_client::Error::UploadOffsetMismatch { .. }) => {
+                "invalid_offset"
+            }
+            Self::UploadFailed(objectstore_client::Error::ChunkTooSmall { .. }) => {
+                "chunk_too_small"
+            }
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -343,7 +338,10 @@ impl ErrorKind {
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
-            ErrorKind::InvalidOffset { .. } | ErrorKind::ChunkTooSmall { .. } => true,
+            ErrorKind::UploadFailed(
+                objectstore_client::Error::UploadOffsetMismatch { .. }
+                | objectstore_client::Error::ChunkTooSmall { .. },
+            ) => true,
             _ => false,
         }
     }
@@ -998,7 +996,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -1053,7 +1051,7 @@ impl ObjectstoreServiceInner {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         context: StreamContext,
         retention: u16,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match context {
             StreamContext::Oneshot { byte_counter, key } => {
                 let mut request = session.put_stream(body.boxed()).compress(None);
@@ -1118,55 +1116,6 @@ impl ObjectstoreServiceInner {
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)?;
         Ok(session)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum AttemptUploadError {
-    #[error(transparent)]
-    Objectstore(objectstore_client::Error),
-    #[error("upload offset mismatch (server holds {0} bytes)")]
-    InvalidOffset(usize),
-    #[error(
-        "non-final chunk {chunk_length} is smaller than upload granularity {upload_granularity}"
-    )]
-    ChunkTooSmall {
-        chunk_length: u64,
-        upload_granularity: u64,
-    },
-}
-
-impl From<AttemptUploadError> for ErrorKind {
-    fn from(value: AttemptUploadError) -> Self {
-        match value {
-            AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
-            AttemptUploadError::InvalidOffset(offset) => ErrorKind::InvalidOffset(offset),
-            AttemptUploadError::ChunkTooSmall {
-                chunk_length,
-                upload_granularity,
-            } => ErrorKind::ChunkTooSmall {
-                chunk_length,
-                upload_granularity,
-            },
-        }
-    }
-}
-
-impl From<objectstore_client::Error> for AttemptUploadError {
-    fn from(value: objectstore_client::Error) -> Self {
-        match value {
-            objectstore_client::Error::UploadOffsetMismatch { offset } => {
-                Self::InvalidOffset(offset as usize)
-            }
-            objectstore_client::Error::ChunkTooSmall {
-                chunk_length,
-                upload_granularity,
-            } => Self::ChunkTooSmall {
-                chunk_length,
-                upload_granularity,
-            },
-            error => Self::Objectstore(error),
-        }
     }
 }
 
@@ -1253,9 +1202,9 @@ enum UploadAttempt {
     },
 }
 
-fn is_retryable(error: &AttemptUploadError) -> bool {
+fn is_retryable(error: &objectstore_client::Error) -> bool {
     match error {
-        AttemptUploadError::Objectstore(objectstore_client::Error::Reqwest(error)) => {
+        objectstore_client::Error::Reqwest(error) => {
             error.is_connect()
                 || error.is_timeout()
                 || matches!(

@@ -136,11 +136,13 @@ impl IntoResponse for Error {
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
-                    objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::CONFLICT,
-                    objectstore::ErrorKind::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::UploadOffsetMismatch { .. } => {
+                            StatusCode::CONFLICT
+                        }
+                        objectstore_client::Error::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
                         objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
                             StatusCode::BAD_REQUEST
                         }
