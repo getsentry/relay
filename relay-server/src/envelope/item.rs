@@ -634,6 +634,7 @@ impl Item {
                         | AttachmentType::UnrealContext
                         | AttachmentType::UnrealLogs
                         | AttachmentType::ViewHierarchy
+                        | AttachmentType::Flamegraph
                         | AttachmentType::NvShaderDebug,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
