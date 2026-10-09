@@ -219,7 +219,7 @@ impl RateLimit {
             group_by
                 .dimensions
                 .iter()
-                .filter_map(|dim| Some((*dim, scoping.dimensions.get(dim)?.0.clone())))
+                .filter_map(|dim| Some((*dim, scoping.dimensions.get(dim)?.value.clone())))
                 .collect()
         } else {
             DimensionMap::default()

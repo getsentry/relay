@@ -146,8 +146,28 @@ pub struct ItemScoping {
 #[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub struct DimensionMap {
-    dimensions: Arc<BTreeMap<Dimension, (String, u64)>>,
+    dimensions: Arc<BTreeMap<Dimension, DimensionMapValue>>,
     hash: u64,
+}
+
+/// The value stored in the DimensionMap.
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct DimensionMapValue {
+    /// The actual string value of the dimension.
+    pub value: String,
+
+    /// The hash of both the name of the key this value corresponds to, and the value itself.
+    pub key_value_hash: u64,
+}
+
+impl DimensionMapValue {
+    fn new(value: String, key_value_hash: u64) -> Self {
+        Self {
+            value,
+            key_value_hash,
+        }
+    }
 }
 
 impl<const N: usize> From<[(Dimension, String); N]> for DimensionMap {
@@ -174,7 +194,7 @@ impl FromIterator<(Dimension, String)> for DimensionMap {
 }
 
 impl Deref for DimensionMap {
-    type Target = BTreeMap<Dimension, (String, u64)>;
+    type Target = BTreeMap<Dimension, DimensionMapValue>;
 
     fn deref(&self) -> &Self::Target {
         self.dimensions.as_ref()
@@ -213,7 +233,7 @@ impl DimensionMap {
                         let mut h = FnvHasher::with_key(0);
                         k.hash(&mut h);
                         v.hash(&mut h);
-                        (k, (v, h.finish()))
+                        (k, DimensionMapValue::new(v, h.finish()))
                     })
                     .collect(),
             ),
@@ -241,7 +261,7 @@ impl DimensionMap {
             let val = self.dimensions.get(dim)?;
             // Doing an XOR here instead of invoking another hasher for speed; see related comment
             // in DimensionMap's constructor.
-            hash ^= val.1;
+            hash ^= val.key_value_hash;
         }
 
         Some(hash)
@@ -261,7 +281,7 @@ impl DimensionMap {
         for dim in group_by.dimensions.iter() {
             if let Some((key, val)) = self.dimensions.get_key_value(dim) {
                 let mut hasher = fnv::FnvHasher::with_key(1);
-                val.hash(&mut hasher);
+                val.value.hash(&mut hasher);
                 let h = &hasher.finish();
 
                 write!(&mut result, ":{key}:{h}").expect("should be infallible");
