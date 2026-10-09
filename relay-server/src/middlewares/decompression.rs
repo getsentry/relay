@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use axum::RequestExt;
 use axum::body::Body;
 use axum::extract::{MatchedPath, Request};
 use axum::http::header;
@@ -12,31 +13,31 @@ use hyper::body::Frame;
 use tower::ServiceExt;
 use tower_http::decompression::{DecompressionBody, RequestDecompression};
 
+use crate::middlewares::metrics;
 use crate::statsd::RelayDistributions;
-
-use super::metrics::content_encoding_tag;
 
 /// Decompresses request bodies and records the ratio of bytes read after and before decompression.
 ///
 /// Use this with [`axum::middleware::from_fn`].
-pub async fn decompress(request: Request, next: Next) -> Response {
-    let matched_path = request.extensions().get::<MatchedPath>().cloned();
+pub async fn decompress(mut request: Request, next: Next) -> Response {
+    let matched_path = request.extract_parts::<MatchedPath>().await;
     let route = matched_path.as_ref().map_or("unknown", |m| m.as_str());
-    let content_encoding = content_encoding_tag(&request);
-    let compressed = Arc::new(AtomicU64::new(0));
-    let decompressed = Arc::new(AtomicU64::new(0));
+    let content_encoding = metrics::content_encoding_tag(&request);
 
-    let service =
+    let encoded_size = Arc::new(AtomicU64::new(0));
+    let request = request.map(|body| body.map_frame(count_bytes(Arc::clone(&encoded_size))));
+
+    let decoded_size = Arc::new(AtomicU64::new(0));
+    let decompression =
         RequestDecompression::new(next.map_request(|request: Request<DecompressionBody<_>>| {
-            request.map(|body| Body::new(body.map_frame(count_bytes(Arc::clone(&decompressed)))))
+            request.map(|body| Body::new(body.map_frame(count_bytes(Arc::clone(&decoded_size)))))
         }));
-    let request = request.map(|body| body.map_frame(count_bytes(Arc::clone(&compressed))));
-    let response = service.oneshot(request).await.unwrap();
+    let Ok(response) = decompression.oneshot(request).await;
 
     relay_statsd::metric!(
-        distribution(RelayDistributions::DecompressionRatio) = decompressed.load(Ordering::Relaxed)
+        distribution(RelayDistributions::DecompressionRatio) = decoded_size.load(Ordering::Relaxed)
             as f64
-            / compressed.load(Ordering::Relaxed).max(1) as f64,
+            / encoded_size.load(Ordering::Relaxed).max(1) as f64,
         route = route,
         content_encoding = content_encoding,
     );

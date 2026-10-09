@@ -62,7 +62,8 @@ pub async fn metrics(
     response
 }
 
-pub(super) fn content_encoding_tag(request: &Request) -> &'static str {
+/// Map the value of the `Content-Encoding` header to a low-cardinality tag.
+pub fn content_encoding_tag(request: &Request) -> &'static str {
     request
         .headers()
         .get(header::CONTENT_ENCODING)
