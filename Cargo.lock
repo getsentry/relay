@@ -3353,9 +3353,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28cf958783f091b9431a4a133e15d3fae26ccc125aea5706efa353e263588906"
+checksum = "f77ee71be598a956dcadf08eb1670936c25435094c40eb159070f8f9cb16af28"
 dependencies = [
  "async-compression",
  "bytes",
@@ -3376,9 +3376,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b315b6f80b640f12233bdbd98c07a8c41d1b02d1035b1a92ee60e7f10cd07db5"
+checksum = "3d249110e47d5c4bec957ec5c7beea9770c8243368e53d836f7f7e8e0908cfba"
 dependencies = [
  "base64",
  "ed25519-dalek",
