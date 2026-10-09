@@ -1138,7 +1138,12 @@ def test_oneshot_fallback(
     [pytest.param(0), pytest.param(1024)],
 )
 def test_create_granularity_header(
-    mini_sentry, relay_with_processing, project_config, granularity
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    granularity,
 ):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
@@ -1148,7 +1153,7 @@ def test_create_granularity_header(
         assert request.args["upload_type"] == "resumable"
         return {"key": key, "session": "c2Vzc2lvbg", "granularity": granularity}
 
-    relay = relay_with_processing(
+    processing_relay = relay_with_processing(
         options={
             "processing": {
                 "objectstore": {
@@ -1157,18 +1162,25 @@ def test_create_granularity_header(
             }
         }
     )
+    pop_relay = relay(processing_relay)
 
-    response = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": "11",
-        },
-    )
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    pop_relay.send_event(project_id)
+    events_consumer.get_event()
 
-    assert response.status_code == 201, response.text
-    assert "upload_id=" in response.headers["Location"]
-    if granularity > 0:
-        assert int(response.headers["Upload-Chunk-Granularity"]) == granularity
-    else:
-        assert "Upload-Chunk-Granularity" not in response.headers, response.headers
+    for target in (processing_relay, pop_relay):
+        response = target.post(
+            f"/api/{project_id}/upload/?sentry_key={project_key}",
+            headers={
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": "11",
+            },
+        )
+
+        assert response.status_code == 201, response.text
+        assert "upload_id=" in response.headers["Location"]
+        if granularity > 0:
+            assert int(response.headers["Upload-Chunk-Granularity"]) == granularity
+        else:
+            assert "Upload-Chunk-Granularity" not in response.headers, response.headers
