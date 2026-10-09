@@ -1515,6 +1515,79 @@ def test_spansv2_attribute_normalization(
     }
 
 
+def test_spansv2_description_inference_array_attribute(
+    mini_sentry,
+    relay,
+):
+    """
+    A test asserting that description inference works with array attributes.
+    """
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].update(
+        {"retentions": {"span": {"standard": 42, "downsampled": 1337}}}
+    )
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+
+    span = {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b174",
+        "is_segment": False,
+        "name": "Test span",
+        "status": "ok",
+        "attributes": {
+            "sentry.op": {"type": "string", "value": "cache.get"},
+            "cache.key": {"type": "array", "value": ["posts:123", "posts:456"]},
+        },
+    }
+
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "release": "foo@1.0",
+            "environment": "prod",
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item["attributes"] == {
+        "cache.key": {"type": "array", "value": ["posts:123", "posts:456"]},
+        "sentry.op": {"type": "string", "value": "cache.get"},
+        "sentry.category": {"type": "string", "value": "cache"},
+        "sentry.description": {
+            "type": "string",
+            "value": "posts:123, posts:456",
+        },
+        "sentry.dsc.project_id": {"type": "string", "value": "42"},
+        "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "5b8efff798038103d269b633813fc60c",
+        },
+        "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+        "sentry.observed_timestamp_nanos": {
+            "type": "string",
+            "value": time_within(ts, expect_resolution="ns"),
+        },
+        "sentry.relay.ingress": {"type": "string", "value": "container"},
+        "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+        "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+    }
+
+
 def test_invalid_spans(mini_sentry, relay):
 
     def span_id():

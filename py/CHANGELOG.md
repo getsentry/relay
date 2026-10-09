@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Add the `release` rule condition for generic inbound filters. ([#6430](https://github.com/getsentry/relay/pull/6430))
+
 ## 0.10.0
 
 - **Breaking**: Removes codeowners and glob matching, this has been moved into Ophio. ([#6447](https://github.com/getsentry/relay/pull/6447))
