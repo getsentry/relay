@@ -2,40 +2,13 @@
 
 use relay_conventions::attributes::{
     BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__EVENT__SERIALIZED_BREADCRUMBS,
-    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA, SENTRY__RELEASE,
+    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA,
+    SENTRY__EVENT__SERIALIZED_META, SENTRY__EVENT__SERIALIZED_REQUEST, SENTRY__RELEASE,
     SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
 };
-use relay_protocol::{IntoValue, Object, SerializePayload, SkipSerialization};
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use relay_protocol::{Empty, IntoValue, MetaTree};
 
-use crate::protocol::{
-    BrowserContext, ContextInner, DefaultContext, Event, ProfileContext, Span, SpanData,
-    TraceContext,
-};
-
-/// Serializes a borrowed contexts map, skipping the given key.
-struct ContextsWithout<'a> {
-    contexts: &'a Object<ContextInner>,
-    skip_key: &'a str,
-}
-
-impl Serialize for ContextsWithout<'_> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let behavior = SkipSerialization::default();
-        let mut map = serializer.serialize_map(None)?;
-        for (key, value) in self.contexts {
-            if key == self.skip_key || value.skip_serialization(behavior) {
-                continue;
-            }
-            map.serialize_entry(key, &SerializePayload(value, behavior))?;
-        }
-        map.end()
-    }
-}
+use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
@@ -52,6 +25,7 @@ impl From<&Event> for Span {
             contexts,
             breadcrumbs,
             extra,
+            request,
             measurements,
             _metrics,
             ..
@@ -99,7 +73,7 @@ impl From<&Event> for Span {
                 client_sdk.version.clone().map_value(IntoValue::into_value),
             );
         }
-        if let Some(request) = event.request.value()
+        if let Some(request) = request.value()
             && let Some(query) = request.query_string.value()
             && let Some(qs) = query.to_query_string()
         {
@@ -107,20 +81,10 @@ impl From<&Event> for Span {
             span_data.insert_value(URL__QUERY, qs);
         }
 
-        if let Some(contexts) = contexts.value() {
-            let has_other = contexts.0.iter().any(|(key, value)| {
-                key != TraceContext::default_key()
-                    && !value.skip_serialization(SkipSerialization::default())
-            });
-            if has_other {
-                let payload = ContextsWithout {
-                    contexts: &contexts.0,
-                    skip_key: TraceContext::default_key(),
-                };
-                if let Ok(json) = serde_json::to_string(&payload) {
-                    span_data.insert_value(SENTRY__EVENT__SERIALIZED_CONTEXTS, json);
-                }
-            }
+        if contexts.value().is_some_and(|c| !c.0.is_empty())
+            && let Ok(json) = contexts.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_CONTEXTS, json);
         }
         if breadcrumbs
             .value()
@@ -134,6 +98,35 @@ impl From<&Event> for Span {
             && let Ok(json) = extra.payload_to_json()
         {
             span_data.insert_value(SENTRY__EVENT__SERIALIZED_EXTRA, json);
+        }
+        if request.value().is_some_and(|r| !r.is_empty())
+            && let Ok(json) = request.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_REQUEST, json);
+        }
+
+        let mut meta = MetaTree::default();
+        let contexts_meta = IntoValue::extract_meta_tree(contexts);
+        if !contexts_meta.is_empty() {
+            meta.children.insert("contexts".to_owned(), contexts_meta);
+        }
+        let breadcrumbs_meta = IntoValue::extract_meta_tree(breadcrumbs);
+        if !breadcrumbs_meta.is_empty() {
+            meta.children
+                .insert("breadcrumbs".to_owned(), breadcrumbs_meta);
+        }
+        let extra_meta = IntoValue::extract_meta_tree(extra);
+        if !extra_meta.is_empty() {
+            meta.children.insert("extra".to_owned(), extra_meta);
+        }
+        let request_meta = IntoValue::extract_meta_tree(request);
+        if !request_meta.is_empty() {
+            meta.children.insert("request".to_owned(), request_meta);
+        }
+        if !meta.is_empty()
+            && let Ok(json) = serde_json::to_string(&meta)
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_META, json);
         }
 
         Self {
@@ -277,10 +270,13 @@ mod tests {
                         "{\"values\":[{\"type\":\"default\",\"category\":\"auth\",\"message\":\"login\"}]}",
                     ),
                     "sentry.event.serialized_contexts": String(
-                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"}}",
+                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"},\"trace\":{\"trace_id\":\"4c79f60c11214eb38604f4ae0781bfb2\",\"span_id\":\"fa90fdead5f74052\",\"parent_span_id\":\"fa90fdead5f74051\",\"op\":\"myop\",\"status\":\"ok\",\"exclusive_time\":123.4,\"origin\":\"manual\",\"data\":{\"custom_attribute\":42},\"links\":[{\"trace_id\":\"4c79f60c11214eb38604f4ae0781bfb2\",\"span_id\":\"fa90fdead5f74052\",\"sampled\":true,\"attributes\":{\"sentry.link.type\":\"previous_trace\"}}],\"type\":\"trace\"}}",
                     ),
                     "sentry.event.serialized_extra": String(
                         "{\"my_key\":1,\"some_other_value\":\"foo bar\"}",
+                    ),
+                    "sentry.event.serialized_request": String(
+                        "{\"url\":\"http://example.com/api/0/organizations/\",\"method\":\"GET\",\"query_string\":[[\"project\",\"1\"],[\"sort\",\"date\"]]}",
                     ),
                     "sentry.name": String(
                         "my 1st transaction",
@@ -366,7 +362,9 @@ mod tests {
 
         assert_eq!(
             data.get_str(SENTRY__EVENT__SERIALIZED_CONTEXTS),
-            Some(r#"{"browser":{"name":"Chrome","type":"browser"}}"#)
+            Some(
+                r#"{"browser":{"name":"Chrome","type":"browser"},"trace":{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","type":"trace"}}"#
+            )
         );
         assert_eq!(
             data.get_str(SENTRY__EVENT__SERIALIZED_BREADCRUMBS),
@@ -375,6 +373,90 @@ mod tests {
         assert_eq!(
             data.get_str(SENTRY__EVENT__SERIALIZED_EXTRA),
             Some(r#"{"my_key":1,"some_other_value":"foo bar"}"#)
+        );
+    }
+
+    #[test]
+    fn convert_preserves_request() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "request": {
+                    "url": "https://example.com/api/",
+                    "method": "POST",
+                    "data": {"answer": 42},
+                    "query_string": "project=1",
+                    "headers": {"content-type": "application/json"},
+                    "custom": "value"
+                },
+                "_meta": {
+                    "request": {"url": {"": {"len": 100}}}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_REQUEST),
+            Some(
+                r#"{"url":"https://example.com/api/","method":"POST","data":{"answer":42},"query_string":[["project","1"]],"headers":[["Content-Type","application/json"]],"custom":"value"}"#
+            )
+        );
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_META),
+            Some(r#"{"request":{"url":{"":{"len":100}}}}"#)
+        );
+    }
+
+    #[test]
+    fn convert_omits_absent_or_empty_request() {
+        for json in [
+            r#"{"type":"transaction"}"#,
+            r#"{"type":"transaction","request":null}"#,
+            r#"{"type":"transaction","request":{}}"#,
+        ] {
+            let event = Annotated::<Event>::from_json(json)
+                .unwrap()
+                .into_value()
+                .unwrap();
+
+            let span = Span::from(&event);
+            let data = span.data.value().unwrap();
+
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_REQUEST));
+        }
+    }
+
+    #[test]
+    fn convert_preserves_trace_only_contexts() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_CONTEXTS),
+            Some(
+                r#"{"trace":{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","type":"trace"}}"#
+            )
         );
     }
 
@@ -421,5 +503,126 @@ mod tests {
             assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
             assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
         }
+    }
+
+    #[test]
+    fn convert_preserves_meta() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"},
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": "[Filtered]"
+                },
+                "request": {
+                    "data": {"note": "[Filtered]"}
+                },
+                "_meta": {
+                    "contexts": {
+                        "browser": {
+                            "name": {"": {"rem": [["browser_rule", "s"]]}}
+                        },
+                        "trace": {
+                            "trace_id": {"": {"rem": [["trace_rule", "s"]]}}
+                        }
+                    },
+                    "breadcrumbs": {
+                        "0": {
+                            "message": {"": {"rem": [["breadcrumb_rule", "s"]]}}
+                        }
+                    },
+                    "extra": {
+                        "my_key": {"": {"rem": [["extra_rule", "s", 0, 10]]}}
+                    },
+                    "request": {
+                        "data": {
+                            "note": {"": {"rem": [["request_rule", "s"]]}}
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        let meta = data.get_str(SENTRY__EVENT__SERIALIZED_META).unwrap();
+
+        assert_eq!(
+            meta,
+            r#"{"breadcrumbs":{"values":{"0":{"message":{"":{"rem":[["breadcrumb_rule","s"]]}}}}},"contexts":{"browser":{"name":{"":{"rem":[["browser_rule","s"]]}}},"trace":{"trace_id":{"":{"rem":[["trace_rule","s"]]}}}},"extra":{"my_key":{"":{"rem":[["extra_rule","s",0,10]]}}},"request":{"data":{"note":{"":{"rem":[["request_rule","s"]]}}}}}"#
+        );
+    }
+
+    #[test]
+    fn convert_omits_meta_when_absent() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"}
+                },
+                "extra": {
+                    "my_key": 1
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_META));
+        }
+    }
+
+    #[test]
+    fn convert_preserves_meta_when_only_trace_context_has_meta() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "_meta": {
+                    "contexts": {
+                        "trace": {
+                            "trace_id": {"": {"rem": [["trace_rule", "s"]]}}
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_META),
+            Some(r#"{"contexts":{"trace":{"trace_id":{"":{"rem":[["trace_rule","s"]]}}}}}"#)
+        );
     }
 }
