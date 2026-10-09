@@ -1,15 +1,15 @@
 //! Contains helper function for Integrity reports.
 
 use chrono::{DateTime, Duration, Utc};
+use relay_conventions::attributes::{
+    BROWSER__REPORT__TYPE, INTEGRITY__BLOCKED_URL, INTEGRITY__DESTINATION, INTEGRITY__DOCUMENT_URL,
+    INTEGRITY__REPORT_ONLY, SENTRY__ORIGIN, URL__DOMAIN, URL__FULL,
+};
 use relay_event_schema::protocol::{
     Attributes, IntegrityBodyRaw, IntegrityReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::Annotated;
 use url::Url;
-use relay_conventions::attributes::{
-    BROWSER__REPORT__TYPE, INTEGRITY__BLOCKED_URL, INTEGRITY__DESTINATION,
-    INTEGRITY__DOCUMENT_URL, INTEGRITY__REPORT_ONLY, SENTRY__ORIGIN, URL__DOMAIN, URL__FULL,
-};
 
 /// Extracts the domain or IP address from a server address string.
 ///
@@ -81,7 +81,7 @@ pub fn create_log_with_trace_id(
             }
         }};
     }
-    
+
     macro_rules! add_string_attribute {
         ($name:expr, $value:expr) => {{
             let val = $value.to_string();
@@ -91,22 +91,16 @@ pub fn create_log_with_trace_id(
         }};
     }
 
-    add_string_attribute!(
-        SENTRY__ORIGIN,
-        "auto.http.browser_report.integrity"
-    );
-    add_string_attribute!(
-        BROWSER__REPORT__TYPE,
-        "integrity-violation"
-    );
-    
+    add_string_attribute!(SENTRY__ORIGIN, "auto.http.browser_report.integrity");
+    add_string_attribute!(BROWSER__REPORT__TYPE, "integrity-violation");
+
     if let Some(url_str) = raw_report.url.value() {
         let url_domain = extract_server_address(url_str);
         add_string_attribute!(URL__DOMAIN, &url_domain);
     }
-    
+
     add_attribute!(URL__FULL, raw_report.url);
-    
+
     add_attribute!(INTEGRITY__DOCUMENT_URL, body.document_url);
     add_attribute!(INTEGRITY__BLOCKED_URL, body.blocked_url);
     add_attribute!(INTEGRITY__DESTINATION, body.destination);
@@ -180,8 +174,7 @@ mod tests {
             .unwrap()
             .with_timezone(&Utc);
 
-        let fixed_trace_id: TraceId =
-            "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let fixed_trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
 
         let log = create_log_with_trace_id(
             Annotated::new(make_report(false)),
@@ -190,9 +183,7 @@ mod tests {
         )
         .unwrap();
 
-        insta::assert_json_snapshot!(
-            SerializableAnnotated(&Annotated::new(log))
-        );
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
     }
 
     #[test]
@@ -201,8 +192,7 @@ mod tests {
             .unwrap()
             .with_timezone(&Utc);
 
-        let fixed_trace_id: TraceId =
-            "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let fixed_trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
 
         let log = create_log_with_trace_id(
             Annotated::new(make_report(true)),
@@ -211,9 +201,7 @@ mod tests {
         )
         .unwrap();
 
-        insta::assert_json_snapshot!(
-            SerializableAnnotated(&Annotated::new(log))
-        );
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
     }
 
     #[test]
