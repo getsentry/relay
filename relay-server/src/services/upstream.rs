@@ -242,11 +242,7 @@ impl IntoResponse for UpstreamRequestError {
 /// to the incoming request (client-side), not the outgoing upstream request.
 fn treat_as_network_error(e: &reqwest::Error) -> bool {
     // NOTE: there's probably more exceptions but this is the one we know about.
-    if find_error_source(e, is_length_limit_error).is_some() {
-        return false;
-    }
-
-    true
+    find_error_source(e, is_length_limit_error).is_none()
 }
 
 /// Checks the authentication state with the upstream.
