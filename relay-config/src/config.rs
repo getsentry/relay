@@ -1588,6 +1588,14 @@ pub struct Health {
     /// The implementation of memory stats guarantees that the refresh will happen at
     /// least every `x` ms since memory readings are lazy and are updated only if needed.
     pub memory_stat_refresh_frequency_ms: u64,
+    /// Whether to emit `invalid` outcomes when rejecting envelopes due to memory
+    /// exhaustion.
+    ///
+    /// Emitting these outcomes can create a misleading impression that the data has
+    /// been lost, for instance if the sender retries the request.
+    ///
+    /// Defaults to `true`.
+    pub memory_exhaustion_emit_invalid_outcomes: bool,
 }
 
 impl Default for Health {
@@ -1598,6 +1606,7 @@ impl Default for Health {
             max_memory_percent: 0.95,
             probe_timeout_ms: 900,
             memory_stat_refresh_frequency_ms: 100,
+            memory_exhaustion_emit_invalid_outcomes: true,
         }
     }
 }
@@ -2905,6 +2914,14 @@ impl ConfigSnapshot {
     /// Health check probe timeout.
     pub fn health_probe_timeout(&self) -> Duration {
         Duration::from_millis(self.inner.values.health.probe_timeout_ms)
+    }
+
+    /// Whether to emit `invalid` outcomes on memory exhaustion.
+    pub fn health_memory_exhaustion_emit_invalid_outcomes(&self) -> bool {
+        self.inner
+            .values
+            .health
+            .memory_exhaustion_emit_invalid_outcomes
     }
 
     /// Refresh frequency for polling new memory stats.
