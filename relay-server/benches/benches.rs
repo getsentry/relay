@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use relay_base_schema::project::ProjectKey;
 use relay_server::{
     Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
-    SqliteEnvelopeStack, SqliteEnvelopeStackConfig, SqliteEnvelopeStore,
+    SqliteEnvelopeStack, SqliteEnvelopeStackConfig, SqliteEnvelopeStore, Throttle,
 };
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
@@ -101,7 +101,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                     partition_id: 0,
                                     batch_size_bytes: disk_batch_size,
                                     flush_timeout: None,
-                                    unspool_throttle: None,
+                                    unspool_throttle: Arc::new(Throttle::new(None)),
                                 },
                                 envelope_store.clone(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -142,7 +142,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                         partition_id: 0,
                                         batch_size_bytes: disk_batch_size,
                                         flush_timeout: None,
-                                        unspool_throttle: None,
+                                        unspool_throttle: Arc::new(Throttle::new(None)),
                                     },
                                     envelope_store.clone(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -187,7 +187,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                     partition_id: 0,
                                     batch_size_bytes: disk_batch_size,
                                     flush_timeout: None,
-                                    unspool_throttle: None,
+                                    unspool_throttle: Arc::new(Throttle::new(None)),
                                 },
                                 envelope_store.clone(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -277,7 +277,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
-                        None,
+                        Arc::new(Throttle::new(None)),
                     )
                     .await
                     .unwrap();
@@ -313,7 +313,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
-                        None,
+                        Arc::new(Throttle::new(None)),
                     )
                     .await
                     .unwrap();

@@ -3,7 +3,7 @@ use chrono::Utc;
 use clap::{Parser, ValueEnum};
 use rand::RngCore;
 use relay_config::Config;
-use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
+use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer, Throttle};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -81,9 +81,13 @@ async fn main() {
     );
 
     let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-    let buffer = PolymorphicEnvelopeBuffer::from_config(0, &config.current(), memory_checker, None)
-        .await
-        .unwrap();
+    let throttle = Arc::new(Throttle::new(
+        config.current().spool_max_unspool_envelopes_per_second(),
+    ));
+    let buffer =
+        PolymorphicEnvelopeBuffer::from_config(0, &config.current(), memory_checker, throttle)
+            .await
+            .unwrap();
 
     match mode {
         Mode::Sequential => {
