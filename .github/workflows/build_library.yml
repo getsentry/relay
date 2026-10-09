@@ -67,7 +67,7 @@ jobs:
             py-platform: macosx-14_0_arm64
 
     name: Python macOS ${{ matrix.py-platform }}
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v7.0.1
