@@ -27,6 +27,7 @@
 - Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
 - Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
 - Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
+- Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 
 **Bug Fixes**:
 
@@ -40,6 +41,7 @@
 - Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
 - Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
+- Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 
 **Internal**:
 
