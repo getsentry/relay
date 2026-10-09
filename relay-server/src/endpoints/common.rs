@@ -432,14 +432,18 @@ pub async fn handle_managed_envelope(
 ) -> Result<HandledEnvelope, Rejected<BadStoreRequest>> {
     emit_envelope_metrics(&envelope);
 
+    let config = state.config();
+
+    let outcome = config
+        .health_memory_exhaustion_emit_invalid_outcomes()
+        .then_some(Outcome::Invalid(DiscardReason::Internal));
+
     if state.memory_checker().check_memory().is_exceeded() {
         return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::Internal),
+            outcome,
             BadStoreRequest::QueueFailed(PushError::OutOfMemory),
         )));
     };
-
-    let config = state.config();
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
