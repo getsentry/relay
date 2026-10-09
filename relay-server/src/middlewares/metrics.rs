@@ -62,7 +62,7 @@ pub async fn metrics(
     response
 }
 
-fn content_encoding_tag(request: &Request) -> &str {
+pub(super) fn content_encoding_tag(request: &Request) -> &'static str {
     request
         .headers()
         .get(header::CONTENT_ENCODING)
