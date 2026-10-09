@@ -11,8 +11,8 @@ use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
-    Client, ExpirationPolicy, ResumableUpload, SecretKey as SigningKey, Session, SessionToken,
-    TokenGenerator, UploadProgress, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, SessionToken, TokenGenerator,
+    UploadProgress, Usecase,
 };
 
 use objectstore_types::resumable::InvalidSessionToken;
@@ -48,7 +48,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(Create, Sender<Result<CreateResult, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
 }
 
@@ -149,9 +149,9 @@ pub struct Create {
 }
 
 impl FromMessage<Create> for Objectstore {
-    type Response = AsyncResponse<Result<UploadRef, Error>>;
+    type Response = AsyncResponse<Result<CreateResult, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: Create, sender: Sender<Result<CreateResult, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -306,10 +306,6 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -324,10 +320,14 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidScoping => "invalid_scoping",
-            Self::InvalidOffset { .. } => "invalid_offset",
-            Self::UploadCompleted => "upload_completed",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
+            Self::UploadFailed(objectstore_client::Error::UploadOffsetMismatch { .. }) => {
+                "invalid_offset"
+            }
+            Self::UploadFailed(objectstore_client::Error::ChunkTooSmall { .. }) => {
+                "chunk_too_small"
+            }
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -338,7 +338,10 @@ impl ErrorKind {
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
-            ErrorKind::InvalidOffset { .. } | ErrorKind::UploadCompleted => true,
+            ErrorKind::UploadFailed(
+                objectstore_client::Error::UploadOffsetMismatch { .. }
+                | objectstore_client::Error::ChunkTooSmall { .. },
+            ) => true,
             _ => false,
         }
     }
@@ -361,6 +364,14 @@ impl ObjectstoreKey {
     pub fn into_inner(self) -> String {
         self.0
     }
+}
+
+/// Response to a [`Create`] message.
+pub struct CreateResult {
+    /// Identifier for the existing upload.
+    pub upload_ref: UploadRef,
+    /// Chunk granularity required by objectstore, if any.
+    pub granularity: Option<usize>,
 }
 
 /// Identifier needed to resume an existing upload.
@@ -845,7 +856,7 @@ impl ObjectstoreServiceInner {
         Ok(Some(stored_key))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
+    async fn handle_create(&self, create: Create) -> Result<CreateResult, Error> {
         let Create {
             organization_id,
             project_id,
@@ -854,20 +865,30 @@ impl ObjectstoreServiceInner {
             retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        let session_token = session
+        let resumable_upload = session
             .create_upload(upload_length as u64)
             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                 u64::from(retention) * 24,
             )))
             .key(&key)
             .send()
-            .await?
-            .map(|upload| upload.token().to_owned());
+            .await?;
 
-        Ok(UploadRef {
-            key,
-            session_token,
-            offset: 0,
+        let (session_token, granularity) = match resumable_upload {
+            Some(upload) => (
+                Some(upload.token().to_owned()),
+                upload.granularity().filter(|g| *g > 0).map(|g| g as usize),
+            ),
+            None => (None, None),
+        };
+
+        Ok(CreateResult {
+            upload_ref: UploadRef {
+                key,
+                session_token,
+                offset: 0,
+            },
+            granularity,
         })
     }
 
@@ -975,7 +996,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -1030,7 +1051,7 @@ impl ObjectstoreServiceInner {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         context: StreamContext,
         retention: u16,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match context {
             StreamContext::Oneshot { byte_counter, key } => {
                 let mut request = session.put_stream(body.boxed()).compress(None);
@@ -1060,7 +1081,6 @@ impl ObjectstoreServiceInner {
                 total_length,
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
-                let offset = Self::verify_offset(offset, &resumable_upload).await?;
 
                 let progress = resumable_upload
                     .put_stream(offset as u64, chunk_length as u64, body.boxed())
@@ -1083,30 +1103,6 @@ impl ObjectstoreServiceInner {
         }
     }
 
-    /// Verify the client offset against objectstore.
-    ///
-    /// Returns an error if the offset is wrong (including when the upload is already done).
-    async fn verify_offset(
-        client_offset: usize,
-        resumable_upload: &ResumableUpload,
-    ) -> Result<usize, AttemptUploadError> {
-        let progress = resumable_upload.progress().send().await?;
-
-        match progress {
-            UploadProgress::Incomplete { offset } => {
-                if offset == client_offset as u64 {
-                    Ok(client_offset)
-                } else {
-                    Err(AttemptUploadError::InvalidOffset {
-                        client_offset,
-                        offset: offset as usize,
-                    })
-                }
-            }
-            UploadProgress::Complete => Err(AttemptUploadError::UploadCompleted),
-        }
-    }
-
     fn session(
         &self,
         usecase: &Usecase,
@@ -1120,32 +1116,6 @@ impl ObjectstoreServiceInner {
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)?;
         Ok(session)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum AttemptUploadError {
-    #[error(transparent)]
-    Objectstore(#[from] objectstore_client::Error),
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
-}
-
-impl From<AttemptUploadError> for ErrorKind {
-    fn from(value: AttemptUploadError) -> Self {
-        match value {
-            AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
-            AttemptUploadError::InvalidOffset {
-                client_offset,
-                offset,
-            } => ErrorKind::InvalidOffset {
-                client_offset,
-                offset,
-            },
-            AttemptUploadError::UploadCompleted => ErrorKind::UploadCompleted,
-        }
     }
 }
 
@@ -1232,9 +1202,9 @@ enum UploadAttempt {
     },
 }
 
-fn is_retryable(error: &AttemptUploadError) -> bool {
+fn is_retryable(error: &objectstore_client::Error) -> bool {
     match error {
-        AttemptUploadError::Objectstore(objectstore_client::Error::Reqwest(error)) => {
+        objectstore_client::Error::Reqwest(error) => {
             error.is_connect()
                 || error.is_timeout()
                 || matches!(

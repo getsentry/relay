@@ -32,8 +32,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, LocationKind, LocationQueryParams, ProjectContext, Provisional,
-    SignedLocation, StreamResult, UploadMode,
+    self, ByteStream, CreateResult, LocationKind, LocationQueryParams, ProjectContext, Provisional,
+    SignedLocation, StreamResult, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -42,6 +42,8 @@ use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
 /// Header advertising the maximum/recommended chunk size to clients.
+///
+/// Sentry-specific extension to the TUS upload protocol.
 pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
 
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
@@ -100,7 +102,8 @@ impl IntoResponse for Error {
         let status = match self {
             Error::Tus(error) => return error.into_response(),
             Error::InvalidOffset { .. } => StatusCode::CONFLICT,
-            Error::MissingLength | Error::ChunkTooLarge { .. } => StatusCode::BAD_REQUEST,
+            Error::MissingLength => StatusCode::BAD_REQUEST,
+            Error::ChunkTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -133,12 +136,13 @@ impl IntoResponse for Error {
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
-                    objectstore::ErrorKind::InvalidOffset { .. }
-                    | objectstore::ErrorKind::UploadCompleted => StatusCode::CONFLICT,
-
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::UploadOffsetMismatch { .. } => {
+                            StatusCode::CONFLICT
+                        }
+                        objectstore_client::Error::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
                         objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
                             StatusCode::BAD_REQUEST
                         }
@@ -216,7 +220,10 @@ async fn handle_post(
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
     let result = create(&state, project_context, &headers).await;
-    let location = result.inspect_err(|e| {
+    let CreateResult {
+        location,
+        granularity,
+    } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
 
@@ -229,6 +236,11 @@ async fn handle_post(
         response
             .headers_mut()
             .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+    }
+    if let Some(granularity) = granularity {
+        response
+            .headers_mut()
+            .insert(UPLOAD_CHUNK_GRANULARITY, granularity.into());
     }
 
     Ok(response)
@@ -346,8 +358,8 @@ async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::PostHeaders,
-) -> Result<SignedLocation<Provisional>, Error> {
-    let location = state
+) -> Result<CreateResult, Error> {
+    let result = state
         .upload()
         .send(upload::Create {
             project,
@@ -356,7 +368,7 @@ async fn create(
         })
         .await??;
 
-    Ok(location)
+    Ok(result)
 }
 
 async fn upload(
