@@ -1,6 +1,5 @@
+use relay_quotas::{DimensionMap, ItemScoping, Quota, RateLimits};
 use std::fmt;
-
-use relay_quotas::{ItemScoping, Quota, RateLimits};
 
 use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
@@ -146,6 +145,10 @@ where
 /// if any category has rate limits enforced the implementation will reject the entire item.
 pub trait CountRateLimited {
     type Error: From<RateLimits> + OutcomeError;
+
+    fn dimensions(&self) -> Option<DimensionMap> {
+        None
+    }
 }
 
 impl<T> RateLimited for Managed<T>
@@ -165,11 +168,16 @@ where
         R: RateLimiter,
     {
         let scoping = self.scoping();
+        let dims = &self.dimensions();
 
         for (category, quantity) in self.quantities() {
-            let limits = rate_limiter
-                .try_consume(&scoping.item(category), quantity)
-                .await;
+            let scope = if let Some(dimensions) = dims {
+                scoping.item_with_dimensions(category, dimensions.clone())
+            } else {
+                scoping.item(category)
+            };
+
+            let limits = rate_limiter.try_consume(&scope, quantity).await;
 
             if !limits.is_empty() {
                 let error = <Managed<T> as CountRateLimited>::Error::from(limits);
@@ -223,7 +231,10 @@ mod redis {
                 // this means even with a failing Redis instance no items will be dropped.
                 .unwrap_or_default();
 
-            self.limits.merge(limits.clone());
+            // Only limits which apply to the whole scope may be retained--not dimensioned limits.
+            // Rate limits don't yet understand dimensioned quantities, and so we must not merge
+            // them.
+            self.limits.merge(limits.cacheable());
             limits
         }
     }

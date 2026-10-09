@@ -76,6 +76,16 @@ pub struct Frame {
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub filename: Annotated<NativeImagePath>,
 
+    /// The revision of the frame's file on a source server.
+    ///
+    /// This is only relevant for frames symbolicated with source
+    /// server information available, cf. <https://github.com/getsentry/symbolicator/pull/2071>.
+    ///
+    /// The meaning of this field depends on the version control system
+    /// used by the source server.
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    pub file_revision: Annotated<String>,
+
     /// Absolute path to the source file.
     #[metastructure(max_chars = 256, max_chars_allowance = 40)]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
@@ -531,6 +541,7 @@ mod tests {
   "module": "app",
   "package": "/my/app",
   "filename": "myfile.rs",
+  "file_revision": "12345",
   "abs_path": "/path/to",
   "lineno": 2,
   "colno": 42,
@@ -572,6 +583,7 @@ mod tests {
             module: Annotated::new("app".to_owned()),
             package: Annotated::new("/my/app".to_owned()),
             filename: Annotated::new("myfile.rs".into()),
+            file_revision: Annotated::new("12345".into()),
             abs_path: Annotated::new("/path/to".into()),
             lineno: Annotated::new(2),
             colno: Annotated::new(42),

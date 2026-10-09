@@ -539,19 +539,10 @@ fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
         // Can't do an explicit len compare first here `literal.len() == haystack.len()`,
         // the amount of characters can change when converting case.
-        let mut literal = literal.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (literal.next(), haystack.next()) {
-                // Both iterators exhausted -> literal matches.
-                (None, None) => break true,
-                // Either iterator exhausted while the other one is not -> no match.
-                (None, _) | (_, None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+        //
+        // The literal matches if the prefix match consumes the entire haystack.
+        wildmatch::is_prefix_case_insensitive(haystack, literal)
+            .is_some_and(|len| len == haystack.len())
     } else {
         literal.as_case_converted_str() == haystack
     }
@@ -560,19 +551,7 @@ fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
 #[inline(always)]
 fn match_prefix(prefix: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
-        let mut prefix = prefix.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (prefix.next(), haystack.next()) {
-                // If the prefix is exhausted it matched.
-                (None, _) => break true,
-                // If the haystack is exhausted, but the pattern is not -> no match.
-                (Some(_), None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+        wildmatch::is_prefix_case_insensitive(haystack, prefix).is_some()
     } else {
         haystack.starts_with(prefix.as_case_converted_str())
     }
@@ -862,9 +841,19 @@ impl Tokens {
         match (self.0.last_mut(), token) {
             // Collapse Any's.
             (Some(Token::Any(n)), Token::Any(n2)) => *n = n.saturating_add(n2.get()),
-            // We can collapse multiple wildcards into a single one.
+            // Collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             (Some(Token::Wildcard), Token::Wildcard) => {}
+            // Collapse wildcards with optionals.
+            (Some(Token::Wildcard), Token::Optional(_) | Token::OptionalAlternates(_)) => {}
+            (Some(Token::Optional(_) | Token::OptionalAlternates(_)), Token::Wildcard) => {
+                self.0.pop();
+                // We can now also remove all other preceding optionals.
+                while let Some(Token::Optional(_) | Token::OptionalAlternates(_)) = self.0.last() {
+                    self.0.pop();
+                }
+                self.0.push(Token::Wildcard);
+            }
             // Collapse multiple literals into one.
             (Some(Token::Literal(last)), Token::Literal(s)) => last.push(&s),
             // Ignore empty class tokens.
@@ -1303,6 +1292,17 @@ mod tests {
         assert_pattern!("fOo", "Foo", i);
         assert_pattern!("İ", "i\u{307}", i);
         assert_pattern!("İ", "i̇", i);
+        assert_pattern!("İ", NOT "i", i);
+        assert_pattern!("i", NOT "İ", i);
+        assert_pattern!("kelvin", "\u{212A}elvin", i);
+        assert_pattern!("\u{212A}elvin", "kelvin", i);
+        assert_pattern!("ß", "ẞ", i);
+        assert_pattern!("straße", "straẞe", i);
+        assert_pattern!("strasse", NOT "straẞe", i);
+        assert_pattern!("ΑΣ", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ", "ας", i);
+        assert_pattern!("ΑΣ", NOT "ασ", i);
+        assert_pattern!("ασ", "ΑΣ", i);
     }
 
     #[test]
@@ -1357,6 +1357,13 @@ mod tests {
         assert_pattern!("İ*", "i̇", i);
         assert_pattern!("İ*", "i\u{307}___", i);
         assert_pattern!("İ*", NOT "i____", i);
+
+        assert_pattern!("kelvin*", "\u{212A}elvin___", i);
+        assert_pattern!("\u{212A}elvin*", "kelvin___", i);
+        assert_pattern!("ΑΣ*", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ*", "ας___", i);
+        assert_pattern!("ΑΣ*", NOT "ασ___", i);
+        assert_pattern!("ασ*", "ΑΣ___", i);
     }
 
     #[test]
@@ -1901,12 +1908,57 @@ mod tests {
     }
 
     #[test]
+    fn test_alternates_optional() {
+        assert_pattern!("{a,}{b,}", "ab");
+        assert_pattern!("{a,}{b,}", "a");
+        assert_pattern!("{a,}{b,}", "b");
+        assert_pattern!("{a,}{b,}", "");
+        assert_pattern!("{a,b,}{c,}", "ac");
+        assert_pattern!("{a,b,}{c,}", "bc");
+        assert_pattern!("{a,b,}{c,}", "a");
+        assert_pattern!("{a,b,}{c,}", "b");
+        assert_pattern!("{a,b,}{c,}", "c");
+        assert_pattern!("{a,b,}{c,}", "");
+        assert_pattern!("{a,b,}{c,}", NOT "ab");
+        assert_pattern!("{a,b,}{c,}", NOT "abc");
+    }
+
+    #[test]
     fn test_alternate_strategy() {
         // Empty alternates can be simplified.
         assert_strategy!("{}foo{}", Literal);
         assert_strategy!("foo{}bar", Literal);
         assert_strategy!("foo{}{}{}bar", Literal);
         assert_strategy!("foo{,,,}bar", Literal);
+    }
+
+    #[test]
+    fn test_optional_wildcard_strategy() {
+        // Optional alternates after a wildcard can be folded into a wildcard.
+        assert_strategy!("*{foo,}", Static);
+        assert_strategy!("*{foo,bar,}", Static);
+        assert_strategy!("foo*{bar,}", Prefix);
+        assert_strategy!("foo*{bar,baz,}", Prefix);
+        assert_strategy!("*{foo,}bar", Suffix);
+        assert_strategy!("*{foo,baz,}bar", Suffix);
+        assert_strategy!("*{bar,}foo*", Contains);
+        assert_strategy!("*{bar,baz,}foo*", Contains);
+
+        // The same is true for the inverse, we can fold alterantes followed by a wildcard into a wildcard.
+        assert_strategy!("{foo,}*", Static);
+        assert_strategy!("{foo,bar,}*", Static);
+        assert_strategy!("foo{bar,}*", Prefix);
+        assert_strategy!("foo{bar,baz,}*", Prefix);
+        assert_strategy!("{foo,}*bar", Suffix);
+        assert_strategy!("{foo,baz,}*bar", Suffix);
+        assert_strategy!("*foo{bar,}*", Contains);
+        assert_strategy!("*foo{bar,baz,}*", Contains);
+
+        // This also applies for multiple chained alternates.
+        assert_strategy!("*{bar,}{baz,qux,}foo", Suffix);
+        assert_strategy!("{*,bar}{baz,qux,}foo", Suffix);
+        assert_strategy!("foo{bar,}{baz,qux,}*", Prefix);
+        assert_strategy!("foo{bar,}{baz,qux,}{bar,*}", Prefix);
     }
 
     #[test]

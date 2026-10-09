@@ -56,7 +56,7 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
         let location = signed_location
             .verify(chrono::Utc::now(), config)
             .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
-        let signed_length = location.length.into_inner();
+        let signed_length = location.kind.length;
 
         match item.attachment_body_size() == signed_length {
             true => Ok(()),

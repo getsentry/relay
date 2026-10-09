@@ -702,8 +702,7 @@ impl EnvelopeProcessorService {
                 }
 
                 if let Some(output) = main {
-                    // Only counting processing time for COGS at the moment.
-                    self.submit_upstream(&mut Token::noop(), output, ctx);
+                    self.submit_upstream(output, ctx);
                 }
 
                 if let Some(intermediates) = intermediates {
@@ -818,14 +817,7 @@ impl EnvelopeProcessorService {
     /// Submits a processor [`Output`] to the appropriate upstream.
     ///
     /// If processing is enabled, the upstream is Kafka.
-    fn submit_upstream(
-        &self,
-        cogs: &mut Token,
-        output: Outputs,
-        ctx: processing::ForwardContext<'_>,
-    ) {
-        let _submit = cogs.start_category("submit");
-
+    fn submit_upstream(&self, output: Outputs, ctx: processing::ForwardContext<'_>) {
         #[cfg(feature = "processing")]
         if ctx.config.processing_enabled()
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
@@ -1237,11 +1229,11 @@ impl EnvelopeProcessorService {
             );
 
             let mut num_batches = 0;
-            for batch in BucketsView::from(buckets).by_size(batch_size) {
+            for buckets in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(crate::metrics::extract_quantities(batch));
+                item.set_source_quantities(crate::metrics::extract_quantities(buckets));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
@@ -1252,7 +1244,7 @@ impl EnvelopeProcessorService {
                     .scope(*scoping);
 
                 relay_statsd::metric!(
-                    distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
+                    distribution(RelayDistributions::BucketsPerBatch) = buckets.len() as u64
                 );
 
                 self.submit_envelope_upstream(envelope, &config, project_info.upstream.clone());
@@ -1888,6 +1880,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         }
     }
 
@@ -1940,6 +1933,7 @@ mod tests {
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
                     namespace: None,
+                    group_by: None,
                 };
 
                 let mut config = ProjectConfig::default();

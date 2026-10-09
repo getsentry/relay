@@ -23,6 +23,7 @@ use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::{EventId, TraceId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
@@ -228,7 +229,7 @@ pub fn routing_hint(check_in: &CheckIn, project_id: &ProjectId) -> Uuid {
     // We translate empty environments to `production`. This needs to be consistent here or we can
     // end up with checkins for the same monitor/env routed to different partitions.
 
-    let slug = &check_in.monitor_slug;
+    let slug = slugify_monitor_slug(&check_in.monitor_slug);
     let environment = match check_in.environment.as_deref() {
         Some(environment) if !environment.is_empty() => environment,
         _ => "production",
@@ -236,6 +237,36 @@ pub fn routing_hint(check_in: &CheckIn, project_id: &ProjectId) -> Uuid {
     let routing_key = format!("{project_id}:{slug}:{environment}");
 
     Uuid::new_v5(namespace, routing_key.as_bytes())
+}
+
+/// Slugifies the monitor slug in the same way as Sentry.
+///
+/// Keep this in sync with `slugify_monitor_slug` in Sentry, which applies Django's `slugify`,
+/// truncates to 50 characters and strips `-`:
+/// <https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/types.py>
+pub fn slugify_monitor_slug(slug: &str) -> String {
+    // Python's `\s` for ASCII, which also matches the separators `\x1c` to `\x1f`.
+    fn is_space(c: char) -> bool {
+        matches!(c, '\t'..='\r' | '\x1c'..='\x1f' | ' ')
+    }
+
+    let mut slugified = String::with_capacity(slug.len());
+    let mut in_separator = false;
+    for c in slug.nfkd().filter(char::is_ascii) {
+        if c == '-' || is_space(c) {
+            if !in_separator {
+                slugified.push('-');
+                in_separator = true;
+            }
+        } else if c.is_ascii_alphanumeric() || c == '_' {
+            slugified.push(c.to_ascii_lowercase());
+            in_separator = false;
+        }
+    }
+
+    let mut slugified = slugified.trim_matches(['-', '_']).to_owned();
+    slugified.truncate(SLUG_LENGTH);
+    slugified.trim_end_matches('-').to_owned()
 }
 
 fn trim_slug(slug: &mut String) {
@@ -249,6 +280,56 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn slugify_matches_sentry() {
+        // Expected values come from Sentry's `slugify_monitor_slug`.
+        let long_hyphen = format!("{}-b", "a".repeat(49));
+        let long_underscore = format!("{}_b", "a".repeat(49));
+        let cases = [
+            ("my-monitor", "my-monitor"),
+            ("My Monitor", "my-monitor"),
+            ("MyJob", "myjob"),
+            ("my_job", "my_job"),
+            ("  leading and trailing  ", "leading-and-trailing"),
+            ("a - ! - b", "a-b"),
+            ("--a--b--", "a-b"),
+            ("_-_a_-_", "a"),
+            ("a\tb\nc", "a-b-c"),
+            ("a\x1cb", "a-b"),
+            ("Café Crème", "cafe-creme"),
+            ("straße", "strae"),
+            ("🦀 crab job", "crab-job"),
+            ("🦀🦀", ""),
+            ("日本語", ""),
+            ("ﬁle", "file"),
+            ("Hello, World!", "hello-world"),
+            ("a.b.c", "abc"),
+            ("ÀÉÎÕÜ", "aeiou"),
+            (&long_hyphen, &"a".repeat(49)),
+            (&long_underscore, &format!("{}_", "a".repeat(49))),
+            (&"x".repeat(60), &"x".repeat(50)),
+            ("-", ""),
+            ("", ""),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(slugify_monitor_slug(input), expected, "input: {input:?}");
+        }
+    }
+
+    #[test]
+    fn routing_hint_uses_slugified_slug() {
+        let check_in = |slug: &str| {
+            let json = format!(r#"{{"monitor_slug":"{slug}","status":"ok"}}"#);
+            serde_json::from_str::<CheckIn>(&json).unwrap()
+        };
+
+        assert_eq!(
+            routing_hint(&check_in("My Job"), &ProjectId::new(1)),
+            routing_hint(&check_in("my-job"), &ProjectId::new(1)),
+        );
+    }
 
     #[test]
     fn truncate_basic() {

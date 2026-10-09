@@ -211,7 +211,7 @@ mod tests {
     use std::collections::HashMap;
 
     use phf::phf_map;
-    use relay_protocol::{Getter, Val};
+    use relay_protocol::{Annotated, Value};
 
     use super::*;
 
@@ -294,14 +294,6 @@ mod tests {
         assert_eq!(ROOT.find("<key>.bar"), Some((&2, Some("<key>"))));
     }
 
-    struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
-
-    impl Getter for GetterMap<'_> {
-        fn get_value(&self, path: &str) -> Option<Val<'_>> {
-            self.0.get(path).copied()
-        }
-    }
-
     mod test_name_fn {
         include!(concat!(env!("OUT_DIR"), "/test_name_fn.rs"));
     }
@@ -309,86 +301,116 @@ mod tests {
 
     #[test]
     fn only_literal_template() {
-        let attributes = GetterMap(HashMap::new());
+        let attributes: HashMap<&str, Value> = HashMap::new();
         assert_eq!(
-            name_for_op_and_attributes("op_with_literal_name", &attributes,).unwrap(),
+            name_for_op_and_attributes("op_with_literal_name", |name| attributes.get(name))
+                .unwrap(),
             "literal name"
         );
     }
 
     #[test]
     fn multiple_ops_same_template() {
-        let attributes = GetterMap(HashMap::from([("attr1", Val::String("foo"))]));
+        let attributes = HashMap::from([("attr1", Value::String("foo".to_owned()))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "foo"
         );
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_2", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_2", |name| attributes.get(name))
+                .unwrap(),
             "foo"
         );
     }
 
     #[test]
     fn skips_templates_when_attrs_are_missing() {
-        let attributes = GetterMap(HashMap::from([
-            ("attr2", Val::String("bar")),
-            ("attr3", Val::String("baz")),
-        ]));
+        let attributes = HashMap::from([
+            ("attr2", Value::String("bar".to_owned())),
+            ("attr3", Value::String("baz".to_owned())),
+        ]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "bar baz"
         );
     }
 
     #[test]
     fn handles_literal_prefixes_and_suffixes() {
-        let attributes = GetterMap(HashMap::from([("attr3", Val::String("baz"))]));
+        let attributes = HashMap::from([("attr3", Value::String("baz".to_owned()))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "prefix baz suffix",
         );
     }
 
     #[test]
     fn considers_multiple_files() {
-        let attributes = GetterMap(HashMap::new());
+        let attributes: HashMap<&str, Value> = HashMap::new();
         assert_eq!(
-            name_for_op_and_attributes("op_in_second_name_file", &attributes).unwrap(),
+            name_for_op_and_attributes("op_in_second_name_file", |name| attributes.get(name))
+                .unwrap(),
             "second file literal name",
         );
     }
 
     #[test]
     fn returns_none_for_unknown_ops() {
-        let attributes = GetterMap(HashMap::new());
-        assert!(name_for_op_and_attributes("unknown_op", &attributes).is_none());
+        let attributes: HashMap<&str, Value> = HashMap::new();
+        assert!(name_for_op_and_attributes("unknown_op", |name| attributes.get(name)).is_none());
     }
 
     #[test]
     fn handles_multiple_value_types() {
-        let attributes = GetterMap(HashMap::from([("attr1", Val::Bool(true))]));
+        let attributes = HashMap::from([("attr1", Value::Bool(true))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "true",
         );
 
-        let attributes = GetterMap(HashMap::from([("attr1", Val::I64(123))]));
+        let attributes = HashMap::from([("attr1", Value::I64(123))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "123",
         );
 
-        let attributes = GetterMap(HashMap::from([("attr1", Val::U64(123))]));
+        let attributes = HashMap::from([("attr1", Value::U64(123))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "123",
         );
 
-        let attributes = GetterMap(HashMap::from([("attr1", Val::F64(1.23))]));
+        let attributes = HashMap::from([("attr1", Value::F64(1.23))]);
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
             "1.23",
+        );
+    }
+
+    #[test]
+    fn name_handles_arrays() {
+        let attributes = HashMap::from([
+            (
+                "attr2",
+                Value::Array(vec![
+                    Annotated::new("posts:123".into()),
+                    Annotated::new("posts:456".into()),
+                ]),
+            ),
+            ("attr3", Value::U64(789)),
+        ]);
+
+        assert_eq!(
+            name_for_op_and_attributes("op_with_attributes_1", |name| attributes.get(name))
+                .unwrap(),
+            "posts:123, posts:456 789",
         );
     }
 }

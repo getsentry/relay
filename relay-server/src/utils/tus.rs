@@ -15,8 +15,10 @@ use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
 
+use crate::constants::X_DECODED_CONTENT_LENGTH;
 use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder};
+use crate::services::upload::UploadMode;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
@@ -33,8 +35,8 @@ pub enum Error {
         upload_defer_length: Option<usize>,
     },
     /// The `Upload-Offset` header is missing or invalid
-    #[error("expected Upload-Offset: 0, got: {0:?}")]
-    UploadOffset(Option<usize>),
+    #[error("expected Upload-Offset >= 0")]
+    UploadOffset,
     /// The `Content-Type` header is not what TUS expects.
     #[error("expected Content-Type: {expected}, got: {received}")]
     ContentType {
@@ -60,12 +62,11 @@ impl IntoResponse for Error {
                 body,
             )
                 .into_response(),
-            Error::UploadOffset(Some(_)) => (StatusCode::CONFLICT, body).into_response(),
             Error::ContentType { .. } => (StatusCode::UNSUPPORTED_MEDIA_TYPE, body).into_response(),
             Error::UploadLength { .. }
             | Error::InvalidMetadataBase64(_)
             | Error::InvalidMetadata(_)
-            | Error::UploadOffset(_) => (StatusCode::BAD_REQUEST, body).into_response(),
+            | Error::UploadOffset => (StatusCode::BAD_REQUEST, body).into_response(),
         }
     }
 }
@@ -88,8 +89,7 @@ pub const TUS_VERSION: HeaderValue = HeaderValue::from_static("1.0.0");
 /// See <https://tus.io/protocols/resumable-upload#tus-extension>.
 const TUS_EXTENSION: &str = "Tus-Extension";
 
-const SUPPORTED_EXTENSIONS: HeaderValue =
-    HeaderValue::from_static("creation,creation-defer-length");
+const SUPPORTED_EXTENSIONS: HeaderValue = HeaderValue::from_static("creation");
 
 /// TUS protocol header for the total upload length.
 ///
@@ -128,7 +128,7 @@ pub struct Metadata {
 
 /// Subset of TUS request headers.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Headers {
+pub struct PostHeaders {
     /// The declared `Upload-Length`, or `None` if `Upload-Defer-Length: 1` was used.
     pub upload_length: Option<usize>,
     /// Sentry-specific `Upload-Metadata` entry.
@@ -136,7 +136,7 @@ pub struct Headers {
 }
 
 /// Validates TUS protocol headers and returns a subset of parsed values.
-pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
+pub fn validate_post_headers(headers: &HeaderMap) -> Result<PostHeaders, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -167,14 +167,23 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
 
     let metadata = upload_metadata(headers)?;
 
-    Ok(Headers {
+    Ok(PostHeaders {
         upload_length,
         metadata,
     })
 }
 
-/// Validates TUS protocol headers and returns the expected upload length.
-pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
+/// Subset of TUS request headers.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PatchHeaders {
+    /// The declared `Upload-Offset` at which the body is appended to the upload.
+    pub upload_offset: usize,
+    /// The decoded length of the body in bytes, or `None` if it is not known up front.
+    pub decoded_content_length: Option<usize>,
+}
+
+/// Validates TUS protocol headers and returns [`PatchHeaders`].
+pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -193,14 +202,13 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
         });
     }
 
-    let upload_offset: usize =
-        parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset(None))?;
-    if upload_offset != 0 {
-        // Only allow full uploads for now.
-        return Err(Error::UploadOffset(Some(upload_offset)));
-    }
+    let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
+    let decoded_content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
 
-    Ok(())
+    Ok(PatchHeaders {
+        upload_offset,
+        decoded_content_length,
+    })
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -226,10 +234,13 @@ pub fn add_creation_headers(
 }
 
 /// Prepares the required TUS request headers for upstream requests.
-pub fn add_upload_headers(builder: &mut RequestBuilder) {
+pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &UploadMode) {
     builder.header(TUS_RESUMABLE, TUS_VERSION);
     builder.header(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-    builder.header(UPLOAD_OFFSET, "0"); // always zero until we implement retries / chunking
+    builder.header(UPLOAD_OFFSET, mode.offset().to_string());
+    if let Some(length) = mode.chunk_length() {
+        builder.header(X_DECODED_CONTENT_LENGTH, length.to_string());
+    }
 }
 
 /// Prepares the required TUS response headers.
@@ -299,7 +310,7 @@ mod tests {
     fn test_validate_tus_headers_invalid_with_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(hyper::header::CONTENT_LENGTH, 1024.into());
+        headers.insert(X_DECODED_CONTENT_LENGTH, 1024.into());
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers);
@@ -314,7 +325,7 @@ mod tests {
         let result = validate_post_headers(&headers);
         assert_eq!(
             result.unwrap(),
-            Headers {
+            PostHeaders {
                 upload_length: Some(1024),
                 metadata: None
             }
@@ -333,7 +344,7 @@ mod tests {
         let result = validate_post_headers(&headers);
         assert!(matches!(
             result,
-            Ok(Headers {
+            Ok(PostHeaders {
                 upload_length: Some(1024),
                 metadata: None
             })
@@ -361,7 +372,7 @@ mod tests {
         let result = validate_post_headers(&headers);
         assert!(matches!(
             result,
-            Ok(Headers {
+            Ok(PostHeaders {
                 upload_length: None,
                 metadata: None
             })
@@ -391,7 +402,7 @@ mod tests {
         let result = validate_post_headers(&headers);
         assert!(matches!(
             result,
-            Ok(Headers {
+            Ok(PostHeaders {
                 upload_length: None,
                 metadata: Some(Metadata {
                     attachment_type: AttachmentType::Minidump
@@ -482,6 +493,7 @@ mod tests {
     fn test_validate_patch_headers_wrong_version() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
@@ -492,6 +504,7 @@ mod tests {
     fn test_validate_patch_headers_missing_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
         assert!(matches!(result, Err(Error::ContentType { .. })));
@@ -501,6 +514,7 @@ mod tests {
     fn test_validate_patch_headers_wrong_content_type() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(
             http::header::CONTENT_TYPE,
             HeaderValue::from_static("application/octet-stream"),
@@ -514,25 +528,28 @@ mod tests {
     fn test_validate_patch_headers_missing_upload_offset() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(None))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]
     fn test_validate_patch_headers_nonzero_upload_offset() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("512"));
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("-512"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadOffset(Some(512)))));
+        assert!(matches!(result, Err(Error::UploadOffset)));
     }
 
     #[test]
     fn test_validate_patch_headers_valid() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(X_DECODED_CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);

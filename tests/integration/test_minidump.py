@@ -13,7 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import DUMMY_UPLOAD_FINAL_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import Outcome
@@ -750,11 +750,14 @@ def test_minidump_with_event_exception(
     envelope.add_event(
         {
             "event_id": event_id,
+            "level": "error",
             "exception": {
                 "values": [
                     {
                         "type": "ZeroDivisionError",
                         "value": "division by zero",
+                        "thread_id": "36",
+                        "mechanism": {"type": "generic", "handled": True},
                         "stacktrace": {
                             "frames": [
                                 {
@@ -767,6 +770,7 @@ def test_minidump_with_event_exception(
                     }
                 ]
             },
+            "threads": {"values": [{"id": "36", "crashed": False}]},
         }
     )
     envelope.add_item(
@@ -793,11 +797,16 @@ def test_minidump_with_event_exception(
     # so the event is picked up for native processing in Sentry.
     minidump_exception, *additional_exceptions = event["exception"]["values"]
     assert minidump_exception["mechanism"]["type"] == "minidump"
+    assert minidump_exception["mechanism"]["handled"] is True
+    assert event["level"] == "error"
 
     # The user-provided exception with its stack trace must be preserved.
     (user_exception,) = additional_exceptions
     assert user_exception["value"] == "division by zero"
     assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
+    assert minidump_exception["thread_id"] == "36"
+    assert minidump_exception["stacktrace"] == user_exception["stacktrace"]
+    assert event["threads"]["values"] == [{"id": "36", "crashed": False}]
 
     # The minidump must still be forwarded as an attachment.
     assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
@@ -1170,7 +1179,7 @@ def test_minidump_objectstore_uploads(
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(logs.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
         }
     else:
         assert (
@@ -1185,7 +1194,7 @@ def test_minidump_objectstore_uploads(
             == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(minidump.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
             "content_type": "application/x-dmp",
         }
     else:
@@ -1742,7 +1751,7 @@ def test_minidump_attachment_inline_limit(mini_sentry, relay, dummy_upload):
     # Large attachment is uploaded to objectstore
     large = by_name["large.txt"]
     assert large.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
-    assert json.loads(large.payload.bytes) == {"location": DUMMY_UPLOAD_LOCATION}
+    assert json.loads(large.payload.bytes) == {"location": DUMMY_UPLOAD_FINAL_LOCATION}
 
 
 def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
@@ -1782,7 +1791,7 @@ def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
     assert item.headers.get("attachment_type") == "event.minidump"
     assert item.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
     assert json.loads(item.payload.bytes) == {
-        "location": DUMMY_UPLOAD_LOCATION,
+        "location": DUMMY_UPLOAD_FINAL_LOCATION,
         "content_type": "application/x-dmp",
     }
 

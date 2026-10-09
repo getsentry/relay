@@ -39,7 +39,7 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
                     Some(quote! {
-                        let Some(#ident @ (Val::String(_) | Val::Bool(_) | Val::U64(_) | Val::I64(_) | Val::F64(_))) = attributes.get_value(#name)
+                        let Some(#ident @ (Value::String(_) | Value::Bool(_) | Value::U64(_) | Value::I64(_) | Value::F64(_) | Value::Array(_))) = get_attribute_value(#name)
                     })
                 } else {
                     None
@@ -82,28 +82,46 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
     });
 
     quote! {
-        use relay_protocol::{Getter, Val};
+        use relay_protocol::Value;
         use std::fmt;
         use std::fmt::Display;
 
-        pub fn description_for_op_and_attributes(op: &str, attributes: &impl Getter) -> Option<String> {
+        pub fn description_for_op_and_attributes<'a>(op: &str, get_attribute_value: impl Fn(&'_ str) -> Option<&'a Value>) -> Option<String> {
             match op {
                 #(#match_arms)*
                 _ => None
             }
         }
 
-        struct DisplayVal<'a>(Val<'a>);
+        struct DisplayVal<'a>(&'a Value);
 
         impl Display for DisplayVal<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self.0 {
-                    Val::Bool(b) => write!(f, "{b}"),
-                    Val::I64(i) => write!(f, "{i}"),
-                    Val::U64(u) => write!(f, "{u}"),
-                    Val::F64(fl) => write!(f, "{fl}"),
-                    Val::String(s) => f.write_str(s),
-                    Val::HexId(_) | Val::IpAddr(_) | Val::Array(_) | Val::Object(_) => Ok(()),
+                    Value::Bool(b) => write!(f, "{b}"),
+                    Value::I64(i) => write!(f, "{i}"),
+                    Value::U64(u) => write!(f, "{u}"),
+                    Value::F64(fl) => write!(f, "{fl}"),
+                    Value::String(s) => f.write_str(s),
+                    Value::Array(vals) => {
+                        let mut first = true;
+
+                        for v in vals {
+                            let Some(v) = v.value() else {
+                                continue;
+                            };
+
+                            if !first {
+                                f.write_str(", ")?;
+                            }
+
+                            write!(f, "{}", DisplayVal(v))?;
+
+                            first = false;
+                        }
+                        Ok(())
+                    }
+                    Value::Object(_) => Ok(()),
                 }
             }
         }

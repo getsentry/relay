@@ -128,6 +128,7 @@ enumset = "1"
 either = "1"
 flate2 = "1"
 flume = { version = "0.11", default-features = false }
+fnv = "1.0"
 futures = { version = "0.3", default-features = false, features = ["std"] }
 hash32 = "1"
 hashbrown = "0.15"
@@ -160,7 +161,7 @@ metrics-exporter-dogstatsd = "0.9"
 metrics-util = { version = "0.20", default-features = false }
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = { version = "0.2" }
+objectstore-client = { version = "0.2.7", features = ["resumable-upload-api"] }
 objectstore-types = { version = "0.2" }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
@@ -226,8 +227,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
-symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
+symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "73735c14ff41787595d9d36b9a7c43755c8ef367", default-features = false }
+symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "73735c14ff41787595d9d36b9a7c43755c8ef367", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"
@@ -242,6 +243,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 uaparser = "0.6"
 unicase = "2"
+unicode-normalization = "0.1.25"
 url = "2"
 utf16string = "0.2"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }

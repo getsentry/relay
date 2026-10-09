@@ -98,6 +98,7 @@ impl UpstreamRateLimits {
                 reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
                 namespaces: Default::default(),
+                dimensional: false,
             });
         }
         rate_limits

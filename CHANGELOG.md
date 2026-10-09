@@ -8,6 +8,7 @@
   `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
   unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
 - Stop accepting metrics in statsd format. ([#6428](https://github.com/getsentry/relay/pull/6428))
+- Stop parsing on-demand metrics extraction config. All extracted metrics are now hard-coded. ([#6439](https://github.com/getsentry/relay/pull/6439))
 
 **Features**:
 
@@ -16,27 +17,42 @@
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
 - Implement support for SDK indicated requests on localhost for inbound filters. ([#6422](https://github.com/getsentry/relay/pull/6422))
 - Add a `cidr` rule condition that matches IP addresses against a list of addresses and CIDR ranges, and expose the envelope's client IP to generic inbound filters as `envelope.client_ip`. ([#6374](https://github.com/getsentry/relay/pull/6374))
+- Add a `release` rule condition that compares the version of a release with `eq`, `gt`, `gte`, `lt`, or `lte`, so generic inbound filters can express version ranges. ([#6430](https://github.com/getsentry/relay/pull/6430))
 - Copy the browser navigation type and id to web vital metrics. ([#6401](https://github.com/getsentry/relay/pull/6401))
 - Disable dynamic sampling and metrics extraction in Managed relays. For users with a dynamic sampling rate < 1, this increases the outgoing request volume of the Managed relay. ([#6413](https://github.com/getsentry/relay/pull/6413), [#6425](https://github.com/getsentry/relay/pull/6425))
 - Copy the INP interaction type to the INP web vital metric. ([#6420](https://github.com/getsentry/relay/pull/6420))
 - Extract session updates from Switch dying messages. ([#6363](https://github.com/getsentry/relay/pull/6363))
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
+- Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
+- Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
+- Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
+- Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 
 **Bug Fixes**:
 
+- Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 - Limit the number of deserialization ops on ItemContainer. ([#6429](https://github.com/getsentry/relay/pull/6429))
+- Don't cache dimensioned rate-limits. ([#6457](https://github.com/getsentry/relay/pull/6457))
+- Slugify monitor slugs the same way as Sentry for check-in routing and rate limit dimensions. ([#6456](https://github.com/getsentry/relay/pull/6456))
+- Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
+- Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
+- Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 
 **Internal**:
 
+- Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
+- Support resumable uploads (feature-flagged). ([#6421](https://github.com/getsentry/relay/pull/6421))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
-- Update sentry-conventions to 0.24.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. ([#6417](https://github.com/getsentry/relay/pull/6417))
+- Remove long deprecated TLS settings from Relay's configuration. ([#6434](https://github.com/getsentry/relay/pull/6434))
+- Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))
+  Switch default PyPI index to Socket Firewall. ([#6460](https://github.com/getsentry/relay/pull/6460))
 
 ## 26.9.0
 
