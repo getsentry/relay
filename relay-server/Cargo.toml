@@ -21,7 +21,6 @@ processing = [
   "dep:symbolic-unreal",
   "relay-config/processing",
   "relay-kafka/producer",
-  "relay-metrics/redis",
   "relay-quotas/redis",
   "relay-redis/impl",
 ]
@@ -35,7 +34,6 @@ anyhow = { workspace = true }
 arc-swap = { workspace = true }
 async-compression = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
-axum-extra = { workspace = true }
 axum-server = { workspace = true }
 backon = { workspace = true, default-features = false }
 brotli = { workspace = true }
