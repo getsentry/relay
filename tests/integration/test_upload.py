@@ -1133,7 +1133,13 @@ def test_oneshot_fallback(
     assert objectstore("attachments", project_id).get(key).payload.read() == data
 
 
-def test_resumable_upload_declined(mini_sentry, relay_with_processing, project_config):
+@pytest.mark.parametrize(
+    "chain",
+    [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")],
+)
+def test_resumable_upload_declined(
+    mini_sentry, relay, relay_with_processing, project_config, events_consumer, chain
+):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
@@ -1143,7 +1149,7 @@ def test_resumable_upload_declined(mini_sentry, relay_with_processing, project_c
         return "", 501
 
     mini_sentry.fail_on_relay_error = False
-    relay = relay_with_processing(
+    processing_relay = relay_with_processing(
         options={
             "processing": {
                 "objectstore": {
@@ -1152,6 +1158,12 @@ def test_resumable_upload_declined(mini_sentry, relay_with_processing, project_c
             }
         }
     )
+    relay = relay(processing_relay) if chain else processing_relay
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
@@ -1162,5 +1174,5 @@ def test_resumable_upload_declined(mini_sentry, relay_with_processing, project_c
     )
 
     assert response.status_code == 501, response.text
-    assert "resumable upload declined" in response.json()["detail"]
+    assert "resumable upload declined" in response.text
     assert "Location" not in response.headers
