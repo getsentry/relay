@@ -52,11 +52,7 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
 
     // Older SDKs may only send a (span) op which we also use to infer the operation type.
     let op = attributes.get_value(SENTRY__OP).and_then(|op| op.as_str());
-    if op.is_some_and(|op| op.starts_with("gen_ai.") || op.starts_with("ai.")) {
-        return true;
-    }
-
-    false
+    op.is_some_and(|op| op.starts_with("gen_ai.") || op.starts_with("ai."))
 }
 
 /// Normalizes the [`GEN_AI__RESPONSE__MODEL`] attribute by defaulting to the [`GEN_AI__REQUEST__MODEL`] if it is missing.

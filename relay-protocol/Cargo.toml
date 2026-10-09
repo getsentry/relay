@@ -15,7 +15,6 @@ workspace = true
 [dependencies]
 ipnetwork = { workspace = true }
 num-traits = { workspace = true }
-relay-common = { workspace = true }
 relay-pattern = { workspace = true }
 relay-protocol-derive = { workspace = true, optional = true }
 semver = { workspace = true }
