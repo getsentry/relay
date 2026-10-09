@@ -27,6 +27,7 @@
 - Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
 - Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
+- Added Integrity policy ingestion ([#6465](https://github.com/getsentry/relay/pull/6465))
 
 **Bug Fixes**:
 
