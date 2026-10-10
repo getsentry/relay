@@ -1,0 +1,19 @@
+[package]
+name = "proto-descriptors"
+version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Generates bounded-decoding descriptors for protobuf schemas"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+prost = { workspace = true }
+prost-types = { workspace = true }
+convert_case = "0.11.0"
+
+[dev-dependencies]
+relay-serialization = { workspace = true }
