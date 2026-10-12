@@ -34,7 +34,7 @@ expression: data
         "http.request.header.cookie.xsrf": "[Filtered]",
         "http.request.header.cookie.xsrf-token": "[Filtered]",
         "http.request.header.cookie.xsrf_token": "[Filtered]",
-        "http.response.header.set-cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.response.header.set-cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar; connect.sid=[Filtered]",
         "http.response.header.set-cookie.ASP.NET_SessionId": "[Filtered]",
         "http.response.header.set-cookie.JSESSIONID": "[Filtered]",
         "http.response.header.set-cookie.__session": "[Filtered]",
@@ -503,9 +503,15 @@ expression: data
                   "s",
                   48,
                   58
+                ],
+                [
+                  "@cookies:filter",
+                  "s",
+                  81,
+                  91
                 ]
               ],
-              "len": 67
+              "len": 110
             }
           },
           "http.response.header.set-cookie.ASP.NET_SessionId": {

@@ -1726,7 +1726,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                         "http.request.header.cookie.fastcsrf": "foobar",
                         "http.request.header.cookie._iris_csrf": "foobar",
                         "http.request.header.cookie.dark-mode": "foobar",
-                        "http.response.header.set-cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
+                        "http.response.header.set-cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar; connect.sid=s%3Aj3kd9f0s.k2j3lk4j5h6g7f8d",
                         "http.response.header.set-cookie.sentrysid": "foobar",
                         "http.response.header.set-cookie.sudo": "foobar",
                         "http.response.header.set-cookie.su": "foobar",
