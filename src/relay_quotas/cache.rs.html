@@ -181,7 +181,7 @@
 <a href=#181 id=181 data-nosnippet>181</a>                <span class="comment">// Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
 <a href=#182 id=182 data-nosnippet>182</a>                </span>* RATIO_PRECISION
 <a href=#183 id=183 data-nosnippet>183</a>                <span class="comment">// Apply the actual ratio with the pre-computed divisor.
-<a href=#184 id=184 data-nosnippet>184</a>                </span>/ <span class="self">self</span>.max_over_spend_divisor.get();
+<a href=#184 id=184 data-nosnippet>184</a>                </span>/ <span class="self">self</span>.max_over_spend_divisor;
 <a href=#185 id=185 data-nosnippet>185</a>
 <a href=#186 id=186 data-nosnippet>186</a>            <span class="kw">match </span>total_local_use &gt; max_allowed_spend {
 <a href=#187 id=187 data-nosnippet>187</a>                <span class="bool-val">true </span>=&gt; CachedQuota::new_needs_sync(total_local_use),
