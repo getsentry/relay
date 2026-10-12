@@ -6,6 +6,7 @@ use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::logs::Settings;
 
+mod csp;
 mod nel;
 mod otel;
 mod vercel;
@@ -45,6 +46,7 @@ pub fn expand(
     let payload = item.payload();
 
     let settings = match integration {
+        LogsIntegration::Csp => csp::expand(&payload, headers, produce),
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),

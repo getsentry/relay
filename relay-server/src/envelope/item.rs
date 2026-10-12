@@ -179,7 +179,8 @@ impl Item {
             ],
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(
-                    LogsIntegration::Nel
+                    LogsIntegration::Csp
+                    | LogsIntegration::Nel
                     | LogsIntegration::OtelV1 { .. }
                     | LogsIntegration::VercelDrainLog { .. },
                 )) => smallvec![

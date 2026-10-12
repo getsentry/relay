@@ -281,6 +281,29 @@ class SentryLike:
         response.raise_for_status()
         return response
 
+    def send_csp_logs(
+        self,
+        project_id,
+        payload,
+        content_type="application/reports+json",
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        headers = {
+            "Content-Type": content_type,
+            **(headers or {}),
+        }
+
+        url = f"/api/{project_id}/integration/csp/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response
+
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
         headers = {
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
