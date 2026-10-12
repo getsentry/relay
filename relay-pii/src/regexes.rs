@@ -160,6 +160,10 @@ pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
     "mysession",
     "irissessionid",
     "_vercel_jwt",
+    "connect.sid",
+    "JSESSIONID",
+    "ASP.NET_SessionId",
+    "laravel_session",
     // Common CSRF/XSRF cookie names for popular web frameworks
     "csrf",
     "xsrf",
