@@ -62,28 +62,29 @@
 <a href=#62 id=62 data-nosnippet>62</a>    response
 <a href=#63 id=63 data-nosnippet>63</a>}
 <a href=#64 id=64 data-nosnippet>64</a>
-<a href=#65 id=65 data-nosnippet>65</a><span class="kw">fn </span>content_encoding_tag(request: <span class="kw-2">&amp;</span>Request) -&gt; <span class="kw-2">&amp;</span>str {
-<a href=#66 id=66 data-nosnippet>66</a>    request
-<a href=#67 id=67 data-nosnippet>67</a>        .headers()
-<a href=#68 id=68 data-nosnippet>68</a>        .get(header::CONTENT_ENCODING)
-<a href=#69 id=69 data-nosnippet>69</a>        .and_then(|v| v.to_str().ok())
-<a href=#70 id=70 data-nosnippet>70</a>        .map(HttpEncoding::parse)
-<a href=#71 id=71 data-nosnippet>71</a>        .and_then(|enc| enc.name())
-<a href=#72 id=72 data-nosnippet>72</a>        .unwrap_or(<span class="string">"other"</span>)
-<a href=#73 id=73 data-nosnippet>73</a>}
-<a href=#74 id=74 data-nosnippet>74</a>
-<a href=#75 id=75 data-nosnippet>75</a><span class="kw">struct </span>CpuClock(Arc&lt;RawMetrics&gt;);
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a><span class="kw">impl </span>relay_cogs::time::Clock <span class="kw">for </span>CpuClock {
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">fn </span>now(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; relay_cogs::time::Instant {
-<a href=#79 id=79 data-nosnippet>79</a>        <span class="comment">// Note that this measurement is slightly off, as the metric only updates at the end of the
-<a href=#80 id=80 data-nosnippet>80</a>        // poll and not during the poll. So if there is a measurement started during a poll, the start
-<a href=#81 id=81 data-nosnippet>81</a>        // of that measurement is before whatever happened during the latest poll starting the measurement.
-<a href=#82 id=82 data-nosnippet>82</a>        //
-<a href=#83 id=83 data-nosnippet>83</a>        // Since the main purpose here is to estimate time and collect the _total_ duration of the request
-<a href=#84 id=84 data-nosnippet>84</a>        // in CPU time, this is acceptable.
-<a href=#85 id=85 data-nosnippet>85</a>        </span><span class="kw">let </span>duration = Duration::from_nanos(<span class="self">self</span>.<span class="number">0</span>.total_duration_ns.load(Ordering::Relaxed));
-<a href=#86 id=86 data-nosnippet>86</a>        relay_cogs::time::Instant::from_duration(duration)
-<a href=#87 id=87 data-nosnippet>87</a>    }
-<a href=#88 id=88 data-nosnippet>88</a>}
+<a href=#65 id=65 data-nosnippet>65</a><span class="doccomment">/// Map the value of the `Content-Encoding` header to a low-cardinality tag.
+<a href=#66 id=66 data-nosnippet>66</a></span><span class="kw">pub fn </span>content_encoding_tag(request: <span class="kw-2">&amp;</span>Request) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#67 id=67 data-nosnippet>67</a>    request
+<a href=#68 id=68 data-nosnippet>68</a>        .headers()
+<a href=#69 id=69 data-nosnippet>69</a>        .get(header::CONTENT_ENCODING)
+<a href=#70 id=70 data-nosnippet>70</a>        .and_then(|v| v.to_str().ok())
+<a href=#71 id=71 data-nosnippet>71</a>        .map(HttpEncoding::parse)
+<a href=#72 id=72 data-nosnippet>72</a>        .and_then(|enc| enc.name())
+<a href=#73 id=73 data-nosnippet>73</a>        .unwrap_or(<span class="string">"other"</span>)
+<a href=#74 id=74 data-nosnippet>74</a>}
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a><span class="kw">struct </span>CpuClock(Arc&lt;RawMetrics&gt;);
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a><span class="kw">impl </span>relay_cogs::time::Clock <span class="kw">for </span>CpuClock {
+<a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">fn </span>now(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; relay_cogs::time::Instant {
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="comment">// Note that this measurement is slightly off, as the metric only updates at the end of the
+<a href=#81 id=81 data-nosnippet>81</a>        // poll and not during the poll. So if there is a measurement started during a poll, the start
+<a href=#82 id=82 data-nosnippet>82</a>        // of that measurement is before whatever happened during the latest poll starting the measurement.
+<a href=#83 id=83 data-nosnippet>83</a>        //
+<a href=#84 id=84 data-nosnippet>84</a>        // Since the main purpose here is to estimate time and collect the _total_ duration of the request
+<a href=#85 id=85 data-nosnippet>85</a>        // in CPU time, this is acceptable.
+<a href=#86 id=86 data-nosnippet>86</a>        </span><span class="kw">let </span>duration = Duration::from_nanos(<span class="self">self</span>.<span class="number">0</span>.total_duration_ns.load(Ordering::Relaxed));
+<a href=#87 id=87 data-nosnippet>87</a>        relay_cogs::time::Instant::from_duration(duration)
+<a href=#88 id=88 data-nosnippet>88</a>    }
+<a href=#89 id=89 data-nosnippet>89</a>}
 </code></pre></div></section></main></body></html>
