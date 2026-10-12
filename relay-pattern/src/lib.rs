@@ -539,19 +539,10 @@ fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
         // Can't do an explicit len compare first here `literal.len() == haystack.len()`,
         // the amount of characters can change when converting case.
-        let mut literal = literal.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (literal.next(), haystack.next()) {
-                // Both iterators exhausted -> literal matches.
-                (None, None) => break true,
-                // Either iterator exhausted while the other one is not -> no match.
-                (None, _) | (_, None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+        //
+        // The literal matches if the prefix match consumes the entire haystack.
+        wildmatch::is_prefix_case_insensitive(haystack, literal)
+            .is_some_and(|len| len == haystack.len())
     } else {
         literal.as_case_converted_str() == haystack
     }
@@ -560,19 +551,7 @@ fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
 #[inline(always)]
 fn match_prefix(prefix: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
-        let mut prefix = prefix.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (prefix.next(), haystack.next()) {
-                // If the prefix is exhausted it matched.
-                (None, _) => break true,
-                // If the haystack is exhausted, but the pattern is not -> no match.
-                (Some(_), None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+        wildmatch::is_prefix_case_insensitive(haystack, prefix).is_some()
     } else {
         haystack.starts_with(prefix.as_case_converted_str())
     }
@@ -1313,6 +1292,17 @@ mod tests {
         assert_pattern!("fOo", "Foo", i);
         assert_pattern!("İ", "i\u{307}", i);
         assert_pattern!("İ", "i̇", i);
+        assert_pattern!("İ", NOT "i", i);
+        assert_pattern!("i", NOT "İ", i);
+        assert_pattern!("kelvin", "\u{212A}elvin", i);
+        assert_pattern!("\u{212A}elvin", "kelvin", i);
+        assert_pattern!("ß", "ẞ", i);
+        assert_pattern!("straße", "straẞe", i);
+        assert_pattern!("strasse", NOT "straẞe", i);
+        assert_pattern!("ΑΣ", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ", "ας", i);
+        assert_pattern!("ΑΣ", NOT "ασ", i);
+        assert_pattern!("ασ", "ΑΣ", i);
     }
 
     #[test]
@@ -1367,6 +1357,13 @@ mod tests {
         assert_pattern!("İ*", "i̇", i);
         assert_pattern!("İ*", "i\u{307}___", i);
         assert_pattern!("İ*", NOT "i____", i);
+
+        assert_pattern!("kelvin*", "\u{212A}elvin___", i);
+        assert_pattern!("\u{212A}elvin*", "kelvin___", i);
+        assert_pattern!("ΑΣ*", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ*", "ας___", i);
+        assert_pattern!("ΑΣ*", NOT "ασ___", i);
+        assert_pattern!("ασ*", "ΑΣ___", i);
     }
 
     #[test]

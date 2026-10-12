@@ -10,6 +10,7 @@ use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+pub use crate::release::Release;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -315,6 +316,90 @@ impl CidrCondition {
     }
 }
 
+/// The comparison a [`ReleaseCondition`] applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReleaseComparator {
+    /// The version of the field is equal to the value.
+    ///
+    /// Unlike [`EqCondition`], this ignores the build code of the release.
+    Eq,
+    /// The version of the field is greater than the value.
+    Gt,
+    /// The version of the field is greater than or equal to the value.
+    Gte,
+    /// The version of the field is less than the value.
+    Lt,
+    /// The version of the field is less than or equal to the value.
+    Lte,
+    /// An unsupported comparator for future compatibility. It never matches.
+    #[serde(other)]
+    Unsupported,
+}
+
+/// A condition that compares the version of a release.
+///
+/// The field must hold a release, which compares against `value` as [`Release::compare`]
+/// describes. If `value` names a package, the condition only matches releases of that package.
+///
+/// The condition does not match if the field has no version, such as a commit hash. A configured
+/// release without a version deserializes to a `value` of `None`. Such a condition never matches
+/// and is not [supported](RuleCondition::supported), so that the author of the condition can
+/// reject it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReleaseCondition {
+    /// Path of the field that holds the release.
+    pub name: String,
+    /// The comparison to apply between the field and the value.
+    pub comparator: ReleaseComparator,
+    /// The release to compare the field against, such as `1.2.0` or `myapp@1.2.0`.
+    #[serde(default, deserialize_with = "deserialize_release_lenient")]
+    pub value: Option<Release>,
+}
+
+impl ReleaseCondition {
+    /// Creates a condition that compares the version of a release.
+    pub fn new(field: impl Into<String>, comparator: ReleaseComparator, value: &str) -> Self {
+        Self {
+            name: field.into(),
+            comparator,
+            value: Release::parse(value),
+        }
+    }
+
+    fn supported(&self) -> bool {
+        self.comparator != ReleaseComparator::Unsupported && self.value.is_some()
+    }
+
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let Some(Val::String(release)) = instance.get_value(self.name.as_str()) else {
+            return false;
+        };
+        let Some(ordering) = self.value.as_ref().and_then(|value| value.compare(release)) else {
+            return false;
+        };
+
+        match self.comparator {
+            ReleaseComparator::Eq => ordering.is_eq(),
+            ReleaseComparator::Gt => ordering.is_gt(),
+            ReleaseComparator::Gte => ordering.is_ge(),
+            ReleaseComparator::Lt => ordering.is_lt(),
+            ReleaseComparator::Lte => ordering.is_le(),
+            ReleaseComparator::Unsupported => false,
+        }
+    }
+}
+
+fn deserialize_release_lenient<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Release>, D::Error> {
+    let release = Option::<String>::deserialize(deserializer)?;
+    Ok(release.and_then(|release| Release::parse(&release)))
+}
+
 /// Combines multiple conditions using logical OR.
 ///
 /// This condition matches if **any** of the inner conditions match. The default value for this
@@ -574,6 +659,18 @@ pub enum RuleCondition {
     /// ```
     Cidr(CidrCondition),
 
+    /// A condition that compares the version of a release.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    /// use relay_protocol::condition::ReleaseComparator;
+    ///
+    /// let condition = RuleCondition::release("obj.release", ReleaseComparator::Gte, "1.2.0");
+    /// ```
+    Release(ReleaseCondition),
+
     /// Combines multiple conditions using logical OR.
     ///
     /// # Example
@@ -724,6 +821,22 @@ impl RuleCondition {
     /// ```
     pub fn cidr(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self::Cidr(CidrCondition::new(field, value))
+    }
+
+    /// Creates a condition that compares the version of a release.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    /// use relay_protocol::condition::ReleaseComparator;
+    ///
+    /// // Match a range of versions:
+    /// let condition = RuleCondition::release("obj.release", ReleaseComparator::Gte, "1.2.0")
+    ///     & RuleCondition::release("obj.release", ReleaseComparator::Lt, "2.0.0");
+    /// ```
+    pub fn release(field: impl Into<String>, comparator: ReleaseComparator, value: &str) -> Self {
+        Self::Release(ReleaseCondition::new(field, comparator, value))
     }
 
     /// Creates a condition that applies `>`.
@@ -888,6 +1001,7 @@ impl RuleCondition {
             | RuleCondition::Eq(_)
             | RuleCondition::Glob(_)
             | RuleCondition::Cidr(_) => true,
+            RuleCondition::Release(condition) => condition.supported(),
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -910,6 +1024,7 @@ impl RuleCondition {
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
             RuleCondition::Cidr(condition) => condition.matches(value),
+            RuleCondition::Release(condition) => condition.matches(value),
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
@@ -1050,6 +1165,12 @@ mod tests {
                 "value": ["192.168.1.1","10.0.0.0/8","192.168.1.1/32","not-an-ip"]
             },
             {
+                "op":"release",
+                "name": "field_release",
+                "comparator": "gte",
+                "value": "1.2.0"
+            },
+            {
                 "op":"not",
                 "inner": {
                     "op":"glob",
@@ -1132,6 +1253,12 @@ mod tests {
               "10.0.0.0/8",
               "192.168.1.1/32",
             ],
+          ),
+          ReleaseCondition(
+            op: "release",
+            name: "field_release",
+            comparator: gte,
+            value: Some("1.2.0"),
           ),
           NotCondition(
             op: "not",
@@ -1312,6 +1439,66 @@ mod tests {
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::/32").matches(&trace));
         assert!(RuleCondition::cidr("trace.client_ip", "2001:db8::1").matches(&trace));
         assert!(!RuleCondition::cidr("trace.client_ip", "10.0.0.0/8").matches(&trace));
+    }
+
+    #[test]
+    fn test_release_condition() {
+        use ReleaseComparator::{Eq, Gt, Gte, Lt, Lte};
+
+        let mut trace = mock_trace();
+        trace.release = "myapp@1.10.0+build".to_owned();
+
+        let cases = [
+            (Eq, "1.9.0", false),
+            (Eq, "1.10.0", true),
+            (Eq, "1.11.0", false),
+            (Gt, "1.9.0", true),
+            (Gt, "1.10.0", false),
+            (Gt, "1.11.0", false),
+            (Gte, "1.9.0", true),
+            (Gte, "1.10.0", true),
+            (Gte, "1.11.0", false),
+            (Lt, "1.9.0", false),
+            (Lt, "1.10.0", false),
+            (Lt, "1.11.0", true),
+            (Lte, "1.9.0", false),
+            (Lte, "1.10.0", true),
+            (Lte, "1.11.0", true),
+        ];
+
+        for (comparator, value, expected) in cases {
+            let condition = RuleCondition::release("trace.release", comparator, value);
+            assert!(condition.supported());
+            assert_eq!(
+                condition.matches(&trace),
+                expected,
+                "{comparator:?} {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_release_condition_without_version() {
+        let gte = |field, value| RuleCondition::release(field, ReleaseComparator::Gte, value);
+        let mut trace = mock_trace();
+
+        assert!(!gte("trace.release", "a4b7e0f9c2d1").matches(&trace));
+        assert!(!gte("trace.release", "a4b7e0f9c2d1").supported());
+        assert!(!gte("trace.release", "myapp@1.0.0").matches(&trace));
+        assert!(!gte("trace.missing", "1.0.0").matches(&trace));
+        assert!(!gte("trace.client_ip", "1.0.0").matches(&trace));
+
+        trace.release = "a4b7e0f9c2d1".to_owned();
+        assert!(!gte("trace.release", "0.0.1").matches(&trace));
+    }
+
+    #[test]
+    fn test_release_condition_unknown_comparator() {
+        let json = r#"{"op":"release","name":"trace.release","comparator":"ne","value":"9.9.9"}"#;
+        let condition: RuleCondition = serde_json::from_str(json).unwrap();
+
+        assert!(!condition.supported());
+        assert!(!condition.matches(&mock_trace()));
     }
 
     #[test]

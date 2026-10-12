@@ -1229,11 +1229,11 @@ impl EnvelopeProcessorService {
             );
 
             let mut num_batches = 0;
-            for batch in BucketsView::from(buckets).by_size(batch_size) {
+            for buckets in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(crate::metrics::extract_quantities(batch));
+                item.set_source_quantities(crate::metrics::extract_quantities(buckets));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
@@ -1244,7 +1244,7 @@ impl EnvelopeProcessorService {
                     .scope(*scoping);
 
                 relay_statsd::metric!(
-                    distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
+                    distribution(RelayDistributions::BucketsPerBatch) = buckets.len() as u64
                 );
 
                 self.submit_envelope_upstream(envelope, &config, project_info.upstream.clone());
