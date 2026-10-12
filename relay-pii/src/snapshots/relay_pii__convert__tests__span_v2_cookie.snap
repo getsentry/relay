@@ -13,8 +13,12 @@ expression: data
         "foo=bar"
       ]
     },
-    "http.request.header.cookie.ASP.NET_SessionId": null,
-    "http.request.header.cookie.JSESSIONID": null,
+    "http.request.header.cookie.ASP.NET_SessionId": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.JSESSIONID": {
+      "value": "[Filtered]"
+    },
     "http.request.header.cookie.__session": {
       "value": "[Filtered]"
     },
@@ -27,7 +31,9 @@ expression: data
     "http.request.header.cookie._xsrf": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie.connect.sid": null,
+    "http.request.header.cookie.connect.sid": {
+      "value": "[Filtered]"
+    },
     "http.request.header.cookie.csrf": {
       "value": "[Filtered]"
     },
@@ -49,7 +55,9 @@ expression: data
     "http.request.header.cookie.irissessionid": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie.laravel_session": null,
+    "http.request.header.cookie.laravel_session": {
+      "value": "[Filtered]"
+    },
     "http.request.header.cookie.mysession": {
       "value": "[Filtered]"
     },
@@ -95,9 +103,15 @@ expression: data
         "foo=bar"
       ]
     },
-    "http.response.header.set-cookie.'connect.sid'": null,
-    "http.response.header.set-cookie.ASP.NET_SessionId": null,
-    "http.response.header.set-cookie.JSESSIONID": null,
+    "http.response.header.set-cookie.'connect.sid'": {
+      "value": "foobar"
+    },
+    "http.response.header.set-cookie.ASP.NET_SessionId": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.set-cookie.JSESSIONID": {
+      "value": "[Filtered]"
+    },
     "http.response.header.set-cookie.__session": {
       "value": "[Filtered]"
     },
@@ -131,7 +145,9 @@ expression: data
     "http.response.header.set-cookie.irissessionid": {
       "value": "[Filtered]"
     },
-    "http.response.header.set-cookie.laravel_session": null,
+    "http.response.header.set-cookie.laravel_session": {
+      "value": "[Filtered]"
+    },
     "http.response.header.set-cookie.mysession": {
       "value": "[Filtered]"
     },
@@ -202,29 +218,33 @@ expression: data
         }
       },
       "http.request.header.cookie.ASP.NET_SessionId": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.request.header.cookie.JSESSIONID": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.request.header.cookie.__session": {
@@ -288,16 +308,18 @@ expression: data
         }
       },
       "http.request.header.cookie.connect.sid": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.request.header.cookie.csrf": {
@@ -391,16 +413,18 @@ expression: data
         }
       },
       "http.request.header.cookie.laravel_session": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.request.header.cookie.mysession": {
@@ -613,43 +637,34 @@ expression: data
           }
         }
       },
-      "http.response.header.set-cookie.'connect.sid'": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
-        }
-      },
       "http.response.header.set-cookie.ASP.NET_SessionId": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.response.header.set-cookie.JSESSIONID": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.response.header.set-cookie.__session": {
@@ -803,16 +818,18 @@ expression: data
         }
       },
       "http.response.header.set-cookie.laravel_session": {
-        "": {
-          "err": [
-            [
-              "invalid_data",
-              {
-                "reason": "expected attribute"
-              }
-            ]
-          ],
-          "val": "foobar"
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
         }
       },
       "http.response.header.set-cookie.mysession": {
