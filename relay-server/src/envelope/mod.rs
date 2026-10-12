@@ -1010,7 +1010,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_envelope_flamegraph() {
-        let payload = r#"{"version":"1","platform":"cocoa","frames":[{"function":"main"}],"trees":[{"roots":[{"frame_id":0,"sample_count":1}]}]}"#;
+        let payload = r#"{"version":"1","platform":"python","frames":[{"function":"main"}],"trees":[{"roots":[{"frame_id":0,"sample_count":1}]}]}"#;
         let bytes = Bytes::from(format!(
             "{{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}}\n\
              {{\"type\":\"attachment\",\"length\":{},\"filename\":\"flamegraph.json\",\"content_type\":\"application/json\",\"attachment_type\":\"event.flamegraph\"}}\n{payload}\n",

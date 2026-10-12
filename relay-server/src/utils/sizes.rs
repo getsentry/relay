@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -102,6 +102,11 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
+        if item.attachment_type() == Some(AttachmentType::Flamegraph)
+            && item.len() > relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE
+        {
+            return Err(AttachmentType::Flamegraph.into());
+        }
         let limit = match item.ty() {
             ItemType::Event
             | ItemType::Transaction
@@ -222,4 +227,34 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::envelope::AttachmentType;
+    use bytes::Bytes;
+
+    #[test]
+    fn test_flamegraph_size_limit() {
+        let config = relay_config::Config::default();
+        let mut envelope = Envelope::parse_bytes(Bytes::from_static(
+            b"{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42\"}\n",
+        ))
+        .unwrap();
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        item.set_payload_without_content_type(vec![b' '; 10 * 1024 * 1024]);
+        envelope.add_item(item.clone());
+        assert!(check_envelope_size_limits(&config.current(), &envelope).is_ok());
+        item.set_payload_without_content_type(vec![b' '; 10 * 1024 * 1024 + 1]);
+        envelope.take_items_by(|_| true);
+        envelope.add_item(item);
+        assert_eq!(
+            check_envelope_size_limits(&config.current(), &envelope),
+            Err(DiscardItemType::Attachment(
+                crate::services::outcome::DiscardAttachmentType::Flamegraph
+            ))
+        );
+    }
 }

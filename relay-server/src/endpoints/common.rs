@@ -445,6 +445,7 @@ pub async fn handle_managed_envelope(
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
     utils::remove_unknown_items(&config, &mut envelope);
+    utils::validate_flamegraph_envelope(&mut envelope);
 
     let event_id = envelope.event_id();
     if envelope.is_empty() {

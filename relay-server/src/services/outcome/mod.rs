@@ -375,6 +375,9 @@ pub enum DiscardReason {
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
+    /// (Relay) A flame graph attachment with invalid headers, payload or event association.
+    InvalidFlamegraph,
+
     /// (Relay) A span attachment that has invalid item headers or attachment meta-data.
     InvalidSpanAttachment,
 
@@ -469,6 +472,7 @@ impl DiscardReason {
             DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
             DiscardReason::InvalidSpan => "invalid_span",
+            DiscardReason::InvalidFlamegraph => "invalid_flamegraph",
             DiscardReason::InvalidSpanAttachment => "invalid_span_attachment",
             DiscardReason::InvalidTraceAttachment => "invalid_trace_attachment",
             #[cfg(feature = "processing")]

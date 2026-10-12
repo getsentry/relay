@@ -327,6 +327,14 @@ impl Item {
         self.payload.clone()
     }
 
+    /// Checks the required transport headers of a flame graph attachment.
+    pub fn has_valid_flamegraph_headers(&self) -> bool {
+        self.ty() == &ItemType::Attachment
+            && self.filename() == Some("flamegraph.json")
+            && self.content_type() == Some(ContentType::Json)
+            && self.headers.get::<usize>(ItemHeaderKey::Length) == Some(self.len())
+    }
+
     /// Sets the payload of this envelope item without specifying a content-type.
     /// Use `set_payload` if you want to define a content-type for the payload.
     pub fn set_payload_without_content_type<B>(&mut self, payload: B)

@@ -12,7 +12,6 @@
 
 **Features**:
 
-- Recognize and preserve `event.flamegraph` attachments associated with events.
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
@@ -29,6 +28,7 @@
 - Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
 - Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
+- Recognize, validate, and preserve `event.flamegraph` attachments associated with events, enforcing the 10 MiB size limit. ([#6473](https://github.com/getsentry/relay/pull/6473))
 
 **Bug Fixes**:
 

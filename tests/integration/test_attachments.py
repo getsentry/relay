@@ -623,6 +623,131 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("size", [10 * 1024 * 1024, 10 * 1024 * 1024 + 1])
+def test_flamegraph_size_limit(mini_sentry, relay, size):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+    payload = (
+        json.dumps(
+            {
+                "version": "1",
+                "platform": "python",
+                "frames": [{"function": "main"}],
+                "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+            }
+        )
+        .encode()
+        .ljust(size, b" ")
+    )
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
+    envelope.add_event({"message": "Flame graph at the size boundary"})
+    envelope.add_item(
+        Item(
+            type="attachment",
+            headers={"attachment_type": "event.flamegraph"},
+            payload=PayloadRef(bytes=payload),
+            filename="flamegraph.json",
+            content_type="application/json",
+        )
+    )
+    if size > 10 * 1024 * 1024:
+        with pytest.raises(HTTPError) as excinfo:
+            relay.send_envelope(project_id, envelope)
+        assert excinfo.value.response.status_code == 413
+    else:
+        relay.send_envelope(project_id, envelope)
+        forwarded = mini_sentry.get_captured_envelope()
+        attachment = next(item for item in forwarded.items if item.type == "attachment")
+        assert attachment.payload.bytes == payload
+
+
+def test_flamegraph_requires_event_in_envelope(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
+    envelope.add_item(
+        Item(
+            type="attachment",
+            headers={"attachment_type": "event.flamegraph"},
+            payload=PayloadRef(
+                json={
+                    "version": "1",
+                    "platform": "python",
+                    "frames": [{"function": "main"}],
+                    "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+                }
+            ),
+            filename="flamegraph.json",
+            content_type="application/json",
+        )
+    )
+    # Ordinary standalone attachments remain supported.
+    envelope.add_item(
+        Item(
+            type="attachment", payload=PayloadRef(bytes=b"keep me"), filename="log.txt"
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.headers.get("filename") for item in forwarded.items] == ["log.txt"]
+
+
+@pytest.mark.parametrize(
+    "invalid", ["json", "version", "counts", "filename", "content_type"]
+)
+def test_invalid_flamegraph_preserves_event(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer, invalid
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing()
+    consumer = attachments_consumer()
+    outcomes = outcomes_consumer()
+    payload = {
+        "version": "1",
+        "platform": "python",
+        "frames": [{"function": "main"}],
+        "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+    }
+    if invalid == "version":
+        payload["version"] = "2"
+    if invalid == "counts":
+        payload["trees"][0]["roots"][0]["children"] = [
+            {"frame_id": 0, "sample_count": 2}
+        ]
+    serialized = b"not json" if invalid == "json" else json.dumps(payload).encode()
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
+    envelope.add_event({"message": "Keep the event"})
+    envelope.add_item(
+        Item(
+            type="attachment",
+            headers={"attachment_type": "event.flamegraph"},
+            payload=PayloadRef(bytes=serialized),
+            filename="wrong.json" if invalid == "filename" else "flamegraph.json",
+            content_type=(
+                "text/plain" if invalid == "content_type" else "application/json"
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    _, event = consumer.get_event()
+    assert event["event_id"] == "515539018c9b4260a6f999572f1661ee"
+    assert not event.get("attachments")
+    rejected = outcomes.get_aggregated_outcomes(n=2)
+    assert {(outcome["category"], outcome["quantity"]) for outcome in rejected} == {
+        (DataCategory.ATTACHMENT, len(serialized)),
+        (DataCategory.ATTACHMENT_ITEM, 1),
+    }
+    assert all(
+        outcome["reason"] == "invalid_flamegraph"
+        and outcome["outcome"] == Outcome.INVALID
+        for outcome in rejected
+    )
+    consumer.assert_empty()
+
+
 @pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_flamegraph(
     mini_sentry,
@@ -645,8 +770,34 @@ def test_event_with_flamegraph(
         {
             "version": "1",
             "platform": "cocoa",
-            "frames": [{"function": "main"}],
-            "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+            "frames": [
+                {
+                    "instruction_addr": "0x100001000",
+                    "function": "main",
+                    "addr_mode": "abs",
+                    "future_frame": True,
+                }
+            ],
+            "debug_meta": {
+                "images": [
+                    {
+                        "type": "macho",
+                        "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                        "code_file": "ExampleApp",
+                        "image_addr": "0x100000000",
+                        "image_size": 8192,
+                        "arch": "arm64",
+                    }
+                ]
+            },
+            "trees": [
+                {
+                    "thread_id": "42",
+                    "thread_attributed": True,
+                    "roots": [{"frame_id": 0, "sample_count": 1}],
+                }
+            ],
+            "future": {"preserved": True},
         },
         separators=(",", ":"),
     ).encode()
