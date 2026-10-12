@@ -1,15 +1,16 @@
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::task::{Context, Poll};
 
 use axum::RequestExt;
-use axum::body::Body;
+use axum::body::{Body, HttpBody};
 use axum::extract::{MatchedPath, Request};
 use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
-use bytes::Bytes;
-use http_body_util::BodyExt;
-use hyper::body::Frame;
+use bytes::Buf;
+use hyper::body::{Frame, SizeHint};
 use tower::ServiceExt;
 use tower_http::decompression::{DecompressionBody, RequestDecompression};
 
@@ -25,12 +26,20 @@ pub async fn decompress(mut request: Request, next: Next) -> Response {
     let content_encoding = metrics::content_encoding_tag(&request);
 
     let encoded_size = Arc::new(AtomicU64::new(0));
-    let request = request.map(|body| body.map_frame(count_bytes(Arc::clone(&encoded_size))));
+    let request = request.map(|body| CountingBody {
+        inner: body,
+        count: Arc::clone(&encoded_size),
+    });
 
     let decoded_size = Arc::new(AtomicU64::new(0));
     let decompression =
         RequestDecompression::new(next.map_request(|request: Request<DecompressionBody<_>>| {
-            request.map(|body| Body::new(body.map_frame(count_bytes(Arc::clone(&decoded_size)))))
+            request.map(|body| {
+                Body::new(CountingBody {
+                    inner: body,
+                    count: Arc::clone(&decoded_size),
+                })
+            })
         }));
     let Ok(response) = decompression.oneshot(request).await;
 
@@ -45,12 +54,36 @@ pub async fn decompress(mut request: Request, next: Next) -> Response {
     response.map(Body::new)
 }
 
-fn count_bytes(count: Arc<AtomicU64>) -> impl FnMut(Frame<Bytes>) -> Frame<Bytes> {
-    move |frame| {
-        if let Some(data) = frame.data_ref() {
-            count.fetch_add(data.len() as u64, Ordering::Relaxed);
+struct CountingBody<B> {
+    inner: B,
+    count: Arc<AtomicU64>,
+}
+
+impl<B: HttpBody + Unpin> HttpBody for CountingBody<B> {
+    type Data = B::Data;
+    type Error = B::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        let poll = Pin::new(&mut this.inner).poll_frame(cx);
+        if let Poll::Ready(Some(Ok(frame))) = &poll
+            && let Some(data) = frame.data_ref()
+        {
+            this.count
+                .fetch_add(data.remaining() as u64, Ordering::Relaxed);
         }
-        frame
+        poll
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
     }
 }
 
