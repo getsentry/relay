@@ -998,11 +998,16 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
     UploadCreate,
-    /// The number of times an upload location is created through the upload service.
+    /// The number of times data is uploaded to an upload location through the upload service.
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
     UploadUpload,
+    /// The number of times the progress of an upload location is queried through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadHead,
     /// The number of times an objectstore upload of an attachment occurs.
     ///
     /// This metric is tagged with:
@@ -1090,6 +1095,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
             RelayCounters::UploadUpload => "upload.upload",
+            RelayCounters::UploadHead => "upload.head",
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",

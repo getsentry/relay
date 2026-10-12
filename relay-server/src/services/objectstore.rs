@@ -50,6 +50,7 @@ pub enum Objectstore {
     RawProfile(Managed<StoreRawProfile>),
     Create(Create, Sender<Result<CreateResult, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
+    Head(Head, Sender<Result<HeadResult, Error>>),
 }
 
 impl Objectstore {
@@ -61,6 +62,7 @@ impl Objectstore {
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
             Self::Create { .. } => MessageKind::Create,
+            Self::Head { .. } => MessageKind::Head,
         }
     }
 
@@ -72,6 +74,7 @@ impl Objectstore {
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
             Self::Create { .. } => 0,
+            Self::Head { .. } => 0,
         }
     }
 }
@@ -119,6 +122,7 @@ enum MessageKind {
     RawProfile,
     Stream,
     Create,
+    Head,
 }
 
 impl MessageKind {
@@ -130,8 +134,37 @@ impl MessageKind {
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
             Self::Create => "create",
+            Self::Head => "head",
         }
     }
+}
+
+/// A request to query the state of a resumable upload.
+pub struct Head {
+    /// The sentry org.
+    pub organization_id: OrganizationId,
+    /// The sentry project.
+    pub project_id: ProjectId,
+    /// The key of the file (chosen by relay).
+    pub key: String,
+    /// The ID of the resumable upload session (chosen by objectstore).
+    pub session_token: SessionToken,
+    /// Total length of the upload,
+    pub length: usize,
+}
+
+impl FromMessage<Head> for Objectstore {
+    type Response = AsyncResponse<Result<HeadResult, Error>>;
+
+    fn from_message(message: Head, sender: Sender<Result<HeadResult, Error>>) -> Self {
+        Self::Head(message, sender)
+    }
+}
+
+/// Response to a [`Head`] message.
+pub struct HeadResult {
+    /// The number of bytes objectstore has persisted for this upload.
+    pub offset: usize,
 }
 
 /// A request to create a new objectstore resumable upload.
@@ -328,6 +361,9 @@ impl ErrorKind {
             Self::UploadFailed(objectstore_client::Error::ChunkTooSmall { .. }) => {
                 "chunk_too_small"
             }
+            Self::UploadFailed(objectstore_client::Error::ResumableUploadUnavailable {
+                ..
+            }) => "resumable_upload_unavailable",
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -340,7 +376,8 @@ impl ErrorKind {
             }
             ErrorKind::UploadFailed(
                 objectstore_client::Error::UploadOffsetMismatch { .. }
-                | objectstore_client::Error::ChunkTooSmall { .. },
+                | objectstore_client::Error::ChunkTooSmall { .. }
+                | objectstore_client::Error::ResumableUploadUnavailable { .. },
             ) => true,
             _ => false,
         }
@@ -519,6 +556,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Create(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Head(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -569,6 +609,13 @@ impl ObjectstoreServiceInner {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
                     error.log(MessageKind::Stream);
+                }
+                sender.send(result);
+            }
+            Objectstore::Head(head, sender) => {
+                let result = self.handle_head(head).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Head);
                 }
                 sender.send(result);
             }
@@ -912,6 +959,26 @@ impl ObjectstoreServiceInner {
             },
         )
         .await
+    }
+
+    async fn handle_head(&self, head: Head) -> Result<HeadResult, Error> {
+        let Head {
+            organization_id,
+            project_id,
+            key,
+            session_token,
+            length,
+        } = head;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+        let resumable_upload = session.resume_upload(&key, session_token.clone());
+        let progress = resumable_upload.progress().send().await?;
+
+        let offset = match progress {
+            UploadProgress::Incomplete { offset } => offset as usize,
+            UploadProgress::Complete => length,
+        };
+
+        Ok(HeadResult { offset })
     }
 
     async fn upload_bytes(
