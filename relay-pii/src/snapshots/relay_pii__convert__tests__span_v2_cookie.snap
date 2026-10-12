@@ -103,9 +103,6 @@ expression: data
         "foo=bar"
       ]
     },
-    "http.response.header.set-cookie.'connect.sid'": {
-      "value": "foobar"
-    },
     "http.response.header.set-cookie.ASP.NET_SessionId": {
       "value": "[Filtered]"
     },
@@ -122,6 +119,9 @@ expression: data
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie._xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.set-cookie.connect.sid": {
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie.csrf": {
@@ -713,6 +713,21 @@ expression: data
         }
       },
       "http.response.header.set-cookie._xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.set-cookie.connect.sid": {
         "value": {
           "": {
             "rem": [

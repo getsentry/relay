@@ -1874,7 +1874,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "http.response.header.set-cookie.fasthttpsessionid": {"value": "foobar"},
                 "http.response.header.set-cookie.mysession": {"value": "foobar"},
                 "http.response.header.set-cookie.irissessionid": {"value": "foobar"},
-                "http.response.header.set-cookie.'connect.sid'": {"value": "foobar"},
+                "http.response.header.set-cookie.connect.sid": {"value": "foobar"},
                 "http.response.header.set-cookie.JSESSIONID": {"value": "foobar"},
                 "http.response.header.set-cookie.ASP.NET_SessionId": {"value": "foobar"},
                 "http.response.header.set-cookie.laravel_session": {"value": "foobar"},
