@@ -1008,10 +1008,10 @@ impl ObjectstoreServiceInner {
                     }
                     Err(error) => return Err(error.into()),
                 };
-                return Ok(HeadResult {
+                Ok(HeadResult {
                     offset,
                     length: Some(length),
-                });
+                })
             }
             HeadKind::Oneshot { length } => {
                 // For oneshot uploads there is no resumeable upload, so directly check the object.
@@ -1019,9 +1019,9 @@ impl ObjectstoreServiceInner {
                     Some(metadata) => length.or(metadata.size).unwrap_or(0),
                     None => 0,
                 };
-                return Ok(HeadResult { offset, length });
+                Ok(HeadResult { offset, length })
             }
-        };
+        }
     }
 
     async fn upload_bytes(
