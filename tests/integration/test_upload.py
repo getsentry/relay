@@ -100,11 +100,11 @@ def test_header(
     if upload_min_chunk_size != 0:
         assert int(response.headers["Upload-Min-Chunk-Size"]) == upload_min_chunk_size
     else:
-        assert "Upload-Chunk-Size" not in response.headers
+        assert "Upload-Min-Chunk-Size" not in response.headers
     if upload_max_chunk_size != 0:
         assert int(response.headers["Upload-Max-Chunk-Size"]) == upload_max_chunk_size
     else:
-        assert "Upload-Chunk-Size" not in response.headers
+        assert "Upload-Max-Chunk-Size" not in response.headers
 
 
 @pytest.mark.parametrize(
