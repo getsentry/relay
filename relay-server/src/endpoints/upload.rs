@@ -41,10 +41,15 @@ use crate::utils::tus::PatchHeaders;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
-/// Header advertising the maximum/recommended chunk size to clients.
+/// Header advertising the minimum chunk size to clients.
 ///
 /// Sentry-specific extension to the TUS upload protocol.
-pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
+pub const UPLOAD_MIN_CHUNK_SIZE: &str = "Upload-Min-Chunk-Size";
+
+/// Header advertising the maximum chunk size to clients.
+///
+/// Sentry-specific extension to the TUS upload protocol.
+pub const UPLOAD_MAX_CHUNK_SIZE: &str = "Upload-Max-Chunk-Size";
 
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
@@ -231,11 +236,17 @@ async fn handle_post(
 
     // Communicate desired chunk size to the client, if set.
     let global_config = state.global_config_handle().current().unwrap_or_default();
-    let upload_chunk_size = global_config.options.upload_chunk_size;
-    if upload_chunk_size > 0 {
+    let upload_min_chunk_size = global_config.options.upload_min_chunk_size;
+    if upload_min_chunk_size > 0 {
         response
             .headers_mut()
-            .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+            .insert(UPLOAD_MIN_CHUNK_SIZE, upload_min_chunk_size.into());
+    }
+    let upload_max_chunk_size = global_config.options.upload_max_chunk_size;
+    if upload_max_chunk_size > 0 {
+        response
+            .headers_mut()
+            .insert(UPLOAD_MAX_CHUNK_SIZE, upload_max_chunk_size.into());
     }
     if let Some(granularity) = granularity {
         response
