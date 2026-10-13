@@ -5,72 +5,18 @@ use serde::de::{
 use std::fmt;
 use std::marker::PhantomData;
 
+use crate::meter::Meter;
+
 /// Costs associated with different kinds of operations; right now, just have one cost for
 /// all operations (but leave the door open for more.)
 mod cost {
     pub const UNIT: usize = 1;
 }
 
-/// A budget for the ops a single deserialization is allowed to spend.
-struct Meter {
-    #[cfg(test)]
-    limit: usize,
-    remaining: usize,
-    exceeded: bool,
-}
-
 impl Meter {
-    /// Creates a meter which allows spending at most `limit` operations.
-    pub fn new(limit: usize) -> Self {
-        Self {
-            #[cfg(test)]
-            limit,
-            remaining: limit,
-            exceeded: false,
-        }
-    }
-
     /// Wraps `deserializer`, so that everything it produces is charged to this meter.
-    pub fn wrap<'de, D: Deserializer<'de>>(
-        &mut self,
-        deserializer: D,
-    ) -> MeteredDeserializer<'_, D> {
+    fn wrap<'de, D: Deserializer<'de>>(&mut self, deserializer: D) -> MeteredDeserializer<'_, D> {
         MeteredDeserializer::new(self, deserializer)
-    }
-
-    #[cfg(test)]
-    fn spent(&self) -> usize {
-        self.limit - self.remaining
-    }
-
-    /// Returns true if we've exceeded our budget.
-    pub fn exceeded(&self) -> bool {
-        self.exceeded
-    }
-
-    /// Tries to charge `amount` operations to the budget.  If we exceed, we return an error,
-    /// set the remaining budget to 0, and mark the budget as exceeded.
-    pub fn spend<E: serde_de::Error>(&mut self, amount: usize) -> Result<(), E> {
-        match self.remaining.checked_sub(amount) {
-            Some(remaining) => {
-                self.remaining = remaining;
-                Ok(())
-            }
-            None => {
-                self.remaining = 0;
-                self.exceeded = true;
-                Err(serde_de::Error::custom(LimitExceeded {}))
-            }
-        }
-    }
-}
-
-/// The error produced when a [`Meter`] runs out of budget.
-struct LimitExceeded();
-
-impl fmt::Display for LimitExceeded {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "deserialization exceeds the operation budget")
     }
 }
 
@@ -256,7 +202,7 @@ macro_rules! visit_scalar {
     ($($method:ident($ty:ty)),* $(,)?) => {
         $(
             fn $method<E: de::Error>(self, v: $ty) -> Result<Self::Value, E> {
-                self.meter.spend(cost::UNIT)?;
+                self.meter.spend_as(cost::UNIT)?;
                 self.inner.$method(v)
             }
         )*
@@ -288,42 +234,42 @@ impl<'de, V: Visitor<'de>> Visitor<'de> for MeteredVisitor<'_, V> {
     }
 
     fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_str(v)
     }
 
     fn visit_borrowed_str<E: de::Error>(self, v: &'de str) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_borrowed_str(v)
     }
 
     fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_string(v)
     }
 
     fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_bytes(v)
     }
 
     fn visit_borrowed_bytes<E: de::Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_borrowed_bytes(v)
     }
 
     fn visit_byte_buf<E: de::Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_byte_buf(v)
     }
 
     fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_none()
     }
 
     fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_unit()
     }
 
@@ -340,7 +286,7 @@ impl<'de, V: Visitor<'de>> Visitor<'de> for MeteredVisitor<'_, V> {
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.visit_seq(MeteredSeqAccess {
             meter: self.meter,
             inner: seq,
@@ -348,7 +294,7 @@ impl<'de, V: Visitor<'de>> Visitor<'de> for MeteredVisitor<'_, V> {
     }
 
     fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
 
         self.inner.visit_map(MeteredMapAccess {
             meter: self.meter,
@@ -383,7 +329,7 @@ impl<'de, A: SeqAccess<'de>> SeqAccess<'de> for MeteredSeqAccess<'_, A> {
         })?;
 
         if element.is_some() {
-            self.meter.spend(cost::UNIT)?;
+            self.meter.spend_as(cost::UNIT)?;
         }
 
         Ok(element)
@@ -413,7 +359,7 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for MeteredMapAccess<'_, A> {
         })?;
 
         if key.is_some() {
-            self.meter.spend(cost::UNIT)?;
+            self.meter.spend_as(cost::UNIT)?;
         }
 
         Ok(key)
@@ -423,7 +369,7 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for MeteredMapAccess<'_, A> {
         &mut self,
         seed: Va,
     ) -> Result<Va::Value, Self::Error> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
 
         self.inner.next_value_seed(MeteredSeed {
             meter: self.meter,
@@ -475,7 +421,7 @@ impl<'de, A: VariantAccess<'de>> VariantAccess<'de> for MeteredVariantAccess<'_,
     type Error = A::Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        self.meter.spend(cost::UNIT)?;
+        self.meter.spend_as(cost::UNIT)?;
         self.inner.unit_variant()
     }
 
