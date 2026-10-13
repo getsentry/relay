@@ -149,7 +149,9 @@ pub struct Head {
     pub key: String,
     /// The ID of the resumable upload session (chosen by objectstore).
     pub session_token: SessionToken,
-    /// Total length of the upload,
+    /// Total length of the upload.
+    ///
+    /// This is part of the `Head` request because we need to communicate it back to the client when objectstore reports the upload as complete.
     pub length: usize,
 }
 
