@@ -19,4 +19,4 @@ prost-types = { workspace = true }
 convert_case = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+protox = { workspace = true }
