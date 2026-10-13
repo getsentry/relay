@@ -658,6 +658,7 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::HeadKind;
                 use objectstore_client::SessionToken;
 
                 let config = config.current();
@@ -671,26 +672,24 @@ impl Service {
                     other: _,
                 } = location.verify(received, &config)?;
 
-                match kind {
-                    // For oneshot locations there is no state in objectstore.
-                    Provisional::Oneshot { length } => Ok(HeadResult { offset: 0, length }),
-                    Provisional::Resumable { length, upload_id } => {
-                        let objectstore::HeadResult { offset } = addr
-                            .send(objectstore::Head {
-                                organization_id: project.scoping.organization_id,
-                                project_id,
-                                key,
-                                session_token: SessionToken::from_base64url(&upload_id)?,
-                                length,
-                            })
-                            .await
-                            .map_err(Error::ObjectstoreServiceUnavailable)??;
-                        Ok(HeadResult {
-                            offset,
-                            length: Some(length),
-                        })
-                    }
-                }
+                let kind = match kind {
+                    Provisional::Oneshot { length } => HeadKind::Oneshot { length },
+                    Provisional::Resumable { length, upload_id } => HeadKind::Resumable {
+                        session_token: SessionToken::from_base64url(&upload_id)?,
+                        length,
+                    },
+                };
+
+                let objectstore::HeadResult { offset, length } = addr
+                    .send(objectstore::Head {
+                        organization_id: project.scoping.organization_id,
+                        project_id,
+                        key,
+                        kind,
+                    })
+                    .await
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                Ok(HeadResult { offset, length })
             }
         }
     }

@@ -1328,6 +1328,18 @@ def test_head_oneshot(
         assert response.headers["Upload-Length"] == str(len(data))
         assert "Upload-Defer-Length" not in response.headers
 
+    patch = patch_chunk(relay, create.headers["Location"], project_key, data, 0)
+    assert patch.status_code == 204, patch.text
+    _, params = location_parts(patch.headers["Location"])
+    assert params["upload_length"] == str(len(data))
+
+    response = head_upload(relay, patch.headers["Location"], project_key)
+
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(len(data))
+    assert response.headers["Upload-Length"] == str(len(data))
+    assert "Upload-Defer-Length" not in response.headers
+
 
 def test_head_session_unavailable(mini_sentry, relay_with_processing, project_config):
     project_id = 42
