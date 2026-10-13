@@ -151,7 +151,8 @@ pub struct Head {
     pub session_token: SessionToken,
     /// Total length of the upload.
     ///
-    /// This is part of the `Head` request because we need to communicate it back to the client when objectstore reports the upload as complete.
+    /// This is part of the `Head` request because we need to communicate it back to the client,
+    /// as the offset, when objectstore reports the upload as complete.
     pub length: usize,
 }
 

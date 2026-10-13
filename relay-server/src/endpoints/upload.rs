@@ -269,14 +269,16 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(LocationQueryParams {
+    Query(location_params): Query<LocationQueryParams>,
+    body: Body,
+) -> axum::response::Result<impl IntoResponse> {
+    let LocationQueryParams {
         upload_length,
         upload_id,
         upload_signature,
         other,
-    }): Query<LocationQueryParams>,
-    body: Body,
-) -> axum::response::Result<impl IntoResponse> {
+    } = location_params;
+
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
