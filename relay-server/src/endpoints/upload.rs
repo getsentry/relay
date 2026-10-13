@@ -342,13 +342,15 @@ async fn handle_head(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(LocationQueryParams {
+    Query(location_params): Query<LocationQueryParams>,
+) -> axum::response::Result<impl IntoResponse> {
+    let LocationQueryParams {
         upload_length,
         upload_id,
         upload_signature,
         other,
-    }): Query<LocationQueryParams>,
-) -> axum::response::Result<impl IntoResponse> {
+    } = location_params;
+
     relay_log::trace!("Checking project fetching kill switch");
     check_kill_switch(&state)?;
 
