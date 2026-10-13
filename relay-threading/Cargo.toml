@@ -20,8 +20,17 @@ relay-system = { workspace = true }
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
 futures = { workspace = true, features = ["executor"] }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
+tokio = { workspace = true, features = [
+    "rt",
+    "rt-multi-thread",
+    "time",
+    "sync",
+    "macros",
+] }
 
 [[bench]]
 name = "pool"
 harness = false
+
+[lints]
+workspace = true

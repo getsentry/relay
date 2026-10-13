@@ -24,7 +24,9 @@ use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::upload::{Create, ProjectContext, Stream, StreamMode, StreamResult, Upload};
+use crate::services::upload::{
+    Create, CreateResult, ProjectContext, Stream, StreamResult, Upload, UploadMode,
+};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
@@ -593,12 +595,14 @@ where
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());
     let byte_counter = stream.byte_counter();
 
-    let location = upload
+    let CreateResult {
+        location,
+        granularity: _,
+    } = upload
         .send(Create {
             project: project.clone(),
             length: None,
             attachment_type: item.attachment_type(),
-            resumable: false,
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?
@@ -612,12 +616,12 @@ where
             project,
             location,
             stream,
-            mode: StreamMode::Oneshot,
+            mode: UploadMode::Oneshot { length: None },
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?;
 
-    let StreamResult { location, offset } = result
+    let StreamResult::Complete { location, offset } = result
         .inspect_err(|e| {
             relay_log::warn!(
                 error = e as &dyn std::error::Error,
@@ -637,7 +641,10 @@ where
             } else {
                 BadStoreRequest::UploadFailed
             }
-        })?;
+        })?
+    else {
+        return Err(BadStoreRequest::UploadFailed);
+    };
 
     debug_assert_eq!(offset, byte_counter.get());
 

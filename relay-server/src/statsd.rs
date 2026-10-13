@@ -344,6 +344,14 @@ pub enum RelayDistributions {
     ///  - `route`: The matched route pattern.
     ///  - `status_code`: The HTTP response status code.
     ContentLength,
+    /// The ratio of bytes read after and before request decompression.
+    ///
+    /// Reports zero when no request body bytes were read.
+    ///
+    /// This metric is tagged with:
+    /// - `route`: The matched route pattern.
+    /// - `content_encoding`: The request's content encoding.
+    DecompressionRatio,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -372,6 +380,7 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
             Self::ContentLength => "requests.content_length",
+            Self::DecompressionRatio => "requests.decompression_ratio",
         }
     }
 }
@@ -998,11 +1007,16 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
     UploadCreate,
-    /// The number of times an upload location is created through the upload service.
+    /// The number of times data is uploaded to an upload location through the upload service.
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
     UploadUpload,
+    /// The number of times the progress of an upload location is queried through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadHead,
     /// The number of times an objectstore upload of an attachment occurs.
     ///
     /// This metric is tagged with:
@@ -1090,6 +1104,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
             RelayCounters::UploadUpload => "upload.upload",
+            RelayCounters::UploadHead => "upload.head",
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",

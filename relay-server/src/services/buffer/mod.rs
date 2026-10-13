@@ -166,6 +166,11 @@ impl PartitionedEnvelopeBuffer {
         self.buffers.iter().map(|buffer| buffer.item_count()).sum()
     }
 
+    /// Returns `true` if all buffers are empty, in memory and on disk.
+    pub fn is_empty(&self) -> bool {
+        self.buffers.iter().all(|buffer| buffer.is_empty())
+    }
+
     pub fn total_storage_size(&self) -> u64 {
         self.buffers
             .iter()
@@ -207,6 +212,7 @@ impl Partitioning {
 #[derive(Debug)]
 pub struct EnvelopeBufferMetrics {
     has_capacity: AtomicBool,
+    is_empty: AtomicBool,
     item_count: AtomicU64,
     storage_size: AtomicU64,
 }
@@ -275,6 +281,11 @@ impl ObservableEnvelopeBuffer {
         self.metrics.item_count.load(Ordering::Relaxed)
     }
 
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        self.metrics.is_empty.load(Ordering::Relaxed)
+    }
+
     pub fn storage_size(&self) -> u64 {
         self.metrics.storage_size.load(Ordering::Relaxed)
     }
@@ -328,6 +339,7 @@ impl EnvelopeBufferService {
             services,
             metrics: Arc::new(EnvelopeBufferMetrics {
                 has_capacity: AtomicBool::new(true),
+                is_empty: AtomicBool::new(false),
                 item_count: AtomicU64::new(0),
                 storage_size: AtomicU64::new(0),
             }),
@@ -605,6 +617,9 @@ impl EnvelopeBufferService {
         self.metrics
             .item_count
             .store(buffer.item_count(), Ordering::Relaxed);
+        self.metrics
+            .is_empty
+            .store(buffer.is_empty(), Ordering::Relaxed);
     }
 }
 
