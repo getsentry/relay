@@ -698,12 +698,18 @@ def test_flamegraph_requires_event_in_envelope(mini_sentry, relay):
     "invalid", ["json", "version", "counts", "filename", "content_type"]
 )
 def test_invalid_flamegraph_preserves_event(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer, invalid
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    attachments_consumer,
+    outcomes_consumer,
+    invalid,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
     consumer = attachments_consumer()
+    events = events_consumer()
     outcomes = outcomes_consumer()
     payload = {
         "version": "1",
@@ -732,9 +738,9 @@ def test_invalid_flamegraph_preserves_event(
         )
     )
     relay.send_envelope(project_id, envelope)
-    _, event = consumer.get_event()
+    event, message = events.get_event()
     assert event["event_id"] == "515539018c9b4260a6f999572f1661ee"
-    assert not event.get("attachments")
+    assert not message.get("attachments")
     rejected = outcomes.get_aggregated_outcomes(n=2)
     assert {(outcome["category"], outcome["quantity"]) for outcome in rejected} == {
         (DataCategory.ATTACHMENT, len(serialized)),

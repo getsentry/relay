@@ -1,5 +1,7 @@
 //! Validation of version 1 flame graph attachments without rewriting captured data.
 
+use std::collections::HashSet;
+
 use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
 use serde::Deserialize;
 
@@ -68,6 +70,12 @@ pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
     if graph.frames.is_empty() || graph.trees.is_empty() {
         return Err(InvalidPayload("empty frames or trees"));
     }
+    let image_debug_ids: HashSet<_> = graph
+        .debug_meta
+        .iter()
+        .flat_map(|meta| &meta.images)
+        .filter_map(|image| image.debug_id.map(|id| id.0))
+        .collect();
     for entry in &graph.frames {
         let frame = &entry.frame;
         if frame.filename.is_none() && frame.function.is_none() && frame.instruction_addr.is_none()
@@ -97,7 +105,7 @@ pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
                 reference
                     .parse::<DebugId>()
                     .ok()
-                    .is_some_and(|id| images.iter().any(|image| image.debug_id == Some(id)))
+                    .is_some_and(|id| image_debug_ids.contains(&id.0))
             };
             if !matches_image {
                 return Err(InvalidPayload(
@@ -128,4 +136,40 @@ pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_flamegraph_large_relative_address_tables() {
+        let debug_id = "84a04d24-0e60-3810-a8c0-90a65e2df61a";
+        let frame = json!({"instruction_addr": "0x1000", "addr_mode": format!("rel:{debug_id}")});
+        let mut images = vec![
+            json!({
+                "type": "macho", "debug_id": "94a04d24-0e60-3810-a8c0-90a65e2df61a"
+            });
+            10_000
+        ];
+        images.push(json!({"type": "macho", "debug_id": debug_id}));
+        let mut graph = json!({
+            "version": "1", "platform": "cocoa",
+            "frames": vec![frame; 10_000],
+            "debug_meta": {"images": images},
+            "trees": [{"roots": [{"frame_id": 9999, "sample_count": 1}]}]
+        });
+        let payload = serde_json::to_vec(&graph).unwrap();
+        assert!(payload.len() < MAX_FLAMEGRAPH_SIZE);
+        validate(&payload).unwrap();
+
+        graph["debug_meta"]["images"].as_array_mut().unwrap().pop();
+        assert!(matches!(
+            validate(&serde_json::to_vec(&graph).unwrap()),
+            Err(FlamegraphError::InvalidPayload(
+                "relative address has no matching debug image"
+            ))
+        ));
+    }
 }

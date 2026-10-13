@@ -19,19 +19,29 @@ use relay_dynamic_config::Feature;
 
 /// Validates the attachments and drop any invalid ones.
 ///
-/// An attachment might be a placeholder, in which case it needs to be validated.
+/// Flame graph transport checks apply on every Relay and require an explicit event in the
+/// original envelope. Payload and placeholder validation only run on processing Relays.
 pub fn validate_attachments<T, V>(
     managed: &mut Managed<T>,
     select: impl FnOnce(&mut T) -> &mut V,
     ctx: Context<'_>,
+    has_event: bool,
 ) where
     T: Counted,
     V: RetainMut<Item>,
 {
-    if !ctx.is_processing() {
-        return;
-    }
-    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+    managed.retain(select, |attachment, _| {
+        if attachment.attachment_type() == Some(AttachmentType::Flamegraph)
+            && (!has_event || !attachment.has_valid_flamegraph_headers())
+        {
+            return Err(ProcessingError::InvalidFlamegraph);
+        }
+        if ctx.is_processing() {
+            validate(attachment, ctx.config)
+        } else {
+            Ok(())
+        }
+    });
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
@@ -250,7 +260,6 @@ mod tests {
 
     use super::*;
 
-    #[cfg(feature = "processing")]
     fn flamegraph_item(payload: serde_json::Value) -> Item {
         let mut item = Item::new(ItemType::Attachment);
         item.set_attachment_type(AttachmentType::Flamegraph);
@@ -259,13 +268,64 @@ mod tests {
         item
     }
 
-    #[cfg(feature = "processing")]
     fn flamegraph_payload() -> serde_json::Value {
         serde_json::json!({
             "version": "1", "platform": "python",
             "frames": [{"function": "main"}],
             "trees": [{"roots": [{"frame_id": 0, "sample_count": 10, "children": []}]}]
         })
+    }
+
+    #[test]
+    fn test_flamegraph_headers_on_non_processing_relay() {
+        let mut invalid = flamegraph_item(flamegraph_payload());
+        invalid.set_filename("wrong.json");
+        let valid = flamegraph_item(flamegraph_payload());
+        let mut ordinary = Item::new(ItemType::Attachment);
+        ordinary.set_payload(ContentType::Text, "keep me");
+        let rejected_size = invalid.len() as u64;
+        let (mut attachments, mut handle) =
+            Managed::for_test(vec![invalid, valid, ordinary]).build();
+
+        validate_attachments(&mut attachments, |a| a, Context::for_test(), true);
+
+        assert_eq!(attachments.len(), 2);
+        assert_eq!(attachments[0].filename(), Some("flamegraph.json"));
+        assert_eq!(attachments[1].payload().as_ref(), b"keep me");
+        attachments.accept(|_| ());
+        let outcome = crate::services::outcome::Outcome::Invalid(
+            crate::services::outcome::DiscardReason::InvalidFlamegraph,
+        );
+        handle.assert_outcome(
+            &outcome,
+            relay_quotas::DataCategory::Attachment,
+            rejected_size,
+        );
+        handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
+    }
+
+    #[test]
+    fn test_flamegraph_requires_explicit_event() {
+        let flamegraph = flamegraph_item(flamegraph_payload());
+        let rejected_size = flamegraph.len() as u64;
+        let mut ordinary = Item::new(ItemType::Attachment);
+        ordinary.set_payload(ContentType::Text, "keep me");
+        let (mut attachments, mut handle) = Managed::for_test(vec![flamegraph, ordinary]).build();
+
+        validate_attachments(&mut attachments, |a| a, Context::for_test(), false);
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].payload().as_ref(), b"keep me");
+        attachments.accept(|_| ());
+        let outcome = crate::services::outcome::Outcome::Invalid(
+            crate::services::outcome::DiscardReason::InvalidFlamegraph,
+        );
+        handle.assert_outcome(
+            &outcome,
+            relay_quotas::DataCategory::Attachment,
+            rejected_size,
+        );
+        handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
     }
 
     #[cfg(feature = "processing")]

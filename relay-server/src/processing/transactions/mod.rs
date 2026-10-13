@@ -126,11 +126,12 @@ impl Processor for TransactionProcessor {
         tx: Managed<Self::Input>,
         mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let has_event = tx.headers.event_id().is_some();
         relay_log::trace!("Expand transaction");
         let mut tx = process::expand(tx)?;
 
         relay_log::trace!("Validate attachments");
-        attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx);
+        attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx, has_event);
 
         relay_log::trace!("Prepare transaction data");
         process::prepare_data(&mut tx, &mut ctx)?;

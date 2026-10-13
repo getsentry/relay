@@ -102,11 +102,6 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
-        if item.attachment_type() == Some(AttachmentType::Flamegraph)
-            && item.len() > relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE
-        {
-            return Err(AttachmentType::Flamegraph.into());
-        }
         let limit = match item.ty() {
             ItemType::Event
             | ItemType::Transaction
@@ -188,7 +183,13 @@ impl Limit {
             true => item.len() / item.item_count().unwrap_or(1).max(1) as usize,
             false => item.len(),
         };
-        if size > self.item_size {
+        let item_size = match (item.ty(), item.attachment_type()) {
+            (ItemType::Attachment, Some(AttachmentType::Flamegraph)) => self
+                .item_size
+                .min(relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE),
+            _ => self.item_size,
+        };
+        if size > item_size {
             return Err(Rejected::ItemSize);
         }
 
@@ -234,6 +235,44 @@ mod tests {
     use super::*;
     use crate::envelope::AttachmentType;
     use bytes::Bytes;
+
+    #[test]
+    fn test_flamegraph_uses_attachment_limit() {
+        let mut limit = Limit {
+            item_size: usize::MAX,
+            total_count: 2,
+            total_size: usize::MAX,
+        };
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        item.set_payload_without_content_type(vec![
+            b' ';
+            relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE
+                + 1
+        ]);
+        assert!(matches!(limit.apply(&item), Err(Rejected::ItemSize)));
+        assert_eq!(limit.total_count, 2);
+
+        item.set_payload_without_content_type("1234");
+        limit.item_size = 3;
+        assert!(matches!(limit.apply(&item), Err(Rejected::ItemSize)));
+
+        limit.item_size = 4;
+        limit.total_size = 8;
+        assert!(limit.apply(&item).is_ok());
+        assert_eq!(limit.total_count, 1);
+        assert_eq!(limit.total_size, 4);
+        item.set_attachment_type(AttachmentType::Attachment);
+        assert!(limit.apply(&item).is_ok());
+        assert_eq!(limit.total_count, 0);
+        assert_eq!(limit.total_size, 0);
+        assert!(matches!(limit.apply(&item), Err(Rejected::TotalCount)));
+
+        limit.total_count = 1;
+        limit.total_size = 3;
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        assert!(matches!(limit.apply(&item), Err(Rejected::TotalSize)));
+    }
 
     #[test]
     fn test_flamegraph_size_limit() {
