@@ -2019,9 +2019,6 @@ mod tests {
         let mut limits = RateLimits::new();
         limits.add(limit_for(&quota, &check_in("prod", "cron1")));
 
-        eprintln!("{:?}", limits);
-        eprintln!("{:?}", check_in("prod", "cron1"));
-
         assert!(limits.check(&check_in("prod", "cron1")).is_limited());
         assert!(!limits.check(&check_in("dev", "cron1")).is_limited());
         assert!(!limits.check(&check_in("prod", "cron2")).is_limited());
