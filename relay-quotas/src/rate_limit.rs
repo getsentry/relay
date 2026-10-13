@@ -445,10 +445,6 @@ impl RateLimits {
 
     /// Removes expired rate limits from this instance.
     pub fn clean_expired(&mut self, now: Instant) {
-        if !self.has_expired(now) {
-            return;
-        }
-
         while let Some(next) = self.expiry_heap.peek() {
             if !next.retry_after.expired_at(now) {
                 break;

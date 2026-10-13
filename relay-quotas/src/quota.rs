@@ -209,36 +209,29 @@ impl DimensionMap {
     pub fn new(dimensions: BTreeMap<Dimension, String>) -> DimensionMap {
         let mut hash = Self::EMPTY_MAP_HASH;
 
-        for value in dimensions.iter() {
-            let mut h = FnvHasher::with_key(0);
-            value.0.hash(&mut h);
-            value.1.hash(&mut h);
+        let dimensions = dimensions
+            .into_iter()
+            .map(|(k, v)| {
+                let mut h = FnvHasher::with_key(0);
+                k.hash(&mut h);
+                v.hash(&mut h);
 
-            // We construct a total hash over all the ordered, individually-hashed (dim,value) pairs
-            // by using an XOR, rather than using a single FnvHasher, because we need to have the
-            // individual element hashes available for projection, and we'd like projection to be
-            // really fast (without having to invoke another FnvHasher pass,) so opting for a simple
-            // XOR here.  This should be safe, because the number of dimensions is likely to remain
-            // small (< 64), and the number of possible dimension combinations will remain small.
-            // If Dimensions gets big _and_ we see large sets of dimensions (> 10), this should
-            // be revisited.
-            hash ^= h.finish();
-        }
+                // We construct a total hash over all the ordered, individually-hashed (dim,value) pairs
+                // by using an XOR, rather than using a single FnvHasher, because we need to have the
+                // individual element hashes available for projection, and we'd like projection to be
+                // really fast (without having to invoke another FnvHasher pass,) so opting for a simple
+                // XOR here.  This should be safe, because the number of dimensions is likely to remain
+                // small (< 64), and the number of possible dimension combinations will remain small.
+                // If Dimensions gets big _and_ we see large sets of dimensions (> 10), this should
+                // be revisited.
+                hash ^= h.finish();
 
-        Self {
-            dimensions: Arc::new(
-                dimensions
-                    .into_iter()
-                    .map(|(k, v)| {
-                        let mut h = FnvHasher::with_key(0);
-                        k.hash(&mut h);
-                        v.hash(&mut h);
-                        (k, DimensionMapValue::new(v, h.finish()))
-                    })
-                    .collect(),
-            ),
-            hash,
-        }
+                (k, DimensionMapValue::new(v, h.finish()))
+            })
+            .collect::<BTreeMap<_, _>>()
+            .into();
+
+        Self { dimensions, hash }
     }
 
     /// Returns the hash of this DimensionMap's dimensions and values.
