@@ -2954,7 +2954,7 @@ mod tests {
         // Should not set response_tokens_per_second when there are no output tokens
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.operation.type": "ai_client",
+          "gen_ai.operation.type": "other",
           "gen_ai.usage.input_tokens": 500,
           "gen_ai.usage.total_tokens": 500.0
         }
@@ -2998,7 +2998,7 @@ mod tests {
         // Should not set response_tokens_per_second when duration is zero
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.operation.type": "ai_client",
+          "gen_ai.operation.type": "other",
           "gen_ai.usage.output_tokens": 1000,
           "gen_ai.usage.total_tokens": 1000.0
         }
@@ -3039,7 +3039,7 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.operation.type": "other"
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
@@ -3049,7 +3049,7 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.operation.type": "other"
         }
         "#);
     }
