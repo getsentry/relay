@@ -361,9 +361,9 @@ impl ErrorKind {
             Self::UploadFailed(objectstore_client::Error::ChunkTooSmall { .. }) => {
                 "chunk_too_small"
             }
-            Self::UploadFailed(objectstore_client::Error::ResumableUploadUnavailable {
-                ..
-            }) => "resumable_upload_unavailable",
+            Self::UploadFailed(objectstore_client::Error::ResumableUploadUnavailable) => {
+                "resumable_upload_unavailable"
+            }
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -377,7 +377,7 @@ impl ErrorKind {
             ErrorKind::UploadFailed(
                 objectstore_client::Error::UploadOffsetMismatch { .. }
                 | objectstore_client::Error::ChunkTooSmall { .. }
-                | objectstore_client::Error::ResumableUploadUnavailable { .. },
+                | objectstore_client::Error::ResumableUploadUnavailable,
             ) => true,
             _ => false,
         }

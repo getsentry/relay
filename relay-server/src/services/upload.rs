@@ -116,6 +116,7 @@ impl Error {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 /// The message interface for this service.
 pub enum Upload {
     /// Creates an upload resource.
@@ -672,7 +673,7 @@ impl Service {
 
                 match kind {
                     // For oneshot locations there is no state in objectstore.
-                    Provisional::Oneshot { length } => return Ok(HeadResult { offset: 0, length }),
+                    Provisional::Oneshot { length } => Ok(HeadResult { offset: 0, length }),
                     Provisional::Resumable { length, upload_id } => {
                         let objectstore::HeadResult { offset } = addr
                             .send(objectstore::Head {
