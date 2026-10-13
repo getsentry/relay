@@ -14,7 +14,7 @@
 
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
-- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
+- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394), [#6504](https://github.com/getsentry/relay/pull/6504))
 - Implement support for SDK indicated requests on localhost for inbound filters. ([#6422](https://github.com/getsentry/relay/pull/6422))
 - Add a `cidr` rule condition that matches IP addresses against a list of addresses and CIDR ranges, and expose the envelope's client IP to generic inbound filters as `envelope.client_ip`. ([#6374](https://github.com/getsentry/relay/pull/6374))
 - Add a `release` rule condition that compares the version of a release with `eq`, `gt`, `gte`, `lt`, or `lte`, so generic inbound filters can express version ranges. ([#6430](https://github.com/getsentry/relay/pull/6430))
@@ -42,9 +42,11 @@
 - Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 - Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
+- Add more sensitive session cookie names for PII scrubbing. ([#6499](https://github.com/getsentry/relay/pull/6499))
 
 **Internal**:
 
+- Update sentry-conventions to 0.27.0. Adds Anthropic tool-result, NEL sampling, integrity policy, AWS, MCP, and `gen_ai` memory conventions, along with span op deprecations. ([#6498](https://github.com/getsentry/relay/pull/6498))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))

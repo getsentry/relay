@@ -13,7 +13,11 @@ publish = false
 workspace = true
 
 [dependencies]
-rdkafka = { workspace = true, optional = true, features = ["tracing", "ssl", "libz-static"] }
+rdkafka = { workspace = true, optional = true, features = [
+  "tracing",
+  "ssl",
+  "libz-static",
+] }
 rdkafka-sys = { workspace = true, optional = true }
 relay-log = { workspace = true, optional = true }
 relay-statsd = { workspace = true, optional = true }
@@ -25,7 +29,6 @@ sentry_arroyo = { workspace = true, optional = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
-hash32 = { workspace = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }

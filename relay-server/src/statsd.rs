@@ -344,6 +344,14 @@ pub enum RelayDistributions {
     ///  - `route`: The matched route pattern.
     ///  - `status_code`: The HTTP response status code.
     ContentLength,
+    /// The ratio of bytes read after and before request decompression.
+    ///
+    /// Reports zero when no request body bytes were read.
+    ///
+    /// This metric is tagged with:
+    /// - `route`: The matched route pattern.
+    /// - `content_encoding`: The request's content encoding.
+    DecompressionRatio,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -372,6 +380,7 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
             Self::ContentLength => "requests.content_length",
+            Self::DecompressionRatio => "requests.decompression_ratio",
         }
     }
 }
