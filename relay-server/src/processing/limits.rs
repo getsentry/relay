@@ -78,11 +78,13 @@ impl QuotaRateLimiter {
         })
     }
 
+    #[cfg(feature = "processing")]
     fn has_redis(&self) -> bool {
-        #[cfg(feature = "processing")]
-        if self.redis.is_some() {
-            return true;
-        }
+        self.redis.is_some()
+    }
+
+    #[cfg(not(feature = "processing"))]
+    fn has_redis(&self) -> bool {
         false
     }
 }

@@ -425,6 +425,11 @@ impl ServiceState {
         self.inner.registry.autoscaling.as_ref()
     }
 
+    /// Returns `true` if all envelope buffer partitions are empty, in memory and on disk.
+    pub fn envelope_buffer_is_empty(&self) -> bool {
+        self.inner.registry.envelope_buffer.is_empty()
+    }
+
     /// Returns the V2 envelope buffer, if present.
     pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         self.inner.registry.envelope_buffer.buffer(project_key_pair)

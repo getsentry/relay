@@ -164,6 +164,14 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Sqlite(buffer) => buffer.is_empty(),
+            Self::InMemory(buffer) => buffer.is_empty(),
+        }
+    }
+
     /// Returns the total number of envelopes that have been spooled since the startup. It does
     /// not include the count that existed in a persistent spooler before.
     pub fn item_count(&self) -> u64 {
@@ -473,6 +481,11 @@ where
                 // line blocking of non-ready stacks.
                 stack.next_project_fetch = Instant::now() + next_fetch;
             });
+    }
+
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        self.priority_queue.is_empty()
     }
 
     /// Returns `true` if the underlying storage has the capacity to store more envelopes.

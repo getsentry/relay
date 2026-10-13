@@ -24,6 +24,7 @@ from .tus import (
     FIRST_CHUNK,
     RESUMABLE_DATA,
     SECOND_CHUNK,
+    head_upload,
     location_parts,
     patch_chunk,
     rebuild_location,
@@ -70,11 +71,13 @@ def test_forward_create(
     assert response.status_code == expected_status_code, response.text
 
 
-@pytest.mark.parametrize("upload_chunk_size", [0, 1_000_000_000])
-def test_header(mini_sentry, relay, dummy_upload, upload_chunk_size):
+@pytest.mark.parametrize("upload_max_chunk_size", [0, 1_000_000_000])
+def test_header(mini_sentry, relay, dummy_upload, upload_max_chunk_size):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"]["relay.upload-chunk.size"] = upload_chunk_size
+    mini_sentry.global_config["options"][
+        "relay.upload-max-chunk.size"
+    ] = upload_max_chunk_size
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -87,10 +90,10 @@ def test_header(mini_sentry, relay, dummy_upload, upload_chunk_size):
     )
 
     assert response.status_code == 201, response.text
-    if upload_chunk_size != 0:
-        assert int(response.headers["Upload-Chunk-Size"]) == upload_chunk_size
+    if upload_max_chunk_size != 0:
+        assert int(response.headers["Upload-Max-Chunk-Size"]) == upload_max_chunk_size
     else:
-        assert "Upload-Chunk-Size" not in response.headers
+        assert "Upload-Max-Chunk-Size" not in response.headers
 
 
 @pytest.mark.parametrize(
@@ -325,7 +328,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
         ),
         pytest.param(
             12,
-            400,
+            413,
             "Chunk of 12 bytes exceeds the remaining 11 bytes",
             id="larger_than_announced",
         ),
@@ -578,7 +581,7 @@ def test_processing_invalid_length(
         data=data,
     )
 
-    assert response.status_code == 400, response.text
+    assert response.status_code == 413, response.text
 
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
@@ -939,7 +942,7 @@ def test_upload_minidump_opt_in(
         pytest.param(
             {"offset": 0, "chunk": FIRST_CHUNK},
             409,
-            f"invalid Upload-Offset 0, expected {len(FIRST_CHUNK)}",
+            f"upload offset mismatch (server holds {len(FIRST_CHUNK)} bytes)",
             id="retry_first_chunk",
         ),
         pytest.param(
@@ -956,7 +959,7 @@ def test_upload_minidump_opt_in(
         ),
         pytest.param(
             {"chunk": SECOND_CHUNK + b"!"},
-            400,
+            413,
             f"Chunk of {len(SECOND_CHUNK) + 1} bytes exceeds the remaining {len(SECOND_CHUNK)} bytes",
             id="chunk_exceeds_remaining",
         ),
@@ -1131,3 +1134,242 @@ def test_oneshot_fallback(
 
     key = final_path.rstrip("/").split("/")[-1]
     assert objectstore("attachments", project_id).get(key).payload.read() == data
+
+
+@pytest.mark.parametrize(
+    "granularity",
+    [pytest.param(0), pytest.param(1024)],
+)
+def test_create_granularity_header(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    granularity,
+):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def create_session(scope, key):
+        assert request.args["upload_type"] == "resumable"
+        return {"key": key, "session": "c2Vzc2lvbg", "granularity": granularity}
+
+    processing_relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+    pop_relay = relay(processing_relay)
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    pop_relay.send_event(project_id)
+    events_consumer.get_event()
+
+    for target in (processing_relay, pop_relay):
+        response = target.post(
+            f"/api/{project_id}/upload/?sentry_key={project_key}",
+            headers={
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": "11",
+            },
+        )
+
+        assert response.status_code == 201, response.text
+        assert "upload_id=" in response.headers["Location"]
+        if granularity > 0:
+            assert int(response.headers["Upload-Chunk-Granularity"]) == granularity
+            # The minimum chunk size is currently derived from the granularity.
+            assert int(response.headers["Upload-Min-Chunk-Size"]) == granularity
+        else:
+            assert "Upload-Chunk-Granularity" not in response.headers, response.headers
+            assert "Upload-Min-Chunk-Size" not in response.headers, response.headers
+
+
+@pytest.mark.parametrize(
+    "chain",
+    [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")],
+)
+def test_resumable_upload_declined(
+    mini_sentry, relay, relay_with_processing, project_config, events_consumer, chain
+):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def decline_resumable(scope, key):
+        assert request.args["upload_type"] == "resumable"
+        return "", 501
+
+    mini_sentry.fail_on_relay_error = False
+    processing_relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                }
+            }
+        }
+    )
+    relay = relay(processing_relay) if chain else processing_relay
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == 501, response.text
+    assert "resumable upload declined" in response.text
+    assert "Location" not in response.headers
+
+
+def test_head_resumable_progress(
+    mini_sentry, relay, relay_with_processing, project_config, events_consumer
+):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    total = len(RESUMABLE_DATA)
+
+    relay = relay(relay_with_processing())
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
+
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(total)},
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    _, params = location_parts(location)
+    assert "upload_id" in params
+
+    response = head_upload(relay, location, project_key)
+    assert response.status_code == 204, response.text
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.headers["Upload-Offset"] == "0"
+    assert response.headers["Upload-Length"] == str(total)
+
+    patch = patch_chunk(relay, location, project_key, FIRST_CHUNK, 0)
+    assert patch.status_code == 204, patch.text
+    assert patch.headers["Upload-Offset"] == str(len(FIRST_CHUNK))
+
+    response = head_upload(relay, patch.headers["Location"], project_key)
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == patch.headers["Upload-Offset"]
+    assert response.headers["Upload-Length"] == str(total)
+
+    patch = patch_chunk(
+        relay,
+        location,
+        project_key,
+        SECOND_CHUNK,
+        int(response.headers["Upload-Offset"]),
+    )
+    assert patch.status_code == 204, patch.text
+    assert patch.headers["Upload-Offset"] == str(total)
+
+    response = head_upload(relay, location, project_key)
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(total)
+    assert response.headers["Upload-Length"] == str(total)
+
+
+@pytest.mark.parametrize(
+    "resumable_feature,defer_length",
+    [
+        pytest.param(True, True, id="feature_on_deferred_length"),
+        pytest.param(False, False, id="feature_off_known_length"),
+        pytest.param(False, True, id="feature_off_deferred_length"),
+    ],
+)
+def test_head_oneshot(
+    mini_sentry, relay_with_processing, project_config, resumable_feature, defer_length
+):
+    project_id = 42
+    if not resumable_feature:
+        project_config["features"].remove("projects:resumable-uploads")
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    relay = relay_with_processing()
+
+    data = b"oneshot payload"
+    headers = {"Tus-Resumable": "1.0.0"}
+    if defer_length:
+        headers["Upload-Defer-Length"] = "1"
+    else:
+        headers["Upload-Length"] = str(len(data))
+
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}", headers=headers
+    )
+    assert create.status_code == 201, create.text
+    _, params = location_parts(create.headers["Location"])
+    assert "upload_id" not in params
+
+    response = head_upload(relay, create.headers["Location"], project_key)
+
+    assert response.status_code == 204, response.text
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert response.headers["Upload-Offset"] == "0"
+    if defer_length:
+        assert "Upload-Length" not in response.headers
+        assert response.headers["Upload-Defer-Length"] == "1"
+    else:
+        assert response.headers["Upload-Length"] == str(len(data))
+        assert "Upload-Defer-Length" not in response.headers
+
+    patch = patch_chunk(relay, create.headers["Location"], project_key, data, 0)
+    assert patch.status_code == 204, patch.text
+    _, params = location_parts(patch.headers["Location"])
+    assert params["upload_length"] == str(len(data))
+
+    response = head_upload(relay, patch.headers["Location"], project_key)
+
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(len(data))
+    assert response.headers["Upload-Length"] == str(len(data))
+    assert "Upload-Defer-Length" not in response.headers
+
+
+def test_head_session_unavailable(mini_sentry, relay_with_processing, project_config):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route(
+        "/v1/objects/attachments/<scope>/<key>", methods=["PUT", "HEAD"]
+    )
+    def objectstore(scope, key):
+        if request.headers.get("Upload-Offset") == "*" or request.method == "HEAD":
+            return Response("", status=404)
+        return {"key": key, "session": "c2Vzc2lvbg", "granularity": 0}
+
+    relay = relay_with_processing(
+        options={"processing": {"objectstore": {"objectstore_url": mini_sentry.url}}}
+    )
+
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": "11"},
+    )
+    assert create.status_code == 201, create.text
+
+    response = head_upload(relay, create.headers["Location"], project_key)
+
+    assert response.status_code == 404
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert "Upload-Offset" not in response.headers

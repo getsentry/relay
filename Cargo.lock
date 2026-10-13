@@ -297,27 +297,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-extra"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be44683b41ccb9ab2d23a5230015c9c3c55be97a25e4428366de8873103f7970"
-dependencies = [
- "axum",
- "axum-core",
- "bytes",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "mime",
- "pin-project-lite",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
 name = "axum-macros"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1576,9 +1555,9 @@ dependencies = [
 
 [[package]]
 name = "fs-err"
-version = "3.3.1"
+version = "3.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b91aa448ca50d7e79433bdf3ee8d99215430d2ec02ade5aefab2a073a1822e8a"
+checksum = "b5c95b673b8f6f7235229ae11c5642d81b04c2e64c1e2fb417bc0cf73ca45f29"
 dependencies = [
  "autocfg",
  "tokio",
@@ -3353,9 +3332,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28cf958783f091b9431a4a133e15d3fae26ccc125aea5706efa353e263588906"
+checksum = "f77ee71be598a956dcadf08eb1670936c25435094c40eb159070f8f9cb16af28"
 dependencies = [
  "async-compression",
  "bytes",
@@ -3376,9 +3355,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b315b6f80b640f12233bdbd98c07a8c41d1b02d1035b1a92ee60e7f10cd07db5"
+checksum = "3d249110e47d5c4bec957ec5c7beea9770c8243368e53d836f7f7e8e0908cfba"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -3696,16 +3675,6 @@ dependencies = [
  "phf_macros",
  "phf_shared",
  "serde",
-]
-
-[[package]]
-name = "phf_codegen"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49aa7f9d80421bca176ca8dbfebe668cc7a2684708594ec9f3c0db0805d5d6e1"
-dependencies = [
- "phf_generator",
- "phf_shared",
 ]
 
 [[package]]
@@ -4462,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4498,7 +4467,6 @@ dependencies = [
  "chrono",
  "criterion",
  "regex-lite",
- "relay-pattern",
  "sentry-types",
  "serde",
  "serde_test",
@@ -4536,7 +4504,6 @@ dependencies = [
  "pest",
  "pest_derive",
  "phf",
- "phf_codegen",
  "proc-macro2",
  "quote",
  "regex",
@@ -4627,7 +4594,6 @@ dependencies = [
  "enumset",
  "insta",
  "minidump",
- "opentelemetry-proto",
  "rand 0.9.4",
  "relay-base-schema",
  "relay-common",
@@ -4683,7 +4649,6 @@ dependencies = [
 name = "relay-kafka"
 version = "26.9.0"
 dependencies = [
- "hash32",
  "hashbrown 0.15.5",
  "insta",
  "parking_lot",
@@ -4718,21 +4683,17 @@ name = "relay-metrics"
 version = "26.9.0"
 dependencies = [
  "ahash",
- "bytecount",
  "chrono",
  "criterion",
  "hash32",
  "hashbrown 0.15.5",
  "insta",
- "itertools 0.14.0",
- "priority-queue",
  "rand 0.9.4",
  "relay-base-schema",
  "relay-cogs",
  "relay-common",
  "relay-log",
  "relay-protocol",
- "relay-redis",
  "relay-statsd",
  "relay-system",
  "relay-test",
@@ -4883,9 +4844,10 @@ dependencies = [
  "insta",
  "ipnetwork",
  "num-traits",
- "relay-common",
  "relay-pattern",
  "relay-protocol-derive",
+ "semver",
+ "sentry-release-parser",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -4912,7 +4874,6 @@ dependencies = [
  "ahash",
  "async-trait",
  "fnv",
- "hashbrown 0.15.5",
  "insta",
  "itertools 0.14.0",
  "papaya",
@@ -4995,7 +4956,6 @@ dependencies = [
  "arc-swap",
  "async-compression",
  "axum",
- "axum-extra",
  "axum-server",
  "backon",
  "brotli 7.0.0",
