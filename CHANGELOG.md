@@ -14,7 +14,7 @@
 
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
-- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
+- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394), [#6504](https://github.com/getsentry/relay/pull/6504))
 - Implement support for SDK indicated requests on localhost for inbound filters. ([#6422](https://github.com/getsentry/relay/pull/6422))
 - Add a `cidr` rule condition that matches IP addresses against a list of addresses and CIDR ranges, and expose the envelope's client IP to generic inbound filters as `envelope.client_ip`. ([#6374](https://github.com/getsentry/relay/pull/6374))
 - Add a `release` rule condition that compares the version of a release with `eq`, `gt`, `gte`, `lt`, or `lte`, so generic inbound filters can express version ranges. ([#6430](https://github.com/getsentry/relay/pull/6430))
