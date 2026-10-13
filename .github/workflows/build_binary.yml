@@ -60,21 +60,35 @@ jobs:
 
   linux-aarch64:
     name: Linux Aarch64
-    # Ubuntu 22.04 needs to be supported until Apr 2029 (EOL + 2 Years).
-    # Make sure to update documentation once the version is updated:
-    # https://docs.sentry.io/product/relay/operating-guidelines/
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-24.04-arm
+    container:
+      # Use an older docker container to build the binary to guarantee glibc compatibility.
+      # The runner image does not matter for this: the glibc baseline comes from the container.
+      # Ubuntu 22.04 needs to be supported until Apr 2029 (EOL + 2 Years).
+      # Make sure to update documentation once the version is updated:
+      # https://docs.sentry.io/product/relay/operating-guidelines/
+      image: ubuntu:22.04
 
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates gcc libc6-dev curl make zip
+
       - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
+      - name: Add git safe directory exception
+        run: git config --global --add safe.directory "$(pwd)"
+
       - name: Install Rust Toolchain
-        run: rustup toolchain install stable --profile minimal --no-self-update
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain stable -y
 
       - name: Build binary
         run: |
+          . "$HOME/.cargo/env"
           make build-linux-release
         env:
           RELAY_FEATURES:
