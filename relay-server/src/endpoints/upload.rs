@@ -236,12 +236,6 @@ async fn handle_post(
 
     // Communicate desired chunk size to the client, if set.
     let global_config = state.global_config_handle().current().unwrap_or_default();
-    let upload_min_chunk_size = global_config.options.upload_min_chunk_size;
-    if upload_min_chunk_size > 0 {
-        response
-            .headers_mut()
-            .insert(UPLOAD_MIN_CHUNK_SIZE, upload_min_chunk_size.into());
-    }
     let upload_max_chunk_size = global_config.options.upload_max_chunk_size;
     if upload_max_chunk_size > 0 {
         response
@@ -252,6 +246,11 @@ async fn handle_post(
         response
             .headers_mut()
             .insert(UPLOAD_CHUNK_GRANULARITY, granularity.into());
+        // For now the UPLOAD_MIN_CHUNK_SIZE is the same as the granularity but in the future we
+        // might want to increase that.
+        response
+            .headers_mut()
+            .insert(UPLOAD_MIN_CHUNK_SIZE, granularity.into());
     }
 
     Ok(response)

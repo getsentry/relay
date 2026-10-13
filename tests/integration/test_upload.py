@@ -70,18 +70,10 @@ def test_forward_create(
     assert response.status_code == expected_status_code, response.text
 
 
-@pytest.mark.parametrize(
-    "upload_min_chunk_size, upload_max_chunk_size",
-    [(0, 0), (500_000_000, 1_000_000_000)],
-)
-def test_header(
-    mini_sentry, relay, dummy_upload, upload_min_chunk_size, upload_max_chunk_size
-):
+@pytest.mark.parametrize("upload_max_chunk_size", [0, 1_000_000_000])
+def test_header(mini_sentry, relay, dummy_upload, upload_max_chunk_size):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"][
-        "relay.upload-min-chunk.size"
-    ] = upload_min_chunk_size
     mini_sentry.global_config["options"][
         "relay.upload-max-chunk.size"
     ] = upload_max_chunk_size
@@ -97,10 +89,6 @@ def test_header(
     )
 
     assert response.status_code == 201, response.text
-    if upload_min_chunk_size != 0:
-        assert int(response.headers["Upload-Min-Chunk-Size"]) == upload_min_chunk_size
-    else:
-        assert "Upload-Min-Chunk-Size" not in response.headers
     if upload_max_chunk_size != 0:
         assert int(response.headers["Upload-Max-Chunk-Size"]) == upload_max_chunk_size
     else:
@@ -1196,8 +1184,11 @@ def test_create_granularity_header(
         assert "upload_id=" in response.headers["Location"]
         if granularity > 0:
             assert int(response.headers["Upload-Chunk-Granularity"]) == granularity
+            # The minimum chunk size is currently derived from the granularity.
+            assert int(response.headers["Upload-Min-Chunk-Size"]) == granularity
         else:
             assert "Upload-Chunk-Granularity" not in response.headers, response.headers
+            assert "Upload-Min-Chunk-Size" not in response.headers, response.headers
 
 
 @pytest.mark.parametrize(
