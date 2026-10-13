@@ -246,7 +246,6 @@ mod tests {
     use super::*;
 
     use std::path::{Path, PathBuf};
-    use std::process::Command;
 
     const TREE: &str = "relay/test/v1/tree.proto";
     const MAPS: &str = "relay/test/v1/maps.proto";
@@ -257,39 +256,22 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/protos")
     }
 
-    /// Compiles `protos` with `protoc`, the way the descriptor sets fed to [`render`] in
-    /// production are built. Requires `protoc` on `PATH`.
-    fn descriptor_set(protos: &[&str], include_imports: bool) -> Vec<u8> {
-        let dir = tempfile::tempdir().unwrap();
-        let out = dir.path().join("descriptors.binpb");
+    /// Compiles `protos` into a descriptor set, the way the build scripts that feed [`render`]
+    /// in production get theirs. Imports are resolved transitively, so the result matches what
+    /// `protoc --include_imports` produces.
+    fn file_descriptor_set(protos: &[&str]) -> FileDescriptorSet {
+        protox::compile(protos, [proto_dir()]).unwrap()
+    }
 
-        let mut command = Command::new("protoc");
-        command
-            .arg("-I")
-            .arg(proto_dir())
-            .arg(format!("--descriptor_set_out={}", out.display()));
-
-        if include_imports {
-            command.arg("--include_imports");
-        }
-
-        let output = command.args(protos).output().unwrap_or_else(|err| {
-            panic!("failed to run protoc - is it installed and on PATH? ({err})")
-        });
-
-        assert!(
-            output.status.success(),
-            "protoc failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        std::fs::read(&out).unwrap()
+    /// The encoded bytes [`render`] actually takes.
+    fn descriptor_set(protos: &[&str]) -> Vec<u8> {
+        file_descriptor_set(protos).encode_to_vec()
     }
 
     /// Renders `protos`, treating every one of them as a root file.
     fn render_fixture(protos: &[&str]) -> Result<String> {
         let roots = protos.iter().map(|p| (*p).to_owned()).collect::<Vec<_>>();
-        render(&roots, &None, &descriptor_set(protos, true))
+        render(&roots, &None, &descriptor_set(protos))
     }
 
     /// Drops all whitespace, so assertions do not depend on the generated file\'s (pre-rustfmt)
@@ -401,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_no_roots_renders_descriptors_without_impls() {
-        let rendered = render(&[], &None, &descriptor_set(&[TREE], true)).unwrap();
+        let rendered = render(&[], &None, &descriptor_set(&[TREE])).unwrap();
 
         assert!(rendered.contains("pub static TREE: MessageDesc"));
         assert!(!rendered.contains("impl Decodable for"));
@@ -421,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_preamble_and_use_statements() {
-        let bytes = descriptor_set(&[TREE], true);
+        let bytes = descriptor_set(&[TREE]);
         let roots = vec![TREE.to_owned()];
 
         let rendered = render(&roots, &None, &bytes).unwrap();
@@ -440,7 +422,10 @@ mod tests {
         // `Tree.metadata` points into `metadata.proto`, which is absent from the set unless
         // protoc was asked to include imports. Describing `Tree` without it would silently
         // under-count, so this has to fail loudly.
-        let error = render(&[TREE.to_owned()], &None, &descriptor_set(&[TREE], false))
+        let mut set = file_descriptor_set(&[TREE]);
+        set.file.retain(|file| file.name() == TREE);
+
+        let error = render(&[TREE.to_owned()], &None, &set.encode_to_vec())
             .unwrap_err()
             .to_string();
 
