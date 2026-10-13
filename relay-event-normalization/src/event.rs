@@ -349,7 +349,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     if config.force_trace_context && event.ty.value() != Some(&EventType::Transaction) {
-        normalize_force_trace_context(event);
+        normalize_force_trace_context(event, config.dsc);
     }
 
     // Some contexts need to be normalized before metrics extraction takes place.
@@ -1372,11 +1372,20 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 ///
 /// The function keeps existing meta on trace and span id intact, still surfacing user errors in the
 /// original payload.
-fn normalize_force_trace_context(event: &mut Event) {
+fn normalize_force_trace_context(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
     let contexts = event.contexts.get_or_insert_with(Contexts::new);
     let trace = contexts.get_or_default::<TraceContext>();
 
+    // Prefer the DSC trace id when the error has no trace context of its own.
+    // Deriving from the event id (the historical fallback) loses the trace
+    // stitching between the error and the rest of its trace: downstream
+    // consumers see an orphan trace that will never link up with the client's
+    // actual trace from the DSC. Only fall back to the event-id-derived or
+    // random id when no DSC is present. Fixes #6287.
     let trace_id = trace.trace_id.get_or_insert_with(|| {
+        if let Some(dsc) = dsc {
+            return dsc.trace_id;
+        }
         TraceId::try_from(*event.id.get_or_insert_with(Default::default))
             .unwrap_or_else(|_| TraceId::random())
     });
@@ -4984,6 +4993,172 @@ mod tests {
           },
         }
         "#);
+    }
+
+    #[test]
+
+    fn test_normalize_adds_trace_context_prefers_dsc_trace_id() {
+
+        // Regression for #6287 — when an error arrives with a DSC but no
+
+        // trace context of its own, the derived trace context must inherit
+
+        // the DSC trace id so the error stays stitched to the rest of the
+
+        // client's trace. Before this fix the derived trace context used an
+
+        // event-id-derived uuid, orphaning the error from the trace.
+
+        use relay_sampling::DynamicSamplingContext;
+
+
+
+        let json = r#"
+
+        {
+
+            "type": "error",
+
+            "exception": {
+
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+
+            }
+
+        }
+
+        "#;
+
+
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+
+
+        let dsc_json = r#"{
+
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+
+            "release": "1.0"
+
+        }"#;
+
+        let dsc: DynamicSamplingContext = serde_json::from_str(dsc_json).unwrap();
+
+
+
+        normalize(
+
+            &mut event,
+
+            &mut Meta::default(),
+
+            &NormalizationConfig {
+
+                force_trace_context: true,
+
+                dsc: Some(&dsc),
+
+                ..Default::default()
+
+            },
+
+        );
+
+
+
+        let trace_ctx = event
+
+            .context::<relay_event_schema::protocol::TraceContext>()
+
+            .expect("trace context should have been inserted");
+
+        assert_eq!(
+
+            trace_ctx.trace_id.value().expect("trace_id set").to_string(),
+
+            "4c79f60c11214eb38604f4ae0781bfb2",
+
+            "derived trace context must inherit DSC trace id, not derive from event id",
+
+        );
+
+    }
+
+
+
+    #[test]
+
+    fn test_normalize_adds_trace_context_without_dsc_falls_back_to_event_id() {
+
+        // Companion to the DSC test above: when no DSC is supplied, the
+
+        // historical event-id-derived behaviour must still apply so the
+
+        // trace context is non-empty for downstream consumers.
+
+        let json = r#"
+
+        {
+
+            "event_id": "4c79f60c11214eb38604f4ae0781bfb2",
+
+            "type": "error",
+
+            "exception": {
+
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+
+            }
+
+        }
+
+        "#;
+
+
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+
+
+        normalize(
+
+            &mut event,
+
+            &mut Meta::default(),
+
+            &NormalizationConfig {
+
+                force_trace_context: true,
+
+                dsc: None,
+
+                ..Default::default()
+
+            },
+
+        );
+
+
+
+        let trace_ctx = event
+
+            .context::<relay_event_schema::protocol::TraceContext>()
+
+            .expect("trace context should have been inserted");
+
+        let trace_id = trace_ctx.trace_id.value().expect("trace_id set").to_string();
+
+        assert_eq!(
+
+            trace_id, "4c79f60c11214eb38604f4ae0781bfb2",
+
+            "without DSC, derived trace id must still match the event id (back-compat)",
+
+        );
+
     }
 
     #[test]
