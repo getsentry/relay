@@ -1269,6 +1269,21 @@ def test_head_resumable_progress(
     assert response.headers["Upload-Offset"] == patch.headers["Upload-Offset"]
     assert response.headers["Upload-Length"] == str(total)
 
+    patch = patch_chunk(
+        relay,
+        location,
+        project_key,
+        SECOND_CHUNK,
+        int(response.headers["Upload-Offset"]),
+    )
+    assert patch.status_code == 204, patch.text
+    assert patch.headers["Upload-Offset"] == str(total)
+
+    response = head_upload(relay, location, project_key)
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(total)
+    assert response.headers["Upload-Length"] == str(total)
+
 
 @pytest.mark.parametrize(
     "resumable_feature,defer_length",
@@ -1318,9 +1333,11 @@ def test_head_session_unavailable(mini_sentry, relay_with_processing, project_co
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
-    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
-    def objectstore_put(scope, key):
-        if request.headers.get("Upload-Offset") == "*":
+    @mini_sentry.app.route(
+        "/v1/objects/attachments/<scope>/<key>", methods=["PUT", "HEAD"]
+    )
+    def objectstore(scope, key):
+        if request.headers.get("Upload-Offset") == "*" or request.method == "HEAD":
             return Response("", status=404)
         return {"key": key, "session": "c2Vzc2lvbg", "granularity": 0}
 
@@ -1338,38 +1355,4 @@ def test_head_session_unavailable(mini_sentry, relay_with_processing, project_co
 
     assert response.status_code == 404
     assert response.headers["Tus-Resumable"] == "1.0.0"
-    assert "Upload-Offset" not in response.headers
-
-
-def test_head_after_completion(mini_sentry, relay_with_processing, project_config):
-    project_id = 42
-    project_key = mini_sentry.get_dsn_public_key(project_id)
-    total = len(RESUMABLE_DATA)
-    relay = relay_with_processing()
-
-    create = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(total)},
-    )
-    assert create.status_code == 201, create.text
-
-    first = patch_chunk(relay, create.headers["Location"], project_key, FIRST_CHUNK, 0)
-    assert first.status_code == 204, first.text
-    first_location = first.headers["Location"]
-
-    # Head is still correct
-    response = head_upload(relay, first_location, project_key)
-    assert response.status_code == 204, response.text
-    assert response.headers["Upload-Offset"] == str(len(FIRST_CHUNK))
-
-    second = patch_chunk(
-        relay, first_location, project_key, SECOND_CHUNK, len(FIRST_CHUNK)
-    )
-    assert second.status_code == 204, second.text
-    assert second.headers["Upload-Offset"] == str(total)
-
-    # Head after the upload is finished doesn't say complete so we get this weird behavior
-    # After the second part, the same location no longer says "complete".
-    response = head_upload(relay, first_location, project_key)
-    assert response.status_code == 404
     assert "Upload-Offset" not in response.headers

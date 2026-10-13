@@ -971,11 +971,22 @@ impl ObjectstoreServiceInner {
         } = head;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
         let resumable_upload = session.resume_upload(&key, session_token.clone());
-        let progress = resumable_upload.progress().send().await?;
+        let progress = resumable_upload.progress().send().await;
 
         let offset = match progress {
-            UploadProgress::Incomplete { offset } => offset as usize,
-            UploadProgress::Complete => length,
+            Ok(UploadProgress::Incomplete { offset }) => offset as usize,
+            Ok(UploadProgress::Complete) => length,
+            // Since objectstore drops the session after a finished upload, a missing session could
+            // mean either 'finished' or 'gone'. To differentiate between the two check the object.
+            Err(objectstore_client::Error::ResumableUploadUnavailable) => {
+                match session.head(&key).send().await? {
+                    Some(_) => length,
+                    None => {
+                        return Err(objectstore_client::Error::ResumableUploadUnavailable.into());
+                    }
+                }
+            }
+            Err(error) => return Err(error.into()),
         };
 
         Ok(HeadResult { offset })
