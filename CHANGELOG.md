@@ -57,6 +57,7 @@
 - Remove long deprecated TLS settings from Relay's configuration. ([#6434](https://github.com/getsentry/relay/pull/6434))
 - Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))
   Switch default PyPI index to Socket Firewall. ([#6460](https://github.com/getsentry/relay/pull/6460))
+- Prefer the DSC `trace_id` when deriving a trace context for errors that arrive without one, so an error ties back to the parent transaction's trace instead of starting a fresh trace. ([#6508](https://github.com/getsentry/relay/pull/6508))
 
 ## 26.9.0
 
