@@ -34,7 +34,7 @@ pub unsafe extern "C" fn relay_pattern_is_match(
     gas: u64,
 ) -> bool {
     let pattern = unsafe { &*(pattern as *const Pattern) };
-    pattern.is_match(unsafe { (*value).as_str() }, Gas::ops(gas))?
+    pattern.is_match(unsafe { (*value).as_str() }, Gas::new(gas))?
 }
 
 /// Formats the pattern using its `Display` implementation.

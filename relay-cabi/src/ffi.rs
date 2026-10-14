@@ -35,9 +35,9 @@ pub enum RelayErrorCode {
     InvalidReleaseErrorRestrictedName = 3002,
     InvalidReleaseErrorBadCharacters = 3003,
 
-    // relay_patterh::Error
+    // relay_pattern::Error
     PatternError = 4001,
-    // relay_patterh::OutOfGas,
+    // relay_pattern::OutOfGas,
     PatternOutOfGas = 4002,
 }
 

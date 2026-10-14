@@ -477,9 +477,9 @@ impl Gas {
     /// It is recommended to use this value when the pattern is user controlled.
     pub const CONSTRAINED: Self = Gas(50_000);
 
-    /// Creates a new [`Gas`] budget for `ops` amount of operations.
-    pub const fn ops(ops: u64) -> Self {
-        Self(ops)
+    /// Creates a new [`Gas`] budget.
+    pub const fn new(gas: u64) -> Self {
+        Self(gas)
     }
 
     /// Attempts to use one unit of gas.
