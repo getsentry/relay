@@ -11,8 +11,8 @@ use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
-    Client, ExpirationPolicy, ResumableUpload, SecretKey as SigningKey, Session, SessionToken,
-    TokenGenerator, UploadProgress, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, SessionToken, TokenGenerator,
+    UploadProgress, Usecase,
 };
 
 use objectstore_types::resumable::InvalidSessionToken;
@@ -48,8 +48,9 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(Create, Sender<Result<CreateResult, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
+    Head(Head, Sender<Result<HeadResult, Error>>),
 }
 
 impl Objectstore {
@@ -61,6 +62,7 @@ impl Objectstore {
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
             Self::Create { .. } => MessageKind::Create,
+            Self::Head { .. } => MessageKind::Head,
         }
     }
 
@@ -72,6 +74,7 @@ impl Objectstore {
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
             Self::Create { .. } => 0,
+            Self::Head { .. } => 0,
         }
     }
 }
@@ -119,6 +122,7 @@ enum MessageKind {
     RawProfile,
     Stream,
     Create,
+    Head,
 }
 
 impl MessageKind {
@@ -130,8 +134,50 @@ impl MessageKind {
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
             Self::Create => "create",
+            Self::Head => "head",
         }
     }
+}
+
+/// A request to query the state of a resumable upload.
+pub struct Head {
+    /// The sentry org.
+    pub organization_id: OrganizationId,
+    /// The sentry project.
+    pub project_id: ProjectId,
+    /// The key of the file (chosen by relay).
+    pub key: String,
+    /// The kind of location the head request is for.
+    pub kind: HeadKind,
+}
+
+/// The kind of location a [`Head`] request is for.
+pub enum HeadKind {
+    /// A oneshot location. Objectstore only holds an object once the single PATCH completed.
+    Oneshot { length: Option<usize> },
+    /// A resumable upload session.
+    Resumable {
+        /// The ID of the resumable upload session (chosen by objectstore).
+        session_token: SessionToken,
+        /// Total length of the upload, as fixed at creation.
+        length: usize,
+    },
+}
+
+impl FromMessage<Head> for Objectstore {
+    type Response = AsyncResponse<Result<HeadResult, Error>>;
+
+    fn from_message(message: Head, sender: Sender<Result<HeadResult, Error>>) -> Self {
+        Self::Head(message, sender)
+    }
+}
+
+/// Response to a [`Head`] message.
+pub struct HeadResult {
+    /// The number of bytes objectstore has persisted for this upload.
+    pub offset: usize,
+    /// The total length of the upload (if known).
+    pub length: Option<usize>,
 }
 
 /// A request to create a new objectstore resumable upload.
@@ -149,9 +195,9 @@ pub struct Create {
 }
 
 impl FromMessage<Create> for Objectstore {
-    type Response = AsyncResponse<Result<UploadRef, Error>>;
+    type Response = AsyncResponse<Result<CreateResult, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: Create, sender: Sender<Result<CreateResult, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -306,10 +352,6 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -324,10 +366,17 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidScoping => "invalid_scoping",
-            Self::InvalidOffset { .. } => "invalid_offset",
-            Self::UploadCompleted => "upload_completed",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
+            Self::UploadFailed(objectstore_client::Error::UploadOffsetMismatch { .. }) => {
+                "invalid_offset"
+            }
+            Self::UploadFailed(objectstore_client::Error::ChunkTooSmall { .. }) => {
+                "chunk_too_small"
+            }
+            Self::UploadFailed(objectstore_client::Error::ResumableUploadUnavailable) => {
+                "resumable_upload_unavailable"
+            }
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -338,7 +387,11 @@ impl ErrorKind {
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
-            ErrorKind::InvalidOffset { .. } | ErrorKind::UploadCompleted => true,
+            ErrorKind::UploadFailed(
+                objectstore_client::Error::UploadOffsetMismatch { .. }
+                | objectstore_client::Error::ChunkTooSmall { .. }
+                | objectstore_client::Error::ResumableUploadUnavailable,
+            ) => true,
             _ => false,
         }
     }
@@ -361,6 +414,14 @@ impl ObjectstoreKey {
     pub fn into_inner(self) -> String {
         self.0
     }
+}
+
+/// Response to a [`Create`] message.
+pub struct CreateResult {
+    /// Identifier for the existing upload.
+    pub upload_ref: UploadRef,
+    /// Chunk granularity required by objectstore, if any.
+    pub granularity: Option<usize>,
 }
 
 /// Identifier needed to resume an existing upload.
@@ -508,6 +569,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Create(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Head(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -558,6 +622,13 @@ impl ObjectstoreServiceInner {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
                     error.log(MessageKind::Stream);
+                }
+                sender.send(result);
+            }
+            Objectstore::Head(head, sender) => {
+                let result = self.handle_head(head).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Head);
                 }
                 sender.send(result);
             }
@@ -845,7 +916,7 @@ impl ObjectstoreServiceInner {
         Ok(Some(stored_key))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
+    async fn handle_create(&self, create: Create) -> Result<CreateResult, Error> {
         let Create {
             organization_id,
             project_id,
@@ -854,20 +925,30 @@ impl ObjectstoreServiceInner {
             retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        let session_token = session
+        let resumable_upload = session
             .create_upload(upload_length as u64)
             .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                 u64::from(retention) * 24,
             )))
             .key(&key)
             .send()
-            .await?
-            .map(|upload| upload.token().to_owned());
+            .await?;
 
-        Ok(UploadRef {
-            key,
-            session_token,
-            offset: 0,
+        let (session_token, granularity) = match resumable_upload {
+            Some(upload) => (
+                Some(upload.token().to_owned()),
+                upload.granularity().filter(|g| *g > 0).map(|g| g as usize),
+            ),
+            None => (None, None),
+        };
+
+        Ok(CreateResult {
+            upload_ref: UploadRef {
+                key,
+                session_token,
+                offset: 0,
+            },
+            granularity,
         })
     }
 
@@ -891,6 +972,56 @@ impl ObjectstoreServiceInner {
             },
         )
         .await
+    }
+
+    async fn handle_head(&self, head: Head) -> Result<HeadResult, Error> {
+        let Head {
+            organization_id,
+            project_id,
+            key,
+            kind,
+        } = head;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+
+        match kind {
+            HeadKind::Resumable {
+                session_token,
+                length,
+            } => {
+                let resumable_upload = session.resume_upload(&key, session_token);
+                let progress = resumable_upload.progress().send().await;
+
+                let offset = match progress {
+                    Ok(UploadProgress::Incomplete { offset }) => offset as usize,
+                    Ok(UploadProgress::Complete) => length,
+                    // Since objectstore drops the session after a finished upload, a missing session could
+                    // mean either 'finished' or 'gone'. To differentiate between the two check the object.
+                    Err(objectstore_client::Error::ResumableUploadUnavailable) => {
+                        match session.head(&key).send().await? {
+                            Some(_) => length,
+                            None => {
+                                return Err(
+                                    objectstore_client::Error::ResumableUploadUnavailable.into()
+                                );
+                            }
+                        }
+                    }
+                    Err(error) => return Err(error.into()),
+                };
+                Ok(HeadResult {
+                    offset,
+                    length: Some(length),
+                })
+            }
+            HeadKind::Oneshot { length } => {
+                // For oneshot uploads there is no resumeable upload, so directly check the object.
+                let offset = match session.head(&key).send().await? {
+                    Some(metadata) => length.or(metadata.size).unwrap_or(0),
+                    None => 0,
+                };
+                Ok(HeadResult { offset, length })
+            }
+        }
     }
 
     async fn upload_bytes(
@@ -975,7 +1106,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -1030,7 +1161,7 @@ impl ObjectstoreServiceInner {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         context: StreamContext,
         retention: u16,
-    ) -> Result<UploadRef, AttemptUploadError> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match context {
             StreamContext::Oneshot { byte_counter, key } => {
                 let mut request = session.put_stream(body.boxed()).compress(None);
@@ -1060,7 +1191,6 @@ impl ObjectstoreServiceInner {
                 total_length,
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
-                let offset = Self::verify_offset(offset, &resumable_upload).await?;
 
                 let progress = resumable_upload
                     .put_stream(offset as u64, chunk_length as u64, body.boxed())
@@ -1083,30 +1213,6 @@ impl ObjectstoreServiceInner {
         }
     }
 
-    /// Verify the client offset against objectstore.
-    ///
-    /// Returns an error if the offset is wrong (including when the upload is already done).
-    async fn verify_offset(
-        client_offset: usize,
-        resumable_upload: &ResumableUpload,
-    ) -> Result<usize, AttemptUploadError> {
-        let progress = resumable_upload.progress().send().await?;
-
-        match progress {
-            UploadProgress::Incomplete { offset } => {
-                if offset == client_offset as u64 {
-                    Ok(client_offset)
-                } else {
-                    Err(AttemptUploadError::InvalidOffset {
-                        client_offset,
-                        offset: offset as usize,
-                    })
-                }
-            }
-            UploadProgress::Complete => Err(AttemptUploadError::UploadCompleted),
-        }
-    }
-
     fn session(
         &self,
         usecase: &Usecase,
@@ -1120,32 +1226,6 @@ impl ObjectstoreServiceInner {
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)?;
         Ok(session)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum AttemptUploadError {
-    #[error(transparent)]
-    Objectstore(#[from] objectstore_client::Error),
-    #[error("invalid Upload-Offset {client_offset}, expected {offset}")]
-    InvalidOffset { client_offset: usize, offset: usize },
-    #[error("upload already completed")]
-    UploadCompleted,
-}
-
-impl From<AttemptUploadError> for ErrorKind {
-    fn from(value: AttemptUploadError) -> Self {
-        match value {
-            AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
-            AttemptUploadError::InvalidOffset {
-                client_offset,
-                offset,
-            } => ErrorKind::InvalidOffset {
-                client_offset,
-                offset,
-            },
-            AttemptUploadError::UploadCompleted => ErrorKind::UploadCompleted,
-        }
     }
 }
 
@@ -1232,9 +1312,9 @@ enum UploadAttempt {
     },
 }
 
-fn is_retryable(error: &AttemptUploadError) -> bool {
+fn is_retryable(error: &objectstore_client::Error) -> bool {
     match error {
-        AttemptUploadError::Objectstore(objectstore_client::Error::Reqwest(error)) => {
+        objectstore_client::Error::Reqwest(error) => {
             error.is_connect()
                 || error.is_timeout()
                 || matches!(

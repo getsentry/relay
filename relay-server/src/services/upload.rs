@@ -47,6 +47,11 @@ use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 /// The URL template for uploading bytes to a known location.
 pub const UPLOAD_PATCH_PATH: &str = "/api/{project_id}/upload/{key}/";
 
+/// Header advertising the chunk granularity.
+///
+/// Sentry-specific extension to the TUS upload protocol.
+pub const UPLOAD_CHUNK_GRANULARITY: &str = "Upload-Chunk-Granularity";
+
 /// An error that occurs during upload.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -80,6 +85,8 @@ pub enum Error {
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,
+    #[error("resumable upload declined")]
+    ResumableUploadDeclined,
     #[error("internal error")]
     Internal(#[source] http::header::InvalidHeaderValue),
 }
@@ -103,22 +110,26 @@ impl Error {
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
             Error::LoadShed => "load_shed",
+            Error::ResumableUploadDeclined => "resumable_upload_declined",
             Error::Internal(_) => "internal",
         }
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 /// The message interface for this service.
 pub enum Upload {
     /// Creates an upload resource.
     ///
-    /// Returns the trusted identifier of the upload.
-    Create(Create, InstrumentedSender<SignedLocation<Provisional>>),
+    /// Returns the trusted identifier of the upload and metadata.
+    Create(Create, InstrumentedSender<CreateResult>),
     /// Upload a stream of bytes for a given location.
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
     Upload(Box<Stream>, InstrumentedSender<StreamResult>),
+    /// Queries the current progress of an upload at a given location.
+    Head(Head, InstrumentedSender<HeadResult>),
 }
 
 impl Interface for Upload {}
@@ -134,6 +145,65 @@ pub struct ProjectContext {
     pub retention: u16,
     /// Whether the project has resumable uploads enabled.
     pub resumable: bool,
+}
+
+/// A request to get the upload state from objecstore.
+pub struct Head {
+    /// Time of arrival of the request.
+    pub received: DateTime<Utc>,
+    /// The project of the upload.
+    pub project: ProjectContext,
+    /// The location to upload to.
+    pub location: SignedLocation<Provisional>,
+}
+
+/// Response to a [`Head`] message.
+pub struct HeadResult {
+    /// The number of bytes objectstore has persisted for this upload.
+    pub offset: usize,
+    /// The total length of the upload (if known).
+    pub length: Option<usize>,
+}
+
+impl HeadResult {
+    fn try_from_response(response: Response) -> Result<Self, Error> {
+        let offset = response
+            .headers()
+            .get(tus::UPLOAD_OFFSET)
+            .ok_or(Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .to_str()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .parse()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
+
+        let length: Option<usize> = response
+            .headers()
+            .get(tus::UPLOAD_LENGTH)
+            .and_then(|v| v.to_str().ok()?.parse().ok());
+
+        Ok(HeadResult { offset, length })
+    }
+}
+/// Response to a [`Create`] message.
+pub struct CreateResult {
+    /// The signed location of the created upload.
+    pub location: SignedLocation<Provisional>,
+    /// Chunk granularity required by objectstore, if any.
+    pub granularity: Option<usize>,
+}
+
+impl CreateResult {
+    fn try_from_response(response: &Response) -> Result<Self, Error> {
+        let granularity = response
+            .headers()
+            .get(UPLOAD_CHUNK_GRANULARITY)
+            .and_then(|v| v.to_str().ok()?.parse().ok());
+
+        Ok(Self {
+            location: SignedLocation::try_from_response(response)?,
+            granularity,
+        })
+    }
 }
 
 /// Request to create an upload resource.
@@ -155,7 +225,7 @@ pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 pub struct Stream {
     /// Time of arrival of the request.
     pub received: DateTime<Utc>,
-    /// The project to create the upload for.
+    /// The project of the upload.
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
@@ -231,8 +301,6 @@ impl StreamResult {
 
 impl StreamResult {
     fn try_from_response(response: Response) -> Result<Self, Error> {
-        let response = response.0.error_for_status().map_err(Error::Upstream)?;
-
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
@@ -242,34 +310,22 @@ impl StreamResult {
             .parse()
             .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
 
-        let location = response
-            .headers()
-            .get(hyper::header::LOCATION)
-            .ok_or(Error::InvalidLocation(None))?;
-        let uri = location
-            .to_str()
-            .map_err(|_| Error::InvalidLocation(Some(location.clone())))?;
-
         // Need to parse the final first since it could collide with the Provisional::Oneshot, now
         // in reality this should never happen because you should not get a Provisional::Oneshot back
         // after an upload.
-        if let Some(location) = SignedLocation::<Final>::try_from_str(uri) {
-            Ok(Self::Complete { location, offset })
-        } else {
-            let location = SignedLocation::<Provisional>::try_from_str(uri)
-                .ok_or(Error::InvalidLocation(Some(location.clone())))?;
-            Ok(Self::Incomplete { location, offset })
+        if let Ok(location) = SignedLocation::<Final>::try_from_response(&response) {
+            return Ok(Self::Complete { location, offset });
         }
+
+        let location = SignedLocation::<Provisional>::try_from_response(&response)?;
+        Ok(Self::Incomplete { location, offset })
     }
 }
 
 impl FromMessage<Create> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
+    type Response = AsyncResponse<Result<CreateResult, Error>>;
 
-    fn from_message(
-        message: Create,
-        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
-    ) -> Self {
+    fn from_message(message: Create, sender: Sender<Result<CreateResult, Error>>) -> Self {
         Self::Create(
             message,
             InstrumentedSender {
@@ -288,6 +344,20 @@ impl FromMessage<Stream> for Upload {
             Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
+                inner: sender,
+            },
+        )
+    }
+}
+
+impl FromMessage<Head> for Upload {
+    type Response = AsyncResponse<Result<HeadResult, Error>>;
+
+    fn from_message(message: Head, sender: Sender<Result<HeadResult, Error>>) -> Self {
+        Self::Head(
+            message,
+            InstrumentedSender {
+                metric: RelayCounters::UploadHead,
                 inner: sender,
             },
         )
@@ -379,13 +449,13 @@ impl Service {
             length,
             attachment_type,
         }: Create,
-    ) -> Result<SignedLocation<Provisional>, Error> {
+    ) -> Result<CreateResult, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
-                SignedLocation::try_from_response(response)
+                CreateResult::try_from_response(&response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
@@ -403,12 +473,16 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, kind) = match (project.resumable, length) {
+                let (key, kind, granularity) = match (project.resumable, length) {
                     (true, Some(length)) => {
-                        let UploadRef {
-                            key,
-                            session_token,
-                            offset: _,
+                        let objectstore::CreateResult {
+                            upload_ref:
+                                UploadRef {
+                                    key,
+                                    session_token,
+                                    offset: _,
+                                },
+                            granularity,
                         } = addr
                             .send(objectstore::Create {
                                 organization_id,
@@ -427,34 +501,35 @@ impl Service {
                                 length,
                                 upload_id: token.to_base64url(),
                             },
-                            // Even if we have a length, objectstore might reject the resumable
-                            // upload. In that case fall back to oneshot.
-                            None => Provisional::Oneshot {
-                                length: Some(length),
-                            },
+                            None => return Err(Error::ResumableUploadDeclined),
                         };
-                        (key, kind)
+                        (key, kind, granularity)
                     }
                     // Support legacy clients which would send the length when creating oneshot uploads.
+                    // Note: Need to migrate them before GA resumable uploads.
                     (false, Some(length)) => (
                         key,
                         Provisional::Oneshot {
                             length: Some(length),
                         },
+                        None,
                     ),
                     // If the create has `Upload-Defer-Length: 1` then skip going to objectstore.
                     // This is because objectstore requires us to know the size of a resumable upload
                     // when creating it (which we don't).
-                    _ => (key, Provisional::Oneshot { length: None }),
+                    _ => (key, Provisional::Oneshot { length: None }, None),
                 };
 
-                Location {
-                    project_id,
-                    key,
-                    kind,
-                    other: Default::default(),
-                }
-                .try_sign(&config)
+                Ok(CreateResult {
+                    location: Location {
+                        project_id,
+                        key,
+                        kind,
+                        other: Default::default(),
+                    }
+                    .try_sign(&config)?,
+                    granularity,
+                })
             }
         }
     }
@@ -567,6 +642,58 @@ impl Service {
         }
     }
 
+    async fn head(&self, head: Head) -> Result<HeadResult, Error> {
+        let Head {
+            #[cfg_attr(not(feature = "processing"), expect(unused))]
+            received,
+            project,
+            location,
+        } = head;
+        match &self.backend {
+            Backend::Upstream { addr } => {
+                let (request, rx) = UploadRequest::head(project, location.try_to_uri()?);
+                addr.send(SendRequest(request));
+                let response = rx.await??;
+                HeadResult::try_from_response(response)
+            }
+            #[cfg(feature = "processing")]
+            Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::HeadKind;
+                use objectstore_client::SessionToken;
+
+                let config = config.current();
+
+                // Note: Side effect of this is that only locations in the last hour can be used
+                // in the head request.
+                let Location {
+                    project_id,
+                    key,
+                    kind,
+                    other: _,
+                } = location.verify(received, &config)?;
+
+                let kind = match kind {
+                    Provisional::Oneshot { length } => HeadKind::Oneshot { length },
+                    Provisional::Resumable { length, upload_id } => HeadKind::Resumable {
+                        session_token: SessionToken::from_base64url(&upload_id)?,
+                        length,
+                    },
+                };
+
+                let objectstore::HeadResult { offset, length } = addr
+                    .send(objectstore::Head {
+                        organization_id: project.scoping.organization_id,
+                        project_id,
+                        key,
+                        kind,
+                    })
+                    .await
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                Ok(HeadResult { offset, length })
+            }
+        }
+    }
+
     async fn timeout<T, F>(&self, future: F) -> Result<T, Error>
     where
         F: IntoFuture<Output = Result<T, Error>>,
@@ -586,6 +713,9 @@ impl SimpleService for Service {
             Upload::Upload(stream, sender) => {
                 sender.send(self.timeout(self.upload(*stream)).await);
             }
+            Upload::Head(head, sender) => {
+                sender.send(self.timeout(self.head(head)).await);
+            }
         }
     }
 }
@@ -595,6 +725,7 @@ impl LoadShed<Upload> for Service {
         match message {
             Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
             Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Head(_, tx) => tx.send(Err(Error::LoadShed)),
         }
     }
 }
@@ -620,11 +751,9 @@ pub trait LocationKind: Sized {
 /// See also [`Final`].
 #[derive(Debug, Clone)]
 pub enum Provisional {
-    // TODO: Update docs
     /// A location that is uploaded to with a single PATCH request.
     ///
-    /// The key in the location is a placeholder, objectstore assigns the key on upload.
-    /// This is done to avoid potential abuse.
+    /// Size doesn't need to be defined at creation, but legacy clients do it.
     Oneshot { length: Option<usize> },
     /// A location with a resumable upload session in objectstore.
     ///
@@ -877,20 +1006,16 @@ impl<K: LocationKind> SignedLocation<K> {
         Ok(self.location)
     }
 
-    fn try_from_response(response: Response) -> Result<Self, Error> {
-        match response.0.error_for_status() {
-            Ok(response) => {
-                let header = response
-                    .headers()
-                    .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation(None))?;
-                let uri = header
-                    .to_str()
-                    .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
-                Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
-            }
-            Err(e) => Err(Error::Upstream(e)),
-        }
+    fn try_from_response(response: &Response) -> Result<Self, Error> {
+        let response = response.0.error_for_status_ref().map_err(Error::Upstream)?;
+        let header = response
+            .headers()
+            .get(hyper::header::LOCATION)
+            .ok_or(Error::InvalidLocation(None))?;
+        let uri = header
+            .to_str()
+            .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
+        Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
     }
 
     pub fn try_from_str(uri: &str) -> Option<Self> {
@@ -938,6 +1063,9 @@ enum RequestKind {
         mode: UploadMode,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
+    },
+    Head {
+        uri: String,
     },
 }
 
@@ -996,6 +1124,24 @@ impl UploadRequest {
             rx,
         )
     }
+
+    fn head(
+        project: ProjectContext,
+        uri: String,
+    ) -> (
+        Self,
+        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
+    ) {
+        let (sender, rx) = oneshot::channel();
+        (
+            Self {
+                project,
+                kind: RequestKind::Head { uri },
+                sender,
+            },
+            rx,
+        )
+    }
 }
 
 impl fmt::Debug for UploadRequest {
@@ -1020,6 +1166,7 @@ impl UpstreamRequest for UploadRequest {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,
             RequestKind::Upload { .. } => Method::PATCH,
+            RequestKind::Head { .. } => Method::HEAD,
         }
     }
 
@@ -1028,6 +1175,7 @@ impl UpstreamRequest for UploadRequest {
         match &self.kind {
             RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
             RequestKind::Upload { uri, .. } => Cow::Borrowed(uri),
+            RequestKind::Head { uri } => Cow::Borrowed(uri),
         }
     }
 
@@ -1049,6 +1197,7 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Create { .. } => true,
             // Once the body has been polled, it cannot be replayed — give up instead.
             RequestKind::Upload { stream, .. } => !stream.is_taken(),
+            RequestKind::Head { .. } => true,
         }
     }
 
@@ -1085,6 +1234,7 @@ impl UpstreamRequest for UploadRequest {
 
                 builder.body(reqwest::Body::wrap_stream(body));
             }
+            RequestKind::Head { .. } => tus::add_head_headers(builder),
         };
 
         let project_key = self.project.scoping.project_key;

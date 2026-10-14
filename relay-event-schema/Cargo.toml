@@ -19,7 +19,6 @@ cookie = { workspace = true, features = ["percent-encode"] }
 debugid = { workspace = true, features = ["serde"] }
 enumset = { workspace = true }
 minidump = { workspace = true }
-opentelemetry-proto = { workspace = true, features = ["gen-tonic", "trace"] }
 rand = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }

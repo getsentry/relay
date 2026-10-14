@@ -6,7 +6,7 @@ use crate::envelope::EnvelopeHeaders;
 use crate::processing::logs::{Error, Result, Settings};
 use crate::services::outcome::DiscardReason;
 
-/// Expands OTeL logs into the [`OurLog`] format.
+/// Expands Nel logs into the [`OurLog`] format.
 pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, produce: F) -> Result<Settings>
 where
     F: FnMut(OurLog),

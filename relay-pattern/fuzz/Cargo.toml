@@ -24,3 +24,6 @@ path = "fuzz_targets/is_match_case_insensitive.rs"
 test = false
 doc = false
 bench = false
+
+[lints]
+workspace = true

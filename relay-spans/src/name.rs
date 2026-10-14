@@ -1,7 +1,6 @@
 use relay_conventions::attributes::{SENTRY__DESCRIPTION, SENTRY__OP, SENTRY__ORIGIN};
 use relay_conventions::name::name_for_op_and_attributes;
 use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Getter, Val};
 
 /// Constructs a name attribute for a V2 span, based on its attributes.
 ///
@@ -28,19 +27,7 @@ pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     }
 
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
-    Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)).unwrap_or(op.to_owned()))
-}
-
-/// A custom getter for [`Attributes`] which only resolves values based on the attribute name.
-///
-/// This [`Getter`] does not implement nested traversals, which is the behaviour required for
-/// [`name_for_op_and_attributes`].
-struct AttributeGetter<'a>(&'a Attributes);
-
-impl<'a> Getter for AttributeGetter<'a> {
-    fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        self.0.get_value(path).map(|value| value.into())
-    }
+    Some(name_for_op_and_attributes(op, |name| attributes.get_value(name)).unwrap_or(op.to_owned()))
 }
 
 #[cfg(test)]

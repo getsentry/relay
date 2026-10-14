@@ -7,10 +7,13 @@ expression: data
     "trace": {
       "data": {
         "http.request.header.cookie": "baz=quux; session__0=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.request.header.cookie.ASP.NET_SessionId": "[Filtered]",
+        "http.request.header.cookie.JSESSIONID": "[Filtered]",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
         "http.request.header.cookie._xsrf": "[Filtered]",
+        "http.request.header.cookie.connect.sid": "[Filtered]",
         "http.request.header.cookie.csrf": "[Filtered]",
         "http.request.header.cookie.csrf-token": "[Filtered]",
         "http.request.header.cookie.csrf_token": "[Filtered]",
@@ -18,6 +21,7 @@ expression: data
         "http.request.header.cookie.fastcsrf": "[Filtered]",
         "http.request.header.cookie.fasthttpsessionid": "[Filtered]",
         "http.request.header.cookie.irissessionid": "[Filtered]",
+        "http.request.header.cookie.laravel_session": "[Filtered]",
         "http.request.header.cookie.mysession": "[Filtered]",
         "http.request.header.cookie.phpsessid": "[Filtered]",
         "http.request.header.cookie.sentrysid": "[Filtered]",
@@ -30,11 +34,14 @@ expression: data
         "http.request.header.cookie.xsrf": "[Filtered]",
         "http.request.header.cookie.xsrf-token": "[Filtered]",
         "http.request.header.cookie.xsrf_token": "[Filtered]",
-        "http.response.header.set-cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.response.header.set-cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar; connect.sid=[Filtered]",
+        "http.response.header.set-cookie.ASP.NET_SessionId": "[Filtered]",
+        "http.response.header.set-cookie.JSESSIONID": "[Filtered]",
         "http.response.header.set-cookie.__session": "[Filtered]",
         "http.response.header.set-cookie._csrf": "[Filtered]",
         "http.response.header.set-cookie._iris_csrf": "[Filtered]",
         "http.response.header.set-cookie._xsrf": "[Filtered]",
+        "http.response.header.set-cookie.connect.sid": "[Filtered]",
         "http.response.header.set-cookie.csrf": "[Filtered]",
         "http.response.header.set-cookie.csrf-token": "[Filtered]",
         "http.response.header.set-cookie.csrf_token": "[Filtered]",
@@ -42,6 +49,7 @@ expression: data
         "http.response.header.set-cookie.fastcsrf": "[Filtered]",
         "http.response.header.set-cookie.fasthttpsessionid": "[Filtered]",
         "http.response.header.set-cookie.irissessionid": "[Filtered]",
+        "http.response.header.set-cookie.laravel_session": "[Filtered]",
         "http.response.header.set-cookie.mysession": "[Filtered]",
         "http.response.header.set-cookie.phpsessid": "[Filtered]",
         "http.response.header.set-cookie.sentrysid": "[Filtered]",
@@ -62,10 +70,13 @@ expression: data
     {
       "data": {
         "http.request.header.cookie": "baz=quux; session__0=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.request.header.cookie.ASP.NET_SessionId": "[Filtered]",
+        "http.request.header.cookie.JSESSIONID": "[Filtered]",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
         "http.request.header.cookie._xsrf": "[Filtered]",
+        "http.request.header.cookie.connect.sid": "[Filtered]",
         "http.request.header.cookie.csrf": "[Filtered]",
         "http.request.header.cookie.csrf-token": "[Filtered]",
         "http.request.header.cookie.csrf_token": "[Filtered]",
@@ -73,6 +84,7 @@ expression: data
         "http.request.header.cookie.fastcsrf": "[Filtered]",
         "http.request.header.cookie.fasthttpsessionid": "[Filtered]",
         "http.request.header.cookie.irissessionid": "[Filtered]",
+        "http.request.header.cookie.laravel_session": "[Filtered]",
         "http.request.header.cookie.mysession": "[Filtered]",
         "http.request.header.cookie.phpsessid": "[Filtered]",
         "http.request.header.cookie.sentrysid": "[Filtered]",
@@ -86,10 +98,13 @@ expression: data
         "http.request.header.cookie.xsrf-token": "[Filtered]",
         "http.request.header.cookie.xsrf_token": "[Filtered]",
         "http.response.header.set-cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.response.header.set-cookie.ASP.NET_SessionId": "[Filtered]",
+        "http.response.header.set-cookie.JSESSIONID": "[Filtered]",
         "http.response.header.set-cookie.__session": "[Filtered]",
         "http.response.header.set-cookie._csrf": "[Filtered]",
         "http.response.header.set-cookie._iris_csrf": "[Filtered]",
         "http.response.header.set-cookie._xsrf": "[Filtered]",
+        "http.response.header.set-cookie.connect.sid": "[Filtered]",
         "http.response.header.set-cookie.csrf": "[Filtered]",
         "http.response.header.set-cookie.csrf-token": "[Filtered]",
         "http.response.header.set-cookie.csrf_token": "[Filtered]",
@@ -97,6 +112,7 @@ expression: data
         "http.response.header.set-cookie.fastcsrf": "[Filtered]",
         "http.response.header.set-cookie.fasthttpsessionid": "[Filtered]",
         "http.response.header.set-cookie.irissessionid": "[Filtered]",
+        "http.response.header.set-cookie.laravel_session": "[Filtered]",
         "http.response.header.set-cookie.mysession": "[Filtered]",
         "http.response.header.set-cookie.phpsessid": "[Filtered]",
         "http.response.header.set-cookie.sentrysid": "[Filtered]",
@@ -133,6 +149,32 @@ expression: data
                 ]
               ],
               "len": 70
+            }
+          },
+          "http.request.header.cookie.ASP.NET_SessionId": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.JSESSIONID": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
             }
           },
           "http.request.header.cookie.__session": {
@@ -175,6 +217,19 @@ expression: data
             }
           },
           "http.request.header.cookie._xsrf": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.connect.sid": {
             "": {
               "rem": [
                 [
@@ -253,6 +308,19 @@ expression: data
             }
           },
           "http.request.header.cookie.irissessionid": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.laravel_session": {
             "": {
               "rem": [
                 [
@@ -435,9 +503,41 @@ expression: data
                   "s",
                   48,
                   58
+                ],
+                [
+                  "@cookies:filter",
+                  "s",
+                  81,
+                  91
                 ]
               ],
-              "len": 67
+              "len": 110
+            }
+          },
+          "http.response.header.set-cookie.ASP.NET_SessionId": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.JSESSIONID": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
             }
           },
           "http.response.header.set-cookie.__session": {
@@ -480,6 +580,19 @@ expression: data
             }
           },
           "http.response.header.set-cookie._xsrf": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.connect.sid": {
             "": {
               "rem": [
                 [
@@ -558,6 +671,19 @@ expression: data
             }
           },
           "http.response.header.set-cookie.irissessionid": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.laravel_session": {
             "": {
               "rem": [
                 [
@@ -751,6 +877,32 @@ expression: data
               "len": 70
             }
           },
+          "http.request.header.cookie.ASP.NET_SessionId": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.JSESSIONID": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
           "http.request.header.cookie.__session": {
             "": {
               "rem": [
@@ -791,6 +943,19 @@ expression: data
             }
           },
           "http.request.header.cookie._xsrf": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.connect.sid": {
             "": {
               "rem": [
                 [
@@ -869,6 +1034,19 @@ expression: data
             }
           },
           "http.request.header.cookie.irissessionid": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.request.header.cookie.laravel_session": {
             "": {
               "rem": [
                 [
@@ -1056,6 +1234,32 @@ expression: data
               "len": 67
             }
           },
+          "http.response.header.set-cookie.ASP.NET_SessionId": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.JSESSIONID": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
           "http.response.header.set-cookie.__session": {
             "": {
               "rem": [
@@ -1096,6 +1300,19 @@ expression: data
             }
           },
           "http.response.header.set-cookie._xsrf": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.connect.sid": {
             "": {
               "rem": [
                 [
@@ -1174,6 +1391,19 @@ expression: data
             }
           },
           "http.response.header.set-cookie.irissessionid": {
+            "": {
+              "rem": [
+                [
+                  "@anything:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 6
+            }
+          },
+          "http.response.header.set-cookie.laravel_session": {
             "": {
               "rem": [
                 [
