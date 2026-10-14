@@ -172,7 +172,11 @@ def test_browser_reports_reporting_api_batch(mini_sentry, relay):
         ),
         ("deprecation", "WebSQL is deprecated", "info"),
         ("crash", "Browser crash: oom", "error"),
-        ("integrity-violation", "Browser report: integrity-violation", "warn"),
+        (
+            "integrity-violation",
+            "Integrity policy blocked script from 'https://example.com/script.js'",
+            "warn",
+        ),
     ]
 
     # Time is corrected by the `age` specified in each report.

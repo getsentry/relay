@@ -7,6 +7,7 @@ use crate::managed::RecordKeeper;
 use crate::processing::logs::Settings;
 
 mod browser_reports;
+mod integrity;
 mod nel;
 mod otel;
 mod vercel;
@@ -48,6 +49,7 @@ pub fn expand(
     let settings = match integration {
         LogsIntegration::BrowserReports => browser_reports::expand(&payload, headers, produce),
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
+        LogsIntegration::Integrity => integrity::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
     };

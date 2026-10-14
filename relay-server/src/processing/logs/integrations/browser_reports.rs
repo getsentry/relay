@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
-use relay_event_normalization::{browser_report, csp, nel};
-use relay_event_schema::protocol::{CspViolationReport, NetworkReportRaw, OurLog};
+use relay_event_normalization::{browser_report, csp, integrity, nel};
+use relay_event_schema::protocol::{
+    CspViolationReport, IntegrityReportRaw, NetworkReportRaw, OurLog,
+};
 use relay_protocol::DeserializableAnnotated;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -13,8 +15,8 @@ use crate::services::outcome::DiscardReason;
 /// Expands browser reports into the [`OurLog`] format.
 ///
 /// The payload is either a batch of reports sent through the Reporting API, or a single legacy CSP
-/// report sent via the `report-uri` directive. Every report is converted into a log. CSP and NEL
-/// reports have dedicated conversions, all other report types are converted generically.
+/// report sent via the `report-uri` directive. Every report is converted into a log. CSP, NEL and
+/// integrity reports have dedicated conversions, all other report types are converted generically.
 ///
 /// Invalid reports are skipped.
 pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, mut produce: F) -> Result<Settings>
@@ -73,6 +75,11 @@ fn convert_report(report: &[u8], received_at: DateTime<Utc>) -> serde_json::Resu
             let DeserializableAnnotated(report) =
                 serde_json::from_slice::<DeserializableAnnotated<NetworkReportRaw>>(report)?;
             Ok(nel::create_log(report, received_at))
+        }
+        Some("integrity-violation") => {
+            let DeserializableAnnotated(report) =
+                serde_json::from_slice::<DeserializableAnnotated<IntegrityReportRaw>>(report)?;
+            Ok(integrity::create_log(report, received_at))
         }
         Some(_) => browser_report::create_log(report, received_at).map(Some),
         None => Ok(None),

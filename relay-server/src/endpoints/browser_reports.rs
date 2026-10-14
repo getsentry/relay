@@ -1,7 +1,8 @@
 //! Endpoint for browser reports sent through the Reporting API.
 //!
 //! All reports received on this endpoint are converted into logs, regardless of their type. This
-//! includes CSP violations, network errors (NEL), deprecations, interventions and crashes.
+//! includes CSP violations, network errors (NEL), integrity violations, deprecations,
+//! interventions and crashes.
 //!
 //! Legacy CSP reports sent via the `report-uri` directive are also accepted.
 
