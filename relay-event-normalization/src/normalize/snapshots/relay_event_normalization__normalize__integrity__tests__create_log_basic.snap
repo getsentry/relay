@@ -1,0 +1,44 @@
+---
+source: relay-event-normalization/src/normalize/integrity.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1791288000.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "warn",
+  "body": "Integrity policy blocked script from 'https://cdn.example.com/app.js'",
+  "attributes": {
+    "browser.report.type": {
+      "type": "string",
+      "value": "integrity-violation"
+    },
+    "integrity.blocked_url": {
+      "type": "string",
+      "value": "https://cdn.example.com/app.js"
+    },
+    "integrity.destination": {
+      "type": "string",
+      "value": "script"
+    },
+    "integrity.document_url": {
+      "type": "string",
+      "value": "https://example.com/index.html"
+    },
+    "integrity.report_only": {
+      "type": "boolean",
+      "value": false
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report.integrity"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://example.com/index.html"
+    }
+  }
+}
