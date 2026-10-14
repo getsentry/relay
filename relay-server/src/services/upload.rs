@@ -116,6 +116,7 @@ impl Error {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 /// The message interface for this service.
 pub enum Upload {
     /// Creates an upload resource.
@@ -127,6 +128,8 @@ pub enum Upload {
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
     Upload(Box<Stream>, InstrumentedSender<StreamResult>),
+    /// Queries the current progress of an upload at a given location.
+    Head(Head, InstrumentedSender<HeadResult>),
 }
 
 impl Interface for Upload {}
@@ -144,6 +147,43 @@ pub struct ProjectContext {
     pub resumable: bool,
 }
 
+/// A request to get the upload state from objecstore.
+pub struct Head {
+    /// Time of arrival of the request.
+    pub received: DateTime<Utc>,
+    /// The project of the upload.
+    pub project: ProjectContext,
+    /// The location to upload to.
+    pub location: SignedLocation<Provisional>,
+}
+
+/// Response to a [`Head`] message.
+pub struct HeadResult {
+    /// The number of bytes objectstore has persisted for this upload.
+    pub offset: usize,
+    /// The total length of the upload (if known).
+    pub length: Option<usize>,
+}
+
+impl HeadResult {
+    fn try_from_response(response: Response) -> Result<Self, Error> {
+        let offset = response
+            .headers()
+            .get(tus::UPLOAD_OFFSET)
+            .ok_or(Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .to_str()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .parse()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
+
+        let length: Option<usize> = response
+            .headers()
+            .get(tus::UPLOAD_LENGTH)
+            .and_then(|v| v.to_str().ok()?.parse().ok());
+
+        Ok(HeadResult { offset, length })
+    }
+}
 /// Response to a [`Create`] message.
 pub struct CreateResult {
     /// The signed location of the created upload.
@@ -185,7 +225,7 @@ pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 pub struct Stream {
     /// Time of arrival of the request.
     pub received: DateTime<Utc>,
-    /// The project to create the upload for.
+    /// The project of the upload.
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
@@ -304,6 +344,20 @@ impl FromMessage<Stream> for Upload {
             Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
+                inner: sender,
+            },
+        )
+    }
+}
+
+impl FromMessage<Head> for Upload {
+    type Response = AsyncResponse<Result<HeadResult, Error>>;
+
+    fn from_message(message: Head, sender: Sender<Result<HeadResult, Error>>) -> Self {
+        Self::Head(
+            message,
+            InstrumentedSender {
+                metric: RelayCounters::UploadHead,
                 inner: sender,
             },
         )
@@ -588,6 +642,58 @@ impl Service {
         }
     }
 
+    async fn head(&self, head: Head) -> Result<HeadResult, Error> {
+        let Head {
+            #[cfg_attr(not(feature = "processing"), expect(unused))]
+            received,
+            project,
+            location,
+        } = head;
+        match &self.backend {
+            Backend::Upstream { addr } => {
+                let (request, rx) = UploadRequest::head(project, location.try_to_uri()?);
+                addr.send(SendRequest(request));
+                let response = rx.await??;
+                HeadResult::try_from_response(response)
+            }
+            #[cfg(feature = "processing")]
+            Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::HeadKind;
+                use objectstore_client::SessionToken;
+
+                let config = config.current();
+
+                // Note: Side effect of this is that only locations in the last hour can be used
+                // in the head request.
+                let Location {
+                    project_id,
+                    key,
+                    kind,
+                    other: _,
+                } = location.verify(received, &config)?;
+
+                let kind = match kind {
+                    Provisional::Oneshot { length } => HeadKind::Oneshot { length },
+                    Provisional::Resumable { length, upload_id } => HeadKind::Resumable {
+                        session_token: SessionToken::from_base64url(&upload_id)?,
+                        length,
+                    },
+                };
+
+                let objectstore::HeadResult { offset, length } = addr
+                    .send(objectstore::Head {
+                        organization_id: project.scoping.organization_id,
+                        project_id,
+                        key,
+                        kind,
+                    })
+                    .await
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                Ok(HeadResult { offset, length })
+            }
+        }
+    }
+
     async fn timeout<T, F>(&self, future: F) -> Result<T, Error>
     where
         F: IntoFuture<Output = Result<T, Error>>,
@@ -607,6 +713,9 @@ impl SimpleService for Service {
             Upload::Upload(stream, sender) => {
                 sender.send(self.timeout(self.upload(*stream)).await);
             }
+            Upload::Head(head, sender) => {
+                sender.send(self.timeout(self.head(head)).await);
+            }
         }
     }
 }
@@ -616,6 +725,7 @@ impl LoadShed<Upload> for Service {
         match message {
             Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
             Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Head(_, tx) => tx.send(Err(Error::LoadShed)),
         }
     }
 }
@@ -954,6 +1064,9 @@ enum RequestKind {
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
+    Head {
+        uri: String,
+    },
 }
 
 /// An upstream request made to the `/upload` endpoint.
@@ -1011,6 +1124,24 @@ impl UploadRequest {
             rx,
         )
     }
+
+    fn head(
+        project: ProjectContext,
+        uri: String,
+    ) -> (
+        Self,
+        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
+    ) {
+        let (sender, rx) = oneshot::channel();
+        (
+            Self {
+                project,
+                kind: RequestKind::Head { uri },
+                sender,
+            },
+            rx,
+        )
+    }
 }
 
 impl fmt::Debug for UploadRequest {
@@ -1035,6 +1166,7 @@ impl UpstreamRequest for UploadRequest {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,
             RequestKind::Upload { .. } => Method::PATCH,
+            RequestKind::Head { .. } => Method::HEAD,
         }
     }
 
@@ -1043,6 +1175,7 @@ impl UpstreamRequest for UploadRequest {
         match &self.kind {
             RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
             RequestKind::Upload { uri, .. } => Cow::Borrowed(uri),
+            RequestKind::Head { uri } => Cow::Borrowed(uri),
         }
     }
 
@@ -1064,6 +1197,7 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Create { .. } => true,
             // Once the body has been polled, it cannot be replayed — give up instead.
             RequestKind::Upload { stream, .. } => !stream.is_taken(),
+            RequestKind::Head { .. } => true,
         }
     }
 
@@ -1100,6 +1234,7 @@ impl UpstreamRequest for UploadRequest {
 
                 builder.body(reqwest::Body::wrap_stream(body));
             }
+            RequestKind::Head { .. } => tus::add_head_headers(builder),
         };
 
         let project_key = self.project.scoping.project_key;

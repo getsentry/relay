@@ -62,6 +62,8 @@ pub mod attributes {
     include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 
     mod not_yet_defined {
+        pub const SENTRY__EVENT__SERIALIZED_REQUEST: &str = "sentry.event.serialized_request";
+
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";

@@ -101,7 +101,6 @@ async-compression = { version = "0.4", features = [
 ] }
 async-trait = "0.1"
 axum = "0.8"
-axum-extra = "0.12"
 axum-server = "0.8"
 backon = { version = "1", default-features = false }
 brotli = "7"
@@ -171,7 +170,6 @@ path-slash = "0.2"
 pest = "2"
 pest_derive = "2"
 phf = { version = "0.13", features = ["macros"] }
-phf_codegen = "0.13"
 pin-project-lite = "0.2"
 pretty-hex = "0.4"
 priority-queue = "2"
