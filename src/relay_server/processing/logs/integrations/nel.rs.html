@@ -6,7 +6,7 @@
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::logs::{Error, <span class="prelude-ty">Result</span>, Settings};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#8 id=8 data-nosnippet>8</a>
-<a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// Expands OTeL logs into the [`OurLog`] format.
+<a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// Expands Nel logs into the [`OurLog`] format.
 <a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub fn </span>expand&lt;F&gt;(payload: <span class="kw-2">&amp;</span>[u8], headers: <span class="kw-2">&amp;</span>EnvelopeHeaders, produce: F) -&gt; <span class="prelude-ty">Result</span>&lt;Settings&gt;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">where
 <a href=#12 id=12 data-nosnippet>12</a>    </span>F: FnMut(OurLog),

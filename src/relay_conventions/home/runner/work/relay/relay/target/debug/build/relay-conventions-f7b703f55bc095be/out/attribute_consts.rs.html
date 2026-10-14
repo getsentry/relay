@@ -307,7 +307,7 @@
 <a href=#307 id=307 data-nosnippet>307</a>
 <a href=#308 id=308 data-nosnippet>308</a>
 <a href=#309 id=309 data-nosnippet>309</a><span class="doccomment">/// The content of the tool result.
-<a href=#310 id=310 data-nosnippet>310</a>/// * Scrubbing: Auto
+<a href=#310 id=310 data-nosnippet>310</a>/// * Scrubbing: Manual
 <a href=#311 id=311 data-nosnippet>311</a>/// * Rewriting behavior: Backfill
 <a href=#312 id=312 data-nosnippet>312</a>/// # Aliases
 <a href=#313 id=313 data-nosnippet>313</a>/// * [`GEN_AI__TOOL__CALL__RESULT`] (`gen_ai.tool.call.result`)
@@ -1231,7 +1231,7 @@
 <a href=#1231 id=1231 data-nosnippet>1231</a>
 <a href=#1232 id=1232 data-nosnippet>1232</a>
 <a href=#1233 id=1233 data-nosnippet>1233</a><span class="doccomment">/// The sentry transaction (segment name).
-<a href=#1234 id=1234 data-nosnippet>1234</a>/// * Scrubbing: Never
+<a href=#1234 id=1234 data-nosnippet>1234</a>/// * Scrubbing: Manual
 <a href=#1235 id=1235 data-nosnippet>1235</a>/// * Rewriting behavior: Backfill
 <a href=#1236 id=1236 data-nosnippet>1236</a>/// # Aliases
 <a href=#1237 id=1237 data-nosnippet>1237</a>/// * [`SENTRY__SEGMENT__NAME`] (`sentry.segment.name`)
@@ -1745,14 +1745,14 @@
 <a href=#1745 id=1745 data-nosnippet>1745</a>
 <a href=#1746 id=1746 data-nosnippet>1746</a>
 <a href=#1747 id=1747 data-nosnippet>1747</a><span class="doccomment">/// The software deployment environment name.
-<a href=#1748 id=1748 data-nosnippet>1748</a>/// * Scrubbing: Manual
+<a href=#1748 id=1748 data-nosnippet>1748</a>/// * Scrubbing: Never
 <a href=#1749 id=1749 data-nosnippet>1749</a>/// * Rewriting behavior: Backfill
 <a href=#1750 id=1750 data-nosnippet>1750</a></span><span class="attr">#[deprecated(note=<span class="string">"Use [`SENTRY__ENVIRONMENT`](crate::attributes::SENTRY__ENVIRONMENT) (`sentry.environment`) instead."</span>)]
 <a href=#1751 id=1751 data-nosnippet>1751</a></span><span class="kw">pub const </span>RESOURCE__DEPLOYMENT__ENVIRONMENT__NAME: <span class="kw-2">&amp;</span>str = <span class="string">"resource.deployment.environment.name"</span>;
 <a href=#1752 id=1752 data-nosnippet>1752</a>
 <a href=#1753 id=1753 data-nosnippet>1753</a>
 <a href=#1754 id=1754 data-nosnippet>1754</a><span class="doccomment">/// The software deployment environment name.
-<a href=#1755 id=1755 data-nosnippet>1755</a>/// * Scrubbing: Manual
+<a href=#1755 id=1755 data-nosnippet>1755</a>/// * Scrubbing: Never
 <a href=#1756 id=1756 data-nosnippet>1756</a>/// * Rewriting behavior: Backfill
 <a href=#1757 id=1757 data-nosnippet>1757</a></span><span class="attr">#[deprecated(note=<span class="string">"Use [`SENTRY__ENVIRONMENT`](crate::attributes::SENTRY__ENVIRONMENT) (`sentry.environment`) instead."</span>)]
 <a href=#1758 id=1758 data-nosnippet>1758</a></span><span class="kw">pub const </span>RESOURCE__DEPLOYMENT__ENVIRONMENT: <span class="kw-2">&amp;</span>str = <span class="string">"resource.deployment.environment"</span>;
@@ -2507,7 +2507,7 @@
 <a href=#2507 id=2507 data-nosnippet>2507</a>
 <a href=#2508 id=2508 data-nosnippet>2508</a>
 <a href=#2509 id=2509 data-nosnippet>2509</a><span class="doccomment">/// The name of the device. On servers and desktops, this is typically the hostname.
-<a href=#2510 id=2510 data-nosnippet>2510</a>/// * Scrubbing: Auto
+<a href=#2510 id=2510 data-nosnippet>2510</a>/// * Scrubbing: Manual
 <a href=#2511 id=2511 data-nosnippet>2511</a>/// * Rewriting behavior: Backfill
 <a href=#2512 id=2512 data-nosnippet>2512</a>/// # Aliases
 <a href=#2513 id=2513 data-nosnippet>2513</a>/// * [`ADDRESS`] (`address`)
@@ -3229,7 +3229,7 @@
 <a href=#3229 id=3229 data-nosnippet>3229</a>
 <a href=#3230 id=3230 data-nosnippet>3230</a>
 <a href=#3231 id=3231 data-nosnippet>3231</a><span class="doccomment">/// For an AI model call, the tool calls that were made.
-<a href=#3232 id=3232 data-nosnippet>3232</a>/// * Scrubbing: Auto
+<a href=#3232 id=3232 data-nosnippet>3232</a>/// * Scrubbing: Manual
 <a href=#3233 id=3233 data-nosnippet>3233</a>/// * Rewriting behavior: Backfill
 <a href=#3234 id=3234 data-nosnippet>3234</a></span><span class="attr">#[deprecated(note=<span class="string">"Use [`GEN_AI__OUTPUT__MESSAGES`](crate::attributes::GEN_AI__OUTPUT__MESSAGES) (`gen_ai.output.messages`) instead."</span>)]
 <a href=#3235 id=3235 data-nosnippet>3235</a></span><span class="kw">pub const </span>AI__TOOL_CALLS: <span class="kw-2">&amp;</span>str = <span class="string">"ai.tool_calls"</span>;
@@ -3374,7 +3374,7 @@
 <a href=#3374 id=3374 data-nosnippet>3374</a>
 <a href=#3375 id=3375 data-nosnippet>3375</a>
 <a href=#3376 id=3376 data-nosnippet>3376</a><span class="doccomment">/// For an AI model call, the preamble parameter. Preambles are a part of the prompt used to adjust the model's overall behavior and conversation style.
-<a href=#3377 id=3377 data-nosnippet>3377</a>/// * Scrubbing: Auto
+<a href=#3377 id=3377 data-nosnippet>3377</a>/// * Scrubbing: Manual
 <a href=#3378 id=3378 data-nosnippet>3378</a>/// * Rewriting behavior: Backfill
 <a href=#3379 id=3379 data-nosnippet>3379</a>/// # Aliases
 <a href=#3380 id=3380 data-nosnippet>3380</a>/// * [`GEN_AI__SYSTEM_INSTRUCTIONS`] (`gen_ai.system_instructions`)
@@ -3440,7 +3440,7 @@
 <a href=#3440 id=3440 data-nosnippet>3440</a>
 <a href=#3441 id=3441 data-nosnippet>3441</a>
 <a href=#3442 id=3442 data-nosnippet>3442</a><span class="doccomment">/// Raw text inputs provided to the model.
-<a href=#3443 id=3443 data-nosnippet>3443</a>/// * Scrubbing: Auto
+<a href=#3443 id=3443 data-nosnippet>3443</a>/// * Scrubbing: Manual
 <a href=#3444 id=3444 data-nosnippet>3444</a>/// * Rewriting behavior: Backfill
 <a href=#3445 id=3445 data-nosnippet>3445</a>/// # Aliases
 <a href=#3446 id=3446 data-nosnippet>3446</a>/// * [`GEN_AI__INPUT__MESSAGES`] (`gen_ai.input.messages`)
@@ -3531,7 +3531,7 @@
 <a href=#3531 id=3531 data-nosnippet>3531</a>
 <a href=#3532 id=3532 data-nosnippet>3532</a>
 <a href=#3533 id=3533 data-nosnippet>3533</a><span class="doccomment">/// For an AI model call, the function that was called. This is deprecated for OpenAI, and replaced by tool_calls.
-<a href=#3534 id=3534 data-nosnippet>3534</a>/// * Scrubbing: Auto
+<a href=#3534 id=3534 data-nosnippet>3534</a>/// * Scrubbing: Manual
 <a href=#3535 id=3535 data-nosnippet>3535</a>/// * Rewriting behavior: Backfill
 <a href=#3536 id=3536 data-nosnippet>3536</a>/// # Aliases
 <a href=#3537 id=3537 data-nosnippet>3537</a>/// * [`GEN_AI__TOOL__NAME`] (`gen_ai.tool.name`)
@@ -4495,7 +4495,7 @@
 <a href=#4495 id=4495 data-nosnippet>4495</a>
 <a href=#4496 id=4496 data-nosnippet>4496</a>
 <a href=#4497 id=4497 data-nosnippet>4497</a><span class="doccomment">/// The response from a tool or function call passed to the model.
-<a href=#4498 id=4498 data-nosnippet>4498</a>/// * Scrubbing: Auto
+<a href=#4498 id=4498 data-nosnippet>4498</a>/// * Scrubbing: Manual
 <a href=#4499 id=4499 data-nosnippet>4499</a>/// * Rewriting behavior: Normalize
 <a href=#4500 id=4500 data-nosnippet>4500</a>/// # Aliases
 <a href=#4501 id=4501 data-nosnippet>4501</a>/// * [`GEN_AI__TOOL__CALL__RESULT`] (`gen_ai.tool.call.result`)
@@ -4532,7 +4532,7 @@
 <a href=#4532 id=4532 data-nosnippet>4532</a>
 <a href=#4533 id=4533 data-nosnippet>4533</a>
 <a href=#4534 id=4534 data-nosnippet>4534</a><span class="doccomment">/// The system instructions passed to the model.
-<a href=#4535 id=4535 data-nosnippet>4535</a>/// * Scrubbing: Auto
+<a href=#4535 id=4535 data-nosnippet>4535</a>/// * Scrubbing: Manual
 <a href=#4536 id=4536 data-nosnippet>4536</a>/// * Rewriting behavior: Backfill
 <a href=#4537 id=4537 data-nosnippet>4537</a></span><span class="attr">#[deprecated(note=<span class="string">"Use [`GEN_AI__SYSTEM_INSTRUCTIONS`](crate::attributes::GEN_AI__SYSTEM_INSTRUCTIONS) (`gen_ai.system_instructions`) instead."</span>)]
 <a href=#4538 id=4538 data-nosnippet>4538</a></span><span class="kw">pub const </span>GEN_AI__SYSTEM__MESSAGE: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.system.message"</span>;
@@ -6301,7 +6301,7 @@
 <a href=#6301 id=6301 data-nosnippet>6301</a>
 <a href=#6302 id=6302 data-nosnippet>6302</a>
 <a href=#6303 id=6303 data-nosnippet>6303</a><span class="doccomment">/// The sentry environment.
-<a href=#6304 id=6304 data-nosnippet>6304</a>/// * Scrubbing: Manual
+<a href=#6304 id=6304 data-nosnippet>6304</a>/// * Scrubbing: Never
 <a href=#6305 id=6305 data-nosnippet>6305</a>/// * Rewriting behavior: Normalize
 <a href=#6306 id=6306 data-nosnippet>6306</a>/// # Aliases
 <a href=#6307 id=6307 data-nosnippet>6307</a>/// * [`SENTRY__ENVIRONMENT`] (`sentry.environment`)
@@ -6785,7 +6785,7 @@
 <a href=#6785 id=6785 data-nosnippet>6785</a>
 <a href=#6786 id=6786 data-nosnippet>6786</a>
 <a href=#6787 id=6787 data-nosnippet>6787</a><span class="doccomment">/// Server domain name if available without reverse DNS lookup; otherwise, IP address or Unix domain socket name.
-<a href=#6788 id=6788 data-nosnippet>6788</a>/// * Scrubbing: Auto
+<a href=#6788 id=6788 data-nosnippet>6788</a>/// * Scrubbing: Manual
 <a href=#6789 id=6789 data-nosnippet>6789</a>/// * Rewriting behavior: None
 <a href=#6790 id=6790 data-nosnippet>6790</a>/// # Aliases
 <a href=#6791 id=6791 data-nosnippet>6791</a>/// * [`ADDRESS`] (`address`)
