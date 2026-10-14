@@ -608,7 +608,7 @@
 <a href=#608 id=608 data-nosnippet>608</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#609 id=609 data-nosnippet>609</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#610 id=610 data-nosnippet>610</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#611 id=611 data-nosnippet>611</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#611 id=611 data-nosnippet>611</a>                dimensions: DimensionMap::default(),
 <a href=#612 id=612 data-nosnippet>612</a>            }]
 <a href=#613 id=613 data-nosnippet>613</a>        );
 <a href=#614 id=614 data-nosnippet>614</a>    }
@@ -732,7 +732,7 @@
 <a href=#732 id=732 data-nosnippet>732</a>                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#733 id=733 data-nosnippet>733</a>                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#734 id=734 data-nosnippet>734</a>                        namespaces: <span class="macro">smallvec!</span>[],
-<a href=#735 id=735 data-nosnippet>735</a>                        dimensional: <span class="bool-val">false</span>,
+<a href=#735 id=735 data-nosnippet>735</a>                        dimensions: DimensionMap::default(),
 <a href=#736 id=736 data-nosnippet>736</a>                    }]
 <a href=#737 id=737 data-nosnippet>737</a>                );
 <a href=#738 id=738 data-nosnippet>738</a>            } <span class="kw">else </span>{
@@ -951,7 +951,7 @@
 <a href=#951 id=951 data-nosnippet>951</a>                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"project_quota1"</span>)),
 <a href=#952 id=952 data-nosnippet>952</a>                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#953 id=953 data-nosnippet>953</a>                        namespaces: <span class="macro">smallvec!</span>[],
-<a href=#954 id=954 data-nosnippet>954</a>                        dimensional: <span class="bool-val">false</span>,
+<a href=#954 id=954 data-nosnippet>954</a>                        dimensions: DimensionMap::default(),
 <a href=#955 id=955 data-nosnippet>955</a>                    }]
 <a href=#956 id=956 data-nosnippet>956</a>                );
 <a href=#957 id=957 data-nosnippet>957</a>            }
@@ -1003,7 +1003,7 @@
 <a href=#1003 id=1003 data-nosnippet>1003</a>                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#1004 id=1004 data-nosnippet>1004</a>                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1005 id=1005 data-nosnippet>1005</a>                        namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1006 id=1006 data-nosnippet>1006</a>                        dimensional: <span class="bool-val">false</span>,
+<a href=#1006 id=1006 data-nosnippet>1006</a>                        dimensions: DimensionMap::default(),
 <a href=#1007 id=1007 data-nosnippet>1007</a>                    }]
 <a href=#1008 id=1008 data-nosnippet>1008</a>                );
 <a href=#1009 id=1009 data-nosnippet>1009</a>            } <span class="kw">else </span>{
@@ -1649,7 +1649,7 @@
 <a href=#1649 id=1649 data-nosnippet>1649</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#1650 id=1650 data-nosnippet>1650</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1651 id=1651 data-nosnippet>1651</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1652 id=1652 data-nosnippet>1652</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#1652 id=1652 data-nosnippet>1652</a>                dimensions: DimensionMap::default(),
 <a href=#1653 id=1653 data-nosnippet>1653</a>            }]
 <a href=#1654 id=1654 data-nosnippet>1654</a>        );
 <a href=#1655 id=1655 data-nosnippet>1655</a>    }
@@ -1730,7 +1730,7 @@
 <a href=#1730 id=1730 data-nosnippet>1730</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#1731 id=1731 data-nosnippet>1731</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1732 id=1732 data-nosnippet>1732</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1733 id=1733 data-nosnippet>1733</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#1733 id=1733 data-nosnippet>1733</a>                dimensions: DimensionMap::default(),
 <a href=#1734 id=1734 data-nosnippet>1734</a>            }]
 <a href=#1735 id=1735 data-nosnippet>1735</a>        );
 <a href=#1736 id=1736 data-nosnippet>1736</a>    }
@@ -1922,7 +1922,7 @@
 <a href=#1922 id=1922 data-nosnippet>1922</a>                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#1923 id=1923 data-nosnippet>1923</a>                    retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1924 id=1924 data-nosnippet>1924</a>                    namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1925 id=1925 data-nosnippet>1925</a>                    dimensional: <span class="bool-val">true</span>,
+<a href=#1925 id=1925 data-nosnippet>1925</a>                    dimensions: DimensionMap::from(<span class="kw-2">*</span>dims),
 <a href=#1926 id=1926 data-nosnippet>1926</a>                }],
 <a href=#1927 id=1927 data-nosnippet>1927</a>                <span class="string">"second check for {dims:?}"
 <a href=#1928 id=1928 data-nosnippet>1928</a>            </span>);
@@ -2089,7 +2089,7 @@
 <a href=#2089 id=2089 data-nosnippet>2089</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
 <a href=#2090 id=2090 data-nosnippet>2090</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#2091 id=2091 data-nosnippet>2091</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#2092 id=2092 data-nosnippet>2092</a>                dimensional: <span class="bool-val">true</span>,
+<a href=#2092 id=2092 data-nosnippet>2092</a>                dimensions: DimensionMap::from([(Dimension::CheckInSlug, <span class="string">"cron3"</span>)]),
 <a href=#2093 id=2093 data-nosnippet>2093</a>            }]
 <a href=#2094 id=2094 data-nosnippet>2094</a>        );
 <a href=#2095 id=2095 data-nosnippet>2095</a>
@@ -2280,43 +2280,40 @@
 <a href=#2280 id=2280 data-nosnippet>2280</a>        <span class="comment">// The limit is enforced against the check-in which produced it.
 <a href=#2281 id=2281 data-nosnippet>2281</a>        </span><span class="macro">assert!</span>(limits.is_limited());
 <a href=#2282 id=2282 data-nosnippet>2282</a>
-<a href=#2283 id=2283 data-nosnippet>2283</a>        <span class="comment">// It would apply to every other monitor in the project if it were retained, so none of
-<a href=#2284 id=2284 data-nosnippet>2284</a>        // it survives the filter.
-<a href=#2285 id=2285 data-nosnippet>2285</a>        </span><span class="macro">assert!</span>(limits.cacheable().is_empty());
-<a href=#2286 id=2286 data-nosnippet>2286</a>        <span class="macro">assert!</span>(!limits.cacheable().check(<span class="kw-2">&amp;</span>cron2).is_limited());
-<a href=#2287 id=2287 data-nosnippet>2287</a>
-<a href=#2288 id=2288 data-nosnippet>2288</a>        <span class="comment">// The other monitor still has its own bucket in Redis.
-<a href=#2289 id=2289 data-nosnippet>2289</a>        </span><span class="macro">assert!</span>(
-<a href=#2290 id=2290 data-nosnippet>2290</a>            !rate_limiter
-<a href=#2291 id=2291 data-nosnippet>2291</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron2, <span class="number">1</span>, <span class="bool-val">false</span>)
-<a href=#2292 id=2292 data-nosnippet>2292</a>                .<span class="kw">await
-<a href=#2293 id=2293 data-nosnippet>2293</a>                </span>.unwrap()
-<a href=#2294 id=2294 data-nosnippet>2294</a>                .is_limited()
-<a href=#2295 id=2295 data-nosnippet>2295</a>        );
-<a href=#2296 id=2296 data-nosnippet>2296</a>    }
-<a href=#2297 id=2297 data-nosnippet>2297</a>
-<a href=#2298 id=2298 data-nosnippet>2298</a>    <span class="doccomment">/// An undimensioned quota on the same category stays cacheable.
-<a href=#2299 id=2299 data-nosnippet>2299</a>    </span><span class="attr">#[tokio::test]
-<a href=#2300 id=2300 data-nosnippet>2300</a>    </span><span class="kw">async fn </span>test_quota_without_dimensions_is_cacheable() {
-<a href=#2301 id=2301 data-nosnippet>2301</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[monitor_quota(<span class="number">1</span>, <span class="prelude-val">None</span>)];
-<a href=#2302 id=2302 data-nosnippet>2302</a>
-<a href=#2303 id=2303 data-nosnippet>2303</a>        <span class="kw">let </span>rate_limiter = build_rate_limiter();
-<a href=#2304 id=2304 data-nosnippet>2304</a>
-<a href=#2305 id=2305 data-nosnippet>2305</a>        <span class="kw">let </span>cron1 = monitor_scoping(<span class="kw-2">&amp;</span>[(Dimension::CheckInSlug, <span class="string">"cron1"</span>)]);
-<a href=#2306 id=2306 data-nosnippet>2306</a>
-<a href=#2307 id=2307 data-nosnippet>2307</a>        rate_limiter
-<a href=#2308 id=2308 data-nosnippet>2308</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron1, <span class="number">1</span>, <span class="bool-val">false</span>)
-<a href=#2309 id=2309 data-nosnippet>2309</a>            .<span class="kw">await
-<a href=#2310 id=2310 data-nosnippet>2310</a>            </span>.unwrap();
-<a href=#2311 id=2311 data-nosnippet>2311</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#2312 id=2312 data-nosnippet>2312</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron1, <span class="number">1</span>, <span class="bool-val">false</span>)
-<a href=#2313 id=2313 data-nosnippet>2313</a>            .<span class="kw">await
-<a href=#2314 id=2314 data-nosnippet>2314</a>            </span>.unwrap();
-<a href=#2315 id=2315 data-nosnippet>2315</a>
-<a href=#2316 id=2316 data-nosnippet>2316</a>        <span class="comment">// This limit really does apply to the whole project, so it is kept for the cache even
-<a href=#2317 id=2317 data-nosnippet>2317</a>        // though the item which produced it carried dimensions.
-<a href=#2318 id=2318 data-nosnippet>2318</a>        </span><span class="macro">assert!</span>(limits.is_limited());
-<a href=#2319 id=2319 data-nosnippet>2319</a>        <span class="macro">assert!</span>(!limits.cacheable().is_empty());
-<a href=#2320 id=2320 data-nosnippet>2320</a>    }
-<a href=#2321 id=2321 data-nosnippet>2321</a>}
+<a href=#2283 id=2283 data-nosnippet>2283</a>        <span class="macro">assert!</span>(!limits.check(<span class="kw-2">&amp;</span>cron2).is_limited());
+<a href=#2284 id=2284 data-nosnippet>2284</a>
+<a href=#2285 id=2285 data-nosnippet>2285</a>        <span class="comment">// The other monitor still has its own bucket in Redis.
+<a href=#2286 id=2286 data-nosnippet>2286</a>        </span><span class="macro">assert!</span>(
+<a href=#2287 id=2287 data-nosnippet>2287</a>            !rate_limiter
+<a href=#2288 id=2288 data-nosnippet>2288</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron2, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#2289 id=2289 data-nosnippet>2289</a>                .<span class="kw">await
+<a href=#2290 id=2290 data-nosnippet>2290</a>                </span>.unwrap()
+<a href=#2291 id=2291 data-nosnippet>2291</a>                .is_limited()
+<a href=#2292 id=2292 data-nosnippet>2292</a>        );
+<a href=#2293 id=2293 data-nosnippet>2293</a>    }
+<a href=#2294 id=2294 data-nosnippet>2294</a>
+<a href=#2295 id=2295 data-nosnippet>2295</a>    <span class="doccomment">/// An undimensioned quota on the same category stays propagatable.
+<a href=#2296 id=2296 data-nosnippet>2296</a>    </span><span class="attr">#[tokio::test]
+<a href=#2297 id=2297 data-nosnippet>2297</a>    </span><span class="kw">async fn </span>test_quota_without_dimensions_is_propagatable() {
+<a href=#2298 id=2298 data-nosnippet>2298</a>        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[monitor_quota(<span class="number">1</span>, <span class="prelude-val">None</span>)];
+<a href=#2299 id=2299 data-nosnippet>2299</a>
+<a href=#2300 id=2300 data-nosnippet>2300</a>        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+<a href=#2301 id=2301 data-nosnippet>2301</a>
+<a href=#2302 id=2302 data-nosnippet>2302</a>        <span class="kw">let </span>cron1 = monitor_scoping(<span class="kw-2">&amp;</span>[(Dimension::CheckInSlug, <span class="string">"cron1"</span>)]);
+<a href=#2303 id=2303 data-nosnippet>2303</a>
+<a href=#2304 id=2304 data-nosnippet>2304</a>        rate_limiter
+<a href=#2305 id=2305 data-nosnippet>2305</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron1, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#2306 id=2306 data-nosnippet>2306</a>            .<span class="kw">await
+<a href=#2307 id=2307 data-nosnippet>2307</a>            </span>.unwrap();
+<a href=#2308 id=2308 data-nosnippet>2308</a>        <span class="kw">let </span>limits = rate_limiter
+<a href=#2309 id=2309 data-nosnippet>2309</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>cron1, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#2310 id=2310 data-nosnippet>2310</a>            .<span class="kw">await
+<a href=#2311 id=2311 data-nosnippet>2311</a>            </span>.unwrap();
+<a href=#2312 id=2312 data-nosnippet>2312</a>
+<a href=#2313 id=2313 data-nosnippet>2313</a>        <span class="comment">// This limit really does apply to the whole project, so it is kept for the cache even
+<a href=#2314 id=2314 data-nosnippet>2314</a>        // though the item which produced it carried dimensions.
+<a href=#2315 id=2315 data-nosnippet>2315</a>        </span><span class="macro">assert!</span>(limits.is_limited());
+<a href=#2316 id=2316 data-nosnippet>2316</a>        <span class="macro">assert!</span>(!limits.propagatable().is_empty());
+<a href=#2317 id=2317 data-nosnippet>2317</a>    }
+<a href=#2318 id=2318 data-nosnippet>2318</a>}
 </code></pre></div></section></main></body></html>

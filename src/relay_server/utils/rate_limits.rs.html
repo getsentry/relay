@@ -4,8 +4,8 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_profiling::ProfileType;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_quotas::{
-<a href=#7 id=7 data-nosnippet>7</a>    DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-<a href=#8 id=8 data-nosnippet>8</a>    Scoping,
+<a href=#7 id=7 data-nosnippet>7</a>    DataCategory, DimensionMap, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+<a href=#8 id=8 data-nosnippet>8</a>    ReasonCode, Scoping,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>smallvec::SmallVec;
 <a href=#11 id=11 data-nosnippet>11</a>
@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>            namespaces: namespace,
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="comment">// The wire format cannot express dimensions, so a limit parsed from it is always
 <a href=#103 id=103 data-nosnippet>103</a>            // a plain limit for the whole scope.
-<a href=#104 id=104 data-nosnippet>104</a>            </span>dimensional: <span class="bool-val">false</span>,
+<a href=#104 id=104 data-nosnippet>104</a>            </span>dimensions: DimensionMap::default(),
 <a href=#105 id=105 data-nosnippet>105</a>        });
 <a href=#106 id=106 data-nosnippet>106</a>    }
 <a href=#107 id=107 data-nosnippet>107</a>
@@ -1357,7 +1357,7 @@
 <a href=#1357 id=1357 data-nosnippet>1357</a>    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <a href=#1358 id=1358 data-nosnippet>1358</a>    <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <a href=#1359 id=1359 data-nosnippet>1359</a>    <span class="kw">use </span>relay_metrics::MetricNamespace;
-<a href=#1360 id=1360 data-nosnippet>1360</a>    <span class="kw">use </span>relay_quotas::RetryAfter;
+<a href=#1360 id=1360 data-nosnippet>1360</a>    <span class="kw">use </span>relay_quotas::{DimensionMap, RetryAfter};
 <a href=#1361 id=1361 data-nosnippet>1361</a>    <span class="kw">use </span>relay_system::Addr;
 <a href=#1362 id=1362 data-nosnippet>1362</a>    <span class="kw">use </span>smallvec::smallvec;
 <a href=#1363 id=1363 data-nosnippet>1363</a>    <span class="kw">use </span>tokio::sync::Mutex;
@@ -1388,7 +1388,7 @@
 <a href=#1388 id=1388 data-nosnippet>1388</a>            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
 <a href=#1389 id=1389 data-nosnippet>1389</a>            retry_after: RetryAfter::from_secs(<span class="number">42</span>),
 <a href=#1390 id=1390 data-nosnippet>1390</a>            namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1391 id=1391 data-nosnippet>1391</a>            dimensional: <span class="bool-val">false</span>,
+<a href=#1391 id=1391 data-nosnippet>1391</a>            dimensions: DimensionMap::default(),
 <a href=#1392 id=1392 data-nosnippet>1392</a>        });
 <a href=#1393 id=1393 data-nosnippet>1393</a>
 <a href=#1394 id=1394 data-nosnippet>1394</a>        <span class="comment">// Add a more specific rate limit for just one category.
@@ -1398,7 +1398,7 @@
 <a href=#1398 id=1398 data-nosnippet>1398</a>            reason_code: <span class="prelude-val">None</span>,
 <a href=#1399 id=1399 data-nosnippet>1399</a>            retry_after: RetryAfter::from_secs(<span class="number">4711</span>),
 <a href=#1400 id=1400 data-nosnippet>1400</a>            namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1401 id=1401 data-nosnippet>1401</a>            dimensional: <span class="bool-val">false</span>,
+<a href=#1401 id=1401 data-nosnippet>1401</a>            dimensions: DimensionMap::default(),
 <a href=#1402 id=1402 data-nosnippet>1402</a>        });
 <a href=#1403 id=1403 data-nosnippet>1403</a>
 <a href=#1404 id=1404 data-nosnippet>1404</a>        <span class="kw">let </span>formatted = format_rate_limits(<span class="kw-2">&amp;</span>rate_limits);
@@ -1417,7 +1417,7 @@
 <a href=#1417 id=1417 data-nosnippet>1417</a>            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
 <a href=#1418 id=1418 data-nosnippet>1418</a>            retry_after: RetryAfter::from_secs(<span class="number">42</span>),
 <a href=#1419 id=1419 data-nosnippet>1419</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Transactions, MetricNamespace::Spans],
-<a href=#1420 id=1420 data-nosnippet>1420</a>            dimensional: <span class="bool-val">false</span>,
+<a href=#1420 id=1420 data-nosnippet>1420</a>            dimensions: DimensionMap::default(),
 <a href=#1421 id=1421 data-nosnippet>1421</a>        });
 <a href=#1422 id=1422 data-nosnippet>1422</a>
 <a href=#1423 id=1423 data-nosnippet>1423</a>        <span class="comment">// Rate limit without reason code.
@@ -1427,7 +1427,7 @@
 <a href=#1427 id=1427 data-nosnippet>1427</a>            reason_code: <span class="prelude-val">None</span>,
 <a href=#1428 id=1428 data-nosnippet>1428</a>            retry_after: RetryAfter::from_secs(<span class="number">42</span>),
 <a href=#1429 id=1429 data-nosnippet>1429</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Spans],
-<a href=#1430 id=1430 data-nosnippet>1430</a>            dimensional: <span class="bool-val">false</span>,
+<a href=#1430 id=1430 data-nosnippet>1430</a>            dimensions: DimensionMap::default(),
 <a href=#1431 id=1431 data-nosnippet>1431</a>        });
 <a href=#1432 id=1432 data-nosnippet>1432</a>
 <a href=#1433 id=1433 data-nosnippet>1433</a>        <span class="kw">let </span>formatted = format_rate_limits(<span class="kw-2">&amp;</span>rate_limits);
@@ -1473,7 +1473,7 @@
 <a href=#1473 id=1473 data-nosnippet>1473</a>                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
 <a href=#1474 id=1474 data-nosnippet>1474</a>                    retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1475 id=1475 data-nosnippet>1475</a>                    namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1476 id=1476 data-nosnippet>1476</a>                    dimensional: <span class="bool-val">false</span>,
+<a href=#1476 id=1476 data-nosnippet>1476</a>                    dimensions: DimensionMap::default(),
 <a href=#1477 id=1477 data-nosnippet>1477</a>                },
 <a href=#1478 id=1478 data-nosnippet>1478</a>                RateLimit {
 <a href=#1479 id=1479 data-nosnippet>1479</a>                    categories: [
@@ -1486,7 +1486,7 @@
 <a href=#1486 id=1486 data-nosnippet>1486</a>                    reason_code: <span class="prelude-val">None</span>,
 <a href=#1487 id=1487 data-nosnippet>1487</a>                    retry_after: rate_limits[<span class="number">1</span>].retry_after,
 <a href=#1488 id=1488 data-nosnippet>1488</a>                    namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1489 id=1489 data-nosnippet>1489</a>                    dimensional: <span class="bool-val">false</span>,
+<a href=#1489 id=1489 data-nosnippet>1489</a>                    dimensions: DimensionMap::default(),
 <a href=#1490 id=1490 data-nosnippet>1490</a>                }
 <a href=#1491 id=1491 data-nosnippet>1491</a>            ]
 <a href=#1492 id=1492 data-nosnippet>1492</a>        );
@@ -1516,7 +1516,7 @@
 <a href=#1516 id=1516 data-nosnippet>1516</a>                reason_code: <span class="prelude-val">None</span>,
 <a href=#1517 id=1517 data-nosnippet>1517</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1518 id=1518 data-nosnippet>1518</a>                namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Transactions, MetricNamespace::Spans],
-<a href=#1519 id=1519 data-nosnippet>1519</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#1519 id=1519 data-nosnippet>1519</a>                dimensions: DimensionMap::default(),
 <a href=#1520 id=1520 data-nosnippet>1520</a>            }]
 <a href=#1521 id=1521 data-nosnippet>1521</a>        );
 <a href=#1522 id=1522 data-nosnippet>1522</a>    }
@@ -1543,7 +1543,7 @@
 <a href=#1543 id=1543 data-nosnippet>1543</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"some_reason"</span>)),
 <a href=#1544 id=1544 data-nosnippet>1544</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1545 id=1545 data-nosnippet>1545</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1546 id=1546 data-nosnippet>1546</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#1546 id=1546 data-nosnippet>1546</a>                dimensions: DimensionMap::default(),
 <a href=#1547 id=1547 data-nosnippet>1547</a>            }]
 <a href=#1548 id=1548 data-nosnippet>1548</a>        );
 <a href=#1549 id=1549 data-nosnippet>1549</a>    }
@@ -1569,7 +1569,7 @@
 <a href=#1569 id=1569 data-nosnippet>1569</a>                reason_code: <span class="prelude-val">None</span>,
 <a href=#1570 id=1570 data-nosnippet>1570</a>                retry_after: rate_limits[<span class="number">0</span>].retry_after,
 <a href=#1571 id=1571 data-nosnippet>1571</a>                namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1572 id=1572 data-nosnippet>1572</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#1572 id=1572 data-nosnippet>1572</a>                dimensions: DimensionMap::default(),
 <a href=#1573 id=1573 data-nosnippet>1573</a>            },]
 <a href=#1574 id=1574 data-nosnippet>1574</a>        );
 <a href=#1575 id=1575 data-nosnippet>1575</a>    }
@@ -1597,7 +1597,7 @@
 <a href=#1597 id=1597 data-nosnippet>1597</a>            reason_code: <span class="prelude-val">None</span>,
 <a href=#1598 id=1598 data-nosnippet>1598</a>            retry_after: RetryAfter::from_secs(<span class="number">60</span>),
 <a href=#1599 id=1599 data-nosnippet>1599</a>            namespaces: <span class="macro">smallvec!</span>[],
-<a href=#1600 id=1600 data-nosnippet>1600</a>            dimensional: <span class="bool-val">false</span>,
+<a href=#1600 id=1600 data-nosnippet>1600</a>            dimensions: DimensionMap::default(),
 <a href=#1601 id=1601 data-nosnippet>1601</a>        }
 <a href=#1602 id=1602 data-nosnippet>1602</a>    }
 <a href=#1603 id=1603 data-nosnippet>1603</a>

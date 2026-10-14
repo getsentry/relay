@@ -20,8 +20,8 @@
 <a href=#20 id=20 data-nosnippet>20</a>};
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>relay_config::{Config, ConfigSnapshot, Credentials, RelayMode, UpstreamDescriptor};
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>relay_quotas::{
-<a href=#23 id=23 data-nosnippet>23</a>    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
-<a href=#24 id=24 data-nosnippet>24</a>    Scoping,
+<a href=#23 id=23 data-nosnippet>23</a>    DataCategories, DimensionMap, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+<a href=#24 id=24 data-nosnippet>24</a>    RetryAfter, Scoping,
 <a href=#25 id=25 data-nosnippet>25</a>};
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>relay_statsd::metric;
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>relay_system::{
@@ -98,7 +98,7 @@
 <a href=#98 id=98 data-nosnippet>98</a>                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"generic"</span>)),
 <a href=#99 id=99 data-nosnippet>99</a>                retry_after: <span class="self">self</span>.retry_after,
 <a href=#100 id=100 data-nosnippet>100</a>                namespaces: Default::default(),
-<a href=#101 id=101 data-nosnippet>101</a>                dimensional: <span class="bool-val">false</span>,
+<a href=#101 id=101 data-nosnippet>101</a>                dimensions: DimensionMap::default(),
 <a href=#102 id=102 data-nosnippet>102</a>            });
 <a href=#103 id=103 data-nosnippet>103</a>        }
 <a href=#104 id=104 data-nosnippet>104</a>        rate_limits
