@@ -1066,10 +1066,10 @@ mod tests {
             let mut tokens = Tokens::default();
             tokens.push(Token::Wildcard);
             tokens.push(Token::Literal(literal("a")));
-            Token::OptionalAlternates(vec![tokens])
+            Token::Alternates(vec![tokens, Tokens(vec![Token::Literal(literal("a"))])])
         };
 
-        // This is the pattern `*{*a,}{*a,}b`.
+        // This is the pattern `*{*a,a}{*a,a}b`.
         let mut tokens = Tokens::default();
         tokens.push(Token::Wildcard);
         tokens.push(alterante.clone());
