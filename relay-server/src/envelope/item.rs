@@ -179,7 +179,7 @@ impl Item {
             ],
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(
-                    LogsIntegration::Csp
+                    LogsIntegration::BrowserReports
                     | LogsIntegration::Nel
                     | LogsIntegration::OtelV1 { .. }
                     | LogsIntegration::VercelDrainLog { .. },

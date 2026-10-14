@@ -28,7 +28,7 @@
 - Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
 - Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
-- Add an experimental `/api/{project_id}/integration/csp/` endpoint which ingests CSP reports as logs. ([#6503](https://github.com/getsentry/relay/pull/6503))
+- Add an experimental `/api/{project_id}/reports/` endpoint which ingests all browser reports, including CSP, NEL, deprecation, intervention and crash reports, as logs. ([#6503](https://github.com/getsentry/relay/pull/6503))
 
 **Bug Fixes**:
 

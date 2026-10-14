@@ -1,7 +1,9 @@
-//! Endpoint for ingesting Content Security Policy (CSP) reports as logs.
+//! Endpoint for browser reports sent through the Reporting API.
 //!
-//! Unlike the `security` endpoint, which converts CSP reports into error events, reports sent to
-//! this endpoint are converted into logs.
+//! All reports received on this endpoint are converted into logs, regardless of their type. This
+//! includes CSP violations, network errors (NEL), deprecations, interventions and crashes.
+//!
+//! Legacy CSP reports sent via the `report-uri` directive are also accepted.
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -14,7 +16,7 @@ use crate::extractors::{IntegrationBuilder, Mime};
 use crate::integrations::LogsIntegration;
 use crate::service::ServiceState;
 
-fn is_csp_mime(mime: Mime) -> bool {
+fn is_browser_report_mime(mime: Mime) -> bool {
     let ty = mime.type_().as_str();
     let subty = mime.subtype().as_str();
     let suffix = mime.suffix().map(|suffix| suffix.as_str());
@@ -22,8 +24,8 @@ fn is_csp_mime(mime: Mime) -> bool {
     matches!(
         (ty, subty, suffix),
         ("application", "json", None)
-            | ("application", "csp-report", None)
             | ("application", "reports", Some("json"))
+            | ("application", "csp-report", None)
     )
 }
 
@@ -32,11 +34,11 @@ async fn handle(
     mime: Mime,
     builder: IntegrationBuilder,
 ) -> axum::response::Result<impl IntoResponse> {
-    if !is_csp_mime(mime) {
+    if !is_browser_report_mime(mime) {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
-    let envelope = builder.with_type(LogsIntegration::Csp).build();
+    let envelope = builder.with_type(LogsIntegration::BrowserReports).build();
 
     // Browsers do not retry reports, there is no point in responding with a rate limit.
     common::handle_envelope(&state, envelope)

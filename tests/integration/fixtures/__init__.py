@@ -281,7 +281,7 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_csp_logs(
+    def send_browser_reports(
         self,
         project_id,
         payload,
@@ -298,7 +298,7 @@ class SentryLike:
             **(headers or {}),
         }
 
-        url = f"/api/{project_id}/integration/csp/?sentry_key={dsn_key}"
+        url = f"/api/{project_id}/reports/?sentry_key={dsn_key}"
 
         response = self.post(url, headers=headers, json=payload)
         response.raise_for_status()
