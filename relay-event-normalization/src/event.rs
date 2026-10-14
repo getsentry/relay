@@ -4996,48 +4996,27 @@ mod tests {
     }
 
     #[test]
-
     fn test_normalize_adds_trace_context_prefers_dsc_trace_id() {
-        // Regression for #6287 — when an error arrives with a DSC but no
-
-        // trace context of its own, the derived trace context must inherit
-
-        // the DSC trace id so the error stays stitched to the rest of the
-
-        // client's trace. Before this fix the derived trace context used an
-
+        // Regression for #6287 — when an error arrives with a DSC but no trace
+        // context of its own, the derived trace context must inherit the DSC
+        // trace id so the error stays stitched to the rest of the client's
+        // trace. Before this fix the derived trace context used an
         // event-id-derived uuid, orphaning the error from the trace.
-
         use relay_sampling::DynamicSamplingContext;
 
-        let json = r#"
-
-        {
-
+        let json = r#"{
             "type": "error",
-
             "exception": {
-
                 "values": [{"type": "ValueError", "value": "Should not happen"}]
-
             }
-
-        }
-
-        "#;
-
+        }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
         let dsc_json = r#"{
-
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-
             "public_key": "e12d836b15bb49d7bbf99e64295d995b",
-
             "release": "1.0"
-
         }"#;
-
         let dsc: DynamicSamplingContext = serde_json::from_str(dsc_json).unwrap();
 
         normalize(
@@ -5045,9 +5024,7 @@ mod tests {
             &mut Meta::default(),
             &NormalizationConfig {
                 force_trace_context: true,
-
                 dsc: Some(&dsc),
-
                 ..Default::default()
             },
         );
@@ -5055,7 +5032,6 @@ mod tests {
         let trace_ctx = event
             .context::<relay_event_schema::protocol::TraceContext>()
             .expect("trace context should have been inserted");
-
         assert_eq!(
             trace_ctx
                 .trace_id
@@ -5068,32 +5044,17 @@ mod tests {
     }
 
     #[test]
-
     fn test_normalize_adds_trace_context_without_dsc_falls_back_to_event_id() {
         // Companion to the DSC test above: when no DSC is supplied, the
-
-        // historical event-id-derived behaviour must still apply so the
-
-        // trace context is non-empty for downstream consumers.
-
-        let json = r#"
-
-        {
-
+        // historical event-id-derived behaviour must still apply so the trace
+        // context is non-empty for downstream consumers.
+        let json = r#"{
             "event_id": "4c79f60c11214eb38604f4ae0781bfb2",
-
             "type": "error",
-
             "exception": {
-
                 "values": [{"type": "ValueError", "value": "Should not happen"}]
-
             }
-
-        }
-
-        "#;
-
+        }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
         normalize(
@@ -5101,9 +5062,7 @@ mod tests {
             &mut Meta::default(),
             &NormalizationConfig {
                 force_trace_context: true,
-
                 dsc: None,
-
                 ..Default::default()
             },
         );
@@ -5111,13 +5070,11 @@ mod tests {
         let trace_ctx = event
             .context::<relay_event_schema::protocol::TraceContext>()
             .expect("trace context should have been inserted");
-
         let trace_id = trace_ctx
             .trace_id
             .value()
             .expect("trace_id set")
             .to_string();
-
         assert_eq!(
             trace_id, "4c79f60c11214eb38604f4ae0781bfb2",
             "without DSC, derived trace id must still match the event id (back-compat)",
