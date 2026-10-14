@@ -29,6 +29,7 @@
 - Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 - Added support for Integrity policy ingestion, not publicly accessible. ([#6465](https://github.com/getsentry/relay/pull/6465), [#6512](https://github.com/getsentry/relay/pull/6512))
+- Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
 
 **Bug Fixes**:
 
