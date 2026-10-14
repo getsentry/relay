@@ -44,6 +44,97 @@ mod tests {
     use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
+    fn test_scrub_mcp_results_with_default_rules() {
+        let content = r#"{"content":[{"type":"text","text":"user@example.com at 192.168.1.1"}]}"#;
+        let cases = [
+            // Canonical results use replace-only rules; generic IP rules do not apply.
+            (
+                "gen_ai.tool.call.result",
+                r#"{"content":[{"type":"text","text":"[email] at 192.168.1.1"}]}"#,
+            ),
+            (
+                "mcp.tool.result.content",
+                r#"{"content":[{"type":"text","text":"[email] at [ip]"}]}"#,
+            ),
+            // Indexed content retains automatic scrubbing without replace-only rules.
+            (
+                "mcp.tool.result.0.content",
+                r#"{"content":[{"type":"text","text":"user@example.com at [ip]"}]}"#,
+            ),
+        ];
+        let settings = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: true,
+            ..Default::default()
+        };
+        let config = settings.pii_config();
+
+        // Old and new SDKs can emit each format alone or both together.
+        for cases in [&cases[..1], &cases[1..2], &cases[2..], &cases[..]] {
+            let mut attributes = Attributes::new();
+            for (key, _) in cases {
+                attributes.insert(*key, content);
+            }
+            let mut span = Annotated::new(SpanV2 {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            });
+
+            eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+
+            let attributes = span.value().unwrap().attributes.value().unwrap();
+            for (key, expected) in cases {
+                assert_eq!(
+                    attributes.get_value(*key).and_then(|value| value.as_str()),
+                    Some(*expected),
+                    "{key}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrub_mcp_results_with_only_advanced_rules() {
+        let mut attributes = Attributes::new();
+        attributes.insert("gen_ai.tool.call.result", "user@example.com");
+        attributes.insert("mcp.tool.result.content", "user@example.com");
+        let mut span = Annotated::new(SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        });
+        let settings = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+        let config = settings.pii_config();
+        let original = span.clone();
+
+        eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+        assert_eq!(span, original);
+
+        let advanced = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": {
+                "attributes.'gen_ai.tool.call.result'.value || attributes.'mcp.tool.result.content'.value": [
+                    "@email:replace"
+                ]
+            }
+        }))
+        .unwrap();
+        eap::scrub(ValueType::Span, &mut span, Some(&advanced), config.as_ref()).unwrap();
+
+        let attributes = span.value().unwrap().attributes.value().unwrap();
+        for key in ["gen_ai.tool.call.result", "mcp.tool.result.content"] {
+            assert_eq!(
+                attributes.get_value(key).and_then(|value| value.as_str()),
+                Some("[email]"),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
     fn test_scrub_attributes_pii_default_rules() {
         // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
         // * `sentry.description`: `true`
