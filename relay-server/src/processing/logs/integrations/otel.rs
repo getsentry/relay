@@ -36,13 +36,16 @@ fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result
     match format {
         OtelFormat::Json => {
             let mut de = serde_json::Deserializer::from_reader(payload);
-            relay_serialization::serde::deserialize(&mut de, max_ops).map_err(|e| {
+            let result = relay_serialization::serde::deserialize(&mut de, max_ops).map_err(|e| {
                 relay_log::debug!(
                     error = &e as &dyn std::error::Error,
                     "Failed to parse logs data as JSON"
                 );
                 Error::Invalid(DiscardReason::InvalidJson)
-            })
+            });
+            de.end()
+                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+            result
         }
         OtelFormat::Protobuf => LogsData::decode(payload).map_err(|e| {
             relay_log::debug!(
