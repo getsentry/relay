@@ -730,7 +730,7 @@ impl Default for Limits {
             max_attachment_size: ByteSize::mebibytes(200),
             max_attachment_count: 30,
             max_attachments_size: ByteSize::mebibytes(200),
-            max_upload_size: ByteSize::mebibytes(1024),
+            max_upload_size: ByteSize::mebibytes(10240),
             max_client_reports_size: ByteSize::kibibytes(100),
             max_client_reports_count: 100,
             max_check_in_size: ByteSize::kibibytes(100),
