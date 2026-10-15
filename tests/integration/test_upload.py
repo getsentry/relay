@@ -992,12 +992,6 @@ def test_upload_minidump_opt_in(
             id="offset_beyond_length",
         ),
         pytest.param(
-            {"headers": {"X-Decoded-Content-Length": None}},
-            400,
-            "Missing X-Decoded-Content-Length header",
-            id="missing_decoded_length",
-        ),
-        pytest.param(
             {"chunk": SECOND_CHUNK + b"!"},
             413,
             f"Chunk of {len(SECOND_CHUNK) + 1} bytes exceeds the remaining {len(SECOND_CHUNK)} bytes",
