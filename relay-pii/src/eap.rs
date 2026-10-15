@@ -44,6 +44,119 @@ mod tests {
     use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
+    fn test_scrub_mcp_results_with_default_rules() {
+        let cases = [
+            // Legacy SDKs capture the content block's text directly.
+            (
+                "mcp.tool.result.content",
+                "Contact user@example.com",
+                "Contact [email]",
+            ),
+            (
+                "gen_ai.tool.call.result",
+                r#"{"content":[{"type":"text","text":"Contact user@example.com"}]}"#,
+                r#"{"content":[{"type":"text","text":"Contact [email]"}]}"#,
+            ),
+            // Multiple content blocks are emitted as separate indexed attributes.
+            (
+                "mcp.tool.result.0.content",
+                "Contact user@example.com",
+                "Contact [email]",
+            ),
+            (
+                "mcp.tool.result.1.content",
+                "Contact user@example.com",
+                "Contact [email]",
+            ),
+            (
+                "mcp.tool.result.12.content",
+                "Contact user@example.com",
+                "Contact [email]",
+            ),
+        ];
+        let settings = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let config = settings.pii_config();
+
+        // Old and new SDKs can emit each format alone or both together.
+        for cases in [
+            &cases[..1],
+            &cases[1..2],
+            &cases[2..],
+            &cases[..2],
+            &cases[1..],
+        ] {
+            let mut attributes = Attributes::new();
+            for (key, content, _) in cases {
+                attributes.insert(*key, *content);
+            }
+            let mut span = Annotated::new(SpanV2 {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            });
+
+            eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+
+            let attributes = span.value().unwrap().attributes.value().unwrap();
+            for (key, _, expected) in cases {
+                assert_eq!(
+                    attributes.get_value(*key).and_then(|value| value.as_str()),
+                    Some(*expected),
+                    "{key}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrub_mcp_results_with_only_advanced_rules() {
+        let mut attributes = Attributes::new();
+        attributes.insert("gen_ai.tool.call.result", "user@example.com");
+        attributes.insert("mcp.tool.result.content", "user@example.com");
+        attributes.insert("mcp.tool.result.0.content", "user@example.com");
+        let mut span = Annotated::new(SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        });
+        let settings = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+        let config = settings.pii_config();
+        let original = span.clone();
+
+        eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+        assert_eq!(span, original);
+
+        let advanced = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": {
+                "attributes.'gen_ai.tool.call.result'.value || attributes.'mcp.tool.result.content'.value || attributes.'mcp.tool.result.0.content'.value": [
+                    "@email:replace"
+                ]
+            }
+        }))
+        .unwrap();
+        eap::scrub(ValueType::Span, &mut span, Some(&advanced), config.as_ref()).unwrap();
+
+        let attributes = span.value().unwrap().attributes.value().unwrap();
+        for key in [
+            "gen_ai.tool.call.result",
+            "mcp.tool.result.content",
+            "mcp.tool.result.0.content",
+        ] {
+            assert_eq!(
+                attributes.get_value(key).and_then(|value| value.as_str()),
+                Some("[email]"),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
     fn test_scrub_attributes_pii_default_rules() {
         // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
         // * `sentry.description`: `true`
