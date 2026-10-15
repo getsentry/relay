@@ -43,6 +43,7 @@
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 - Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 - Add more sensitive session cookie names for PII scrubbing. ([#6499](https://github.com/getsentry/relay/pull/6499))
+- Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6496](https://github.com/getsentry/relay/issues/6496))
 
 **Internal**:
 

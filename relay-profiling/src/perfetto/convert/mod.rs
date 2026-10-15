@@ -10,8 +10,6 @@ use prost::Message;
 use prost::encoding::{self, WireType};
 use proto::trace_packet::Data;
 
-use relay_protocol::FiniteF64;
-
 use crate::debug_image::DebugImage;
 use crate::error::ProfileError;
 use crate::perfetto::proto;
@@ -21,13 +19,14 @@ use crate::sample::v2::{ProfileData, Sample, StackId};
 mod budget;
 mod build;
 mod cache;
+mod clock;
 mod consts;
 mod intern;
 mod utils;
 
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
-    let mut clock_offset: Option<FiniteF64> = None;
+    let mut clocks = clock::Clocks::default();
     let mut observed_pid: Option<u32> = None;
 
     // A budget for temporary data.
@@ -47,9 +46,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         let caches = cache_db.for_packet(&packet)?;
 
         match packet.data {
-            Some(Data::ClockSnapshot(cs)) if clock_offset.is_none() => {
-                clock_offset = utils::extract_clock_offset(&cs).map(utils::ns_to_secs);
-            }
+            Some(Data::ClockSnapshot(cs)) => clocks.update_snapshot(&cs),
             Some(Data::PerfSample(sample)) if let Some(callstack_iid) = sample.callstack_iid => {
                 let timestamp_ns = packet.timestamp.unwrap_or(0);
                 let thread_id = sample.tid.unwrap_or(0);
@@ -65,8 +62,18 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                     tables,
                 };
                 if let Some(stack_id) = seq.resolve_callstack(callstack_iid)? {
+                    // The clock of a packet is, in order of precedence, its own clock, the
+                    // clock defaulted for its sequence, or the primary trace clock.
+                    let clock_id = packet
+                        .timestamp_clock_id
+                        .map(clock::ClockId::new)
+                        .or(tables.default_clock());
+                    let offset = clocks
+                        .offset_to_realtime(clock_id)
+                        .ok_or(ProfileError::InvalidSampledProfile)?;
+
                     samples.push(Sample {
-                        timestamp: utils::ns_to_secs(timestamp_ns as i128),
+                        timestamp: utils::ns_to_secs(i128::from(timestamp_ns) + offset),
                         stack_id,
                         thread_id: thread_id.to_string(),
                     })?;
@@ -83,11 +90,6 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    let clock_offset = clock_offset.ok_or(ProfileError::InvalidSampledProfile)?;
-
-    for sample in &mut samples {
-        sample.timestamp += clock_offset;
-    }
     samples.sort_unstable_by_key(|s| s.timestamp);
 
     // On Android/Linux the main thread's tid equals the process pid.
@@ -241,8 +243,12 @@ mod tests {
 
     use consts::*;
 
+    const PERFETTO_ANDROID_MONOTONIC: &[u8] =
+        include_bytes!("../../../tests/fixtures/android/perfetto/android_monotonic_clock.pftrace");
+
     const CLOCK_MONOTONIC: u32 = 3;
     const TEST_BOOTTIME_NS: u64 = 1_000_000_000;
+    const TEST_MONOTONIC_NS: u64 = 400_000_000;
     const TEST_REALTIME_NS: u64 = 1_700_000_001_000_000_000;
 
     fn make_clock_snapshot_packet() -> proto::TracePacket {
@@ -250,6 +256,8 @@ mod tests {
             timestamp: None,
             interned_data: None,
             sequence_flags: None,
+            timestamp_clock_id: None,
+            trace_packet_defaults: None,
             optional_trusted_packet_sequence_id: None,
             data: Some(Data::ClockSnapshot(proto::ClockSnapshot {
                 clocks: vec![
@@ -265,6 +273,35 @@ mod tests {
                 primary_trace_clock: Some(CLOCK_BOOTTIME),
             })),
         }
+    }
+
+    /// Like [`make_clock_snapshot_packet`], but with an additional `MONOTONIC` clock which
+    /// lags 600ms behind the primary `BOOTTIME` clock.
+    fn make_multi_clock_snapshot_packet() -> proto::TracePacket {
+        let mut packet = make_clock_snapshot_packet();
+        let Some(Data::ClockSnapshot(cs)) = &mut packet.data else {
+            unreachable!("clock snapshot packet");
+        };
+        cs.clocks.push(proto::clock_snapshot::Clock {
+            clock_id: Some(CLOCK_MONOTONIC),
+            timestamp: Some(TEST_MONOTONIC_NS),
+        });
+
+        packet
+    }
+
+    /// Records the timestamps of the `packet` in the `clock_id` clock.
+    fn with_clock(mut packet: proto::TracePacket, clock_id: u32) -> proto::TracePacket {
+        packet.timestamp_clock_id = Some(clock_id);
+        packet
+    }
+
+    /// Defaults the timestamps of the packet's sequence to the `clock_id` clock.
+    fn with_default_clock(mut packet: proto::TracePacket, clock_id: u32) -> proto::TracePacket {
+        packet.trace_packet_defaults = Some(proto::TracePacketDefaults {
+            timestamp_clock_id: Some(clock_id),
+        });
+        packet
     }
 
     fn make_interned_string(iid: u64, value: &[u8]) -> proto::InternedString {
@@ -293,6 +330,8 @@ mod tests {
             timestamp: Some(timestamp),
             interned_data: None,
             sequence_flags: None,
+            timestamp_clock_id: None,
+            trace_packet_defaults: None,
             optional_trusted_packet_sequence_id: Some(
                 proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(
                     seq_id,
@@ -318,6 +357,8 @@ mod tests {
             timestamp: Some(timestamp),
             interned_data: None,
             sequence_flags: None,
+            timestamp_clock_id: None,
+            trace_packet_defaults: None,
             optional_trusted_packet_sequence_id: Some(
                 proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(
                     seq_id,
@@ -345,6 +386,8 @@ mod tests {
             } else {
                 None
             },
+            timestamp_clock_id: None,
+            trace_packet_defaults: None,
             optional_trusted_packet_sequence_id: Some(
                 proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(
                     seq_id,
@@ -352,6 +395,30 @@ mod tests {
             ),
             data: None,
         }
+    }
+
+    /// Interned data for sequence 1 which resolves call-stack `1` to stack `0`.
+    fn make_sample_interned_data_packet() -> proto::TracePacket {
+        make_interned_data_packet(
+            1,
+            true,
+            proto::InternedData {
+                function_names: vec![make_interned_string(1, b"func")],
+                frames: vec![make_frame(1, 1)],
+                callstacks: vec![proto::Callstack {
+                    iid: Some(1),
+                    frame_ids: vec![1],
+                }],
+                ..Default::default()
+            },
+        )
+    }
+
+    /// Converts the `packets` and returns the timestamps of all samples in seconds.
+    fn convert_sample_timestamps(packets: Vec<proto::TracePacket>) -> Vec<f64> {
+        let bytes = proto::Trace { packet: packets }.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+        data.samples.iter().map(|s| s.timestamp.to_f64()).collect()
     }
 
     fn decode_trace_packets(
@@ -524,6 +591,72 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_sample_before_clock_snapshot() {
+        let trace = proto::Trace {
+            packet: vec![
+                make_sample_interned_data_packet(),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+                make_clock_snapshot_packet(),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+
+        // Like the Perfetto trace processor, only snapshots seen before a sample are used.
+        std::assert_matches!(convert(&bytes), Err(ProfileError::InvalidSampledProfile));
+    }
+
+    #[test]
+    fn test_convert_sample_clock_uses_latest_snapshot() {
+        // The device was suspended for 10s between both snapshots, `MONOTONIC` only advanced
+        // by 1s, while `BOOTTIME` and `REALTIME` advanced by 11s.
+        let mut after_suspend = make_multi_clock_snapshot_packet();
+        let Some(Data::ClockSnapshot(cs)) = &mut after_suspend.data else {
+            unreachable!("clock snapshot packet");
+        };
+        for clock in &mut cs.clocks {
+            let advanced = match clock.clock_id {
+                Some(CLOCK_MONOTONIC) => 1_000_000_000,
+                _ => 11_000_000_000,
+            };
+            clock.timestamp = clock.timestamp.map(|ts| ts + advanced);
+        }
+
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+            after_suspend,
+            make_perf_sample_packet(1_500_000_000, 1, 1, 1),
+        ];
+
+        // Each sample is converted with the latest snapshot seen before it.
+        assert_eq!(
+            convert_sample_timestamps(packets),
+            vec![1_700_000_001.1, 1_700_000_012.1]
+        );
+    }
+
+    #[test]
+    fn test_convert_ignores_snapshot_without_realtime() {
+        let mut without_realtime = make_multi_clock_snapshot_packet();
+        let Some(Data::ClockSnapshot(cs)) = &mut without_realtime.data else {
+            unreachable!("clock snapshot packet");
+        };
+        cs.clocks
+            .retain(|clock| clock.clock_id != Some(CLOCK_REALTIME));
+
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            without_realtime,
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+        ];
+
+        // The snapshot without `REALTIME` cannot be converted, the previous one is kept.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_001.1]);
+    }
+
+    #[test]
     fn test_convert_uses_primary_trace_clock() {
         let trace = proto::Trace {
             packet: vec![
@@ -531,6 +664,8 @@ mod tests {
                     timestamp: None,
                     interned_data: None,
                     sequence_flags: None,
+                    timestamp_clock_id: None,
+                    trace_packet_defaults: None,
                     optional_trusted_packet_sequence_id: None,
                     data: Some(Data::ClockSnapshot(proto::ClockSnapshot {
                         clocks: vec![
@@ -578,6 +713,94 @@ mod tests {
           }
         ]
         "###);
+    }
+
+    /// Regression test for <https://github.com/getsentry/relay/issues/6496>.
+    ///
+    /// The sample sequence inherits `timestamp_clock_id = CLOCK_MONOTONIC` from its
+    /// `TracePacketDefaults`, while the clock snapshot declares `CLOCK_BOOTTIME` as the
+    /// primary trace clock. Sample timestamps must therefore be converted from
+    /// `CLOCK_MONOTONIC`, not from the primary trace clock.
+    #[test]
+    fn test_convert_android_monotonic_pftrace() {
+        let (data, _images) = convert(PERFETTO_ANDROID_MONOTONIC).unwrap();
+
+        // Raw monotonic sample timestamps are 11517998796542 and 11577127502040 ns.
+        // The snapshot has REALTIME = 1791599627975581587, MONOTONIC = 11517136131386 and
+        // BOOTTIME = 537260778804194 ns, so the samples are at
+        // 2026-10-10 02:33:48.838 UTC and 2026-10-10 02:34:47.967 UTC.
+        // Compared with a 1us tolerance, since a float cannot hold nanosecond precision at
+        // epoch scale.
+        let expected = [1791599628.838_246_7, 1791599687.966_952_3];
+        assert_eq!(data.samples.len(), expected.len());
+        for (sample, expected) in data.samples.iter().zip(expected) {
+            let got = sample.timestamp.to_f64();
+            assert!(
+                (got - expected).abs() < 1e-6,
+                "expected {expected}, got {got}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_convert_sample_clock_from_sequence_defaults() {
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+        ];
+
+        // The sample inherits `MONOTONIC`, which lags 600ms behind the primary clock.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_001.1]);
+    }
+
+    #[test]
+    fn test_convert_sample_clock_from_packet_overrides_defaults() {
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            with_clock(
+                make_perf_sample_packet(500_000_000, 1, 1, 1),
+                CLOCK_BOOTTIME,
+            ),
+        ];
+
+        // The explicit clock of the packet wins over the default of its sequence.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_000.5]);
+    }
+
+    #[test]
+    fn test_convert_sample_clock_defaults_cleared_with_incremental_state() {
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            // Resetting the sequence also drops its defaults.
+            make_sample_interned_data_packet(),
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+        ];
+
+        // Without defaults the sample falls back to the primary trace clock.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_000.5]);
+    }
+
+    #[test]
+    fn test_convert_unresolvable_sample_clock() {
+        // Clocks beyond the builtin range are scoped to a sequence and cannot be converted.
+        const SEQUENCE_SCOPED_CLOCK: u32 = BUILTIN_CLOCK_MAX_ID + 1;
+
+        let trace = proto::Trace {
+            packet: vec![
+                make_multi_clock_snapshot_packet(),
+                make_sample_interned_data_packet(),
+                with_clock(
+                    make_perf_sample_packet(500_000_000, 1, 1, 1),
+                    SEQUENCE_SCOPED_CLOCK,
+                ),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+
+        std::assert_matches!(convert(&bytes), Err(ProfileError::InvalidSampledProfile));
     }
 
     #[test]

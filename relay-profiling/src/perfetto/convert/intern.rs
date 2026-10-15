@@ -1,6 +1,7 @@
 use hashbrown::HashMap;
 
 use crate::perfetto::convert::budget::{BudgetExceeded, BudgetMap, MemoryBudget};
+use crate::perfetto::convert::clock::ClockId;
 use crate::perfetto::convert::consts;
 use crate::perfetto::convert::utils::{self, SequenceId};
 use crate::perfetto::proto;
@@ -19,7 +20,8 @@ impl Database {
         }
     }
 
-    /// Removes and merges intern information contained in the `packet` into the database.
+    /// Removes and merges intern information and sequence defaults contained in the `packet`
+    /// into the database.
     pub fn intern(&mut self, packet: &mut proto::TracePacket) -> Result<&Tables, BudgetExceeded> {
         let data = packet.interned_data.take();
         let seq_id = SequenceId::new(packet);
@@ -40,8 +42,12 @@ impl Database {
             frames: self.budget.map(),
             callstacks: self.budget.map(),
             mappings: self.budget.map(),
+            default_clock: None,
         });
 
+        if let Some(defaults) = packet.trace_packet_defaults {
+            tables.default_clock = defaults.timestamp_clock_id.map(ClockId::new);
+        }
         if let Some(data) = data {
             tables.merge(data)?;
         };
@@ -57,6 +63,8 @@ pub struct Tables {
     frames: BudgetMap<u64, proto::Frame>,
     callstacks: BudgetMap<u64, proto::Callstack>,
     mappings: BudgetMap<u64, proto::Mapping>,
+    /// Clock of all packets on the sequence without an explicit `timestamp_clock_id`.
+    default_clock: Option<ClockId>,
 }
 
 impl Tables {
@@ -83,6 +91,11 @@ impl Tables {
 
     pub fn resolve_build_id(&self, id: Option<u64>) -> Option<&[u8]> {
         id.and_then(|id| self.build_ids.get(&id)).map(Vec::as_slice)
+    }
+
+    /// Returns the clock defaulted for the sequence via `TracePacketDefaults`.
+    pub fn default_clock(&self) -> Option<ClockId> {
+        self.default_clock
     }
 
     fn merge(&mut self, data: proto::InternedData) -> Result<(), BudgetExceeded> {
