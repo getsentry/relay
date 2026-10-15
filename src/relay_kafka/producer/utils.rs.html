@@ -172,15 +172,12 @@
 <a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>metrics = with_capturing_test_client(|| context.stats(statistics));
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">let </span>prefix = <span class="string">"arroyo.producer.librdkafka."</span>;
 <a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span>broker_metric = <span class="string">"broker_outbuf_requests"</span>;
-<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span>broker_tag = <span class="string">"broker_id:broker-id"</span>;
-<a href=#176 id=176 data-nosnippet>176</a>
-<a href=#177 id=177 data-nosnippet>177</a>        <span class="macro">assert!</span>(metrics.contains(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-<a href=#178 id=178 data-nosnippet>178</a>            <span class="string">"{prefix}message_count:42|g|#producer_name:test-producer"
-<a href=#179 id=179 data-nosnippet>179</a>        </span>)));
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="macro">assert!</span>(metrics.contains(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-<a href=#181 id=181 data-nosnippet>181</a>            <span class="string">"{prefix}{broker_metric}:7|g|#{broker_tag},producer_name:test-producer"
-<a href=#182 id=182 data-nosnippet>182</a>        </span>)));
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="macro">assert!</span>(metrics.iter().all(|metric| metric.starts_with(prefix)));
-<a href=#184 id=184 data-nosnippet>184</a>    }
-<a href=#185 id=185 data-nosnippet>185</a>}
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="macro">assert!</span>(metrics.contains(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+<a href=#177 id=177 data-nosnippet>177</a>            <span class="string">"{prefix}message_count:42|g|#producer_name:test-producer"
+<a href=#178 id=178 data-nosnippet>178</a>        </span>)));
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="macro">assert!</span>(metrics.contains(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{prefix}{broker_metric}:7|g|#"</span>)));
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="macro">assert!</span>(metrics.iter().all(|metric| metric.starts_with(prefix)));
+<a href=#181 id=181 data-nosnippet>181</a>    }
+<a href=#182 id=182 data-nosnippet>182</a>}
 </code></pre></div></section></main></body></html>

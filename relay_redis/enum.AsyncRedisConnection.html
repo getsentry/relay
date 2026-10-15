@@ -304,7 +304,15 @@ If the key does not exist, it is set to 0 before performing the operation.</div>
     V: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,
     RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Decrement the numeric value of a key by the given amount.
 If the key does not exist, it is set to 0 before performing the operation.
-<a href="https://redis.io/commands/DECRBY">Redis Docs</a></div></details><details class="toggle method-toggle" open><summary><section id="method.setbit" class="method trait-impl"><a href="#method.setbit" class="anchor">§</a><h4 class="code-header">fn <a class="fn">setbit</a>&lt;'a, K, RV&gt;(
+<a href="https://redis.io/commands/DECRBY">Redis Docs</a></div></details><details class="toggle method-toggle" open><summary><section id="method.increx" class="method trait-impl"><a href="#method.increx" class="anchor">§</a><h4 class="code-header">fn <a class="fn">increx</a>&lt;'a, K, V, RV&gt;(
+    &amp;'a mut self,
+    key: K,
+    increment: V,
+    options: IncrexOptions&lt;V&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.99.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'a&gt;&gt;<div class="where">where
+    K: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,
+    V: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Increment the numeric value of a key by the given amount and set its expiration. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.setbit" class="method trait-impl"><a href="#method.setbit" class="anchor">§</a><h4 class="code-header">fn <a class="fn">setbit</a>&lt;'a, K, RV&gt;(
     &amp;'a mut self,
     key: K,
     offset: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.usize.html">usize</a>,
@@ -1892,7 +1900,14 @@ If the key does not exist, it is set to 0 before performing the operation.</div>
     K: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,
     V: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,</div></h4></section></summary><div class='docblock'>Decrement the numeric value of a key by the given amount.
 If the key does not exist, it is set to 0 before performing the operation.
-<a href="https://redis.io/commands/DECRBY">Redis Docs</a></div></details><details class="toggle method-toggle" open><summary><section id="method.setbit-1" class="method trait-impl"><a href="#method.setbit-1" class="anchor">§</a><h4 class="code-header">fn <a class="fn">setbit</a>&lt;'a, K&gt;(
+<a href="https://redis.io/commands/DECRBY">Redis Docs</a></div></details><details class="toggle method-toggle" open><summary><section id="method.increx-1" class="method trait-impl"><a href="#method.increx-1" class="anchor">§</a><h4 class="code-header">fn <a class="fn">increx</a>&lt;'a, K, V&gt;(
+    &amp;'a mut self,
+    key: K,
+    increment: V,
+    options: IncrexOptions&lt;V&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.99.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;IncrexResult, RedisError&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'a&gt;&gt;<div class="where">where
+    K: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,
+    V: ToSingleRedisArg + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.99.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'a,</div></h4></section></summary><div class='docblock'>Increment the numeric value of a key by the given amount and set its expiration. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.setbit-1" class="method trait-impl"><a href="#method.setbit-1" class="anchor">§</a><h4 class="code-header">fn <a class="fn">setbit</a>&lt;'a, K&gt;(
     &amp;'a mut self,
     key: K,
     offset: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.usize.html">usize</a>,
