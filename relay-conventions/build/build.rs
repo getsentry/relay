@@ -2,6 +2,7 @@ mod attributes;
 mod description;
 mod measurements;
 mod name;
+mod read_names;
 mod template;
 
 use std::collections::BTreeMap;
@@ -46,6 +47,7 @@ fn write_attribute_rs(crate_dir: &Path) {
     let mut attribute_replacement_map = BTreeMap::new();
 
     let mut root = RawNode::default();
+    let mut all_attributes = BTreeMap::new();
 
     for file in WalkDir::new(crate_dir.join(ATTRIBUTE_DIR)) {
         let file = file.unwrap();
@@ -86,8 +88,47 @@ fn write_attribute_rs(crate_dir: &Path) {
                     break;
                 }
             }
+            drop(parts);
+            all_attributes.insert(attr.key.clone(), attr);
         }
     }
+
+    let read_attributes = all_attributes
+        .iter()
+        .map(|(key, attribute)| {
+            let replacement = attribute.deprecation.as_ref().and_then(|deprecation| {
+                if matches!(deprecation.status, Some(DeprecationStatus::Transform)) {
+                    None
+                } else {
+                    deprecation.replacement.as_deref()
+                }
+            });
+            (
+                key.as_str(),
+                read_names::ReadAttribute {
+                    ty: &attribute.ty,
+                    replacement,
+                },
+            )
+        })
+        .collect();
+    let mut read_root = RawNode::default();
+    for (key, names) in read_names::read_names(&read_attributes) {
+        let mut node = &mut read_root;
+        for part in parse_segments(key) {
+            node = node.children.entry(part.to_owned()).or_default();
+        }
+        node.info = Some(format!("&{names:?}"));
+    }
+    let read_names_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_read_names.rs");
+    let mut read_names_file = BufWriter::new(File::create(read_names_path).unwrap());
+    write!(
+        &mut read_names_file,
+        "static ATTRIBUTE_READ_NAMES: Node<&[&str]> = "
+    )
+    .unwrap();
+    read_root.write(&mut read_names_file).unwrap();
+    writeln!(&mut read_names_file, ";").unwrap();
 
     let canonical_fn_path = Path::new(&env::var("OUT_DIR").unwrap()).join("canonical_fn.rs");
     let mut canonical_fn_file = BufWriter::new(File::create(&canonical_fn_path).unwrap());

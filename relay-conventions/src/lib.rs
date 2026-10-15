@@ -54,7 +54,12 @@
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
 //! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
 
+use std::borrow::Cow;
 use std::fmt;
+
+#[cfg(test)]
+#[path = "../build/read_names.rs"]
+mod read_names;
 pub mod attributes {
     //! Attribute constant definitions.
     #![allow(rustdoc::bare_urls)]
@@ -92,6 +97,7 @@ pub mod description {
 }
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
+include!(concat!(env!("OUT_DIR"), "/attribute_read_names.rs"));
 include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
 include!(concat!(env!("OUT_DIR"), "/measurement_replacement_fn.rs"));
 
@@ -168,6 +174,20 @@ pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
     attribute_info_with_fragment(key).map(|(info, _)| info)
 }
 
+pub fn attribute_names(key: &str) -> impl Iterator<Item = Cow<'_, str>> {
+    let (names, fragment) = ATTRIBUTE_READ_NAMES
+        .find(key)
+        .map(|(names, fragment)| (*names, fragment))
+        .unwrap_or((&[], None));
+    names
+        .iter()
+        .map(move |name| match fragment {
+            Some(fragment) => Cow::Owned(name.replace(PLACEHOLDER_SEGMENT, fragment)),
+            None => Cow::Borrowed(*name),
+        })
+        .chain(names.is_empty().then_some(Cow::Borrowed(key)))
+}
+
 /// Special path segment in attribute keys that matches any value.
 const PLACEHOLDER_SEGMENT: &str = "<key>";
 
@@ -216,6 +236,73 @@ mod tests {
     use relay_protocol::{Annotated, Value};
 
     use super::*;
+
+    #[test]
+    fn attribute_names_prefers_current_then_alphabetical_predecessors() {
+        let expected = [
+            "http.request.method",
+            "http.method",
+            "http.request_method",
+            "method",
+        ];
+        for key in expected {
+            assert_eq!(attribute_names(key).collect::<Vec<_>>(), expected);
+        }
+    }
+
+    #[test]
+    fn attribute_names_includes_deprecations_without_status() {
+        for key in ["http.route", "route"] {
+            assert_eq!(
+                attribute_names(key).collect::<Vec<_>>(),
+                ["http.route", "route"]
+            );
+        }
+    }
+
+    #[test]
+    fn attribute_names_excludes_transforms_and_incompatible_replacements() {
+        for key in [
+            "gen_ai.request.messages",
+            "gen_ai.response.text",
+            "gen_ai.response.tool_calls",
+            "db.params",
+            "db.sql.bindings",
+            "query.foo",
+            "hardwareConcurrency",
+            "mcp.tool.result.is_error",
+        ] {
+            assert_eq!(attribute_names(key).collect::<Vec<_>>(), [key]);
+        }
+        assert!(
+            !attribute_names("gen_ai.input.messages").any(|key| key == "gen_ai.request.messages")
+        );
+        assert!(
+            !attribute_names("gen_ai.output.messages")
+                .any(|key| key == "gen_ai.response.text" || key == "gen_ai.response.tool_calls")
+        );
+    }
+
+    #[test]
+    fn attribute_names_preserves_dynamic_fragments() {
+        for key in ["url.path.parameter.id", "url.path.params.id"] {
+            assert_eq!(
+                attribute_names(key).collect::<Vec<_>>(),
+                ["url.path.parameter.id", "url.path.params.id"]
+            );
+        }
+        assert_eq!(
+            attribute_names("cls.source.1").collect::<Vec<_>>(),
+            ["browser.web_vital.cls.source.1", "cls.source.1"]
+        );
+    }
+
+    #[test]
+    fn attribute_names_preserves_unknown_and_unreplaced_names() {
+        for key in ["custom.attribute", "", "db.connection_string"] {
+            assert_eq!(attribute_names(key).collect::<Vec<_>>(), [key]);
+        }
+    }
 
     #[test]
     fn test_http_response_content_length() {
