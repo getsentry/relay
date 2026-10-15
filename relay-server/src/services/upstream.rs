@@ -20,8 +20,8 @@ use relay_auth::{
 };
 use relay_config::{Config, ConfigSnapshot, Credentials, RelayMode, UpstreamDescriptor};
 use relay_quotas::{
-    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
-    Scoping,
+    DataCategories, DimensionMap, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    RetryAfter, Scoping,
 };
 use relay_statsd::metric;
 use relay_system::{
@@ -98,7 +98,7 @@ impl UpstreamRateLimits {
                 reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
                 namespaces: Default::default(),
-                dimensional: false,
+                dimensions: DimensionMap::default(),
             });
         }
         rate_limits

@@ -10,7 +10,7 @@ use std::str::FromStr;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use data_encoding::BASE64;
-use http::header::AsHeaderName;
+use http::header::{AsHeaderName, CONTENT_ENCODING, CONTENT_LENGTH};
 use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -101,6 +101,9 @@ pub const UPLOAD_LENGTH: &str = "Upload-Length";
 /// See <https://tus.io/protocols/resumable-upload#upload-defer-length>.
 pub const UPLOAD_DEFER_LENGTH: &str = "Upload-Defer-Length";
 
+/// The only valid value of the `Upload-Defer-Length` header.
+pub const UPLOAD_DEFER_LENGTH_VALUE: HeaderValue = HeaderValue::from_static("1");
+
 /// TUS protocol header for the current upload offset.
 ///
 /// See <https://tus.io/protocols/resumable-upload#upload-offset>.
@@ -137,12 +140,7 @@ pub struct PostHeaders {
 
 /// Validates TUS protocol headers and returns a subset of parsed values.
 pub fn validate_post_headers(headers: &HeaderMap) -> Result<PostHeaders, Error> {
-    let tus_version = headers.get(TUS_RESUMABLE);
-    if tus_version != Some(&TUS_VERSION) {
-        return Err(Error::Version(
-            tus_version.and_then(|v| v.to_str().ok()).map(str::to_owned),
-        ));
-    }
+    validate_version(headers)?;
 
     if let Some(ct) = headers.get(http::header::CONTENT_TYPE) {
         return Err(Error::ContentType {
@@ -184,12 +182,7 @@ pub struct PatchHeaders {
 
 /// Validates TUS protocol headers and returns [`PatchHeaders`].
 pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error> {
-    let tus_version = headers.get(TUS_RESUMABLE);
-    if tus_version != Some(&TUS_VERSION) {
-        return Err(Error::Version(
-            tus_version.and_then(|v| v.to_str().ok()).map(str::to_owned),
-        ));
-    }
+    validate_version(headers)?;
 
     let content_type = headers.get(http::header::CONTENT_TYPE);
     if content_type != Some(&EXPECTED_CONTENT_TYPE) {
@@ -203,12 +196,45 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error
     }
 
     let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
-    let decoded_content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
 
     Ok(PatchHeaders {
         upload_offset,
-        decoded_content_length,
+        decoded_content_length: derive_decoded_content_length(headers),
     })
+}
+
+fn derive_decoded_content_length(headers: &HeaderMap) -> Option<usize> {
+    if let Some(explicit_header_value) = parse_header(headers, X_DECODED_CONTENT_LENGTH) {
+        return Some(explicit_header_value);
+    }
+
+    if headers.contains_key(CONTENT_ENCODING) {
+        // If the payload is compressed, there is no way to derive its original content length
+        // from headers.
+        // See also `remove_empty_encoding` for why this check is sufficient
+        return None;
+    }
+
+    // For identity encoding, we can use `Content-Length`:
+    parse_header(headers, CONTENT_LENGTH)
+}
+
+/// Validates TUS protocol headers for a `HEAD` request.
+///
+/// Only the protocol version is required, as the request carries no body.
+pub fn validate_head_headers(headers: &HeaderMap) -> Result<(), Error> {
+    validate_version(headers)
+}
+
+/// Validates the `Tus-Resumable` header, which is required on every TUS request.
+fn validate_version(headers: &HeaderMap) -> Result<(), Error> {
+    let tus_version = headers.get(TUS_RESUMABLE);
+    if tus_version != Some(&TUS_VERSION) {
+        return Err(Error::Version(
+            tus_version.and_then(|v| v.to_str().ok()).map(str::to_owned),
+        ));
+    }
+    Ok(())
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -227,7 +253,7 @@ pub fn add_creation_headers(
     if let Some(upload_length) = upload_length {
         builder.header(UPLOAD_LENGTH, HeaderValue::from(upload_length));
     } else {
-        builder.header(UPLOAD_DEFER_LENGTH, "1");
+        builder.header(UPLOAD_DEFER_LENGTH, UPLOAD_DEFER_LENGTH_VALUE);
     };
 
     Ok(())
@@ -243,6 +269,11 @@ pub fn add_upload_headers(builder: &mut RequestBuilder, mode: &UploadMode) {
     }
 }
 
+/// Prepares the required TUS request headers for upstream requests.
+pub fn add_head_headers(builder: &mut RequestBuilder) {
+    builder.header(TUS_RESUMABLE, TUS_VERSION);
+}
+
 /// Prepares the required TUS response headers.
 pub fn response_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -256,6 +287,16 @@ pub fn response_headers() -> HeaderMap {
 /// `OPTIONS` requests).
 pub fn resumable_header_layer() -> SetResponseHeaderLayer<HeaderValue> {
     SetResponseHeaderLayer::overriding(HeaderName::from_static("tus-resumable"), TUS_VERSION)
+}
+
+/// Layer that stamps `Cache-Control: no-store` onto every response.
+///
+/// The TUS protocol requires this on responses to `HEAD` requests so the offset is never cached.
+pub fn no_store_layer() -> SetResponseHeaderLayer<HeaderValue> {
+    SetResponseHeaderLayer::overriding(
+        http::header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    )
 }
 
 /// Extracts the sentry metadata payload from the `Upload-Metadata` header.
