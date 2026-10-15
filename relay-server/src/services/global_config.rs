@@ -18,7 +18,7 @@ use relay_config::Config;
 use relay_config::RelayMode;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -342,8 +342,6 @@ impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown_handle = Controller::shutdown_handle();
-
         relay_log::info!("global config service starting");
         if self.config.current().relay_mode() == RelayMode::Managed {
             relay_log::info!("requesting global config from upstream");
@@ -380,7 +378,8 @@ impl Service for GlobalConfigService {
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
                 Some(message) = rx.recv() => self.handle_message(message),
-                _ = shutdown_handle.notified() => self.handle_shutdown(),
+                // FIXME
+                // _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                 else => break,
             }
@@ -395,7 +394,7 @@ mod tests {
     use std::time::Duration;
 
     use relay_config::{Config, Credentials, RelayMode};
-    use relay_system::{Controller, Service, ShutdownMode};
+    use relay_system::Service;
     use relay_test::mock_service;
 
     use crate::services::global_config::{Get, GlobalConfigService};
@@ -415,7 +414,7 @@ mod tests {
             }
         });
 
-        Controller::start(Duration::from_secs(1));
+        // Controller::start(Duration::from_secs(1));
         let mut config = Config::default();
         config
             .replace_credentials(Some(Credentials::generate()))
@@ -428,7 +427,7 @@ mod tests {
 
         assert!(service.send(Get).await.is_ok());
 
-        Controller::shutdown(ShutdownMode::Immediate);
+        // Controller::shutdown(ShutdownMode::Immediate);
         tokio::time::sleep(fetch_interval * 2).await;
 
         assert!(service.send(Get).await.is_ok());

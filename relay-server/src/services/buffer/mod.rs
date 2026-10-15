@@ -16,7 +16,7 @@ use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use relay_system::{Controller, Shutdown};
+
 use tokio::sync::watch;
 use tokio::time::{Instant, timeout};
 
@@ -517,27 +517,28 @@ impl EnvelopeBufferService {
         };
     }
 
-    async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
-        // We gracefully shut down only if the shutdown has a timeout.
-        if let Some(shutdown_timeout) = message.timeout {
-            relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
+    // FIXME
+    // async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
+    //     // We gracefully shut down only if the shutdown has a timeout.
+    //     if let Some(shutdown_timeout) = message.timeout {
+    //         relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
 
-            let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
-            match shutdown_result {
-                Ok(shutdown_result) => {
-                    return shutdown_result;
-                }
-                Err(error) => {
-                    relay_log::error!(
-                        error = &error as &dyn Error,
-                        "the envelope buffer didn't shut down in time, some envelopes might be lost",
-                    );
-                }
-            }
-        }
+    //         let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
+    //         match shutdown_result {
+    //             Ok(shutdown_result) => {
+    //                 return shutdown_result;
+    //             }
+    //             Err(error) => {
+    //                 relay_log::error!(
+    //                     error = &error as &dyn Error,
+    //                     "the envelope buffer didn't shut down in time, some envelopes might be lost",
+    //                 );
+    //             }
+    //         }
+    //     }
 
-        false
-    }
+    //     false
+    // }
 
     async fn push(
         buffer: &mut PolymorphicEnvelopeBuffer,
@@ -656,7 +657,6 @@ impl Service for EnvelopeBufferService {
         // We convert the partition id to string to use it as a tag for all the metrics.
         let partition_tag = self.partition_id.to_string();
 
-        let mut shutdown = Controller::shutdown_handle();
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
@@ -719,13 +719,14 @@ impl Service for EnvelopeBufferService {
                     Self::handle_message(&mut buffer, message, &services).await;
                         sleep = Duration::ZERO;
                 }
-                shutdown = shutdown.notified() => {
-                    // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
-                }
+                // FIXME
+                // shutdown = shutdown.notified() => {
+                //     // In case the shutdown was handled, we break out of the loop signaling that
+                //         // there is no need to process anymore envelopes.
+                //         if Self::handle_shutdown(&mut buffer, shutdown).await {
+                //             break;
+                //         }
+                // }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
                 }

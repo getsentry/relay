@@ -262,8 +262,6 @@ pub struct OverridableConfig {
     pub public_key: Option<String>,
     /// Outcome source
     pub outcome_source: Option<String>,
-    /// shutdown timeout
-    pub shutdown_timeout: Option<String>,
     /// Server name reported in the Sentry SDK.
     pub server_name: Option<String>,
 }
@@ -691,9 +689,6 @@ pub struct Limits {
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     pub query_timeout: u64,
-    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
-    /// signal.
-    pub shutdown_timeout: u64,
     /// Server keep-alive timeout in seconds.
     ///
     /// By default, keep-alive is set to 5 seconds.
@@ -756,7 +751,6 @@ impl Default for Limits {
             max_thread_count: num_cpus::get(),
             max_pool_concurrency: 1,
             query_timeout: 30,
-            shutdown_timeout: 10,
             keepalive_timeout: 5,
             idle_timeout: None,
             max_connections: None,
@@ -1833,12 +1827,6 @@ impl ConfigInner {
             self.values.outcomes.source = overrides.outcome_source.clone();
         }
 
-        if let Some(shutdown_timeout) = &overrides.shutdown_timeout
-            && let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>()
-        {
-            self.values.limits.shutdown_timeout = shutdown_timeout;
-        }
-
         if let Some(server_name) = overrides.server_name.clone() {
             self.values.sentry.server_name = Some(server_name.into());
         }
@@ -2763,12 +2751,6 @@ impl ConfigSnapshot {
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
         Duration::from_secs(self.inner.values.limits.query_timeout)
-    }
-
-    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
-    /// signal.
-    pub fn shutdown_timeout(&self) -> Duration {
-        Duration::from_secs(self.inner.values.limits.shutdown_timeout)
     }
 
     /// Returns the server keep-alive timeout in seconds.

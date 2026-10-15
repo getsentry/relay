@@ -8,7 +8,7 @@ use axum::http::{HeaderName, HeaderValue, header};
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::{Config, ConfigSnapshot};
-use relay_system::{Controller, Service, Shutdown};
+use relay_system::Service;
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use tokio::net::TcpSocket;
 use tower::ServiceBuilder;
@@ -141,13 +141,13 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
     ));
 
     relay_system::spawn!(async move {
-        let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
 
-        match timeout {
-            Some(timeout) => handle.graceful_shutdown(Some(timeout)),
-            None => handle.shutdown(),
-        }
+        // FIXME
+        // match timeout {
+        //     Some(timeout) => handle.graceful_shutdown(Some(timeout)),
+        handle.shutdown()
+        // }
     });
 
     server.serve(service).await

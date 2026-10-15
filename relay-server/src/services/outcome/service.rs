@@ -224,7 +224,7 @@ impl Service for ClientReportOutcomeProducerService {
     type Interface = TrackOutcome;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown = relay_system::Controller::shutdown_handle();
+        // let mut shutdown = relay_system::Controller::shutdown_handle();
         relay_log::info!("client report outcome producer started");
 
         loop {
@@ -233,7 +233,7 @@ impl Service for ClientReportOutcomeProducerService {
 
                 () = &mut self.flush_handle => self.do_flush(),
                 Some(message) = rx.recv() => self.handle_message(message),
-                _ = shutdown.notified() => self.handle_shutdown(),
+                // _ = shutdown.notified() => self.handle_shutdown(), // FIXME
 
                 else => break,
             }

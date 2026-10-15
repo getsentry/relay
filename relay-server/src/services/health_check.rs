@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
 use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{Instant, timeout};
@@ -199,9 +199,8 @@ impl Service for HealthCheckService {
         let status_timeout = (check_interval + config.health_probe_timeout()).mul_f64(1.1);
 
         relay_system::spawn!(async move {
-            let shutdown = Controller::shutdown_handle();
-
-            while shutdown.get().is_none() {
+            while true {
+                // FIXME
                 let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
                     type = "readiness",

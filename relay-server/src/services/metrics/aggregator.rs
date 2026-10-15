@@ -10,7 +10,7 @@ use relay_config::AggregatorServiceConfig;
 use relay_metrics::Bucket;
 use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, Partition};
 use relay_quotas::{RateLimits, Scoping};
-use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
+use relay_system::{FromMessage, Interface, NoResponse, Recipient, Service};
 use tokio::time::{Instant, Sleep};
 
 use crate::services::projects::cache::ProjectCacheHandle;
@@ -317,8 +317,6 @@ impl Service for AggregatorService {
     type Interface = Aggregator;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown = Controller::shutdown_handle();
-
         macro_rules! timed {
             ($task:expr, $body:expr) => {{
                 let task_name = $task;
@@ -342,7 +340,8 @@ impl Service for AggregatorService {
                     }
                 ),
                 Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),
-                _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
+                // FIXME
+                // _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
 
                 else => break,
             }

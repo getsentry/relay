@@ -495,6 +495,11 @@ impl ServiceState {
     pub fn global_config_handle(&self) -> &GlobalConfigHandle {
         &self.inner.registry.global_config_handle
     }
+
+    /// Triggers a cascade of service terminations by dropping transmitter handles.
+    pub fn stop(self) {
+        drop(self)
+    }
 }
 
 /// Creates Redis clients from the given `configs`.

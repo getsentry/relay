@@ -4,7 +4,7 @@ use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::processor::EnvelopeProcessorServicePool;
 use relay_system::{
-    AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
+    AsyncResponse, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };
 use tokio::time::Instant;
 
@@ -50,12 +50,12 @@ impl Service for AutoscalingMetricService {
     type Interface = AutoscalingMetrics;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown = Controller::shutdown_handle();
         loop {
             tokio::select! {
-                _ = shutdown.notified() => {
-                    self.up = 0;
-                },
+                // FIXME
+                // _ = shutdown.notified() => {
+                //     self.up = 0;
+                // },
                 Some(message) = rx.recv() => {
                     match message {
                         AutoscalingMetrics::Check(sender) => {

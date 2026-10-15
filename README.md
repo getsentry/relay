@@ -253,9 +253,6 @@ logging:
   # Enable full logging and backtraces:
   level: trace
   enable_backtraces: true
-limits:
-  # Speed up shutdown on ^C
-  shutdown_timeout: 0
 processing:
   # Enable processing mode with store normalization and post data to Kafka:
   enabled: true
