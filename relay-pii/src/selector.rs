@@ -63,6 +63,8 @@ pub enum SelectorPathItem {
     Index(usize),
     /// The component refers to a key in an object.
     Key(String),
+    /// Matches `mcp.tool.result.content` and `mcp.tool.result.<index>.content` keys.
+    McpToolResultContent,
     /// The component is a shallow wildcard (`*`).
     Wildcard,
     /// The component is a deep wildcard (`**`).
@@ -83,6 +85,7 @@ impl fmt::Display for SelectorPathItem {
             }
             SelectorPathItem::Wildcard => write!(f, "*"),
             SelectorPathItem::DeepWildcard => write!(f, "**"),
+            SelectorPathItem::McpToolResultContent => write!(f, "$mcp_tool_result_content"),
         }
     }
 }
@@ -150,8 +153,30 @@ impl SelectorPathItem {
                 .key()
                 .map(|k| k.eq_ignore_ascii_case(key))
                 .unwrap_or(false),
+            (SelectorPathItem::McpToolResultContent, _) => {
+                state.path().key().is_some_and(is_mcp_tool_result_content)
+            }
         }
     }
+}
+
+/// Matches singleton and indexed MCP content keys without bounding the numeric index.
+fn is_mcp_tool_result_content(key: &str) -> bool {
+    let Some((prefix, field)) = key.rsplit_once('.') else {
+        return false;
+    };
+    if !field.eq_ignore_ascii_case("content") {
+        return false;
+    }
+    if prefix.eq_ignore_ascii_case("mcp.tool.result") {
+        return true;
+    }
+    let Some((family, index)) = prefix.rsplit_once('.') else {
+        return false;
+    };
+    family.eq_ignore_ascii_case("mcp.tool.result")
+        && !index.is_empty()
+        && index.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// A selector that can match paths of processing states.
@@ -418,6 +443,9 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
 fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, InvalidSelectorError> {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
+        Rule::ObjectType if pair.as_str() == "$mcp_tool_result_content" => {
+            Ok(SelectorPathItem::McpToolResultContent)
+        }
         Rule::ObjectType => Ok(SelectorPathItem::Type(
             pair.as_str()[1..]
                 .parse()
@@ -479,6 +507,10 @@ mod tests {
         check_roundtrip("!a && !b");
         check_roundtrip("!(a && !b)");
         check_roundtrip("!(a && b)");
+        check_roundtrip("$mcp_tool_result_content");
+        check_roundtrip(
+            "$span.data.$mcp_tool_result_content || attributes.$mcp_tool_result_content",
+        );
     }
 
     #[test]
@@ -558,6 +590,44 @@ mod tests {
                 assert_matches_raw!(state, $selector, false);
             )*
         }}
+    }
+
+    #[test]
+    fn test_mcp_tool_result_content_matching() {
+        let root = ProcessingState::new_root(None, Some(ValueType::Span));
+        let attributes = root.enter_borrowed("attributes", None, Some(ValueType::Object));
+
+        for key in [
+            "mcp.tool.result.content",
+            "mcp.tool.result.0.content",
+            "mcp.tool.result.12.content",
+            "mcp.tool.result.18446744073709551616.content",
+            "MCP.TOOL.RESULT.1.CONTENT",
+        ] {
+            let state = attributes.enter_borrowed(key, None, Some(ValueType::String));
+            assert_matches_pii_maybe!(state, "attributes.$mcp_tool_result_content",);
+            assert_not_matches!(state, "attributes.'mcp.tool.result.*.content'",);
+
+            let state = state.enter_nothing(Some(Cow::Owned(FieldAttrs::new().pii(Pii::False))));
+            assert_not_matches!(state, "attributes.$mcp_tool_result_content",);
+        }
+
+        for key in [
+            "mcp.tool.result..content",
+            "mcp.tool.result.text.content",
+            "mcp.tool.result.-1.content",
+            "mcp.tool.result.0.1.content",
+            "mcp.tool.result.0.content.extra",
+            "mcp.tool.result.0.type",
+            "other.mcp.tool.result.0.content",
+        ] {
+            let state = attributes.enter_borrowed(
+                key,
+                Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
+                Some(ValueType::String),
+            );
+            assert_not_matches!(state, "attributes.$mcp_tool_result_content",);
+        }
     }
 
     #[test]

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Apply default replacement-only PII scrubbing to indexed MCP tool results in transaction spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
+
 ## 0.10.1
 
 - Add the `release` rule condition for generic inbound filters. ([#6430](https://github.com/getsentry/relay/pull/6430))

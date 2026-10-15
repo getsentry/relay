@@ -57,11 +57,21 @@ mod tests {
                 r#"{"content":[{"type":"text","text":"Contact user@example.com"}]}"#,
                 r#"{"content":[{"type":"text","text":"Contact [email]"}]}"#,
             ),
-            // Indexed content retains automatic scrubbing without replace-only rules.
+            // Multiple content blocks are emitted as separate indexed attributes.
             (
                 "mcp.tool.result.0.content",
                 "Contact user@example.com",
+                "Contact [email]",
+            ),
+            (
+                "mcp.tool.result.1.content",
                 "Contact user@example.com",
+                "Contact [email]",
+            ),
+            (
+                "mcp.tool.result.12.content",
+                "Contact user@example.com",
+                "Contact [email]",
             ),
         ];
         let settings = DataScrubbingConfig {
@@ -72,7 +82,13 @@ mod tests {
         let config = settings.pii_config();
 
         // Old and new SDKs can emit each format alone or both together.
-        for cases in [&cases[..1], &cases[1..2], &cases[2..], &cases[..2]] {
+        for cases in [
+            &cases[..1],
+            &cases[1..2],
+            &cases[2..],
+            &cases[..2],
+            &cases[1..],
+        ] {
             let mut attributes = Attributes::new();
             for (key, content, _) in cases {
                 attributes.insert(*key, *content);
@@ -100,6 +116,7 @@ mod tests {
         let mut attributes = Attributes::new();
         attributes.insert("gen_ai.tool.call.result", "user@example.com");
         attributes.insert("mcp.tool.result.content", "user@example.com");
+        attributes.insert("mcp.tool.result.0.content", "user@example.com");
         let mut span = Annotated::new(SpanV2 {
             attributes: Annotated::new(attributes),
             ..Default::default()
@@ -117,7 +134,7 @@ mod tests {
 
         let advanced = serde_json::from_value::<PiiConfig>(serde_json::json!({
             "applications": {
-                "attributes.'gen_ai.tool.call.result'.value || attributes.'mcp.tool.result.content'.value": [
+                "attributes.'gen_ai.tool.call.result'.value || attributes.'mcp.tool.result.content'.value || attributes.'mcp.tool.result.0.content'.value": [
                     "@email:replace"
                 ]
             }
@@ -126,7 +143,11 @@ mod tests {
         eap::scrub(ValueType::Span, &mut span, Some(&advanced), config.as_ref()).unwrap();
 
         let attributes = span.value().unwrap().attributes.value().unwrap();
-        for key in ["gen_ai.tool.call.result", "mcp.tool.result.content"] {
+        for key in [
+            "gen_ai.tool.call.result",
+            "mcp.tool.result.content",
+            "mcp.tool.result.0.content",
+        ] {
             assert_eq!(
                 attributes.get_value(key).and_then(|value| value.as_str()),
                 Some("[email]"),
