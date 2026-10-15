@@ -1,0 +1,28 @@
+---
+source: relay-event-normalization/src/normalize/browser_report.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424005.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "warn",
+  "body": "Browser report: Some Future Report!",
+  "attributes": {
+    "browser.report.body.ratio": {
+      "type": "double",
+      "value": 0.5
+    },
+    "browser.report.type": {
+      "type": "string",
+      "value": "Some Future Report!"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "not a url"
+    }
+  }
+}

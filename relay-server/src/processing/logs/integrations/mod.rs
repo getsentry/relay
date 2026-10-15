@@ -6,6 +6,7 @@ use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::logs::Settings;
 
+mod browser_reports;
 mod integrity;
 mod nel;
 mod otel;
@@ -14,10 +15,14 @@ mod vercel;
 /// Expands a log [`Integration`] into a list of logs.
 ///
 /// The function expects *only* log item integrations.
+///
+/// `max_ops` bounds the deserialization work spent on integrations which accept batches of
+/// arbitrary size.
 pub fn expand(
     item: Item,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
+    max_ops: usize,
 ) -> Option<(Settings, ContainerItems<OurLog>)> {
     let integration = match item.integration() {
         Some(Integration::Logs(integration)) => integration,
@@ -46,6 +51,9 @@ pub fn expand(
     let payload = item.payload();
 
     let settings = match integration {
+        LogsIntegration::BrowserReports => {
+            browser_reports::expand(&payload, headers, max_ops, produce)
+        }
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
         LogsIntegration::Integrity => integrity::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
