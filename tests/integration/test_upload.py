@@ -378,11 +378,11 @@ def test_upload_body_size(
 
 @pytest.mark.parametrize(
     "content_encoding,expected_error",
-    {
-        (None, None),
-        ("utf-8", None),
-        ("zstd", "Missing X-Decoded-Content-Length header"),
-    },
+    [
+        pytest.param(None, None, id="no_encoding"),
+        pytest.param("utf-8", None, id="identity_encoding"),
+        pytest.param("zstd", "Missing X-Decoded-Content-Length header", id="zstd"),
+    ],
 )
 def test_missing_decoded_length(
     mini_sentry,
