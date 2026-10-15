@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Remove the `organizations:relay-automatic-json-expansion` feature from project config. ([#6518](https://github.com/getsentry/relay/pull/6518))
+- Apply default replacement-only PII scrubbing to indexed MCP tool results in transaction spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
 
 ## 0.10.1
 
