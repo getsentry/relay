@@ -399,6 +399,7 @@ enum RelayErrorCode {
   RELAY_ERROR_CODE_INVALID_RELEASE_ERROR_RESTRICTED_NAME = 3002,
   RELAY_ERROR_CODE_INVALID_RELEASE_ERROR_BAD_CHARACTERS = 3003,
   RELAY_ERROR_CODE_PATTERN_ERROR = 4001,
+  RELAY_ERROR_CODE_PATTERN_OUT_OF_GAS = 4002,
 };
 typedef uint32_t RelayErrorCode;
 
@@ -796,7 +797,8 @@ struct RelayPattern *relay_pattern_new(const struct RelayStr *pattern,
  * Returns `true` if the pattern matches the string.
  */
 bool relay_pattern_is_match(const struct RelayPattern *pattern,
-                            const struct RelayStr *haystack);
+                            const struct RelayStr *value,
+                            uint64_t gas);
 
 /**
  * Formats the pattern as a string.
