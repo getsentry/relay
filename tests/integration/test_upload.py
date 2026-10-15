@@ -377,12 +377,11 @@ def test_upload_body_size(
 
 
 @pytest.mark.parametrize(
-    "content_encoding,content_length,expected_error",
+    "content_encoding,expected_error",
     {
-        (None, None, "Missing X-Decoded-Content-Length header"),
-        (None, "11", None),
-        ("utf-8", "11", None),
-        ("zstd", "11", "Missing X-Decoded-Content-Length header"),
+        (None, None),
+        ("utf-8", None),
+        ("zstd", "Missing X-Decoded-Content-Length header"),
     },
 )
 def test_missing_decoded_length(
@@ -391,7 +390,6 @@ def test_missing_decoded_length(
     dummy_upload,
     project_config,
     content_encoding,
-    content_length,
     expected_error,
 ):
     """X-Decoded-Content-Length can be omitted when Content-Length is set"""
@@ -405,7 +403,7 @@ def test_missing_decoded_length(
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Content-Encoding": content_encoding,
-            "Content-Length": content_length,
+            # NOTE: `Content-Length` is automatically set by the client library.
             "Upload-Offset": "0",
         },
         data=data,
