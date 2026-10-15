@@ -137,7 +137,15 @@ pub fn check_envelope_size_limits(
             ItemType::Unknown(_) => continue,
         };
 
-        if let Err(err) = limit.apply(item) {
+        let result = match (item.ty(), item.attachment_type()) {
+            (ItemType::Attachment, Some(AttachmentType::Flamegraph)) => limit
+                .apply_with_additional_limit(
+                    item,
+                    relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE,
+                ),
+            _ => limit.apply(item),
+        };
+        if let Err(err) = result {
             relay_statsd::metric!(
                 counter(RelayCounters::EnvelopeSizeLimited) += 1,
                 item = item.ty().name(),
@@ -176,6 +184,15 @@ struct Limit {
 
 impl Limit {
     fn apply(&mut self, item: &Item) -> Result<(), Rejected> {
+        self.apply_with_additional_limit(item, usize::MAX)
+    }
+
+    /// Applies a stricter per-item size limit while sharing the total count and size budgets.
+    fn apply_with_additional_limit(
+        &mut self,
+        item: &Item,
+        additional_limit: usize,
+    ) -> Result<(), Rejected> {
         let size = match item.is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //
@@ -183,13 +200,7 @@ impl Limit {
             true => item.len() / item.item_count().unwrap_or(1).max(1) as usize,
             false => item.len(),
         };
-        let item_size = match (item.ty(), item.attachment_type()) {
-            (ItemType::Attachment, Some(AttachmentType::Flamegraph)) => self
-                .item_size
-                .min(relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE),
-            _ => self.item_size,
-        };
-        if size > item_size {
+        if size > self.item_size.min(additional_limit) {
             return Err(Rejected::ItemSize);
         }
 
@@ -237,7 +248,7 @@ mod tests {
     use bytes::Bytes;
 
     #[test]
-    fn test_flamegraph_uses_attachment_limit() {
+    fn test_additional_item_size_limit() {
         let mut limit = Limit {
             item_size: usize::MAX,
             total_count: 2,
@@ -245,21 +256,22 @@ mod tests {
         };
         let mut item = Item::new(ItemType::Attachment);
         item.set_attachment_type(AttachmentType::Flamegraph);
-        item.set_payload_without_content_type(vec![
-            b' ';
-            relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE
-                + 1
-        ]);
-        assert!(matches!(limit.apply(&item), Err(Rejected::ItemSize)));
+        item.set_payload_without_content_type("1234");
+        assert!(matches!(
+            limit.apply_with_additional_limit(&item, 3),
+            Err(Rejected::ItemSize)
+        ));
         assert_eq!(limit.total_count, 2);
 
-        item.set_payload_without_content_type("1234");
         limit.item_size = 3;
-        assert!(matches!(limit.apply(&item), Err(Rejected::ItemSize)));
+        assert!(matches!(
+            limit.apply_with_additional_limit(&item, 4),
+            Err(Rejected::ItemSize)
+        ));
 
         limit.item_size = 4;
         limit.total_size = 8;
-        assert!(limit.apply(&item).is_ok());
+        assert!(limit.apply_with_additional_limit(&item, 4).is_ok());
         assert_eq!(limit.total_count, 1);
         assert_eq!(limit.total_size, 4);
         item.set_attachment_type(AttachmentType::Attachment);
@@ -271,7 +283,10 @@ mod tests {
         limit.total_count = 1;
         limit.total_size = 3;
         item.set_attachment_type(AttachmentType::Flamegraph);
-        assert!(matches!(limit.apply(&item), Err(Rejected::TotalSize)));
+        assert!(matches!(
+            limit.apply_with_additional_limit(&item, 4),
+            Err(Rejected::TotalSize)
+        ));
     }
 
     #[test]

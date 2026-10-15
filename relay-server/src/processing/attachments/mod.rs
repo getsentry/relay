@@ -96,7 +96,8 @@ impl processing::Processor for AttachmentProcessor {
         mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
-        attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx, false);
+        attachments::validate_standalone_attachments(&mut attachments, |a| &mut a.attachments);
+        attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
 
         validate::validate(&attachments).reject(&attachments)?;
 

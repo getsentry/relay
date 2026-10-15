@@ -1,4 +1,6 @@
-//! Validation of version 1 flame graph attachments without rewriting captured data.
+//! Validation of version 1 [flame graph attachments] without rewriting captured data.
+//!
+//! [flame graph attachments]: https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph
 
 use std::collections::HashSet;
 
@@ -7,8 +9,10 @@ use serde::Deserialize;
 
 use crate::sample::{DebugMeta, Frame};
 
-/// Maximum serialized UTF-8 JSON size of a flame graph attachment.
+/// Maximum serialized UTF-8 JSON size required by the flame graph attachment contract:
+/// <https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph>.
 pub const MAX_FLAMEGRAPH_SIZE: usize = 10 * 1024 * 1024;
+// JavaScript's Number.MAX_SAFE_INTEGER (2^53 - 1), so JSON consumers retain exact counts.
 const MAX_SAMPLE_COUNT: u64 = 9_007_199_254_740_991;
 
 /// A flame graph which does not conform to the attachment contract.

@@ -17,22 +17,35 @@ use crate::services::projects::project::ProjectInfo;
 use crate::utils::sample;
 use relay_dynamic_config::Feature;
 
-/// Validates the attachments and drop any invalid ones.
+/// Drops attachments that require an explicit event from envelopes without one.
+pub fn validate_standalone_attachments<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
+    managed.retain(select, |attachment, _| match attachment.attachment_type() {
+        Some(AttachmentType::Flamegraph) => Err(ProcessingError::InvalidFlamegraph),
+        _ => Ok(()),
+    });
+}
+
+/// Validates the attachments and drops any invalid ones.
 ///
-/// Flame graph transport checks apply on every Relay and require an explicit event in the
-/// original envelope. Payload and placeholder validation only run on processing Relays.
+/// Flame graph transport checks apply on every Relay. Payload and placeholder validation only
+/// run on processing Relays.
 pub fn validate_attachments<T, V>(
     managed: &mut Managed<T>,
     select: impl FnOnce(&mut T) -> &mut V,
     ctx: Context<'_>,
-    has_event: bool,
 ) where
     T: Counted,
     V: RetainMut<Item>,
 {
     managed.retain(select, |attachment, _| {
         if attachment.attachment_type() == Some(AttachmentType::Flamegraph)
-            && (!has_event || !attachment.has_valid_flamegraph_headers())
+            && !attachment.has_valid_flamegraph_headers()
         {
             return Err(ProcessingError::InvalidFlamegraph);
         }
@@ -287,7 +300,7 @@ mod tests {
         let (mut attachments, mut handle) =
             Managed::for_test(vec![invalid, valid, ordinary]).build();
 
-        validate_attachments(&mut attachments, |a| a, Context::for_test(), true);
+        validate_attachments(&mut attachments, |a| a, Context::for_test());
 
         assert_eq!(attachments.len(), 2);
         assert_eq!(attachments[0].filename(), Some("flamegraph.json"));
@@ -305,6 +318,20 @@ mod tests {
     }
 
     #[test]
+    fn test_flamegraph_without_length_header() {
+        let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
+        let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
+        let (item, _) = Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+        let (mut attachments, _handle) = Managed::for_test(vec![item]).build();
+
+        validate_attachments(&mut attachments, |a| a, Context::for_test());
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].payload().as_ref(), payload.as_bytes());
+        attachments.accept(|_| ());
+    }
+
+    #[test]
     fn test_flamegraph_requires_explicit_event() {
         let flamegraph = flamegraph_item(flamegraph_payload());
         let rejected_size = flamegraph.len() as u64;
@@ -312,7 +339,7 @@ mod tests {
         ordinary.set_payload(ContentType::Text, "keep me");
         let (mut attachments, mut handle) = Managed::for_test(vec![flamegraph, ordinary]).build();
 
-        validate_attachments(&mut attachments, |a| a, Context::for_test(), false);
+        validate_standalone_attachments(&mut attachments, |a| a);
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].payload().as_ref(), b"keep me");
@@ -404,7 +431,6 @@ mod tests {
         assert!(validate(&item, &config.current()).is_err());
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         for headers in [
-            r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#,
             r#"{"type":"attachment","attachment_type":"event.flamegraph","content_type":"application/json"}"#,
             r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json"}"#,
         ] {

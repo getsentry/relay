@@ -332,7 +332,6 @@ impl Item {
         self.ty() == &ItemType::Attachment
             && self.filename() == Some("flamegraph.json")
             && self.content_type() == Some(ContentType::Json)
-            && self.headers.get::<usize>(ItemHeaderKey::Length) == Some(self.len())
     }
 
     /// Sets the payload of this envelope item without specifying a content-type.

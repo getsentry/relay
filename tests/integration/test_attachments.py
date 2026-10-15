@@ -662,6 +662,41 @@ def test_flamegraph_size_limit(mini_sentry, relay, size):
         assert attachment.payload.bytes == payload
 
 
+@pytest.mark.parametrize("event_type", ["event", "transaction"])
+def test_flamegraph_without_envelope_event_id(mini_sentry, relay, event_type):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    envelope = Envelope()
+    if event_type == "transaction":
+        envelope.add_transaction(make_transaction({"event_id": event_id}))
+    else:
+        envelope.add_event({"event_id": event_id, "message": "Keep the flame graph"})
+    payload = json.dumps(
+        {
+            "version": "1",
+            "platform": "python",
+            "frames": [{"function": "main"}],
+            "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+        }
+    ).encode()
+    envelope.add_item(
+        Item(
+            type="attachment",
+            headers={"attachment_type": "event.flamegraph"},
+            payload=PayloadRef(bytes=payload),
+            filename="flamegraph.json",
+            content_type="application/json",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    forwarded = mini_sentry.get_captured_envelope()
+    attachment = next(item for item in forwarded.items if item.type == "attachment")
+    assert attachment.headers["attachment_type"] == "event.flamegraph"
+    assert attachment.payload.bytes == payload
+
+
 def test_flamegraph_requires_event_in_envelope(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
