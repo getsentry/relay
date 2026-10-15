@@ -789,6 +789,9 @@ def test_invalid_flamegraph_preserves_event(
     consumer.assert_empty()
 
 
+@pytest.mark.parametrize(
+    "image_type", ["macho", "symbolic", "elf", "pe", "pe_dotnet", "wasm"]
+)
 @pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_flamegraph(
     mini_sentry,
@@ -796,6 +799,7 @@ def test_event_with_flamegraph(
     attachments_consumer,
     objectstore,
     use_objectstore,
+    image_type,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -810,7 +814,7 @@ def test_event_with_flamegraph(
     payload = json.dumps(
         {
             "version": "1",
-            "platform": "cocoa",
+            "platform": "cocoa" if image_type == "macho" else "native",
             "frames": [
                 {
                     "instruction_addr": "0x100001000",
@@ -822,7 +826,7 @@ def test_event_with_flamegraph(
             "debug_meta": {
                 "images": [
                     {
-                        "type": "macho",
+                        "type": image_type,
                         "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
                         "code_file": "ExampleApp",
                         "image_addr": "0x100000000",

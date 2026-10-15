@@ -148,6 +148,42 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn test_flamegraph_native_debug_image_types() {
+        let debug_id = "84a04d24-0e60-3810-a8c0-90a65e2df61a";
+        for image_type in ["macho", "symbolic", "elf", "pe", "pe_dotnet", "wasm"] {
+            for addr_mode in ["abs", "rel:0", &format!("rel:{debug_id}")] {
+                let mut graph = json!({
+                    "version": "1", "platform": "native",
+                    "frames": [{"instruction_addr": "0x1000", "addr_mode": addr_mode}],
+                    "debug_meta": {"images": [{
+                        "type": image_type, "debug_id": debug_id,
+                        "code_file": "app", "image_addr": "0x1000", "image_size": 4096,
+                        "future": {"preserve": true}
+                    }]},
+                    "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}]
+                });
+                let payload = serde_json::to_vec(&graph).unwrap();
+                validate(&payload)
+                    .unwrap_or_else(|error| panic!("{image_type} with {addr_mode}: {error}"));
+
+                graph["debug_meta"]["images"][0]["debug_id"] =
+                    json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+                let result = validate(&serde_json::to_vec(&graph).unwrap());
+                if addr_mode.starts_with("rel:") && addr_mode != "rel:0" {
+                    assert!(matches!(
+                        result,
+                        Err(FlamegraphError::InvalidPayload(
+                            "relative address has no matching debug image"
+                        ))
+                    ));
+                } else {
+                    result.unwrap();
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_flamegraph_large_relative_address_tables() {
         let debug_id = "84a04d24-0e60-3810-a8c0-90a65e2df61a";
         let frame = json!({"instruction_addr": "0x1000", "addr_mode": format!("rel:{debug_id}")});
