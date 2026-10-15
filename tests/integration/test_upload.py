@@ -376,6 +376,48 @@ def test_upload_body_size(
         assert expected_error in response.text, response.text
 
 
+@pytest.mark.parametrize(
+    "content_encoding,content_length,expected_error",
+    {
+        (None, None, "Missing X-Decoded-Content-Length header"),
+        (None, "11", None),
+        ("utf-8", "11", None),
+        ("zstd", "11", "Missing X-Decoded-Content-Length header"),
+    },
+)
+def test_missing_decoded_length(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+    content_encoding,
+    content_length,
+    expected_error,
+):
+    """X-Decoded-Content-Length can be omitted when Content-Length is set"""
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    data = "foo"
+    response = relay.patch(
+        f"{DUMMY_UPLOAD_LOCATION}&sentry_key={mini_sentry.get_dsn_public_key(project_id)}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Content-Encoding": content_encoding,
+            "Content-Length": content_length,
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    if expected_error:
+        assert response.status_code == 400
+        assert expected_error in response.text, response.text
+    else:
+        assert response.status_code == 204
+
+
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
 def test_upload_rate_limited(
     mini_sentry, relay, data_category, dummy_upload, project_config
