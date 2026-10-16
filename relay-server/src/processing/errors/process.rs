@@ -131,6 +131,14 @@ pub fn normalize(
     let scoping = error.scoping();
 
     error.try_modify(|error, _| {
+        #[cfg(feature = "processing")]
+        if ctx.is_processing()
+            && let Some(event) = error.event.value_mut().as_mut()
+            && super::flamegraph::enrich(event, &error.attachments)
+        {
+            // Derived frames need the same normalization and trimming as SDK-supplied frames.
+            error.fully_normalized = EventFullyNormalized(false);
+        }
         error.fully_normalized = processing::utils::event::normalize(
             &error.headers,
             &mut error.event,
