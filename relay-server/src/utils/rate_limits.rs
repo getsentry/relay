@@ -481,6 +481,14 @@ impl AttachmentLimits {
     fn is_active(&self) -> bool {
         self.bytes.is_active() || self.count.is_active()
     }
+
+    /// Returns the reason code of the active limit, preferring the limit on attachment bytes.
+    fn reason_code(&self) -> Option<&ReasonCode> {
+        [&self.bytes, &self.count]
+            .into_iter()
+            .find(|limit| limit.is_active())
+            .and_then(|limit| limit.reason_code.as_ref())
+    }
 }
 
 /// Rate limiting information for attachments grouped by [`AttachmentParentType`].
@@ -710,6 +718,9 @@ impl Enforcement {
                         }
                         if item.creates_event() {
                             item.set_rate_limited(true);
+                            item.set_rate_limit_reason(
+                                self.attachments_limits.event.reason_code().cloned(),
+                            );
                             true
                         } else {
                             false
@@ -1611,6 +1622,7 @@ mod tests {
     #[derive(Debug, Default)]
     struct MockLimiter {
         denied: Vec<DataCategory>,
+        reasons: BTreeMap<DataCategory, ReasonCode>,
         called: BTreeMap<DataCategory, usize>,
         checked: BTreeSet<DataCategory>,
     }
@@ -1621,6 +1633,11 @@ mod tests {
             self
         }
 
+        pub fn deny_with_reason(mut self, category: DataCategory, reason: &str) -> Self {
+            self.reasons.insert(category, ReasonCode::new(reason));
+            self.deny(category)
+        }
+
         pub fn check(&mut self, scoping: ItemScoping, quantity: usize) -> Result<RateLimits, ()> {
             let cat = scoping.category;
             let previous = self.called.insert(cat, quantity);
@@ -1628,7 +1645,9 @@ mod tests {
 
             let mut limits = RateLimits::new();
             if self.denied.contains(&cat) {
-                limits.add(rate_limit(cat));
+                let mut limit = rate_limit(cat);
+                limit.reason_code = self.reasons.get(&cat).cloned();
+                limits.add(limit);
             }
             Ok(limits)
         }
@@ -1902,6 +1921,26 @@ mod tests {
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
         assert_eq!(envelope.len(), 1);
+        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.lock().await.assert_call(DataCategory::Attachment, 10);
+    }
+
+    #[tokio::test]
+    async fn test_enforce_pass_minidump_forwards_reason_code() {
+        let envelope = envelope![Attachment::Minidump];
+
+        let mock = Arc::new(Mutex::new(
+            MockLimiter::default()
+                .deny_with_reason(DataCategory::Attachment, "attachment_usage_exceeded"),
+        ));
+        let (envelope, _, _) = enforce_and_apply(mock.clone(), envelope).await;
+
+        let item = envelope.items().next().unwrap();
+        assert!(item.rate_limited());
+        assert_eq!(
+            item.rate_limit_reason(),
+            Some(&ReasonCode::new("attachment_usage_exceeded"))
+        );
         mock.lock().await.assert_call(DataCategory::Error, 1);
         mock.lock().await.assert_call(DataCategory::Attachment, 10);
     }

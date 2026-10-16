@@ -621,12 +621,20 @@ def test_minidump_with_processing(
         else "minidump.unknown"
     )
 
+    # The reason code of the attachment quota is forwarded for rate limited minidumps.
+    rate_limit_reason = (
+        {"rate_limit_reason": "static_disabled_quota"}
+        if rate_limit == "attachment"
+        else {}
+    )
+
     if not use_objectstore:
         assert list(message["attachments"]) == [
             {
                 "id": attachment_id,
                 "name": "minidump.dmp",
                 "rate_limited": rate_limit == "attachment",
+                **rate_limit_reason,
                 "attachment_type": "event.minidump",
                 "content_type": "application/x-dmp",
                 "size": len(content),
@@ -645,6 +653,7 @@ def test_minidump_with_processing(
         assert attachment == {
             "name": "minidump.dmp",
             "rate_limited": rate_limit == "attachment",
+            **rate_limit_reason,
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),

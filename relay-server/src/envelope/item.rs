@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use bytes::Bytes;
 use relay_event_schema::protocol::{EventType, SpanId};
-use relay_quotas::DataCategory;
+use relay_quotas::{DataCategory, ReasonCode};
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
@@ -29,6 +29,7 @@ impl Item {
                 ty,
                 stored_key: None,
                 rate_limited: false,
+                rate_limit_reason: None,
                 source_quantities: None,
                 routing_hint: None,
                 inner: BTreeMap::new(),
@@ -409,6 +410,16 @@ impl Item {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.rate_limited = rate_limited;
+    }
+
+    /// Returns the reason code of the quota that rate limited this item, if any.
+    pub fn rate_limit_reason(&self) -> Option<&ReasonCode> {
+        self.headers.rate_limit_reason.as_ref()
+    }
+
+    /// Sets the reason code of the quota that rate limited this item.
+    pub fn set_rate_limit_reason(&mut self, reason: Option<ReasonCode>) {
+        self.headers.rate_limit_reason = reason;
     }
 
     /// Returns the contained source quantities.
@@ -1066,6 +1077,14 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
+    /// The reason code of the quota that caused this item to be rate limited.
+    ///
+    /// Only set alongside `rate_limited`, so that the processing pipeline can tell why the
+    /// attachment was dropped (e.g. an exceeded billing quota versus spike protection).
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    rate_limit_reason: Option<ReasonCode>,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -1137,6 +1156,7 @@ impl fmt::Debug for ItemHeaders {
             stored_key,
             routing_hint,
             rate_limited,
+            rate_limit_reason,
             source_quantities,
             inner,
         } = self;
@@ -1152,6 +1172,9 @@ impl fmt::Debug for ItemHeaders {
         }
         if *rate_limited {
             map.entry(&"rate_limited", rate_limited);
+        }
+        if let Some(rate_limit_reason) = rate_limit_reason {
+            map.entry(&"rate_limit_reason", rate_limit_reason);
         }
         if let Some(source_quantities) = source_quantities {
             map.entry(&"source_quantities", source_quantities);
