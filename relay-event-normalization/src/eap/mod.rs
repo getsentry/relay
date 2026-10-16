@@ -1624,6 +1624,66 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_mcp_attributes_without_network_attributes() {
+        let mut attributes = Attributes::new();
+        attributes.insert("mcp.transport", "CustomHTTPTransport");
+        attributes.insert("mcp.resource.protocol", "file");
+        let mut attributes = Annotated::new(attributes);
+
+        normalize_attribute_names(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "mcp.resource.protocol": {
+            "type": "string",
+            "value": "file"
+          },
+          "mcp.transport": {
+            "type": "string",
+            "value": "CustomHTTPTransport"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mcp_attributes_with_network_attributes() {
+        let mut attributes = Attributes::new();
+        attributes.insert("mcp.transport", "CustomHTTPTransport");
+        attributes.insert("mcp.resource.protocol", "file");
+        attributes.insert("network.transport", "quic");
+        attributes.insert("net.protocol.name", "http");
+        let mut attributes = Annotated::new(attributes);
+
+        normalize_attribute_names(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "mcp.resource.protocol": {
+            "type": "string",
+            "value": "file"
+          },
+          "mcp.transport": {
+            "type": "string",
+            "value": "CustomHTTPTransport"
+          },
+          "net.protocol.name": {
+            "type": "string",
+            "value": "http"
+          },
+          "network.protocol.name": {
+            "type": "string",
+            "value": "http"
+          },
+          "network.transport": {
+            "type": "string",
+            "value": "quic"
+          }
+        }
+        "#);
+    }
+
+    #[test]
     fn test_normalize_attributes() {
         fn replace_key(fragment: &str) -> String {
             format!("placeholder.replaced.{fragment}")
