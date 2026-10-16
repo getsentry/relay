@@ -185,9 +185,6 @@ fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
 /// the first path in input order. The attachment itself remains unchanged.
 pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, FlamegraphError> {
-    if payload.len() > MAX_FLAMEGRAPH_SIZE {
-        return Err(FlamegraphError::InvalidPayload("attachment too large"));
-    }
     let graph = parse(payload)?;
 
     // A producer may emit duplicate frame-table entries. Intern their known frame data once,
@@ -399,6 +396,10 @@ mod tests {
         validate(payload.as_bytes()).unwrap();
         let invalid = payload.replace(r#""sample_count":1}"#, r#""sample_count":0}"#);
         assert!(validate(invalid.as_bytes()).is_err());
+        assert_eq!(
+            identify_culprit(payload.as_bytes()).unwrap(),
+            vec![0; depth]
+        );
     }
 
     #[test]
