@@ -883,6 +883,109 @@ def test_event_with_flamegraph(
         assert stored.metadata.content_type == "application/json"
 
 
+@pytest.mark.parametrize("processing", [False, True])
+def test_flamegraph_culprit_stack(
+    mini_sentry, relay, relay_with_processing, attachments_consumer, processing
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    consumer = attachments_consumer() if processing else None
+    relay = relay_with_processing() if processing else relay(mini_sentry)
+    payload = json.dumps(
+        {
+            "version": "1",
+            "platform": "cocoa",
+            "frames": [
+                {"instruction_addr": "0x1010", "in_app": False},
+                {"instruction_addr": "0x1020", "in_app": True},
+                {"instruction_addr": "0x1030", "in_app": False},
+                {"instruction_addr": "0x1040", "in_app": False},
+            ],
+            "debug_meta": {
+                "images": [
+                    {
+                        "type": "macho",
+                        "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                        "code_file": "SampleApp",
+                        "image_addr": "0x1000",
+                        "image_size": 4096,
+                    }
+                ]
+            },
+            "trees": [
+                {
+                    "roots": [
+                        {
+                            "frame_id": 0,
+                            "sample_count": 100,
+                            "children": [
+                                {
+                                    "frame_id": 1,
+                                    "sample_count": 100,
+                                    "children": [
+                                        {"frame_id": 2, "sample_count": 60},
+                                        {"frame_id": 3, "sample_count": 40},
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ],
+        }
+    ).encode()
+    envelope = Envelope()
+    envelope.add_event(
+        {
+            "platform": "cocoa",
+            "exception": {
+                "values": [
+                    {
+                        "type": "MXHangDiagnostic",
+                        "value": "hangDuration:2s",
+                        "mechanism": {
+                            "type": "mx_hang_diagnostic",
+                            "handled": True,
+                            "synthetic": True,
+                        },
+                    }
+                ]
+            },
+        }
+    )
+    envelope.add_item(
+        Item(
+            type="attachment",
+            headers={"attachment_type": "event.flamegraph"},
+            payload=PayloadRef(bytes=payload),
+            filename="flamegraph.json",
+            content_type="application/json",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    if processing:
+        chunk, _ = consumer.get_attachment_chunk()
+        assert chunk == payload
+        event, _ = consumer.get_event()
+    else:
+        forwarded = mini_sentry.get_captured_envelope()
+        event = next(
+            item for item in forwarded.items if item.type == "event"
+        ).payload.json
+        attachment = next(item for item in forwarded.items if item.type == "attachment")
+        assert attachment.payload.bytes == payload
+    exception = event["exception"]["values"][0]
+    assert exception["value"] == "hangDuration:2s"
+    if processing:
+        assert exception["stacktrace"]["frames"] == [
+            {"instruction_addr": "0x10", "addr_mode": "rel:0", "in_app": False},
+            {"instruction_addr": "0x20", "addr_mode": "rel:0", "in_app": True},
+        ]
+        assert event["debug_meta"]["images"][0]["code_file"] == "SampleApp"
+    else:
+        assert "stacktrace" not in exception
+
+
 @pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_attachment(
     mini_sentry,
