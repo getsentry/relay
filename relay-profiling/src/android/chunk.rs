@@ -97,10 +97,7 @@ impl Chunk {
                 Ok(profile) => profile,
                 Err(_) => return Err(ProfileError::InvalidBase64Value),
             };
-            profile.profile = match android_trace_log::parse(&profile_bytes) {
-                Ok(profile) => profile,
-                Err(_) => return Err(ProfileError::InvalidSampledProfile),
-            };
+            profile.profile = super::parse_android_trace(&profile_bytes)?;
         }
 
         if profile.profile.events.is_empty() {
@@ -186,6 +183,15 @@ mod tests {
         let profile = Chunk::parse(payload).unwrap();
         let data = serde_json::to_vec(&profile);
         assert!(Chunk::parse(&(data.unwrap())[..]).is_ok());
+    }
+
+    #[test]
+    fn test_android_17_header_keys() {
+        let payload = include_bytes!("../../tests/fixtures/android/chunk/android17.json");
+        let profile = Chunk::parse(payload).unwrap();
+        assert!(!profile.profile.threads.is_empty());
+        assert!(!profile.profile.methods.is_empty());
+        assert!(!profile.profile.events.is_empty());
     }
 
     #[test]
