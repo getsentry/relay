@@ -25,10 +25,10 @@ pub enum FlamegraphError {
 }
 
 #[derive(Deserialize)]
-struct Flamegraph {
+struct Flamegraph<F = FlamegraphFrame> {
     version: String,
     platform: String,
-    frames: Vec<FlamegraphFrame>,
+    frames: Vec<F>,
     trees: Vec<Tree>,
     debug_meta: Option<DebugMeta>,
 }
@@ -57,14 +57,48 @@ struct Node {
     children: Vec<Node>,
 }
 
+impl Drop for Node {
+    fn drop(&mut self) {
+        // Deserialization can grow the stack, but destruction must not recurse through call paths.
+        let mut pending = std::mem::take(&mut self.children);
+        while let Some(mut node) = pending.pop() {
+            pending.append(&mut node.children);
+        }
+    }
+}
+
 /// Validate an attachment using the shared V2 profiling frame and debug metadata schemas.
 ///
 /// The original bytes, including unknown fields and symbolication inputs, remain unchanged.
 /// Symbolication and its frame-processing budget belong to the downstream consumer.
 pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
+    parse(payload).map(|_| ())
+}
+
+fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
     use FlamegraphError::InvalidPayload;
 
-    let graph: Flamegraph = serde_json::from_slice(payload)?;
+    if payload.len() > MAX_FLAMEGRAPH_SIZE {
+        return Err(InvalidPayload("attachment too large"));
+    }
+    let mut deserializer = serde_json::Deserializer::from_slice(payload);
+    deserializer.disable_recursion_limit();
+    let raw: Flamegraph<&serde_json::value::RawValue> =
+        Flamegraph::deserialize(serde_stacker::Deserializer::new(&mut deserializer))?;
+    deserializer.end()?;
+    // Grow the stack only for call trees. Parse flattened frame data separately with JSON's
+    // normal nesting limit, including unknown fields which serde temporarily buffers.
+    let graph = Flamegraph {
+        version: raw.version,
+        platform: raw.platform,
+        frames: raw
+            .frames
+            .into_iter()
+            .map(|frame| serde_json::from_str(frame.get()))
+            .collect::<Result<Vec<FlamegraphFrame>, _>>()?,
+        trees: raw.trees,
+        debug_meta: raw.debug_meta,
+    };
     if graph.version != "1" {
         return Err(InvalidPayload("unsupported version"));
     }
@@ -139,13 +173,26 @@ pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
             }
         }
     }
-    Ok(())
+    Ok(graph)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_flamegraph_deep_call_tree() {
+        let depth = 1000;
+        let payload = format!(
+            r#"{{"version":"1","platform":"cocoa","frames":[{{"instruction_addr":"0x1000"}}],"trees":[{{"roots":[{}{{"frame_id":0,"sample_count":1}}{}]}}]}}"#,
+            r#"{"frame_id":0,"sample_count":1,"children":["#.repeat(depth - 1),
+            "]}".repeat(depth - 1),
+        );
+        validate(payload.as_bytes()).unwrap();
+        let invalid = payload.replace(r#""sample_count":1}"#, r#""sample_count":0}"#);
+        assert!(validate(invalid.as_bytes()).is_err());
+    }
 
     #[test]
     fn test_flamegraph_native_debug_image_types() {
