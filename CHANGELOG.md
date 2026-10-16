@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+
 ## 26.10.0
 
 **Breaking Changes**:
@@ -12,7 +18,6 @@
 
 **Features**:
 
-- Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
 - Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394), [#6504](https://github.com/getsentry/relay/pull/6504))
