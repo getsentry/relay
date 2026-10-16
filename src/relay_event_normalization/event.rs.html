@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/event.rs`."><title>event.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.0 (b940084d7 2026-09-28)" data-channel="1.99.0" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/</div>event.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Event normalization.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/event.rs`."><title>event.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/</div>event.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Event normalization.
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! This module provides a function to normalize events.
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -2954,7 +2954,7 @@
 <a href=#2954 id=2954 data-nosnippet>2954</a>        <span class="comment">// Should not set response_tokens_per_second when there are no output tokens
 <a href=#2955 id=2955 data-nosnippet>2955</a>        </span><span class="macro">assert_annotated_snapshot!</span>(span, @<span class="string">r#"
 <a href=#2956 id=2956 data-nosnippet>2956</a>        {
-<a href=#2957 id=2957 data-nosnippet>2957</a>          "gen_ai.operation.type": "ai_client",
+<a href=#2957 id=2957 data-nosnippet>2957</a>          "gen_ai.operation.type": "other",
 <a href=#2958 id=2958 data-nosnippet>2958</a>          "gen_ai.usage.input_tokens": 500,
 <a href=#2959 id=2959 data-nosnippet>2959</a>          "gen_ai.usage.total_tokens": 500.0
 <a href=#2960 id=2960 data-nosnippet>2960</a>        }
@@ -2998,7 +2998,7 @@
 <a href=#2998 id=2998 data-nosnippet>2998</a>        <span class="comment">// Should not set response_tokens_per_second when duration is zero
 <a href=#2999 id=2999 data-nosnippet>2999</a>        </span><span class="macro">assert_annotated_snapshot!</span>(span, @<span class="string">r#"
 <a href=#3000 id=3000 data-nosnippet>3000</a>        {
-<a href=#3001 id=3001 data-nosnippet>3001</a>          "gen_ai.operation.type": "ai_client",
+<a href=#3001 id=3001 data-nosnippet>3001</a>          "gen_ai.operation.type": "other",
 <a href=#3002 id=3002 data-nosnippet>3002</a>          "gen_ai.usage.output_tokens": 1000,
 <a href=#3003 id=3003 data-nosnippet>3003</a>          "gen_ai.usage.total_tokens": 1000.0
 <a href=#3004 id=3004 data-nosnippet>3004</a>        }
@@ -3039,7 +3039,7 @@
 <a href=#3039 id=3039 data-nosnippet>3039</a>
 <a href=#3040 id=3040 data-nosnippet>3040</a>        <span class="macro">assert_annotated_snapshot!</span>(span1, @<span class="string">r#"
 <a href=#3041 id=3041 data-nosnippet>3041</a>        {
-<a href=#3042 id=3042 data-nosnippet>3042</a>          "gen_ai.operation.type": "ai_client"
+<a href=#3042 id=3042 data-nosnippet>3042</a>          "gen_ai.operation.type": "other"
 <a href=#3043 id=3043 data-nosnippet>3043</a>        }
 <a href=#3044 id=3044 data-nosnippet>3044</a>        "#</span>);
 <a href=#3045 id=3045 data-nosnippet>3045</a>        <span class="macro">assert_annotated_snapshot!</span>(span2, @<span class="string">r#"
@@ -3049,7 +3049,7 @@
 <a href=#3049 id=3049 data-nosnippet>3049</a>        "#</span>);
 <a href=#3050 id=3050 data-nosnippet>3050</a>        <span class="macro">assert_annotated_snapshot!</span>(span3, @<span class="string">r#"
 <a href=#3051 id=3051 data-nosnippet>3051</a>        {
-<a href=#3052 id=3052 data-nosnippet>3052</a>          "gen_ai.operation.type": "ai_client"
+<a href=#3052 id=3052 data-nosnippet>3052</a>          "gen_ai.operation.type": "other"
 <a href=#3053 id=3053 data-nosnippet>3053</a>        }
 <a href=#3054 id=3054 data-nosnippet>3054</a>        "#</span>);
 <a href=#3055 id=3055 data-nosnippet>3055</a>    }
