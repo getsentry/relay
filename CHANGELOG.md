@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Forward the reason code of the quota that rate limited a crash report attachment to Sentry, so that attachments dropped for exceeding a quota can be surfaced in the product. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
+- Forward the reason code of the quota that rate limited a crash report attachment to Sentry, so that attachments dropped for exceeding a quota can be surfaced in the product. ([#6521](https://github.com/getsentry/relay/pull/6521))
 
 ## 26.10.0
 
