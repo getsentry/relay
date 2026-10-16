@@ -135,10 +135,7 @@ impl AndroidProfilingEvent {
             Ok(profile) => profile,
             Err(_) => return Err(ProfileError::InvalidBase64Value),
         };
-        self.profile = match android_trace_log::parse(&profile_bytes) {
-            Ok(profile) => profile,
-            Err(_) => return Err(ProfileError::InvalidSampledProfile),
-        };
+        self.profile = super::parse_android_trace(&profile_bytes)?;
         Ok(())
     }
 
@@ -292,6 +289,15 @@ mod tests {
         assert!(
             parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
         );
+    }
+
+    #[test]
+    fn test_android_17_header_keys() {
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/android17.json");
+        let profile = parse_profile(payload).unwrap();
+        assert!(!profile.profile.threads.is_empty());
+        assert!(!profile.profile.methods.is_empty());
+        assert!(!profile.profile.events.is_empty());
     }
 
     #[test]

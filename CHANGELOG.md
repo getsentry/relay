@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Accept Android method traces recorded on Android 17, which contain new ART header keys. ([#6517](https://github.com/getsentry/relay/issues/6517))
+
 ## 26.10.0
 
 **Breaking Changes**:
