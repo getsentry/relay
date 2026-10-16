@@ -1,8 +1,8 @@
-//! Validation of version 1 [flame graph attachments] without rewriting captured data.
+//! Validation and representative call-path selection for version 1 [flame graph attachments].
 //!
 //! [flame graph attachments]: https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
 use serde::Deserialize;
@@ -45,8 +45,7 @@ struct Tree {
     roots: Vec<Node>,
     #[serde(rename = "thread_id")]
     _thread_id: Option<String>,
-    #[serde(rename = "thread_attributed")]
-    _thread_attributed: Option<bool>,
+    thread_attributed: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -176,10 +175,218 @@ fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
     Ok(graph)
 }
 
+/// Identify a representative caller-to-callee path, expressed as frame-table indices.
+///
+/// Like the `AnrCulpritIdentifier` in the Android SDK, this scores identical root-to-frame prefixes by
+/// `sample_count * (depth + application_frames)`. Node counts are inclusive, so they already
+/// include the observations ending in descendants. Explicit `in_app: true` supplies the app boost.
+///
+/// Sample populations from different trees are never added together. Prefer trees attributed to
+/// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
+/// the first path in input order. The attachment itself remains unchanged.
+pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, FlamegraphError> {
+    if payload.len() > MAX_FLAMEGRAPH_SIZE {
+        return Err(FlamegraphError::InvalidPayload("attachment too large"));
+    }
+    let graph = parse(payload)?;
+
+    // A producer may emit duplicate frame-table entries. Intern their known frame data once,
+    // rather than copying or hashing entire paths at every node.
+    let mut frames = HashMap::new();
+    let mut frame_ids = Vec::with_capacity(graph.frames.len());
+    for (index, frame) in graph.frames.iter().enumerate() {
+        let key = (&frame.frame, frame.addr_mode.as_deref().unwrap_or("abs"));
+        frame_ids.push(*frames.entry(key).or_insert(index));
+    }
+
+    struct Prefix {
+        parent: Option<usize>,
+        frame_id: usize,
+        depth: usize,
+        app_frames: usize,
+        samples: u128,
+    }
+
+    let has_attributed_tree = graph
+        .trees
+        .iter()
+        .any(|tree| tree.thread_attributed == Some(true));
+    let mut best_score = 0;
+    let mut best_path = Vec::new();
+    for tree in &graph.trees {
+        if has_attributed_tree && tree.thread_attributed != Some(true) {
+            continue;
+        }
+        let mut prefixes = HashMap::new();
+        let mut candidates: Vec<Prefix> = Vec::new();
+        let mut pending: Vec<_> = tree.roots.iter().rev().map(|node| (node, None)).collect();
+        while let Some((node, parent)) = pending.pop() {
+            let frame_id = frame_ids[node.frame_id];
+            let prefix = *prefixes.entry((parent, frame_id)).or_insert_with(|| {
+                let (depth, app_frames) = parent
+                    .map(|parent: usize| {
+                        let prefix = &candidates[parent];
+                        (prefix.depth, prefix.app_frames)
+                    })
+                    .unwrap_or_default();
+                let index = candidates.len();
+                candidates.push(Prefix {
+                    parent,
+                    frame_id,
+                    depth: depth + 1,
+                    app_frames: app_frames
+                        + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
+                    samples: 0,
+                });
+                index
+            });
+            candidates[prefix].samples += u128::from(node.sample_count);
+            pending.extend(
+                node.children
+                    .iter()
+                    .rev()
+                    .map(|child| (child, Some(prefix))),
+            );
+        }
+
+        // Integer scores retain differences near the maximum safe JSON sample count. The input
+        // byte limit bounds the number of nodes and path depth, so u128 also bounds aggregation.
+        let mut best_prefix = None;
+        for (index, prefix) in candidates.iter().enumerate() {
+            let score = prefix.samples * (prefix.depth + prefix.app_frames) as u128;
+            if score > best_score {
+                best_score = score;
+                best_prefix = Some(index);
+            }
+        }
+        if let Some(index) = best_prefix {
+            let mut path = Vec::new();
+            let mut current = Some(index);
+            while let Some(index) = current {
+                let prefix = &candidates[index];
+                path.push(prefix.frame_id);
+                current = prefix.parent;
+            }
+            path.reverse();
+            best_path = path;
+        }
+    }
+    Ok(best_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn identify(graph: serde_json::Value) -> Result<Vec<usize>, FlamegraphError> {
+        identify_culprit(&serde_json::to_vec(&graph).unwrap())
+    }
+
+    fn culprit_graph() -> serde_json::Value {
+        json!({
+            "version": "1", "platform": "cocoa",
+            "frames": [
+                {"instruction_addr": "0x1000", "in_app": false},
+                {"instruction_addr": "0x2000", "in_app": true},
+                {"instruction_addr": "0x3000", "in_app": false},
+                {"instruction_addr": "0x4000", "in_app": false}
+            ],
+            "trees": [{"roots": [{"frame_id": 0, "sample_count": 100, "children": [
+                {"frame_id": 1, "sample_count": 100, "children": [
+                    {"frame_id": 2, "sample_count": 60},
+                    {"frame_id": 3, "sample_count": 40}
+                ]}
+            ]}]}]
+        })
+    }
+
+    #[test]
+    fn test_culprit_shared_application_prefix() {
+        // Shared caller: 100 * (2 + 1) = 300, versus 60 * (3 + 1) = 240.
+        assert_eq!(identify(culprit_graph()).unwrap(), vec![0, 1]);
+    }
+
+    #[test]
+    fn test_culprit_duplicate_prefixes_and_frame_entries() {
+        let mut graph = culprit_graph();
+        let duplicate = graph["frames"][0].clone();
+        graph["frames"].as_array_mut().unwrap().push(duplicate);
+        graph["trees"][0]["roots"] = json!([
+            {"frame_id": 0, "sample_count": 60, "children": [
+                {"frame_id": 1, "sample_count": 60, "children": [
+                    {"frame_id": 2, "sample_count": 60}
+                ]}
+            ]},
+            {"frame_id": 4, "sample_count": 40, "children": [
+                {"frame_id": 1, "sample_count": 40, "children": [
+                    {"frame_id": 3, "sample_count": 40}
+                ]}
+            ]}
+        ]);
+        assert_eq!(identify(graph).unwrap(), vec![0, 1]);
+    }
+
+    #[test]
+    fn test_culprit_application_weight_and_stable_ties() {
+        let mut graph = culprit_graph();
+        graph["trees"][0]["roots"] = json!([
+            {"frame_id": 2, "sample_count": 10},
+            {"frame_id": 1, "sample_count": 10},
+            {"frame_id": 3, "sample_count": 10}
+        ]);
+        assert_eq!(identify(graph.clone()).unwrap(), vec![1]);
+        graph["frames"][1]["in_app"] = json!(false);
+        assert_eq!(identify(graph.clone()).unwrap(), vec![2]);
+        graph["frames"][1].as_object_mut().unwrap().remove("in_app");
+        assert_eq!(identify(graph).unwrap(), vec![2]);
+    }
+
+    #[test]
+    fn test_culprit_inclusive_counts_and_recursion() {
+        let mut graph = culprit_graph();
+        graph["trees"][0]["roots"] = json!([
+            {"frame_id": 1, "sample_count": 100, "children": [
+                {"frame_id": 1, "sample_count": 60, "children": [
+                    {"frame_id": 1, "sample_count": 30}
+                ]}
+            ]}
+        ]);
+        // Inclusive counts must not be counted again from descendant samples.
+        assert_eq!(identify(graph).unwrap(), vec![1, 1]);
+    }
+
+    #[test]
+    fn test_culprit_does_not_merge_independent_tree_populations() {
+        let mut graph = culprit_graph();
+        graph["trees"] = json!([
+            {"roots": [{"frame_id": 0, "sample_count": 10}]},
+            {"roots": [{"frame_id": 0, "sample_count": 10}]},
+            {"roots": [{"frame_id": 1, "sample_count": 9}]}
+        ]);
+        assert_eq!(identify(graph.clone()).unwrap(), vec![1]);
+        graph["trees"][0]["thread_attributed"] = json!(true);
+        assert_eq!(identify(graph).unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn test_culprit_exact_large_sample_counts() {
+        let mut graph = culprit_graph();
+        graph["frames"][0]["in_app"] = json!(true);
+        graph["trees"][0]["roots"] = json!([
+            {"frame_id": 0, "sample_count": MAX_SAMPLE_COUNT - 1},
+            {"frame_id": 1, "sample_count": MAX_SAMPLE_COUNT}
+        ]);
+        assert_eq!(identify(graph).unwrap(), vec![1]);
+    }
+
+    #[test]
+    fn test_culprit_rejects_invalid_graph() {
+        let mut graph = culprit_graph();
+        graph["trees"][0]["roots"][0]["sample_count"] = json!(1);
+        assert!(identify(graph).is_err());
+        assert!(identify(json!({"version": "2"})).is_err());
+    }
 
     #[test]
     fn test_flamegraph_deep_call_tree() {
