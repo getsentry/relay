@@ -1,17 +1,21 @@
-//! Failing ordering regressions and proposed contracts from the dependency audit.
+//! Failing ordering and fallback regressions, and proposed contracts from the dependency audit.
 //!
 //! These tests intentionally fail on the committed normalizer. The cases in
-//! `proposed_contracts` assume rules consume normalized inputs; their intended
-//! product behavior is not established merely by the observed discrepancies.
+//! `proposed_contracts` describe candidate normalization and fallback behavior;
+//! their intended product behavior is not established merely by the observed discrepancies.
 
 use relay_base_schema::metrics::{FractionUnit, MetricUnit};
 use relay_event_normalization::{
-    BuiltinMeasurementKey, CombinedMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
-    normalize_event,
+    BuiltinMeasurementKey, CombinedMeasurementsConfig, GeoIpLookup, MeasurementsConfig,
+    NormalizationConfig, RawUserAgentInfo, normalize_event, replay,
 };
-use relay_event_schema::protocol::{DeviceClass, DeviceContext, Event, OsContext};
+use relay_event_schema::protocol::{
+    BrowserContext, DeviceClass, DeviceContext, Event, OsContext, Replay,
+};
 use relay_protocol::{Annotated, get_value};
 use serde_json::{Value, json};
+
+const CHROME_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 fn normalize(payload: Value, config: &NormalizationConfig<'_>) -> Event {
     let mut event = Annotated::<Event>::from_json(&payload.to_string()).unwrap();
@@ -75,6 +79,111 @@ fn sdk_from_client_header_is_used_to_scrub_transaction_names() {
         Some("/users/*"),
         "The accepted SDK identifies this legacy transaction name as a raw URL",
     );
+}
+
+#[test]
+fn partial_sdk_uses_name_from_client_header() {
+    let config = NormalizationConfig {
+        client: Some("sentry.javascript.browser/9.0.0".into()),
+        ..Default::default()
+    };
+    let control = normalize(json!({}), &config);
+    assert_eq!(control.sdk_name(), "sentry.javascript.browser");
+
+    let event = normalize(
+        json!({"sdk": {"version": "9.0.0", "integrations": ["BrowserTracing"]}}),
+        &config,
+    );
+    let sdk = event.client_sdk.value().unwrap();
+    assert_eq!(sdk.version.as_str(), Some("9.0.0"));
+    assert!(sdk.has_integration("BrowserTracing"));
+    assert_eq!(
+        event.sdk_name(),
+        control.sdk_name(),
+        "A partial SDK object must not block the matching client header's name fallback",
+    );
+}
+
+#[test]
+fn partial_sdk_uses_version_from_client_header_for_app_start_fixup() {
+    let config = NormalizationConfig {
+        client: Some("sentry.javascript.react-native/4.4.0".into()),
+        ..Default::default()
+    };
+    let payload = |sdk| {
+        json!({
+            "type": "transaction",
+            "sdk": sdk,
+            "spans": [{
+                "op": "app_start_cold",
+                "span_id": "bbbbbbbbbbbbbbbb",
+                "start_timestamp": 1_700_000_000.0,
+                "timestamp": 1_700_000_001.0,
+            }],
+        })
+    };
+    let control = normalize(
+        payload(json!({"name": "sentry.javascript.react-native", "version": "4.4.0"})),
+        &config,
+    );
+    let control_op = control.spans.value().unwrap()[0]
+        .value()
+        .unwrap()
+        .op
+        .as_str();
+    assert_eq!(control_op, Some("app.start.cold"));
+
+    let event = normalize(
+        payload(json!({"name": "sentry.javascript.react-native", "integrations": ["test"]})),
+        &config,
+    );
+    let sdk = event.client_sdk.value().unwrap();
+    assert_eq!(sdk.name.as_str(), Some("sentry.javascript.react-native"));
+    assert!(sdk.has_integration("test"));
+    assert_eq!(
+        sdk.version.as_str(),
+        Some("4.4.0"),
+        "A partial SDK object must not block the matching client header's version fallback",
+    );
+    assert_eq!(
+        event.spans.value().unwrap()[0].value().unwrap().op.as_str(),
+        control_op,
+        "The recovered version must be available for SDK-specific app-start correction",
+    );
+}
+
+#[test]
+fn replay_uses_submission_user_agent_without_payload_headers() {
+    let user_agent = RawUserAgentInfo {
+        user_agent: Some(CHROME_USER_AGENT),
+        ..Default::default()
+    };
+    let normalize = |payload: Value| {
+        let mut replay = Annotated::<Replay>::from_json(&payload.to_string()).unwrap();
+        replay::normalize(&mut replay, None, &user_agent, &GeoIpLookup::empty());
+        replay.into_value().unwrap()
+    };
+
+    // Empty payload headers already allow the submission request's UA fallback.
+    let control = normalize(json!({"platform": "javascript", "request": {"headers": {}}}));
+    let control_browser = control.contexts.value().unwrap().get::<BrowserContext>();
+    assert_eq!(control_browser.unwrap().name.as_str(), Some("Chrome"));
+    assert!(control_browser.unwrap().version.value().is_some());
+
+    for payload in [
+        json!({"platform": "javascript"}),
+        json!({"platform": "javascript", "request": {}}),
+    ] {
+        let replay = normalize(payload);
+        assert_eq!(
+            replay
+                .contexts
+                .value()
+                .and_then(|c| c.get::<BrowserContext>()),
+            control_browser,
+            "Absent payload headers must not prevent the submission User-Agent fallback",
+        );
+    }
 }
 
 #[test]
@@ -337,6 +446,150 @@ mod proposed_contracts {
     };
     use relay_protocol::Getter;
     use relay_sampling::DynamicSamplingContext;
+
+    #[test]
+    fn django_transaction_name_uses_response_status_when_status_tag_is_missing() {
+        // Proposes using the transaction's own response status for the existing legacy
+        // Django heuristic. Explicit sources and existing status tags retain precedence.
+        let check = |patch: Value, expected_name: &str, expected_source: &str| {
+            let mut payload = transaction(json!({
+                "transaction": "/users/12345",
+                "sdk": {
+                    "name": "sentry.python", "version": "1.0.0", "integrations": ["django"],
+                },
+            }));
+            payload
+                .as_object_mut()
+                .unwrap()
+                .extend(patch.as_object().unwrap().clone());
+            let event = normalize(payload, &NormalizationConfig::default());
+            assert_eq!(
+                event.transaction.as_str(),
+                Some(expected_name),
+                "input={patch}"
+            );
+            assert_eq!(
+                event
+                    .transaction_info
+                    .value()
+                    .and_then(|info| info.source.value())
+                    .map(|source| source.as_str()),
+                Some(expected_source),
+                "input={patch}",
+            );
+        };
+
+        // Passing controls for the existing heuristic and status-tag precedence.
+        check(
+            json!({"tags": {"http.status_code": "404"}}),
+            "/users/*",
+            "sanitized",
+        );
+        check(
+            json!({"tags": {"http.status_code": "200"}}),
+            "/users/12345",
+            "unknown",
+        );
+        check(
+            json!({"contexts": {"response": {"status_code": 200}}}),
+            "/users/12345",
+            "unknown",
+        );
+        for (tag_status, response_status, name, source) in [
+            ("200", 404, "/users/12345", "unknown"),
+            ("404", 200, "/users/*", "sanitized"),
+        ] {
+            check(
+                json!({
+                    "tags": {"http.status_code": tag_status},
+                    "contexts": {"response": {"status_code": response_status}},
+                }),
+                name,
+                source,
+            );
+        }
+
+        for source in ["route", "custom"] {
+            check(
+                json!({
+                    "transaction_info": {"source": source},
+                    "tags": {"http.status_code": "404"},
+                    "contexts": {"response": {"status_code": 404}},
+                }),
+                "/users/12345",
+                source,
+            );
+        }
+
+        // An outgoing request's 404 must not classify the transaction as a Django 404.
+        check(
+            json!({"spans": [{
+                "span_id": "bbbbbbbbbbbbbbbb", "op": "http.client",
+                "start_timestamp": 1_700_000_000.0, "timestamp": 1_700_000_001.0,
+                "data": {"http.response.status_code": 404},
+            }]}),
+            "/users/12345",
+            "unknown",
+        );
+        check(
+            json!({
+                "sdk": {"name": "sentry.python", "version": "1.0.0", "integrations": ["flask"]},
+                "contexts": {"response": {"status_code": 404}},
+            }),
+            "/users/12345",
+            "unknown",
+        );
+
+        // Equivalent to the tagged 404 control, but currently the response status is ignored.
+        check(
+            json!({"contexts": {"response": {"status_code": 404}}}),
+            "/users/*",
+            "sanitized",
+        );
+    }
+
+    #[test]
+    fn partial_browser_context_uses_version_from_matching_user_agent() {
+        // Proposes filling missing fields when the supplied browser name agrees with the UA.
+        // An explicitly supplied version remains authoritative, even if the UA disagrees.
+        let config = NormalizationConfig {
+            normalize_user_agent: Some(true),
+            ..Default::default()
+        };
+        let payload = |contexts| {
+            json!({
+                "platform": "javascript",
+                "request": {"headers": {"User-Agent": CHROME_USER_AGENT}},
+                "contexts": contexts,
+            })
+        };
+        let control = normalize(payload(json!({})), &config);
+        let control_browser = control.context::<BrowserContext>().unwrap();
+        assert_eq!(control_browser.name.as_str(), Some("Chrome"));
+        assert!(control_browser.version.value().is_some());
+
+        let explicit = normalize(
+            payload(json!({"browser": {"name": "Chrome", "version": "119"}})),
+            &config,
+        );
+        assert_eq!(
+            explicit
+                .context::<BrowserContext>()
+                .unwrap()
+                .version
+                .as_str(),
+            Some("119")
+        );
+
+        let partial = normalize(payload(json!({"browser": {"name": "Chrome"}})), &config);
+        let browser = partial.context::<BrowserContext>().unwrap();
+        assert_eq!(browser.name.as_str(), Some("Chrome"));
+        assert_eq!(
+            browser.version.as_str(),
+            control_browser.version.as_str(),
+            "A partial context must not block recovery of the version from a matching User-Agent",
+        );
+    }
 
     // OS/runtime tests configure profiles that match values Relay's existing parsers
     // in src/normalize/contexts.rs produce. Scoring runs before those values exist,
