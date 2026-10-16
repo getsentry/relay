@@ -111,7 +111,7 @@ sentry = { workspace = true, features = ["tower-http"] }
 sentry_protos = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
 serde_path_to_error = { workspace = true }
 serde_urlencoded = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }

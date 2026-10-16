@@ -1,6 +1,6 @@
 //! Enrichment of hang exceptions with a representative path from a flame graph attachment.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use relay_event_schema::protocol::{
     Addr, DebugId, DebugImage, DebugMeta, Event, Frame, NativeDebugImage, RawStacktrace, Stacktrace,
@@ -11,8 +11,9 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Item};
 
 #[derive(Deserialize)]
-struct FlamegraphContext {
-    frames: DeserializableAnnotated<Array<Frame>>,
+struct FlamegraphContext<'a> {
+    #[serde(borrow)]
+    frames: Vec<&'a serde_json::value::RawValue>,
     debug_meta: Option<DeserializableAnnotated<DebugMeta>>,
 }
 
@@ -20,7 +21,7 @@ struct FlamegraphContext {
 ///
 /// Existing stacks remain authoritative, including when a processing Relay receives an event
 /// already enriched by another Relay. Only MetricKit hang diagnostics opt into this enrichment.
-pub fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
+pub fn enrich(event: &mut Event, attachments: &[Item], max_event_size: usize) -> bool {
     let Some(exception) = event
         .exceptions
         .value_mut()
@@ -41,7 +42,10 @@ pub fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
         return false;
     };
 
-    let Some((mut frames, debug_meta)) = attachments.iter().find_map(extract) else {
+    let Some((mut frames, debug_meta)) = attachments
+        .iter()
+        .find_map(|item| extract(item, max_event_size))
+    else {
         return false;
     };
     if let Some(debug_meta) = debug_meta {
@@ -54,18 +58,28 @@ pub fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
     true
 }
 
-fn extract(item: &Item) -> Option<(Array<Frame>, Option<DebugMeta>)> {
+fn extract(item: &Item, max_event_size: usize) -> Option<(Array<Frame>, Option<DebugMeta>)> {
     if item.attachment_type() != Some(AttachmentType::Flamegraph) {
         return None;
     }
     let payload = item.payload();
     let indices = relay_profiling::flamegraph::identify_culprit(&payload).ok()?;
     let context: FlamegraphContext = serde_json::from_slice(&payload).ok()?;
-    let frames = context.frames.0.into_value()?;
+    // Recursion can reference one large frame many times. Bound the derived event before
+    // materializing frames, rather than amplifying a small attachment ahead of normalization.
+    indices
+        .iter()
+        .try_fold(max_event_size, |remaining, index| {
+            remaining.checked_sub(context.frames[*index].get().len())
+        })?;
     let frames = indices
         .into_iter()
-        .map(|index| frames[index].clone())
-        .collect();
+        .map(|index| {
+            serde_json::from_str::<DeserializableAnnotated<Frame>>(context.frames[index].get())
+                .map(|frame| frame.0)
+        })
+        .collect::<Result<Array<Frame>, _>>()
+        .ok()?;
     Some((
         frames,
         context.debug_meta.and_then(|meta| meta.0.into_value()),
@@ -83,12 +97,29 @@ fn merge_debug_images(
         .images
         .get_or_insert_with(Vec::new);
     let mut image_indices = HashMap::new();
+    let mut images_by_address = BTreeMap::new();
+    let mut images_by_debug_id = HashMap::new();
+    for (index, image) in source_images.iter().enumerate() {
+        let Some(image) = native_image(image) else {
+            continue;
+        };
+        if let Some(address) = image.image_addr.value() {
+            images_by_address.insert(address.0, (index, image));
+        }
+        if let Some(debug_id) = image.debug_id.value() {
+            images_by_debug_id
+                .entry(debug_id.to_string())
+                .or_insert(index);
+        }
+    }
 
     for frame in frames
         .iter_mut()
         .filter_map(|frame| frame.value_mut().as_mut())
     {
-        let Some((source_index, address)) = referenced_image(frame, &source_images) else {
+        let Some((source_index, address)) =
+            referenced_image(frame, &images_by_address, &images_by_debug_id)
+        else {
             continue;
         };
         let index = *image_indices.entry(source_index).or_insert_with(|| {
@@ -103,7 +134,11 @@ fn merge_debug_images(
     }
 }
 
-fn referenced_image(frame: &Frame, images: &Array<DebugImage>) -> Option<(usize, u64)> {
+fn referenced_image(
+    frame: &Frame,
+    images_by_address: &BTreeMap<u64, (usize, &NativeDebugImage)>,
+    images_by_debug_id: &HashMap<String, usize>,
+) -> Option<(usize, u64)> {
     let address = frame.instruction_addr.value()?.0;
     if let Some(reference) = frame
         .addr_mode
@@ -114,17 +149,18 @@ fn referenced_image(frame: &Frame, images: &Array<DebugImage>) -> Option<(usize,
             index
         } else {
             let debug_id: DebugId = reference.parse().ok()?;
-            images.iter().position(|image| {
-                native_image(image).is_some_and(|image| image.debug_id.value() == Some(&debug_id))
-            })?
+            *images_by_debug_id.get(&debug_id.to_string())?
         };
         return Some((index, address));
     }
-    images.iter().enumerate().find_map(|(index, image)| {
-        let image = native_image(image)?;
-        let relative = address.checked_sub(image.image_addr.value()?.0)?;
-        (relative < *image.image_size.value()?).then_some((index, relative))
-    })
+    // Like Symbolicator, missing or zero image sizes extend to the next loaded image.
+    let (start, (index, image)) = images_by_address.range(..=address).next_back()?;
+    let relative = address - start;
+    image
+        .image_size
+        .value()
+        .is_none_or(|size| *size == 0 || relative < *size)
+        .then_some((*index, relative))
 }
 
 fn native_image(image: &Annotated<DebugImage>) -> Option<&NativeDebugImage> {
@@ -146,6 +182,14 @@ mod tests {
 
     use super::*;
     use crate::envelope::{AttachmentType, ContentType, ItemType};
+
+    fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
+        super::enrich(
+            event,
+            attachments,
+            relay_config::Config::default().current().max_event_size(),
+        )
+    }
 
     fn event() -> Annotated<Event> {
         Annotated::from_json(
@@ -273,6 +317,57 @@ mod tests {
         assert_eq!(frames[0]["addr_mode"], "rel:1");
         assert_eq!(frames[0]["instruction_addr"], "0x10");
         assert_eq!(frames[1]["addr_mode"], "rel:1");
+        assert_eq!(frames[1]["instruction_addr"], "0x20");
+    }
+
+    #[test]
+    fn test_flamegraph_bounds_repeated_frame_data() {
+        let mut payload = graph();
+        payload["frames"][1]["filename"] = json!("x".repeat(400_000));
+        payload["nodes"] = json!([
+            {"frame_id": 1, "sample_count": 1, "children": [1]},
+            {"frame_id": 1, "sample_count": 1, "children": [2]},
+            {"frame_id": 1, "sample_count": 1}
+        ]);
+        let mut event = event();
+        let original = event.clone();
+        assert!(!enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+        assert_eq!(event, original);
+    }
+
+    #[test]
+    fn test_flamegraph_images_without_sizes() {
+        let mut payload = graph();
+        payload["debug_meta"]["images"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("image_size");
+        // Image order is not guaranteed. Missing sizes extend to the next loaded image.
+        let mut later = payload["debug_meta"]["images"][0].clone();
+        later["image_addr"] = json!("0x2000");
+        later["debug_id"] = json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+        payload["debug_meta"]["images"]
+            .as_array_mut()
+            .unwrap()
+            .insert(0, later);
+        let mut event = event();
+
+        assert!(enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+        let serialized: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
+        assert_eq!(
+            serialized["debug_meta"]["images"].as_array().unwrap().len(),
+            1
+        );
+        let frames = &serialized["exception"]["values"][0]["stacktrace"]["frames"];
+        assert_eq!(frames[0]["addr_mode"], "rel:0");
+        assert_eq!(frames[0]["instruction_addr"], "0x10");
+        assert_eq!(frames[1]["addr_mode"], "rel:0");
         assert_eq!(frames[1]["instruction_addr"], "0x20");
     }
 

@@ -51,6 +51,8 @@ pub enum Error {
     SampleCount(u64),
     #[error("children exceed parent sample count")]
     ChildSampleCount,
+    #[error("cyclic call path")]
+    CyclicCallPath,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -196,9 +198,6 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
 /// the first path in input order. The attachment itself remains unchanged.
 pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
-    if payload.len() > MAX_FLAMEGRAPH_SIZE {
-        return Err(Error::AttachmentTooLarge);
-    }
     let graph = parse(payload)?;
 
     // A producer may emit duplicate frame-table entries. Intern their known frame data once,
@@ -252,6 +251,9 @@ pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
                 });
                 index
             });
+            if candidates[prefix].depth > graph.nodes.len() {
+                return Err(Error::CyclicCallPath);
+            }
             candidates[prefix].samples += u128::from(node.sample_count);
             pending.extend(
                 node.children
@@ -402,6 +404,15 @@ mod tests {
     }
 
     #[test]
+    fn test_culprit_rejects_cyclic_call_path() {
+        let mut graph = culprit_graph();
+        graph["nodes"] = json!([
+            {"frame_id": 0, "sample_count": 1, "children": [0]}
+        ]);
+        assert!(matches!(identify(graph), Err(Error::CyclicCallPath)));
+    }
+
+    #[test]
     fn test_flamegraph_deep_call_tree() {
         let depth = 1000;
         let nodes: Vec<_> = (0..depth)
@@ -420,6 +431,10 @@ mod tests {
             "trees": [{"roots": [0]}]
         });
         validate(&serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert_eq!(
+            identify_culprit(&serde_json::to_vec(&graph).unwrap()).unwrap(),
+            vec![0; depth]
+        );
 
         graph["nodes"][depth - 1]["sample_count"] = json!(0);
         assert!(matches!(
