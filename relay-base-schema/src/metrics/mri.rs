@@ -116,6 +116,10 @@ pub enum MetricNamespace {
     ///
     /// Usage of this transport is restricted to trusted Relays.
     Outcomes,
+    /// Environments and releases observed on EAP items.
+    ///
+    /// Usage of this namespace is restricted to trusted Relays.
+    EnvironmentReleases,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -130,12 +134,13 @@ pub enum MetricNamespace {
 
 impl MetricNamespace {
     /// Returns all namespaces/variants of this enum.
-    pub fn all() -> [Self; 5] {
+    pub fn all() -> [Self; 6] {
         [
             Self::Sessions,
             Self::Spans,
             Self::Transactions,
             Self::Outcomes,
+            Self::EnvironmentReleases,
             Self::Unsupported,
         ]
     }
@@ -147,6 +152,7 @@ impl MetricNamespace {
             Self::Spans => "spans",
             Self::Transactions => "transactions",
             Self::Outcomes => "outcomes",
+            Self::EnvironmentReleases => "environment_releases",
             Self::Unsupported => "unsupported",
         }
     }
@@ -161,6 +167,7 @@ impl std::str::FromStr for MetricNamespace {
             "spans" => Ok(Self::Spans),
             "transactions" => Ok(Self::Transactions),
             "outcomes" => Ok(Self::Outcomes),
+            "environment_releases" => Ok(Self::EnvironmentReleases),
             _ => Ok(Self::Unsupported),
         }
     }

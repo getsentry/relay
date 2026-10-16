@@ -195,7 +195,13 @@ where
         let namespace = bucket.name().namespace();
         // Never count unsupported metrics, they are considered invalid.
         // Never count outcomes, as that would create more outcomes creating a loop of outcomes.
-        if namespace != MetricNamespace::Unsupported && namespace != MetricNamespace::Outcomes {
+        // Never count environment releases, they are purely internal.
+        if !matches!(
+            namespace,
+            MetricNamespace::Unsupported
+                | MetricNamespace::Outcomes
+                | MetricNamespace::EnvironmentReleases
+        ) {
             quantities.buckets += 1;
         }
 

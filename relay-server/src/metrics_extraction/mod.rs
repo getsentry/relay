@@ -1,6 +1,7 @@
 use relay_common::time::UnixTimestamp;
 use relay_metrics::Bucket;
 
+pub mod environment_releases;
 pub mod event;
 pub mod sessions;
 

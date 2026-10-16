@@ -1155,6 +1155,18 @@ impl StoreService {
                 // Generic metrics (spans/transactions) are no longer ingested.
                 return Ok(());
             }
+            MetricNamespace::EnvironmentReleases => {
+                // Environment releases are not yet produced to Kafka.
+                relay_statsd::metric!(
+                    counter(RelayCounters::EnvironmentReleasesFlushed) += 1,
+                    metric = message.name.try_name().unwrap_or("unknown"),
+                    category = message
+                        .tags
+                        .get("category")
+                        .map_or("unknown", String::as_str),
+                );
+                return Ok(());
+            }
             MetricNamespace::Unsupported => {
                 relay_log::error!(
                     metric_message.name = message.name.as_ref(),
@@ -1704,6 +1716,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Outcomes => "metric_outcomes",
+                MetricNamespace::EnvironmentReleases => "metric_environment_releases",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",

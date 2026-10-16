@@ -23,6 +23,8 @@ pub struct ByNamespace<T> {
     pub transactions: T,
     /// Value for the [`MetricNamespace::Outcomes`] namespace.
     pub outcomes: T,
+    /// Value for the [`MetricNamespace::EnvironmentReleases`] namespace.
+    pub environment_releases: T,
     /// Value for the [`MetricNamespace::Unsupported`] namespace.
     pub unsupported: T,
 }
@@ -35,6 +37,7 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Spans => &self.spans,
             MetricNamespace::Transactions => &self.transactions,
             MetricNamespace::Outcomes => &self.outcomes,
+            MetricNamespace::EnvironmentReleases => &self.environment_releases,
             MetricNamespace::Unsupported => &self.unsupported,
         }
     }
@@ -46,6 +49,7 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Spans => &mut self.spans,
             MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Outcomes => &mut self.outcomes,
+            MetricNamespace::EnvironmentReleases => &mut self.environment_releases,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
     }
@@ -53,7 +57,7 @@ impl<T> ByNamespace<T> {
 
 impl<T> IntoIterator for ByNamespace<T> {
     type Item = (MetricNamespace, T);
-    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 5>;
+    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 6>;
 
     fn into_iter(self) -> Self::IntoIter {
         let Self {
@@ -61,6 +65,7 @@ impl<T> IntoIterator for ByNamespace<T> {
             spans,
             transactions,
             outcomes,
+            environment_releases,
             unsupported,
         } = self;
 
@@ -69,6 +74,7 @@ impl<T> IntoIterator for ByNamespace<T> {
             (MetricNamespace::Spans, spans),
             (MetricNamespace::Transactions, transactions),
             (MetricNamespace::Outcomes, outcomes),
+            (MetricNamespace::EnvironmentReleases, environment_releases),
             (MetricNamespace::Unsupported, unsupported),
         ]
         .into_iter()
@@ -112,6 +118,7 @@ macro_rules! impl_op {
                     spans,
                     transactions,
                     outcomes,
+                    environment_releases,
                     unsupported,
                 } = self;
 
@@ -119,6 +126,7 @@ macro_rules! impl_op {
                 $op::$opfn(spans, rhs.spans);
                 $op::$opfn(transactions, rhs.transactions);
                 $op::$opfn(outcomes, rhs.outcomes);
+                $op::$opfn(environment_releases, rhs.environment_releases);
                 $op::$opfn(unsupported, rhs.unsupported);
             }
         }

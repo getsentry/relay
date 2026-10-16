@@ -190,6 +190,8 @@ pub enum AppFeature {
     MetricsTransactions,
     /// Metrics in the sessions namespace.
     MetricsSessions,
+    /// Metrics in the environment releases namespace.
+    MetricsEnvironmentReleases,
     /// Metrics in the unsupported namespace.
     ///
     /// This is usually not emitted, since metrics in the unsupported
@@ -222,6 +224,7 @@ impl AppFeature {
             Self::MetricsSpans => "metrics_spans",
             Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",
+            Self::MetricsEnvironmentReleases => "metrics_environment_releases",
             Self::MetricsUnsupported => "metrics_unsupported",
             Self::Profiles => "profiles",
             Self::TraceMetrics => "trace_metrics",

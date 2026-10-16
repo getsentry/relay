@@ -977,8 +977,9 @@ impl EnvelopeProcessorService {
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
-        // Never rate limit outcomes.
+        // Never rate limit outcomes and environment releases.
         namespaces.remove(&MetricNamespace::Outcomes);
+        namespaces.remove(&MetricNamespace::EnvironmentReleases);
 
         for namespace in namespaces {
             let limits = rate_limits
@@ -1026,8 +1027,9 @@ impl EnvelopeProcessorService {
             .filter_map(|bucket| bucket.name.try_namespace())
             .counts();
 
-        // Never rate limit outcomes.
+        // Never rate limit outcomes and environment releases.
         namespaces.remove(&MetricNamespace::Outcomes);
+        namespaces.remove(&MetricNamespace::EnvironmentReleases);
 
         let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
 

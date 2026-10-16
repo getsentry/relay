@@ -11,12 +11,14 @@ use crate::services::processor::BucketSource;
 /// This is returns `true` for most namespaces except:
 ///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
 ///  - [`MetricNamespace::Outcomes`]: Outcomes are only allowed if the `source` is [`BucketSource::Internal`].
+///  - [`MetricNamespace::EnvironmentReleases`]: Environment releases are only allowed if the `source` is [`BucketSource::Internal`].
 pub fn is_valid_namespace(bucket: &Bucket, source: BucketSource) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
-        MetricNamespace::Spans | MetricNamespace::Transactions | MetricNamespace::Outcomes => {
-            source == BucketSource::Internal
-        }
+        MetricNamespace::Spans
+        | MetricNamespace::Transactions
+        | MetricNamespace::Outcomes
+        | MetricNamespace::EnvironmentReleases => source == BucketSource::Internal,
         MetricNamespace::Unsupported => false,
     }
 }
@@ -66,6 +68,7 @@ fn is_metric_namespace_valid(namespace: MetricNamespace) -> bool {
         MetricNamespace::Spans => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Outcomes => true,
+        MetricNamespace::EnvironmentReleases => true,
         MetricNamespace::Unsupported => false,
     }
 }

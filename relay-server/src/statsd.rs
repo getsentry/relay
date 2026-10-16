@@ -957,6 +957,13 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsDropped,
+    /// Number of environment release buckets flushed to the store.
+    ///
+    /// This metric is tagged with:
+    ///  - `metric`: The metric name, either `environment` or `release`.
+    ///  - `category`: The data category of the items the bucket was extracted from.
+    #[cfg(feature = "processing")]
+    EnvironmentReleasesFlushed,
     /// Incremented every time a segment exceeds the expected limit.
     ReplayExceededSegmentLimit,
     /// Incremented every time the server accepts a new connection.
@@ -1089,6 +1096,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
+            #[cfg(feature = "processing")]
+            RelayCounters::EnvironmentReleasesFlushed => "metrics.environment_releases.flushed",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
             RelayCounters::ServerSocketAccept => "server.http.accepted",
             RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",

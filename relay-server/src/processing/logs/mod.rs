@@ -6,6 +6,7 @@ use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
 use relay_filter::FilterStatKey;
+use relay_metrics::UnixTimestamp;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -16,6 +17,7 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
+use crate::metrics_extraction::environment_releases;
 use crate::processing::{
     self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Rejected,
 };
@@ -167,8 +169,21 @@ impl processing::Processor for LogsProcessor {
         process::normalize_derived(&mut logs);
 
         let logs = self.limiter.enforce_quotas(logs, ctx).await?;
+        let metrics = ctx.is_processing().then(|| {
+            logs.wrap(environment_releases::extract_metrics(
+                logs.logs
+                    .iter()
+                    .map(|log| log.value.value().and_then(|log| log.attributes.value())),
+                DataCategory::LogItem,
+                UnixTimestamp::from_datetime(logs.received_at()).unwrap_or_else(UnixTimestamp::now),
+            ))
+        });
 
-        Ok(Output::just(LogOutput(logs)))
+        Ok(Output {
+            main: Some(LogOutput(logs)),
+            metrics,
+            intermediates: None,
+        })
     }
 }
 

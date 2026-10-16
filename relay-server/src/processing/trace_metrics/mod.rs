@@ -3,6 +3,7 @@ use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
+use relay_metrics::UnixTimestamp;
 use relay_quotas::{DataCategory, RateLimits};
 use smallvec::smallvec;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
+use crate::metrics_extraction::environment_releases;
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
@@ -161,8 +163,23 @@ impl processing::Processor for TraceMetricsProcessor {
         process::normalize_derived(&mut metrics);
 
         let metrics = self.limiter.enforce_quotas(metrics, ctx).await?;
+        let extracted = ctx.is_processing().then(|| {
+            metrics.wrap(environment_releases::extract_metrics(
+                metrics
+                    .metrics
+                    .iter()
+                    .map(|metric| metric.value.value().and_then(|m| m.attributes.value())),
+                DataCategory::TraceMetric,
+                UnixTimestamp::from_datetime(metrics.received_at())
+                    .unwrap_or_else(UnixTimestamp::now),
+            ))
+        });
 
-        Ok(Output::just(TraceMetricOutput(metrics)))
+        Ok(Output {
+            main: Some(TraceMetricOutput(metrics)),
+            metrics: extracted,
+            intermediates: None,
+        })
     }
 }
 
