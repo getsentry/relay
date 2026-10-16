@@ -4,7 +4,7 @@ use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::{Error, Result, mark_rate_limited};
 #[cfg(feature = "processing")]
 use crate::utils::AdditionalExceptions;
 
@@ -54,7 +54,7 @@ impl SentryError for Minidump {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.rate_limited() {
-            self.0.set_rate_limited(true);
+            mark_rate_limited(&mut self.0, &limits);
             records.reject_err(Error::RateLimited(limits), &self.0);
         }
 

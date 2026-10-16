@@ -32,7 +32,7 @@ use relay_metrics::{
     MetricNamespace, SetView,
 };
 use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
-use relay_quotas::Scoping;
+use relay_quotas::{ReasonCode, Scoping};
 use relay_statsd::metric;
 use relay_system::{FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
@@ -999,6 +999,7 @@ impl StoreService {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
             rate_limited: item.rate_limited(),
+            rate_limit_reason: item.rate_limit_reason().cloned(),
             content_type: placeholder.content_type,
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
@@ -1067,6 +1068,7 @@ impl StoreService {
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
             rate_limited: item.rate_limited(),
+            rate_limit_reason: item.rate_limit_reason().cloned(),
             content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
@@ -1320,6 +1322,13 @@ struct ChunkedAttachment {
     /// `rate_limited` header, which signals to the processing pipeline that the attachment should
     /// not be persisted after processing.
     rate_limited: bool,
+
+    /// The reason code of the quota that rate limited this attachment.
+    ///
+    /// Only set when `rate_limited` is `true` and the quota declares a reason code. Allows Sentry
+    /// to tell an exceeded billing quota apart from other rate limits, such as spike protection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rate_limit_reason: Option<ReasonCode>,
 
     /// Content type of the attachment payload.
     #[serde(skip_serializing_if = "Option::is_none")]

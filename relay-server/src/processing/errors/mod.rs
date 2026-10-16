@@ -28,7 +28,7 @@ use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
-use relay_quotas::RateLimits;
+use relay_quotas::{RateLimits, ReasonCode};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -46,13 +46,25 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::ProcessingFailed(e) => e.to_outcome(),
-            Self::RateLimited(limits) => {
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                Some(Outcome::RateLimited(reason_code))
-            }
+            Self::RateLimited(limits) => Some(Outcome::RateLimited(rate_limit_reason(limits))),
         };
         (outcome, self)
     }
+}
+
+/// Returns the reason code reported in the rate limited outcome for `limits`.
+fn rate_limit_reason(limits: &RateLimits) -> Option<ReasonCode> {
+    limits.longest().and_then(|limit| limit.reason_code.clone())
+}
+
+/// Marks a crash report item as rate limited by `limits`.
+///
+/// Rate limited crash reports are still forwarded, so that an event can be extracted from them,
+/// but they are not persisted. The reason code is forwarded as well, so that Sentry can tell
+/// which quota caused the crash report to be dropped.
+fn mark_rate_limited(item: &mut Item, limits: &RateLimits) {
+    item.set_rate_limited(true);
+    item.set_rate_limit_reason(rate_limit_reason(limits));
 }
 
 /// A processor for Error Events.

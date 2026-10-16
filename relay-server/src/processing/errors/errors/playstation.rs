@@ -8,7 +8,7 @@ use crate::envelope::Item;
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::{Error, Result, mark_rate_limited};
 #[cfg(all(sentry, feature = "processing"))]
 use crate::services::outcome::DiscardItemType;
 #[cfg(all(sentry, feature = "processing"))]
@@ -111,6 +111,7 @@ impl SentryError for Playstation {
                 item.set_attachment_type(AttachmentType::Minidump);
                 // If the original prosperodump is already rate limited, so will be the minidump.
                 item.set_rate_limited(prosperodump.rate_limited());
+                item.set_rate_limit_reason(prosperodump.rate_limit_reason().cloned());
 
                 crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item, crate::utils::AdditionalExceptions::Delete);
 
@@ -167,14 +168,14 @@ impl SentryError for Playstation {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.prosperodump.rate_limited() {
-            self.prosperodump.set_rate_limited(true);
+            mark_rate_limited(&mut self.prosperodump, &limits);
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
         }
 
         if let Some(minidump) = self.minidump.as_mut()
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
+            mark_rate_limited(minidump, &limits);
             records.reject_err(Error::RateLimited(limits), &*minidump);
         }
 
