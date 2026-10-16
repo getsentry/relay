@@ -645,7 +645,7 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
-    /// The maximum number of operations that can occur in a span expansion.
+    /// The maximum number of operations that can occur in a log expansion.
     pub max_expanded_log_operations: usize,
     /// The maximum number of operations that can occur in a span expansion.
     pub max_expanded_span_operations: usize,
@@ -2566,7 +2566,7 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_log_size.as_bytes()
     }
 
-    /// Returns the maximum number of operations to allow for a span expansion.
+    /// Returns the maximum number of operations to allow for a log expansion.
     pub fn max_expanded_log_operations(&self) -> usize {
         self.inner.values.limits.max_expanded_log_operations
     }
