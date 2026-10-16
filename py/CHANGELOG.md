@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Remove the `organizations:relay-automatic-json-expansion` feature from project config. ([#6518](https://github.com/getsentry/relay/pull/6518))
+
 ## 0.10.1
 
 - Add the `release` rule condition for generic inbound filters. ([#6430](https://github.com/getsentry/relay/pull/6430))
