@@ -76,8 +76,7 @@ fn normalize_ai_type(attributes: &mut Attributes) {
         .or_else(|| attributes.get_value(SENTRY__OP))
         .and_then(|op| op.as_str())
         .and_then(|op| ai::infer_ai_operation_type(op))
-        // This is fine, this normalization only happens for known AI spans.
-        .unwrap_or(ai::DEFAULT_AI_OPERATION);
+        .unwrap_or_else(|| ai::default_ai_operation_type(attributes));
 
     attributes.insert(GEN_AI__OPERATION__TYPE, op_name.to_owned());
 }
@@ -294,6 +293,38 @@ mod tests {
                     context_size: Some(100_000),
                 },
             )]),
+        }
+    }
+
+    #[test]
+    fn test_normalize_ai_type_fallback() {
+        for model_key in [
+            None,
+            Some(GEN_AI__REQUEST__MODEL),
+            Some(GEN_AI__RESPONSE__MODEL),
+        ] {
+            let mut attributes = attributes! {
+                "gen_ai.operation.name" => "embeddings".to_owned(),
+            };
+            if let Some(key) = model_key {
+                attributes.insert(key, "gpt-4".to_owned());
+            }
+            let mut attributes = Annotated::new(attributes);
+
+            normalize_ai(&mut attributes, None, None);
+
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__OPERATION__TYPE)
+                    .and_then(|v| v.as_str()),
+                Some(if model_key.is_some() {
+                    "ai_client"
+                } else {
+                    "other"
+                }),
+            );
         }
     }
 

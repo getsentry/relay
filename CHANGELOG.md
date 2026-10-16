@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.10.0
 
 **Breaking Changes**:
 
@@ -30,9 +30,11 @@
 - Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 - Added support for Integrity policy ingestion, not publicly accessible. ([#6465](https://github.com/getsentry/relay/pull/6465), [#6512](https://github.com/getsentry/relay/pull/6512))
+- Add dimensions to rate limit caches. ([#6479](https://github.com/getsentry/relay/pull/6479))
 
 **Bug Fixes**:
 
+- Default unrecognized AI operations to `other` instead of `ai_client` when neither `gen_ai.request.model` nor `gen_ai.response.model` contains a string value. ([#6507](https://github.com/getsentry/relay/pull/6507))
 - Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))

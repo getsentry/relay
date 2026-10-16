@@ -10,7 +10,7 @@ use std::str::FromStr;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use data_encoding::BASE64;
-use http::header::AsHeaderName;
+use http::header::{AsHeaderName, CONTENT_ENCODING, CONTENT_LENGTH};
 use http::{HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -196,12 +196,27 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<PatchHeaders, Error
     }
 
     let upload_offset = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
-    let decoded_content_length = parse_header(headers, X_DECODED_CONTENT_LENGTH);
 
     Ok(PatchHeaders {
         upload_offset,
-        decoded_content_length,
+        decoded_content_length: derive_decoded_content_length(headers),
     })
+}
+
+fn derive_decoded_content_length(headers: &HeaderMap) -> Option<usize> {
+    if let Some(explicit_header_value) = parse_header(headers, X_DECODED_CONTENT_LENGTH) {
+        return Some(explicit_header_value);
+    }
+
+    if headers.contains_key(CONTENT_ENCODING) {
+        // If the payload is compressed, there is no way to derive its original content length
+        // from headers.
+        // See also `remove_empty_encoding` for why this check is sufficient
+        return None;
+    }
+
+    // For identity encoding, we can use `Content-Length`:
+    parse_header(headers, CONTENT_LENGTH)
 }
 
 /// Validates TUS protocol headers for a `HEAD` request.
