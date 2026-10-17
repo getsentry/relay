@@ -1862,3 +1862,50 @@ fn child_app_start_type_uses_the_canonical_event_fallback() {
         "Child spans ignored the canonical event type: {mismatches:?}"
     );
 }
+
+#[test]
+fn remote_addr_placeholder_does_not_block_client_ip_fallback() {
+    let client_ip = relay_event_schema::protocol::IpAddr::parse("127.0.0.1").unwrap();
+    let config = NormalizationConfig {
+        client_ip: Some(&client_ip),
+        enrich_spans: true,
+        ..Default::default()
+    };
+    let mut mismatches = Vec::new();
+    for (remote, expected) in [
+        (None, "127.0.0.1"),
+        (Some("invalid"), "127.0.0.1"),
+        (Some("1.2.3.4"), "1.2.3.4"),
+        (Some("{{auto}}"), "127.0.0.1"),
+    ] {
+        let mut input = transaction_with_span();
+        input["user"] = json!({"ip_address": "{{auto}}"});
+        if let Some(remote) = remote {
+            input["request"] = json!({"env": {"REMOTE_ADDR": remote}});
+        }
+        let output = normalize_json(input, &config);
+        observed(
+            "remote_addr_placeholder_chain",
+            json!({"remote": remote, "expected": expected,
+                "ip": output.pointer("/user/ip_address"),
+                "identity": output.pointer("/user/sentry_user"),
+                "span_ip": output.pointer("/spans/0/sentry_tags/user.ip"),
+                "span_user": output.pointer("/spans/0/sentry_tags/user")}),
+        );
+        let identity = format!("ip:{expected}");
+        for (path, expected) in [
+            ("/user/ip_address", expected),
+            ("/user/sentry_user", identity.as_str()),
+            ("/spans/0/sentry_tags/user.ip", expected),
+            ("/spans/0/sentry_tags/user", identity.as_str()),
+        ] {
+            if output.pointer(path).and_then(Value::as_str) != Some(expected) {
+                mismatches.push((remote, path));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "An unresolved remote address blocked and propagated past the usable client IP: {mismatches:?}"
+    );
+}
