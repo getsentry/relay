@@ -944,6 +944,10 @@ fn normalize_json(payload: Value, config: &NormalizationConfig<'_>) -> Value {
     serde_json::to_value(SerializableAnnotated(&event)).unwrap()
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "The audit harness consumes these observations"
+)]
 fn observed(case: &str, values: Value) {
     println!(
         "SCC_OBSERVATION {}",
