@@ -118,8 +118,12 @@ impl processing::Processor for ErrorsProcessor {
         error: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let has_event = error.items.iter().any(|item| item.ty() == &ItemType::Event);
         let (mut error, intermediates) = process::expand(error, ctx)?;
 
+        if !has_event {
+            attachments::validate_standalone_attachments(&mut error, |e| &mut e.attachments);
+        }
         attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
         process::process(&mut error)?;

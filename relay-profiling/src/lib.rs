@@ -57,6 +57,7 @@ mod android;
 mod debug_image;
 mod error;
 mod extract_from_transaction;
+pub mod flamegraph;
 mod measurements;
 mod outcomes;
 mod perfetto;
