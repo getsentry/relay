@@ -3,7 +3,7 @@
 
 use relay_event_normalization::{NormalizationConfig, normalize_event};
 use relay_event_schema::protocol::{DeviceContext, Event, OsContext};
-use relay_protocol::{Annotated, get_value};
+use relay_protocol::{Annotated, SerializableAnnotated, get_value};
 use serde_json::{Value, json};
 
 fn normalize(payload: Value, config: &NormalizationConfig<'_>) -> Event {
@@ -1417,6 +1417,282 @@ mod ordering_controls {
                 .unwrap();
             assert_eq!(data.get_str("gen_ai.operation.type"), Some("agent"));
             assert_eq!(data.get_str("gen_ai.response.model"), Some("model"));
+        }
+    }
+}
+
+fn normalize_json(payload: Value, config: &NormalizationConfig<'_>) -> Value {
+    let mut event = Annotated::<Event>::from_json(&payload.to_string()).unwrap();
+    normalize_event(&mut event, config);
+    serde_json::to_value(SerializableAnnotated(&event)).unwrap()
+}
+
+fn observed(case: &str, values: Value) {
+    println!(
+        "SCC_OBSERVATION {}",
+        json!({"case": case, "values": values})
+    );
+}
+
+fn transaction_with_span() -> Value {
+    json!({
+        "type": "transaction", "transaction": "HomeScreen",
+        "transaction_info": {"source": "custom"},
+        "start_timestamp": 1700000000.0, "timestamp": 1700000005.0,
+        "contexts": {"trace": {"trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "span_id": "bbbbbbbbbbbbbbbb", "op": "ui.load"}},
+        "spans": [{"span_id": "cccccccccccccccc", "parent_span_id": "bbbbbbbbbbbbbbbb", "op": "http.client", "start_timestamp": 1700000000.25, "timestamp": 1700000001.0}]
+    })
+}
+
+fn span_config(trimming: bool) -> NormalizationConfig<'static> {
+    NormalizationConfig {
+        enable_trimming: trimming,
+        normalize_spans: true,
+        enrich_spans: true,
+        ..Default::default()
+    }
+}
+
+fn stacktrace() -> Value {
+    json!({"frames": [{"filename": "https://example.com/app.js", "function": "main"}]})
+}
+
+fn tag<'a>(event: &'a Value, name: &str) -> Option<&'a str> {
+    event.get("tags")?.as_array()?.iter().find_map(|pair| {
+        (pair.get(0)?.as_str()? == name)
+            .then(|| pair.get(1)?.as_str())
+            .flatten()
+    })
+}
+
+#[test]
+fn exclusive_time_after_span_trimming() {
+    let mut input = transaction_with_span();
+    let mut filler = input["spans"][0].clone();
+    filler["span_id"] = json!("dddddddddddddddd");
+    filler["parent_span_id"] = json!("eeeeeeeeeeeeeeee");
+    filler["op"] = json!("custom");
+    filler["description"] = json!("x".repeat(900_000));
+    input["spans"].as_array_mut().unwrap().insert(0, filler);
+    let untrimmed = normalize_json(input.clone(), &NormalizationConfig::default());
+    let output = normalize_json(
+        input,
+        &NormalizationConfig {
+            enable_trimming: true,
+            ..Default::default()
+        },
+    );
+    let mut retained = output.clone();
+    retained["contexts"]["trace"]
+        .as_object_mut()
+        .unwrap()
+        .remove("exclusive_time");
+    let recomputed = normalize_json(retained, &NormalizationConfig::default());
+    observed(
+        "exclusive_time_after_span_trimming",
+        json!({
+            "remaining_spans":output["spans"].as_array().map(Vec::len),
+            "exclusive_time":output.pointer("/contexts/trace/exclusive_time"),
+            "exclusive_time_before_trimming":untrimmed.pointer("/contexts/trace/exclusive_time"),
+            "exclusive_time_from_retained_spans":recomputed.pointer("/contexts/trace/exclusive_time"),
+            "span_array_original_length":output.pointer("/_meta/spans//len")
+        }),
+    );
+    assert!(
+        output["spans"].as_array().unwrap().len() < 2,
+        "The late trimming must actually remove the child"
+    );
+    assert_eq!(
+        output.pointer("/contexts/trace/exclusive_time"),
+        untrimmed.pointer("/contexts/trace/exclusive_time")
+    );
+    assert_eq!(
+        recomputed.pointer("/contexts/trace/exclusive_time"),
+        Some(&json!(5000.0))
+    );
+}
+
+#[test]
+fn chain_controls() {
+    for trimming in [false, true] {
+        let mut input = transaction_with_span();
+        input["contexts"]["device"] = json!({"family":"iPhone","model":"iPhone"});
+        input["contexts"]["os"] = json!({"name":"Android","version":"11"});
+        input["request"] = json!({"method":"get","url":"https://example.test/a?q=1","env":{"REMOTE_ADDR":"1.2.3.4"}});
+        input["user"] = json!({"id":"short","username":"name","email":"a@example.test","ip_address":"{{auto}}"});
+        input["tags"] = json!({"environment":"production","unrelated":"kept"});
+        input["server_name"] = json!("host");
+        input["site"] = json!("site");
+        input["exception"] = json!({"values":[{"type":"OSError","mechanism":{"type":"generic","meta":{"errno":{"number":2}}}}]});
+        input["stacktrace"] = stacktrace();
+        let mut cfg = span_config(trimming);
+        cfg.client = Some("sentry.javascript.browser/9.0.0".into());
+        cfg.remove_other = true;
+        let output = normalize_json(input, &cfg);
+        for (path, expected) in [
+            ("/spans/0/sentry_tags/environment", "production"),
+            ("/spans/0/sentry_tags/device.class", "3"),
+            ("/spans/0/sentry_tags/trace.status", "unknown"),
+            ("/spans/0/sentry_tags/transaction.method", "GET"),
+            ("/spans/0/sentry_tags/sdk.name", "sentry.javascript.browser"),
+            ("/spans/0/sentry_tags/sdk.version", "9.0.0"),
+            ("/spans/0/sentry_tags/user.ip", "1.2.3.4"),
+            ("/exception/values/0/mechanism/meta/errno/name", "ENOENT"),
+            (
+                "/exception/values/0/stacktrace/frames/0/filename",
+                "/app.js",
+            ),
+        ] {
+            assert_eq!(
+                output.pointer(path).and_then(Value::as_str),
+                Some(expected),
+                "{path}"
+            );
+        }
+        assert_eq!(
+            output.pointer("/contexts/trace/exclusive_time"),
+            Some(&json!(4250.0))
+        );
+        assert_eq!(tag(&output, "server_name"), Some("host"));
+        assert_eq!(tag(&output, "site"), Some("site"));
+        assert_eq!(tag(&output, "unrelated"), Some("kept"));
+        assert!(output.pointer("/stacktrace").is_none());
+        assert_eq!(
+            output.pointer("/spans/0/op"),
+            output.pointer("/spans/0/sentry_tags/op")
+        );
+        let mut rejected_release = transaction_with_span();
+        rejected_release["release"] = json!("latest");
+        let rejected_release = normalize_json(rejected_release, &cfg);
+        assert!(
+            rejected_release
+                .pointer("/release")
+                .and_then(Value::as_str)
+                .is_none()
+        );
+        assert!(
+            rejected_release
+                .pointer("/spans/0/sentry_tags/release")
+                .and_then(Value::as_str)
+                .is_none()
+        );
+    }
+    let output = normalize_json(
+        json!({"event_id":"11111111111111111111111111111111"}),
+        &NormalizationConfig {
+            force_trace_context: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        output.pointer("/contexts/trace/trace_id"),
+        Some(&json!("11111111111111111111111111111111"))
+    );
+    observed("chain_controls", json!({"passed":true}));
+}
+
+#[test]
+fn derivation_controls() {
+    // Rejection is the trigger: a valid exception retains the transferred trace.
+    let moved = normalize_json(
+        json!({"stacktrace": stacktrace(), "exception": {"values": [{"type": "Error"}]}}),
+        &span_config(false),
+    );
+    assert_eq!(
+        moved.pointer("/exception/values/0/stacktrace/frames/0/filename"),
+        Some(&json!("/app.js"))
+    );
+    let standalone = normalize_json(json!({"stacktrace": stacktrace()}), &span_config(false));
+    assert_eq!(
+        standalone.pointer("/stacktrace/frames/0/filename"),
+        Some(&json!("/app.js"))
+    );
+
+    // Trimming is the trigger: the same derived values agree without it.
+    let mut input = transaction_with_span();
+    input["transaction"] = json!("HomeScreen".repeat(30));
+    input["user"] = json!({"id": "u".repeat(200)});
+    input["measurements"] = json!({"app_start_cold": {"value": 1000.0, "unit": "millisecond"}});
+    let output = normalize_json(input, &span_config(false));
+    assert_eq!(
+        output.pointer("/transaction"),
+        output.pointer("/spans/0/data/sentry.segment.name")
+    );
+    assert_eq!(
+        output.pointer("/transaction"),
+        output.pointer("/contexts/trace/data/app.vitals.start.screen")
+    );
+    assert_eq!(
+        output.pointer("/user/sentry_user"),
+        Some(&json!(format!("id:{}", "u".repeat(200))))
+    );
+
+    // Short inputs remain consistent even when trimming is enabled.
+    let mut input = transaction_with_span();
+    input["user"] = json!({"id": "short"});
+    let output = normalize_json(input, &span_config(true));
+    assert_eq!(
+        output.pointer("/user/sentry_user"),
+        Some(&json!("id:short"))
+    );
+    assert_eq!(
+        output.pointer("/transaction"),
+        output.pointer("/spans/0/data/sentry.segment.name")
+    );
+    observed("controls", json!({"passed":true}));
+}
+
+#[test]
+fn materialized_summary_retention() {
+    let text = "x".repeat(10000);
+    let body = json!({"text": text}).to_string();
+    for (kind, input, source, summary) in [
+        (
+            "logentry",
+            json!({"logentry": {"message": "{}", "params": ["x".repeat(3000)]}}),
+            "/logentry/params/0",
+            "/logentry/formatted",
+        ),
+        (
+            "request",
+            json!({"request": {"data": body}}),
+            "/request/data/text",
+            "/request/inferred_content_type",
+        ),
+        (
+            "response",
+            json!({"contexts": {"response": {"data": body}}}),
+            "/contexts/response/data/text",
+            "/contexts/response/inferred_content_type",
+        ),
+    ] {
+        let control = normalize_json(input.clone(), &NormalizationConfig::default());
+        let retained = normalize_json(
+            input,
+            &NormalizationConfig {
+                enable_trimming: true,
+                ..Default::default()
+            },
+        );
+        let before = control
+            .pointer(source)
+            .and_then(Value::as_str)
+            .unwrap()
+            .len();
+        let after = retained
+            .pointer(source)
+            .and_then(Value::as_str)
+            .unwrap()
+            .len();
+        observed(
+            "materialized_summary_retention",
+            json!({"kind": kind, "source_bytes": before, "retained_bytes": after, "summary_preserved": control.pointer(summary) == retained.pointer(summary)}),
+        );
+        assert!(after < before);
+        if kind == "response" {
+            assert!(retained.pointer(summary).is_none_or(Value::is_null));
+        } else {
+            assert_eq!(control.pointer(summary), retained.pointer(summary));
         }
     }
 }

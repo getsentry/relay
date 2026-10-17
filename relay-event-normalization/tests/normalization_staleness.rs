@@ -7,12 +7,12 @@
 use relay_base_schema::metrics::{FractionUnit, MetricUnit};
 use relay_event_normalization::{
     BuiltinMeasurementKey, CombinedMeasurementsConfig, GeoIpLookup, MeasurementsConfig,
-    NormalizationConfig, RawUserAgentInfo, normalize_event, replay,
+    NormalizationConfig, PerformanceScoreConfig, RawUserAgentInfo, normalize_event, replay,
 };
 use relay_event_schema::protocol::{
     BrowserContext, DeviceClass, DeviceContext, Event, OsContext, Replay,
 };
-use relay_protocol::{Annotated, get_value};
+use relay_protocol::{Annotated, SerializableAnnotated, get_value};
 use serde_json::{Value, json};
 
 const CHROME_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -936,4 +936,929 @@ mod proposed_contracts {
         assert_eq!(span.get_value(field).unwrap().as_str(), Some("checkout"));
         assert_eq!(span.op.as_str(), Some("db.audit"));
     }
+}
+
+fn normalize_json(payload: Value, config: &NormalizationConfig<'_>) -> Value {
+    let mut event = Annotated::<Event>::from_json(&payload.to_string()).unwrap();
+    normalize_event(&mut event, config);
+    serde_json::to_value(SerializableAnnotated(&event)).unwrap()
+}
+
+fn observed(case: &str, values: Value) {
+    println!(
+        "SCC_OBSERVATION {}",
+        json!({"case": case, "values": values})
+    );
+}
+
+fn transaction_with_span() -> Value {
+    json!({
+        "type": "transaction", "transaction": "HomeScreen",
+        "transaction_info": {"source": "custom"},
+        "start_timestamp": 1700000000.0, "timestamp": 1700000005.0,
+        "contexts": {"trace": {"trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "span_id": "bbbbbbbbbbbbbbbb", "op": "ui.load"}},
+        "spans": [{"span_id": "cccccccccccccccc", "parent_span_id": "bbbbbbbbbbbbbbbb", "op": "http.client", "start_timestamp": 1700000000.25, "timestamp": 1700000001.0}]
+    })
+}
+
+fn span_config(trimming: bool) -> NormalizationConfig<'static> {
+    NormalizationConfig {
+        enable_trimming: trimming,
+        normalize_spans: true,
+        enrich_spans: true,
+        ..Default::default()
+    }
+}
+
+fn stacktrace() -> Value {
+    json!({"frames": [{"filename": "https://example.com/app.js", "function": "main"}]})
+}
+
+#[test]
+fn rejected_exception_keeps_independent_stacktrace() {
+    let mut missing = Vec::new();
+    for variable_bytes in [0, 600] {
+        let mut trace = stacktrace();
+        if variable_bytes > 0 {
+            trace["frames"][0]["vars"] = json!({"value": "x".repeat(variable_bytes)});
+        }
+        let result = normalize_json(
+            json!({"stacktrace": trace, "exception": {"values": [{}]}}),
+            &span_config(false),
+        );
+        observed(
+            "rejected_exception_stacktrace",
+            json!({
+                "variable_bytes": variable_bytes,
+                "payload_frame": result.pointer("/stacktrace/frames/0/filename"),
+                "exception": result.pointer("/exception/values/0"),
+                "quarantined_frame": result.pointer("/_meta/exception/values/0//val/stacktrace/frames/0/filename")
+            }),
+        );
+        assert_eq!(result.pointer("/exception/values/0"), Some(&Value::Null));
+        if result.pointer("/stacktrace/frames/0/filename") != Some(&json!("/app.js")) {
+            missing.push(variable_bytes);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "Rejecting the exception removed the independent trace: {missing:?}"
+    );
+}
+
+#[test]
+fn trimmed_user_identity_is_consistent() {
+    let mut input = transaction_with_span();
+    input["user"] = json!({"id": "u".repeat(200)});
+    let result = normalize_json(input, &span_config(true));
+    let id = result.pointer("/user/id").and_then(Value::as_str).unwrap();
+    let sentry_user = result
+        .pointer("/user/sentry_user")
+        .and_then(Value::as_str)
+        .unwrap();
+    observed(
+        "trimmed_user_identity",
+        json!({"id_bytes":id.len(), "sentry_user_bytes":sentry_user.len(), "consistent":sentry_user==format!("id:{id}")}),
+    );
+    assert_eq!(
+        id.len(),
+        128,
+        "The source field must actually have been trimmed"
+    );
+    assert_eq!(
+        sentry_user,
+        format!("id:{id}"),
+        "sentry_user retains the pre-trimming identifier: source={} bytes, derived={} bytes",
+        id.len(),
+        sentry_user.len()
+    );
+}
+
+#[test]
+fn trimmed_transaction_segment_is_consistent() {
+    let mut input = transaction_with_span();
+    input["transaction"] = json!("HomeScreen".repeat(30));
+    let result = normalize_json(input, &span_config(true));
+    let transaction = result
+        .pointer("/transaction")
+        .and_then(Value::as_str)
+        .unwrap();
+    let segment = result
+        .pointer("/spans/0/data/sentry.segment.name")
+        .and_then(Value::as_str)
+        .unwrap();
+    observed(
+        "trimmed_transaction_segment",
+        json!({"transaction_bytes":transaction.len(), "segment_bytes":segment.len(), "consistent":segment==transaction}),
+    );
+    assert_eq!(
+        transaction.len(),
+        200,
+        "The source field must actually have been trimmed"
+    );
+    assert_eq!(
+        segment,
+        transaction,
+        "The child span retains the pre-trimming transaction: source={} bytes, derived={} bytes",
+        transaction.len(),
+        segment.len()
+    );
+}
+
+#[test]
+fn trimmed_transaction_app_start_screen_is_consistent() {
+    let mut input = transaction_with_span();
+    input["transaction"] = json!("HomeScreen".repeat(30));
+    input["measurements"] = json!({"app_start_cold": {"value": 1000.0, "unit": "millisecond"}});
+    let result = normalize_json(input, &span_config(true));
+    let transaction = result
+        .pointer("/transaction")
+        .and_then(Value::as_str)
+        .unwrap();
+    let screen = result
+        .pointer("/contexts/trace/data/app.vitals.start.screen")
+        .and_then(Value::as_str)
+        .unwrap();
+    observed(
+        "trimmed_transaction_app_start_screen",
+        json!({"transaction_bytes":transaction.len(), "screen_bytes":screen.len(), "consistent":screen==transaction}),
+    );
+    assert_eq!(transaction.len(), 200);
+    assert_eq!(
+        screen,
+        transaction,
+        "The app-start screen retains the pre-trimming transaction: source={} bytes, derived={} bytes",
+        transaction.len(),
+        screen.len()
+    );
+}
+
+fn tag<'a>(event: &'a Value, name: &str) -> Option<&'a str> {
+    event.get("tags")?.as_array()?.iter().find_map(|pair| {
+        (pair.get(0)?.as_str()? == name)
+            .then(|| pair.get(1)?.as_str())
+            .flatten()
+    })
+}
+
+#[test]
+fn generated_tags_obey_schema() {
+    let mut violations = Vec::new();
+    for trimming in [false, true] {
+        for source in ["server_name", "site", "lcp.element", "lcp.id", "lcp.url"] {
+            for value in ["before\nafter", "", "   "] {
+                let direct =
+                    normalize_json(json!({"tags": {source: value}}), &span_config(trimming));
+                assert!(
+                    tag(&direct, source).is_none(),
+                    "The direct tag must be rejected"
+                );
+                let input = if source.starts_with("lcp.") {
+                    let key = format!("browser.web_vital.{source}");
+                    json!({"contexts": {"trace": {"data": {key: value}}}})
+                } else {
+                    json!({source: value})
+                };
+                let output = normalize_json(input, &span_config(trimming));
+                let actual = tag(&output, source);
+                observed(
+                    "generated_tag_schema",
+                    json!({"source":source,"input":value,"trimming":trimming,"direct":tag(&direct,source),"derived":actual}),
+                );
+                if actual.is_some_and(|s| s.contains('\n') || s.trim().is_empty()) {
+                    violations.push((source, value, trimming));
+                }
+            }
+            let valid = "valid-value";
+            let input = if source.starts_with("lcp.") {
+                let key = format!("browser.web_vital.{source}");
+                json!({"contexts": {"trace": {"data": {key: valid}}}})
+            } else {
+                json!({source: valid})
+            };
+            let output = normalize_json(input, &span_config(trimming));
+            assert_eq!(tag(&output, source), Some(valid));
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "Generated tags bypass schema validation: {violations:?}"
+    );
+}
+
+#[test]
+fn span_copies_match_final_sources() {
+    let mut violations = Vec::new();
+    for trimming in [false, true] {
+        let mut input = transaction_with_span();
+        input["user"] = json!({
+            "id":"i".repeat(200),"username":"n".repeat(200),
+            "email":format!("{}@example.com","e".repeat(100)),
+            "geo":{"city":"c".repeat(1200),"region":"r".repeat(1200),
+                "subdivision":"s".repeat(1200),"country_code":"z".repeat(1200)}
+        });
+        input["tags"] = json!({"environment":"p".repeat(100)});
+        input["sdk"] = json!({"name": "n".repeat(300), "version": "v".repeat(300)});
+        input["contexts"]["trace"]["op"] = json!(format!("custom.{}", "r".repeat(200)));
+        input["spans"][0]["op"] = json!(format!("custom.{}", "x".repeat(200)));
+        let output = normalize_json(input, &span_config(trimming));
+        let pairs = [
+            ("user.id", "/user/id", "/spans/0/sentry_tags/user.id"),
+            (
+                "user.username",
+                "/user/username",
+                "/spans/0/sentry_tags/user.username",
+            ),
+            (
+                "user.email",
+                "/user/email",
+                "/spans/0/sentry_tags/user.email",
+            ),
+            (
+                "user.geo.city",
+                "/user/geo/city",
+                "/spans/0/sentry_tags/user.geo.city",
+            ),
+            (
+                "user.geo.region",
+                "/user/geo/region",
+                "/spans/0/sentry_tags/user.geo.region",
+            ),
+            (
+                "user.geo.subdivision",
+                "/user/geo/subdivision",
+                "/spans/0/sentry_tags/user.geo.subdivision",
+            ),
+            (
+                "user.geo.country_code",
+                "/user/geo/country_code",
+                "/spans/0/sentry_tags/user.geo.country_code",
+            ),
+            (
+                "environment",
+                "/environment",
+                "/spans/0/sentry_tags/environment",
+            ),
+            ("span.op", "/spans/0/op", "/spans/0/sentry_tags/op"),
+            ("sdk.name", "/sdk/name", "/spans/0/sentry_tags/sdk.name"),
+            (
+                "sdk.version",
+                "/sdk/version",
+                "/spans/0/sentry_tags/sdk.version",
+            ),
+            (
+                "trace.op",
+                "/contexts/trace/op",
+                "/spans/0/sentry_tags/transaction.op",
+            ),
+        ];
+        for (field, source, derived) in pairs {
+            let source = output.pointer(source).and_then(Value::as_str);
+            let derived = output.pointer(derived).and_then(Value::as_str);
+            assert!(
+                source.is_some() && derived.is_some(),
+                "Both sides must exist: {field}"
+            );
+            observed(
+                "span_copy_after_trim",
+                json!({"field":field,"trimming":trimming,"source_bytes":source.map(str::len),"derived_bytes":derived.map(str::len),"consistent":source==derived}),
+            );
+            if source != derived {
+                violations.push((field, trimming));
+            }
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "Span copies retain pre-trimming sources: {violations:?}"
+    );
+}
+
+#[test]
+fn span_device_class_uses_device_inferred_from_user_agent() {
+    let mut explicit = transaction_with_span();
+    explicit["platform"] = json!("javascript");
+    explicit["contexts"]["device"] = json!({"family":"iPhone","model":"iPhone"});
+    let mut inferred = transaction_with_span();
+    inferred["platform"] = json!("javascript");
+    inferred["request"] = json!({"headers": {
+        "User-Agent":"Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)"
+    }});
+    let config = NormalizationConfig {
+        normalize_user_agent: Some(true),
+        ..span_config(false)
+    };
+    let control = normalize_json(explicit, &config);
+    let output = normalize_json(inferred, &config);
+    let path = "/spans/0/sentry_tags/device.class";
+    assert_eq!(control.pointer(path), Some(&json!("3")));
+    assert_eq!(
+        output.pointer("/contexts/device/model"),
+        Some(&json!("iPhone"))
+    );
+    observed(
+        "span_device_class_after_ua",
+        json!({
+            "control":control.pointer(path),"derived":output.pointer(path),
+            "device_model":output.pointer("/contexts/device/model"),
+            "event_tag":tag(&output,"device.class")
+        }),
+    );
+    assert_eq!(
+        output.pointer(path),
+        control.pointer(path),
+        "The span must use the device class available after UA inference"
+    );
+}
+
+// Rediscovered behavior: verification/normalization/proof_mutations.py already
+// covers os-fallback-on-unknown-sdk; this adds a runtime desired-invariant test.
+#[test]
+fn unknown_system_sdk_uses_os_fallback() {
+    let input = json!({
+        "contexts":{"os":{"name":"Android"}},
+        "exception":{"values":[{"type":"OSError","mechanism":{"type":"generic","meta":{
+            "errno":{"number":2},"signal":{"number":7}
+        }}}]}
+    });
+    let control = normalize_json(input.clone(), &span_config(false));
+    let mut recognized = input.clone();
+    recognized["debug_meta"] = json!({"sdk_info":{"sdk_name":"Android"}});
+    let recognized = normalize_json(recognized, &span_config(false));
+    let mut unknown = input;
+    unknown["debug_meta"] = json!({"sdk_info":{"sdk_name":"unrecognized-sdk"}});
+    let output = normalize_json(unknown, &span_config(false));
+    assert_eq!(
+        output.pointer("/debug_meta/sdk_info/sdk_name"),
+        Some(&json!("unrecognized-sdk"))
+    );
+    let paths = [
+        "/exception/values/0/mechanism/meta/errno/name",
+        "/exception/values/0/mechanism/meta/signal/name",
+    ];
+    let mut consistent = true;
+    for path in paths {
+        assert!(control.pointer(path).is_some());
+        assert_eq!(recognized.pointer(path), control.pointer(path));
+        observed(
+            "unknown_system_sdk_fallback",
+            json!({
+                "path":path,"without_system_sdk":control.pointer(path),
+                "recognized_system_sdk":recognized.pointer(path),"unknown_system_sdk":output.pointer(path),
+                "os_name":output.pointer("/contexts/os/name")
+            }),
+        );
+        consistent &= output.pointer(path) == control.pointer(path);
+    }
+    assert!(
+        consistent,
+        "An unrecognized system SDK name must not block the usable OS context"
+    );
+}
+
+#[test]
+fn standalone_stacktrace_fallback_preserves_exception_trace() {
+    let mut own_trace = stacktrace();
+    own_trace["frames"][0]["function"] = json!("crash");
+    let result = normalize_json(
+        json!({"stacktrace": stacktrace(), "exception": {"values": [{"type": "Error", "stacktrace": own_trace}]}}),
+        &NormalizationConfig::default(),
+    );
+    let function = result.pointer("/exception/values/0/stacktrace/frames/0/function");
+    observed(
+        "stacktrace_fallback_precedence",
+        json!({"exception_function": function}),
+    );
+    assert_eq!(
+        function,
+        Some(&json!("crash")),
+        "An existing exception trace must not be overwritten by the standalone fallback"
+    );
+}
+
+#[test]
+fn partial_contexts_use_matching_raw_description() {
+    let mut mismatches = Vec::new();
+    for (kind, name, version, description) in [
+        ("os", "Android", "12", "Android 12"),
+        ("runtime", ".NET", "8.0.0", ".NET 8.0.0"),
+    ] {
+        let mut input = json!({"contexts": {kind: {"raw_description": description}}});
+        let control = normalize_json(input.clone(), &NormalizationConfig::default());
+        assert_eq!(control["contexts"][kind]["name"], json!(name));
+        assert_eq!(control["contexts"][kind]["version"], json!(version));
+        for (provided, value, missing) in [("name", name, "version"), ("version", version, "name")]
+        {
+            input["contexts"][kind] = json!({"raw_description": description, provided: value});
+            let result = normalize_json(input.clone(), &NormalizationConfig::default());
+            observed(
+                "partial_description_context",
+                json!({"kind": kind, "provided": provided, "result": result["contexts"][kind]}),
+            );
+            if result["contexts"][kind][missing] != control["contexts"][kind][missing] {
+                mismatches.push((kind, provided));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "Matching descriptions did not fill missing components: {mismatches:?}"
+    );
+}
+
+#[test]
+fn span_domain_uses_server_address_without_a_scrubbable_description() {
+    let mut missing = Vec::new();
+    for description in [json!("GET /relative"), Value::Null, json!("unparseable")] {
+        let mut input = transaction_with_span();
+        input["spans"][0]["description"] = description.clone();
+        input["spans"][0]["data"] = json!({"server.address": "example.com", "url.scheme": "https"});
+        let result = normalize_json(input, &span_config(false));
+        let domain = result.pointer("/spans/0/sentry_tags/domain");
+        observed(
+            "span_domain_fallback",
+            json!({"description": description, "domain": domain}),
+        );
+        if domain != Some(&json!("example.com")) {
+            missing.push(description);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "Valid server.address fallback was blocked: {missing:?}"
+    );
+}
+
+#[test]
+fn resource_extension_is_derived_before_description_truncation() {
+    let mut violations = Vec::new();
+    for limit in [200, 16] {
+        let mut input = transaction_with_span();
+        input["spans"][0]["op"] = json!("resource.script");
+        input["spans"][0]["description"] = json!("https://example.com/app.js");
+        let config = NormalizationConfig {
+            max_tag_value_length: limit,
+            ..span_config(false)
+        };
+        let result = normalize_json(input, &config);
+        let extension = result.pointer("/spans/0/sentry_tags/file_extension");
+        observed(
+            "resource_extension_before_truncation",
+            json!({"limit": limit, "extension": extension}),
+        );
+        if extension != Some(&json!("js")) {
+            violations.push(limit);
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "Truncating the description changed its derived extension: {violations:?}"
+    );
+}
+
+#[test]
+fn score_components_read_the_same_input_snapshot() {
+    let mut totals = Vec::new();
+    for reverse in [false, true] {
+        let mut components = vec![
+            json!({"measurement": "lcp", "weight": 1, "p10": 1000, "p50": 2000}),
+            json!({"measurement": "score.lcp", "weight": 1, "p10": 0.3, "p50": 0.7}),
+        ];
+        if reverse {
+            components.reverse();
+        }
+        let profile: PerformanceScoreConfig = serde_json::from_value(json!({"profiles": [{
+            "condition": {"op": "eq", "name": "event.platform", "value": "javascript"},
+            "scoreComponents": components,
+        }]}))
+        .unwrap();
+        let mut input = transaction_with_span();
+        input["platform"] = json!("javascript");
+        input["measurements"] =
+            json!({"lcp": {"value": 1000}, "score.lcp": {"value": 0.5, "unit": "ratio"}});
+        let result = normalize(
+            input,
+            &NormalizationConfig {
+                performance_score: Some(&profile),
+                ..Default::default()
+            },
+        );
+        let total = result.measurement("score.total").unwrap().to_f64();
+        observed(
+            "score_component_input_collision",
+            json!({"reverse": reverse, "total": total}),
+        );
+        totals.push(total);
+    }
+    assert!(
+        (totals[0] - totals[1]).abs() < 1e-12,
+        "Component order changed the score: {totals:?}"
+    );
+}
+
+#[test]
+fn unknown_ai_operation_name_uses_recognized_span_op() {
+    let mut mismatches = Vec::new();
+    for name in [Value::Null, json!("unrecognized")] {
+        let mut input = transaction_with_span();
+        for pointer in ["/contexts/trace", "/spans/0"] {
+            let span = input.pointer_mut(pointer).unwrap();
+            span["op"] = json!("gen_ai.execute_tool");
+            span["data"] = json!({"gen_ai.operation.name": name});
+        }
+        let result = normalize_json(input, &span_config(false));
+        for pointer in [
+            "/contexts/trace/data/gen_ai.operation.type",
+            "/spans/0/data/gen_ai.operation.type",
+        ] {
+            let operation = result.pointer(pointer);
+            observed(
+                "ai_operation_fallback",
+                json!({"name": name, "path": pointer, "operation": operation}),
+            );
+            if operation != Some(&json!("tool")) {
+                mismatches.push((name.clone(), pointer));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "Recognized op fallback was blocked: {mismatches:?}"
+    );
+}
+
+#[test]
+fn score_condition_does_not_survive_a_removed_or_rewritten_input() {
+    let mut stale = Vec::new();
+    for (patch, field, op, value) in [
+        (
+            json!({"request": {"url": "https://example.com/path"}}),
+            "event.request.url",
+            "eq",
+            json!("https://example.com/path?q=1"),
+        ),
+        (
+            json!({"request": {"url": "https://example.com/path?q=1"}}),
+            "event.request.url",
+            "eq",
+            json!("https://example.com/path?q=1"),
+        ),
+        (
+            json!({"request": {"headers": {"Cookie": "a=b"}}}),
+            "event.request.headers.Cookie",
+            "eq",
+            json!("a=b"),
+        ),
+        (
+            json!({"measurements": {"lcp": {"value": 1000}, "score.total": {"value": 0.5}}}),
+            "event.measurements.score.total.value",
+            "lt",
+            json!(0.95),
+        ),
+        (
+            json!({"measurements": {"lcp": {"value": 1000}, "score.total": {"value": 0.5}}}),
+            "event.measurements.score.total.value",
+            "lt",
+            json!(0.75),
+        ),
+    ] {
+        let profile: PerformanceScoreConfig = serde_json::from_value(json!({"profiles": [{
+            "condition": {"op": op, "name": field, "value": value},
+            "scoreComponents": [{"measurement": "lcp", "weight": 1, "p10": 1000, "p50": 2000}],
+        }]}))
+        .unwrap();
+        let mut input = transaction_with_span();
+        input["measurements"] = json!({"lcp": {"value": 1000}});
+        for (key, value) in patch.as_object().unwrap() {
+            input[key.as_str()] = value.clone();
+        }
+        let result = normalize(
+            input,
+            &NormalizationConfig {
+                performance_score: Some(&profile),
+                ..Default::default()
+            },
+        );
+        let final_match = profile.profiles[0]
+            .condition
+            .as_ref()
+            .unwrap()
+            .matches(&result);
+        let scored = result.measurement("score.total").is_some();
+        let total = result
+            .measurement("score.total")
+            .map(|value| value.to_f64());
+        if field == "event.measurements.score.total.value" {
+            assert!(
+                total.is_some_and(|value| value > 0.5),
+                "The predicate input must actually be overwritten"
+            );
+        }
+        observed(
+            "score_condition_invalidated",
+            json!({"field": field, "op": op, "value": value, "final_match": final_match, "scored": scored, "total": total}),
+        );
+        if final_match != scored {
+            stale.push(field);
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "Scoring retained a condition invalidated by later normalization: {stale:?}"
+    );
+}
+
+#[test]
+fn partial_user_geo_uses_missing_fields_from_geoip() {
+    let lookup = GeoIpLookup::open(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/GeoIP2-Enterprise-Test.mmdb"),
+    )
+    .unwrap();
+    let mut missing = Vec::new();
+    for geo in [
+        Value::Null,
+        json!({}),
+        json!({"country_code": "GB"}),
+        json!({"city": "Explicit"}),
+    ] {
+        let expected = geo.get("city").cloned().unwrap_or(json!("Boxford"));
+        let result = normalize_json(
+            json!({"user": {"ip_address": "2.125.160.216", "geo": geo}}),
+            &NormalizationConfig {
+                geoip_lookup: Some(&lookup),
+                ..Default::default()
+            },
+        );
+        let city = result.pointer("/user/geo/city");
+        observed(
+            "partial_user_geo",
+            json!({"geo": geo, "city": city, "expected": expected}),
+        );
+        if city != Some(&expected) {
+            missing.push(geo);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "Partial geo blocked available GeoIP fields: {missing:?}"
+    );
+}
+
+#[test]
+fn user_data_migration_preserves_existing_entries() {
+    let mut conflicts = Vec::new();
+    for data in [json!({}), json!({"key": "canonical"})] {
+        let expected = data.get("key").cloned().unwrap_or(json!("legacy"));
+        let result = normalize_json(
+            json!({"user": {"data": data, "key": "legacy"}}),
+            &NormalizationConfig::default(),
+        );
+        observed(
+            "user_data_migration_conflict",
+            json!({"input": data, "result": result.pointer("/user/data/key")}),
+        );
+        if result.pointer("/user/data/key") != Some(&expected) {
+            conflicts.push(data);
+        }
+    }
+    assert!(
+        conflicts.is_empty(),
+        "Migrating legacy data overwrote existing entries: {conflicts:?}"
+    );
+}
+
+#[test]
+fn computed_context_display_does_not_starve_its_input_fields() {
+    let mut starved = Vec::new();
+    for kind in ["os", "runtime", "browser"] {
+        let input =
+            json!({"contexts": {kind: {"name": "n".repeat(3000), "version": "v".repeat(3000)}}});
+        let control = normalize_json(
+            input.clone(),
+            &NormalizationConfig {
+                is_renormalize: true,
+                enable_trimming: true,
+                ..Default::default()
+            },
+        );
+        let result = normalize_json(
+            input,
+            &NormalizationConfig {
+                enable_trimming: true,
+                ..Default::default()
+            },
+        );
+        for field in ["name", "version"] {
+            let original = control["contexts"][kind][field].as_str().unwrap();
+            let retained = result["contexts"][kind][field].as_str();
+            assert_eq!(
+                original.len(),
+                3000,
+                "The supplied components fit without the derived display field"
+            );
+            observed(
+                "context_display_budget",
+                json!({"kind": kind, "field": field, "original_bytes": original.len(), "retained_bytes": retained.map(str::len)}),
+            );
+            if retained != Some(original) {
+                starved.push((kind, field));
+            }
+        }
+    }
+    assert!(
+        starved.is_empty(),
+        "A derived display string consumed its inputs' budget: {starved:?}"
+    );
+}
+
+#[test]
+fn app_start_rewrite_processes_every_matching_span() {
+    let mut input = transaction_with_span();
+    input["sdk"] = json!({"name": "sentry.javascript.react-native", "version": "4.4.0"});
+    let mut second = input["spans"][0].clone();
+    second["span_id"] = json!("dddddddddddddddd");
+    input["spans"][0]["op"] = json!("app_start_cold");
+    second["op"] = json!("app_start_warm");
+    input["spans"].as_array_mut().unwrap().push(second);
+    let result = normalize_json(input, &span_config(false));
+    let ops: Vec<_> = result["spans"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|span| span["op"].clone())
+        .collect();
+    observed("app_start_multiple_spans", json!({"ops": ops}));
+    assert_eq!(ops, vec![json!("app.start.cold"), json!("app.start.warm")]);
+}
+
+#[test]
+fn score_inputs_require_usable_measurement_values() {
+    let component = |measurement, optional| {
+        json!({
+            "measurement": measurement, "optional": optional, "weight": 1, "p10": 1000, "p50": 2000,
+        })
+    };
+    let profile = |components| {
+        json!({
+            "condition": {"op": "eq", "name": "event.platform", "value": "javascript"},
+            "scoreComponents": components,
+        })
+    };
+    let mut incorrect = Vec::new();
+    for optional in [false, true] {
+        let profiles = if optional {
+            vec![profile(vec![
+                component("lcp", true),
+                component("fcp", false),
+            ])]
+        } else {
+            vec![
+                profile(vec![component("lcp", false)]),
+                profile(vec![component("fcp", false)]),
+            ]
+        };
+        let scoring: PerformanceScoreConfig =
+            serde_json::from_value(json!({"profiles": profiles})).unwrap();
+        let config = NormalizationConfig {
+            performance_score: Some(&scoring),
+            ..Default::default()
+        };
+        let mut base = transaction_with_span();
+        base["platform"] = json!("javascript");
+        base["measurements"] = json!({"fcp": {"value": 1000}});
+        let expected = normalize(base.clone(), &config)
+            .measurement("score.total")
+            .unwrap()
+            .to_f64();
+        for primary in [
+            Value::Null,
+            json!({"value": "invalid"}),
+            json!({"value": 1000}),
+        ] {
+            let mut input = base.clone();
+            input["measurements"]["lcp"] = primary.clone();
+            let result = normalize(input, &config);
+            let total = result
+                .measurement("score.total")
+                .map(|value| value.to_f64());
+            observed(
+                "score_profile_value_fallback",
+                json!({"optional": optional, "primary": primary, "total": total, "expected": expected}),
+            );
+            if total.is_none_or(|total| (total - expected).abs() > 1e-12) {
+                incorrect.push((optional, primary));
+            }
+        }
+    }
+    assert!(
+        incorrect.is_empty(),
+        "Unusable values blocked a profile or diluted optional-component weights: {incorrect:?}"
+    );
+}
+
+#[test]
+fn request_method_validation_is_independent_of_existing_errors() {
+    let mut retained = Vec::new();
+    for method in ["get", "g@t"] {
+        for has_error in [false, true] {
+            let mut input = json!({"request": {"method": method}});
+            if has_error {
+                input["_meta"] = json!({"request": {"method": {"": {"err": ["invalid_data"]}}}});
+            }
+            let result = normalize_json(input, &NormalizationConfig::default());
+            let normalized = result.pointer("/request/method").and_then(Value::as_str);
+            observed(
+                "method_validation_with_metadata",
+                json!({"method": method, "has_error": has_error, "normalized": normalized}),
+            );
+            if method == "get" {
+                assert_eq!(normalized, Some("GET"));
+            } else if normalized.is_some() {
+                retained.push(has_error);
+            }
+        }
+    }
+    assert!(
+        retained.is_empty(),
+        "Existing diagnostics bypassed method validation: {retained:?}"
+    );
+}
+
+#[test]
+fn empty_user_identity_fields_allow_the_next_fallback() {
+    let mut blocked = Vec::new();
+    for (preferred, fallback, value, expected) in [
+        ("id", "username", "alice", "username:alice"),
+        (
+            "username",
+            "email",
+            "alice@example.com",
+            "email:alice@example.com",
+        ),
+        ("email", "ip_address", "127.0.0.1", "ip:127.0.0.1"),
+    ] {
+        for empty in [Value::Null, json!("")] {
+            let result = normalize_json(
+                json!({"user": {preferred: empty, fallback: value}}),
+                &NormalizationConfig::default(),
+            );
+            let identity = result.pointer("/user/sentry_user").and_then(Value::as_str);
+            observed(
+                "empty_user_identity_fallback",
+                json!({"preferred": preferred, "input": empty, "identity": identity, "expected": expected}),
+            );
+            if identity != Some(expected) {
+                blocked.push((preferred, empty));
+            }
+        }
+    }
+    assert!(
+        blocked.is_empty(),
+        "Empty preferred identities blocked usable fallback fields: {blocked:?}"
+    );
+}
+
+#[test]
+fn child_app_start_type_uses_the_canonical_event_fallback() {
+    let mut mismatches = Vec::new();
+    for explicit in [false, true] {
+        for legacy in [false, true] {
+            let mut input = transaction_with_span();
+            input["sdk"] = json!({"name": "sentry.cocoa", "version": "9.0.0"});
+            if explicit {
+                input["tags"] = json!({"app.vitals.start.type": "warm"});
+            }
+            if legacy {
+                input["measurements"] =
+                    json!({"app_start_cold": {"value": 1000, "unit": "millisecond"}});
+            }
+            let expected = if explicit {
+                Some("warm")
+            } else if legacy {
+                Some("cold")
+            } else {
+                None
+            };
+            let result = normalize(input, &span_config(false));
+            assert_eq!(result.tag_value("app.vitals.start.type"), expected);
+            let spans = result.spans.value().unwrap();
+            let span = spans[0].value().unwrap();
+            let span_type = span
+                .sentry_tags
+                .value()
+                .and_then(|tags| tags.app_start_type.as_str());
+            observed(
+                "canonical_app_start_type_fallback",
+                json!({"explicit": explicit, "legacy": legacy, "event_type": expected, "span_type": span_type}),
+            );
+            if span_type != expected {
+                mismatches.push((explicit, legacy));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "Child spans ignored the canonical event type: {mismatches:?}"
+    );
 }
