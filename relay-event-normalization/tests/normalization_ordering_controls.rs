@@ -1700,3 +1700,54 @@ fn materialized_summary_retention() {
         }
     }
 }
+
+#[test]
+fn device_field_errors_do_not_skip_later_fields() {
+    // The five longest branch paths share this Device traversal. A local
+    // parse error must not prevent processing the independent later fields.
+    for field in [
+        "name",
+        "family",
+        "model",
+        "arch",
+        "orientation",
+        "manufacturer",
+        "screen_resolution",
+        "boot_time",
+        "timezone",
+        "cpu_description",
+        "device_type",
+        "battery_status",
+    ] {
+        for invalid in [Value::Null, json!({"bad": "value"})] {
+            let mut input = json!({"contexts": {"device": {
+                "device_unique_identifier": "keep-id", "supports_accelerometer": true,
+                "supports_audio": true, "supports_gyroscope": true, "other_key": "keep-other",
+            }}});
+            input["contexts"]["device"][field] = invalid;
+            let output = normalize_json(input, &NormalizationConfig::default());
+            assert_eq!(
+                output.pointer("/contexts/device/device_unique_identifier"),
+                Some(&json!("keep-id")),
+            );
+            for endpoint in [
+                "supports_accelerometer",
+                "supports_audio",
+                "supports_gyroscope",
+            ] {
+                assert_eq!(
+                    output.pointer(&format!("/contexts/device/{endpoint}")),
+                    Some(&json!(true)),
+                );
+            }
+            assert_eq!(
+                output.pointer("/contexts/device/other_key"),
+                Some(&json!("keep-other")),
+            );
+        }
+    }
+    observed(
+        "device_sibling_branch_controls",
+        json!({"cases": 24, "passed": true}),
+    );
+}

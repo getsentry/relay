@@ -1913,3 +1913,313 @@ fn remote_addr_placeholder_does_not_block_client_ip_fallback() {
         "An unresolved remote address blocked and propagated past the usable client IP: {mismatches:?}"
     );
 }
+
+#[test]
+fn windows_build_recovery_is_independent_of_existing_diagnostics() {
+    // Annotated::is_empty tests serialization emptiness, including metadata.
+    // Diagnostics must survive recovery, but must not count as a usable build.
+    let mut blocked = Vec::new();
+    for (case, build) in [
+        ("missing", None),
+        ("null", Some(Value::Null)),
+        ("empty", Some(json!(""))),
+        ("invalid", Some(json!({"bad": "value"}))),
+        ("explicit", Some(json!("keep-me"))),
+    ] {
+        for has_error in [false, true] {
+            // Metadata on an absent key is not attached by deserialization.
+            if case == "missing" && has_error {
+                continue;
+            }
+            let mut input = json!({"contexts": {"os": {
+                "raw_description": "Microsoft Windows 10.0.16299"
+            }}});
+            if let Some(build) = &build {
+                input["contexts"]["os"]["build"] = build.clone();
+            }
+            if has_error {
+                input["_meta"] = json!({"contexts": {"os": {
+                    "build": {"": {"err": ["invalid_data"]}}
+                }}});
+            }
+            let output = normalize_json(input, &NormalizationConfig::default());
+            assert_eq!(output.pointer("/contexts/os/name"), Some(&json!("Windows")));
+            assert_eq!(output.pointer("/contexts/os/version"), Some(&json!("10")));
+            if has_error || case == "invalid" {
+                assert!(
+                    output.pointer("/_meta/contexts/os/build//err").is_some(),
+                    "Recovery must retain the original build diagnostics; {case}, {has_error}",
+                );
+            }
+            let expected = if case == "explicit" {
+                "keep-me"
+            } else {
+                "16299"
+            };
+            let actual = output.pointer("/contexts/os/build").and_then(Value::as_str);
+            observed(
+                "windows_build_metadata_fallback",
+                json!({"case": case, "has_error": has_error, "actual": actual, "expected": expected}),
+            );
+            if actual != Some(expected) {
+                blocked.push((case, has_error));
+            }
+        }
+    }
+    assert!(
+        blocked.is_empty(),
+        "Build diagnostics blocked recovery from a usable Windows description: {blocked:?}",
+    );
+}
+
+#[test]
+fn stacktrace_diagnostics_do_not_invent_source_context() {
+    let mut invented = Vec::new();
+    for field in ["pre_context", "post_context"] {
+        for (case, lines, expected) in [
+            ("null", Value::Null, None),
+            ("empty", json!([]), None),
+            ("invalid", json!({"bad": "value"}), None),
+            ("source", json!(["source line"]), Some("")),
+        ] {
+            for has_error in [false, true] {
+                let mut input = json!({"stacktrace": {"frames": [{
+                    "filename": "app.py", "lineno": 10, field: lines
+                }]}});
+                if has_error {
+                    input["_meta"] = json!({"stacktrace": {"frames": {"0": {
+                        field: {"": {"err": ["invalid_data"]}}
+                    }}}});
+                }
+                let output = normalize_json(input, &NormalizationConfig::default());
+                if has_error || case == "invalid" {
+                    assert!(
+                        output
+                            .pointer(&format!("/_meta/stacktrace/frames/0/{field}//err"))
+                            .is_some(),
+                        "Source-context diagnostics must survive; {field}, {case}, {has_error}",
+                    );
+                }
+                let actual = output
+                    .pointer("/stacktrace/frames/0/context_line")
+                    .and_then(Value::as_str);
+                observed(
+                    "stacktrace_metadata_source_context",
+                    json!({"field": field, "case": case, "has_error": has_error,
+                        "actual": actual, "expected": expected}),
+                );
+                if actual != expected {
+                    invented.push((field, case, has_error));
+                }
+            }
+        }
+    }
+    assert!(
+        invented.is_empty(),
+        "Diagnostics were treated as usable source-context lines: {invented:?}",
+    );
+}
+
+#[test]
+fn ai_token_rate_does_not_require_model_metadata() {
+    // Tokens/second uses token counts and duration, not pricing/model metadata.
+    // An empty metadata table supplies no additional information.
+    let metadata = relay_event_normalization::ModelMetadata {
+        version: 1,
+        ..Default::default()
+    };
+    let mut input = transaction_with_span();
+    input["contexts"]["trace"]["op"] = json!("gen_ai.chat");
+    input["contexts"]["trace"]["data"] = json!({
+        "gen_ai.usage.input_tokens": 5, "gen_ai.usage.output_tokens": 20
+    });
+    input["spans"][0]["op"] = json!("gen_ai.chat");
+    input["spans"][0]["start_timestamp"] = json!(1_700_000_000.0);
+    input["spans"][0]["timestamp"] = json!(1_700_000_002.0);
+    input["spans"][0]["data"] = json!({
+        "gen_ai.usage.input_tokens": 5, "gen_ai.usage.output_tokens": 20
+    });
+    let with_metadata = normalize_json(
+        input.clone(),
+        &NormalizationConfig {
+            ai_model_metadata: Some(&metadata),
+            ..span_config(false)
+        },
+    );
+    let without_metadata = normalize_json(input, &span_config(false));
+    let mut missing = Vec::new();
+    for (path, expected) in [
+        (
+            "/contexts/trace/data/gen_ai.response.tokens_per_second",
+            4.0,
+        ),
+        ("/spans/0/data/gen_ai.response.tokens_per_second", 10.0),
+    ] {
+        assert_eq!(
+            with_metadata.pointer(path).and_then(Value::as_f64),
+            Some(expected)
+        );
+        let actual = without_metadata.pointer(path).and_then(Value::as_f64);
+        observed(
+            "ai_token_rate_metadata_dependency",
+            json!({
+                "path": path, "without_metadata": actual, "empty_metadata": expected,
+            }),
+        );
+        if actual != Some(expected) {
+            missing.push(path);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "Missing model metadata blocked a model-independent token rate: {missing:?}"
+    );
+}
+
+#[test]
+fn device_context_trimming_enforces_utf8_byte_budget() {
+    // Context::Device declares max_bytes = 8192. Checking only the retained
+    // name is a lower bound, independent of map keys and serialization overhead.
+    let mut oversized = Vec::new();
+    for trimming in [false, true] {
+        for (case, character, count) in [
+            ("ascii_short", "a", 3000),
+            ("ascii_long", "a", 9000),
+            ("two_byte", "é", 3000),
+            ("three_byte", "界", 3000),
+            ("four_byte", "😀", 3000),
+            ("four_byte_long", "😀", 9000),
+        ] {
+            let name = character.repeat(count);
+            let input_bytes = name.len();
+            let output = normalize_json(
+                json!({"contexts": {"device": {
+                    "name": name, "family": "keep-family",
+                    "device_unique_identifier": "keep-id",
+                    "supports_accelerometer": true, "supports_audio": true,
+                    "supports_gyroscope": true, "other_key": "keep-other",
+                }}}),
+                &NormalizationConfig {
+                    enable_trimming: trimming,
+                    ..Default::default()
+                },
+            );
+            let retained = output
+                .pointer("/contexts/device/name")
+                .and_then(Value::as_str)
+                .unwrap();
+            if !trimming {
+                assert_eq!(retained.len(), input_bytes);
+            }
+            if !trimming || input_bytes <= 8000 {
+                assert_eq!(
+                    output.pointer("/contexts/device/family"),
+                    Some(&json!("keep-family")),
+                );
+                for field in [
+                    "supports_accelerometer",
+                    "supports_audio",
+                    "supports_gyroscope",
+                ] {
+                    assert_eq!(
+                        output.pointer(&format!("/contexts/device/{field}")),
+                        Some(&json!(true)),
+                    );
+                }
+            }
+            observed(
+                "device_context_utf8_budget",
+                json!({
+                    "case": case, "trimming": trimming, "input_bytes": input_bytes,
+                    "retained_name_bytes": retained.len(),
+                    "retained_name_characters": retained.chars().count(),
+                    "later_family": output.pointer("/contexts/device/family"),
+                    "later_accelerometer": output.pointer("/contexts/device/supports_accelerometer"),
+                }),
+            );
+            if trimming && retained.len() > 8192 {
+                oversized.push((case, retained.len()));
+            }
+        }
+    }
+    assert!(
+        oversized.is_empty(),
+        "Device names alone exceed the context's 8192-byte budget after trimming: {oversized:?}",
+    );
+}
+
+#[test]
+fn invalid_app_start_alias_does_not_discard_valid_measurement() {
+    // Rejected alternate spellings must not erase an independently usable
+    // duration. Valid aliases alone and valid snake-case inputs are controls.
+    let mut lost = Vec::new();
+    for trimming in [false, true] {
+        for start_type in ["cold", "warm"] {
+            let canonical = format!("app_start_{start_type}");
+            let alias = format!("app.start.{start_type}");
+            let valid = json!({"value": 1000.0, "unit": "millisecond"});
+            let config = NormalizationConfig {
+                enable_trimming: trimming,
+                ..Default::default()
+            };
+            for key in [&canonical, &alias] {
+                let mut input = transaction_with_span();
+                input["measurements"] = json!({key: valid});
+                let control = normalize_json(input, &config);
+                assert_eq!(
+                    control
+                        .pointer(&format!("/measurements/{canonical}/value"))
+                        .and_then(Value::as_f64),
+                    Some(1000.0),
+                );
+                assert_eq!(
+                    control
+                        .pointer("/measurements/app.vitals.start.value/value")
+                        .and_then(Value::as_f64),
+                    Some(1000.0),
+                );
+                assert_eq!(tag(&control, "app.vitals.start.type"), Some(start_type));
+            }
+            for (case, unusable) in [
+                ("null", Value::Null),
+                (
+                    "invalid_object",
+                    json!({"value": {"bad": true}, "unit": "millisecond"}),
+                ),
+                ("missing_value", json!({"unit": "millisecond"})),
+                (
+                    "invalid_string",
+                    json!({"value": "not-a-number", "unit": "millisecond"}),
+                ),
+                ("outlier", json!({"value": 180001.0, "unit": "millisecond"})),
+            ] {
+                let mut input = transaction_with_span();
+                input["measurements"] = json!({canonical.clone(): valid, alias.clone(): unusable});
+                let output = normalize_json(input, &config);
+                let source = output
+                    .pointer(&format!("/measurements/{canonical}/value"))
+                    .and_then(Value::as_f64);
+                let derived = output
+                    .pointer("/measurements/app.vitals.start.value/value")
+                    .and_then(Value::as_f64);
+                let derived_type = tag(&output, "app.vitals.start.type");
+                observed(
+                    "app_start_invalid_alias",
+                    json!({"case": case, "start_type": start_type, "trimming": trimming,
+                        "retained_duration": source, "derived_duration": derived,
+                        "derived_type": derived_type}),
+                );
+                if source != Some(1000.0)
+                    || derived != Some(1000.0)
+                    || derived_type != Some(start_type)
+                {
+                    lost.push((case, start_type, trimming));
+                }
+            }
+        }
+    }
+    assert!(
+        lost.is_empty(),
+        "An unusable app-start alias discarded a valid duration and its derivations: {lost:?}",
+    );
+}
