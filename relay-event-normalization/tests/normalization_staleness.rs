@@ -2223,3 +2223,165 @@ fn invalid_app_start_alias_does_not_discard_valid_measurement() {
         "An unusable app-start alias discarded a valid duration and its derivations: {lost:?}",
     );
 }
+
+#[test]
+fn device_context_trimming_counts_property_names() {
+    // ASCII keys and boolean values isolate property-name accounting from
+    // the separate UTF-8 string-value trimming regression.
+    let mut oversized = Vec::new();
+    for trimming in [false, true] {
+        for remove_other in [false, true] {
+            for key_bytes in [100, 8193, 20000] {
+                let key = "k".repeat(key_bytes);
+                let output = normalize_json(
+                    json!({"contexts": {"device": {
+                        "name": "small", "supports_location_service": true,
+                        "supports_vibration": true, key: true,
+                    }}}),
+                    &NormalizationConfig {
+                        enable_trimming: trimming,
+                        remove_other,
+                        ..Default::default()
+                    },
+                );
+                let device = output
+                    .pointer("/contexts/device")
+                    .unwrap()
+                    .as_object()
+                    .unwrap();
+                let largest_key = device.keys().map(String::len).max().unwrap();
+                assert_eq!(device.get("name"), Some(&json!("small")));
+                assert_eq!(device.get("supports_location_service"), Some(&json!(true)));
+                assert_eq!(device.get("supports_vibration"), Some(&json!(true)));
+                if !trimming || key_bytes == 100 {
+                    // Unknown Device properties are explicitly retained by the schema.
+                    assert_eq!(largest_key, key_bytes);
+                }
+                observed(
+                    "device_context_property_name_budget",
+                    json!({"trimming": trimming, "remove_other": remove_other,
+                        "input_key_bytes": key_bytes, "retained_max_key_bytes": largest_key}),
+                );
+                // One key alone is a lower bound on the context's byte size.
+                if trimming && largest_key > 8192 {
+                    oversized.push((remove_other, key_bytes, largest_key));
+                }
+            }
+        }
+    }
+    assert!(
+        oversized.is_empty(),
+        "Property names alone exceed the Device context's 8192-byte budget: {oversized:?}",
+    );
+}
+
+#[test]
+fn unusable_custom_measurements_do_not_displace_usable_values() {
+    // An absent object already does not consume a slot. An object whose
+    // required numeric value failed validation must not displace usable data.
+    let mut displaced = Vec::new();
+    for trimming in [false, true] {
+        for quota in [1, 2] {
+            let measurements = MeasurementsConfig {
+                builtin_measurements: vec![],
+                max_custom_measurements: quota,
+            };
+            let config = NormalizationConfig {
+                measurements: Some(CombinedMeasurementsConfig::new(Some(&measurements), None)),
+                enable_trimming: trimming,
+                ..Default::default()
+            };
+            for (case, primary) in [
+                ("absent", None),
+                ("null_object", Some(Value::Null)),
+                ("valid_zero", Some(json!({"value": 0}))),
+            ] {
+                let mut input = transaction_with_span();
+                input["measurements"] = json!({"z_valid": {"value": 42}});
+                if let Some(primary) = primary {
+                    input["measurements"]["a_first"] = primary;
+                }
+                let control = normalize(input, &config);
+                assert_eq!(
+                    control.measurement("z_valid").map(|v| v.to_f64()),
+                    (case != "valid_zero" || quota == 2).then_some(42.0),
+                );
+                if case == "valid_zero" {
+                    assert_eq!(
+                        control.measurement("a_first").map(|v| v.to_f64()),
+                        Some(0.0)
+                    );
+                }
+            }
+            for (case, invalid) in [
+                ("empty_object", json!({})),
+                ("missing_value", json!({"unit": "none"})),
+                ("null_value", json!({"value": null})),
+                ("invalid_string", json!({"value": "bad"})),
+                ("invalid_object", json!({"value": {"bad": true}})),
+            ] {
+                let mut input = transaction_with_span();
+                input["measurements"] = json!({"a_first": invalid, "z_valid": {"value": 42}});
+                let output = normalize_json(input, &config);
+                assert!(
+                    output
+                        .pointer("/_meta/measurements/a_first/value//err")
+                        .is_some()
+                );
+                let usable = output
+                    .pointer("/measurements/z_valid/value")
+                    .and_then(Value::as_f64);
+                observed(
+                    "invalid_custom_measurement_quota",
+                    json!({"case": case, "trimming": trimming, "quota": quota,
+                        "retained_usable_value": usable,
+                        "invalid_numeric_value": output.pointer("/measurements/a_first/value")}),
+                );
+                if usable != Some(42.0) {
+                    displaced.push((case, trimming, quota));
+                }
+            }
+        }
+    }
+    assert!(
+        displaced.is_empty(),
+        "Invalid numeric measurements consumed the quota and displaced usable data: {displaced:?}",
+    );
+}
+
+#[test]
+fn measurement_name_budget_handles_units_longer_than_limit() {
+    let measurements = MeasurementsConfig {
+        builtin_measurements: vec![],
+        max_custom_measurements: 2,
+    };
+    let mut failures = Vec::new();
+    for maximum in [0, 1, 8, 11, 12, 30] {
+        let config = NormalizationConfig {
+            measurements: Some(CombinedMeasurementsConfig::new(Some(&measurements), None)),
+            max_name_and_unit_len: Some(maximum),
+            ..Default::default()
+        };
+        let mut input = transaction_with_span();
+        input["measurements"] = json!({"m": {"value": 1, "unit": "millisecond"}});
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| normalize(input, &config)));
+        let (panicked, retained) = match result {
+            Ok(output) => (false, output.measurement("m").is_some()),
+            Err(_) => (true, false),
+        };
+        observed(
+            "measurement_name_budget_underflow",
+            json!({"maximum": maximum, "unit_bytes": "millisecond".len(),
+                "name_bytes": "m".len(), "panicked": panicked, "retained": retained}),
+        );
+        // The one-byte name and eleven-byte unit fit only at limits >= 12.
+        if panicked || retained != (maximum >= 12) {
+            failures.push((maximum, panicked, retained));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "A name/unit budget must reject values that cannot fit without panicking or wrapping: {failures:?}",
+    );
+}
