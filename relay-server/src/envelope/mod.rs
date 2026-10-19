@@ -50,6 +50,9 @@ use smallvec::SmallVec;
 
 use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
+use crate::managed::RecordKeeper;
+use crate::services::outcome::Outcome;
+use crate::utils::{EnvelopeSummary, infer_event_category};
 
 mod attachment;
 mod container;
@@ -62,6 +65,19 @@ pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
 pub use self::meta::*;
+
+/// Represents the decision on whether or not to keep an envelope item.
+#[derive(Debug, Clone)]
+pub enum ItemAction {
+    /// Keep the item.
+    Keep,
+    /// Drop the item and log an outcome for it.
+    Drop(Outcome),
+    /// Drop the item without logging an outcome.
+    DropSilently,
+    /// Keep a required attachment, but account for its rejected attachment quantities.
+    KeepRateLimited(Outcome),
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
@@ -603,15 +619,47 @@ impl Envelope {
         }))
     }
 
-    /// Retains only the items specified by the predicate.
+    /// Applies retention decisions in place and accounts for rejected quantities.
     ///
-    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
-    /// in place and preserves the order of the retained items.
-    pub fn retain_items<F>(&mut self, f: F)
-    where
-        F: FnMut(&mut Item) -> bool,
-    {
-        self.items.retain(f)
+    /// Preserves item order. Kept items need no quantity calculation. Removed items use
+    /// envelope counting rules, including the single implicit event created by crash attachments.
+    pub fn retain_items(
+        &mut self,
+        records: &mut RecordKeeper<'_>,
+        mut retain_item: impl FnMut(&Item) -> ItemAction,
+    ) {
+        let mut event_rejection = None;
+        let mut retained_event = false;
+        self.items.retain(|item| {
+            let outcome = match retain_item(item) {
+                ItemAction::Keep => {
+                    retained_event |= item.creates_event() && infer_event_category(item).is_some();
+                    return true;
+                }
+                ItemAction::KeepRateLimited(outcome) => {
+                    records.reject_err(outcome, &*item);
+                    item.set_rate_limited(true);
+                    retained_event |= item.creates_event() && infer_event_category(item).is_some();
+                    return true;
+                }
+                ItemAction::Drop(outcome) => Some(outcome),
+                ItemAction::DropSilently => None,
+            };
+            let mut removed = EnvelopeSummary::compute_items([&*item]);
+            if let Some(category) = removed.event_category.take() {
+                event_rejection.get_or_insert((category, outcome.clone()));
+            }
+            records.reject_err(outcome, removed);
+            false
+        });
+
+        // Multiple items can create the same event. Reject it only if none survive.
+        if !retained_event && let Some((category, outcome)) = event_rejection {
+            records.reject_err(outcome.clone(), (category, 1));
+            if let Some(indexed) = category.index_category() {
+                records.reject_err(outcome, (indexed, 1));
+            }
+        }
     }
 
     /// Drops every item in the envelope.

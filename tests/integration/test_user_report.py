@@ -1,7 +1,10 @@
 import json
 import uuid
 
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+from .consts import Outcome
 
 
 def test_standalone_user_report(
@@ -217,11 +220,16 @@ def test_user_report_error_quota(
 
     relay.send_envelope(project_id, envelope)
 
-    # Becuase of the quotas, we should drop error, and since the user_report is in the same envelope, we should also drop it.
+    # Rejecting the error also rejects its accompanying feedback.
     attachments_consumer.assert_empty()
     events_consumer.assert_empty()
 
-    # We must have 1 outcome with provided reason.
+    # Both rejected items must be accounted for, using the parent error's reason.
     outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == "error_quota"
+    assert sorted(
+        (item["category"], item["quantity"], item["outcome"], item["reason"])
+        for item in outcomes
+    ) == [
+        (DataCategory.ERROR, 1, Outcome.RATE_LIMITED, "error_quota"),
+        (DataCategory.USER_REPORT_V2, 1, Outcome.RATE_LIMITED, "error_quota"),
+    ]

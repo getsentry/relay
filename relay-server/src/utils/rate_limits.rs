@@ -7,9 +7,8 @@ use relay_quotas::{
     DataCategory, DimensionMap, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
-use smallvec::SmallVec;
 
-use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemAction, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::Outcome;
@@ -115,7 +114,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 ///   to be set on the event item.
 /// - `Attachment`: If the attachment creates an event (e.g. for minidumps), the category is assumed
 ///   to be `Error`.
-fn infer_event_category(item: &Item) -> Option<DataCategory> {
+pub(crate) fn infer_event_category(item: &Item) -> Option<DataCategory> {
     match item.ty() {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
@@ -388,8 +387,6 @@ impl EnvelopeSummary {
 pub struct CategoryLimit {
     /// The limited data category.
     category: Option<DataCategory>,
-    /// Additional and optional data categories in which outcomes will be produced.
-    extra_outcome_categories: SmallVec<[DataCategory; 1]>,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
@@ -409,17 +406,10 @@ impl CategoryLimit {
             Some(limit) => Self {
                 category: Some(category),
                 quantity,
-                extra_outcome_categories: Default::default(),
                 reason_code: limit.reason_code.clone(),
             },
             None => Self::default(),
         }
-    }
-
-    /// Adds an additional outcome in the specified category to the limit.
-    pub fn add_outcome_category(mut self, category: DataCategory) -> Self {
-        self.extra_outcome_categories.push(category);
-        self
     }
 
     /// Recreates the category limit, if active, for a new category with the same reason.
@@ -430,7 +420,6 @@ impl CategoryLimit {
 
         Self {
             category: Some(category),
-            extra_outcome_categories: Default::default(),
             quantity,
             reason_code: self.reason_code.clone(),
         }
@@ -443,27 +432,9 @@ impl CategoryLimit {
         self.category.is_some()
     }
 
-    fn outcomes(self) -> impl Iterator<Item = (Outcome, DataCategory, usize)> {
-        let Self {
-            category,
-            extra_outcome_categories,
-            quantity,
-            reason_code,
-        } = self;
-
-        if category.is_none() || quantity == 0 {
-            return either::Either::Left(std::iter::empty());
-        }
-
-        let outcomes = std::iter::chain(category, extra_outcome_categories).map(move |category| {
-            (
-                Outcome::RateLimited(reason_code.clone()),
-                category,
-                quantity,
-            )
-        });
-
-        either::Either::Right(outcomes)
+    fn outcome(&self) -> Option<Outcome> {
+        self.is_active()
+            .then(|| Outcome::RateLimited(self.reason_code.clone()))
     }
 }
 
@@ -478,6 +449,7 @@ pub struct AttachmentLimits {
 }
 
 impl AttachmentLimits {
+    #[cfg(test)]
     fn is_active(&self) -> bool {
         self.bytes.is_active() || self.count.is_active()
     }
@@ -563,76 +535,6 @@ impl Enforcement {
         self.active_event().is_some()
     }
 
-    /// Helper for `track_outcomes`.
-    fn get_outcomes(self) -> impl Iterator<Item = (Outcome, DataCategory, usize)> {
-        let Self {
-            event,
-            event_indexed,
-            attachments_limits:
-                AttachmentsLimits {
-                    event:
-                        AttachmentLimits {
-                            bytes: event_attachment_bytes,
-                            count: event_attachment_item,
-                        },
-                    trace:
-                        AttachmentLimits {
-                            bytes: trace_attachment_bytes,
-                            count: trace_attachment_item,
-                        },
-                    span:
-                        AttachmentLimits {
-                            bytes: span_attachment_bytes,
-                            count: span_attachment_item,
-                        },
-                },
-            sessions: _, // Do not report outcomes for sessions.
-            profiles,
-            profiles_backend,
-            profiles_ui,
-            profiles_indexed,
-            replays,
-            check_ins,
-            log_items,
-            log_bytes,
-            spans,
-            spans_indexed,
-            user_reports,
-            profile_chunks,
-            profile_chunks_ui,
-            trace_metrics,
-            trace_metrics_bytes,
-        } = self;
-
-        let limits = [
-            event,
-            event_indexed,
-            event_attachment_bytes,
-            event_attachment_item,
-            trace_attachment_bytes,
-            trace_attachment_item,
-            span_attachment_bytes,
-            span_attachment_item,
-            profiles,
-            profiles_backend,
-            profiles_ui,
-            profiles_indexed,
-            replays,
-            check_ins,
-            log_items,
-            log_bytes,
-            spans,
-            spans_indexed,
-            user_reports,
-            profile_chunks,
-            profile_chunks_ui,
-            trace_metrics,
-            trace_metrics_bytes,
-        ];
-
-        limits.into_iter().flat_map(|limit| limit.outcomes())
-    }
-
     /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
     /// and emits outcomes for each rate limited category.
     ///
@@ -670,85 +572,70 @@ impl Enforcement {
     /// 3. Rate limits are empty.
     pub fn apply_to_managed(self, envelope: &mut Managed<Box<Envelope>>) {
         envelope.modify(|envelope, records| {
-            envelope.retain_items(|item| self.retain_item(item));
-
-            // Sessions currently do not emit any outcomes, but may be dropped.
-            records.lenient(DataCategory::Session);
-            // This is an existing bug in how user reports handle rate limits and emit outcomes.
-            //
-            // User report v1 and v2 (feedback) are counting into the same category, but that is not
-            // completely consistent leading to some mismatches when emitting outcomes from rate
-            // limiting vs how outcomes are counted on the `Managed` instance.
-            //
-            // Issue: <https://github.com/getsentry/relay/issues/5524>.
-            records.lenient(DataCategory::UserReportV2);
-
-            for (outcome, category, quantity) in self.get_outcomes() {
-                records.reject_err(outcome, (category, quantity))
-            }
+            envelope.retain_items(records, |item| self.retain_item(item));
         });
     }
 
-    /// Returns `true` when an [`Item`] can be retained, `false` otherwise.
-    fn retain_item(&self, item: &mut Item) -> bool {
-        // Remove event items and all items that depend on this event
-        if self.event.is_active() && item.requires_event() {
-            return false;
+    /// Decides retention and its outcome together, including dependent items.
+    fn retain_item(&self, item: &Item) -> ItemAction {
+        if item.requires_event()
+            && let Some(outcome) = self.event.outcome()
+        {
+            return ItemAction::Drop(outcome);
         }
 
-        // When checking limits for categories that have an indexed variant,
-        // we only have to check the more specific, the indexed, variant
-        // to determine whether an item is limited.
-        match item.ty() {
+        let outcome = match item.ty() {
             ItemType::Attachment => {
-                match item.attachment_parent_type() {
-                    AttachmentParentType::Span => !self.attachments_limits.span.is_active(),
-                    AttachmentParentType::Trace => !self.attachments_limits.trace.is_active(),
-                    AttachmentParentType::Event => {
-                        if !self.attachments_limits.event.is_active() {
-                            return true;
-                        }
-                        if item.creates_event() {
-                            item.set_rate_limited(true);
-                            true
-                        } else {
-                            false
-                        }
-                    }
+                let limits = match item.attachment_parent_type() {
+                    AttachmentParentType::Span => &self.attachments_limits.span,
+                    AttachmentParentType::Trace => &self.attachments_limits.trace,
+                    AttachmentParentType::Event => &self.attachments_limits.event,
+                };
+                let outcome = limits.bytes.outcome().or_else(|| limits.count.outcome());
+                if matches!(item.attachment_parent_type(), AttachmentParentType::Event)
+                    && item.creates_event()
+                    && let Some(outcome) = outcome
+                {
+                    return ItemAction::KeepRateLimited(outcome);
                 }
+                outcome
             }
-            ItemType::Session => !self.sessions.is_active(),
+            ItemType::Session if self.sessions.is_active() => return ItemAction::DropSilently,
             ItemType::Profile => {
-                if self.profiles_indexed.is_active() {
-                    false
-                } else if let Some(platform) = item.profile_type() {
-                    match platform {
-                        ProfileType::Backend => !self.profiles_backend.is_active(),
-                        ProfileType::Ui => !self.profiles_ui.is_active(),
-                    }
-                } else {
-                    true
-                }
+                self.profiles_indexed
+                    .outcome()
+                    .or_else(|| match item.profile_type() {
+                        Some(ProfileType::Backend) => self.profiles_backend.outcome(),
+                        Some(ProfileType::Ui) => self.profiles_ui.outcome(),
+                        None => None,
+                    })
             }
-            ItemType::ReplayEvent => !self.replays.is_active(),
-            ItemType::ReplayVideo => !self.replays.is_active(),
-            ItemType::ReplayRecording => !self.replays.is_active(),
-            ItemType::UserReport => !self.user_reports.is_active(),
-            ItemType::CheckIn => !self.check_ins.is_active(),
-            ItemType::Log => {
-                !(self.log_items.is_active() || self.log_bytes.is_active())
+            ItemType::ReplayEvent | ItemType::ReplayVideo | ItemType::ReplayRecording => {
+                self.replays.outcome()
             }
-            ItemType::Span => !self.spans_indexed.is_active(),
+            ItemType::UserReport => self.user_reports.outcome(),
+            ItemType::CheckIn => self.check_ins.outcome(),
+            ItemType::Log => self
+                .log_items
+                .outcome()
+                .or_else(|| self.log_bytes.outcome()),
+            ItemType::Span => self.spans_indexed.outcome(),
             ItemType::ProfileChunk => match item.profile_type() {
-                Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
-                Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
-                None => true,
+                Some(ProfileType::Backend) => self.profile_chunks.outcome(),
+                Some(ProfileType::Ui) => self.profile_chunks_ui.outcome(),
+                None => None,
             },
-            ItemType::TraceMetric => !(self.trace_metrics.is_active() || self.trace_metrics_bytes.is_active()),
+            ItemType::TraceMetric => self
+                .trace_metrics
+                .outcome()
+                .or_else(|| self.trace_metrics_bytes.outcome()),
             ItemType::Integration => match item.integration() {
-                Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
-                Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
-                None => true,
+                Some(Integration::Logs(_)) => self
+                    .log_items
+                    .outcome()
+                    .or_else(|| self.log_bytes.outcome()),
+                Some(Integration::Spans(_)) => self.spans_indexed.outcome(),
+                None => None,
             },
             ItemType::Event
             | ItemType::Transaction
@@ -756,11 +643,16 @@ impl Enforcement {
             | ItemType::FormData
             | ItemType::RawSecurity
             | ItemType::UnrealReport
+            | ItemType::Session
             | ItemType::Sessions
             | ItemType::MetricBuckets
             | ItemType::ClientReport
-            | ItemType::UserReportV2  // This is an event type.
-            | ItemType::Unknown(_) => true,
+            | ItemType::UserReportV2
+            | ItemType::Unknown(_) => None,
+        };
+        match outcome {
+            Some(outcome) => ItemAction::Drop(outcome),
+            None => ItemAction::Keep,
         }
     }
 }
@@ -1158,8 +1050,7 @@ where
                         DataCategory::ProfileBackend,
                         summary.profile_quantity.backend,
                         limit.longest(),
-                    )
-                    .add_outcome_category(DataCategory::Profile);
+                    );
 
                     profile_limits.merge(limit);
                 }
@@ -1176,8 +1067,7 @@ where
                         DataCategory::ProfileUi,
                         summary.profile_quantity.ui,
                         limit.longest(),
-                    )
-                    .add_outcome_category(DataCategory::Profile);
+                    );
 
                     profile_limits.merge(limit);
                 }
@@ -1215,13 +1105,6 @@ where
                     );
 
                     profile_limits.merge(limit);
-                } else {
-                    enforcement.profiles_backend = enforcement
-                        .profiles_backend
-                        .add_outcome_category(DataCategory::ProfileIndexed);
-                    enforcement.profiles_ui = enforcement
-                        .profiles_ui
-                        .add_outcome_category(DataCategory::ProfileIndexed);
                 }
             }
 
@@ -1726,6 +1609,123 @@ mod tests {
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
+    }
+
+    #[test]
+    fn test_error_and_feedback_outcomes() {
+        let mut error_limit = rate_limit(DataCategory::Error);
+        error_limit.reason_code = Some(ReasonCode::new("error_quota"));
+        let mut feedback_limit = rate_limit(DataCategory::UserReportV2);
+        feedback_limit.reason_code = Some(ReasonCode::new("feedback_quota"));
+
+        for error_blocked in [false, true] {
+            for feedback_blocked in [false, true] {
+                let enforcement = Enforcement {
+                    event: CategoryLimit::new(
+                        DataCategory::Error,
+                        1,
+                        error_blocked.then_some(&error_limit),
+                    ),
+                    user_reports: CategoryLimit::new(
+                        DataCategory::UserReportV2,
+                        1,
+                        feedback_blocked.then_some(&feedback_limit),
+                    ),
+                    ..Default::default()
+                };
+                let (mut envelope, mut outcomes) =
+                    Managed::for_test(envelope![Event, UserReport]).build();
+                enforcement.apply_to_managed(&mut envelope);
+
+                assert_eq!(
+                    envelope.len(),
+                    usize::from(!error_blocked) + usize::from(!error_blocked && !feedback_blocked)
+                );
+                if error_blocked || feedback_blocked {
+                    let reason = if error_blocked {
+                        &error_limit
+                    } else {
+                        &feedback_limit
+                    };
+                    outcomes.assert_outcome(
+                        &Outcome::RateLimited(reason.reason_code.clone()),
+                        DataCategory::UserReportV2,
+                        1,
+                    );
+                }
+                if error_blocked {
+                    outcomes.assert_outcome(
+                        &Outcome::RateLimited(error_limit.reason_code.clone()),
+                        DataCategory::Error,
+                        1,
+                    );
+                }
+                envelope.accept(drop);
+                outcomes.assert_no_outcomes();
+            }
+        }
+    }
+
+    #[test]
+    fn test_retention_counts_implicit_event_once() {
+        for retained in 0u32..4 {
+            let (mut envelope, mut outcomes) =
+                Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
+            let outcome = Outcome::RateLimited(None);
+            envelope.modify(|envelope, records| {
+                let mut index = 0;
+                envelope.retain_items(records, |_| {
+                    let keep = retained & (1 << index) != 0;
+                    index += 1;
+                    if keep {
+                        ItemAction::Keep
+                    } else {
+                        ItemAction::Drop(outcome.clone())
+                    }
+                });
+            });
+
+            assert_eq!(envelope.len(), retained.count_ones() as usize);
+            for _ in 0..(2 - retained.count_ones()) {
+                outcomes.assert_outcome(&outcome, DataCategory::Attachment, 10);
+                outcomes.assert_outcome(&outcome, DataCategory::AttachmentItem, 1);
+            }
+            if retained == 0 {
+                outcomes.assert_outcome(&outcome, DataCategory::Error, 1);
+            }
+            envelope.accept(drop);
+            outcomes.assert_no_outcomes();
+        }
+    }
+
+    #[test]
+    fn test_parent_rejection_counts_only_removed_items() {
+        for (item_type, dropped_category) in [
+            (ItemType::ReplayEvent, Some(DataCategory::Replay)),
+            (ItemType::Span, None),
+        ] {
+            let limit = rate_limit(DataCategory::Error);
+            let event = CategoryLimit::new(DataCategory::Error, 1, Some(&limit));
+            let enforcement = Enforcement {
+                spans: event.clone_for(DataCategory::Span, 1),
+                event,
+                ..Default::default()
+            };
+            let mut envelope = envelope![Event];
+            envelope.add_item(Item::new(item_type));
+            let (mut envelope, mut outcomes) = Managed::for_test(envelope).build();
+            enforcement.apply_to_managed(&mut envelope);
+
+            if let Some(category) = dropped_category {
+                assert!(envelope.is_empty());
+                outcomes.assert_outcome(&Outcome::RateLimited(None), category, 1);
+            } else {
+                assert_eq!(envelope.len(), 1);
+            }
+            outcomes.assert_outcome(&Outcome::RateLimited(None), DataCategory::Error, 1);
+            envelope.accept(drop);
+            outcomes.assert_no_outcomes();
+        }
     }
 
     #[tokio::test]
