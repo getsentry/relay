@@ -6,6 +6,10 @@
 
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 
+**Internal**:
+
+- Emit complete rate-limit outcomes for rejected envelope items, including V1 user feedback. ([#6526](https://github.com/getsentry/relay/pull/6526))
+
 ## 26.10.0
 
 **Breaking Changes**:
