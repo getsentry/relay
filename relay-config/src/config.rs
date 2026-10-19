@@ -3161,6 +3161,7 @@ mod tests {
     }
 
     /// Builds a config from YAML under `processing`.
+    #[cfg(feature = "processing")]
     fn processing_config(yaml: &str) -> Config {
         let path = env::temp_dir().join(Uuid::new_v4().to_string());
         fs::create_dir(&path).unwrap();
@@ -3169,6 +3170,7 @@ mod tests {
     }
 
     /// A generated blob must resolve to the same broker params Relay would have built directly.
+    #[cfg(feature = "processing")]
     #[test]
     fn test_kafka_config_blob_round_trips() {
         use sentry_arroyo::backends::kafka::config_blob::{ConfigBlob, ProducerSelector};
@@ -3251,6 +3253,7 @@ processing:
     }
 
     /// Moving a topic to a different cluster must change the broker it resolves to.
+    #[cfg(feature = "processing")]
     #[test]
     fn test_topic_can_move_between_clusters() {
         use sentry_arroyo::backends::kafka::config_blob::{ConfigBlob, ProducerSelector};
