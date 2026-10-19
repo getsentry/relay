@@ -133,11 +133,14 @@ fn ensure_span_count(envelope: &mut Managed<Box<Envelope>>) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
+    use relay_quotas::ReasonCode;
     use serde_json::json;
     use smallvec::smallvec;
 
@@ -241,11 +244,15 @@ mod tests {
             (DataCategory::SpanIndexed, 3),
         ];
 
-        for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.recv().await.unwrap();
-            assert_eq!(outcome.category, expected_category);
-            assert_eq!(outcome.quantity, expected_quantity);
+        let mut actual = BTreeMap::new();
+        while let Ok(outcome) = outcome_aggregator_rx.try_recv() {
+            assert_eq!(
+                outcome.outcome,
+                Outcome::RateLimited(Some(ReasonCode::new("foo")))
+            );
+            *actual.entry(outcome.category).or_insert(0) += outcome.quantity;
         }
+        assert_eq!(actual, BTreeMap::from(expected));
     }
 
     #[tokio::test]
@@ -302,10 +309,14 @@ mod tests {
             (DataCategory::SpanIndexed, 667),
         ];
 
-        for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.recv().await.unwrap();
-            assert_eq!(outcome.category, expected_category);
-            assert_eq!(outcome.quantity, expected_quantity);
+        let mut actual = BTreeMap::new();
+        while let Ok(outcome) = outcome_aggregator_rx.try_recv() {
+            assert_eq!(
+                outcome.outcome,
+                Outcome::RateLimited(Some(ReasonCode::new("foo")))
+            );
+            *actual.entry(outcome.category).or_insert(0) += outcome.quantity;
         }
+        assert_eq!(actual, BTreeMap::from(expected));
     }
 }

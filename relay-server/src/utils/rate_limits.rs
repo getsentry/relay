@@ -1674,8 +1674,14 @@ mod tests {
     async fn enforce_and_apply(
         mock: Arc<Mutex<MockLimiter>>,
         envelope: Box<Envelope>,
-    ) -> (Box<Envelope>, Enforcement, RateLimits) {
-        let mut envelope = Managed::from_envelope(envelope, Addr::custom().0);
+    ) -> (
+        Box<Envelope>,
+        Enforcement,
+        RateLimits,
+        BTreeMap<DataCategory, usize>,
+    ) {
+        let (outcome_aggregator, mut outcomes) = Addr::custom();
+        let mut envelope = Managed::from_envelope(envelope, outcome_aggregator);
         let scoping = envelope.scoping();
 
         #[allow(unused_mut)]
@@ -1689,12 +1695,17 @@ mod tests {
 
         let (enforcement, limits) = limiter.compute(&envelope, &scoping).await.unwrap();
 
-        // We implemented `clone` only for tests because we don't want to make `apply_with_outcomes`
-        // &self because we want move semantics to prevent double tracking.
+        // Clone only for tests so callers can inspect the computed limits after applying them.
         enforcement.clone().apply_to_managed(&mut envelope);
         let envelope = envelope.accept(|envelope| envelope);
 
-        (envelope, enforcement, limits)
+        // Collect actual emissions. The mock limiter always uses RateLimited(None).
+        let mut emitted = BTreeMap::new();
+        while let Ok(outcome) = outcomes.try_recv() {
+            assert_eq!(outcome.outcome, Outcome::RateLimited(None));
+            *emitted.entry(outcome.category).or_insert(0) += outcome.quantity as usize;
+        }
+        (envelope, enforcement, limits, emitted)
     }
 
     fn mock_limiter(categories: &[DataCategory]) -> Arc<Mutex<MockLimiter>> {
@@ -1711,7 +1722,7 @@ mod tests {
         let envelope = envelope![];
 
         let mock = mock_limiter(&[]);
-        let (envelope, _, limits) = enforce_and_apply(mock, envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock, envelope).await;
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
@@ -1722,7 +1733,7 @@ mod tests {
         let envelope = envelope![Event];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1734,7 +1745,7 @@ mod tests {
         let envelope = envelope![Event, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1746,7 +1757,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1758,7 +1769,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Attachment]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
@@ -1773,18 +1784,18 @@ mod tests {
         let envelope = envelope![Profile, Profile];
 
         let mock = mock_limiter(&[DataCategory::Profile]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
         mock.lock().await.assert_call(DataCategory::Profile, 2);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![
+            outcomes,
+            BTreeMap::from([
                 (DataCategory::Profile, 2),
                 (DataCategory::ProfileIndexed, 2)
-            ]
+            ])
         );
     }
 
@@ -1796,14 +1807,14 @@ mod tests {
         let envelope = envelope![ProfileChunk, ProfileChunk];
 
         let mock = mock_limiter(&[DataCategory::ProfileChunk]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
         assert!(!limits.is_limited());
-        assert_eq!(get_outcomes(enforcement), vec![]);
+        assert_eq!(outcomes, BTreeMap::new());
 
         let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
         assert!(!limits.is_limited());
-        assert_eq!(get_outcomes(enforcement), vec![]);
+        assert_eq!(outcomes, BTreeMap::new());
 
         assert_eq!(envelope.len(), 2);
     }
@@ -1820,7 +1831,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
@@ -1830,8 +1841,8 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::ProfileChunkUi, 1)]
+            outcomes,
+            BTreeMap::from([(DataCategory::ProfileChunkUi, 1)])
         );
     }
 
@@ -1847,7 +1858,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunk]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
@@ -1856,10 +1867,7 @@ mod tests {
             .assert_call(DataCategory::ProfileChunkUi, 1);
         mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
 
-        assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::ProfileChunk, 1)]
-        );
+        assert_eq!(outcomes, BTreeMap::from([(DataCategory::ProfileChunk, 1)]));
     }
 
     /// Limit replays.
@@ -1868,13 +1876,13 @@ mod tests {
         let envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
         let mock = mock_limiter(&[DataCategory::Replay]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
         mock.lock().await.assert_call(DataCategory::Replay, 3);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 3),]);
+        assert_eq!(outcomes, BTreeMap::from([(DataCategory::Replay, 3),]));
     }
 
     /// Limit monitor checkins.
@@ -1883,13 +1891,13 @@ mod tests {
         let envelope = envelope![CheckIn];
 
         let mock = mock_limiter(&[DataCategory::Monitor]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
         mock.lock().await.assert_call(DataCategory::Monitor, 1);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Monitor, 1)])
+        assert_eq!(outcomes, BTreeMap::from([(DataCategory::Monitor, 1)]))
     }
 
     #[tokio::test]
@@ -1897,7 +1905,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump];
 
         let mock = mock_limiter(&[DataCategory::Attachment]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -1916,7 +1924,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock, envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock, envelope).await;
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.len(), 1); // The item was retained
@@ -1927,7 +1935,7 @@ mod tests {
         let envelope = envelope![Session, Session, Session];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -1940,7 +1948,7 @@ mod tests {
         let envelope = envelope![Session, Session, Event];
 
         let mock = mock_limiter(&[DataCategory::Session]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
@@ -1955,7 +1963,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
@@ -1968,7 +1976,7 @@ mod tests {
         let envelope = envelope![Event, Attachment, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1980,7 +1988,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
@@ -1988,13 +1996,13 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![
+            outcomes,
+            BTreeMap::from([
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Span, 1),
                 (DataCategory::SpanIndexed, 1),
-            ]
+            ])
         );
     }
 
@@ -2036,7 +2044,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!limits.is_limited());
         assert!(!enforcement.event_indexed.is_active());
@@ -2050,18 +2058,11 @@ mod tests {
         let envelope = envelope![Transaction, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, _, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.attachments_limits.event.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
-    }
-
-    fn get_outcomes(enforcement: Enforcement) -> Vec<(DataCategory, usize)> {
-        enforcement
-            .get_outcomes()
-            .map(|(_, data_category, quantity)| (data_category, quantity))
-            .collect::<Vec<_>>()
     }
 
     #[tokio::test]
@@ -2069,22 +2070,22 @@ mod tests {
         let envelope = envelope![Transaction, Profile];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.profiles.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![
+            outcomes,
+            BTreeMap::from([
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Profile, 1),
                 (DataCategory::ProfileIndexed, 1),
                 (DataCategory::Span, 1),
                 (DataCategory::SpanIndexed, 1),
-            ]
+            ])
         );
     }
 
@@ -2094,18 +2095,18 @@ mod tests {
         let envelope = envelope![Profile];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.profiles.is_active());
         mock.lock().await.assert_call(DataCategory::Profile, 1);
         mock.lock().await.assert_call(DataCategory::Transaction, 0);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![
+            outcomes,
+            BTreeMap::from([
                 (DataCategory::Profile, 1),
                 (DataCategory::ProfileIndexed, 1),
-            ]
+            ])
         );
     }
 
@@ -2114,7 +2115,7 @@ mod tests {
         let envelope = envelope![Transaction, Attachment];
 
         let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.event_indexed.is_active());
@@ -2126,7 +2127,7 @@ mod tests {
             .await
             .assert_call(DataCategory::AttachmentItem, 1);
 
-        assert_eq!(get_outcomes(enforcement), vec![]);
+        assert_eq!(outcomes, BTreeMap::new());
     }
 
     #[tokio::test]
@@ -2134,7 +2135,7 @@ mod tests {
         let envelope = envelope![Span, Span];
 
         let mock = mock_limiter(&[DataCategory::Span]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
@@ -2142,8 +2143,8 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::Span, 2);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::Span, 2), (DataCategory::SpanIndexed, 2)]
+            outcomes,
+            BTreeMap::from([(DataCategory::Span, 2), (DataCategory::SpanIndexed, 2)])
         );
     }
 
@@ -2152,14 +2153,14 @@ mod tests {
         let envelope = envelope![Span, Span];
 
         let mock = mock_limiter(&[DataCategory::SpanIndexed]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (_, enforcement, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!limits.is_limited());
         assert!(!enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
         mock.lock().await.assert_call(DataCategory::Span, 2);
 
-        assert_eq!(get_outcomes(enforcement), vec![]);
+        assert_eq!(outcomes, BTreeMap::new());
     }
 
     #[test]
@@ -2197,15 +2198,15 @@ mod tests {
         let envelope = envelope![Log, Log];
 
         let mock = mock_limiter(&[DataCategory::LogItem]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
         mock.lock().await.assert_call(DataCategory::LogItem, 2);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+            outcomes,
+            BTreeMap::from([(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)])
         );
     }
 
@@ -2214,7 +2215,7 @@ mod tests {
         let envelope = envelope![Log, Log];
 
         let mock = mock_limiter(&[DataCategory::LogByte]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -2222,8 +2223,8 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+            outcomes,
+            BTreeMap::from([(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)])
         );
     }
 
@@ -2322,7 +2323,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+            let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2340,8 +2341,11 @@ mod tests {
             );
 
             assert_eq!(
-                get_outcomes(enforcement),
-                *expected_outcomes,
+                outcomes,
+                expected_outcomes
+                    .iter()
+                    .copied()
+                    .collect::<BTreeMap<_, _>>(),
                 "{name}: outcome mismatch"
             );
         }
@@ -2443,7 +2447,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+            let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2461,8 +2465,11 @@ mod tests {
             );
 
             assert_eq!(
-                get_outcomes(enforcement),
-                *expected_outcomes,
+                outcomes,
+                expected_outcomes
+                    .iter()
+                    .copied()
+                    .collect::<BTreeMap<_, _>>(),
                 "{name}: outcome mismatch"
             );
         }
@@ -2523,7 +2530,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+            let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2541,8 +2548,11 @@ mod tests {
             );
 
             assert_eq!(
-                get_outcomes(enforcement),
-                *expected_outcomes,
+                outcomes,
+                expected_outcomes
+                    .iter()
+                    .copied()
+                    .collect::<BTreeMap<_, _>>(),
                 "{name}: outcome mismatch"
             );
         }
@@ -2608,7 +2618,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, None));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
+            let (_, enforcement, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2626,8 +2636,11 @@ mod tests {
             );
 
             assert_eq!(
-                get_outcomes(enforcement),
-                *expected_outcomes,
+                outcomes,
+                expected_outcomes
+                    .iter()
+                    .copied()
+                    .collect::<BTreeMap<_, _>>(),
                 "{name}: outcome mismatch"
             );
         }
