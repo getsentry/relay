@@ -25,11 +25,11 @@ pub enum FlamegraphError {
 }
 
 #[derive(Deserialize)]
-struct Flamegraph<F = FlamegraphFrame> {
+struct Flamegraph {
     version: String,
     platform: String,
-    frames: Vec<F>,
-    trees: Vec<Tree>,
+    frames: Vec<FlamegraphFrame>,
+    nodes: Vec<Node>,
     debug_meta: Option<DebugMeta>,
 }
 
@@ -41,30 +41,11 @@ struct FlamegraphFrame {
 }
 
 #[derive(Deserialize)]
-struct Tree {
-    roots: Vec<Node>,
-    #[serde(rename = "thread_id")]
-    _thread_id: Option<String>,
-    #[serde(rename = "thread_attributed")]
-    _thread_attributed: Option<bool>,
-}
-
-#[derive(Deserialize)]
 struct Node {
     frame_id: usize,
     sample_count: u64,
     #[serde(default)]
-    children: Vec<Node>,
-}
-
-impl Drop for Node {
-    fn drop(&mut self) {
-        // Deserialization can grow the stack, but destruction must not recurse through call paths.
-        let mut pending = std::mem::take(&mut self.children);
-        while let Some(mut node) = pending.pop() {
-            pending.append(&mut node.children);
-        }
-    }
+    children: Vec<usize>,
 }
 
 /// Validate an attachment using the shared V2 profiling frame and debug metadata schemas.
@@ -81,32 +62,17 @@ fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
     if payload.len() > MAX_FLAMEGRAPH_SIZE {
         return Err(InvalidPayload("attachment too large"));
     }
-    let mut deserializer = serde_json::Deserializer::from_slice(payload);
-    deserializer.disable_recursion_limit();
-    let raw: Flamegraph<&serde_json::value::RawValue> =
-        Flamegraph::deserialize(serde_stacker::Deserializer::new(&mut deserializer))?;
-    deserializer.end()?;
-    // Grow the stack only for call trees. Parse flattened frame data separately with JSON's
-    // normal nesting limit, including unknown fields which serde temporarily buffers.
-    let graph = Flamegraph {
-        version: raw.version,
-        platform: raw.platform,
-        frames: raw
-            .frames
-            .into_iter()
-            .map(|frame| serde_json::from_str(frame.get()))
-            .collect::<Result<Vec<FlamegraphFrame>, _>>()?,
-        trees: raw.trees,
-        debug_meta: raw.debug_meta,
-    };
+
+    let graph: Flamegraph = serde_json::from_slice(payload)?;
+
     if graph.version != "1" {
         return Err(InvalidPayload("unsupported version"));
     }
     if !VALID_PLATFORMS.contains(&graph.platform.as_str()) {
         return Err(InvalidPayload("unknown platform"));
     }
-    if graph.frames.is_empty() || graph.trees.is_empty() {
-        return Err(InvalidPayload("empty frames or trees"));
+    if graph.frames.is_empty() || graph.nodes.is_empty() {
+        return Err(InvalidPayload("empty frames or nodes"));
     }
     let image_debug_ids: HashSet<_> = graph
         .debug_meta
@@ -152,25 +118,23 @@ fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
             }
         }
     }
-    for tree in &graph.trees {
-        if tree.roots.is_empty() {
-            return Err(InvalidPayload("empty roots"));
+
+    for node in &graph.nodes {
+        if node.frame_id >= graph.frames.len() {
+            return Err(InvalidPayload("frame index out of bounds"));
         }
-        let mut nodes: Vec<_> = tree.roots.iter().collect();
-        while let Some(node) = nodes.pop() {
-            if node.frame_id >= graph.frames.len() {
-                return Err(InvalidPayload("frame index out of bounds"));
-            }
-            if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
-                return Err(InvalidPayload("sample count out of bounds"));
-            }
-            let mut remaining = node.sample_count;
-            for child in &node.children {
-                remaining = remaining
-                    .checked_sub(child.sample_count)
-                    .ok_or(InvalidPayload("children exceed parent sample count"))?;
-                nodes.push(child);
-            }
+        if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
+            return Err(InvalidPayload("sample count out of bounds"));
+        }
+
+        let mut remaining_sample_count = node.sample_count;
+        for child in &node.children {
+            let Some(child) = graph.nodes.get(*child) else {
+                return Err(InvalidPayload("child index out of bounds"));
+            };
+            remaining_sample_count = remaining_sample_count
+                .checked_sub(child.sample_count)
+                .ok_or(InvalidPayload("children exceed parent sample count"))?;
         }
     }
     Ok(graph)
