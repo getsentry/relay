@@ -6,7 +6,7 @@
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>std::net::IpAddr;
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>ipnetwork::IpNetwork;
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_pattern::{CaseInsensitive, TypedPatterns};
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_pattern::{CaseInsensitive, Gas, TypedPatterns};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde_json::Value;
 <a href=#12 id=12 data-nosnippet>12</a>
@@ -186,7 +186,7 @@
 <a href=#186 id=186 data-nosnippet>186</a>        </span>T: Getter + <span class="question-mark">?</span>Sized,
 <a href=#187 id=187 data-nosnippet>187</a>    {
 <a href=#188 id=188 data-nosnippet>188</a>        <span class="kw">match </span>instance.get_value(<span class="self">self</span>.name.as_str()) {
-<a href=#189 id=189 data-nosnippet>189</a>            <span class="prelude-val">Some</span>(Val::String(s)) =&gt; <span class="self">self</span>.value.is_match(s),
+<a href=#189 id=189 data-nosnippet>189</a>            <span class="prelude-val">Some</span>(Val::String(s)) =&gt; <span class="self">self</span>.value.is_match(s, Gas::CONSTRAINED).unwrap_or(<span class="bool-val">false</span>),
 <a href=#190 id=190 data-nosnippet>190</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
 <a href=#191 id=191 data-nosnippet>191</a>        }
 <a href=#192 id=192 data-nosnippet>192</a>    }
