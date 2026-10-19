@@ -64,7 +64,7 @@ struct Graph {
 
 impl Graph {
     fn node(&self, index: usize) -> Result<&Node, Error> {
-        self.nodes.get(index).ok_or_else(|| Error::NodeIndex(index))
+        self.nodes.get(index).ok_or(Error::NodeIndex(index))
     }
 }
 

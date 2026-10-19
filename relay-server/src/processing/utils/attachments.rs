@@ -17,20 +17,6 @@ use crate::services::projects::project::ProjectInfo;
 use crate::utils::sample;
 use relay_dynamic_config::Feature;
 
-/// Drops attachments that require an explicit event from envelopes without one.
-pub fn validate_standalone_attachments<T, V>(
-    managed: &mut Managed<T>,
-    select: impl FnOnce(&mut T) -> &mut V,
-) where
-    T: Counted,
-    V: RetainMut<Item>,
-{
-    managed.retain(select, |attachment, _| match attachment.attachment_type() {
-        Some(AttachmentType::Flamegraph) => Err(ProcessingError::InvalidFlamegraph),
-        _ => Ok(()),
-    });
-}
-
 /// Validates the attachments and drops any invalid ones.
 ///
 /// Flame graph transport checks apply on every Relay. Payload and placeholder validation only
@@ -45,7 +31,7 @@ pub fn validate_attachments<T, V>(
 {
     managed.retain(select, |attachment, _| {
         if attachment.attachment_type() == Some(AttachmentType::Flamegraph)
-            && !attachment.has_valid_flamegraph_headers()
+            && !has_valid_flamegraph_headers(attachment)
         {
             return Err(ProcessingError::InvalidFlamegraph);
         }
@@ -67,7 +53,7 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
         use crate::services::upload::{Final, SignedLocation};
 
         if item.attachment_type() == Some(AttachmentType::Flamegraph) {
-            if !item.has_valid_flamegraph_headers() {
+            if !has_valid_flamegraph_headers(item) {
                 return Err(ProcessingError::InvalidFlamegraph);
             }
             relay_profiling::flamegraph::validate(&item.payload())
@@ -95,6 +81,13 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
             false => Err(ProcessingError::InvalidAttachmentRef),
         }
     }
+}
+
+/// Checks the required transport headers of a flame graph attachment.
+fn has_valid_flamegraph_headers(item: &Item) -> bool {
+    item.ty() == &ItemType::Attachment
+        && item.filename() == Some("flamegraph.json")
+        && item.content_type() == Some(ContentType::Json)
 }
 
 /// Apply data privacy rules to attachments in the envelope.
@@ -331,30 +324,6 @@ mod tests {
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].payload().as_ref(), payload.as_bytes());
         attachments.accept(|_| ());
-    }
-
-    #[test]
-    fn test_flamegraph_requires_explicit_event() {
-        let flamegraph = flamegraph_item(flamegraph_payload());
-        let rejected_size = flamegraph.len() as u64;
-        let mut ordinary = Item::new(ItemType::Attachment);
-        ordinary.set_payload(ContentType::Text, "keep me");
-        let (mut attachments, mut handle) = Managed::for_test(vec![flamegraph, ordinary]).build();
-
-        validate_standalone_attachments(&mut attachments, |a| a);
-
-        assert_eq!(attachments.len(), 1);
-        assert_eq!(attachments[0].payload().as_ref(), b"keep me");
-        attachments.accept(|_| ());
-        let outcome = crate::services::outcome::Outcome::Invalid(
-            crate::services::outcome::DiscardReason::InvalidFlamegraph,
-        );
-        handle.assert_outcome(
-            &outcome,
-            relay_quotas::DataCategory::Attachment,
-            rejected_size,
-        );
-        handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
     }
 
     #[cfg(feature = "processing")]
