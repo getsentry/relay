@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::{NonZeroU8, NonZeroU16};
+use std::num::{NonZeroU8, NonZeroU16, NonZeroU32};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -525,15 +525,6 @@ pub struct Relay {
     ///
     /// Defaults to [`Self::port`].
     pub internal_port: Option<u16>,
-    /// Optional port to bind for the encrypted relay HTTPS server.
-    #[serde(skip_serializing)]
-    pub tls_port: Option<u16>,
-    /// The path to the identity (DER-encoded PKCS12) to use for TLS.
-    #[serde(skip_serializing)]
-    pub tls_identity_path: Option<PathBuf>,
-    /// Password for the PKCS12 archive.
-    #[serde(skip_serializing)]
-    pub tls_identity_password: Option<String>,
     /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///
     /// Enable this setting for Relays used to redirect traffic to a migrated Sentry instance.
@@ -562,9 +553,6 @@ impl Default for Relay {
             port: 3000,
             internal_host: None,
             internal_port: None,
-            tls_port: None,
-            tls_identity_path: None,
-            tls_identity_password: None,
             override_project_ids: false,
             config_reload_interval: None,
         }
@@ -657,14 +645,18 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
+    /// The maximum number of operations that can occur in a span expansion.
+    pub max_expanded_log_operations: usize,
+    /// The maximum number of operations that can occur in a span expansion.
+    pub max_expanded_span_operations: usize,
+    /// The maximum number of operations that can occur in a trace metric expansion.
+    pub max_expanded_trace_metric_operations: usize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum amount of standalone transaction spans per envelope.
     pub max_standalone_span_count: usize,
     /// The maximum payload size for an item container.
     pub max_container_size: ByteSize,
-    /// The maximum payload size for a statsd metric.
-    pub max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
     pub max_metric_buckets_size: ByteSize,
     /// The maximum payload size for a compressed replay.
@@ -738,7 +730,7 @@ impl Default for Limits {
             max_attachment_size: ByteSize::mebibytes(200),
             max_attachment_count: 30,
             max_attachments_size: ByteSize::mebibytes(200),
-            max_upload_size: ByteSize::mebibytes(1024),
+            max_upload_size: ByteSize::mebibytes(10240),
             max_client_reports_size: ByteSize::kibibytes(100),
             max_client_reports_count: 100,
             max_check_in_size: ByteSize::kibibytes(100),
@@ -751,10 +743,12 @@ impl Default for Limits {
             max_profile_size: ByteSize::mebibytes(50),
             max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(2),
+            max_expanded_log_operations: 3_000_000,
+            max_expanded_span_operations: 3_000_000,
+            max_expanded_trace_metric_operations: 3_000_000,
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
-            max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
@@ -1047,6 +1041,12 @@ pub struct EnvelopeSpool {
     /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
     /// trade-offs.
     pub partitioning: EnvelopeSpoolPartitioning,
+    /// Maximum number of envelopes unspooled from disk per second.
+    ///
+    /// The limit applies per Relay instance, not per spool partition.
+    ///
+    /// Defaults to `None`, which disables the limit.
+    pub max_unspool_envelopes_per_second: Option<NonZeroU32>,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
     /// With `ephemeral: true`, Relay does not spool in-flight data to disk
@@ -1069,6 +1069,7 @@ impl Default for EnvelopeSpool {
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
             flush_timeout_secs: None,
+            max_unspool_envelopes_per_second: None,
         }
     }
 }
@@ -1086,6 +1087,9 @@ pub struct Spool {
 #[serde(default)]
 pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
+    ///
+    /// Relay instances that receive the full project config have full access to quota config
+    /// and perform dynamic sampling.
     pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     pub project_expiry: u32,
@@ -1177,9 +1181,11 @@ pub struct Processing {
     /// Logical topics whose Kafka client is replaced when the config changes, instead of being
     /// fixed for the lifetime of the process.
     ///
-    /// Named by logical topic, the same keys used under `topics`, for example `ingest-events`.
-    /// Unknown names are ignored. Empty by default, which is the behaviour of every topic before
-    /// this option existed.
+    /// Named by logical topic, for example `ingest-events`. Note that `topics` additionally
+    /// accepts a short form (`events`), which this option does not: only the logical name
+    /// selects a topic here. Anything else is ignored.
+    ///
+    /// Empty by default, which is the behaviour of every topic before this option existed.
     ///
     /// This exists to roll the reloading producer out one topic at a time and is meant to be
     /// removed once every topic uses it.
@@ -2242,26 +2248,6 @@ impl ConfigSnapshot {
         }
     }
 
-    /// Returns the TLS listen address.
-    pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.inner.values.relay.tls_identity_path.is_some() {
-            let port = self.inner.values.relay.tls_port.unwrap_or(3443);
-            Some((self.inner.values.relay.host, port).into())
-        } else {
-            None
-        }
-    }
-
-    /// Returns the path to the identity bundle
-    pub fn tls_identity_path(&self) -> Option<&Path> {
-        self.inner.values.relay.tls_identity_path.as_deref()
-    }
-
-    /// Returns the password for the identity bundle
-    pub fn tls_identity_password(&self) -> Option<&str> {
-        self.inner.values.relay.tls_identity_password.as_deref()
-    }
-
     /// Returns `true` when project IDs should be overriden rather than validated.
     ///
     /// Defaults to `false`, which requires project ID validation.
@@ -2540,6 +2526,15 @@ impl ConfigSnapshot {
             .map(Duration::from_secs)
     }
 
+    /// Maximum number of envelopes unspooled from disk per second.
+    pub fn spool_max_unspool_envelopes_per_second(&self) -> Option<NonZeroU32> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .max_unspool_envelopes_per_second
+    }
+
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
         Duration::from_secs(self.inner.values.spool.envelopes.max_envelope_delay_secs)
@@ -2626,6 +2621,24 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_log_size.as_bytes()
     }
 
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_log_operations(&self) -> usize {
+        self.inner.values.limits.max_expanded_log_operations
+    }
+
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_span_operations(&self) -> usize {
+        self.inner.values.limits.max_expanded_span_operations
+    }
+
+    /// Returns the maximum number of operations to allow for a span expansion.
+    pub fn max_expanded_trace_metric_operations(&self) -> usize {
+        self.inner
+            .values
+            .limits
+            .max_expanded_trace_metric_operations
+    }
+
     /// Returns the maximum payload size of a span in bytes.
     pub fn max_span_size(&self) -> usize {
         self.inner.values.limits.max_span_size.as_bytes()
@@ -2656,11 +2669,6 @@ impl ConfigSnapshot {
     /// Returns the maximum combined size for all sessions in an envelope in bytes.
     pub fn max_sessions_size(&self) -> usize {
         self.inner.values.limits.max_sessions_size.as_bytes()
-    }
-
-    /// Returns the maximum payload size of a statsd metric in bytes.
-    pub fn max_statsd_size(&self) -> usize {
-        self.inner.values.limits.max_statsd_size.as_bytes()
     }
 
     /// Returns the maximum payload size of metric buckets in bytes.

@@ -66,13 +66,11 @@ pub enum Feature {
     /// Serialized as `organizations:tracemetrics-ingestion`.
     #[serde(rename = "organizations:tracemetrics-ingestion")]
     TraceMetricsIngestion,
-    /// Expand attributes containing a JSON object into a key-value list on EAP items.
+    /// Project-level opt-in for JSON attribute expansion, set via project settings.
     ///
-    /// Enabling/disabling controls how these are sent to EAP.
-    ///
-    /// Serialized as `organizations:relay-automatic-json-expansion`.
-    #[serde(rename = "organizations:relay-automatic-json-expansion")]
-    AutomaticJsonExpansion,
+    /// Serialized as `projects:relay-automatic-json-expansion`.
+    #[serde(rename = "projects:relay-automatic-json-expansion")]
+    ProjectAutomaticJsonExpansion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
@@ -106,6 +104,9 @@ pub enum Feature {
     /// own event.
     #[serde(rename = "organizations:gpu-crash-symbolication")]
     NvGpuCrashSplit,
+    /// Enable resumable uploads to objectstore.
+    #[serde(rename = "projects:resumable-uploads")]
+    ResumableUpload,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.

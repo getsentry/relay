@@ -69,7 +69,7 @@ mod recorder;
 #[cfg(test)]
 mod test;
 
-pub(crate) mod time;
+pub mod time;
 
 use std::fmt;
 
@@ -150,6 +150,9 @@ pub enum AppFeature {
     /// When processing an envelope cannot be attributed or is not feasible to be attributed
     /// to a more specific category, this app feature is emitted instead.
     UnattributedEnvelope,
+    /// All COGS data collected from HTTP request handlers which can't be attributed to
+    /// a specific product feature.
+    UnattributedRequest,
 
     /// Transactions.
     Transactions,
@@ -204,6 +207,7 @@ impl AppFeature {
             Self::Unattributed => "unattributed",
             Self::UnattributedMetrics => "unattributed_metrics",
             Self::UnattributedEnvelope => "unattributed_envelope",
+            Self::UnattributedRequest => "unattributed_request",
             Self::Transactions => "transactions",
             Self::Errors => "errors",
             Self::Spans => "spans",

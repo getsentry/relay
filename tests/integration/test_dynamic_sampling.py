@@ -2,12 +2,15 @@ from datetime import datetime, timezone
 from typing import Literal
 import uuid
 import json
+import signal
 
 import pytest
+from sentry_relay.auth import SecretKey
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 from .consts import Outcome
+from .test_projectconfigs import get_response
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -272,6 +275,62 @@ def test_it_removes_events(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
+def test_external_relay_does_not_sample_or_extract_metrics(mini_sentry, relay):
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    trusted = relay(mini_sentry)
+    external = relay(mini_sentry, _outcomes_enabled_config(), external=True)
+    # Authorize project access without making this an internal Relay.
+    config["config"]["trustedRelays"].append(external.public_key)
+
+    # Query the trusted Relay as an external client, even requesting the full config.
+    packed, signature = SecretKey.parse(external.secret_key).pack(
+        {"publicKeys": [public_key], "fullConfig": True}
+    )
+    response, _ = get_response(trusted, packed, signature, relay_id=external.relay_id)
+    limited_config = response["configs"][public_key]
+    assert "sampling" not in limited_config["config"]
+
+    # Serve the returned config to the external Relay.
+    mini_sentry.project_configs[project_id] = limited_config
+
+    now = datetime.now(timezone.utc).timestamp()
+    trace_id = uuid.uuid4().hex
+    envelope, _, event_id = _create_transaction_envelope(
+        public_key,
+        trace_id=trace_id,
+        event_id=uuid.uuid4().hex,
+        start_timestamp=now - 1,
+        timestamp=now,
+        spans=[
+            {
+                "trace_id": trace_id,
+                "span_id": "b" * 16,
+                "parent_span_id": "FA90FDEAD5F74052",
+                "op": "db",
+                "start_timestamp": now - 0.5,
+                "timestamp": now,
+            }
+        ],
+    )
+    external.send_envelope(project_id, envelope)
+
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.type for item in forwarded.items] == ["transaction"]
+    transaction = forwarded.get_transaction_event()
+    assert transaction["event_id"] == event_id
+    assert len(transaction["spans"]) == 1
+    assert not forwarded.items[0].headers.get("metrics_extracted", False)
+
+    # Flush before checking that no metrics or sampling outcomes were produced.
+    external.shutdown(sig=signal.SIGTERM)
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_metrics.empty()
+    assert mini_sentry.get_aggregated_outcomes(timeout=0.2) == []
+
+
 def test_it_does_not_sample_error(mini_sentry, relay):
     """
     Tests that we keep an event if it is of type error.
@@ -503,12 +562,9 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
     # Dynamic sampling metrics
-    metrics_batch1 = mini_sentry.get_global_metrics()
-    print(metrics_batch1)
-    metrics_batch2 = mini_sentry.get_global_metrics()
-    print(metrics_batch2)
-    assert metrics_batch1 is not None
-    assert metrics_batch2 is not None
+    metrics_batch = mini_sentry.get_global_metrics()
+    print(metrics_batch)
+    assert metrics_batch is not None
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION_INDEXED,
@@ -933,26 +989,46 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
     assert mini_sentry.get_captured_envelope()
 
 
-def test_invalid_metric_extraction_config_skips_dynamic_sampling(mini_sentry, relay):
-    relay = relay(mini_sentry, _outcomes_enabled_config())
-
+@pytest.mark.parametrize("config_scope", ["project", "global"])
+def test_obsolete_metric_extraction_config_does_not_disable_sampling(
+    mini_sentry, relay, config_scope
+):
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
 
-    # Unsupported metric extraction config, so no metrics can be extracted
-    config["config"]["metricExtraction"] = {
-        "version": 666,  # this version is too new for this relay
-        "metrics": [],
-    }
+    # Obsolete extraction configs cannot prevent usage metrics or sampling.
+    target = (
+        config["config"] if config_scope == "project" else mini_sentry.global_config
+    )
+    target["metricExtraction"] = {"version": "invalid", "groups": "invalid"}
 
     # Reject all transactions with dynamic sampling
     add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     envelope, _, _ = _create_transaction_envelope(public_key)
 
+    relay = relay(mini_sentry, _outcomes_enabled_config())
     relay.send_envelope(project_id, envelope)
-    assert mini_sentry.get_captured_envelope()
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def get_transaction_envelope(

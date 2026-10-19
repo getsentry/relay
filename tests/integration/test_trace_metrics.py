@@ -11,12 +11,6 @@ import pytest
 import json
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    },
-}
-
 
 def envelope_with_trace_metrics(*payloads: dict, metadata=None) -> Envelope:
     envelope = Envelope()
@@ -41,7 +35,7 @@ def test_trace_metric_multiple_containers_not_allowed(
         "organizations:tracemetrics-ingestion",
     ]
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -134,14 +128,11 @@ def test_trace_metric_extraction(
 
     credentials = relay_credentials()
     relay = relay_fn(
-        relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
+        relay_with_processing(static_credentials=credentials),
         credentials=credentials,
-        options=TEST_CONFIG,
     )
     if external_mode is not None:
-        relay = relay_fn(
-            relay, options={"relay": {"mode": external_mode}, **TEST_CONFIG}
-        )
+        relay = relay_fn(relay, options={"relay": {"mode": external_mode}})
 
     start = datetime.now(timezone.utc)
 
@@ -262,7 +253,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         for category in categories
     ]
 
-    relay = relay(mini_sentry, TEST_CONFIG)
+    relay = relay(mini_sentry)
     start = datetime.now(timezone.utc).replace(microsecond=0)
 
     envelope = envelope_with_trace_metrics(
@@ -326,7 +317,7 @@ def test_trace_metric_validation(
         "organizations:tracemetrics-ingestion",
     ]
 
-    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
+    config = {"http": {"global_metrics": True}}
     relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
 
@@ -383,7 +374,7 @@ def test_trace_metric_pii_scrubbing(
         "applications": {"**": ["strip_ips"]},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
     start = datetime.now(timezone.utc)
 
     payload = {
@@ -475,7 +466,7 @@ def test_trace_metric_string_pii_scrubbing(
 
     project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_trace_metrics(
@@ -549,7 +540,7 @@ def test_trace_metric_default_pii_scrubbing_attributes(
         },
     )
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_trace_metrics(
@@ -621,7 +612,7 @@ def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
         "applications": {"**": ["remove_custom_field"]},
     }
 
-    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    relay_instance = relay(mini_sentry)
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_trace_metrics(
@@ -689,9 +680,7 @@ def test_trace_metric_size_limits(
         "organizations:tracemetrics-ingestion",
     ]
 
-    relay = relay(
-        mini_sentry, options={"limits": {"max_trace_metric_size": 600}, **TEST_CONFIG}
-    )
+    relay = relay(mini_sentry, options={"limits": {"max_trace_metric_size": 600}})
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_trace_metrics(
@@ -749,7 +738,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "traceMetric": {"standard": 1, "downsampled": 100},
     }
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -821,7 +810,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay_with_processing()
 
     ts = datetime.now(timezone.utc)
     seq_shift_in_secs = 1.0
@@ -956,7 +945,7 @@ def test_trace_metric_container_metadata(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
 
-    relay = relay(mini_sentry, TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 
@@ -1133,7 +1122,7 @@ def test_filters_are_applied_to_trace_metrics(
 
     project_config["config"]["filterSettings"] = filter_config
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(mini_sentry)
 
     ts = datetime.now(timezone.utc)
 

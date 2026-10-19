@@ -1,6 +1,5 @@
+use relay_quotas::{DimensionMap, ItemScoping, Quota, RateLimits};
 use std::fmt;
-
-use relay_quotas::{ItemScoping, Quota, RateLimits};
 
 use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
@@ -79,11 +78,13 @@ impl QuotaRateLimiter {
         })
     }
 
+    #[cfg(feature = "processing")]
     fn has_redis(&self) -> bool {
-        #[cfg(feature = "processing")]
-        if self.redis.is_some() {
-            return true;
-        }
+        self.redis.is_some()
+    }
+
+    #[cfg(not(feature = "processing"))]
+    fn has_redis(&self) -> bool {
         false
     }
 }
@@ -146,6 +147,10 @@ where
 /// if any category has rate limits enforced the implementation will reject the entire item.
 pub trait CountRateLimited {
     type Error: From<RateLimits> + OutcomeError;
+
+    fn dimensions(&self) -> Option<DimensionMap> {
+        None
+    }
 }
 
 impl<T> RateLimited for Managed<T>
@@ -165,11 +170,16 @@ where
         R: RateLimiter,
     {
         let scoping = self.scoping();
+        let dims = &self.dimensions();
 
         for (category, quantity) in self.quantities() {
-            let limits = rate_limiter
-                .try_consume(&scoping.item(category), quantity)
-                .await;
+            let scope = if let Some(dimensions) = dims {
+                scoping.item_with_dimensions(category, dimensions.clone())
+            } else {
+                scoping.item(category)
+            };
+
+            let limits = rate_limiter.try_consume(&scope, quantity).await;
 
             if !limits.is_empty() {
                 let error = <Managed<T> as CountRateLimited>::Error::from(limits);

@@ -8,7 +8,9 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 from .asserts import matches_any
+from .consts import DUMMY_UPLOAD_LOCATION
 from .test_store import make_transaction
+from .tus import FIRST_CHUNK, RESUMABLE_DATA, SECOND_CHUNK, location_parts
 
 
 def make_envelope(event_id, relay, project_id, project_key):
@@ -51,7 +53,32 @@ def make_invalid_attachment_ref(offense, relay=None, project_id=None, project_ke
         ref_item.headers["attachment_length"] = 1
         return ref_item, 1
 
+    if offense == "provisional_location":
+        # Dummy location is provisional and should be rejected when put in an envelope.
+        return make_ref_item(DUMMY_UPLOAD_LOCATION, 11), 11
+
     raise ValueError(f"Unknown offense: {offense}")
+
+
+def make_ref_item(
+    location,
+    attachment_length,
+    filename="test.txt",
+    content_type="text/plain",
+    attachment_type="event.attachment",
+):
+    payload = json.dumps({"location": location, "content_type": content_type})
+    return Item(
+        payload=PayloadRef(bytes=payload.encode()),
+        headers={
+            "type": "attachment",
+            "content_type": "application/vnd.sentry.attachment-ref+json",
+            "length": len(payload),
+            "attachment_length": attachment_length,
+            "filename": filename,
+            "attachment_type": attachment_type,
+        },
+    )
 
 
 def upload_and_make_ref(
@@ -67,7 +94,6 @@ def upload_and_make_ref(
     create_response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
-            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
         },
@@ -78,7 +104,7 @@ def upload_and_make_ref(
     patch_response = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "X-Decoded-Content-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -88,18 +114,7 @@ def upload_and_make_ref(
     assert patch_response.status_code == 204
     location = patch_response.headers["Location"]
 
-    payload = json.dumps({"location": location, "content_type": content_type})
-    return Item(
-        payload=PayloadRef(bytes=payload.encode()),
-        headers={
-            "type": "attachment",
-            "content_type": "application/vnd.sentry.attachment-ref+json",
-            "length": len(payload),
-            "attachment_length": len(data),
-            "filename": filename,
-            "attachment_type": attachment_type,
-        },
-    )
+    return make_ref_item(location, len(data), filename, content_type, attachment_type)
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -239,6 +254,7 @@ def test_attachment_ref(
         "invalid_payload",
         "tampered_signature",
         "spoofed_size",
+        "provisional_location",
     ],
 )
 def test_attachment_ref_validation(
@@ -280,3 +296,120 @@ def test_attachment_ref_validation(
     assert o[DataCategory.ATTACHMENT]["quantity"] == expected_bytes_quantity
     assert o[DataCategory.ATTACHMENT_ITEM]["reason"] == "invalid_placeholder_attachment"
     assert o[DataCategory.ATTACHMENT_ITEM]["quantity"] == 1
+
+
+def test_attachment_ref_resumable_upload_in_chunks(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+    events_consumer,
+    objectstore,
+):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config.setdefault("features", []).append("projects:resumable-uploads")
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+
+    processing_relay = relay_with_processing()
+    relay = relay(processing_relay)
+
+    attachments_consumer = attachments_consumer()
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    # Wait for the first event so the global config is guaranteed to be loaded.
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
+
+    # First upload
+    create_response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(RESUMABLE_DATA)),
+        },
+    )
+    assert create_response.status_code == 201, create_response.text
+    assert "Upload-Offset" not in create_response.headers
+    location = create_response.headers["Location"]
+    path, params = location_parts(location)
+    assert path.startswith(f"/api/{project_id}/upload/")
+    assert params["upload_length"] == str(len(RESUMABLE_DATA))
+    assert "upload_id" in params
+    assert "upload_signature" in params
+
+    first_response = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "X-Decoded-Content-Length": str(len(FIRST_CHUNK)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=FIRST_CHUNK,
+    )
+    assert first_response.status_code == 204, first_response.text
+    assert first_response.headers["Upload-Offset"] == str(len(FIRST_CHUNK))
+    location = first_response.headers["Location"]
+    provisional_path, provisional_params = location_parts(location)
+    assert provisional_path == path
+    assert provisional_params["upload_length"] == str(len(RESUMABLE_DATA))
+    assert "upload_id" in provisional_params
+
+    # Second upload
+    second_response = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "X-Decoded-Content-Length": str(len(SECOND_CHUNK)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": str(len(FIRST_CHUNK)),
+        },
+        data=SECOND_CHUNK,
+    )
+    assert second_response.status_code == 204, second_response.text
+    assert second_response.headers["Upload-Offset"] == str(len(RESUMABLE_DATA))
+    final_location = second_response.headers["Location"]
+    final_path, final_params = location_parts(final_location)
+    assert final_path == path
+    assert final_params["upload_length"] == str(len(RESUMABLE_DATA))
+    assert "upload_id" not in final_params
+    assert "upload_signature" in final_params
+
+    # Upload envelope with attachment_ref
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        make_ref_item(
+            final_location,
+            attachment_length=len(RESUMABLE_DATA),
+            filename="chunked.txt",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment == {
+        "type": "attachment",
+        "event_id": event_id,
+        "project_id": project_id,
+        "attachment": {
+            "id": matches_any(),
+            "name": "chunked.txt",
+            "content_type": "text/plain",
+            "attachment_type": "event.attachment",
+            "size": len(RESUMABLE_DATA),
+            "rate_limited": False,
+            "stored_id": matches_any(),
+            "retention_days": matches_any(),
+        },
+    }
+
+    # Check objectstore
+    stored_id = attachment["attachment"]["stored_id"]
+    assert stored_id == path.rstrip("/").split("/")[-1]
+    objectstore_session = objectstore("attachments", project_id)
+    assert objectstore_session.get(stored_id).payload.read() == RESUMABLE_DATA

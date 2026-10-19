@@ -37,8 +37,7 @@
 //!
 //! For untrusted user input it is highly recommended to limit the maximum complexity.
 
-use std::borrow::Borrow;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::num::NonZeroUsize;
 
 mod typed;
@@ -100,11 +99,48 @@ impl fmt::Display for Error {
     }
 }
 
+/// Error returned from [`Pattern::is_match`] when the matching runs out of gas.
+#[derive(Debug, PartialEq, Eq)]
+pub struct OutOfGas(u64);
+
+impl std::error::Error for OutOfGas {}
+
+impl fmt::Display for OutOfGas {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Pattern could not be matched with {} ops", self.0)
+    }
+}
+
 /// `Pattern` represents a successfully parsed Relay pattern.
-#[derive(Debug, Clone)]
+///
+/// A pattern can be parsed/de-serialized from a string, serializing a pattern again may not produce
+/// the same original pattern but a normalized variant of the pattern.
+///
+/// ```
+/// # use relay_pattern::Pattern;
+/// let pattern = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// assert_eq!(&pattern.to_string(), "foo*");
+/// ```
+///
+/// Patterns can be compared with other patterns, a pattern is considered equal with another pattern
+/// if its parsed and normalized forms and options are the same. Two patterns with the same options
+/// but built from different strings may compare equal if their normalized forms are the same.
+///
+/// ```
+/// # use relay_pattern::Pattern;
+/// let pattern1 = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// let pattern2 = Pattern::builder("foo*").case_insensitive(true).build().unwrap();
+/// assert_eq!(&pattern1, &pattern2);
+/// # assert_eq!(&pattern2, &pattern1);
+///
+/// let pattern1 = Pattern::builder("Foo**").case_insensitive(true).build().unwrap();
+/// let pattern2 = Pattern::builder("foo*").case_insensitive(false).build().unwrap();
+/// assert_ne!(&pattern1, &pattern2);
+/// # assert_ne!(&pattern2, &pattern1);
+/// ```
+#[derive(Clone, PartialEq, Eq)]
 pub struct Pattern {
-    pattern: String,
-    options: Options,
+    case_sensitive: CaseSensitive,
     strategy: MatchStrategy,
 }
 
@@ -119,40 +155,36 @@ impl Pattern {
     pub fn builder(pattern: &str) -> PatternBuilder<'_> {
         PatternBuilder {
             pattern,
-            options: Options::default(),
+            case_sensitive: CaseSensitive(true),
             max_complexity: u64::MAX,
         }
     }
 
     /// Returns `true` if the pattern matches the passed string.
-    pub fn is_match(&self, haystack: &str) -> bool {
-        self.strategy.is_match(haystack, self.options)
+    pub fn is_match(&self, haystack: &str, gas: Gas) -> Result<bool, OutOfGas> {
+        let opts = MatchOptions {
+            case_sensitive: self.case_sensitive,
+            gas: &mut gas.clone(),
+        };
+        self.strategy
+            .is_match(haystack, opts)
+            .map_err(|_| OutOfGas(gas.0))
+    }
+}
+
+impl fmt::Debug for Pattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Pattern")
+            .field("<pattern>", &self.to_string())
+            .field("case_sensitive", &self.case_sensitive)
+            .field("strategy", &self.strategy)
+            .finish()
     }
 }
 
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.pattern)
-    }
-}
-
-impl PartialEq for Pattern {
-    fn eq(&self, other: &Self) -> bool {
-        self.pattern == other.pattern
-    }
-}
-
-impl Eq for Pattern {}
-
-impl Borrow<str> for Pattern {
-    fn borrow(&self) -> &str {
-        &self.pattern
-    }
-}
-
-impl std::hash::Hash for Pattern {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pattern.hash(state);
+        self.strategy.fmt(f)
     }
 }
 
@@ -162,7 +194,7 @@ impl serde::Serialize for Pattern {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.pattern)
+        serializer.collect_str(&self)
     }
 }
 
@@ -178,41 +210,52 @@ impl<'de> serde::Deserialize<'de> for Pattern {
 }
 
 /// A collection of [`Pattern`]s sharing the same configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Patterns {
-    strategies: Vec<MatchStrategy>,
-    options: Options,
+    strategies: Box<[MatchStrategy]>,
+    case_sensitive: CaseSensitive,
 }
 
 impl Patterns {
     /// Creates an empty [`Patterns`] instance which never matches anything.
     ///
     /// ```
-    /// # use relay_pattern::Patterns;
+    /// # use relay_pattern::{Patterns, Gas};
     /// let patterns = Patterns::empty();
     ///
-    /// assert!(!patterns.is_match(""));
-    /// assert!(!patterns.is_match("foobar"));
+    /// assert_eq!(patterns.is_match("", Gas::MAX), Ok(false));
+    /// assert_eq!(patterns.is_match("foobar", Gas::MAX), Ok(false));
     /// ```
     pub fn empty() -> Self {
         Self {
-            strategies: Vec::new(),
-            options: Options::default(),
+            strategies: Default::default(),
+            case_sensitive: CaseSensitive(true),
         }
     }
 
     /// Returns a [`PatternsBuilder`].
     pub fn builder() -> PatternsBuilder {
         PatternsBuilder {
-            options: Options::default(),
+            case_sensitive: CaseSensitive(true),
         }
     }
 
     /// Returns `true` if any of the contained patterns matches the passed string.
-    pub fn is_match(&self, haystack: &str) -> bool {
-        self.strategies
-            .iter()
-            .any(|s| s.is_match(haystack, self.options))
+    pub fn is_match(&self, haystack: &str, gas: Gas) -> Result<bool, OutOfGas> {
+        let remaining_gas = &mut gas.clone();
+        for strategy in &self.strategies {
+            let opts = MatchOptions {
+                case_sensitive: self.case_sensitive,
+                gas: remaining_gas,
+            };
+            if strategy
+                .is_match(haystack, opts)
+                .map_err(|_| OutOfGas(gas.0))?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Returns `true` if this instance contains no patterns.
@@ -223,12 +266,60 @@ impl Patterns {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Patterns {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        struct AsDisplay<'a>(&'a MatchStrategy);
+        impl serde::Serialize for AsDisplay<'_> {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.collect_str(self.0)
+            }
+        }
+
+        serializer.collect_seq(self.strategies.iter().map(AsDisplay))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Patterns {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Patterns;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sequence of patterns")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut builder = Patterns::builder().patterns();
+                while let Some(pattern) = seq.next_element::<std::borrow::Cow<'_, str>>()? {
+                    builder.add(&pattern).map_err(serde::de::Error::custom)?;
+                }
+                Ok(builder.build())
+            }
+        }
+
+        deserializer.deserialize_seq(Visitor)
+    }
+}
+
 /// A builder for a [`Pattern`].
 #[derive(Debug)]
 pub struct PatternBuilder<'a> {
     pattern: &'a str,
     max_complexity: u64,
-    options: Options,
+    case_sensitive: CaseSensitive,
 }
 
 impl PatternBuilder<'_> {
@@ -236,7 +327,7 @@ impl PatternBuilder<'_> {
     ///
     /// This is disabled by default.
     pub fn case_insensitive(&mut self, enabled: bool) -> &mut Self {
-        self.options.case_insensitive = enabled;
+        self.case_sensitive = CaseSensitive(!enabled);
         self
     }
 
@@ -244,6 +335,9 @@ impl PatternBuilder<'_> {
     ///
     /// Attempting to build a pattern with a complexity higher
     /// than the maximum specified here will fail.
+    ///
+    /// Complexity is a constraint enforced when building a pattern,
+    /// it does not change [`PartialEq`] and [`Eq`] comparisons.
     ///
     /// Defaults to `u64::MAX`.
     pub fn max_complexity(&mut self, max_complexity: u64) -> &mut Self {
@@ -253,7 +347,7 @@ impl PatternBuilder<'_> {
 
     /// Build a new [`Pattern`] from the passed pattern and configured options.
     pub fn build(&self) -> Result<Pattern, Error> {
-        let mut parser = Parser::new(self.pattern, self.options);
+        let mut parser = Parser::new(self.pattern, self.case_sensitive);
         parser.parse().map_err(|kind| Error {
             pattern: self.pattern.to_owned(),
             kind,
@@ -269,15 +363,13 @@ impl PatternBuilder<'_> {
             });
         }
 
-        let strategy =
-            MatchStrategy::from_tokens(parser.tokens, self.options).map_err(|kind| Error {
-                pattern: self.pattern.to_owned(),
-                kind,
-            })?;
+        let strategy = MatchStrategy::from_tokens(parser.tokens).map_err(|kind| Error {
+            pattern: self.pattern.to_owned(),
+            kind,
+        })?;
 
         Ok(Pattern {
-            pattern: self.pattern.to_owned(),
-            options: self.options,
+            case_sensitive: self.case_sensitive,
             strategy,
         })
     }
@@ -286,7 +378,7 @@ impl PatternBuilder<'_> {
 /// A builder for a collection of [`Patterns`].
 #[derive(Debug)]
 pub struct PatternsBuilder {
-    options: Options,
+    case_sensitive: CaseSensitive,
 }
 
 impl PatternsBuilder {
@@ -294,7 +386,7 @@ impl PatternsBuilder {
     ///
     /// This is disabled by default.
     pub fn case_insensitive(&mut self, enabled: bool) -> &mut Self {
-        self.options.case_insensitive = enabled;
+        self.case_sensitive = CaseSensitive(!enabled);
         self
     }
 
@@ -302,7 +394,7 @@ impl PatternsBuilder {
     pub fn patterns(&mut self) -> PatternsBuilderConfigured {
         PatternsBuilderConfigured {
             strategies: Vec::new(),
-            options: self.options,
+            case_sensitive: self.case_sensitive,
         }
     }
 
@@ -310,7 +402,7 @@ impl PatternsBuilder {
     pub fn add(&mut self, pattern: &str) -> Result<PatternsBuilderConfigured, Error> {
         let mut builder = PatternsBuilderConfigured {
             strategies: Vec::with_capacity(1),
-            options: self.options,
+            case_sensitive: self.case_sensitive,
         };
         builder.add(pattern)?;
         Ok(builder)
@@ -323,23 +415,22 @@ impl PatternsBuilder {
 #[derive(Debug)]
 pub struct PatternsBuilderConfigured {
     strategies: Vec<MatchStrategy>,
-    options: Options,
+    case_sensitive: CaseSensitive,
 }
 
 impl PatternsBuilderConfigured {
     /// Adds a pattern to the builder.
     pub fn add(&mut self, pattern: &str) -> Result<&mut Self, Error> {
-        let mut parser = Parser::new(pattern, self.options);
+        let mut parser = Parser::new(pattern, self.case_sensitive);
         parser.parse().map_err(|kind| Error {
             pattern: pattern.to_owned(),
             kind,
         })?;
 
-        let strategy =
-            MatchStrategy::from_tokens(parser.tokens, self.options).map_err(|kind| Error {
-                pattern: pattern.to_owned(),
-                kind,
-            })?;
+        let strategy = MatchStrategy::from_tokens(parser.tokens).map_err(|kind| Error {
+            pattern: pattern.to_owned(),
+            kind,
+        })?;
 
         self.strategies.push(strategy);
 
@@ -349,8 +440,8 @@ impl PatternsBuilderConfigured {
     /// Builds a [`Patterns`] from the contained patterns.
     pub fn build(self) -> Patterns {
         Patterns {
-            strategies: self.strategies,
-            options: self.options,
+            strategies: self.strategies.into_boxed_slice(),
+            case_sensitive: self.case_sensitive,
         }
     }
 
@@ -359,23 +450,66 @@ impl PatternsBuilderConfigured {
     /// The builder can still be used afterwards, it keeps the configuration.
     pub fn take(&mut self) -> Patterns {
         Patterns {
-            strategies: std::mem::take(&mut self.strategies),
-            options: self.options,
+            strategies: std::mem::take(&mut self.strategies).into_boxed_slice(),
+            case_sensitive: self.case_sensitive,
         }
     }
 }
 
-/// Options to influence [`Pattern`] matching behaviour.
-#[derive(Debug, Clone, Copy, Default)]
-struct Options {
-    case_insensitive: bool,
+/// Whether the pattern is matching case sensitive.
+///
+/// Patterns match by default case sensitive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CaseSensitive(pub bool);
+
+/// A gas amount which can be consumed during matching.
+///
+/// Gas bounds the overall runtime of the matching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Gas(u64);
+
+impl Gas {
+    /// Maximum available gas for basically unconstrained matching.
+    pub const MAX: Self = Gas(u64::MAX);
+
+    /// Amount of gas which allows for reasonable pattern matches but does not allow unconstrained matches.
+    ///
+    /// It is recommended to use this value when the pattern is user controlled.
+    pub const CONSTRAINED: Self = Gas(50_000);
+
+    /// Creates a new [`Gas`] budget.
+    pub const fn new(gas: u64) -> Self {
+        Self(gas)
+    }
+
+    /// Attempts to use one unit of gas.
+    ///
+    /// Returns `None` if all gas has been used up.
+    fn try_consume(&mut self) -> Result<(), OutOfGas> {
+        self.0 = self.0.checked_sub(1).ok_or(OutOfGas(0))?;
+        Ok(())
+    }
+}
+
+/// Options to influence [`Pattern`] compilation and matching behaviour.
+#[derive(Debug)]
+struct MatchOptions<'a> {
+    /// Whether the matching is case insensitive.
+    ///
+    /// This flag must match how the tokens were compiled as components like literals must be
+    /// normalized beforehand.
+    pub case_sensitive: CaseSensitive,
+    /// Amount of 'gas' which the matching is allowed to consume.
+    ///
+    /// Every matching 'op' takes up 1 gas, the matcher will consume gas until out.
+    pub gas: &'a mut Gas,
 }
 
 /// Matching strategy for a [`Pattern`].
 ///
 /// Certain patterns can be matched more efficiently while the complex
 /// patterns fallback to [`wildmatch::is_match`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum MatchStrategy {
     /// The pattern is a single literal string.
     ///
@@ -416,7 +550,7 @@ enum MatchStrategy {
 
 impl MatchStrategy {
     /// Create a [`MatchStrategy`] from [`Tokens`].
-    fn from_tokens(mut tokens: Tokens, _options: Options) -> Result<Self, ErrorKind> {
+    fn from_tokens(mut tokens: Tokens) -> Result<Self, ErrorKind> {
         let s = match tokens.as_mut_slice() {
             [] => Self::Static(false),
             [Token::Wildcard] => Self::Static(true),
@@ -433,65 +567,69 @@ impl MatchStrategy {
     }
 
     /// Returns `true` if the pattern matches the passed string.
-    pub fn is_match(&self, haystack: &str, options: Options) -> bool {
+    pub fn is_match(&self, haystack: &str, options: MatchOptions) -> Result<bool, OutOfGas> {
         match &self {
-            MatchStrategy::Literal(literal) => match_literal(literal, haystack, options),
-            MatchStrategy::Prefix(prefix) => match_prefix(prefix, haystack, options),
-            MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, options),
-            MatchStrategy::Contains(contains) => match_contains(contains, haystack, options),
-            MatchStrategy::Static(matches) => *matches,
+            MatchStrategy::Literal(literal) => Ok(match_literal(literal, haystack, options)),
+            MatchStrategy::Prefix(prefix) => Ok(match_prefix(prefix, haystack, options)),
+            MatchStrategy::Suffix(suffix) => Ok(match_suffix(suffix, haystack, options)),
+            MatchStrategy::Contains(contains) => Ok(match_contains(contains, haystack, options)),
+            MatchStrategy::Static(matches) => Ok(*matches),
             MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, options),
         }
     }
 }
 
+impl fmt::Display for MatchStrategy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MatchStrategy::Literal(literal) => literal.fmt(f),
+            MatchStrategy::Prefix(literal) => {
+                literal.fmt(f)?;
+                f.write_char('*')
+            }
+            MatchStrategy::Suffix(literal) => {
+                f.write_char('*')?;
+                literal.fmt(f)
+            }
+            MatchStrategy::Contains(literal) => {
+                f.write_char('*')?;
+                literal.fmt(f)?;
+                f.write_char('*')
+            }
+            MatchStrategy::Static(true) => f.write_char('*'),
+            // This is the empty glob, which never matches.
+            MatchStrategy::Static(false) => Ok(()),
+            MatchStrategy::Wildmatch(tokens) => tokens.fmt(f),
+        }
+    }
+}
+
 #[inline(always)]
-fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
-    if options.case_insensitive {
+fn match_literal(literal: &Literal, haystack: &str, options: MatchOptions) -> bool {
+    if options.case_sensitive == CaseSensitive(false) {
         // Can't do an explicit len compare first here `literal.len() == haystack.len()`,
         // the amount of characters can change when converting case.
-        let mut literal = literal.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (literal.next(), haystack.next()) {
-                // Both iterators exhausted -> literal matches.
-                (None, None) => break true,
-                // Either iterator exhausted while the other one is not -> no match.
-                (None, _) | (_, None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+        //
+        // The literal matches if the prefix match consumes the entire haystack.
+        wildmatch::is_prefix_case_insensitive(haystack, literal)
+            .is_some_and(|len| len == haystack.len())
     } else {
         literal.as_case_converted_str() == haystack
     }
 }
 
 #[inline(always)]
-fn match_prefix(prefix: &Literal, haystack: &str, options: Options) -> bool {
-    if options.case_insensitive {
-        let mut prefix = prefix.as_case_converted_str().chars();
-        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
-
-        loop {
-            match (prefix.next(), haystack.next()) {
-                // If the prefix is exhausted it matched.
-                (None, _) => break true,
-                // If the haystack is exhausted, but the pattern is not -> no match.
-                (Some(_), None) => break false,
-                (Some(p), Some(h)) if p != h => break false,
-                _ => {}
-            }
-        }
+fn match_prefix(prefix: &Literal, haystack: &str, options: MatchOptions) -> bool {
+    if options.case_sensitive == CaseSensitive(false) {
+        wildmatch::is_prefix_case_insensitive(haystack, prefix).is_some()
     } else {
         haystack.starts_with(prefix.as_case_converted_str())
     }
 }
 
 #[inline(always)]
-fn match_suffix(suffix: &Literal, haystack: &str, options: Options) -> bool {
-    if options.case_insensitive {
+fn match_suffix(suffix: &Literal, haystack: &str, options: MatchOptions) -> bool {
+    if options.case_sensitive == CaseSensitive(false) {
         let mut suffix = suffix.as_case_converted_str().chars().rev();
         let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase()).rev();
 
@@ -511,8 +649,8 @@ fn match_suffix(suffix: &Literal, haystack: &str, options: Options) -> bool {
 }
 
 #[inline(always)]
-fn match_contains(contains: &Literal, haystack: &str, options: Options) -> bool {
-    if options.case_insensitive {
+fn match_contains(contains: &Literal, haystack: &str, options: MatchOptions) -> bool {
+    if options.case_sensitive == CaseSensitive(false) {
         let haystack = haystack.to_lowercase();
         memchr::memmem::find(haystack.as_bytes(), contains.as_case_converted_bytes()).is_some()
     } else {
@@ -525,18 +663,18 @@ struct Parser<'a> {
     tokens: Tokens,
     alternates: Option<Vec<Tokens>>,
     current_literal: Option<String>,
-    options: Options,
+    case_sensitive: CaseSensitive,
     complexity: u64,
 }
 
 impl<'a> Parser<'a> {
-    fn new(pattern: &'a str, options: Options) -> Self {
+    fn new(pattern: &'a str, case_sensitive: CaseSensitive) -> Self {
         Self {
             chars: pattern.chars().peekable(),
             tokens: Default::default(),
             alternates: None,
             current_literal: None,
-            options,
+            case_sensitive,
             complexity: 0,
         }
     }
@@ -666,7 +804,7 @@ impl<'a> Parser<'a> {
     /// Finishes and pushes the currently in progress literal token.
     fn finish_literal(&mut self) {
         if let Some(literal) = self.current_literal.take() {
-            self.push_token(Token::Literal(Literal::new(literal, self.options)));
+            self.push_token(Token::Literal(Literal::new(literal, self.case_sensitive)));
         }
     }
 
@@ -713,7 +851,7 @@ impl<'a> Parser<'a> {
 /// - A [`Token::Any`] is never followed by [`Token::Any`].
 /// - A [`Token::Literal`] is never followed by [`Token::Literal`].
 /// - A [`Token::Class`] is never empty.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Tokens(Vec<Token>);
 
 impl Tokens {
@@ -759,7 +897,7 @@ impl Tokens {
             } else if alternates.len() > 1 {
                 if contains_empty {
                     // Case: {foo,bar,} -> Optional({foo,bar})
-                    token = Token::Optional(Tokens(vec![Token::Alternates(alternates)]));
+                    token = Token::OptionalAlternates(alternates);
                 } else {
                     // Case: {foo, bar} -> can stay as it is
                     token = Token::Alternates(alternates);
@@ -773,9 +911,19 @@ impl Tokens {
         match (self.0.last_mut(), token) {
             // Collapse Any's.
             (Some(Token::Any(n)), Token::Any(n2)) => *n = n.saturating_add(n2.get()),
-            // We can collapse multiple wildcards into a single one.
+            // Collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             (Some(Token::Wildcard), Token::Wildcard) => {}
+            // Collapse wildcards with optionals.
+            (Some(Token::Wildcard), Token::Optional(_) | Token::OptionalAlternates(_)) => {}
+            (Some(Token::Optional(_) | Token::OptionalAlternates(_)), Token::Wildcard) => {
+                self.0.pop();
+                // We can now also remove all other preceding optionals.
+                while let Some(Token::Optional(_) | Token::OptionalAlternates(_)) = self.0.last() {
+                    self.0.pop();
+                }
+                self.0.push(Token::Wildcard);
+            }
             // Collapse multiple literals into one.
             (Some(Token::Literal(last)), Token::Literal(s)) => last.push(&s),
             // Ignore empty class tokens.
@@ -794,8 +942,18 @@ impl Tokens {
     }
 }
 
+impl fmt::Display for Tokens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for token in &self.0 {
+            token.fmt(f)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Represents a token in a Relay pattern.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Token {
     /// A literal token.
     Literal(Literal),
@@ -807,12 +965,68 @@ enum Token {
     Class { negated: bool, ranges: Ranges },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
+    /// A list of nested alternate tokens, where none need to match.
+    ///
+    /// There is no dedicated syntax for this, it is parsed from an alternate
+    /// group with an empty alternate: `{a,b,}`.
+    OptionalAlternates(Vec<Tokens>),
     /// A list of optional tokens.
     ///
-    /// This has no syntax of its own, it's parsed
-    /// from alternatives containing empty branches
-    /// like `{a,b,}`.
+    /// This has no syntax of its own, it's parsed from an alternate with two
+    /// alternations where one of them is empty: `{a,}`.
     Optional(Tokens),
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Literal(literal) => literal.fmt(f),
+            Token::Any(num) => {
+                for _ in 0..num.get() {
+                    f.write_char('?')?;
+                }
+                Ok(())
+            }
+            Token::Wildcard => f.write_char('*'),
+            Token::Class { negated, ranges } => {
+                f.write_char('[')?;
+                if *negated {
+                    f.write_char('!')?;
+                }
+                ranges.fmt(f)?;
+                f.write_char(']')
+            }
+            Token::Alternates(items) => {
+                f.write_char('{')?;
+                let mut is_first = true;
+                for item in items {
+                    if !is_first {
+                        f.write_char(',')?;
+                    } else {
+                        is_first = false;
+                    }
+                    item.fmt(f)?;
+                }
+                f.write_char('}')
+            }
+            Token::OptionalAlternates(items) => {
+                f.write_char('{')?;
+                for item in items {
+                    item.fmt(f)?;
+                    // This will always produce an empty group as the last item in the alternate,
+                    // which is exactly what this token is built from.
+                    f.write_char(',')?;
+                }
+                f.write_char('}')
+            }
+            Token::Optional(tokens) => {
+                f.write_char('{')?;
+                tokens.fmt(f)?;
+                f.write_char(',')?;
+                f.write_char('}')
+            }
+        }
+    }
 }
 
 /// A string literal.
@@ -820,15 +1034,15 @@ enum Token {
 /// The contained literal is only available as a case converted string.
 /// Depending on whether the pattern is case sensitive or case insensitive the literal is either
 /// the original string or converted to lowercase.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Literal(String);
 
 impl Literal {
     /// Creates a new literal from `s` and `options`.
-    fn new(s: String, options: Options) -> Self {
-        match options.case_insensitive {
-            false => Self(s),
-            true => Self(s.to_lowercase()),
+    fn new(s: String, case_sensitive: CaseSensitive) -> Self {
+        match case_sensitive {
+            CaseSensitive(true) => Self(s),
+            CaseSensitive(false) => Self(s.to_lowercase()),
         }
     }
 
@@ -850,12 +1064,30 @@ impl Literal {
     }
 }
 
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn print_escaped_char(c: char, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // A comma must be escaped if the surrounding context is an alternation,
+            // to not make the printing context dependent the comma is always escaped.
+            if matches!(c, '*' | '?' | '[' | ']' | '{' | '}' | '\\' | ',') {
+                f.write_char('\\')?;
+            }
+            f.write_char(c)
+        }
+
+        for c in self.0.chars() {
+            print_escaped_char(c, f)?;
+        }
+        Ok(())
+    }
+}
+
 /// A [`Range`] contains whatever is contained between `[` and `]` of
 /// a glob pattern, except the negation.
 ///
 /// For example the pattern `[a-z]` contains the range from `a` to `z`,
 /// the pattern `[ax-zbf-h]` contains the ranges `x-z`, `f-h`, `a-a` and `b-b`.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 enum Ranges {
     /// An empty, default range not containing any characters.
     ///
@@ -921,8 +1153,23 @@ impl Ranges {
     }
 }
 
+impl fmt::Display for Ranges {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ranges::Empty => Ok(()),
+            Ranges::Single(range) => range.fmt(f),
+            Ranges::Multiple(ranges) => {
+                for range in ranges {
+                    range.fmt(f)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 /// Represents a character range in a [`Token::Class`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Range {
     start: char,
     end: char,
@@ -953,39 +1200,103 @@ impl Range {
     }
 }
 
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn print_escaped_char(c: char, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // The `!` only needs to be escaped if the range is the first range in a class,
+            // to not make the escaping context dependent it's always escaped. Similar reasoning
+            // applies also to `-`.
+            if matches!(c, '[' | ']' | '\\' | '!' | '-') {
+                f.write_char('\\')?;
+            }
+            f.write_char(c)
+        }
+
+        print_escaped_char(self.start, f)?;
+        if self.start != self.end {
+            f.write_char('-')?;
+            print_escaped_char(self.end, f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[track_caller]
+    fn build_pattern(p: &str, options: &str) -> Pattern {
+        let mut pattern = Pattern::builder(p);
+        for opt in options.chars() {
+            match opt {
+                'i' => drop(pattern.case_insensitive(true)),
+                _ => unimplemented!("{opt} not implemented"),
+            }
+        }
+        pattern.build().unwrap()
+    }
+
+    #[track_caller]
+    fn build_patterns(patterns: &[&str], options: &str) -> Patterns {
+        let mut builder = Patterns::builder();
+        for opt in options.chars() {
+            match opt {
+                'i' => drop(builder.case_insensitive(true)),
+                _ => unimplemented!("{opt} not implemented"),
+            }
+        }
+        let mut builder = builder.patterns();
+        for pattern in patterns {
+            builder.add(pattern).unwrap();
+        }
+        builder.build()
+    }
+
+    macro_rules! pattern {
+        ($pattern:expr $(,$options:tt)?) => {
+            build_pattern($pattern, stringify!($($options)?))
+        };
+    }
+
+    macro_rules! patterns {
+        ($($pattern:expr),* $(,)?) => {
+            build_patterns(&[$($pattern),*], "")
+        };
+        ($($pattern:expr,)* @ $options:tt) => {
+            build_patterns(&[$($pattern),*], stringify!($options))
+        };
+    }
+
     macro_rules! assert_pattern {
         ($pattern:expr, $s:expr $(,$options:tt)?) => {{
-            let mut pattern = Pattern::builder($pattern);
-            for opt in stringify!($($options)?).chars() {
-                match opt {
-                    'i' => { pattern.case_insensitive(true); }
-                    _ => {}
-                }
-            }
-            let pattern = pattern.build().unwrap();
+            let pattern = pattern!($pattern $(,$options)?);
             assert!(
-                pattern.is_match($s),
+                pattern.is_match($s, Gas::MAX).unwrap(),
                 "expected pattern '{}' to match '{}' - {pattern:?}",
+                $pattern,
+                $s
+            );
+            let pattern = pattern!(&pattern.to_string() $(,$options)?);
+            assert!(
+                pattern.is_match($s, Gas::MAX).unwrap(),
+                "expected round-tripped pattern '{}' to match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
         }};
         ($pattern:expr, NOT $s:expr $(,$options:tt)?) => {{
-            let mut pattern = Pattern::builder($pattern);
-            for opt in stringify!($($options)?).chars() {
-                match opt {
-                    'i' => { pattern.case_insensitive(true); }
-                    _ => {}
-                }
-            }
-            let pattern = pattern.build().unwrap();
+            let pattern = pattern!($pattern $(,$options)?);
             assert!(
-                !pattern.is_match($s),
+                !pattern.is_match($s, Gas::MAX).unwrap(),
                 "expected pattern '{}' to not match '{}' - {pattern:?}",
+                $pattern,
+                $s
+            );
+            let pattern = pattern!(&pattern.to_string() $(,$options)?);
+            assert!(
+                !pattern.is_match($s, Gas::MAX).unwrap(),
+                "expected round-tripped pattern '{}' to not match '{}' - {pattern:?}",
                 $pattern,
                 $s
             );
@@ -1051,6 +1362,17 @@ mod tests {
         assert_pattern!("fOo", "Foo", i);
         assert_pattern!("İ", "i\u{307}", i);
         assert_pattern!("İ", "i̇", i);
+        assert_pattern!("İ", NOT "i", i);
+        assert_pattern!("i", NOT "İ", i);
+        assert_pattern!("kelvin", "\u{212A}elvin", i);
+        assert_pattern!("\u{212A}elvin", "kelvin", i);
+        assert_pattern!("ß", "ẞ", i);
+        assert_pattern!("straße", "straẞe", i);
+        assert_pattern!("strasse", NOT "straẞe", i);
+        assert_pattern!("ΑΣ", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ", "ας", i);
+        assert_pattern!("ΑΣ", NOT "ασ", i);
+        assert_pattern!("ασ", "ΑΣ", i);
     }
 
     #[test]
@@ -1065,6 +1387,8 @@ mod tests {
     fn test_prefix() {
         assert_pattern!("foo*", "foo___");
         assert_pattern!("foo*", "foo");
+        assert_pattern!(r"foo\?*", "foo?___");
+        assert_pattern!(r"foo\?*", NOT "foox___");
         assert_pattern!("foo**", "foo");
         assert_pattern!("foo*?*", NOT "foo");
         assert_pattern!("foo*?*", "foo_");
@@ -1103,6 +1427,13 @@ mod tests {
         assert_pattern!("İ*", "i̇", i);
         assert_pattern!("İ*", "i\u{307}___", i);
         assert_pattern!("İ*", NOT "i____", i);
+
+        assert_pattern!("kelvin*", "\u{212A}elvin___", i);
+        assert_pattern!("\u{212A}elvin*", "kelvin___", i);
+        assert_pattern!("ΑΣ*", NOT "ΑΣ", i);
+        assert_pattern!("ΑΣ*", "ας___", i);
+        assert_pattern!("ΑΣ*", NOT "ασ___", i);
+        assert_pattern!("ασ*", "ΑΣ___", i);
     }
 
     #[test]
@@ -1116,6 +1447,8 @@ mod tests {
     fn test_suffix() {
         assert_pattern!("*foo", "___foo");
         assert_pattern!("*foo", "foo");
+        assert_pattern!(r"*\?foo", "___?foo");
+        assert_pattern!(r"*\?foo", NOT "___xfoo");
         assert_pattern!("**foo", "foo");
         assert_pattern!("*?*foo", NOT "foo");
         assert_pattern!("*?*foo", "_foo");
@@ -1167,6 +1500,8 @@ mod tests {
     #[test]
     fn test_contains() {
         assert_pattern!("*foo*", "foo");
+        assert_pattern!(r"*\?foo*", "___?foo___");
+        assert_pattern!(r"*\?foo*", NOT "___xfoo___");
         assert_pattern!("*foo*", "foo___");
         assert_pattern!("*foo*", "___foo");
         assert_pattern!("*foo*", "___foo___");
@@ -1315,6 +1650,8 @@ mod tests {
         assert_pattern!(r"f\\o", r"f\o");
         assert_pattern!(r"f\*o", r"f*o");
         assert_pattern!(r"f\*o", NOT r"f\*o");
+        assert_pattern!(r"f\?o", "f?o");
+        assert_pattern!(r"f\?o", NOT "fao");
         assert_pattern!(r"f\\*o", r"f\*o");
         assert_pattern!(r"f\\*o", r"f\o");
         assert_pattern!(r"f\\*o", r"f\___o");
@@ -1324,6 +1661,7 @@ mod tests {
         assert_pattern!(r"f\[a-z\]o", r"f[a-z]o");
         assert_pattern!(r"f\[o", r"f[o");
         assert_pattern!(r"f\]o", r"f]o");
+        assert_pattern!(r"f\,o", "f,o");
         assert_pattern!(r"\[", r"[");
     }
 
@@ -1431,6 +1769,36 @@ mod tests {
         assert_pattern!(r"[\[]", "[");
         assert_pattern!(r"[\[]", NOT "a");
         assert_pattern!(r"[\]]", NOT r"\");
+        assert_pattern!(r"[\!]", "!");
+        assert_pattern!(r"[\!]", NOT "a");
+        assert_pattern!(r"[a\-c]", "-");
+        assert_pattern!(r"[a\-c]", NOT "b");
+        assert_pattern!(r"[\!--]", "!");
+        assert_pattern!(r"[\!--]", "-");
+        assert_pattern!(r"[\!--]", NOT "a");
+        assert_pattern!(r"[\[-a]", "[");
+        assert_pattern!(r"[\[-a]", "a");
+        assert_pattern!(r"[\[-a]", NOT "b");
+        assert_pattern!(r"[A-\]]", "]");
+        assert_pattern!(r"[A-\]]", "Z");
+        assert_pattern!(r"[A-\]]", NOT "a");
+        assert_pattern!(r"[A-\\]", r"\");
+        assert_pattern!(r"[A-\\]", NOT "a");
+        assert_pattern!(r"[\]-z]", "]");
+        assert_pattern!(r"[\]-z]", "z");
+        assert_pattern!(r"[\]-z]", NOT r"\");
+        assert_pattern!(r"[\\-z]", r"\");
+        assert_pattern!(r"[\\-z]", "z");
+        assert_pattern!(r"[\\-z]", NOT "[");
+        assert_pattern!(r"[\--z]", "-");
+        assert_pattern!(r"[\--z]", "z");
+        assert_pattern!(r"[\--z]", NOT "!");
+        assert_pattern!("[*?{},]", "*");
+        assert_pattern!("[*?{},]", "?");
+        assert_pattern!("[*?{},]", "{");
+        assert_pattern!("[*?{},]", "}");
+        assert_pattern!("[*?{},]", ",");
+        assert_pattern!("[*?{},]", NOT "a");
 
         assert_pattern!("a[X-]b", "a-b");
         assert_pattern!("a[X-]b", "aXb");
@@ -1452,6 +1820,8 @@ mod tests {
     #[test]
     fn test_classes_negated() {
         assert_pattern!("[!]", NOT "");
+        assert_pattern!(r"[!\!]", "a");
+        assert_pattern!(r"[!\!]", NOT "!");
         assert_pattern!("[!a]", "b");
         assert_pattern!("[!a]", "A");
         assert_pattern!("[!a]", "B");
@@ -1505,6 +1875,16 @@ mod tests {
         assert_pattern!("{foo}", NOT "bar");
         assert_pattern!("{foo,bar}", "foo");
         assert_pattern!("{foo,bar}", "bar");
+        assert_pattern!(r"{foo,bar,baz\,}", "foo");
+        assert_pattern!(r"{foo,bar,baz\,}", "baz,");
+        assert_pattern!(r"{foo,bar,baz\,}", NOT "baz");
+        assert_pattern!(r"{foo,bar,baz\,}", NOT "");
+        assert_pattern!(r"{foo\,,}", "foo,");
+        assert_pattern!(r"{foo\,,}", "");
+        assert_pattern!(r"{foo\,,}", NOT "foo");
+        assert_pattern!(r"{foo,bar\,,}", "bar,");
+        assert_pattern!(r"{foo,bar\,,}", "");
+        assert_pattern!(r"{foo,bar\,,}", NOT "bar");
         assert_pattern!("{foo,bar}", NOT "Foo");
         assert_pattern!("{foo,bar}", NOT "fOo");
         assert_pattern!("{foo,bar}", NOT "BAR");
@@ -1590,11 +1970,30 @@ mod tests {
         const N: usize = 100_000;
 
         let pattern = Pattern::new(&"{ab,ba}".repeat(N)).unwrap();
-        assert!(pattern.is_match(&"ab".repeat(N)));
-        assert!(pattern.is_match(&"ba".repeat(N)));
-        assert!(pattern.is_match(&"abba".repeat(N / 2)));
-        assert!(!pattern.is_match(&"ab".repeat(N - 1)));
-        assert!(!pattern.is_match(&format!("{}aa", "ab".repeat(N - 1))));
+        assert_eq!(pattern.is_match(&"ab".repeat(N), Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match(&"ba".repeat(N), Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match(&"abba".repeat(N / 2), Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match(&"ab".repeat(N - 1), Gas::MAX), Ok(false));
+        assert_eq!(
+            pattern.is_match(&format!("{}aa", "ab".repeat(N - 1)), Gas::MAX),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn test_alternates_optional() {
+        assert_pattern!("{a,}{b,}", "ab");
+        assert_pattern!("{a,}{b,}", "a");
+        assert_pattern!("{a,}{b,}", "b");
+        assert_pattern!("{a,}{b,}", "");
+        assert_pattern!("{a,b,}{c,}", "ac");
+        assert_pattern!("{a,b,}{c,}", "bc");
+        assert_pattern!("{a,b,}{c,}", "a");
+        assert_pattern!("{a,b,}{c,}", "b");
+        assert_pattern!("{a,b,}{c,}", "c");
+        assert_pattern!("{a,b,}{c,}", "");
+        assert_pattern!("{a,b,}{c,}", NOT "ab");
+        assert_pattern!("{a,b,}{c,}", NOT "abc");
     }
 
     #[test]
@@ -1604,6 +2003,35 @@ mod tests {
         assert_strategy!("foo{}bar", Literal);
         assert_strategy!("foo{}{}{}bar", Literal);
         assert_strategy!("foo{,,,}bar", Literal);
+    }
+
+    #[test]
+    fn test_optional_wildcard_strategy() {
+        // Optional alternates after a wildcard can be folded into a wildcard.
+        assert_strategy!("*{foo,}", Static);
+        assert_strategy!("*{foo,bar,}", Static);
+        assert_strategy!("foo*{bar,}", Prefix);
+        assert_strategy!("foo*{bar,baz,}", Prefix);
+        assert_strategy!("*{foo,}bar", Suffix);
+        assert_strategy!("*{foo,baz,}bar", Suffix);
+        assert_strategy!("*{bar,}foo*", Contains);
+        assert_strategy!("*{bar,baz,}foo*", Contains);
+
+        // The same is true for the inverse, we can fold alterantes followed by a wildcard into a wildcard.
+        assert_strategy!("{foo,}*", Static);
+        assert_strategy!("{foo,bar,}*", Static);
+        assert_strategy!("foo{bar,}*", Prefix);
+        assert_strategy!("foo{bar,baz,}*", Prefix);
+        assert_strategy!("{foo,}*bar", Suffix);
+        assert_strategy!("{foo,baz,}*bar", Suffix);
+        assert_strategy!("*foo{bar,}*", Contains);
+        assert_strategy!("*foo{bar,baz,}*", Contains);
+
+        // This also applies for multiple chained alternates.
+        assert_strategy!("*{bar,}{baz,qux,}foo", Suffix);
+        assert_strategy!("{*,bar}{baz,qux,}foo", Suffix);
+        assert_strategy!("foo{bar,}{baz,qux,}*", Prefix);
+        assert_strategy!("foo{bar,}{baz,qux,}{bar,*}", Prefix);
     }
 
     #[test]
@@ -1936,46 +2364,27 @@ mod tests {
 
     #[test]
     fn test_patterns() {
-        let patterns = Patterns::builder()
-            .add("foobaR")
-            .unwrap()
-            .add("a*")
-            .unwrap()
-            .add("*a")
-            .unwrap()
-            .add("[0-9]*baz")
-            .unwrap()
-            .take();
+        let patterns = patterns!("foobaR", "a*", "*a", "[0-9]*baz");
 
-        assert!(patterns.is_match("foobaR"));
-        assert!(patterns.is_match("abc"));
-        assert!(patterns.is_match("cba"));
-        assert!(patterns.is_match("3baz"));
-        assert!(patterns.is_match("123456789baz"));
-        assert!(!patterns.is_match("foobar"));
-        assert!(!patterns.is_match("FOOBAR"));
+        assert_eq!(patterns.is_match("foobaR", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("abc", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("cba", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("3baz", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("123456789baz", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("foobar", Gas::MAX), Ok(false));
+        assert_eq!(patterns.is_match("FOOBAR", Gas::MAX), Ok(false));
     }
 
     #[test]
     fn test_patterns_case_insensitive() {
-        let patterns = Patterns::builder()
-            .case_insensitive(true)
-            .add("fOObar")
-            .unwrap()
-            .add("a*")
-            .unwrap()
-            .add("*a")
-            .unwrap()
-            .add("[0-9]*baz")
-            .unwrap()
-            .take();
+        let patterns = patterns!("fOObar", "a*", "*a", "[0-9]*baz", @ i);
 
-        assert!(patterns.is_match("FooBar"));
-        assert!(patterns.is_match("abC"));
-        assert!(patterns.is_match("cbA"));
-        assert!(patterns.is_match("3BAZ"));
-        assert!(patterns.is_match("123456789baz"));
-        assert!(!patterns.is_match("b"));
+        assert_eq!(patterns.is_match("FooBar", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("abC", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("cbA", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("3BAZ", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("123456789baz", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("b", Gas::MAX), Ok(false));
     }
 
     #[test]
@@ -1983,12 +2392,185 @@ mod tests {
         let mut builder = Patterns::builder().add("foo").unwrap();
 
         let patterns = builder.take();
-        assert!(patterns.is_match("foo"));
-        assert!(!patterns.is_match("bar"));
+        assert_eq!(patterns, patterns!("foo"));
+        assert_eq!(patterns.is_match("foo", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("bar", Gas::MAX), Ok(false));
 
         builder.add("bar").unwrap();
         let patterns = builder.build();
-        assert!(!patterns.is_match("foo"));
-        assert!(patterns.is_match("bar"));
+        assert_eq!(patterns, patterns!("bar"));
+        assert_eq!(patterns.is_match("foo", Gas::MAX), Ok(false));
+        assert_eq!(patterns.is_match("bar", Gas::MAX), Ok(true));
+    }
+
+    #[test]
+    fn test_pattern_eq() {
+        let pattern1 = pattern!("Foo**", i);
+        let pattern2 = pattern!("Foo**", i);
+        let pattern3 = pattern!("foo*", i);
+        assert_eq!(&pattern1, &pattern1);
+        assert_eq!(&pattern1, &pattern2);
+        assert_eq!(&pattern1, &pattern3);
+        assert_eq!(&pattern2, &pattern3);
+
+        let pattern = Pattern::builder("foo*").max_complexity(1).build().unwrap();
+        assert_eq!(pattern, Pattern::new("foo*").unwrap());
+    }
+
+    #[test]
+    fn test_pattern_neq() {
+        assert_ne!(pattern!("Foo**"), pattern!("foo*"));
+        assert_ne!(pattern!("foo*"), pattern!("foo*", i));
+        assert_ne!(pattern!("foo*"), pattern!("bar*"));
+    }
+
+    #[test]
+    fn test_patterns_eq() {
+        let patterns1 = patterns!("Foo**", "*[rt]X", @ i);
+        let patterns2 = patterns1.clone();
+        let patterns3 = patterns!("foo*", "*[rt]x", @ i);
+        assert_eq!(&patterns1, &patterns1);
+        assert_eq!(&patterns1, &patterns2);
+        assert_eq!(&patterns1, &patterns3);
+        assert_eq!(&patterns2, &patterns3);
+        assert_eq!(Patterns::empty(), patterns!());
+    }
+
+    #[test]
+    fn test_patterns_neq() {
+        let patterns = patterns!("foo*", "bar");
+        let case_insensitive = patterns!("foo*", "bar", @ i);
+        let reordered = patterns!("bar", "foo*");
+        assert_ne!(patterns, case_insensitive);
+        assert_ne!(patterns, reordered);
+        assert_ne!(patterns, patterns!("foo*"));
+        assert_ne!(patterns, patterns!());
+        assert_ne!(patterns!(), patterns!(@ i));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_deserialize() {
+        let pattern: Pattern = serde_json::from_str(r#""**[rt]x""#).unwrap();
+        assert_eq!(pattern, Pattern::new("*[rt]x").unwrap());
+        assert_eq!(pattern.is_match("foobar_rx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("foobar_tx", Gas::MAX), Ok(true));
+        assert_eq!(pattern.is_match("foobar_RX", Gas::MAX), Ok(false));
+        assert_eq!(pattern.is_match("foobar", Gas::MAX), Ok(false));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_deserialize_err() {
+        for json in [r#""[invalid""#, "null", "true", "42", "[]", "{}"] {
+            assert!(serde_json::from_str::<Pattern>(json).is_err(), "{json}",);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_serialize() {
+        for (source, expected) in [
+            ("", r#""""#),
+            ("**", r#""*""#),
+            ("Foobar", r#""Foobar""#),
+            ("Foo**", r#""Foo*""#),
+            ("**Bar", r#""*Bar""#),
+            ("**Foo**", r#""*Foo*""#),
+            ("*[rt]x", r#""*[rt]x""#),
+            (r"f\*o", r#""f\\*o""#),
+            (r#"f"o"#, r#""f\"o""#),
+        ] {
+            let pattern = Pattern::new(source).unwrap();
+            assert_eq!(serde_json::to_string(&pattern).unwrap(), expected);
+        }
+
+        let pattern = pattern!("Foo**", i);
+        assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""foo*""#);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_pattern_serde_roundtrip() {
+        for source in [
+            "",
+            "*",
+            "Foobar",
+            "Foo**",
+            "*Bar",
+            "*Foo*",
+            "*[rt]x",
+            "{foo,bar}",
+            r"f\*o",
+            r#"f"o"#,
+            "Grüße",
+        ] {
+            let pattern = Pattern::new(source).unwrap();
+            let json = serde_json::to_string(&pattern).unwrap();
+            let deserialized: Pattern = serde_json::from_str(&json).unwrap();
+            assert_eq!(pattern, deserialized);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize() {
+        let patterns: Patterns = serde_json::from_str(r#"["**[rt]x","Foobar"]"#).unwrap();
+        let expected = patterns!("*[rt]x", "Foobar");
+        assert_eq!(patterns, expected);
+        assert_eq!(patterns.is_match("foobar_rx", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("Foobar", Gas::MAX), Ok(true));
+        assert_eq!(patterns.is_match("foobar_RX", Gas::MAX), Ok(false));
+        assert_eq!(patterns.is_match("FOOBAR", Gas::MAX), Ok(false));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize_err() {
+        for json in [
+            r#"["[invalid","foobar"]"#,
+            r#"["foobar","[invalid"]"#,
+            r#"["foobar",42]"#,
+            r#"["foobar",null]"#,
+            r#"["foobar",[]]"#,
+            r#""foobar""#,
+            "null",
+            "true",
+            "42",
+            "{}",
+        ] {
+            assert!(serde_json::from_str::<Patterns>(json).is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_serialize() {
+        let p = patterns!(
+            "", "**", "Foobar", "Foo**", "**Bar", "**Foo**", "*[rt]x", r"f\*o",
+        );
+        assert_eq!(
+            serde_json::to_string(&p).unwrap(),
+            r#"["","*","Foobar","Foo*","*Bar","*Foo*","*[rt]x","f\\*o"]"#,
+        );
+
+        let p = patterns!(
+            "", "**", "Foobar", "Foo**", "**Bar", "**Foo**", "*[rt]x", r"f\*o", @ i
+        );
+        assert_eq!(
+            serde_json::to_string(&p).unwrap(),
+            r#"["","*","foobar","foo*","*bar","*foo*","*[rt]x","f\\*o"]"#,
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_serde_empty() {
+        let patterns: Patterns = serde_json::from_str("[]").unwrap();
+        assert_eq!(patterns, patterns!());
+        assert!(patterns.is_empty());
+        assert_eq!(patterns.is_match("", Gas::MAX), Ok(false));
+        assert_eq!(patterns.is_match("foobar", Gas::MAX), Ok(false));
+        assert_eq!(serde_json::to_string(&patterns).unwrap(), "[]");
     }
 }

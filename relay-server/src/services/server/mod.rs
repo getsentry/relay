@@ -17,7 +17,7 @@ use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePath};
 use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
 
@@ -47,10 +47,6 @@ pub enum ServerError {
     /// Binding failed.
     #[error("bind to interface failed")]
     BindFailed(#[from] std::io::Error),
-
-    /// TLS support was not compiled in.
-    #[error("SSL is no longer supported by Relay, please use a proxy in front")]
-    TlsNotSupported,
 }
 
 type App = NormalizePath<axum::Router>;
@@ -65,7 +61,10 @@ fn make_app(
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
-        .layer(axum::middleware::from_fn(middlewares::metrics))
+        .layer(axum::middleware::from_fn_with_state(
+            service.clone(),
+            middlewares::metrics,
+        ))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
             header::SERVER,
@@ -79,7 +78,7 @@ fn make_app(
         .layer(SentryHttpLayer::new().enable_transaction())
         .layer(middlewares::trace_http_layer())
         .map_request(middlewares::remove_empty_encoding)
-        .layer(RequestDecompressionLayer::new())
+        .layer(axum::middleware::from_fn(middlewares::decompress))
         .layer(
             CompressionLayer::new()
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
@@ -168,14 +167,6 @@ pub struct HttpServer {
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         let current_config = config.current();
-
-        // Inform the user about a removed feature.
-        if current_config.tls_listen_addr().is_some()
-            || current_config.tls_identity_password().is_some()
-            || current_config.tls_identity_path().is_some()
-        {
-            return Err(ServerError::TlsNotSupported);
-        }
 
         let listener = listen(current_config.listen_addr(), &current_config)?;
         let internal_listener = match current_config.listen_addr_internal() {

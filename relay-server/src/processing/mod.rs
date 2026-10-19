@@ -152,6 +152,10 @@ pub struct Output<T> {
     pub main: Option<T>,
     /// Metric by products.
     pub metrics: Option<Managed<ExtractedMetrics>>,
+    /// An envelope containing items that the processor
+    /// extracted from an envelope, but couldn't process
+    /// itself.
+    pub intermediates: Option<ManagedEnvelope>,
 }
 
 impl<T> Output<T> {
@@ -160,6 +164,7 @@ impl<T> Output<T> {
         Self {
             main: Some(main),
             metrics: None,
+            intermediates: None,
         }
     }
 
@@ -168,6 +173,7 @@ impl<T> Output<T> {
         Self {
             main: None,
             metrics: Some(metrics),
+            intermediates: None,
         }
     }
 
@@ -176,6 +182,7 @@ impl<T> Output<T> {
         Self {
             main: None,
             metrics: None,
+            intermediates: None,
         }
     }
 
@@ -187,6 +194,7 @@ impl<T> Output<T> {
         Output {
             main: self.main.map(f),
             metrics: self.metrics,
+            intermediates: self.intermediates,
         }
     }
 }

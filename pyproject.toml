@@ -11,7 +11,7 @@ environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
 # override-dependencies = ["sentry_relay; sys_platform == 'never'"]
 
 [[tool.uv.index]]
-url = "https://pypi.devinfra.sentry.io/simple"
+url = "https://sfw.security.sentry.io/pypi/simple"
 default = true
 
 [dependency-groups]

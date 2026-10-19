@@ -74,6 +74,7 @@ pub enum ServiceError {
 
 #[derive(Clone, Debug)]
 pub struct Registry {
+    pub cogs: Cogs,
     pub health_check: Addr<HealthCheck>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
@@ -236,6 +237,12 @@ impl ServiceState {
         let project_cache_handle =
             ProjectCacheService::new(Arc::clone(&config), project_source).start_in(services);
 
+        let cogs = CogsService::new(&current_config);
+        let cogs = Cogs::new(CogsServiceRecorder::new(
+            &current_config,
+            services.start(cogs),
+        ));
+
         let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
@@ -309,19 +316,13 @@ impl ServiceState {
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
-                let cogs = CogsService::new(&current_config);
-                let cogs = Cogs::new(CogsServiceRecorder::new(
-                    &current_config,
-                    services.start(cogs),
-                ));
-
                 services.start_with(
                     EnvelopeProcessorService::new(
                         processor_pool.clone(),
                         config.clone(),
                         global_config_handle.clone(),
                         project_cache_handle.clone(),
-                        cogs,
+                        cogs.clone(),
                         #[cfg(feature = "processing")]
                         redis_clients.clone(),
                         processor::Addrs {
@@ -387,6 +388,7 @@ impl ServiceState {
         ));
 
         let registry = Registry {
+            cogs,
             processor,
             health_check,
             outcome_aggregator,
@@ -418,6 +420,11 @@ impl ServiceState {
         self.inner.config.current()
     }
 
+    /// Returns a reference to the [`Cogs`] tracking.
+    pub fn cogs(&self) -> &Cogs {
+        &self.inner.registry.cogs
+    }
+
     /// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the
     /// [`MemoryStat`] which gives utility methods to determine whether memory usage is above
     /// thresholds set in the [`Config`].
@@ -427,6 +434,11 @@ impl ServiceState {
 
     pub fn autoscaling(&self) -> Option<&Addr<AutoscalingMetrics>> {
         self.inner.registry.autoscaling.as_ref()
+    }
+
+    /// Returns `true` if all envelope buffer partitions are empty, in memory and on disk.
+    pub fn envelope_buffer_is_empty(&self) -> bool {
+        self.inner.registry.envelope_buffer.is_empty()
     }
 
     /// Returns the V2 envelope buffer, if present.

@@ -1,7 +1,11 @@
-use std::fmt;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::{self, Write};
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use fnv::FnvHasher;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -43,6 +47,21 @@ impl Scoping {
             category,
             scoping: *self,
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
+        }
+    }
+
+    /// Creates an [`ItemScoping`] for a specific data category, along with specified dimensions
+    pub fn item_with_dimensions(
+        &self,
+        category: DataCategory,
+        dimensions: DimensionMap,
+    ) -> ItemScoping {
+        ItemScoping {
+            category,
+            scoping: *self,
+            namespace: MetricNamespaceScoping::None,
+            dimensions,
         }
     }
 
@@ -56,6 +75,7 @@ impl Scoping {
             category: DataCategory::MetricBucket,
             scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
+            dimensions: DimensionMap::default(),
         }
     }
 }
@@ -107,7 +127,7 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
@@ -117,6 +137,156 @@ pub struct ItemScoping {
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
+
+    /// Dimensions this item can be matched on.
+    pub dimensions: DimensionMap,
+}
+
+/// A map of Dimension -> String
+#[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct DimensionMap {
+    dimensions: Arc<BTreeMap<Dimension, DimensionMapValue>>,
+    hash: u64,
+}
+
+/// The value stored in the DimensionMap.
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct DimensionMapValue {
+    /// The actual string value of the dimension.
+    pub value: String,
+
+    /// The hash of both the name of the key this value corresponds to, and the value itself.
+    pub key_value_hash: u64,
+}
+
+impl DimensionMapValue {
+    fn new(value: String, key_value_hash: u64) -> Self {
+        Self {
+            value,
+            key_value_hash,
+        }
+    }
+}
+
+impl<const N: usize> From<[(Dimension, String); N]> for DimensionMap {
+    fn from(arr: [(Dimension, String); N]) -> Self {
+        let dimensions = BTreeMap::from(arr);
+        Self::new(dimensions)
+    }
+}
+
+impl<const N: usize> From<[(Dimension, &str); N]> for DimensionMap {
+    fn from(arr: [(Dimension, &str); N]) -> Self {
+        let owned = arr.map(|(k, v)| (k, v.to_owned()));
+        let dimensions = BTreeMap::from(owned);
+        Self::new(dimensions)
+    }
+}
+
+impl FromIterator<(Dimension, String)> for DimensionMap {
+    fn from_iter<T: IntoIterator<Item = (Dimension, String)>>(iter: T) -> DimensionMap {
+        let dimensions = BTreeMap::from_iter(iter);
+
+        Self::new(dimensions)
+    }
+}
+
+impl Deref for DimensionMap {
+    type Target = BTreeMap<Dimension, DimensionMapValue>;
+
+    fn deref(&self) -> &Self::Target {
+        self.dimensions.as_ref()
+    }
+}
+
+impl DimensionMap {
+    /// The hash of an empty DimensionMap.
+    pub const EMPTY_MAP_HASH: u64 = 0;
+
+    /// Construct a new DimensionMap from the supplied BTreeMap.
+    pub fn new(dimensions: BTreeMap<Dimension, String>) -> DimensionMap {
+        let mut hash = Self::EMPTY_MAP_HASH;
+
+        let dimensions = dimensions
+            .into_iter()
+            .map(|(k, v)| {
+                let mut h = FnvHasher::with_key(0);
+                k.hash(&mut h);
+                v.hash(&mut h);
+
+                // We construct a total hash over all the ordered, individually-hashed (dim,value) pairs
+                // by using an XOR, rather than using a single FnvHasher, because we need to have the
+                // individual element hashes available for projection, and we'd like projection to be
+                // really fast (without having to invoke another FnvHasher pass,) so opting for a simple
+                // XOR here.  This should be safe, because the number of dimensions is likely to remain
+                // small (< 64), and the number of possible dimension combinations will remain small.
+                // If Dimensions gets big _and_ we see large sets of dimensions (> 10), this should
+                // be revisited.
+                hash ^= h.finish();
+
+                (k, DimensionMapValue::new(v, h.finish()))
+            })
+            .collect::<BTreeMap<_, _>>()
+            .into();
+
+        Self { dimensions, hash }
+    }
+
+    /// Returns the hash of this DimensionMap's dimensions and values.
+    pub fn dimension_hashes(&self) -> u64 {
+        self.hash
+    }
+
+    /// Returns true iff this map contains the specified dimension.
+    pub fn has_dimension(&self, dim: &Dimension) -> bool {
+        self.dimensions.contains_key(dim)
+    }
+
+    /// Returns a hashed value, using all and only the dimensions/values present in the supplied
+    /// `set` and their corresponding value in this DimensionMap.  If `set` contains a
+    /// dimension not present in this map, None is returned.
+    pub fn project(&self, set: &BTreeSet<Dimension>) -> Option<u64> {
+        let mut hash = Self::EMPTY_MAP_HASH;
+
+        for dim in set {
+            let val = self.dimensions.get(dim)?;
+            // Doing an XOR here instead of invoking another hasher for speed; see related comment
+            // in DimensionMap's constructor.
+            hash ^= val.key_value_hash;
+        }
+
+        Some(hash)
+    }
+
+    /// Converts the dimensions of this item scoping, for the supplied quota, into a string of the
+    /// dimension name and hashed value.  This looks like ':key1:hash1:key2:hash2'.
+    /// This function assumes that the quota passed to it already matches this ItemScoping.
+    /// If the
+    pub fn to_string(&self, quota: &Quota) -> Option<String> {
+        let mut result = String::new();
+
+        let Some(group_by) = &quota.group_by else {
+            return None;
+        };
+
+        for dim in group_by.dimensions.iter() {
+            if let Some((key, val)) = self.dimensions.get_key_value(dim) {
+                let mut hasher = fnv::FnvHasher::with_key(1);
+                val.value.hash(&mut hasher);
+                let h = &hasher.finish();
+
+                write!(&mut result, ":{key}:{h}").expect("should be infallible");
+            }
+        }
+
+        if result.is_empty() {
+            return None;
+        }
+
+        result.into()
+    }
 }
 
 impl std::ops::Deref for ItemScoping {
@@ -150,6 +320,23 @@ impl ItemScoping {
         categories.is_empty() || categories.contains(&self.category)
     }
 
+    /// Checks whether this item matches all of the supplied quota's dimensions.
+    pub(crate) fn matches_dimensions(&self, group_by: &Option<GroupBy>) -> bool {
+        let Some(gb) = group_by else { return true };
+
+        gb.dimensions
+            .iter()
+            .all(|dim| self.dimensions.has_dimension(dim))
+    }
+
+    /// Checks whether this item has every dimension of the supplied quota_dimensions, with the same
+    /// value.  If quota_dimensions is empty, this returns true.
+    pub(crate) fn satisfies_quota_dimensions(&self, quota_dimensions: &DimensionMap) -> bool {
+        quota_dimensions
+            .iter()
+            .all(|(dim, value)| self.dimensions.get(dim) == Some(value))
+    }
+
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
     ///
     /// Matching behavior depends on the passed namespaces and the namespace of the scoping:
@@ -175,7 +362,7 @@ impl ItemScoping {
 /// An efficient container for data categories that avoids allocations.
 ///
 /// It is a read only and has set like properties, allowing for fast comparisons.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DataCategories(u64);
 
 impl Serialize for DataCategories {
@@ -498,6 +685,49 @@ pub struct Quota {
     /// unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
+
+    /// The optional list of additional dimensions that this quota will be counted by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_by: Option<GroupBy>,
+}
+
+/// The dimensions that a quota can key on--this is for things like monitors, that require even
+/// more fine-grained rate-limiting.
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupBy {
+    /// The maximum number combinations of dimensions on this quota to allow.
+    pub max_cardinality: u32,
+
+    /// The list of dimensions this quota will use.
+    pub dimensions: Arc<BTreeSet<Dimension>>,
+}
+
+/// The kinds of dimensions that can be applied to a given quota.
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum Dimension {
+    /// The environment used for an monitor check-in.
+    CheckInEnvironment,
+
+    /// The slug used in a monitor check-in.
+    CheckInSlug,
+
+    /// An unknown dimension.
+    ///
+    /// Quotas with unknown dimensions are not applied.
+    #[serde(other)]
+    Unknown,
+}
+
+impl fmt::Display for Dimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Dimension::CheckInEnvironment => f.write_str("check_in.environment"),
+            Dimension::CheckInSlug => f.write_str("check_in.slug"),
+            Dimension::Unknown => f.write_str("unknown"),
+        }
+    }
 }
 
 impl Quota {
@@ -507,9 +737,22 @@ impl Quota {
     ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
+    ///  - The dimensions contain Unknown, or are empty.
     pub fn is_valid(&self) -> bool {
         if self.namespace == Some(MetricNamespace::Unsupported) {
             return false;
+        }
+
+        if let Some(group_by) = &self.group_by {
+            if group_by.dimensions.is_empty() {
+                return false;
+            }
+
+            for dim in group_by.dimensions.iter() {
+                if *dim == Dimension::Unknown {
+                    return false;
+                }
+            }
         }
 
         let mut units = self
@@ -561,6 +804,7 @@ impl Quota {
         self.matches_scope(scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
+            && scoping.matches_dimensions(&self.group_by)
     }
 }
 
@@ -782,6 +1026,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.is_valid());
@@ -798,6 +1043,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(!quota.is_valid());
@@ -814,6 +1060,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.is_valid());
@@ -830,6 +1077,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -847,6 +1095,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -864,6 +1113,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -875,6 +1125,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -889,6 +1140,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -900,6 +1152,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -914,6 +1167,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -925,6 +1179,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -936,6 +1191,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -950,6 +1206,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -961,6 +1218,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -975,6 +1233,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -986,6 +1245,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -997,6 +1257,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -1011,6 +1272,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1022,6 +1284,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1033,6 +1296,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -1047,6 +1311,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            group_by: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1058,6 +1323,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1069,6 +1335,7 @@ mod tests {
                 key_id: Some(0),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1080,7 +1347,297 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
+    }
+
+    /// Builds a monitor quota with the passed dimensions.
+    fn dimensioned_quota(dimensions: Option<GroupBy>) -> Quota {
+        Quota {
+            id: Some("q".into()),
+            categories: [DataCategory::Monitor].into(),
+            scope: QuotaScope::Project,
+            scope_id: None,
+            limit: Some(10),
+            window: Some(60),
+            reason_code: None,
+            namespace: None,
+            group_by: dimensions,
+        }
+    }
+
+    /// Builds a monitor item scoping with the passed dimensions.
+    fn dimensioned_scoping(dimensions: Option<&[(Dimension, &str)]>) -> ItemScoping {
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(42),
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(17),
+        };
+
+        let owned_dims: Option<Vec<_>> =
+            dimensions.map(|dims| dims.iter().map(|(d, v)| (*d, (*v).to_owned())).collect());
+
+        match owned_dims {
+            None => scoping.item(DataCategory::Monitor),
+            Some(mut dims) => scoping.item_with_dimensions(
+                DataCategory::Monitor,
+                DimensionMap::new(BTreeMap::from_iter(dims.drain(..))),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_quota_valid_dimensions() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 100,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug, Dimension::CheckInEnvironment])
+                    .into(),
+            }
+            .into(),
+        );
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_unknown_dimension() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug, Dimension::Unknown]).into(),
+            }
+            .into(),
+        );
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_empty_dimension() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::default().into(),
+            }
+            .into(),
+        );
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_matches_dimensions() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
+            }
+            .into(),
+        );
+
+        // Exactly the required dimensions, in either order.
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))));
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInSlug, "cron1"),
+            (Dimension::CheckInEnvironment, "prod"),
+        ]))));
+
+        // A subset of the required dimensions does not match.
+        assert!(!quota.matches(&dimensioned_scoping(Some(&[(
+            Dimension::CheckInSlug,
+            "cron1"
+        )]))));
+
+        // Neither does an empty or absent dimension set.
+        assert!(!quota.matches(&dimensioned_scoping(Some(&[]))));
+        assert!(!quota.matches(&dimensioned_scoping(None)));
+    }
+
+    #[test]
+    fn test_quota_without_dimensions_matches_any_item() {
+        let quota = dimensioned_quota(None);
+
+        // A quota without dimensions applies to every item, dimensioned or not.
+        assert!(quota.matches(&dimensioned_scoping(None)));
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))));
+    }
+
+    #[test]
+    fn test_dimensions_as_string() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInEnvironment, Dimension::CheckInSlug])
+                    .into(),
+            }
+            .into(),
+        );
+
+        let key = dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))
+        .dimensions
+        .to_string(&quota)
+        .unwrap();
+
+        // `:<dimension>:<hash>` per dimension, ordered by the quota's dimensions.
+        let parts = key.split(':').collect::<Vec<_>>();
+        assert_eq!(parts.len(), 5);
+        assert_eq!(parts[0], "");
+        assert_eq!(parts[1], Dimension::CheckInEnvironment.to_string());
+        assert_eq!(parts[3], Dimension::CheckInSlug.to_string());
+        assert!(parts[2].parse::<u64>().is_ok());
+        assert!(parts[4].parse::<u64>().is_ok());
+    }
+
+    #[test]
+    fn test_dimensions_as_string_ignores_extra_dimensions() {
+        let quota = dimensioned_quota(
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            }
+            .into(),
+        );
+
+        let expected = dimensioned_scoping(Some(&[(Dimension::CheckInSlug, "cron1")]))
+            .dimensions
+            .to_string(&quota);
+
+        assert_eq!(
+            dimensioned_scoping(Some(&[
+                (Dimension::CheckInSlug, "cron1"),
+                (Dimension::CheckInEnvironment, "prod"),
+            ]))
+            .dimensions
+            .to_string(&quota),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_dimensions_as_string_without_dimensions() {
+        let dimensions = GroupBy {
+            max_cardinality: 999,
+            dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+        };
+
+        let dimensioned_item =
+            dimensioned_scoping(Some(&[(Dimension::CheckInEnvironment, "prod")]));
+
+        // Neither side having dimensions, or only one side having them, collapses to the
+        // single "no dimensions" bucket.
+        assert!(
+            dimensioned_scoping(None)
+                .dimensions
+                .to_string(&dimensioned_quota(None))
+                .is_none()
+        );
+        assert!(
+            dimensioned_scoping(None)
+                .dimensions
+                .to_string(&dimensioned_quota(dimensions.clone().into()))
+                .is_none(),
+        );
+        assert!(
+            dimensioned_item
+                .dimensions
+                .to_string(&dimensioned_quota(None))
+                .is_none()
+        );
+
+        // So does an item which shares no dimension with the quota.
+        assert!(
+            dimensioned_item
+                .dimensions
+                .to_string(&dimensioned_quota(dimensions.into()))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_parse_quota_dimensions() {
+        let json = r#"{
+            "id": "o",
+            "categories": ["monitor"],
+            "limit": 4711,
+            "window": 42,
+            "groupBy": {
+                "maxCardinality": 100,
+                "dimensions": ["checkInSlug", "checkInEnvironment"]
+            }
+        }"#;
+
+        let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
+
+        insta::assert_ron_snapshot!(quota, @r#"
+        Quota(
+          id: Some("o"),
+          categories: [
+            "monitor",
+          ],
+          scope: organization,
+          limit: Some(4711),
+          window: Some(42),
+          namespace: None,
+          groupBy: Some(GroupBy(
+            maxCardinality: 100,
+            dimensions: [
+              checkInEnvironment,
+              checkInSlug,
+            ],
+          )),
+        )
+        "#);
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_parse_quota_dimensions_unknown() {
+        let json = r#"{
+            "id": "o",
+            "limit": 4711,
+            "window": 42,
+            "groupBy": {
+                "maxCardinality": 999,
+                "dimensions": ["checkInSlug", "somethingNew"]
+            }
+        }"#;
+
+        let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
+
+        // Unknown dimensions parse, but invalidate the quota, since we cannot bucket by a
+        // dimension we do not understand.
+        insta::assert_ron_snapshot!(quota, @r#"
+        Quota(
+          id: Some("o"),
+          categories: [],
+          scope: organization,
+          limit: Some(4711),
+          window: Some(42),
+          namespace: None,
+          groupBy: Some(GroupBy(
+            maxCardinality: 999,
+            dimensions: [
+              checkInSlug,
+              unknown,
+            ],
+          )),
+        )
+        "#);
+
+        assert!(!quota.is_valid());
     }
 
     #[test]

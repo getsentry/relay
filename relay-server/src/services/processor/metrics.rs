@@ -14,9 +14,9 @@ use crate::services::processor::BucketSource;
 pub fn is_valid_namespace(bucket: &Bucket, source: BucketSource) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
-        MetricNamespace::Spans => true,
-        MetricNamespace::Transactions => true,
-        MetricNamespace::Outcomes => source == BucketSource::Internal,
+        MetricNamespace::Spans | MetricNamespace::Transactions | MetricNamespace::Outcomes => {
+            source == BucketSource::Internal
+        }
         MetricNamespace::Unsupported => false,
     }
 }

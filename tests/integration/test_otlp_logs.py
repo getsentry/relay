@@ -9,12 +9,6 @@ from .test_spansv2_otel import parse_google_rpc_status
 from .asserts import matches_any, time_within_delta, time_within, only_items
 from .consts import Outcome
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    },
-}
-
 GRPC_INVALID_ARGUMENT = 3
 GRPC_RESOURCE_EXHAUSTED = 8
 GRPC_UNAUTHENTICATED = 16
@@ -170,7 +164,7 @@ def test_otlp_logs_conversion(
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -331,7 +325,7 @@ def test_otlp_logs_multiple_records(
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -470,7 +464,7 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay(mini_sentry, options={"limits": {"max_log_size": 50}, **TEST_CONFIG})
+    relay = relay(mini_sentry, options={"limits": {"max_log_size": 50}})
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)

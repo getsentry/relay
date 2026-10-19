@@ -1,27 +1,39 @@
-use crate::time::{Duration, Instant};
+use crate::time::{Clock, Duration, Instant};
 
 /// Simple collection of individual measurements.
 ///
 /// Tracks the total time from starting the measurements as well as
 /// individual categorized measurements.
-pub struct Measurements {
+pub struct Measurements<C> {
     start: Instant,
     categorized: Vec<Measurement>,
+    clock: C,
 }
 
-impl Measurements {
+impl<C> Measurements<C>
+where
+    C: Clock,
+{
     /// Starts recording the first measurement.
-    pub fn start() -> Self {
+    pub fn start(clock: C) -> Self {
         Measurements {
-            start: Instant::now(),
+            start: clock.now(),
             categorized: Vec::new(),
+            clock,
         }
     }
 
-    /// Adds an individual categorized measurement.
-    pub fn add(&mut self, duration: Duration, category: &'static str) {
+    /// Starts a categorized measurement, which can be finalized with [`Self::finish_category`].
+    pub fn start_category(&self) -> CatgegoryMeasurement {
+        CatgegoryMeasurement {
+            start: self.clock.now(),
+        }
+    }
+
+    /// Finishes an individual categorized measurement, started with [`Self::start_category`].
+    pub fn finish_category(&mut self, measurement: CatgegoryMeasurement, category: &'static str) {
         self.categorized.push(Measurement {
-            duration,
+            duration: self.clock.now().since(measurement.start),
             category: Some(category),
         });
     }
@@ -29,7 +41,7 @@ impl Measurements {
     /// Finishes the current measurements and returns all individual
     /// categorized measurements.
     pub fn finish(&self) -> impl Iterator<Item = Measurement> + '_ {
-        let mut duration = self.start.elapsed();
+        let mut duration = self.clock.now().since(self.start);
         for c in &self.categorized {
             duration = duration.saturating_sub(c.duration);
         }
@@ -50,4 +62,10 @@ pub struct Measurement {
     pub duration: Duration,
     /// Optional category, if the measurement was categorized.
     pub category: Option<&'static str>,
+}
+
+/// An individual categorized measurement started with [`Measurements::start_category`].
+#[derive(Clone, Copy)]
+pub struct CatgegoryMeasurement {
+    start: Instant,
 }

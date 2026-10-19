@@ -63,6 +63,14 @@ impl Value {
         ValueDescription(self)
     }
 
+    /// Returns the bool if this value is a bool, otherwise `None`.
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
     /// Returns the string if this value is a string, otherwise `None`.
     pub fn as_str(&self) -> Option<&str> {
         match self {

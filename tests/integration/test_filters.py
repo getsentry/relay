@@ -313,9 +313,13 @@ def test_client_ip_filters_are_applied(
     event = {"message": "foo"}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "1.2.3.4"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "ip-address", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "ip-address",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -351,9 +355,13 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
     event = {"user": None, "request": {"headers": headers}}
     relay.send_event(project_id, event)
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -381,9 +389,13 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
     event = {"user": "{{auto}}", "request": {"headers": headers}}
     relay.send_event(project_id, event, headers={"X-Forwarded-For": "81.41.165.209"})
 
-    report = mini_sentry.get_client_report()
-    assert report["filtered_events"] == [
-        {"reason": "localhost", "category": "error", "quantity": 1}
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "reason": "localhost",
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.FILTERED,
+            "quantity": 1,
+        }
     ]
 
     assert mini_sentry.captured_envelopes.empty()
@@ -452,6 +464,44 @@ def test_global_filters_drop_events(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == "premature-releases"
+
+
+def test_generic_filters_release_condition(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["generic"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "old-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "release",
+                    "name": "event.release",
+                    "comparator": "lt",
+                    "value": "1.10.0",
+                },
+            }
+        ],
+    }
+    relay = relay_with_processing()
+
+    relay.send_event(project_id, {"release": "myapp@1.9.0"})
+    relay.send_event(project_id, {"release": "myapp@1.10.0"})
+
+    event, _ = events_consumer.get_event()
+    assert event["release"] == "myapp@1.10.0"
+    events_consumer.assert_empty()
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["outcome"] == Outcome.FILTERED
+    assert outcomes[0]["reason"] == "old-releases"
 
 
 def profile_transaction_item():

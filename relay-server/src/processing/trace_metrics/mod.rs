@@ -151,7 +151,8 @@ impl processing::Processor for TraceMetricsProcessor {
         // Fast filters, which do not need expanded trace metrics.
         filter::feature_flag(ctx).reject(&metrics)?;
 
-        let mut metrics = process::expand(metrics);
+        let mut metrics =
+            process::expand(metrics, ctx.config.max_expanded_trace_metric_operations());
         validate::size(&mut metrics, ctx);
         validate::validate(&mut metrics);
         process::normalize(&mut metrics, ctx);

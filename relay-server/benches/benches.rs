@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use relay_base_schema::project::ProjectKey;
 use relay_server::{
     Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
-    SqliteEnvelopeStack, SqliteEnvelopeStore,
+    SqliteEnvelopeStack, SqliteEnvelopeStackConfig, SqliteEnvelopeStore,
 };
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
@@ -97,13 +97,16 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
-                                0,
+                                SqliteEnvelopeStackConfig {
+                                    partition_id: 0,
+                                    batch_size_bytes: disk_batch_size,
+                                    flush_timeout: None,
+                                    unspool_throttle: None,
+                                },
                                 envelope_store.clone(),
-                                disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
-                                None,
                             );
 
                             let mut envelopes = Vec::with_capacity(size);
@@ -135,13 +138,16 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
 
                                 let mut stack = SqliteEnvelopeStack::new(
-                                    0,
+                                    SqliteEnvelopeStackConfig {
+                                        partition_id: 0,
+                                        batch_size_bytes: disk_batch_size,
+                                        flush_timeout: None,
+                                        unspool_throttle: None,
+                                    },
                                     envelope_store.clone(),
-                                    disk_batch_size,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     true,
-                                    None,
                                 );
 
                                 // Pre-fill the stack
@@ -177,13 +183,16 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
-                                0,
+                                SqliteEnvelopeStackConfig {
+                                    partition_id: 0,
+                                    batch_size_bytes: disk_batch_size,
+                                    flush_timeout: None,
+                                    unspool_throttle: None,
+                                },
                                 envelope_store.clone(),
-                                disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
-                                None,
                             );
 
                             // Pre-generate envelopes
@@ -268,6 +277,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
+                        None,
                     )
                     .await
                     .unwrap();
@@ -303,6 +313,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         0,
                         &current_config,
                         memory_checker.clone(),
+                        None,
                     )
                     .await
                     .unwrap();

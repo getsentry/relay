@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 
 use relay_profiling::ProfileType;
 use relay_quotas::{
-    DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-    Scoping,
+    DataCategory, DimensionMap, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    ReasonCode, Scoping,
 };
 use smallvec::SmallVec;
 
@@ -99,6 +99,9 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             reason_code,
             retry_after,
             namespaces: namespace,
+            // The wire format cannot express dimensions, so a limit parsed from it is always
+            // a plain limit for the whole scope.
+            dimensions: DimensionMap::default(),
         });
     }
 
@@ -123,7 +126,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
-        ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
@@ -755,7 +757,6 @@ impl Enforcement {
             | ItemType::RawSecurity
             | ItemType::UnrealReport
             | ItemType::Sessions
-            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2  // This is an event type.
@@ -1356,7 +1357,7 @@ mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
-    use relay_quotas::RetryAfter;
+    use relay_quotas::{DimensionMap, RetryAfter};
     use relay_system::Addr;
     use smallvec::smallvec;
     use tokio::sync::Mutex;
@@ -1387,6 +1388,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Add a more specific rate limit for just one category.
@@ -1396,6 +1398,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -1414,6 +1417,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
+            dimensions: DimensionMap::default(),
         });
 
         // Rate limit without reason code.
@@ -1423,6 +1427,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Spans],
+            dimensions: DimensionMap::default(),
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -1468,6 +1473,7 @@ mod tests {
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
+                    dimensions: DimensionMap::default(),
                 },
                 RateLimit {
                     categories: [
@@ -1480,6 +1486,7 @@ mod tests {
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
                     namespaces: smallvec![],
+                    dimensions: DimensionMap::default(),
                 }
             ]
         );
@@ -1509,6 +1516,7 @@ mod tests {
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
+                dimensions: DimensionMap::default(),
             }]
         );
     }
@@ -1535,6 +1543,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("some_reason")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensions: DimensionMap::default(),
             }]
         );
     }
@@ -1560,6 +1569,7 @@ mod tests {
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
+                dimensions: DimensionMap::default(),
             },]
         );
     }
@@ -1587,6 +1597,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         }
     }
 

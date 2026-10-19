@@ -135,7 +135,6 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
         headers={"platform": "cocoa"},
     ),
     RateLimitBehavior("profile_chunk", PayloadType.BINARY, None),
-    RateLimitBehavior("statsd", PayloadType.BINARY, [], True),
     RateLimitBehavior("metric_buckets", PayloadType.JSON, [], True),
     RateLimitBehavior("sessions", PayloadType.BINARY, [], True),
     RateLimitBehavior("session", PayloadType.BINARY, []),

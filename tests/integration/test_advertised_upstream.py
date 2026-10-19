@@ -5,7 +5,7 @@ import json
 def some_metric_bucket():
     return {
         "timestamp": int(datetime.now(UTC).timestamp()),
-        "name": "d:spans/measurements.lcp@millisecond",
+        "name": "d:sessions/foo@millisecond",
         "type": "d",
         "value": [1.0],
         "width": 1,

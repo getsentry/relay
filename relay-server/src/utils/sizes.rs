@@ -65,11 +65,6 @@ pub fn check_envelope_size_limits(
         total_count: 1,
         total_size: config.max_check_in_size(),
     };
-    let mut statsd = Limit {
-        item_size: config.max_statsd_size(),
-        total_count: 1,
-        total_size: config.max_statsd_size(),
-    };
     let mut metric_bucket = Limit {
         item_size: config.max_metric_buckets_size(),
         total_count: 1,
@@ -122,7 +117,6 @@ pub fn check_envelope_size_limits(
             ItemType::ClientReport => &mut client_report,
             ItemType::Profile | ItemType::ProfileChunk => &mut profile,
             ItemType::CheckIn => &mut check_in,
-            ItemType::Statsd => &mut statsd,
             ItemType::MetricBuckets => &mut metric_bucket,
             ItemType::Log => &mut log,
             ItemType::TraceMetric => &mut trace_metric,

@@ -41,7 +41,7 @@ jobs:
 
       - name: Verify Wheel
         run: |
-          pip install --index-url 'https://pypi.devinfra.sentry.io/simple' "packaging==25.0"
+          pip install --index-url 'https://sfw.security.sentry.io/pypi/simple' "packaging==25.0"
           # this verifies that the wheel has good metadata
           # if it fails then twine upload will not succeed
           # we want to error out sooner before a github release is cut
@@ -67,7 +67,7 @@ jobs:
             py-platform: macosx-14_0_arm64
 
     name: Python macOS ${{ matrix.py-platform }}
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v7.0.1

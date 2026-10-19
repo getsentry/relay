@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
@@ -16,7 +16,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized trace metrics into their [`ExpandedTraceMetrics`] representation.
 ///
 /// Individual, invalid trace metrics will be discarded.
-pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTraceMetrics> {
+pub fn expand(
+    metrics: Managed<SerializedTraceMetrics>,
+    max_ops: usize,
+) -> Managed<ExpandedTraceMetrics> {
     let trust = metrics.headers.meta().request_trust();
 
     metrics.map(|metrics, records| {
@@ -33,7 +36,7 @@ pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTrace
             invalid: _,
         } = metrics;
 
-        let expanded = expand_trace_metric_container(&item, trust);
+        let expanded = expand_trace_metric_container(&item, trust, max_ops);
         let (settings, metrics) = records.or_default(expanded, item);
 
         ExpandedTraceMetrics {
@@ -77,11 +80,18 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 fn expand_trace_metric_container(
     item: &Item,
     trust: RequestTrust,
+    max_ops: usize,
 ) -> Result<(Settings, ContainerItems<TraceMetric>)> {
-    let (metadata, mut metrics) = ItemContainer::parse(item)
+    let (metadata, mut metrics) = ItemContainer::parse(item, max_ops)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");
-            Error::Invalid(DiscardReason::InvalidJson)
+
+            match err {
+                ContainerParseError::LimitExceeded { limit: _ } => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                _ => Error::Invalid(DiscardReason::InvalidJson),
+            }
         })?
         .into_parts();
 
@@ -220,6 +230,27 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn test_expand_trace_metric_container_operations_limit() {
+        let payload = r#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","name":"test.metric","type":"counter","value":1.0,"attributes":{}}]}"#;
+
+        let mut item = Item::new(crate::envelope::ItemType::TraceMetric);
+        item.set_payload_with_item_count(
+            crate::envelope::ContentType::TraceMetricContainer,
+            payload,
+            1,
+        );
+
+        // With a sufficient budget the container parses.
+        assert!(expand_trace_metric_container(&item, RequestTrust::Untrusted, usize::MAX).is_ok());
+
+        // With a budget of a single operation the container is rejected.
+        assert!(matches!(
+            expand_trace_metric_container(&item, RequestTrust::Untrusted, 1),
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
+        ));
+    }
 
     #[test]
     fn test_scrub_trace_metric_base_fields() {

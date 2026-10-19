@@ -10,7 +10,6 @@ from sentry_relay.utils import (
     rustcall,
     RustObject,
     attached_refs,
-    make_buf,
 )
 
 __all__ = [
@@ -18,8 +17,6 @@ __all__ = [
     "meta_with_chunks",
     "StoreNormalizer",
     "GeoIpLookup",
-    "is_glob_match",
-    "is_codeowners_path_match",
     "parse_release",
     "validate_pii_selector",
     "validate_pii_config",
@@ -144,41 +141,6 @@ def _encode_raw_event(raw_event):
     event = encode_str(raw_event, mutable=True)
     rustcall(lib.relay_translate_legacy_python_json, event)
     return event
-
-
-def is_glob_match(
-    value,
-    pat,
-    double_star=False,
-    case_insensitive=False,
-    path_normalize=False,
-    allow_newline=False,
-):
-    flags = 0
-    if double_star:
-        flags |= lib.GLOB_FLAGS_DOUBLE_STAR
-    if case_insensitive:
-        flags |= lib.GLOB_FLAGS_CASE_INSENSITIVE
-        # Since on the C side we're only working with bytes we need to lowercase the pattern
-        # and value here.  This works with both bytes and unicode strings.
-        value = value.lower()
-        pat = pat.lower()
-    if path_normalize:
-        flags |= lib.GLOB_FLAGS_PATH_NORMALIZE
-    if allow_newline:
-        flags |= lib.GLOB_FLAGS_ALLOW_NEWLINE
-
-    if isinstance(value, str):
-        value = value.encode("utf-8")
-    return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)
-
-
-def is_codeowners_path_match(value, pattern):
-    if isinstance(value, str):
-        value = value.encode("utf-8")
-    return rustcall(
-        lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern)
-    )
 
 
 def validate_pii_selector(selector):

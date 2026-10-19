@@ -1,4 +1,6 @@
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -9,8 +11,8 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
 
-use crate::REJECT_ALL_SECS;
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
+use crate::{Dimension, DimensionMap, REJECT_ALL_SECS};
 
 /// A monotonic expiration marker for rate limits.
 ///
@@ -136,7 +138,7 @@ impl FromStr for RetryAfter {
 ///
 /// Rate limits can be applied at different levels of granularity, from global (affecting all data)
 /// down to a specific project key.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub enum RateLimitScope {
     /// An organization with identifier.
@@ -201,6 +203,10 @@ pub struct RateLimit {
     /// Only relevant for data categories of type metric bucket. If empty,
     /// this rate limit applies to metrics of all namespaces.
     pub namespaces: SmallVec<[MetricNamespace; 1]>,
+
+    /// The dimensions that this rate-limit applies to.  If empty, this rate limit applies
+    /// to any item matching the other properties of this rate limit.
+    pub dimensions: DimensionMap,
 }
 
 impl RateLimit {
@@ -208,13 +214,24 @@ impl RateLimit {
     ///
     /// This builds a rate limit with the appropriate scope derived from the quota and scoping
     /// information. The categories and other properties are copied from the quota.
-    pub fn from_quota(quota: &Quota, scoping: &Scoping, retry_after: RetryAfter) -> Self {
+    pub fn from_quota(quota: &Quota, scoping: &ItemScoping, retry_after: RetryAfter) -> Self {
+        let dimensions = if let Some(group_by) = &quota.group_by {
+            group_by
+                .dimensions
+                .iter()
+                .filter_map(|dim| Some((*dim, scoping.dimensions.get(dim)?.value.clone())))
+                .collect()
+        } else {
+            DimensionMap::default()
+        };
+
         Self {
             categories: quota.categories,
             scope: RateLimitScope::for_quota(scoping, quota.scope),
             reason_code: quota.reason_code.clone(),
             retry_after,
             namespaces: quota.namespace.into_iter().collect(),
+            dimensions,
         }
     }
 
@@ -226,6 +243,7 @@ impl RateLimit {
         self.matches_scope(scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespaces)
+            && scoping.satisfies_quota_dimensions(&self.dimensions)
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
@@ -238,6 +256,26 @@ impl RateLimit {
     }
 }
 
+/// A wrapper for RateLimits that can only be constructed by [`RateLimits::propagatable`], ensuring
+/// that we do not include any dimensioned rate limits in it.
+#[derive(Debug)]
+pub struct PropagatableRateLimits(RateLimits);
+
+impl Deref for PropagatableRateLimits {
+    type Target = RateLimits;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+struct RateLimitKey {
+    scope: RateLimitScope,
+    dimension_hashes: u64,
+}
+
 /// A collection of scoped rate limits.
 ///
 /// [`RateLimits`] manages a set of active rate limits that can be checked against
@@ -248,7 +286,33 @@ impl RateLimit {
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub struct RateLimits {
-    limits: Vec<RateLimit>,
+    limits: BTreeMap<RateLimitKey, Vec<RateLimit>>,
+
+    dimension_sets: BTreeSet<BTreeSet<Dimension>>,
+
+    expiry_heap: BinaryHeap<HeapItem>,
+}
+
+/// An item stored in the expiry heap, ordered on RetryAfter, but also storing a RateLimitKey that
+/// is used to index into the limits map.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(serde::Serialize))]
+struct HeapItem {
+    retry_after: RetryAfter,
+    rl_key: RateLimitKey,
+}
+
+impl Ord for HeapItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Reverse for a min heap.
+        self.retry_after.cmp(&other.retry_after).reverse()
+    }
+}
+
+impl PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl RateLimits {
@@ -262,21 +326,49 @@ impl RateLimits {
     /// If a rate limit with an overlapping scope already exists, the `retry_after` count is merged
     /// with the existing limit. Otherwise, the new rate limit is added.
     pub fn add(&mut self, limit: RateLimit) {
-        let limit_opt = self.limits.iter_mut().find(|l| {
-            let RateLimit {
-                categories,
-                scope,
-                reason_code: _,
-                retry_after: _,
-                namespaces: namespace,
-            } = &limit;
+        let RateLimit {
+            categories,
+            scope,
+            reason_code: _,
+            retry_after: _,
+            namespaces,
+            dimensions,
+        } = &limit;
 
-            *categories == l.categories && *scope == l.scope && *namespace == l.namespaces
+        let rate_limit_key = RateLimitKey {
+            scope: *scope,
+            dimension_hashes: dimensions.dimension_hashes(),
+        };
+
+        self.dimension_sets
+            .insert(dimensions.keys().copied().collect());
+
+        let dims = self.limits.entry(rate_limit_key).or_default();
+
+        let limit_opt = dims.iter_mut().find(|l| {
+            *categories == l.categories
+                && *namespaces == l.namespaces
+                && *dimensions == l.dimensions
         });
 
         match limit_opt {
-            None => self.limits.push(limit),
-            Some(existing) if existing.retry_after < limit.retry_after => *existing = limit,
+            None => {
+                self.expiry_heap.push(HeapItem {
+                    retry_after: limit.retry_after,
+                    rl_key: rate_limit_key,
+                });
+                dims.push(limit);
+            }
+            Some(existing) if existing.retry_after < limit.retry_after => {
+                // Go ahead and push a heap item with the same RateLimitKey; much cheaper than
+                // trying to re-order the heap, and won't do anything when it comes time to pop
+                // because we still check the actual RateLimit item to make sure it's expired.
+                self.expiry_heap.push(HeapItem {
+                    retry_after: limit.retry_after,
+                    rl_key: rate_limit_key,
+                });
+                *existing = limit;
+            }
             Some(_) => (), // keep existing, longer limit
         }
     }
@@ -344,24 +436,93 @@ impl RateLimits {
         }
 
         let now = Instant::now();
-        for scoping in scopings {
-            for limit in &self.limits {
-                if limit.matches(scoping) && !limit.retry_after.expired_at(now) {
-                    return true;
+
+        scopings.iter().any(|scoping| {
+            self.matching(scoping)
+                .any(|limit| !limit.retry_after.expired_at(now))
+        })
+    }
+
+    /// Removes expired rate limits from this instance.
+    pub fn clean_expired(&mut self, now: Instant) {
+        while let Some(next) = self.expiry_heap.peek() {
+            if !next.retry_after.expired_at(now) {
+                break;
+            }
+
+            if let Some(limits) = self.limits.get_mut(&next.rl_key) {
+                limits.retain(|l| !l.retry_after.expired_at(now));
+                if limits.is_empty() {
+                    self.limits.remove(&next.rl_key);
+                }
+            }
+            self.expiry_heap.pop();
+        }
+    }
+
+    /// Returns `true` if any limit has expired at `now`.
+    pub fn has_expired(&self, now: Instant) -> bool {
+        self.expiry_heap
+            .peek()
+            .is_some_and(|next| next.retry_after.expired_at(now))
+    }
+
+    /// Returns every limit which applies to `scoping`.
+    fn matching<'a>(&'a self, scoping: &'a ItemScoping) -> impl Iterator<Item = &'a RateLimit> {
+        // Find all the matching dimension hashes of this item ("what RateLimit items have dimensions
+        // that could apply to this item?").  Do this by projecting the item's dimensions onto the
+        // dimension set of that RateLimit.
+        let matching_dimension_hashes = self
+            .dimension_sets
+            .iter()
+            .filter_map(|ds| scoping.dimensions.project(ds));
+
+        matching_dimension_hashes.flat_map(|hash| {
+            // Given a matching hash, compute the three RateLimitKeys we need to index into the
+            // limit map.  This is needed because an item could match any of RateLimitScope's
+            // enumerations: ProjectKey, ProjectId, or OrganizationId.  So, we fan out.
+            let rl_keys = [
+                RateLimitKey {
+                    scope: RateLimitScope::Key(scoping.project_key),
+                    dimension_hashes: hash,
+                },
+                RateLimitKey {
+                    scope: RateLimitScope::Organization(scoping.organization_id),
+                    dimension_hashes: hash,
+                },
+                RateLimitKey {
+                    scope: RateLimitScope::Project(scoping.project_id),
+                    dimension_hashes: hash,
+                },
+            ];
+
+            rl_keys
+                .into_iter()
+                .filter_map(|key| self.limits.get(&key))
+                .flatten()
+                .filter(|limit| limit.matches(scoping))
+        })
+    }
+
+    /// Returns only the set of rate limits that can be propagated upstream.  At this time,
+    /// we cannot propagate dimensioned limits, so these must be filtered out.
+    pub fn propagatable(&self) -> PropagatableRateLimits {
+        let mut propagatable = RateLimits::new();
+
+        for (k, limits) in self.limits.iter() {
+            if k.dimension_hashes == DimensionMap::EMPTY_MAP_HASH {
+                for limit in limits {
+                    // dimension_hashes is checked to see if this limit's dimensions _looks_ empty,
+                    // but we still should be paranoid about collisions, so one last check to be
+                    // sure.
+                    if limit.dimensions.is_empty() {
+                        propagatable.add(limit.clone());
+                    }
                 }
             }
         }
 
-        false
-    }
-
-    /// Removes expired rate limits from this instance.
-    ///
-    /// This is useful for cleaning up rate limits that are no longer relevant,
-    /// reducing memory usage and improving performance of subsequent operations.
-    pub fn clean_expired(&mut self, now: Instant) {
-        self.limits
-            .retain(|limit| !limit.retry_after.expired_at(now));
+        PropagatableRateLimits(propagatable)
     }
 
     /// Checks whether any rate limits apply to the given scoping.
@@ -394,10 +555,8 @@ impl RateLimits {
             }
         }
 
-        for limit in &self.limits {
-            if limit.matches(scoping) {
-                applied_limits.add(limit.clone());
-            }
+        for limit in self.matching(scoping) {
+            applied_limits.add(limit.clone());
         }
 
         applied_limits
@@ -406,7 +565,8 @@ impl RateLimits {
     /// Returns an iterator over all rate limits in this collection.
     pub fn iter(&self) -> RateLimitsIter<'_> {
         RateLimitsIter {
-            iter: self.limits.iter(),
+            iter: std::slice::Iter::default(),
+            dimensioned_iter: self.limits.values(),
         }
     }
 
@@ -433,13 +593,20 @@ impl RateLimits {
 /// It yields shared references to the rate limits in the collection.
 pub struct RateLimitsIter<'a> {
     iter: std::slice::Iter<'a, RateLimit>,
+    dimensioned_iter: std::collections::btree_map::Values<'a, RateLimitKey, Vec<RateLimit>>,
 }
 
 impl<'a> Iterator for RateLimitsIter<'a> {
     type Item = &'a RateLimit;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
+        loop {
+            if let Some(nxt) = self.iter.next() {
+                return Some(nxt);
+            }
+
+            self.iter = self.dimensioned_iter.next()?.iter();
+        }
     }
 }
 
@@ -448,8 +615,11 @@ impl IntoIterator for RateLimits {
     type Item = RateLimit;
 
     fn into_iter(self) -> Self::IntoIter {
+        let dimensioned_iter = self.limits.into_values();
+
         RateLimitsIntoIter {
-            iter: self.limits.into_iter(),
+            iter: std::vec::IntoIter::default(),
+            dimensioned_iter,
         }
     }
 }
@@ -460,13 +630,21 @@ impl IntoIterator for RateLimits {
 /// [`IntoIterator`] trait. It yields owned rate limits by value.
 pub struct RateLimitsIntoIter {
     iter: std::vec::IntoIter<RateLimit>,
+    dimensioned_iter: std::collections::btree_map::IntoValues<RateLimitKey, Vec<RateLimit>>,
 }
 
 impl Iterator for RateLimitsIntoIter {
     type Item = RateLimit;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
+        loop {
+            let nxt = self.iter.next();
+            if nxt.is_some() {
+                return nxt;
+            }
+
+            self.iter = self.dimensioned_iter.next()?.into_iter();
+        }
     }
 }
 
@@ -545,7 +723,12 @@ impl CachedRateLimits {
     pub fn current_limits(&self) -> Arc<RateLimits> {
         let now = Instant::now();
         let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        Arc::make_mut(&mut inner).clean_expired(now);
+
+        // `Arc::make_mut` clones if there are other pointers to this arc, so only do make_mut if
+        // we need to.
+        if inner.has_expired(now) {
+            Arc::make_mut(&mut inner).clean_expired(now);
+        }
         Arc::clone(&inner)
     }
 }
@@ -569,11 +752,12 @@ fn inherited_categories(category: &DataCategory) -> &'static [DataCategory] {
 
 #[cfg(test)]
 mod tests {
+
     use smallvec::smallvec;
 
     use super::*;
-    use crate::MetricNamespaceScoping;
     use crate::quota::DataCategory;
+    use crate::{DimensionMap, GroupBy, MetricNamespaceScoping};
 
     #[test]
     fn test_parse_retry_after() {
@@ -628,6 +812,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         };
 
         assert!(rate_limit.matches(&ItemScoping {
@@ -639,6 +824,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -650,6 +836,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -661,6 +848,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         };
 
         assert!(rate_limit.matches(&ItemScoping {
@@ -672,6 +860,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -683,6 +872,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -694,6 +884,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         };
 
         assert!(rate_limit.matches(&ItemScoping {
@@ -705,6 +896,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -716,6 +908,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -727,6 +920,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Transactions],
+            dimensions: DimensionMap::default(),
         };
 
         let scoping = Scoping {
@@ -740,12 +934,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: DimensionMap::default(),
         }));
 
         let general_rate_limit = RateLimit {
@@ -754,18 +950,21 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![], // all namespaces
+            dimensions: DimensionMap::default(),
         };
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -779,6 +978,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         };
 
         assert!(rate_limit.matches(&ItemScoping {
@@ -790,6 +990,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -801,6 +1002,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         }));
     }
 
@@ -814,6 +1016,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // longer rate limit shadows shorter one
@@ -823,20 +1026,49 @@ mod tests {
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "default",
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: Some(ReasonCode("second")),
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "default",
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: Some(ReasonCode("second")),
+                retry_after: RetryAfter(10),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
+              retry_after: RetryAfter(1),
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
+            ),
+            HeapItem(
               retry_after: RetryAfter(10),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -853,6 +1085,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // shorter rate limit is shadowed by existing one
@@ -862,20 +1095,42 @@ mod tests {
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "default",
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: Some(ReasonCode("first")),
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "default",
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: Some(ReasonCode("first")),
+                retry_after: RetryAfter(10),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(10),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -892,6 +1147,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Same scope but different categories
@@ -901,6 +1157,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Same categories but different scope
@@ -910,37 +1167,86 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: None,
-              retry_after: RetryAfter(1),
-              namespaces: [],
-            ),
-            RateLimit(
-              categories: [
-                "transaction",
-              ],
-              scope: Organization(OrganizationId(42)),
-              reason_code: None,
-              retry_after: RetryAfter(1),
-              namespaces: [],
-            ),
-            RateLimit(
-              categories: [
-                "error",
-              ],
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+              RateLimit(
+                categories: [
+                  "transaction",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+            RateLimitKey(
               scope: Project(ProjectId(21)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Project(ProjectId(21)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
+            ),
+            HeapItem(
+              retry_after: RetryAfter(1),
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
+            ),
+            HeapItem(
+              retry_after: RetryAfter(1),
+              rl_key: RateLimitKey(
+                scope: Project(ProjectId(21)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -958,6 +1264,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Transactions],
+            dimensions: DimensionMap::default(),
         });
 
         // Same category but different namespaces
@@ -967,32 +1274,65 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Spans],
+            dimensions: DimensionMap::default(),
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "metric_bucket",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "metric_bucket",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [
+                  "transactions",
+                ],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+              RateLimit(
+                categories: [
+                  "metric_bucket",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [
+                  "spans",
+                ],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [
-                "transactions",
-              ],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
-            RateLimit(
-              categories: [
-                "metric_bucket",
-              ],
-              scope: Organization(OrganizationId(42)),
-              reason_code: None,
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [
-                "spans",
-              ],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -1009,6 +1349,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Distinct scope to prevent deduplication
@@ -1018,6 +1359,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let rate_limit = rate_limits.longest().unwrap();
@@ -1030,6 +1372,10 @@ mod tests {
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
           namespaces: [],
+          dimensions: DimensionMap(
+            dimensions: {},
+            hash: 0,
+          ),
         )
         "#);
     }
@@ -1045,6 +1391,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Inactive error limit with distinct scope
@@ -1054,6 +1401,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Sanity check before running `clean_expired`
@@ -1064,15 +1412,36 @@ mod tests {
         // Check that the expired limit has been removed
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -1090,6 +1459,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Active transaction limit
@@ -1099,6 +1469,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let scoping = Scoping {
@@ -1117,6 +1488,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            group_by: None,
         }];
 
         assert!(
@@ -1150,6 +1522,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Active transaction limit
@@ -1159,6 +1532,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let applied_limits = rate_limits.check(&ItemScoping {
@@ -1170,20 +1544,42 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         });
 
         // Check that the error limit is applied
         insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -1201,6 +1597,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Active transaction limit
@@ -1210,6 +1607,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let item_scoping = ItemScoping {
@@ -1221,6 +1619,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: DimensionMap::default(),
         };
 
         let quotas = &[Quota {
@@ -1232,21 +1631,43 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            group_by: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, &item_scoping);
 
         insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: Some(ReasonCode("zero")),
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: Some(ReasonCode("zero")),
+                retry_after: RetryAfter(60),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(60),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -1264,6 +1685,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         rate_limits1.add(RateLimit {
@@ -1272,6 +1694,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         rate_limits2.add(RateLimit {
@@ -1280,30 +1703,70 @@ mod tests {
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         rate_limits1.merge(rate_limits2);
 
         insta::assert_ron_snapshot!(rate_limits1, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: Some(ReasonCode("second")),
-              retry_after: RetryAfter(10),
-              namespaces: [],
-            ),
-            RateLimit(
-              categories: [
-                "transaction_indexed",
-              ],
-              scope: Organization(OrganizationId(42)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: Some(ReasonCode("second")),
+                retry_after: RetryAfter(10),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+              RateLimit(
+                categories: [
+                  "transaction_indexed",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
+            ),
+            HeapItem(
+              retry_after: RetryAfter(1),
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
+            ),
+            HeapItem(
+              retry_after: RetryAfter(10),
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
@@ -1321,6 +1784,7 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         // Inactive error limit with distinct scope
@@ -1330,24 +1794,364 @@ mod tests {
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),
             namespaces: smallvec![],
+            dimensions: DimensionMap::default(),
         });
 
         let rate_limits = cached.current_limits();
 
         insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                "error",
-              ],
+          limits: {
+            RateLimitKey(
               scope: Organization(OrganizationId(42)),
-              reason_code: None,
+              dimension_hashes: 0,
+            ): [
+              RateLimit(
+                categories: [
+                  "error",
+                ],
+                scope: Organization(OrganizationId(42)),
+                reason_code: None,
+                retry_after: RetryAfter(1),
+                namespaces: [],
+                dimensions: DimensionMap(
+                  dimensions: {},
+                  hash: 0,
+                ),
+              ),
+            ],
+          },
+          dimension_sets: [
+            [],
+          ],
+          expiry_heap: [
+            HeapItem(
               retry_after: RetryAfter(1),
-              namespaces: [],
+              rl_key: RateLimitKey(
+                scope: Organization(OrganizationId(42)),
+                dimension_hashes: 0,
+              ),
             ),
           ],
         )
         "#);
+    }
+
+    fn monitor_quota(group_by: Option<GroupBy>) -> Quota {
+        Quota {
+            id: Some("quota".into()),
+            categories: [DataCategory::Monitor].into(),
+            scope: QuotaScope::Project,
+            scope_id: None,
+            limit: Some(6),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("monitor_limit")),
+            namespace: None,
+            group_by,
+        }
+    }
+
+    fn group_by_slug() -> Option<GroupBy> {
+        Some(GroupBy {
+            max_cardinality: 999,
+            dimensions: std::collections::BTreeSet::from([crate::Dimension::CheckInSlug]).into(),
+        })
+    }
+
+    fn monitor_scoping(slug: Option<&str>) -> ItemScoping {
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(42),
+            project_id: ProjectId::new(43),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(44),
+        };
+
+        match slug {
+            Some(slug) => scoping.item_with_dimensions(
+                DataCategory::Monitor,
+                DimensionMap::from([(crate::Dimension::CheckInSlug, slug.to_owned())]),
+            ),
+            None => scoping.item(DataCategory::Monitor),
+        }
+    }
+
+    /// A limit inherits the dimensionality of the quota which produced it.
+    #[test]
+    fn test_rate_limit_from_quota_marks_dimensional() {
+        let scoping = monitor_scoping(Some("cron1"));
+        let retry_after = RetryAfter::from_secs(60);
+
+        let plain = RateLimit::from_quota(&monitor_quota(None), &scoping, retry_after);
+        assert!(plain.dimensions.is_empty());
+
+        let dimensional =
+            RateLimit::from_quota(&monitor_quota(group_by_slug()), &scoping, retry_after);
+        assert!(!dimensional.dimensions.is_empty());
+    }
+
+    /// A dimensional limit matches every item in its scope, which is exactly why it must not be
+    /// cached. `cacheable` is what keeps it out of the cache.
+    #[test]
+    fn test_rate_limits_cacheable_drops_dimensional() {
+        let scoping = monitor_scoping(Some("cron1"));
+        let retry_after = RetryAfter::from_secs(60);
+
+        let mut limits = RateLimits::new();
+        limits.add(RateLimit::from_quota(
+            &monitor_quota(group_by_slug()),
+            &scoping,
+            retry_after,
+        ));
+
+        // The limit is correctly enforced against the item which produced it, but it also
+        // matches an unrelated monitor in the same project, and an item with no dimensions.
+        assert!(limits.check(&monitor_scoping(Some("cron1"))).is_limited());
+        assert!(!limits.check(&monitor_scoping(Some("cron2"))).is_limited());
+        assert!(!limits.check(&monitor_scoping(None)).is_limited());
+    }
+
+    /// Filtering keeps the scope-wide limits, so a project which exhausts its total monitor
+    /// quota still backs off.
+    #[test]
+    fn test_rate_limits_cacheable_keeps_plain() {
+        let scoping = monitor_scoping(Some("cron1"));
+        let retry_after = RetryAfter::from_secs(60);
+
+        let mut limits = RateLimits::new();
+        limits.add(RateLimit::from_quota(
+            &monitor_quota(group_by_slug()),
+            &scoping,
+            retry_after,
+        ));
+        limits.add(RateLimit::from_quota(
+            &monitor_quota(None),
+            &scoping,
+            retry_after,
+        ));
+
+        // Both limits are kept apart despite sharing scope, categories and namespaces.
+        assert_eq!(limits.limits.len(), 2);
+
+        assert!(limits.check(&monitor_scoping(Some("cron2"))).is_limited());
+    }
+
+    /// A dimensional limit must not displace a plain one when both are added.
+    #[test]
+    fn test_rate_limits_add_keeps_dimensional_separate() {
+        let scoping = monitor_scoping(Some("cron1"));
+
+        let mut limits = RateLimits::new();
+        // The dimensional limit is the longer of the two, so without the `dimensional` field in
+        // the merge key it would overwrite the plain one and be cached in its place.
+        limits.add(RateLimit::from_quota(
+            &monitor_quota(None),
+            &scoping,
+            RetryAfter::from_secs(60),
+        ));
+        limits.add(RateLimit::from_quota(
+            &monitor_quota(group_by_slug()),
+            &scoping,
+            RetryAfter::from_secs(600),
+        ));
+
+        assert_eq!(limits.limits.len(), 2);
+    }
+
+    fn group_by(dimensions: impl IntoIterator<Item = Dimension>) -> Option<GroupBy> {
+        Some(GroupBy {
+            max_cardinality: 999,
+            dimensions: BTreeSet::from_iter(dimensions).into(),
+        })
+    }
+
+    fn check_in(environment: &str, slug: &str) -> ItemScoping {
+        Scoping {
+            organization_id: OrganizationId::new(42),
+            project_id: ProjectId::new(43),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(44),
+        }
+        .item_with_dimensions(
+            DataCategory::Monitor,
+            DimensionMap::from([
+                (Dimension::CheckInEnvironment, environment),
+                (Dimension::CheckInSlug, slug),
+            ]),
+        )
+    }
+
+    fn limit_for(quota: &Quota, scoping: &ItemScoping) -> RateLimit {
+        RateLimit::from_quota(quota, scoping, RetryAfter::from_secs(60))
+    }
+
+    #[test]
+    fn test_cached_limit_ignores_unrelated_dimensions() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let prod = check_in("prod", "cron1");
+        let dev = check_in("dev", "cron1");
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &prod));
+
+        assert!(limits.check(&prod).is_limited());
+        assert!(limits.check(&dev).is_limited());
+    }
+
+    #[test]
+    fn test_cached_limit_separates_distinct_dimensions() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        assert!(limits.check(&check_in("prod", "cron1")).is_limited());
+        assert!(!limits.check(&check_in("prod", "cron2")).is_limited());
+    }
+
+    #[test]
+    fn test_cached_limit_matches_all_dimensions() {
+        let quota = monitor_quota(group_by([
+            Dimension::CheckInEnvironment,
+            Dimension::CheckInSlug,
+        ]));
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        assert!(limits.check(&check_in("prod", "cron1")).is_limited());
+        assert!(!limits.check(&check_in("dev", "cron1")).is_limited());
+        assert!(!limits.check(&check_in("prod", "cron2")).is_limited());
+    }
+
+    #[test]
+    fn test_cached_limit_skips_undimensioned_item() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        assert!(!limits.check(&monitor_scoping(None)).is_limited());
+    }
+
+    #[test]
+    fn test_cached_undimensioned_limit_applies_to_all() {
+        let quota = monitor_quota(None);
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        assert!(limits.check(&check_in("prod", "cron1")).is_limited());
+        assert!(limits.check(&check_in("dev", "cron2")).is_limited());
+        assert!(limits.check(&monitor_scoping(None)).is_limited());
+    }
+
+    #[test]
+    fn test_cached_limits_mix_dimensioned_and_plain() {
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(
+            &monitor_quota(group_by([Dimension::CheckInSlug])),
+            &check_in("prod", "cron1"),
+        ));
+        limits.add(limit_for(&monitor_quota(None), &check_in("prod", "cron1")));
+
+        assert_eq!(limits.check(&check_in("prod", "cron1")).iter().count(), 2);
+        assert_eq!(limits.check(&check_in("prod", "cron2")).iter().count(), 1);
+    }
+
+    #[test]
+    fn test_is_any_limited_respects_dimensions() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        assert!(limits.is_any_limited(&[check_in("dev", "cron1")]));
+        assert!(!limits.is_any_limited(&[check_in("prod", "cron2")]));
+    }
+
+    #[test]
+    fn test_propagatable_is_empty_without_plain_limits() {
+        assert!(RateLimits::new().propagatable().is_empty());
+
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(
+            &monitor_quota(group_by([Dimension::CheckInSlug])),
+            &check_in("prod", "cron1"),
+        ));
+
+        let propagatable = limits.propagatable();
+        assert!(propagatable.is_empty());
+        assert!(!propagatable.is_limited());
+        assert!(propagatable.longest().is_none());
+    }
+
+    #[test]
+    fn test_propagatable_keeps_plain_limits() {
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(
+            &monitor_quota(group_by([Dimension::CheckInSlug])),
+            &check_in("prod", "cron1"),
+        ));
+        limits.add(limit_for(&monitor_quota(None), &check_in("prod", "cron1")));
+
+        let propagatable = limits.propagatable();
+        assert_eq!(propagatable.iter().count(), 1);
+        assert!(propagatable.iter().all(|limit| limit.dimensions.is_empty()));
+    }
+
+    #[test]
+    fn test_clean_expired_drops_dimension_buckets() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+        let scoping = check_in("prod", "cron1");
+
+        let mut limits = RateLimits::new();
+        limits.add(RateLimit::from_quota(
+            &quota,
+            &scoping,
+            RetryAfter::from_secs(0),
+        ));
+        limits.add(limit_for(&quota, &check_in("prod", "cron2")));
+
+        limits.clean_expired(Instant::now());
+
+        assert_eq!(limits.iter().count(), 1);
+        assert!(!limits.check(&scoping).is_limited());
+        assert!(limits.check(&check_in("prod", "cron2")).is_limited());
+    }
+
+    #[test]
+    fn test_has_expired_tracks_earliest_limit() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let mut limits = RateLimits::new();
+        assert!(!limits.has_expired(Instant::now()));
+
+        limits.add(limit_for(&quota, &check_in("prod", "cron1")));
+        assert!(!limits.has_expired(Instant::now()));
+
+        limits.add(RateLimit::from_quota(
+            &quota,
+            &check_in("prod", "cron2"),
+            RetryAfter::from_secs(0),
+        ));
+        assert!(limits.has_expired(Instant::now()));
+
+        limits.clean_expired(Instant::now());
+        assert!(!limits.has_expired(Instant::now()));
+        assert_eq!(limits.iter().count(), 1);
+    }
+
+    #[test]
+    fn test_cached_rate_limits_round_trip_dimensions() {
+        let quota = monitor_quota(group_by([Dimension::CheckInSlug]));
+
+        let cached = CachedRateLimits::new();
+        cached.add(limit_for(&quota, &check_in("prod", "cron1")));
+
+        let current = cached.current_limits();
+        assert!(current.check(&check_in("dev", "cron1")).is_limited());
+        assert!(!current.check(&check_in("prod", "cron2")).is_limited());
+        assert!(current.propagatable().is_empty());
     }
 }

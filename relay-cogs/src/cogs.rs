@@ -1,10 +1,10 @@
-use crate::time::Instant;
+use crate::time::{Clock, SystemClock};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use crate::{AppFeature, Measurements, ResourceId};
+use crate::{AppFeature, CatgegoryMeasurement, Measurements, ResourceId};
 use crate::{CogsMeasurement, CogsRecorder, Value};
 
 /// COGS measurements collector.
@@ -35,7 +35,38 @@ impl Cogs {
 }
 
 impl Cogs {
-    /// Starts a recording for a COGS measurement.
+    /// Starts a recording for a COGS measurement, using the [`SystemClock`].
+    ///
+    /// When the returned token is dropped the measurement will be recorded
+    /// with the configured [recorder](CogsRecorder).
+    ///
+    /// The recorded measurement can be attributed to multiple features by supplying a
+    /// weighted [`FeatureWeights`]. A single [`AppFeature`] attributes the entire measurement
+    /// to the feature.
+    ///
+    /// See also: [`Self::timed_with`].
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use relay_cogs::{AppFeature, Cogs, ResourceId};
+    /// # struct Span;
+    /// # fn scrub_sql(_: &mut Span) {}
+    /// # fn extract_tags(_: &mut Span) {};
+    /// #
+    /// fn process_span(cogs: &Cogs, span: &mut Span) {
+    ///     let _token = cogs.timed(ResourceId::Relay, AppFeature::Spans);
+    ///
+    ///     scrub_sql(span);
+    ///     extract_tags(span);
+    /// }
+    ///
+    /// ```
+    pub fn timed<F: Into<FeatureWeights>>(&self, resource: ResourceId, weights: F) -> Token {
+        self.timed_with(resource, weights, SystemClock)
+    }
+
+    /// Starts a recording for a COGS measurement with a specific [`Clock`].
     ///
     /// When the returned token is dropped the measurement will be recorded
     /// with the configured [recorder](CogsRecorder).
@@ -48,25 +79,39 @@ impl Cogs {
     ///
     /// ```
     /// # use relay_cogs::{AppFeature, Cogs, ResourceId};
+    /// # use relay_cogs::time::{Clock, Instant};
     /// # struct Span;
     /// # fn scrub_sql(_: &mut Span) {}
     /// # fn extract_tags(_: &mut Span) {};
-    ///
+    /// # struct CustomClock;
+    /// # impl Clock for CustomClock { fn now(&self) -> Instant { todo!() } }
+    /// #
     /// fn process_span(cogs: &Cogs, span: &mut Span) {
-    ///     let _token = cogs.timed(ResourceId::Relay, AppFeature::Spans);
+    ///     let _token = cogs.timed_with(ResourceId::Relay, AppFeature::Spans, CustomClock);
     ///
     ///     scrub_sql(span);
     ///     extract_tags(span);
     /// }
     ///
     /// ```
-    pub fn timed<F: Into<FeatureWeights>>(&self, resource: ResourceId, weights: F) -> Token {
+    pub fn timed_with<F: Into<FeatureWeights>, C: Clock>(
+        &self,
+        resource: ResourceId,
+        weights: F,
+        clock: C,
+    ) -> Token<C> {
         Token {
             resource,
             features: weights.into(),
-            measurements: Measurements::start(),
+            measurements: Measurements::start(clock),
             recorder: Some(Arc::clone(&self.recorder)),
         }
+    }
+}
+
+impl fmt::Debug for Cogs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Cogs").finish()
     }
 }
 
@@ -74,22 +119,25 @@ impl Cogs {
 ///
 /// The measurement is recorded when the token is dropped.
 #[must_use]
-pub struct Token {
+pub struct Token<C: Clock = SystemClock> {
     resource: ResourceId,
     features: FeatureWeights,
-    measurements: Measurements,
+    measurements: Measurements<C>,
     recorder: Option<Arc<dyn CogsRecorder>>,
 }
 
-impl Token {
+impl<C: Clock> Token<C> {
     /// Creates a new no-op token, which records nothing.
     ///
     /// This is primarily useful for testing.
-    pub fn noop() -> Self {
+    pub fn noop() -> Self
+    where
+        C: Default,
+    {
         Self {
             resource: ResourceId::Relay,
             features: FeatureWeights::none(),
-            measurements: Measurements::start(),
+            measurements: Measurements::start(C::default()),
             recorder: None,
         }
     }
@@ -106,10 +154,10 @@ impl Token {
     ///
     /// Instead of manually starting a categorized measurement, the [`crate::with`]
     /// macro can be used.
-    pub fn start_category(&mut self, category: impl Category) -> CategoryToken<'_> {
+    pub fn start_category(&mut self, category: impl Category) -> CategoryToken<'_, C> {
         CategoryToken {
+            measurement: self.measurements.start_category(),
             parent: self,
-            start: Instant::now(),
             category: category.name(),
         }
     }
@@ -139,7 +187,7 @@ impl Token {
     }
 }
 
-impl Drop for Token {
+impl<C: Clock> Drop for Token<C> {
     fn drop(&mut self) {
         let Some(recorder) = self.recorder.as_mut() else {
             return;
@@ -186,21 +234,21 @@ impl Category for &'static str {
 ///
 /// Must be started with [`Token::start_category`].
 #[must_use]
-pub struct CategoryToken<'a> {
-    parent: &'a mut Token,
-    start: Instant,
+pub struct CategoryToken<'a, C: Clock> {
+    parent: &'a mut Token<C>,
     category: &'static str,
+    measurement: CatgegoryMeasurement,
 }
 
-impl Drop for CategoryToken<'_> {
+impl<C: Clock> Drop for CategoryToken<'_, C> {
     fn drop(&mut self) {
         self.parent
             .measurements
-            .add(self.start.elapsed(), self.category);
+            .finish_category(self.measurement, self.category);
     }
 }
 
-impl fmt::Debug for CategoryToken<'_> {
+impl<C: Clock> fmt::Debug for CategoryToken<'_, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CategoryToken")
             .field("resource", &self.parent.resource)
@@ -352,18 +400,32 @@ impl FeatureWeightsBuilder {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::time::Duration;
 
     use super::*;
     use crate::test::TestRecorder;
+    use crate::time::StaticClock;
 
     #[test]
     fn test_cogs_simple() {
         let recorder = TestRecorder::default();
         let cogs = Cogs::new(recorder.clone());
 
+        let start = std::time::Instant::now();
         drop(cogs.timed(ResourceId::Relay, AppFeature::Spans));
+        let elapsed = start.elapsed();
 
-        let measurements = recorder.measurements();
+        let mut measurements = recorder.measurements();
+
+        // Take out the measurement, so we can assert the snapshot and validate the measurement
+        // separately.
+        let Value::Time(measurement) = std::mem::replace(
+            &mut measurements[0].value,
+            Value::Time(Duration::from_nanos(100)),
+        );
+        assert!(measurement > Duration::ZERO);
+        assert!(measurement <= elapsed);
+
         insta::assert_debug_snapshot!(measurements, @r###"
         [
             CogsMeasurement {
@@ -381,6 +443,7 @@ mod tests {
     #[test]
     fn test_cogs_multiple_weights() {
         let recorder = TestRecorder::default();
+        let clock = StaticClock::default();
         let cogs = Cogs::new(recorder.clone());
 
         let f = FeatureWeights::builder()
@@ -391,8 +454,8 @@ mod tests {
             .weight(AppFeature::Transactions, 0) // Reset
             .build();
         {
-            let _token = cogs.timed(ResourceId::Relay, f);
-            crate::time::advance_millis(50);
+            let _token = cogs.timed_with(ResourceId::Relay, f, &clock);
+            clock.advance_millis(50);
         }
 
         let measurements = recorder.measurements();
@@ -421,6 +484,7 @@ mod tests {
     #[test]
     fn test_cogs_categorized() {
         let recorder = TestRecorder::default();
+        let clock = StaticClock::default();
         let cogs = Cogs::new(recorder.clone());
 
         let features = FeatureWeights::builder()
@@ -429,14 +493,14 @@ mod tests {
             .build();
 
         {
-            let mut token = cogs.timed(ResourceId::Relay, features);
-            crate::time::advance_millis(10);
+            let mut token = cogs.timed_with(ResourceId::Relay, features, &clock);
+            clock.advance_millis(10);
             crate::with!(token, "s1", {
-                crate::time::advance_millis(6);
+                clock.advance_millis(6);
             });
-            crate::time::advance_millis(20);
+            clock.advance_millis(20);
             let _category = token.start_category("s2");
-            crate::time::advance_millis(12);
+            clock.advance_millis(12);
         }
 
         let measurements = recorder.measurements();
