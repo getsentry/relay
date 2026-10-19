@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
 use serde::Deserialize;
 
-use crate::sample::{DebugMeta, Frame};
+use crate::sample;
 
 /// Maximum serialized UTF-8 JSON size required by the flame graph attachment contract:
 /// <https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph>.
@@ -17,7 +17,7 @@ const MAX_SAMPLE_COUNT: u64 = 9_007_199_254_740_991;
 
 /// A flame graph which does not conform to the attachment contract.
 #[derive(Debug, thiserror::Error)]
-pub enum FlamegraphError {
+pub enum Error {
     #[error("invalid flame graph JSON")]
     InvalidJson(#[from] serde_json::Error),
     #[error("invalid flame graph: {0}")]
@@ -25,18 +25,18 @@ pub enum FlamegraphError {
 }
 
 #[derive(Deserialize)]
-struct Flamegraph {
+struct Graph {
     version: String,
     platform: String,
-    frames: Vec<FlamegraphFrame>,
+    frames: Vec<Frame>,
     nodes: Vec<Node>,
-    debug_meta: Option<DebugMeta>,
+    debug_meta: Option<sample::DebugMeta>,
 }
 
 #[derive(Deserialize)]
-struct FlamegraphFrame {
+struct Frame {
     #[serde(flatten)]
-    frame: Frame,
+    frame: sample::Frame,
     addr_mode: Option<String>,
 }
 
@@ -52,18 +52,18 @@ struct Node {
 ///
 /// The original bytes, including unknown fields and symbolication inputs, remain unchanged.
 /// Symbolication and its frame-processing budget belong to the downstream consumer.
-pub fn validate(payload: &[u8]) -> Result<(), FlamegraphError> {
+pub fn validate(payload: &[u8]) -> Result<(), Error> {
     parse(payload).map(|_| ())
 }
 
-fn parse(payload: &[u8]) -> Result<Flamegraph, FlamegraphError> {
-    use FlamegraphError::InvalidPayload;
+fn parse(payload: &[u8]) -> Result<Graph, Error> {
+    use Error::InvalidPayload;
 
     if payload.len() > MAX_FLAMEGRAPH_SIZE {
         return Err(InvalidPayload("attachment too large"));
     }
 
-    let graph: Flamegraph = serde_json::from_slice(payload)?;
+    let graph: Graph = serde_json::from_slice(payload)?;
 
     if graph.version != "1" {
         return Err(InvalidPayload("unsupported version"));
@@ -183,7 +183,7 @@ mod tests {
                 if addr_mode.starts_with("rel:") && addr_mode != "rel:0" {
                     assert!(matches!(
                         result,
-                        Err(FlamegraphError::InvalidPayload(
+                        Err(Error::InvalidPayload(
                             "relative address has no matching debug image"
                         ))
                     ));
@@ -218,7 +218,7 @@ mod tests {
         graph["debug_meta"]["images"].as_array_mut().unwrap().pop();
         assert!(matches!(
             validate(&serde_json::to_vec(&graph).unwrap()),
-            Err(FlamegraphError::InvalidPayload(
+            Err(Error::InvalidPayload(
                 "relative address has no matching debug image"
             ))
         ));
