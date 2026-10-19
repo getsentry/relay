@@ -18,10 +18,38 @@ const MAX_SAMPLE_COUNT: u64 = 9_007_199_254_740_991;
 /// A flame graph which does not conform to the attachment contract.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("invalid flame graph JSON")]
+    #[error("invalid JSON")]
     InvalidJson(#[from] serde_json::Error),
-    #[error("invalid flame graph: {0}")]
-    InvalidPayload(&'static str),
+    #[error("attachment too large")]
+    AttachmentTooLarge,
+    #[error("unsupported version")]
+    UnsupportedVersion,
+    #[error("unknown platform")]
+    UnknownPlatform,
+    #[error("empty frames or nodes")]
+    EmptyFramesOrNodes,
+    #[error("frame has no filename, function or address")]
+    MissingFrameLocation,
+    #[error("unknown frame platform")]
+    UnknownFramePlatform,
+    #[error("native frame has no instruction address")]
+    MissingNativeInstructionAddress,
+    #[error("invalid addressing mode")]
+    InvalidAddressingMode,
+    #[error("relative address has no debug images")]
+    MissingDebugImages,
+    #[error("relative address has no matching debug image")]
+    MissingDebugImage,
+    #[error("empty roots")]
+    EmptyRoots,
+    #[error("node index out of bounds: {0}")]
+    NodeIndex(usize),
+    #[error("frame index out of bounds: {0}")]
+    FrameIndex(usize),
+    #[error("sample count out of bounds: {0}")]
+    SampleCount(u64),
+    #[error("children exceed parent sample count")]
+    ChildSampleCount,
 }
 
 #[derive(Deserialize)]
@@ -29,6 +57,7 @@ struct Graph {
     version: String,
     platform: String,
     frames: Vec<Frame>,
+    trees: Vec<Tree>,
     nodes: Vec<Node>,
     debug_meta: Option<sample::DebugMeta>,
 }
@@ -38,6 +67,15 @@ struct Frame {
     #[serde(flatten)]
     frame: sample::Frame,
     addr_mode: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Tree {
+    roots: Vec<usize>,
+    #[serde(rename = "thread_id")]
+    _thread_id: Option<String>,
+    #[serde(rename = "thread_attributed")]
+    _thread_attributed: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -57,22 +95,20 @@ pub fn validate(payload: &[u8]) -> Result<(), Error> {
 }
 
 fn parse(payload: &[u8]) -> Result<Graph, Error> {
-    use Error::InvalidPayload;
-
     if payload.len() > MAX_FLAMEGRAPH_SIZE {
-        return Err(InvalidPayload("attachment too large"));
+        return Err(Error::AttachmentTooLarge);
     }
 
     let graph: Graph = serde_json::from_slice(payload)?;
 
     if graph.version != "1" {
-        return Err(InvalidPayload("unsupported version"));
+        return Err(Error::UnsupportedVersion);
     }
     if !VALID_PLATFORMS.contains(&graph.platform.as_str()) {
-        return Err(InvalidPayload("unknown platform"));
+        return Err(Error::UnknownPlatform);
     }
     if graph.frames.is_empty() || graph.nodes.is_empty() {
-        return Err(InvalidPayload("empty frames or nodes"));
+        return Err(Error::EmptyFramesOrNodes);
     }
     let image_debug_ids: HashSet<_> = graph
         .debug_meta
@@ -84,24 +120,24 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
         let frame = &entry.frame;
         if frame.filename.is_none() && frame.function.is_none() && frame.instruction_addr.is_none()
         {
-            return Err(InvalidPayload("frame has no filename, function or address"));
+            return Err(Error::MissingFrameLocation);
         }
         let platform = frame.platform.as_deref().unwrap_or(&graph.platform);
         if !VALID_PLATFORMS.contains(&platform) {
-            return Err(InvalidPayload("unknown frame platform"));
+            return Err(Error::UnknownFramePlatform);
         }
         if matches!(platform, "cocoa" | "objc" | "native" | "c") && frame.instruction_addr.is_none()
         {
-            return Err(InvalidPayload("native frame has no instruction address"));
+            return Err(Error::MissingNativeInstructionAddress);
         }
         if let Some(mode) = entry.addr_mode.as_deref().filter(|mode| *mode != "abs") {
             let reference = mode
                 .strip_prefix("rel:")
-                .ok_or(InvalidPayload("invalid addressing mode"))?;
+                .ok_or(Error::InvalidAddressingMode)?;
             let images = &graph
                 .debug_meta
                 .as_ref()
-                .ok_or(InvalidPayload("relative address has no debug images"))?
+                .ok_or(Error::MissingDebugImages)?
                 .images;
             let matches_image = if let Ok(index) = reference.parse::<usize>() {
                 index < images.len()
@@ -112,29 +148,36 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
                     .is_some_and(|id| image_debug_ids.contains(&id.0))
             };
             if !matches_image {
-                return Err(InvalidPayload(
-                    "relative address has no matching debug image",
-                ));
+                return Err(Error::MissingDebugImage);
             }
         }
     }
-
-    for node in &graph.nodes {
-        if node.frame_id >= graph.frames.len() {
-            return Err(InvalidPayload("frame index out of bounds"));
+    for tree in &graph.trees {
+        if tree.roots.is_empty() {
+            return Err(Error::EmptyRoots);
         }
-        if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
-            return Err(InvalidPayload("sample count out of bounds"));
-        }
-
-        let mut remaining_sample_count = node.sample_count;
-        for child in &node.children {
-            let Some(child) = graph.nodes.get(*child) else {
-                return Err(InvalidPayload("child index out of bounds"));
+        let mut nodes: Vec<_> = tree.roots.iter().collect();
+        while let Some(node_index) = nodes.pop() {
+            let Some(node) = graph.nodes.get(*node_index) else {
+                return Err(Error::NodeIndex(*node_index));
             };
-            remaining_sample_count = remaining_sample_count
-                .checked_sub(child.sample_count)
-                .ok_or(InvalidPayload("children exceed parent sample count"))?;
+
+            if node.frame_id >= graph.frames.len() {
+                return Err(Error::FrameIndex(node.frame_id));
+            }
+            if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
+                return Err(Error::SampleCount(node.sample_count));
+            }
+            let mut remaining = node.sample_count;
+            for child_index in &node.children {
+                let Some(child) = graph.nodes.get(*child_index) else {
+                    return Err(Error::NodeIndex(*child_index));
+                };
+                remaining = remaining
+                    .checked_sub(child.sample_count)
+                    .ok_or(Error::ChildSampleCount)?;
+                nodes.push(child_index);
+            }
         }
     }
     Ok(graph)
@@ -148,14 +191,79 @@ mod tests {
     #[test]
     fn test_flamegraph_deep_call_tree() {
         let depth = 1000;
-        let payload = format!(
-            r#"{{"version":"1","platform":"cocoa","frames":[{{"instruction_addr":"0x1000"}}],"trees":[{{"roots":[{}{{"frame_id":0,"sample_count":1}}{}]}}]}}"#,
-            r#"{"frame_id":0,"sample_count":1,"children":["#.repeat(depth - 1),
-            "]}".repeat(depth - 1),
-        );
-        validate(payload.as_bytes()).unwrap();
-        let invalid = payload.replace(r#""sample_count":1}"#, r#""sample_count":0}"#);
-        assert!(validate(invalid.as_bytes()).is_err());
+        let nodes: Vec<_> = (0..depth)
+            .map(|index| {
+                json!({
+                    "frame_id": 0,
+                    "sample_count": 1,
+                    "children": if index + 1 < depth { vec![index + 1] } else { vec![] }
+                })
+            })
+            .collect();
+        let mut graph = json!({
+            "version": "1", "platform": "cocoa",
+            "frames": [{"instruction_addr": "0x1000"}],
+            "nodes": nodes,
+            "trees": [{"roots": [0]}]
+        });
+        validate(&serde_json::to_vec(&graph).unwrap()).unwrap();
+
+        graph["nodes"][depth - 1]["sample_count"] = json!(0);
+        assert!(matches!(
+            validate(&serde_json::to_vec(&graph).unwrap()),
+            Err(Error::SampleCount(0))
+        ));
+    }
+
+    #[test]
+    fn test_flamegraph_node_index_out_of_bounds() {
+        let mut graph = json!({
+            "version": "1", "platform": "cocoa",
+            "frames": [{"instruction_addr": "0x1000"}],
+            "nodes": [{"frame_id": 0, "sample_count": 1}],
+            "trees": [{"roots": [42]}]
+        });
+        assert!(matches!(
+            validate(&serde_json::to_vec(&graph).unwrap()),
+            Err(Error::NodeIndex(42))
+        ));
+
+        graph["trees"][0]["roots"] = json!([0]);
+        graph["nodes"][0]["children"] = json!([43]);
+        assert!(matches!(
+            validate(&serde_json::to_vec(&graph).unwrap()),
+            Err(Error::NodeIndex(43))
+        ));
+    }
+
+    #[test]
+    fn test_flamegraph_frame_index_out_of_bounds() {
+        let graph = json!({
+            "version": "1", "platform": "cocoa",
+            "frames": [{"instruction_addr": "0x1000"}],
+            "nodes": [{"frame_id": 42, "sample_count": 1}],
+            "trees": [{"roots": [0]}]
+        });
+        assert!(matches!(
+            validate(&serde_json::to_vec(&graph).unwrap()),
+            Err(Error::FrameIndex(42))
+        ));
+    }
+
+    #[test]
+    fn test_flamegraph_sample_count_out_of_bounds() {
+        for sample_count in [0, MAX_SAMPLE_COUNT + 1] {
+            let graph = json!({
+                "version": "1", "platform": "cocoa",
+                "frames": [{"instruction_addr": "0x1000"}],
+                "nodes": [{"frame_id": 0, "sample_count": sample_count}],
+                "trees": [{"roots": [0]}]
+            });
+            assert!(matches!(
+                validate(&serde_json::to_vec(&graph).unwrap()),
+                Err(Error::SampleCount(count)) if count == sample_count
+            ));
+        }
     }
 
     #[test]
@@ -171,7 +279,8 @@ mod tests {
                         "code_file": "app", "image_addr": "0x1000", "image_size": 4096,
                         "future": {"preserve": true}
                     }]},
-                    "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}]
+                    "nodes": [{"frame_id": 0, "sample_count": 1}],
+                    "trees": [{"roots": [0]}]
                 });
                 let payload = serde_json::to_vec(&graph).unwrap();
                 validate(&payload)
@@ -181,12 +290,7 @@ mod tests {
                     json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
                 let result = validate(&serde_json::to_vec(&graph).unwrap());
                 if addr_mode.starts_with("rel:") && addr_mode != "rel:0" {
-                    assert!(matches!(
-                        result,
-                        Err(Error::InvalidPayload(
-                            "relative address has no matching debug image"
-                        ))
-                    ));
+                    assert!(matches!(result, Err(Error::MissingDebugImage)));
                 } else {
                     result.unwrap();
                 }
@@ -209,7 +313,8 @@ mod tests {
             "version": "1", "platform": "cocoa",
             "frames": vec![frame; 10_000],
             "debug_meta": {"images": images},
-            "trees": [{"roots": [{"frame_id": 9999, "sample_count": 1}]}]
+            "nodes": [{"frame_id": 9999, "sample_count": 1}],
+            "trees": [{"roots": [0]}]
         });
         let payload = serde_json::to_vec(&graph).unwrap();
         assert!(payload.len() < MAX_FLAMEGRAPH_SIZE);
@@ -218,9 +323,7 @@ mod tests {
         graph["debug_meta"]["images"].as_array_mut().unwrap().pop();
         assert!(matches!(
             validate(&serde_json::to_vec(&graph).unwrap()),
-            Err(Error::InvalidPayload(
-                "relative address has no matching debug image"
-            ))
+            Err(Error::MissingDebugImage)
         ));
     }
 }
