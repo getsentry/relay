@@ -835,11 +835,12 @@ def test_event_with_flamegraph(
                     }
                 ]
             },
+            "nodes": [{"frame_id": 0, "sample_count": 1}],
             "trees": [
                 {
                     "thread_id": "42",
                     "thread_attributed": True,
-                    "roots": [{"frame_id": 0, "sample_count": 1}],
+                    "roots": [0],
                 }
             ],
             "future": {"preserved": True},

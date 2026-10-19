@@ -283,9 +283,11 @@ mod tests {
 
     fn flamegraph_payload() -> serde_json::Value {
         serde_json::json!({
-            "version": "1", "platform": "python",
+            "version": "1",
+            "platform": "python",
             "frames": [{"function": "main"}],
-            "trees": [{"roots": [{"frame_id": 0, "sample_count": 10, "children": []}]}]
+            "nodes": [{"frame_id": 0, "sample_count": 10, "children": []}],
+            "trees": [{"roots": [0]}]
         })
     }
 
@@ -368,33 +370,38 @@ mod tests {
             ("/frames", json!([{}])),
             ("/frames", json!([{"function": 1}])),
             ("/frames", json!([{"instruction_addr": "not an address"}])),
+            ("/nodes", json!([])),
             ("/trees", json!([])),
             ("/trees/0/roots", json!([])),
-            ("/trees/0/roots/0/frame_id", json!(1)),
-            ("/trees/0/roots/0/frame_id", json!(-1)),
-            ("/trees/0/roots/0/frame_id", json!(0.0)),
-            ("/trees/0/roots/0/sample_count", json!(0)),
-            ("/trees/0/roots/0/sample_count", json!(-1)),
-            ("/trees/0/roots/0/sample_count", json!(1.5)),
-            ("/trees/0/roots/0/sample_count", json!(9007199254740992u64)),
+            ("/trees/0/roots/0", json!(1)),
+            ("/nodes/0/frame_id", json!(1)),
+            ("/nodes/0/frame_id", json!(-1)),
+            ("/nodes/0/frame_id", json!(0.0)),
+            ("/nodes/0/sample_count", json!(0)),
+            ("/nodes/0/sample_count", json!(-1)),
+            ("/nodes/0/sample_count", json!(1.5)),
+            ("/nodes/0/sample_count", json!(9007199254740992u64)),
             (
-                "/trees/0/roots/0/children",
-                json!([{"frame_id": 0, "sample_count": 11}]),
-            ),
-            (
-                "/trees/0/roots/0/children",
+                "/nodes",
                 json!([
-                    {"frame_id": 0, "sample_count": 6}, {"frame_id": 0, "sample_count": 5}
+                    {"frame_id": 0, "sample_count": 10, "children": [1]},
+                    {"frame_id": 0, "sample_count": 11}
                 ]),
             ),
-            ("/trees/0/roots/0/children", json!(null)),
             (
-                "/trees/0",
-                json!({"thread_id": 42, "roots": [{"frame_id": 0, "sample_count": 1}]}),
+                "/nodes",
+                json!([
+                    {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
+                    {"frame_id": 0, "sample_count": 6},
+                    {"frame_id": 0, "sample_count": 5}
+                ]),
             ),
+            ("/nodes/0/children", json!(null)),
+            ("/nodes/0/children", json!([1])),
+            ("/trees/0", json!({"thread_id": 42, "roots": [0]})),
             (
                 "/trees/0",
-                json!({"thread_attributed": "true", "roots": [{"frame_id": 0, "sample_count": 1}]}),
+                json!({"thread_attributed": "true", "roots": [0]}),
             ),
             ("/platform", json!("cocoa")),
         ];
@@ -406,7 +413,7 @@ mod tests {
                 "{path}"
             );
         }
-        for field in ["version", "platform", "frames", "trees"] {
+        for field in ["version", "platform", "frames", "nodes", "trees"] {
             let mut payload = flamegraph_payload();
             payload.as_object_mut().unwrap().remove(field);
             assert!(
@@ -446,7 +453,8 @@ mod tests {
         let config = relay_config::Config::default();
         let mut payload = flamegraph_payload();
         payload["future"] = serde_json::json!({"keep": "this"});
-        payload["trees"][0]["roots"][0]["children"] = serde_json::json!([
+        payload["nodes"] = serde_json::json!([
+            {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
             {"frame_id": 0, "sample_count": 6, "future": true},
             {"frame_id": 0, "sample_count": 4}
         ]);
@@ -473,8 +481,8 @@ mod tests {
             "filename": "Sources/Main.swift", "lineno": 42, "future": "preserved"
         });
         payload["frames"] = json!(vec![frame; 2501]);
-        payload["trees"][0]["roots"][0]["frame_id"] = json!(2500);
-        payload["trees"][0]["roots"][0]["sample_count"] = json!(9007199254740991u64);
+        payload["nodes"][0]["frame_id"] = json!(2500);
+        payload["nodes"][0]["sample_count"] = json!(9007199254740991u64);
         payload["trees"][0]["thread_id"] = json!("42");
         payload["trees"][0]["thread_attributed"] = json!(true);
         for mode in ["abs", "rel:0", "rel:84a04d24-0e60-3810-a8c0-90a65e2df61a"] {

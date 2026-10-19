@@ -57,9 +57,15 @@ struct Graph {
     version: String,
     platform: String,
     frames: Vec<Frame>,
-    trees: Vec<Tree>,
     nodes: Vec<Node>,
+    trees: Vec<Tree>,
     debug_meta: Option<sample::DebugMeta>,
+}
+
+impl Graph {
+    fn node(&self, index: usize) -> Result<&Node, Error> {
+        self.nodes.get(index).ok_or_else(|| Error::NodeIndex(index))
+    }
 }
 
 #[derive(Deserialize)]
@@ -98,7 +104,6 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
     if payload.len() > MAX_FLAMEGRAPH_SIZE {
         return Err(Error::AttachmentTooLarge);
     }
-
     let graph: Graph = serde_json::from_slice(payload)?;
 
     if graph.version != "1" {
@@ -107,7 +112,7 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
     if !VALID_PLATFORMS.contains(&graph.platform.as_str()) {
         return Err(Error::UnknownPlatform);
     }
-    if graph.frames.is_empty() || graph.nodes.is_empty() {
+    if graph.frames.is_empty() || graph.trees.is_empty() || graph.nodes.is_empty() {
         return Err(Error::EmptyFramesOrNodes);
     }
     let image_debug_ids: HashSet<_> = graph
@@ -152,32 +157,27 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
             }
         }
     }
+    for node in &graph.nodes {
+        if node.frame_id >= graph.frames.len() {
+            return Err(Error::FrameIndex(node.frame_id));
+        }
+        if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
+            return Err(Error::SampleCount(node.sample_count));
+        }
+        let mut remaining = node.sample_count;
+        for child_index in &node.children {
+            let child = graph.node(*child_index)?;
+            remaining = remaining
+                .checked_sub(child.sample_count)
+                .ok_or(Error::ChildSampleCount)?;
+        }
+    }
     for tree in &graph.trees {
         if tree.roots.is_empty() {
             return Err(Error::EmptyRoots);
         }
-        let mut nodes: Vec<_> = tree.roots.iter().collect();
-        while let Some(node_index) = nodes.pop() {
-            let Some(node) = graph.nodes.get(*node_index) else {
-                return Err(Error::NodeIndex(*node_index));
-            };
-
-            if node.frame_id >= graph.frames.len() {
-                return Err(Error::FrameIndex(node.frame_id));
-            }
-            if node.sample_count == 0 || node.sample_count > MAX_SAMPLE_COUNT {
-                return Err(Error::SampleCount(node.sample_count));
-            }
-            let mut remaining = node.sample_count;
-            for child_index in &node.children {
-                let Some(child) = graph.nodes.get(*child_index) else {
-                    return Err(Error::NodeIndex(*child_index));
-                };
-                remaining = remaining
-                    .checked_sub(child.sample_count)
-                    .ok_or(Error::ChildSampleCount)?;
-                nodes.push(child_index);
-            }
+        for node_index in &tree.roots {
+            graph.node(*node_index)?;
         }
     }
     Ok(graph)
