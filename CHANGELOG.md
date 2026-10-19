@@ -6,6 +6,10 @@
 
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 
+**Internal**:
+
+- Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default. ([#6529](https://github.com/getsentry/relay/pull/6529))
+
 ## 26.10.0
 
 **Breaking Changes**:
@@ -68,7 +72,6 @@
 - Remove long deprecated TLS settings from Relay's configuration. ([#6434](https://github.com/getsentry/relay/pull/6434))
 - Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))
   Switch default PyPI index to Socket Firewall. ([#6460](https://github.com/getsentry/relay/pull/6460))
-- Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default.
 
 ## 26.9.0
 

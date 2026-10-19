@@ -1260,7 +1260,8 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
 
         # Add a harmless producer setting. It resolves to a different config, which is what
         # makes this a reload rather than a no-op, while still pointing at the same broker.
-        options["processing"]["kafka_config"] = options["processing"]["kafka_config"] + [
+        kafka_config = options["processing"]["kafka_config"]
+        options["processing"]["kafka_config"] = kafka_config + [
             {"name": "message.timeout.ms", "value": "300000"}
         ]
         relay.config_dir.join("config.yml").write(yaml.dump(options))
@@ -1276,7 +1277,9 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
         swapped = False
 
         while not swapped:
-            assert time.monotonic() < deadline, "timed out waiting for the client to swap"
+            assert (
+                time.monotonic() < deadline
+            ), "timed out waiting for the client to swap"
 
             message = f"after reload {uuid.uuid4()}"
             relay.send_event(42, {"message": message})

@@ -122,4 +122,6 @@ def test_unknown_reloading_producer_topic_is_ignored(
         }
     )
 
-    assert relay.get("/api/relay/healthcheck/ready/", is_internal=True).status_code == 200
+    assert (
+        relay.get("/api/relay/healthcheck/ready/", is_internal=True).status_code == 200
+    )
