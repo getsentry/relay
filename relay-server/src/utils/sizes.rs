@@ -137,15 +137,7 @@ pub fn check_envelope_size_limits(
             ItemType::Unknown(_) => continue,
         };
 
-        let result = match (item.ty(), item.attachment_type()) {
-            (ItemType::Attachment, Some(AttachmentType::Flamegraph)) => limit
-                .apply_with_additional_limit(
-                    item,
-                    relay_profiling::flamegraph::MAX_FLAMEGRAPH_SIZE,
-                ),
-            _ => limit.apply(item),
-        };
-        if let Err(err) = result {
+        if let Err(ee) = limit.apply(item) {
             relay_statsd::metric!(
                 counter(RelayCounters::EnvelopeSizeLimited) += 1,
                 item = item.ty().name(),
@@ -184,15 +176,6 @@ struct Limit {
 
 impl Limit {
     fn apply(&mut self, item: &Item) -> Result<(), Rejected> {
-        self.apply_with_additional_limit(item, usize::MAX)
-    }
-
-    /// Applies a stricter per-item size limit while sharing the total count and size budgets.
-    fn apply_with_additional_limit(
-        &mut self,
-        item: &Item,
-        additional_limit: usize,
-    ) -> Result<(), Rejected> {
         let size = match item.is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //
@@ -200,7 +183,7 @@ impl Limit {
             true => item.len() / item.item_count().unwrap_or(1).max(1) as usize,
             false => item.len(),
         };
-        if size > self.item_size.min(additional_limit) {
+        if size > self.item_size {
             return Err(Rejected::ItemSize);
         }
 
@@ -239,76 +222,4 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
             }
         });
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::envelope::AttachmentType;
-    use bytes::Bytes;
-
-    #[test]
-    fn test_additional_item_size_limit() {
-        let mut limit = Limit {
-            item_size: usize::MAX,
-            total_count: 2,
-            total_size: usize::MAX,
-        };
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_attachment_type(AttachmentType::Flamegraph);
-        item.set_payload_without_content_type("1234");
-        assert!(matches!(
-            limit.apply_with_additional_limit(&item, 3),
-            Err(Rejected::ItemSize)
-        ));
-        assert_eq!(limit.total_count, 2);
-
-        limit.item_size = 3;
-        assert!(matches!(
-            limit.apply_with_additional_limit(&item, 4),
-            Err(Rejected::ItemSize)
-        ));
-
-        limit.item_size = 4;
-        limit.total_size = 8;
-        assert!(limit.apply_with_additional_limit(&item, 4).is_ok());
-        assert_eq!(limit.total_count, 1);
-        assert_eq!(limit.total_size, 4);
-        item.set_attachment_type(AttachmentType::Attachment);
-        assert!(limit.apply(&item).is_ok());
-        assert_eq!(limit.total_count, 0);
-        assert_eq!(limit.total_size, 0);
-        assert!(matches!(limit.apply(&item), Err(Rejected::TotalCount)));
-
-        limit.total_count = 1;
-        limit.total_size = 3;
-        item.set_attachment_type(AttachmentType::Flamegraph);
-        assert!(matches!(
-            limit.apply_with_additional_limit(&item, 4),
-            Err(Rejected::TotalSize)
-        ));
-    }
-
-    #[test]
-    fn test_flamegraph_size_limit() {
-        let config = relay_config::Config::default();
-        let mut envelope = Envelope::parse_bytes(Bytes::from_static(
-            b"{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42\"}\n",
-        ))
-        .unwrap();
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_attachment_type(AttachmentType::Flamegraph);
-        item.set_payload_without_content_type(vec![b' '; 10 * 1024 * 1024]);
-        envelope.add_item(item.clone());
-        assert!(check_envelope_size_limits(&config.current(), &envelope).is_ok());
-        item.set_payload_without_content_type(vec![b' '; 10 * 1024 * 1024 + 1]);
-        envelope.take_items_by(|_| true);
-        envelope.add_item(item);
-        assert_eq!(
-            check_envelope_size_limits(&config.current(), &envelope),
-            Err(DiscardItemType::Attachment(
-                crate::services::outcome::DiscardAttachmentType::Flamegraph
-            ))
-        );
-    }
 }
