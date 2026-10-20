@@ -13,6 +13,7 @@
 **Internal**:
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
+- Bump `rustls-webpki` to 0.103.16 to drop trust in the compromised eMudhra/emSign CA roots. ([#6536](https://github.com/getsentry/relay/pull/6536))
 
 ## 26.10.0
 
