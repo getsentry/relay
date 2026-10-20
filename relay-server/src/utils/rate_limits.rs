@@ -500,8 +500,6 @@ pub struct Enforcement {
     pub log_items: CategoryLimit,
     /// The combined logs (our product logs) rate limit.
     pub log_bytes: CategoryLimit,
-    /// The combined spans rate limit.
-    pub spans: CategoryLimit,
     /// The rate limit for the indexed span category.
     pub spans_indexed: CategoryLimit,
     /// The rate limit for user report v1.
@@ -776,10 +774,6 @@ where
 
         // Handle spans.
         if enforcement.is_event_active() {
-            enforcement.spans = enforcement
-                .event
-                .clone_for(DataCategory::Span, summary.span_quantity);
-
             enforcement.spans_indexed = enforcement
                 .event_indexed
                 .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
@@ -788,12 +782,6 @@ where
                 .check
                 .apply(scoping.item(DataCategory::Span), summary.span_quantity)
                 .await?;
-            enforcement.spans = CategoryLimit::new(
-                DataCategory::Span,
-                summary.span_quantity,
-                span_limits.longest(),
-            );
-
             if span_limits.is_empty() {
                 span_limits.merge(
                     self.check
@@ -1699,6 +1687,30 @@ mod tests {
     }
 
     #[test]
+    fn test_retention_silently_drops_event_carriers() {
+        for retained in 0u32..4 {
+            let (mut envelope, mut outcomes) =
+                Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
+            envelope.modify(|envelope, records| {
+                let mut index = 0;
+                envelope.retain_items(records, |_| {
+                    let keep = retained & (1 << index) != 0;
+                    index += 1;
+                    if keep {
+                        ItemAction::Keep
+                    } else {
+                        ItemAction::DropSilently
+                    }
+                });
+            });
+
+            assert_eq!(envelope.len(), retained.count_ones() as usize);
+            envelope.accept(drop);
+            outcomes.assert_no_outcomes();
+        }
+    }
+
+    #[test]
     fn test_parent_rejection_counts_only_removed_items() {
         for (item_type, dropped_category) in [
             (ItemType::ReplayEvent, Some(DataCategory::Replay)),
@@ -1707,7 +1719,6 @@ mod tests {
             let limit = rate_limit(DataCategory::Error);
             let event = CategoryLimit::new(DataCategory::Error, 1, Some(&limit));
             let enforcement = Enforcement {
-                spans: event.clone_for(DataCategory::Span, 1),
                 event,
                 ..Default::default()
             };
@@ -1808,6 +1819,26 @@ mod tests {
         );
         mock.lock().await.assert_call(DataCategory::Error, 1);
         mock.lock().await.assert_call(DataCategory::Attachment, 10);
+    }
+
+    #[tokio::test]
+    async fn test_enforce_nintendo_parent_error_limit() {
+        let envelope = envelope![Event, Attachment::NintendoSwitchDyingMessage, Attachment];
+        let mock = mock_limiter(&[DataCategory::Error]);
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        // The event and dying message represent one error. Only the ordinary attachment counts.
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([
+                (DataCategory::Error, 1),
+                (DataCategory::Attachment, 10),
+                (DataCategory::AttachmentItem, 1),
+            ])
+        );
+        mock.lock().await.assert_call(DataCategory::Error, 1);
     }
 
     /// Limit stand-alone profiles.
@@ -1963,6 +1994,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_enforce_skip_rate_limited_minidump() {
+        let mut envelope = envelope![Attachment::Minidump, Attachment];
+        envelope.items_mut().next().unwrap().set_rate_limited(true);
+
+        let mock = mock_limiter(&[DataCategory::Attachment]);
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 1);
+        let minidump = envelope.items().next().unwrap();
+        assert_eq!(minidump.attachment_type(), Some(AttachmentType::Minidump));
+        assert!(minidump.rate_limited());
+        // A new attachment limit must not emit another outcome for the retained minidump.
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([
+                (DataCategory::Attachment, 10),
+                (DataCategory::AttachmentItem, 1),
+            ])
+        );
+        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.lock().await.assert_call(DataCategory::Attachment, 10);
+    }
+
+    #[tokio::test]
     async fn test_enforce_pass_sessions() {
         let envelope = envelope![Session, Session, Session];
 
@@ -2064,7 +2120,6 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.profiles_indexed.is_active());
         assert!(!enforcement.profiles.is_active());
-        assert!(!enforcement.spans.is_active());
         assert!(!enforcement.spans_indexed.is_active());
         mock.lock().await.assert_call(DataCategory::Transaction, 1);
         mock.lock().await.assert_call(DataCategory::Profile, 1);
@@ -2171,7 +2226,6 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
-        assert!(enforcement.spans.is_active());
         mock.lock().await.assert_call(DataCategory::Span, 2);
 
         assert_eq!(
@@ -2189,7 +2243,6 @@ mod tests {
 
         assert!(!limits.is_limited());
         assert!(!enforcement.spans_indexed.is_active());
-        assert!(!enforcement.spans.is_active());
         mock.lock().await.assert_call(DataCategory::Span, 2);
 
         assert_eq!(outcomes, BTreeMap::new());
