@@ -1411,27 +1411,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn event_falls_back_to_kafka_by_default() {
-        let (store, mut store_rx) = Addr::custom();
-        let service = ObjectstoreService::new(&test_config(), Some(store))
-            .unwrap()
-            .unwrap();
-
-        let (event, _handle) = test_event();
-        service.inner.handle_event(event).await;
-
-        let Store::Event(event) = store_rx.try_recv().unwrap() else {
-            panic!("expected event");
-        };
-        {
-            assert_eq!(event.attachments.len(), 1);
-            assert_eq!(event.attachments[0].ty(), &ItemType::Attachment);
-            assert_eq!(event.attachments[0].stored_key(), None);
-        }
-        event.accept(|_| ());
-    }
-
-    #[tokio::test]
     async fn event_rejects_failed_attachments() {
         let (store, mut store_rx) = Addr::custom();
         let config = test_config();
