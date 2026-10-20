@@ -6,6 +6,8 @@
 
 - Set the `rate_limited` field of rate limited crash report attachments to the reason code of the quota that limited them, so that attachments dropped for exceeding a quota can be surfaced in the product. Attachments limited by a quota without a reason code keep `rate_limited: true`. ([#6521](https://github.com/getsentry/relay/pull/6521))
 
+- Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+
 ## 26.10.0
 
 **Breaking Changes**:
@@ -39,6 +41,7 @@
 
 **Bug Fixes**:
 
+- Default unrecognized AI operations to `other` instead of `ai_client` when neither `gen_ai.request.model` nor `gen_ai.response.model` contains a string value. ([#6507](https://github.com/getsentry/relay/pull/6507))
 - Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
@@ -56,7 +59,9 @@
 
 - Update sentry-conventions to 0.27.0. Adds Anthropic tool-result, NEL sampling, integrity policy, AWS, MCP, and `gen_ai` memory conventions, along with span op deprecations. ([#6498](https://github.com/getsentry/relay/pull/6498))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
+- Remove the `organizations:relay-automatic-json-expansion` flag in favor of the project flag. ([#6518](https://github.com/getsentry/relay/pull/6518))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
+- Constrain pattern matching for user provided and untrusted patterns. ([#6462](https://github.com/getsentry/relay/pull/6462))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
