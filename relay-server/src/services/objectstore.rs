@@ -483,7 +483,6 @@ impl ObjectstoreService {
             stream_timeout,
             retry_delay,
             max_attempts,
-            fallback_to_kafka,
             auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -520,7 +519,6 @@ impl ObjectstoreService {
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
             max_attempts: *max_attempts,
-            fallback_to_kafka: *fallback_to_kafka,
         };
 
         Ok(Some(Self {
@@ -543,17 +541,11 @@ impl LoadShed<Objectstore> for ObjectstoreService {
         error.log(message.kind());
         match message {
             Objectstore::Event(mut event) => {
-                if !self.inner.fallback_to_kafka {
-                    drop_attachments(&mut event);
-                }
+                drop_attachments(&mut event);
                 self.inner.store.send(event);
             }
             Objectstore::EventAttachment(message) => {
-                if self.inner.fallback_to_kafka {
-                    self.inner.store.send(message);
-                } else {
-                    let _ = message.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
-                }
+                let _ = message.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
             }
             Objectstore::TraceAttachment(managed) => {
                 let _ = managed.reject_err(error);
@@ -587,7 +579,6 @@ struct ObjectstoreServiceInner {
     stream_timeout: Duration,
     retry_interval: Duration,
     max_attempts: NonZeroU16,
-    fallback_to_kafka: bool,
 }
 
 impl ObjectstoreServiceInner {
@@ -648,9 +639,7 @@ impl ObjectstoreServiceInner {
                 error
                     .with_amount(event.attachments.len())
                     .log(MessageKind::Event);
-                if !self.fallback_to_kafka {
-                    drop_attachments(&mut event);
-                }
+                drop_attachments(&mut event);
                 self.store.send(event);
                 return;
             }
@@ -693,11 +682,9 @@ impl ObjectstoreServiceInner {
                 }
                 Err(error) => {
                     error.log(MessageKind::Event);
-                    if !self.fallback_to_kafka {
-                        let reason = Outcome::Invalid(DiscardReason::UploadFailed);
-                        let _ = attachment.reject_err(reason);
-                        continue;
-                    }
+                    let reason = Outcome::Invalid(DiscardReason::UploadFailed);
+                    let _ = attachment.reject_err(reason);
+                    continue;
                 }
             }
 
@@ -761,11 +748,7 @@ impl ObjectstoreServiceInner {
             }
             Err(error) => {
                 error.log(MessageKind::EventAttachment);
-                if self.fallback_to_kafka {
-                    self.store.send(attachment)
-                } else {
-                    let _ = attachment.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
-                }
+                let _ = attachment.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
             }
         };
     }
@@ -1449,10 +1432,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn event_rejects_failed_attachments_without_fallback() {
+    async fn event_rejects_failed_attachments() {
         let (store, mut store_rx) = Addr::custom();
         let mut config = test_config();
-        config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
@@ -1479,10 +1461,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn event_attachment_rejects_without_fallback() {
+    async fn event_attachment_rejects() {
         let (store, mut store_rx) = Addr::custom();
         let mut config = test_config();
-        config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
@@ -1578,7 +1559,6 @@ mod tests {
             stream_timeout: 1,
             retry_delay: 1.0,
             max_attempts: 1.try_into().unwrap(),
-            fallback_to_kafka: true,
             auth: None,
         }
     }
