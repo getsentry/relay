@@ -16,6 +16,7 @@ class Case:
     id: str
     limit: int
     expected_extracted_spans: int
+    expected_embedded_spans: int
     expected_outcomes: dict[tuple[DataCategory, Outcome], int]
 
 
@@ -24,9 +25,10 @@ class Case:
     "case",
     [
         Case(
-            id="batch-exceeds-quota",
+            id="extracted-rejected-embedded-retained",
             limit=10,
             expected_extracted_spans=0,
+            expected_embedded_spans=10,
             # Either quota rejects the whole batch, which still carries
             # both total and indexed quantities at this processing stage.
             expected_outcomes={
@@ -38,6 +40,7 @@ class Case:
             id="batch-fits-quota",
             limit=11,
             expected_extracted_spans=11,
+            expected_embedded_spans=10,
             expected_outcomes={
                 (DataCategory.SPAN, Outcome.ACCEPTED): 11,
                 (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
@@ -92,7 +95,7 @@ def test_transaction_storage_under_span_quota(
     assert {span["span_id"] for span in stored["spans"]} == {
         span["span_id"] for span in event["spans"]
     }
-    assert len(stored["spans"]) == 10
+    assert len(stored["spans"]) == case.expected_embedded_spans
     transactions.assert_empty()
 
     assert (
