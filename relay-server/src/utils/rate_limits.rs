@@ -8,7 +8,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemAction, ItemType};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::Outcome;
@@ -114,7 +114,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 ///   to be set on the event item.
 /// - `Attachment`: If the attachment creates an event (e.g. for minidumps), the category is assumed
 ///   to be `Error`.
-pub(crate) fn infer_event_category(item: &Item) -> Option<DataCategory> {
+fn infer_event_category(item: &Item) -> Option<DataCategory> {
     match item.ty() {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
@@ -514,6 +514,19 @@ pub struct Enforcement {
     pub trace_metrics_bytes: CategoryLimit,
 }
 
+/// Represents the decision on whether or not to keep an envelope item.
+#[derive(Debug, Clone)]
+enum ItemAction {
+    /// Keep the item.
+    Keep,
+    /// Drop the item and log an outcome for it.
+    Drop(Outcome),
+    /// Drop the item without logging an outcome.
+    DropSilently,
+    /// Keep a required attachment, but account for its rejected attachment quantities.
+    KeepRateLimited(Outcome),
+}
+
 impl Enforcement {
     /// Returns the `CategoryLimit` for the event.
     ///
@@ -570,7 +583,46 @@ impl Enforcement {
     /// 3. Rate limits are empty.
     pub fn apply_to_managed(self, envelope: &mut Managed<Box<Envelope>>) {
         envelope.modify(|envelope, records| {
-            envelope.retain_items(records, |item| self.retain_item(item));
+            let mut surviving_event = None;
+            let mut event_rejection = None;
+            envelope.retain_items(|item| match self.retain_item(item) {
+                ItemAction::Keep => {
+                    surviving_event = surviving_event.or_else(|| infer_event_category(item));
+                    true
+                }
+                ItemAction::Drop(outcome) => {
+                    let mut rejected = EnvelopeSummary::compute_items([&*item]);
+                    if let Some(category) = rejected.event_category.take() {
+                        event_rejection.get_or_insert((category, Some(outcome.clone())));
+                    }
+                    records.reject_err(outcome, rejected);
+                    false
+                }
+                ItemAction::DropSilently => {
+                    let mut rejected = EnvelopeSummary::compute_items([&*item]);
+                    if let Some(category) = rejected.event_category.take() {
+                        event_rejection.get_or_insert((category, None));
+                    }
+                    records.reject_err(None, rejected);
+                    false
+                }
+                ItemAction::KeepRateLimited(outcome) => {
+                    // Count before marking the item, preserving its contribution to the event.
+                    let mut rejected = EnvelopeSummary::compute_items([&*item]);
+                    surviving_event = surviving_event.or(rejected.event_category.take());
+                    records.reject_err(outcome, rejected);
+                    item.set_rate_limited(true);
+                    true
+                }
+            });
+
+            // Multiple items can create the same event. Reject it only if none survive.
+            if let (None, Some((category, outcome))) = (surviving_event, event_rejection) {
+                records.reject_err(outcome.clone(), (category, 1));
+                if let Some(indexed) = category.index_category() {
+                    records.reject_err(outcome, (indexed, 1));
+                }
+            }
         });
     }
 
@@ -1660,57 +1712,44 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_retention_counts_implicit_event_once() {
-        use ItemAction::{Drop, Keep};
-
-        let outcome = Outcome::RateLimited(None);
-        for (actions, expected_len) in [
-            ([Drop(outcome.clone()), Drop(outcome.clone())], 0),
-            ([Keep, Drop(outcome.clone())], 1),
-            ([Drop(outcome.clone()), Keep], 1),
-            ([Keep, Keep], 2),
+    #[tokio::test]
+    async fn test_enforce_counts_implicit_event_once() {
+        for denied_categories in [
+            &[][..],
+            &[DataCategory::Error][..],
+            &[DataCategory::Attachment][..],
         ] {
-            let (mut envelope, mut outcomes) =
-                Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
-            envelope.modify(|envelope, records| {
-                let mut actions = actions.into_iter();
-                envelope.retain_items(records, |_| actions.next().unwrap());
-            });
+            let envelope = envelope![Attachment::Minidump, Attachment::Minidump];
+            let mock = mock_limiter(denied_categories);
+            let (envelope, _, _, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
-            assert_eq!(envelope.len(), expected_len);
-            for _ in 0..(2 - expected_len) {
-                outcomes.assert_outcome(&outcome, DataCategory::Attachment, 10);
-                outcomes.assert_outcome(&outcome, DataCategory::AttachmentItem, 1);
+            let error_blocked = denied_categories.contains(&DataCategory::Error);
+            let attachments_blocked = denied_categories.contains(&DataCategory::Attachment);
+            assert_eq!(envelope.len(), if error_blocked { 0 } else { 2 });
+            let mut expected = BTreeMap::new();
+            if error_blocked || attachments_blocked {
+                expected.insert(DataCategory::Attachment, 20);
+                expected.insert(DataCategory::AttachmentItem, 2);
             }
-            if expected_len == 0 {
-                outcomes.assert_outcome(&outcome, DataCategory::Error, 1);
+            if error_blocked {
+                expected.insert(DataCategory::Error, 1);
             }
-            envelope.accept(drop);
-            outcomes.assert_no_outcomes();
-        }
-    }
+            assert_eq!(outcomes, expected);
+            assert!(
+                envelope
+                    .items()
+                    .all(|item| item.rate_limited() == attachments_blocked)
+            );
 
-    #[test]
-    fn test_retention_silently_drops_event_carriers() {
-        use ItemAction::{DropSilently, Keep};
-
-        for (actions, expected_len) in [
-            ([DropSilently, DropSilently], 0),
-            ([Keep, DropSilently], 1),
-            ([DropSilently, Keep], 1),
-            ([Keep, Keep], 2),
-        ] {
-            let (mut envelope, mut outcomes) =
-                Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
-            envelope.modify(|envelope, records| {
-                let mut actions = actions.into_iter();
-                envelope.retain_items(records, |_| actions.next().unwrap());
-            });
-
-            assert_eq!(envelope.len(), expected_len);
-            envelope.accept(drop);
-            outcomes.assert_no_outcomes();
+            mock.lock().await.assert_call(DataCategory::Error, 1);
+            if !error_blocked {
+                mock.lock().await.assert_call(DataCategory::Attachment, 20);
+                if !attachments_blocked {
+                    mock.lock()
+                        .await
+                        .assert_call(DataCategory::AttachmentItem, 2);
+                }
+            }
         }
     }
 
@@ -2040,11 +2079,12 @@ mod tests {
         let envelope = envelope![Session, Session, Event];
 
         let mock = mock_limiter(&[DataCategory::Session]);
-        let (envelope, _, limits, _) = enforce_and_apply(mock.clone(), envelope).await;
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
+        assert!(outcomes.is_empty());
         mock.lock().await.assert_call(DataCategory::Error, 1);
         mock.lock().await.assert_call(DataCategory::Session, 2);
     }

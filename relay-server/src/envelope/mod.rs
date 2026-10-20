@@ -50,9 +50,6 @@ use smallvec::SmallVec;
 
 use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::managed::RecordKeeper;
-use crate::services::outcome::Outcome;
-use crate::utils::{EnvelopeSummary, infer_event_category};
 
 mod attachment;
 mod container;
@@ -65,19 +62,6 @@ pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
 pub use self::meta::*;
-
-/// Represents the decision on whether or not to keep an envelope item.
-#[derive(Debug, Clone)]
-pub enum ItemAction {
-    /// Keep the item.
-    Keep,
-    /// Drop the item and log an outcome for it.
-    Drop(Outcome),
-    /// Drop the item without logging an outcome.
-    DropSilently,
-    /// Keep a required attachment, but account for its rejected attachment quantities.
-    KeepRateLimited(Outcome),
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
@@ -577,55 +561,15 @@ impl Envelope {
         self
     }
 
-    /// Applies retention decisions in place and accounts for rejected quantities.
+    /// Retains only the items specified by the predicate.
     ///
-    /// Preserves item order. Ordinary kept items need no quantity calculation. Rejected quantities
-    /// follow envelope counting rules, including the single implicit event created by crash attachments.
-    pub fn retain_items(
-        &mut self,
-        records: &mut RecordKeeper<'_>,
-        mut retain_item: impl FnMut(&Item) -> ItemAction,
-    ) {
-        let mut surviving_event = None;
-        let mut event_rejection = None;
-        self.items.retain(|item| match retain_item(item) {
-            ItemAction::Keep => {
-                surviving_event = surviving_event.or_else(|| infer_event_category(item));
-                true
-            }
-            ItemAction::Drop(outcome) => {
-                let mut rejected = EnvelopeSummary::compute_items([&*item]);
-                if let Some(category) = rejected.event_category.take() {
-                    event_rejection.get_or_insert((category, Some(outcome.clone())));
-                }
-                records.reject_err(outcome, rejected);
-                false
-            }
-            ItemAction::DropSilently => {
-                let mut rejected = EnvelopeSummary::compute_items([&*item]);
-                if let Some(category) = rejected.event_category.take() {
-                    event_rejection.get_or_insert((category, None));
-                }
-                records.reject_err(None, rejected);
-                false
-            }
-            ItemAction::KeepRateLimited(outcome) => {
-                // Count before marking the item, preserving its contribution to the event.
-                let mut rejected = EnvelopeSummary::compute_items([&*item]);
-                surviving_event = surviving_event.or(rejected.event_category.take());
-                records.reject_err(outcome, rejected);
-                item.set_rate_limited(true);
-                true
-            }
-        });
-
-        // Multiple items can create the same event. Reject it only if none survive.
-        if let (None, Some((category, outcome))) = (surviving_event, event_rejection) {
-            records.reject_err(outcome.clone(), (category, 1));
-            if let Some(indexed) = category.index_category() {
-                records.reject_err(outcome, (indexed, 1));
-            }
-        }
+    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
+    /// in place and preserves the order of the retained items.
+    pub fn retain_items<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Item) -> bool,
+    {
+        self.items.retain(f)
     }
 
     /// Serializes this envelope into the given writer.

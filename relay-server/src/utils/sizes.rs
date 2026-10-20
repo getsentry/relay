@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemAction, ItemType};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -211,12 +211,13 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
     }
 
     envelope.modify(|envelope, records| {
-        envelope.retain_items(records, |item| {
+        envelope.retain_items(|item| {
             if item.is_unknown() {
                 relay_log::debug!("dropping unknown item");
-                ItemAction::DropSilently
+                records.reject_err(None, &*item);
+                false
             } else {
-                ItemAction::Keep
+                true
             }
         });
     });
