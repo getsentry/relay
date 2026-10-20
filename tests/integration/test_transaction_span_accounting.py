@@ -22,6 +22,7 @@ class Quota:
 
 @dataclass(frozen=True, kw_only=True)
 class Case:
+    id: str
     quota: Quota | None
     expected_transactions: int
     expected_spans: frozenset[str]
@@ -31,58 +32,51 @@ class Case:
 @pytest.mark.parametrize(
     "case",
     [
-        pytest.param(
-            Case(
-                quota=None,
-                expected_transactions=1,
-                expected_spans=frozenset({"root", "child", "standalone"}),
-                expected_outcomes={
-                    (DataCategory.SPAN, Outcome.ACCEPTED): 3,
-                    (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
-                },
-            ),
+        Case(
             id="no-quota",
+            quota=None,
+            expected_transactions=1,
+            expected_spans=frozenset({"root", "child", "standalone"}),
+            expected_outcomes={
+                (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+                (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+            },
         ),
-        pytest.param(
-            Case(
-                quota=Quota(category="span", limit=3),
-                expected_transactions=1,
-                expected_spans=frozenset({"root", "child", "standalone"}),
-                expected_outcomes={
-                    (DataCategory.SPAN, Outcome.ACCEPTED): 3,
-                    (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
-                },
-            ),
+        Case(
             id="span-fits",
+            quota=Quota(category="span", limit=3),
+            expected_transactions=1,
+            expected_spans=frozenset({"root", "child", "standalone"}),
+            expected_outcomes={
+                (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+                (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+            },
         ),
-        pytest.param(
-            Case(
-                quota=Quota(category="span_indexed", limit=2),
-                expected_transactions=1,
-                expected_spans=frozenset({"standalone"}),
-                expected_outcomes={
-                    (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
-                    (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
-                    (DataCategory.SPAN, Outcome.ACCEPTED): 1,
-                },
-            ),
+        Case(
             id="indexed-span-batch-exceeds",
+            quota=Quota(category="span_indexed", limit=2),
+            expected_transactions=1,
+            expected_spans=frozenset({"standalone"}),
+            expected_outcomes={
+                (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
+                (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
+                (DataCategory.SPAN, Outcome.ACCEPTED): 1,
+            },
         ),
-        pytest.param(
-            Case(
-                quota=Quota(category="transaction", limit=0),
-                expected_transactions=0,
-                expected_spans=frozenset(),
-                expected_outcomes={
-                    (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
-                    (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
-                    (DataCategory.SPAN, Outcome.RATE_LIMITED): 3,
-                    (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
-                },
-            ),
+        Case(
             id="transaction-blocked",
+            quota=Quota(category="transaction", limit=0),
+            expected_transactions=0,
+            expected_spans=frozenset(),
+            expected_outcomes={
+                (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
+                (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+                (DataCategory.SPAN, Outcome.RATE_LIMITED): 3,
+                (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
+            },
         ),
     ],
+    ids=lambda case: case.id,
 )
 def test_transaction_with_span_container_quotas(
     mixed_envelope,
