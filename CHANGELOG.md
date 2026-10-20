@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Forward the reason code of the quota that rate limited a crash report attachment to Sentry, so that attachments dropped for exceeding a quota can be surfaced in the product. ([#6521](https://github.com/getsentry/relay/pull/6521))
+- Set the `rate_limited` field of rate limited crash report attachments to the reason code of the quota that limited them, so that attachments dropped for exceeding a quota can be surfaced in the product. Attachments limited by a quota without a reason code keep `rate_limited: true`. ([#6521](https://github.com/getsentry/relay/pull/6521))
 
 ## 26.10.0
 

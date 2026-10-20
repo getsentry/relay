@@ -621,20 +621,15 @@ def test_minidump_with_processing(
         else "minidump.unknown"
     )
 
-    # The reason code of the attachment quota is forwarded for rate limited minidumps.
-    rate_limit_reason = (
-        {"rate_limit_reason": "static_disabled_quota"}
-        if rate_limit == "attachment"
-        else {}
-    )
+    # Rate limited minidumps carry the reason code of the attachment quota.
+    rate_limited = "static_disabled_quota" if rate_limit == "attachment" else False
 
     if not use_objectstore:
         assert list(message["attachments"]) == [
             {
                 "id": attachment_id,
                 "name": "minidump.dmp",
-                "rate_limited": rate_limit == "attachment",
-                **rate_limit_reason,
+                "rate_limited": rate_limited,
                 "attachment_type": "event.minidump",
                 "content_type": "application/x-dmp",
                 "size": len(content),
@@ -652,8 +647,7 @@ def test_minidump_with_processing(
         assert attachment.pop("id")
         assert attachment == {
             "name": "minidump.dmp",
-            "rate_limited": rate_limit == "attachment",
-            **rate_limit_reason,
+            "rate_limited": rate_limited,
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),
@@ -683,6 +677,26 @@ def test_minidump_with_processing(
                 "reason": "static_disabled_quota",
             },
         ]
+
+
+def test_minidump_rate_limited_without_reason_code(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [{"categories": ["attachment"], "limit": 0}]
+
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+
+    relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content")],
+    )
+
+    message, _ = attachments_consumer.get_event_only()
+    (attachment,) = message["attachments"]
+    assert attachment["rate_limited"] is True
 
 
 def test_minidump_with_processing_invalid(

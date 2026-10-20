@@ -28,8 +28,7 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 stored_key: None,
-                rate_limited: false,
-                rate_limit_reason: None,
+                rate_limited: RateLimited::default(),
                 source_quantities: None,
                 routing_hint: None,
                 inner: BTreeMap::new(),
@@ -404,22 +403,17 @@ impl Item {
 
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
-        self.headers.rate_limited
+        self.headers.rate_limited.is_limited()
+    }
+
+    /// Returns the rate limiting state of this item, including the reason code if available.
+    pub fn rate_limited_state(&self) -> &RateLimited {
+        &self.headers.rate_limited
     }
 
     /// Sets whether this item should be rate limited.
-    pub fn set_rate_limited(&mut self, rate_limited: bool) {
+    pub fn set_rate_limited(&mut self, rate_limited: RateLimited) {
         self.headers.rate_limited = rate_limited;
-    }
-
-    /// Returns the reason code of the quota that rate limited this item, if any.
-    pub fn rate_limit_reason(&self) -> Option<&ReasonCode> {
-        self.headers.rate_limit_reason.as_ref()
-    }
-
-    /// Sets the reason code of the quota that rate limited this item.
-    pub fn set_rate_limit_reason(&mut self, reason: Option<ReasonCode>) {
-        self.headers.rate_limit_reason = reason;
     }
 
     /// Returns the contained source quantities.
@@ -1052,6 +1046,40 @@ pub enum ItemHeaderKey {
 #[serde(transparent)]
 pub struct ItemHeaderValue(serde_json::Value);
 
+/// Whether an [`Item`] is rate limited, and why.
+///
+/// Serializes to `false` if the item is not rate limited, to the reason code of the quota that
+/// rate limited the item, or to `true` if that quota does not declare a reason code.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum RateLimited {
+    /// Whether the item is rate limited by a quota without a reason code.
+    Flag(bool),
+    /// The reason code of the quota that rate limited the item.
+    Reason(ReasonCode),
+}
+
+impl RateLimited {
+    /// Creates a rate limited state for a quota with the given reason code.
+    pub fn new(reason: Option<ReasonCode>) -> Self {
+        match reason {
+            Some(reason) => Self::Reason(reason),
+            None => Self::Flag(true),
+        }
+    }
+
+    /// Returns `true` if the item is rate limited.
+    pub fn is_limited(&self) -> bool {
+        !matches!(self, Self::Flag(false))
+    }
+}
+
+impl Default for RateLimited {
+    fn default() -> Self {
+        Self::Flag(false)
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ItemHeaders {
     /// The type of the item.
@@ -1076,15 +1104,7 @@ pub struct ItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    rate_limited: bool,
-    /// The reason code of the quota that caused this item to be rate limited.
-    ///
-    /// Only set alongside `rate_limited`, so that the processing pipeline can tell why the
-    /// attachment was dropped (e.g. an exceeded billing quota versus spike protection).
-    ///
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    rate_limit_reason: Option<ReasonCode>,
+    rate_limited: RateLimited,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -1156,7 +1176,6 @@ impl fmt::Debug for ItemHeaders {
             stored_key,
             routing_hint,
             rate_limited,
-            rate_limit_reason,
             source_quantities,
             inner,
         } = self;
@@ -1170,11 +1189,8 @@ impl fmt::Debug for ItemHeaders {
         if let Some(routing_hint) = routing_hint {
             map.entry(&"routing_hint", routing_hint);
         }
-        if *rate_limited {
+        if rate_limited.is_limited() {
             map.entry(&"rate_limited", rate_limited);
-        }
-        if let Some(rate_limit_reason) = rate_limit_reason {
-            map.entry(&"rate_limit_reason", rate_limit_reason);
         }
         if let Some(source_quantities) = source_quantities {
             map.entry(&"source_quantities", source_quantities);

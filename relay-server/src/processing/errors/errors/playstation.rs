@@ -110,8 +110,7 @@ impl SentryError for Playstation {
                 item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
                 item.set_attachment_type(AttachmentType::Minidump);
                 // If the original prosperodump is already rate limited, so will be the minidump.
-                item.set_rate_limited(prosperodump.rate_limited());
-                item.set_rate_limit_reason(prosperodump.rate_limit_reason().cloned());
+                item.set_rate_limited(prosperodump.rate_limited_state().clone());
 
                 crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item, crate::utils::AdditionalExceptions::Delete);
 

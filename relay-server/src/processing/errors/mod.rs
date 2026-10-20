@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, RateLimited};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
@@ -63,8 +63,7 @@ fn rate_limit_reason(limits: &RateLimits) -> Option<ReasonCode> {
 /// but they are not persisted. The reason code is forwarded as well, so that Sentry can tell
 /// which quota caused the crash report to be dropped.
 fn mark_rate_limited(item: &mut Item, limits: &RateLimits) {
-    item.set_rate_limited(true);
-    item.set_rate_limit_reason(rate_limit_reason(limits));
+    item.set_rate_limited(RateLimited::new(rate_limit_reason(limits)));
 }
 
 /// A processor for Error Events.
