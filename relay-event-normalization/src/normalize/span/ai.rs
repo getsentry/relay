@@ -214,6 +214,35 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
     Some(ai_op)
 }
 
+/// Records a tool result's UTF-8 byte length before trimming.
+/// Preserves valid sizes measured by the SDK before truncating its output.
+pub fn normalize_tool_call_result_size(attributes: &mut impl AttributesLike) {
+    if attributes
+        .get_value(GEN_AI__OPERATION__TYPE)
+        .and_then(Value::as_str)
+        != Some("tool")
+        || matches!(
+            attributes.get_value(GEN_AI__TOOL__CALL__RESULT__SIZE),
+            Some(Value::U64(_)) | Some(Value::I64(0..))
+        )
+    {
+        return;
+    }
+
+    let Some(result) = attributes
+        .get_value(GEN_AI__TOOL__CALL__RESULT)
+        .and_then(Value::as_str)
+    else {
+        return;
+    };
+
+    let size = result.len() as i64;
+    attributes.insert(
+        GEN_AI__TOOL__CALL__RESULT__SIZE.to_owned(),
+        Annotated::new(size.into()),
+    );
+}
+
 /// Returns whether a valid total cost is attached.
 pub fn has_valid_total_cost(attributes: &impl AttributesLike) -> bool {
     attributes
@@ -470,6 +499,8 @@ fn enrich_ai_span_data(
         .entry(GEN_AI__OPERATION__TYPE.to_owned())
         .or_default()
         .set_value(Some(Value::String(ai_op_type.to_owned())));
+
+    normalize_tool_call_result_size(data);
 }
 
 /// Enrich the AI span data
@@ -565,6 +596,59 @@ mod tests {
             op: "gen_ai.test".to_owned().into(),
             data: SpanData::from_value(data.into()),
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_tool_call_result_size_both_pipelines() {
+        use relay_event_schema::protocol::{Attribute, Attributes};
+
+        for (op, result, size, expected) in [
+            ("gen_ai.execute_tool", Some("hello"), None, Some(5)),
+            ("gen_ai.execute_tool", Some("雨🌧️"), None, Some(10)),
+            ("gen_ai.execute_tool", Some(""), None, Some(0)),
+            ("gen_ai.execute_tool", None, None, None),
+            ("gen_ai.execute_tool", Some("short"), Some(1000), Some(1000)),
+            ("gen_ai.chat", Some("hello"), None, None),
+        ] {
+            let mut span = ai_span_with_data(json!({
+                "gen_ai.tool.call.result": result,
+                "gen_ai.tool.call.result.size": size,
+            }));
+            span.op = op.to_owned().into();
+            enrich_ai_span(&mut span, None);
+            assert_eq!(
+                span.data
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
+                    .and_then(Value::as_f64),
+                expected.map(f64::from),
+                "legacy: {op}"
+            );
+
+            let mut attributes = Attributes::new();
+            attributes.insert(SENTRY__OP, op.to_owned());
+            if let Some(result) = result {
+                attributes.0.insert(
+                    GEN_AI__TOOL__CALL__RESULT.to_owned(),
+                    Annotated::new(Attribute::from(result)),
+                );
+            }
+            if let Some(size) = size {
+                attributes.insert(GEN_AI__TOOL__CALL__RESULT__SIZE, i64::from(size));
+            }
+            let mut attributes = Annotated::new(attributes);
+            crate::eap::normalize_ai(&mut attributes, None, None);
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
+                    .and_then(Value::as_f64),
+                expected.map(f64::from),
+                "EAP: {op}"
+            );
         }
     }
 

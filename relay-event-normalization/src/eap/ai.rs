@@ -5,7 +5,7 @@ use relay_event_schema::protocol::Attributes;
 use relay_protocol::Annotated;
 
 use crate::ModelMetadata;
-use crate::span::ai;
+use crate::span::ai::{self, normalize_tool_call_result_size};
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 
 /// Normalizes AI attributes.
@@ -32,6 +32,7 @@ pub fn normalize_ai(
 
     normalize_model(attributes);
     normalize_ai_type(attributes);
+    normalize_tool_call_result_size(attributes);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
     normalize_context_utilization(attributes, model_metadata);
@@ -293,6 +294,50 @@ mod tests {
                     context_size: Some(100_000),
                 },
             )]),
+        }
+    }
+
+    #[test]
+    fn test_tool_call_result_size_before_trimming() {
+        use relay_event_schema::processor::{self, ProcessingState};
+
+        let result = "雨".repeat(20_000);
+        for key in [
+            "gen_ai.tool.call.result",
+            "gen_ai.tool.output",
+            "ai.toolCall.result",
+            "mcp.tool.result.content",
+        ] {
+            let mut attributes = Annotated::new(attributes! {
+                GEN_AI__OPERATION__NAME => "execute_tool".to_owned(),
+                key => result.clone(),
+            });
+            crate::eap::normalize_attribute_names(&mut attributes);
+            normalize_ai(&mut attributes, None, None);
+
+            let state = ProcessingState::root_builder().max_bytes(1000).build();
+            processor::process_value(
+                &mut attributes,
+                &mut crate::eap::TrimmingProcessor::new(100),
+                &state,
+            )
+            .unwrap();
+            normalize_ai(&mut attributes, None, None);
+
+            let attributes = attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
+                    .and_then(|v| v.as_f64()),
+                Some(result.len() as f64),
+                "{key}"
+            );
+            assert!(
+                attributes
+                    .get_value(GEN_AI__TOOL__CALL__RESULT)
+                    .and_then(|v| v.as_str())
+                    .is_none_or(|trimmed| trimmed.len() < result.len())
+            );
         }
     }
 
