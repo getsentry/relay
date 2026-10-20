@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event schema (Error, Transaction, Security) and types for event processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.9.0"
+version = "26.10.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -19,7 +19,6 @@ cookie = { workspace = true, features = ["percent-encode"] }
 debugid = { workspace = true, features = ["serde"] }
 enumset = { workspace = true }
 minidump = { workspace = true }
-opentelemetry-proto = { workspace = true, features = ["gen-tonic", "trace"] }
 rand = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }

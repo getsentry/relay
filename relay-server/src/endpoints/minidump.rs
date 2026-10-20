@@ -516,6 +516,7 @@ async fn upload_context<'a>(
             scoping,
             upstream: project_config.upstream.clone(),
             retention: project_config.event_retention(),
+            resumable: false,
         },
         upload_attachments,
         upload_minidumps,

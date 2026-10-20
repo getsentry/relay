@@ -1,59 +1,26 @@
+use std::collections::BTreeMap;
+
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
-use relay_quotas::DataCategory;
+use relay_metrics::{Bucket, BucketMetadata, BucketValue};
 
 use crate::metrics_extraction::ExtractedMetrics;
-use crate::metrics_extraction::generic::{self, Extractable};
 use crate::processing::transactions::extraction::extract_segment_span;
 use crate::statsd::RelayTimers;
 
-impl Extractable for Event {
-    fn category(&self) -> DataCategory {
-        // Obtain the event's data category, but treat default events as error events for the
-        // purpose of metric tagging.
-        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
-            DataCategory::Default => DataCategory::Error,
-            category => category,
-        }
-    }
-
-    fn timestamp(&self) -> Option<UnixTimestamp> {
-        self.timestamp
-            .value()
-            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
-    }
-}
-
-impl Extractable for Span {
-    fn category(&self) -> DataCategory {
-        DataCategory::Span
-    }
-
-    fn timestamp(&self) -> Option<UnixTimestamp> {
-        self.timestamp
-            .value()
-            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
-    }
-}
-
 /// Configuration for [`extract_metrics`].
 #[derive(Debug, Copy, Clone)]
-pub struct ExtractMetricsConfig<'a> {
-    pub config: CombinedMetricExtractionConfig<'a>,
+pub struct ExtractMetricsConfig {
     pub max_tag_value_size: usize,
     pub extract_spans: bool,
 }
 
-/// Extracts metrics from an [`Event`].
+/// Extracts usage metrics from a transaction and its spans.
 ///
-/// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
-/// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
-/// valid timestamps.
-///
-/// If this is a transaction event with spans, metrics will also be extracted from the spans.
+/// Spans with missing or invalid end timestamps are skipped. Timestamp and clock drift correction
+/// should occur before metrics extraction to ensure valid timestamps.
 pub fn extract_metrics(event: &mut Event, config: ExtractMetricsConfig) -> ExtractedMetrics {
-    let mut metrics = ExtractedMetrics(generic::extract_metrics(event, config.config));
+    let mut metrics = ExtractedMetrics::default();
 
     if config.extract_spans {
         extract_span_metrics_for_event(event, config, &mut metrics);
@@ -64,72 +31,131 @@ pub fn extract_metrics(event: &mut Event, config: ExtractMetricsConfig) -> Extra
 
 fn extract_span_metrics_for_event(
     event: &mut Event,
-    config: ExtractMetricsConfig<'_>,
+    config: ExtractMetricsConfig,
     output: &mut ExtractedMetrics,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_segment_span(event, config.max_tag_value_size, &[])
         {
-            let metrics = generic::extract_metrics(&transaction_span, config.config);
-            output.0.extend(metrics);
+            output.0.extend(extract_span_usage(&transaction_span));
         }
 
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
-                    let metrics = generic::extract_metrics(span, config.config);
-                    output.0.extend(metrics);
+                    output.0.extend(extract_span_usage(span));
                 }
             }
         }
     });
 }
 
+/// Creates the usage counter for a span, preserving its end timestamp and segment tags.
+fn extract_span_usage(span: &Span) -> Option<Bucket> {
+    let Some(timestamp) = span
+        .timestamp
+        .value()
+        .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
+    else {
+        relay_log::error!("invalid span timestamp for metric extraction");
+        return None;
+    };
+
+    let is_segment = span.is_segment.value() == Some(&true);
+    let mut tags = BTreeMap::from([("is_segment".to_owned(), is_segment.to_string())]);
+    if is_segment && span.was_transaction.value() == Some(&true) {
+        tags.insert("was_transaction".to_owned(), "true".to_owned());
+    }
+
+    // The received time is the moment of extraction, rather than the span's timestamp.
+    let received_at = if cfg!(not(test)) {
+        UnixTimestamp::now()
+    } else {
+        UnixTimestamp::from_secs(0)
+    };
+
+    Some(Bucket {
+        name: "c:spans/usage@none".into(),
+        width: 0,
+        value: BucketValue::counter(1.into()),
+        timestamp,
+        tags,
+        metadata: BucketMetadata::new(received_at),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
-    use relay_dynamic_config::{
-        ErrorBoundary, Feature, FeatureSet, GlobalConfig, MetricExtractionConfig,
-        MetricExtractionGroups, ProjectConfig,
-    };
     use relay_event_normalization::{NormalizationConfig, normalize_event};
+    use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
 
     use super::*;
 
-    struct OwnedConfig {
-        global: MetricExtractionGroups,
-        project: MetricExtractionConfig,
-    }
+    #[test]
+    fn span_usage_tags() {
+        for is_segment in [None, Some(false), Some(true)] {
+            for was_transaction in [None, Some(false), Some(true)] {
+                let span = Span {
+                    timestamp: Timestamp(UnixTimestamp::from_secs(123).as_datetime().unwrap())
+                        .into(),
+                    is_segment: is_segment.into(),
+                    was_transaction: was_transaction.into(),
+                    ..Default::default()
+                };
+                let metric = extract_span_usage(&span).unwrap();
 
-    impl OwnedConfig {
-        fn combined(&self) -> CombinedMetricExtractionConfig<'_> {
-            CombinedMetricExtractionConfig::new(&self.global, &self.project)
+                assert_eq!(&metric.name, "c:spans/usage@none");
+                assert_eq!(metric.value, BucketValue::counter(1.into()));
+                assert_eq!(metric.timestamp, UnixTimestamp::from_secs(123));
+                assert_eq!(metric.width, 0);
+                assert_eq!(
+                    metric.metadata,
+                    BucketMetadata::new(UnixTimestamp::from_secs(0))
+                );
+                assert_eq!(
+                    metric.tags["is_segment"],
+                    (is_segment == Some(true)).to_string()
+                );
+                if is_segment == Some(true) && was_transaction == Some(true) {
+                    assert_eq!(metric.tags.len(), 2);
+                    assert_eq!(metric.tags["was_transaction"], "true");
+                } else {
+                    assert_eq!(metric.tags.len(), 1);
+                }
+            }
         }
     }
 
-    fn combined_config(
-        features: impl Into<BTreeSet<Feature>>,
-        metric_extraction: Option<MetricExtractionConfig>,
-    ) -> OwnedConfig {
-        let global = GlobalConfig::default();
-        let global = global.metric_extraction.ok().unwrap();
-
-        let features = FeatureSet(features.into());
-
-        let mut project = ProjectConfig {
-            features,
-            metric_extraction: metric_extraction.map(ErrorBoundary::Ok).unwrap_or_default(),
-            ..ProjectConfig::default()
-        };
-        project.sanitize(false); // enables metrics extraction rules
-        let project = project.metric_extraction.ok().unwrap();
-
-        OwnedConfig { global, project }
+    #[test]
+    fn span_usage_requires_valid_timestamp() {
+        for json in [
+            r#"{}"#,
+            r#"{"timestamp": -1}"#,
+            r#"{"timestamp": "invalid"}"#,
+        ] {
+            let span = Annotated::<Span>::from_json(json).unwrap();
+            assert!(extract_span_usage(span.value().unwrap()).is_none());
+        }
     }
 
-    fn extract_span_metrics(features: impl Into<BTreeSet<Feature>>) -> ExtractedMetrics {
+    #[test]
+    fn disabled_span_extraction() {
+        let mut event = Event {
+            timestamp: Timestamp(UnixTimestamp::from_secs(123).as_datetime().unwrap()).into(),
+            ..Default::default()
+        };
+        let metrics = extract_metrics(
+            &mut event,
+            ExtractMetricsConfig {
+                max_tag_value_size: 200,
+                extract_spans: false,
+            },
+        );
+        assert!(metrics.0.is_empty());
+    }
+
+    fn extract_span_metrics() -> ExtractedMetrics {
         let json = r#"
         {
             "type": "transaction",
@@ -1187,7 +1213,6 @@ mod tests {
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
             ExtractMetricsConfig {
-                config: combined_config(features, None).combined(),
                 max_tag_value_size: 200,
                 extract_spans: true,
             },
@@ -1195,10 +1220,17 @@ mod tests {
     }
 
     #[test]
-    fn no_feature_flags_enabled() {
-        let metrics = extract_span_metrics([]);
+    fn span_usage() {
+        let metrics = extract_span_metrics();
 
         assert_eq!(metrics.0.len(), 75);
+        assert_eq!(metrics.0[0].tags["is_segment"], "true");
+        assert_eq!(metrics.0[0].tags["was_transaction"], "true");
+        assert!(
+            metrics.0[1..]
+                .iter()
+                .all(|metric| { metric.tags.len() == 1 && metric.tags["is_segment"] == "false" })
+        );
         assert!(
             metrics
                 .0

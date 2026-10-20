@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Remove the `organizations:relay-automatic-json-expansion` feature from project config. ([#6518](https://github.com/getsentry/relay/pull/6518))
+
+## 0.10.1
+
+- Add the `release` rule condition for generic inbound filters. ([#6430](https://github.com/getsentry/relay/pull/6430))
+
+## 0.10.0
+
 - **Breaking**: Removes codeowners and glob matching, this has been moved into Ophio. ([#6447](https://github.com/getsentry/relay/pull/6447))
 - Adds support for Relay's Pattern. ([#6448](https://github.com/getsentry/relay/pull/6448))
 - Add `projects:relay-automatic-json-expansion` feature to project config. ([#6459](https://github.com/getsentry/relay/pull/6459))

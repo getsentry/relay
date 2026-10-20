@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Types and traits for building JSON-based protocols and schemas"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.9.0"
+version = "26.10.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -15,9 +15,10 @@ workspace = true
 [dependencies]
 ipnetwork = { workspace = true }
 num-traits = { workspace = true }
-relay-common = { workspace = true }
 relay-pattern = { workspace = true }
 relay-protocol-derive = { workspace = true, optional = true }
+semver = { workspace = true }
+sentry-release-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
