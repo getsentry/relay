@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a>        partition_id: u8,
 <a href=#57 id=57 data-nosnippet>57</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#58 id=58 data-nosnippet>58</a>        memory_checker: MemoryChecker,
-<a href=#59 id=59 data-nosnippet>59</a>        throttle: <span class="prelude-ty">Option</span>&lt;Arc&lt;Throttle&gt;&gt;,
+<a href=#59 id=59 data-nosnippet>59</a>        throttle: Arc&lt;Throttle&gt;,
 <a href=#60 id=60 data-nosnippet>60</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
 <a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>buffer = <span class="kw">if </span>config.spool_envelopes_path(partition_id).is_some() {
 <a href=#62 id=62 data-nosnippet>62</a>            <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer"</span>);
@@ -293,7 +293,7 @@
 <a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub async fn </span>new(
 <a href=#294 id=294 data-nosnippet>294</a>        partition_id: u8,
 <a href=#295 id=295 data-nosnippet>295</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
-<a href=#296 id=296 data-nosnippet>296</a>        throttle: <span class="prelude-ty">Option</span>&lt;Arc&lt;Throttle&gt;&gt;,
+<a href=#296 id=296 data-nosnippet>296</a>        throttle: Arc&lt;Throttle&gt;,
 <a href=#297 id=297 data-nosnippet>297</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
 <a href=#298 id=298 data-nosnippet>298</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
 <a href=#299 id=299 data-nosnippet>299</a>            stacks_by_project: Default::default(),
@@ -1101,39 +1101,43 @@
 <a href=#1101 id=1101 data-nosnippet>1101</a>        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::prepare(<span class="number">0</span>, <span class="kw-2">&amp;</span>current_config)
 <a href=#1102 id=1102 data-nosnippet>1102</a>            .<span class="kw">await
 <a href=#1103 id=1103 data-nosnippet>1103</a>            </span>.unwrap();
-<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(<span class="number">0</span>, <span class="kw-2">&amp;</span>current_config, <span class="prelude-val">None</span>)
-<a href=#1105 id=1105 data-nosnippet>1105</a>            .<span class="kw">await
-<a href=#1106 id=1106 data-nosnippet>1106</a>            </span>.unwrap();
-<a href=#1107 id=1107 data-nosnippet>1107</a>
-<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="comment">// We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
-<a href=#1109 id=1109 data-nosnippet>1109</a>        // belong to the same project keys, so they belong to the same envelope stack.
-<a href=#1110 id=1110 data-nosnippet>1110</a>        </span><span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
-<a href=#1111 id=1111 data-nosnippet>1111</a>        <span class="macro">assert!</span>(
-<a href=#1112 id=1112 data-nosnippet>1112</a>            store
-<a href=#1113 id=1113 data-nosnippet>1113</a>                .insert_batch(
-<a href=#1114 id=1114 data-nosnippet>1114</a>                    envelopes
-<a href=#1115 id=1115 data-nosnippet>1115</a>                        .into_iter()
-<a href=#1116 id=1116 data-nosnippet>1116</a>                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-<a href=#1117 id=1117 data-nosnippet>1117</a>                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#1118 id=1118 data-nosnippet>1118</a>                        .try_into()
-<a href=#1119 id=1119 data-nosnippet>1119</a>                        .unwrap()
-<a href=#1120 id=1120 data-nosnippet>1120</a>                )
-<a href=#1121 id=1121 data-nosnippet>1121</a>                .<span class="kw">await
-<a href=#1122 id=1122 data-nosnippet>1122</a>                </span>.is_ok()
-<a href=#1123 id=1123 data-nosnippet>1123</a>        );
-<a href=#1124 id=1124 data-nosnippet>1124</a>
-<a href=#1125 id=1125 data-nosnippet>1125</a>        <span class="comment">// We assume that the buffer is empty.
-<a href=#1126 id=1126 data-nosnippet>1126</a>        </span><span class="macro">assert!</span>(buffer.priority_queue.is_empty());
-<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="macro">assert!</span>(buffer.stacks_by_project.is_empty());
+<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(
+<a href=#1105 id=1105 data-nosnippet>1105</a>            <span class="number">0</span>,
+<a href=#1106 id=1106 data-nosnippet>1106</a>            <span class="kw-2">&amp;</span>current_config,
+<a href=#1107 id=1107 data-nosnippet>1107</a>            Arc::new(Throttle::new(<span class="prelude-val">None</span>)),
+<a href=#1108 id=1108 data-nosnippet>1108</a>        )
+<a href=#1109 id=1109 data-nosnippet>1109</a>        .<span class="kw">await
+<a href=#1110 id=1110 data-nosnippet>1110</a>        </span>.unwrap();
+<a href=#1111 id=1111 data-nosnippet>1111</a>
+<a href=#1112 id=1112 data-nosnippet>1112</a>        <span class="comment">// We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
+<a href=#1113 id=1113 data-nosnippet>1113</a>        // belong to the same project keys, so they belong to the same envelope stack.
+<a href=#1114 id=1114 data-nosnippet>1114</a>        </span><span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
+<a href=#1115 id=1115 data-nosnippet>1115</a>        <span class="macro">assert!</span>(
+<a href=#1116 id=1116 data-nosnippet>1116</a>            store
+<a href=#1117 id=1117 data-nosnippet>1117</a>                .insert_batch(
+<a href=#1118 id=1118 data-nosnippet>1118</a>                    envelopes
+<a href=#1119 id=1119 data-nosnippet>1119</a>                        .into_iter()
+<a href=#1120 id=1120 data-nosnippet>1120</a>                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+<a href=#1121 id=1121 data-nosnippet>1121</a>                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#1122 id=1122 data-nosnippet>1122</a>                        .try_into()
+<a href=#1123 id=1123 data-nosnippet>1123</a>                        .unwrap()
+<a href=#1124 id=1124 data-nosnippet>1124</a>                )
+<a href=#1125 id=1125 data-nosnippet>1125</a>                .<span class="kw">await
+<a href=#1126 id=1126 data-nosnippet>1126</a>                </span>.is_ok()
+<a href=#1127 id=1127 data-nosnippet>1127</a>        );
 <a href=#1128 id=1128 data-nosnippet>1128</a>
-<a href=#1129 id=1129 data-nosnippet>1129</a>        buffer.initialize().<span class="kw">await</span>;
-<a href=#1130 id=1130 data-nosnippet>1130</a>
-<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="comment">// We assume that we loaded only 1 envelope stack, because of the project keys combinations
-<a href=#1132 id=1132 data-nosnippet>1132</a>        // of the envelopes we inserted above.
-<a href=#1133 id=1133 data-nosnippet>1133</a>        </span><span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">1</span>);
-<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="comment">// We expect to have an entry per project key, since we have 1 pair, the total entries
-<a href=#1135 id=1135 data-nosnippet>1135</a>        // should be 2.
-<a href=#1136 id=1136 data-nosnippet>1136</a>        </span><span class="macro">assert_eq!</span>(buffer.stacks_by_project.len(), <span class="number">2</span>);
-<a href=#1137 id=1137 data-nosnippet>1137</a>    }
-<a href=#1138 id=1138 data-nosnippet>1138</a>}
+<a href=#1129 id=1129 data-nosnippet>1129</a>        <span class="comment">// We assume that the buffer is empty.
+<a href=#1130 id=1130 data-nosnippet>1130</a>        </span><span class="macro">assert!</span>(buffer.priority_queue.is_empty());
+<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="macro">assert!</span>(buffer.stacks_by_project.is_empty());
+<a href=#1132 id=1132 data-nosnippet>1132</a>
+<a href=#1133 id=1133 data-nosnippet>1133</a>        buffer.initialize().<span class="kw">await</span>;
+<a href=#1134 id=1134 data-nosnippet>1134</a>
+<a href=#1135 id=1135 data-nosnippet>1135</a>        <span class="comment">// We assume that we loaded only 1 envelope stack, because of the project keys combinations
+<a href=#1136 id=1136 data-nosnippet>1136</a>        // of the envelopes we inserted above.
+<a href=#1137 id=1137 data-nosnippet>1137</a>        </span><span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">1</span>);
+<a href=#1138 id=1138 data-nosnippet>1138</a>        <span class="comment">// We expect to have an entry per project key, since we have 1 pair, the total entries
+<a href=#1139 id=1139 data-nosnippet>1139</a>        // should be 2.
+<a href=#1140 id=1140 data-nosnippet>1140</a>        </span><span class="macro">assert_eq!</span>(buffer.stacks_by_project.len(), <span class="number">2</span>);
+<a href=#1141 id=1141 data-nosnippet>1141</a>    }
+<a href=#1142 id=1142 data-nosnippet>1142</a>}
 </code></pre></div></section></main></body></html>

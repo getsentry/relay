@@ -13,7 +13,7 @@ object safe.</p>
     partition_id: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u8.html">u8</a>,
     config: &amp;<a class="struct" href="../relay_config/config/struct.ConfigSnapshot.html" title="struct relay_config::config::ConfigSnapshot">ConfigSnapshot</a>,
     memory_checker: <a class="struct" href="struct.MemoryChecker.html" title="struct relay_server::MemoryChecker">MemoryChecker</a>,
-    throttle: <a class="enum" href="https://doc.rust-lang.org/1.99.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;Throttle&gt;&gt;,
+    throttle: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="struct.Throttle.html" title="struct relay_server::Throttle">Throttle</a>&gt;,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self, EnvelopeBufferError&gt;</h4></section></summary><div class="docblock"><p>Creates either a memory-based or a disk-based envelope buffer,
 depending on the given configuration.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.initialize" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_buffer/mod.rs.html#76-81">Source</a><h4 class="code-header">pub async fn <a href="#method.initialize" class="fn">initialize</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Initializes the envelope buffer.</p>

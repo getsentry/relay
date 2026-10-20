@@ -25,7 +25,7 @@
 <a href=#25 id=25 data-nosnippet>25</a>    max_disk_size: usize,
 <a href=#26 id=26 data-nosnippet>26</a>    partition_id: u8,
 <a href=#27 id=27 data-nosnippet>27</a>    ephemeral: bool,
-<a href=#28 id=28 data-nosnippet>28</a>    unspool_throttle: <span class="prelude-ty">Option</span>&lt;Arc&lt;Throttle&gt;&gt;,
+<a href=#28 id=28 data-nosnippet>28</a>    unspool_throttle: Arc&lt;Throttle&gt;,
 <a href=#29 id=29 data-nosnippet>29</a>}
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a><span class="attr">#[warn(dead_code)]
@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>    </span><span class="kw">pub async fn </span>new(
 <a href=#35 id=35 data-nosnippet>35</a>        partition_id: u8,
 <a href=#36 id=36 data-nosnippet>36</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
-<a href=#37 id=37 data-nosnippet>37</a>        unspool_throttle: <span class="prelude-ty">Option</span>&lt;Arc&lt;Throttle&gt;&gt;,
+<a href=#37 id=37 data-nosnippet>37</a>        unspool_throttle: Arc&lt;Throttle&gt;,
 <a href=#38 id=38 data-nosnippet>38</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SqliteEnvelopeStoreError&gt; {
 <a href=#39 id=39 data-nosnippet>39</a>        <span class="kw">let </span>envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#40 id=40 data-nosnippet>40</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -149,63 +149,66 @@
 <a href=#149 id=149 data-nosnippet>149</a>
 <a href=#150 id=150 data-nosnippet>150</a>    <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">use </span>relay_config::Config;
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">use </span>uuid::Uuid;
-<a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">use </span><span class="kw">crate</span>::EnvelopeStack;
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
-<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{StackCreationType, StackProvider};
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::mock_envelopes;
-<a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">fn </span>mock_config() -&gt; Arc&lt;Config&gt; {
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">let </span>path = std::env::temp_dir()
-<a href=#162 id=162 data-nosnippet>162</a>            .join(Uuid::new_v4().to_string())
-<a href=#163 id=163 data-nosnippet>163</a>            .into_os_string()
-<a href=#164 id=164 data-nosnippet>164</a>            .into_string()
-<a href=#165 id=165 data-nosnippet>165</a>            .unwrap();
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a>        Config::from_json_value(<span class="macro">serde_json::json!</span>({
-<a href=#168 id=168 data-nosnippet>168</a>            <span class="string">"spool"</span>: {
-<a href=#169 id=169 data-nosnippet>169</a>                <span class="string">"envelopes"</span>: {
-<a href=#170 id=170 data-nosnippet>170</a>                    <span class="string">"path"</span>: path,
-<a href=#171 id=171 data-nosnippet>171</a>                    <span class="string">"disk_batch_size"</span>: <span class="number">100</span>,
-<a href=#172 id=172 data-nosnippet>172</a>                    <span class="string">"max_batches"</span>: <span class="number">1</span>,
-<a href=#173 id=173 data-nosnippet>173</a>                }
-<a href=#174 id=174 data-nosnippet>174</a>            }
-<a href=#175 id=175 data-nosnippet>175</a>        }))
-<a href=#176 id=176 data-nosnippet>176</a>        .unwrap()
-<a href=#177 id=177 data-nosnippet>177</a>        .into()
-<a href=#178 id=178 data-nosnippet>178</a>    }
-<a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="attr">#[tokio::test]
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">async fn </span>test_flush() {
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>config = mock_config();
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">let </span><span class="kw-2">mut </span>stack_provider = SqliteStackProvider::new(<span class="number">0</span>, <span class="kw-2">&amp;</span>config.current(), <span class="prelude-val">None</span>)
-<a href=#184 id=184 data-nosnippet>184</a>            .<span class="kw">await
-<a href=#185 id=185 data-nosnippet>185</a>            </span>.unwrap();
-<a href=#186 id=186 data-nosnippet>186</a>
-<a href=#187 id=187 data-nosnippet>187</a>        <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-<a href=#188 id=188 data-nosnippet>188</a>        <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();
+<a href=#152 id=152 data-nosnippet>152</a>
+<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::throttle::Throttle;
+<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">use </span>uuid::Uuid;
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">use </span><span class="kw">crate</span>::EnvelopeStack;
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
+<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{StackCreationType, StackProvider};
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::mock_envelopes;
+<a href=#161 id=161 data-nosnippet>161</a>
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">fn </span>mock_config() -&gt; Arc&lt;Config&gt; {
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">let </span>path = std::env::temp_dir()
+<a href=#164 id=164 data-nosnippet>164</a>            .join(Uuid::new_v4().to_string())
+<a href=#165 id=165 data-nosnippet>165</a>            .into_os_string()
+<a href=#166 id=166 data-nosnippet>166</a>            .into_string()
+<a href=#167 id=167 data-nosnippet>167</a>            .unwrap();
+<a href=#168 id=168 data-nosnippet>168</a>
+<a href=#169 id=169 data-nosnippet>169</a>        Config::from_json_value(<span class="macro">serde_json::json!</span>({
+<a href=#170 id=170 data-nosnippet>170</a>            <span class="string">"spool"</span>: {
+<a href=#171 id=171 data-nosnippet>171</a>                <span class="string">"envelopes"</span>: {
+<a href=#172 id=172 data-nosnippet>172</a>                    <span class="string">"path"</span>: path,
+<a href=#173 id=173 data-nosnippet>173</a>                    <span class="string">"disk_batch_size"</span>: <span class="number">100</span>,
+<a href=#174 id=174 data-nosnippet>174</a>                    <span class="string">"max_batches"</span>: <span class="number">1</span>,
+<a href=#175 id=175 data-nosnippet>175</a>                }
+<a href=#176 id=176 data-nosnippet>176</a>            }
+<a href=#177 id=177 data-nosnippet>177</a>        }))
+<a href=#178 id=178 data-nosnippet>178</a>        .unwrap()
+<a href=#179 id=179 data-nosnippet>179</a>        .into()
+<a href=#180 id=180 data-nosnippet>180</a>    }
+<a href=#181 id=181 data-nosnippet>181</a>
+<a href=#182 id=182 data-nosnippet>182</a>    <span class="attr">#[tokio::test]
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">async fn </span>test_flush() {
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">let </span>config = mock_config();
+<a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">let </span><span class="kw-2">mut </span>stack_provider =
+<a href=#186 id=186 data-nosnippet>186</a>            SqliteStackProvider::new(<span class="number">0</span>, <span class="kw-2">&amp;</span>config.current(), Arc::new(Throttle::new(<span class="prelude-val">None</span>)))
+<a href=#187 id=187 data-nosnippet>187</a>                .<span class="kw">await
+<a href=#188 id=188 data-nosnippet>188</a>                </span>.unwrap();
 <a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope_stack = stack_provider.create_stack(
-<a href=#191 id=191 data-nosnippet>191</a>            StackCreationType::New,
-<a href=#192 id=192 data-nosnippet>192</a>            ProjectKeyPair::new(own_key, sampling_key),
-<a href=#193 id=193 data-nosnippet>193</a>        );
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">for </span>envelope <span class="kw">in </span>envelopes {
-<a href=#197 id=197 data-nosnippet>197</a>            envelope_stack.push(envelope).<span class="kw">await</span>.unwrap();
-<a href=#198 id=198 data-nosnippet>198</a>        }
-<a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>envelope_store = stack_provider.envelope_store.clone();
-<a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="comment">// We make sure that no data is on disk since we will spool when more than 100 elements are
-<a href=#203 id=203 data-nosnippet>203</a>        // in the in-memory stack.
-<a href=#204 id=204 data-nosnippet>204</a>        </span><span class="macro">assert_eq!</span>(envelope_store.total_count().<span class="kw">await</span>.unwrap(), <span class="number">0</span>);
-<a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a>        <span class="comment">// We drain the stack provider, and we expect all in-memory envelopes to be spooled to disk.
-<a href=#207 id=207 data-nosnippet>207</a>        </span>stack_provider.flush(<span class="macro">vec!</span>[envelope_stack]).<span class="kw">await</span>;
-<a href=#208 id=208 data-nosnippet>208</a>        <span class="macro">assert_eq!</span>(envelope_store.total_count().<span class="kw">await</span>.unwrap(), <span class="number">10</span>);
-<a href=#209 id=209 data-nosnippet>209</a>    }
-<a href=#210 id=210 data-nosnippet>210</a>}
+<a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope_stack = stack_provider.create_stack(
+<a href=#194 id=194 data-nosnippet>194</a>            StackCreationType::New,
+<a href=#195 id=195 data-nosnippet>195</a>            ProjectKeyPair::new(own_key, sampling_key),
+<a href=#196 id=196 data-nosnippet>196</a>        );
+<a href=#197 id=197 data-nosnippet>197</a>
+<a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
+<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">for </span>envelope <span class="kw">in </span>envelopes {
+<a href=#200 id=200 data-nosnippet>200</a>            envelope_stack.push(envelope).<span class="kw">await</span>.unwrap();
+<a href=#201 id=201 data-nosnippet>201</a>        }
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">let </span>envelope_store = stack_provider.envelope_store.clone();
+<a href=#204 id=204 data-nosnippet>204</a>
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="comment">// We make sure that no data is on disk since we will spool when more than 100 elements are
+<a href=#206 id=206 data-nosnippet>206</a>        // in the in-memory stack.
+<a href=#207 id=207 data-nosnippet>207</a>        </span><span class="macro">assert_eq!</span>(envelope_store.total_count().<span class="kw">await</span>.unwrap(), <span class="number">0</span>);
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="comment">// We drain the stack provider, and we expect all in-memory envelopes to be spooled to disk.
+<a href=#210 id=210 data-nosnippet>210</a>        </span>stack_provider.flush(<span class="macro">vec!</span>[envelope_stack]).<span class="kw">await</span>;
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="macro">assert_eq!</span>(envelope_store.total_count().<span class="kw">await</span>.unwrap(), <span class="number">10</span>);
+<a href=#212 id=212 data-nosnippet>212</a>    }
+<a href=#213 id=213 data-nosnippet>213</a>}
 </code></pre></div></section></main></body></html>
