@@ -4,8 +4,9 @@
 
 use std::collections::HashSet;
 
+use bytes::Bytes;
 use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::sample;
 
@@ -52,13 +53,14 @@ pub enum Error {
     ChildSampleCount,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Graph {
     version: String,
     platform: String,
     frames: Vec<Frame>,
     nodes: Vec<Node>,
     trees: Vec<Tree>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<sample::DebugMeta>,
 }
 
@@ -68,36 +70,37 @@ impl Graph {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Frame {
     #[serde(flatten)]
     frame: sample::Frame,
+    #[serde(skip_serializing_if = "Option::is_none")]
     addr_mode: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Tree {
     roots: Vec<usize>,
-    #[serde(rename = "thread_id")]
+    #[serde(rename = "thread_id", skip_serializing_if = "Option::is_none")]
     _thread_id: Option<String>,
-    #[serde(rename = "thread_attributed")]
+    #[serde(rename = "thread_attributed", skip_serializing_if = "Option::is_none")]
     _thread_attributed: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Node {
     frame_id: usize,
     sample_count: u64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     children: Vec<usize>,
 }
 
 /// Validate an attachment using the shared V2 profiling frame and debug metadata schemas.
-///
-/// The original bytes, including unknown fields and symbolication inputs, remain unchanged.
-/// Symbolication and its frame-processing budget belong to the downstream consumer.
-pub fn validate(payload: &[u8]) -> Result<(), Error> {
-    parse(payload).map(|_| ())
+pub fn validate(payload: &[u8]) -> Result<Bytes, Error> {
+    let graph = parse(payload)?;
+    let serialized = serde_json::to_vec(&graph)?;
+
+    Ok(serialized.into())
 }
 
 fn parse(payload: &[u8]) -> Result<Graph, Error> {

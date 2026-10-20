@@ -29,13 +29,14 @@ pub fn validate_attachments<T, V>(
     T: Counted,
     V: RetainMut<Item>,
 {
-    managed.retain(select, |attachment, _| {
+    managed.retain(select, |attachment, r| {
         if attachment.attachment_type() == Some(AttachmentType::Flamegraph)
             && !has_valid_flamegraph_headers(attachment)
         {
             return Err(ProcessingError::InvalidFlamegraph);
         }
         if ctx.is_processing() {
+            r.lenient(relay_quotas::DataCategory::Attachment);
             validate(attachment, ctx.config)
         } else {
             Ok(())
@@ -44,7 +45,7 @@ pub fn validate_attachments<T, V>(
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 
@@ -56,8 +57,10 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
             if !has_valid_flamegraph_headers(item) {
                 return Err(ProcessingError::InvalidFlamegraph);
             }
-            relay_profiling::flamegraph::validate(&item.payload())
+            let validated_payload = relay_profiling::flamegraph::validate(&item.payload())
                 .map_err(|_| ProcessingError::InvalidFlamegraph)?;
+            item.set_payload_without_content_type(validated_payload);
+
             return Ok(());
         }
 
@@ -378,7 +381,7 @@ mod tests {
             let mut payload = flamegraph_payload();
             *payload.pointer_mut(path).unwrap() = value;
             assert!(
-                validate(&flamegraph_item(payload), &config.current()).is_err(),
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
                 "{path}"
             );
         }
@@ -386,13 +389,13 @@ mod tests {
             let mut payload = flamegraph_payload();
             payload.as_object_mut().unwrap().remove(field);
             assert!(
-                validate(&flamegraph_item(payload), &config.current()).is_err(),
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
                 "{field}"
             );
         }
         let mut item = flamegraph_item(flamegraph_payload());
         item.set_payload(ContentType::Json, "not json");
-        assert!(validate(&item, &config.current()).is_err());
+        assert!(validate(&mut item, &config.current()).is_err());
     }
 
     #[cfg(feature = "processing")]
@@ -401,24 +404,24 @@ mod tests {
         let config = relay_config::Config::default();
         let mut item = flamegraph_item(flamegraph_payload());
         item.set_filename("other.json");
-        assert!(validate(&item, &config.current()).is_err());
+        assert!(validate(&mut item, &config.current()).is_err());
         let mut item = flamegraph_item(flamegraph_payload());
         item.set_payload(ContentType::Text, item.payload());
-        assert!(validate(&item, &config.current()).is_err());
+        assert!(validate(&mut item, &config.current()).is_err());
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         for headers in [
             r#"{"type":"attachment","attachment_type":"event.flamegraph","content_type":"application/json"}"#,
             r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json"}"#,
         ] {
-            let (item, _) =
+            let (mut item, _) =
                 Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
-            assert!(validate(&item, &config.current()).is_err());
+            assert!(validate(&mut item, &config.current()).is_err());
         }
     }
 
     #[cfg(feature = "processing")]
     #[test]
-    fn test_flamegraph_preserves_unknown_fields_and_recursive_frames() {
+    fn test_flamegraph_removes_unknown_fields() {
         let config = relay_config::Config::default();
         let mut payload = flamegraph_payload();
         payload["future"] = serde_json::json!({"keep": "this"});
@@ -427,10 +430,25 @@ mod tests {
             {"frame_id": 0, "sample_count": 6, "future": true},
             {"frame_id": 0, "sample_count": 4}
         ]);
-        let item = flamegraph_item(payload);
-        let original = item.payload();
-        validate(&item, &config.current()).unwrap();
-        assert_eq!(item.payload(), original);
+        let mut expected = payload.clone();
+        let mut item = flamegraph_item(payload);
+        validate(&mut item, &config.current()).unwrap();
+        let reparsed: serde_json::Value = serde_json::from_slice(&item.payload()).unwrap();
+
+        let expected = expected.as_object_mut().unwrap();
+        expected.remove("future");
+        expected["nodes"][1]
+            .as_object_mut()
+            .unwrap()
+            .remove("future");
+
+        assert_eq!(&reparsed.as_object().unwrap(), &expected);
+
+        // assert!(!reparsed.contains_key("future"));
+        // let node1 = reparsed["nodes"][1].as_object().unwrap();
+        // assert!(!node1.contains_key("future"));
+
+        // assert_eq!(item.payload(), original);
     }
 
     #[cfg(feature = "processing")]
@@ -456,18 +474,16 @@ mod tests {
         payload["trees"][0]["thread_attributed"] = json!(true);
         for mode in ["abs", "rel:0", "rel:84a04d24-0e60-3810-a8c0-90a65e2df61a"] {
             payload["frames"][0]["addr_mode"] = json!(mode);
-            let item = flamegraph_item(payload.clone());
-            let original = item.payload();
-            validate(&item, &config.current()).unwrap();
-            assert_eq!(item.payload(), original);
+            let mut item = flamegraph_item(payload.clone());
+            assert!(validate(&mut item, &config.current()).is_ok());
         }
         for mode in ["bogus", "rel:1", "rel:invalid"] {
             payload["frames"][0]["addr_mode"] = json!(mode);
-            assert!(validate(&flamegraph_item(payload.clone()), &config.current()).is_err());
+            assert!(validate(&mut flamegraph_item(payload.clone()), &config.current()).is_err());
         }
         payload["frames"][0]["addr_mode"] = json!("abs");
         payload["debug_meta"] = json!({"images": [{"type": "macho", "debug_id": "invalid"}]});
-        assert!(validate(&flamegraph_item(payload), &config.current()).is_err());
+        assert!(validate(&mut flamegraph_item(payload), &config.current()).is_err());
     }
 
     #[test]

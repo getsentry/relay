@@ -828,7 +828,7 @@ def make_flamegraph_payload(image_type):
     ).encode()
 
 
-def test_event_with_flamegraph_with_processing(
+def test_event_with_flamegraph(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
