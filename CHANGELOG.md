@@ -8,7 +8,7 @@
 
 **Internal**:
 
-- Emit complete rate-limit outcomes for rejected envelope items, including V1 user feedback. ([#6526](https://github.com/getsentry/relay/pull/6526))
+- Correct rate-limit outcome accounting for rejected envelope items, including V1 user reports (`user_report`). ([#6526](https://github.com/getsentry/relay/pull/6526))
 
 ## 26.10.0
 
