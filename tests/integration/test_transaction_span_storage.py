@@ -28,6 +28,8 @@ class Case:
             id="extracted-rejected-embedded-retained",
             limit=10,
             expected_extracted_spans=0,
+            # Known inconsistency (RELAY-288): quota rejection drops the extracted
+            # spans but leaves their embedded copies in the stored transaction.
             expected_embedded_spans=10,
             # Either quota rejects the whole batch, which still carries
             # both total and indexed quantities at this processing stage.
