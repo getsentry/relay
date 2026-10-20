@@ -30,7 +30,7 @@
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 - Added support for Integrity policy ingestion, not publicly accessible. ([#6465](https://github.com/getsentry/relay/pull/6465), [#6512](https://github.com/getsentry/relay/pull/6512))
 - Add dimensions to rate limit caches. ([#6479](https://github.com/getsentry/relay/pull/6479))
-- Recognize, validate, and preserve `event.flamegraph` attachments associated with events, enforcing the 10 MiB size limit. ([#6473](https://github.com/getsentry/relay/pull/6473))
+- Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 
 **Bug Fixes**:
 

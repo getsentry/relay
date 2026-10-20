@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -137,7 +137,7 @@ pub fn check_envelope_size_limits(
             ItemType::Unknown(_) => continue,
         };
 
-        if let Err(ee) = limit.apply(item) {
+        if let Err(err) = limit.apply(item) {
             relay_statsd::metric!(
                 counter(RelayCounters::EnvelopeSizeLimited) += 1,
                 item = item.ty().name(),
