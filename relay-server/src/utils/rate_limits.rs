@@ -1555,8 +1555,7 @@ mod tests {
         let mut envelope = Managed::from_envelope(envelope, outcome_aggregator);
         let scoping = envelope.scoping();
 
-        #[allow(unused_mut)]
-        let mut limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, move |s, q| {
+        let limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, move |s, q| {
             let mock = mock.clone();
             async move {
                 let mut mock = mock.lock().await;
@@ -1600,7 +1599,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_and_feedback_outcomes() {
+    fn test_error_and_user_report_outcomes() {
         let mut error_limit = rate_limit(DataCategory::Error);
         error_limit.reason_code = Some(ReasonCode::new("error_quota"));
         let mut feedback_limit = rate_limit(DataCategory::UserReportV2);
@@ -1626,8 +1625,15 @@ mod tests {
                 enforcement.apply_to_managed(&mut envelope);
 
                 assert_eq!(
-                    envelope.len(),
-                    usize::from(!error_blocked) + usize::from(!error_blocked && !feedback_blocked)
+                    envelope
+                        .items()
+                        .map(|item| item.ty().clone())
+                        .collect::<Vec<_>>(),
+                    match (error_blocked, feedback_blocked) {
+                        (true, _) => vec![],
+                        (false, true) => vec![ItemType::Event],
+                        (false, false) => vec![ItemType::Event, ItemType::UserReport],
+                    }
                 );
                 if error_blocked || feedback_blocked {
                     let reason = if error_blocked {
@@ -1656,16 +1662,19 @@ mod tests {
 
     #[test]
     fn test_retention_counts_implicit_event_once() {
-        for retained in 0u32..4 {
+        for (keep_items, expected_len) in [
+            ([false, false], 0),
+            ([true, false], 1),
+            ([false, true], 1),
+            ([true, true], 2),
+        ] {
             let (mut envelope, mut outcomes) =
                 Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
             let outcome = Outcome::RateLimited(None);
             envelope.modify(|envelope, records| {
-                let mut index = 0;
+                let mut keep_items = keep_items.into_iter();
                 envelope.retain_items(records, |_| {
-                    let keep = retained & (1 << index) != 0;
-                    index += 1;
-                    if keep {
+                    if keep_items.next().unwrap() {
                         ItemAction::Keep
                     } else {
                         ItemAction::Drop(outcome.clone())
@@ -1673,12 +1682,12 @@ mod tests {
                 });
             });
 
-            assert_eq!(envelope.len(), retained.count_ones() as usize);
-            for _ in 0..(2 - retained.count_ones()) {
+            assert_eq!(envelope.len(), expected_len);
+            for _ in 0..(2 - expected_len) {
                 outcomes.assert_outcome(&outcome, DataCategory::Attachment, 10);
                 outcomes.assert_outcome(&outcome, DataCategory::AttachmentItem, 1);
             }
-            if retained == 0 {
+            if expected_len == 0 {
                 outcomes.assert_outcome(&outcome, DataCategory::Error, 1);
             }
             envelope.accept(drop);
@@ -1688,15 +1697,18 @@ mod tests {
 
     #[test]
     fn test_retention_silently_drops_event_carriers() {
-        for retained in 0u32..4 {
+        for (keep_items, expected_len) in [
+            ([false, false], 0),
+            ([true, false], 1),
+            ([false, true], 1),
+            ([true, true], 2),
+        ] {
             let (mut envelope, mut outcomes) =
                 Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
             envelope.modify(|envelope, records| {
-                let mut index = 0;
+                let mut keep_items = keep_items.into_iter();
                 envelope.retain_items(records, |_| {
-                    let keep = retained & (1 << index) != 0;
-                    index += 1;
-                    if keep {
+                    if keep_items.next().unwrap() {
                         ItemAction::Keep
                     } else {
                         ItemAction::DropSilently
@@ -1704,7 +1716,7 @@ mod tests {
                 });
             });
 
-            assert_eq!(envelope.len(), retained.count_ones() as usize);
+            assert_eq!(envelope.len(), expected_len);
             envelope.accept(drop);
             outcomes.assert_no_outcomes();
         }

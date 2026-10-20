@@ -4,8 +4,6 @@ import uuid
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .consts import Outcome
-
 
 def test_standalone_user_report(
     relay_with_processing, mini_sentry, attachments_consumer
@@ -125,10 +123,9 @@ def test_user_report_urv2_quota_with_event(
     attachments_consumer.assert_empty()
     events_consumer.get_event()
 
-    # We must have 1 outcome with provided reason.
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == "user_report_v2_quota"
+    outcomes_consumer.assert_rate_limited(
+        "user_report_v2_quota", categories={DataCategory.USER_REPORT_V2: 1}
+    )
 
 
 def test_user_report_urv2_quota_standalone(
@@ -167,10 +164,9 @@ def test_user_report_urv2_quota_standalone(
 
     attachments_consumer.assert_empty()
 
-    # We must have 1 outcome with provided reason.
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == "user_report_v2_quota"
+    outcomes_consumer.assert_rate_limited(
+        "user_report_v2_quota", categories={DataCategory.USER_REPORT_V2: 1}
+    )
 
 
 def test_user_report_error_quota(
@@ -225,11 +221,7 @@ def test_user_report_error_quota(
     events_consumer.assert_empty()
 
     # Both rejected items must be accounted for, using the parent error's reason.
-    outcomes = outcomes_consumer.get_outcomes()
-    assert sorted(
-        (item["category"], item["quantity"], item["outcome"], item["reason"])
-        for item in outcomes
-    ) == [
-        (DataCategory.ERROR, 1, Outcome.RATE_LIMITED, "error_quota"),
-        (DataCategory.USER_REPORT_V2, 1, Outcome.RATE_LIMITED, "error_quota"),
-    ]
+    outcomes_consumer.assert_rate_limited(
+        "error_quota",
+        categories={DataCategory.ERROR: 1, DataCategory.USER_REPORT_V2: 1},
+    )
