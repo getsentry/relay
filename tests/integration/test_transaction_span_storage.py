@@ -23,9 +23,6 @@ def test_transaction_storage_under_span_quota(
 ):
     """Eleven extracted spans can be rejected while their embedded payload is stored."""
     project = mini_sentry.add_full_project_config(42)
-    project["config"].setdefault("features", []).append(
-        "organizations:relay-generate-billing-outcome"
-    )
     project["config"]["quotas"] = [
         {
             "id": uuid.uuid4().hex,
@@ -61,21 +58,29 @@ def test_transaction_storage_under_span_quota(
     assert {span["span_id"] for span in stored["spans"]} == {
         span["span_id"] for span in event["spans"]
     }
+    assert len(stored["spans"]) == 10
+    transactions.assert_empty()
 
     if limit == 10:
         spans.assert_empty()
     else:
         assert len(spans.get_spans(n=11)) == 11
 
-    rejected = Counter()
+    actual = Counter()
     for outcome in outcomes.get_outcomes():
+        actual[outcome["category"], outcome["outcome"]] += outcome["quantity"]
         if outcome["outcome"] == Outcome.RATE_LIMITED:
             assert outcome["reason"] == "span_quota_verification"
-            rejected[outcome["category"]] += outcome["quantity"]
-    expected = {}
     if limit == 10:
-        expected[DataCategory.SPAN_INDEXED] = 11
         # Either limit rejects the whole ExtractedSpans batch, which still
         # carries both total and indexed quantities at this processing stage.
-        expected[DataCategory.SPAN] = 11
-    assert rejected == expected
+        expected = {
+            (DataCategory.SPAN, Outcome.RATE_LIMITED): 11,
+            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 11,
+        }
+    else:
+        expected = {
+            (DataCategory.SPAN, Outcome.ACCEPTED): 11,
+            (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+        }
+    assert actual == expected
