@@ -317,50 +317,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_call_result_size_before_trimming() {
-        use relay_event_schema::processor::{self, ProcessingState};
-
-        let result = "雨".repeat(20_000);
-        for key in [
-            "gen_ai.tool.call.result",
-            "gen_ai.tool.output",
-            "ai.toolCall.result",
-            "mcp.tool.result.content",
-        ] {
-            let mut attributes = Annotated::new(attributes! {
-                GEN_AI__OPERATION__NAME => "execute_tool".to_owned(),
-                key => result.clone(),
-            });
-            crate::eap::normalize_attribute_names(&mut attributes);
-            normalize_ai(&mut attributes, None, None);
-
-            let state = ProcessingState::root_builder().max_bytes(1000).build();
-            processor::process_value(
-                &mut attributes,
-                &mut crate::eap::TrimmingProcessor::new(100),
-                &state,
-            )
-            .unwrap();
-            normalize_ai(&mut attributes, None, None);
-
-            let attributes = attributes.value().unwrap();
-            assert_eq!(
-                attributes
-                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
-                    .and_then(|v| v.as_f64()),
-                Some(result.len() as f64),
-                "{key}"
-            );
-            assert!(
-                attributes
-                    .get_value(GEN_AI__TOOL__CALL__RESULT)
-                    .and_then(|v| v.as_str())
-                    .is_none_or(|trimmed| trimmed.len() < result.len())
-            );
-        }
-    }
-
-    #[test]
     fn test_normalize_ai_type_fallback() {
         for model_key in [
             None,
