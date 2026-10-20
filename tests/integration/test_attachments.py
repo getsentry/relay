@@ -624,23 +624,30 @@ def test_view_hierarchy_processing(
 
 
 @pytest.mark.parametrize("size", [10 * 1024 * 1024, 10 * 1024 * 1024 + 1])
-def test_flamegraph_size_limit(mini_sentry, relay, size):
+def test_flamegraph_size_limit(
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    attachments_consumer,
+    outcomes_consumer,
+    size,
+):
     project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
     mini_sentry.add_full_project_config(project_id)
-    relay = relay(mini_sentry)
-    payload = (
-        json.dumps(
-            {
-                "version": "1",
-                "platform": "python",
-                "frames": [{"function": "main"}],
-                "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
-            }
-        )
-        .encode()
-        .ljust(size, b" ")
-    )
-    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
+    relay = relay_with_processing()
+    events = events_consumer()
+    attachments = attachments_consumer()
+    outcomes = outcomes_consumer()
+    graph = {
+        "version": "1",
+        "platform": "python",
+        "frames": [{"function": "main"}],
+        "nodes": [{"frame_id": 0, "sample_count": 1}],
+        "trees": [{"roots": [0]}],
+    }
+    payload = json.dumps(graph).encode().ljust(size, b" ")
+    envelope = Envelope(headers={"event_id": event_id})
     envelope.add_event({"message": "Flame graph at the size boundary"})
     envelope.add_item(
         Item(
@@ -651,15 +658,42 @@ def test_flamegraph_size_limit(mini_sentry, relay, size):
             content_type="application/json",
         )
     )
+    relay.send_envelope(project_id, envelope)
+
     if size > 10 * 1024 * 1024:
-        with pytest.raises(HTTPError) as excinfo:
-            relay.send_envelope(project_id, envelope)
-        assert excinfo.value.response.status_code == 413
+        event, message = events.get_event()
+        assert event["event_id"] == event_id
+        assert not message.get("attachments")
+        assert outcomes.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.ATTACHMENT,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.INVALID,
+                "project_id": project_id,
+                "quantity": size,
+                "reason": "invalid_flamegraph",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.INVALID,
+                "project_id": project_id,
+                "quantity": 1,
+                "reason": "invalid_flamegraph",
+            },
+        ]
     else:
-        relay.send_envelope(project_id, envelope)
-        forwarded = mini_sentry.get_captured_envelope()
-        attachment = next(item for item in forwarded.items if item.type == "attachment")
-        assert attachment.payload.bytes == payload
+        chunk, _ = attachments.get_attachment_chunk()
+        assert json.loads(chunk) == graph
+        event, message = attachments.get_event()
+        assert event["event_id"] == event_id
+        (attachment,) = message["attachments"]
+        assert attachment["attachment_type"] == "event.flamegraph"
+        outcomes.assert_empty()
+
+    attachments.assert_empty()
 
 
 @pytest.mark.parametrize("event_type", ["event", "transaction"])

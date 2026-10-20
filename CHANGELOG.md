@@ -5,6 +5,7 @@
 **Features**:
 
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+- Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 
 ## 26.10.0
 
@@ -36,7 +37,6 @@
 - Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
 - Added support for Integrity policy ingestion, not publicly accessible. ([#6465](https://github.com/getsentry/relay/pull/6465), [#6512](https://github.com/getsentry/relay/pull/6512))
 - Add dimensions to rate limit caches. ([#6479](https://github.com/getsentry/relay/pull/6479))
-- Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 
 **Bug Fixes**:
 

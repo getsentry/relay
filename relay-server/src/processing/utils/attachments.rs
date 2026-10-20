@@ -30,11 +30,6 @@ pub fn validate_attachments<T, V>(
     V: RetainMut<Item>,
 {
     managed.retain(select, |attachment, r| {
-        if attachment.attachment_type() == Some(AttachmentType::Flamegraph)
-            && !has_valid_flamegraph_headers(attachment)
-        {
-            return Err(ProcessingError::InvalidFlamegraph);
-        }
         if ctx.is_processing() {
             r.lenient(relay_quotas::DataCategory::Attachment);
             validate(attachment, ctx.config)
