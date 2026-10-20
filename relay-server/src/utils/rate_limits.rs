@@ -1778,6 +1778,38 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::Attachment, 20);
     }
 
+    #[tokio::test]
+    async fn test_enforce_nintendo_dying_message_with_attachment_limit() {
+        let mut envelope = envelope![Attachment::NintendoSwitchDyingMessage, Attachment];
+        envelope.items_mut().next().unwrap().set_payload(
+            ContentType::OctetStream,
+            &include_bytes!(
+                "../../../tests/integration/fixtures/native/nnswitch_dying_message_plain.dat"
+            )[..],
+        );
+
+        let mock = mock_limiter(&[DataCategory::Attachment]);
+        let (envelope, _, limits, outcomes) = enforce_and_apply(mock.clone(), envelope).await;
+
+        // The dying message carries the crash event and is expanded during processing;
+        // it is not itself a billable attachment. Only the ordinary attachment is rejected.
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 1);
+        assert_eq!(
+            envelope.items().next().unwrap().attachment_type(),
+            Some(AttachmentType::NintendoSwitchDyingMessage)
+        );
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([
+                (DataCategory::Attachment, 10),
+                (DataCategory::AttachmentItem, 1),
+            ])
+        );
+        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.lock().await.assert_call(DataCategory::Attachment, 10);
+    }
+
     /// Limit stand-alone profiles.
     #[tokio::test]
     async fn test_enforce_limit_profiles() {
