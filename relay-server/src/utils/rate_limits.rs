@@ -1662,24 +1662,20 @@ mod tests {
 
     #[test]
     fn test_retention_counts_implicit_event_once() {
-        for (keep_items, expected_len) in [
-            ([false, false], 0),
-            ([true, false], 1),
-            ([false, true], 1),
-            ([true, true], 2),
+        use ItemAction::{Drop, Keep};
+
+        let outcome = Outcome::RateLimited(None);
+        for (actions, expected_len) in [
+            ([Drop(outcome.clone()), Drop(outcome.clone())], 0),
+            ([Keep, Drop(outcome.clone())], 1),
+            ([Drop(outcome.clone()), Keep], 1),
+            ([Keep, Keep], 2),
         ] {
             let (mut envelope, mut outcomes) =
                 Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
-            let outcome = Outcome::RateLimited(None);
             envelope.modify(|envelope, records| {
-                let mut keep_items = keep_items.into_iter();
-                envelope.retain_items(records, |_| {
-                    if keep_items.next().unwrap() {
-                        ItemAction::Keep
-                    } else {
-                        ItemAction::Drop(outcome.clone())
-                    }
-                });
+                let mut actions = actions.into_iter();
+                envelope.retain_items(records, |_| actions.next().unwrap());
             });
 
             assert_eq!(envelope.len(), expected_len);
@@ -1697,23 +1693,19 @@ mod tests {
 
     #[test]
     fn test_retention_silently_drops_event_carriers() {
-        for (keep_items, expected_len) in [
-            ([false, false], 0),
-            ([true, false], 1),
-            ([false, true], 1),
-            ([true, true], 2),
+        use ItemAction::{DropSilently, Keep};
+
+        for (actions, expected_len) in [
+            ([DropSilently, DropSilently], 0),
+            ([Keep, DropSilently], 1),
+            ([DropSilently, Keep], 1),
+            ([Keep, Keep], 2),
         ] {
             let (mut envelope, mut outcomes) =
                 Managed::for_test(envelope![Attachment::Minidump, Attachment::Minidump]).build();
             envelope.modify(|envelope, records| {
-                let mut keep_items = keep_items.into_iter();
-                envelope.retain_items(records, |_| {
-                    if keep_items.next().unwrap() {
-                        ItemAction::Keep
-                    } else {
-                        ItemAction::DropSilently
-                    }
-                });
+                let mut actions = actions.into_iter();
+                envelope.retain_items(records, |_| actions.next().unwrap());
             });
 
             assert_eq!(envelope.len(), expected_len);

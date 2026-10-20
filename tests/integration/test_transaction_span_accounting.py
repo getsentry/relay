@@ -2,6 +2,7 @@
 
 import uuid
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
@@ -13,34 +14,72 @@ from .consts import Outcome
 from .test_store import make_transaction
 
 
+@dataclass(frozen=True)
+class Quota:
+    category: str
+    limit: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class Case:
+    quota: Quota | None
+    expected_transactions: int
+    expected_spans: frozenset[str]
+    expected_outcomes: dict[tuple[DataCategory, Outcome], int]
+
+
 @pytest.mark.parametrize(
-    "category,limit,kept_spans,kept_transaction,rejected",
+    "case",
     [
         pytest.param(
-            None, None, {"root", "child", "standalone"}, True, {}, id="no-quota"
+            Case(
+                quota=None,
+                expected_transactions=1,
+                expected_spans=frozenset({"root", "child", "standalone"}),
+                expected_outcomes={
+                    (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+                    (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+                },
+            ),
+            id="no-quota",
         ),
         pytest.param(
-            "span", 3, {"root", "child", "standalone"}, True, {}, id="span-fits"
+            Case(
+                quota=Quota(category="span", limit=3),
+                expected_transactions=1,
+                expected_spans=frozenset({"root", "child", "standalone"}),
+                expected_outcomes={
+                    (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+                    (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+                },
+            ),
+            id="span-fits",
         ),
         pytest.param(
-            "span_indexed",
-            2,
-            {"standalone"},
-            True,
-            {DataCategory.SPAN: 2, DataCategory.SPAN_INDEXED: 2},
+            Case(
+                quota=Quota(category="span_indexed", limit=2),
+                expected_transactions=1,
+                expected_spans=frozenset({"standalone"}),
+                expected_outcomes={
+                    (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
+                    (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
+                    (DataCategory.SPAN, Outcome.ACCEPTED): 1,
+                },
+            ),
             id="indexed-span-batch-exceeds",
         ),
         pytest.param(
-            "transaction",
-            0,
-            set(),
-            False,
-            {
-                DataCategory.TRANSACTION: 1,
-                DataCategory.TRANSACTION_INDEXED: 1,
-                DataCategory.SPAN: 3,
-                DataCategory.SPAN_INDEXED: 3,
-            },
+            Case(
+                quota=Quota(category="transaction", limit=0),
+                expected_transactions=0,
+                expected_spans=frozenset(),
+                expected_outcomes={
+                    (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
+                    (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+                    (DataCategory.SPAN, Outcome.RATE_LIMITED): 3,
+                    (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
+                },
+            ),
             id="transaction-blocked",
         ),
     ],
@@ -51,15 +90,11 @@ def test_transaction_with_span_container_quotas(
     transactions_consumer,
     spans_consumer,
     outcomes_consumer,
-    category,
-    limit,
-    kept_spans,
-    kept_transaction,
-    rejected,
+    case: Case,
 ):
     project, envelope, ids = mixed_envelope
-    if category is not None:
-        _set_quota(project, category, limit)
+    if case.quota is not None:
+        _set_quota(project, case.quota.category, case.quota.limit)
     transactions = transactions_consumer()
     spans = spans_consumer()
     outcomes = outcomes_consumer()
@@ -67,24 +102,15 @@ def test_transaction_with_span_container_quotas(
 
     relay.send_envelope(42, envelope)
 
-    if kept_transaction:
+    for _ in range(case.expected_transactions):
         stored, _ = transactions.get_event()
         assert stored["event_id"] == envelope.headers["event_id"]
     transactions.assert_empty()
 
-    assert {span["span_id"] for span in spans.get_spans(n=len(kept_spans))} == {
-        ids[name] for name in kept_spans
-    }
-    expected = {
-        (category, Outcome.RATE_LIMITED): quantity
-        for category, quantity in rejected.items()
-    }
-    if kept_spans:
-        expected[DataCategory.SPAN, Outcome.ACCEPTED] = len(kept_spans)
-    # Accepted transaction billing outcomes come from segment-span metrics.
-    if "root" in kept_spans:
-        expected[DataCategory.TRANSACTION, Outcome.ACCEPTED] = 1
-    _assert_outcomes(outcomes, expected)
+    assert {
+        span["span_id"] for span in spans.get_spans(n=len(case.expected_spans))
+    } == {ids[name] for name in case.expected_spans}
+    _assert_outcomes(outcomes, case.expected_outcomes)
 
 
 @pytest.fixture
