@@ -224,12 +224,16 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
 
 /// Records a tool result's UTF-8 byte length, preserving SDK-provided sizes.
 fn normalize_tool_call_result_size(attributes: &mut Attributes) {
-    if extract_string_value(attributes, GEN_AI__OPERATION__TYPE) != Some("tool")
-        || matches!(
-            attributes.get_value(GEN_AI__TOOL__CALL__RESULT__SIZE),
-            Some(Value::U64(_)) | Some(Value::I64(0..))
-        )
-    {
+    if extract_string_value(attributes, GEN_AI__OPERATION__TYPE) != Some("tool") {
+        return;
+    }
+
+    let has_valid_size = matches!(
+        attributes.get_value(GEN_AI__TOOL__CALL__RESULT__SIZE),
+        Some(Value::U64(_)) | Some(Value::I64(0..))
+    );
+
+    if has_valid_size {
         return;
     }
 
@@ -237,8 +241,7 @@ fn normalize_tool_call_result_size(attributes: &mut Attributes) {
         return;
     };
 
-    let size = result.len() as i64;
-    attributes.insert(GEN_AI__TOOL__CALL__RESULT__SIZE, size);
+    attributes.insert(GEN_AI__TOOL__CALL__RESULT__SIZE, result.len() as i64);
 }
 
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
