@@ -1434,7 +1434,7 @@ mod tests {
     #[tokio::test]
     async fn event_rejects_failed_attachments() {
         let (store, mut store_rx) = Addr::custom();
-        let mut config = test_config();
+        let config = test_config();
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
@@ -1463,7 +1463,7 @@ mod tests {
     #[tokio::test]
     async fn event_attachment_rejects() {
         let (store, mut store_rx) = Addr::custom();
-        let mut config = test_config();
+        let config = test_config();
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
