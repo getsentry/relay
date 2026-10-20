@@ -60,8 +60,8 @@ fn rate_limit_reason(limits: &RateLimits) -> Option<ReasonCode> {
 /// Marks a crash report item as rate limited by `limits`.
 ///
 /// Rate limited crash reports are still forwarded, so that an event can be extracted from them,
-/// but they are not persisted. The reason code is forwarded as well, so that Sentry can tell
-/// which quota caused the crash report to be dropped.
+/// but they are not persisted. The reason code is forwarded as well, so that, in the event
+/// this is rate limited due to quota, Sentry can tell which quota caused the crash report to be dropped.
 fn mark_rate_limited(item: &mut Item, limits: &RateLimits) {
     item.set_rate_limited(RateLimited::new(rate_limit_reason(limits)));
 }
