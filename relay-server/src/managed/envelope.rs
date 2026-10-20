@@ -132,11 +132,6 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Drops every item in the envelope.
-    pub fn drop_items_silently(&mut self) {
-        self.envelope.drop_items_silently();
-    }
-
     /// Re-scopes this context to the given scoping.
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.context.scoping = scoping;
