@@ -6,6 +6,10 @@
 
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 
+**Bug Fixes**:
+
+- Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
+
 ## 26.10.0
 
 **Breaking Changes**:
@@ -52,7 +56,6 @@
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 - Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 - Add more sensitive session cookie names for PII scrubbing. ([#6499](https://github.com/getsentry/relay/pull/6499))
-- Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6496](https://github.com/getsentry/relay/issues/6496))
 
 **Internal**:
 

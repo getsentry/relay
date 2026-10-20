@@ -44,11 +44,11 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     visit_trace_packets(perfetto_bytes, |mut packet| {
         let tables = intern_db.intern(&mut packet)?;
         let caches = cache_db.for_packet(&packet)?;
+        clocks.update_defaults(&packet)?;
 
         match packet.data {
             Some(Data::ClockSnapshot(cs)) => clocks.update_snapshot(&cs),
             Some(Data::PerfSample(sample)) if let Some(callstack_iid) = sample.callstack_iid => {
-                let timestamp_ns = packet.timestamp.unwrap_or(0);
                 let thread_id = sample.tid.unwrap_or(0);
                 if observed_pid.is_none() {
                     observed_pid = sample.pid;
@@ -62,18 +62,12 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                     tables,
                 };
                 if let Some(stack_id) = seq.resolve_callstack(callstack_iid)? {
-                    // The clock of a packet is, in order of precedence, its own clock, the
-                    // clock defaulted for its sequence, or the primary trace clock.
-                    let clock_id = packet
-                        .timestamp_clock_id
-                        .map(clock::ClockId::new)
-                        .or(tables.default_clock());
-                    let offset = clocks
-                        .offset_to_realtime(clock_id)
+                    let timestamp = clocks
+                        .to_realtime(&packet)
                         .ok_or(ProfileError::InvalidSampledProfile)?;
 
                     samples.push(Sample {
-                        timestamp: utils::ns_to_secs(i128::from(timestamp_ns) + offset),
+                        timestamp: utils::ns_to_secs(timestamp),
                         stack_id,
                         thread_id: thread_id.to_string(),
                     })?;
@@ -301,6 +295,25 @@ mod tests {
         packet.trace_packet_defaults = Some(proto::TracePacketDefaults {
             timestamp_clock_id: Some(clock_id),
         });
+        packet
+    }
+
+    /// Declares `clock_id` as the primary trace clock of the clock snapshot `packet`.
+    fn with_primary_clock(mut packet: proto::TracePacket, clock_id: u32) -> proto::TracePacket {
+        let Some(Data::ClockSnapshot(cs)) = &mut packet.data else {
+            unreachable!("clock snapshot packet");
+        };
+        cs.primary_trace_clock = Some(clock_id);
+        packet
+    }
+
+    /// Removes the `REALTIME` clock from the clock snapshot `packet`.
+    fn without_realtime(mut packet: proto::TracePacket) -> proto::TracePacket {
+        let Some(Data::ClockSnapshot(cs)) = &mut packet.data else {
+            unreachable!("clock snapshot packet");
+        };
+        cs.clocks
+            .retain(|clock| clock.clock_id != Some(CLOCK_REALTIME));
         packet
     }
 
@@ -606,6 +619,20 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_realtime_sample_without_clock_snapshot() {
+        let packets = vec![
+            make_sample_interned_data_packet(),
+            with_clock(
+                make_perf_sample_packet(1_700_000_000_500_000_000, 1, 1, 1),
+                CLOCK_REALTIME,
+            ),
+        ];
+
+        // Samples already recorded in real time do not need a snapshot to be converted.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_000.5]);
+    }
+
+    #[test]
     fn test_convert_sample_clock_uses_latest_snapshot() {
         // The device was suspended for 10s between both snapshots, `MONOTONIC` only advanced
         // by 1s, while `BOOTTIME` and `REALTIME` advanced by 11s.
@@ -638,22 +665,47 @@ mod tests {
 
     #[test]
     fn test_convert_ignores_snapshot_without_realtime() {
-        let mut without_realtime = make_multi_clock_snapshot_packet();
-        let Some(Data::ClockSnapshot(cs)) = &mut without_realtime.data else {
-            unreachable!("clock snapshot packet");
-        };
-        cs.clocks
-            .retain(|clock| clock.clock_id != Some(CLOCK_REALTIME));
-
         let packets = vec![
             make_multi_clock_snapshot_packet(),
             with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
-            without_realtime,
+            without_realtime(make_multi_clock_snapshot_packet()),
             make_perf_sample_packet(500_000_000, 1, 1, 1),
         ];
 
         // The snapshot without `REALTIME` cannot be converted, the previous one is kept.
         assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_001.1]);
+    }
+
+    #[test]
+    fn test_convert_ignores_snapshot_without_realtime_with_realtime_primary() {
+        let packets = vec![
+            with_primary_clock(make_multi_clock_snapshot_packet(), CLOCK_REALTIME),
+            with_default_clock(make_sample_interned_data_packet(), CLOCK_MONOTONIC),
+            with_primary_clock(
+                without_realtime(make_multi_clock_snapshot_packet()),
+                CLOCK_REALTIME,
+            ),
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+        ];
+
+        // A `REALTIME` primary clock does not make a snapshot without `REALTIME` usable.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_001.1]);
+    }
+
+    #[test]
+    fn test_convert_ignores_primary_clock_of_snapshot_without_realtime() {
+        let packets = vec![
+            make_multi_clock_snapshot_packet(),
+            make_sample_interned_data_packet(),
+            with_primary_clock(
+                without_realtime(make_multi_clock_snapshot_packet()),
+                CLOCK_MONOTONIC,
+            ),
+            make_perf_sample_packet(500_000_000, 1, 1, 1),
+        ];
+
+        // The sample stays in the `BOOTTIME` primary clock of the first snapshot.
+        assert_eq!(convert_sample_timestamps(packets), vec![1_700_000_000.5]);
     }
 
     #[test]
