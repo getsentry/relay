@@ -789,29 +789,8 @@ def test_invalid_flamegraph_preserves_event(
     consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "image_type", ["macho", "symbolic", "elf", "pe", "pe_dotnet", "wasm"]
-)
-@pytest.mark.parametrize("use_objectstore", [False, True])
-def test_event_with_flamegraph(
-    mini_sentry,
-    relay_with_processing,
-    attachments_consumer,
-    objectstore,
-    use_objectstore,
-    image_type,
-):
-    project_id = 42
-    event_id = "515539018c9b4260a6f999572f1661ee"
-    mini_sentry.add_full_project_config(project_id)
-    if use_objectstore:
-        mini_sentry.global_config["options"][
-            "relay.objectstore-attachments.sample-rate"
-        ] = 1.0
-
-    relay = relay_with_processing()
-    consumer = attachments_consumer()
-    payload = json.dumps(
+def make_flamegraph_payload(image_type):
+    return json.dumps(
         {
             "version": "1",
             "platform": "cocoa" if image_type == "macho" else "native",
@@ -847,6 +826,24 @@ def test_event_with_flamegraph(
         },
         separators=(",", ":"),
     ).encode()
+
+
+def test_event_with_flamegraph_with_processing(
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    objectstore,
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+
+    relay = relay_with_processing()
+    consumer = attachments_consumer()
+    payload = make_flamegraph_payload("macho")
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_event({"message": "Flamegraph attachment"})
     envelope.add_item(
@@ -860,9 +857,6 @@ def test_event_with_flamegraph(
     )
     relay.send_envelope(project_id, envelope)
 
-    if not use_objectstore:
-        chunk, _ = consumer.get_attachment_chunk()
-        assert chunk == payload
     _, event = consumer.get_event()
     assert event["event_id"] == event_id
     (attachment,) = event["attachments"]
@@ -874,14 +868,13 @@ def test_event_with_flamegraph(
         "attachment_type": "event.flamegraph",
         "size": len(payload),
         "retention_days": 90,
-        **({"stored_id": matches_any()} if use_objectstore else {"chunks": 1}),
+        "stored_id": matches_any(),
     }
-    if use_objectstore:
-        storage = objectstore("attachments", project_id)
-        stored = storage.get(attachment["stored_id"])
-        assert stored.payload.read() == payload
-        assert stored.metadata.filename == "flamegraph.json"
-        assert stored.metadata.content_type == "application/json"
+    storage = objectstore("attachments", project_id)
+    stored = storage.get(attachment["stored_id"])
+    assert stored.payload.read() == payload
+    assert stored.metadata.filename == "flamegraph.json"
+    assert stored.metadata.content_type == "application/json"
 
 
 @pytest.mark.parametrize("use_objectstore", [False, True])
