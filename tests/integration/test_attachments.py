@@ -844,6 +844,12 @@ def test_event_with_flamegraph(
     relay = relay_with_processing()
     consumer = attachments_consumer()
     payload = make_flamegraph_payload("macho")
+    expected_payload = json.loads(payload)
+    # Normalization drops unknown fields from the graph, frames, and debug images.
+    del expected_payload["future"]
+    del expected_payload["frames"][0]["future_frame"]
+    del expected_payload["debug_meta"]["images"][0]["arch"]
+
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_event({"message": "Flamegraph attachment"})
     envelope.add_item(
@@ -866,13 +872,13 @@ def test_event_with_flamegraph(
         "rate_limited": False,
         "content_type": "application/json",
         "attachment_type": "event.flamegraph",
-        "size": len(payload),
+        "size": len(json.dumps(expected_payload, separators=(",", ":")).encode()),
         "retention_days": 90,
         "stored_id": matches_any(),
     }
     storage = objectstore("attachments", project_id)
     stored = storage.get(attachment["stored_id"])
-    assert stored.payload.read() == payload
+    assert json.loads(stored.payload.read()) == expected_payload
     assert stored.metadata.filename == "flamegraph.json"
     assert stored.metadata.content_type == "application/json"
 
