@@ -272,7 +272,7 @@ mod utils;
 pub use self::envelope::Envelope; // pub for benchmarks
 pub use self::services::buffer::{
     EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStackConfig,
-    SqliteEnvelopeStore,
+    SqliteEnvelopeStore, Throttle,
 }; // pub for benchmarks
 pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 
