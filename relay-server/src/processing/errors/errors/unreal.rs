@@ -137,7 +137,8 @@ impl SentryError for Unreal {
         limits: relay_quotas::RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        use crate::processing::errors::{Error, mark_rate_limited};
+        use crate::processing::errors::Error;
+        use crate::processing::errors::errors::utils::mark_rate_limited;
 
         let Self::Process {
             minidump,

@@ -7,8 +7,9 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::Item;
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
+use crate::processing::errors::errors::utils::mark_rate_limited;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
-use crate::processing::errors::{Error, Result, mark_rate_limited};
+use crate::processing::errors::{Error, Result};
 #[cfg(all(sentry, feature = "processing"))]
 use crate::services::outcome::DiscardItemType;
 #[cfg(all(sentry, feature = "processing"))]
