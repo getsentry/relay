@@ -198,6 +198,7 @@ def attachments(
             "size": log_size,
             "retention_days": 36500,
             "chunks": 1,
+            "stored_id": matches_any(),
         },
         {
             "id": matches_any(),
@@ -208,6 +209,7 @@ def attachments(
             "size": generated_dump_size,
             "retention_days": 36500,
             "chunks": 1,
+            "stored_id": matches_any(),
         },
         {
             "id": matches_any(),
@@ -218,6 +220,7 @@ def attachments(
             "size": playstation_dump_size,
             "retention_days": 36500,
             "chunks": 1,
+            "stored_id": matches_any(),
         },
     ]
 
@@ -826,6 +829,7 @@ def test_playstation_attachment_no_feature_flag(
             "size": 209385,
             "retention_days": 90,
             "chunks": 1,
+            "stored_id": matches_any(),
         },
     )
 

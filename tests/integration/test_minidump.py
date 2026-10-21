@@ -713,6 +713,7 @@ def test_minidump_with_processing_invalid(
             "size": len(content),
             "retention_days": 90,
             "chunks": num_chunks,
+            "stored_id": matches_any(),
         }
     ]
 
