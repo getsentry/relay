@@ -11,6 +11,11 @@ use crate::utils;
 #[serde(rename_all = "lowercase")]
 pub enum ImageType {
     MachO,
+    Elf,
+    Pe,
+    #[serde(rename = "pe_dotnet")]
+    PeDotnet,
+    Wasm,
     Symbolic,
     Sourcemap,
     Proguard,

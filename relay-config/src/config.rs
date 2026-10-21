@@ -1346,12 +1346,6 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum number of attempts made to upload.
     pub max_attempts: NonZeroU16,
 
-    /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
-    ///
-    /// When disabled, failed event attachments are dropped with an `upload_failed`
-    /// outcome instead of falling back to Store's Kafka attachment path.
-    pub fallback_to_kafka: bool,
-
     /// Configuration values for objectstore's auth scheme.
     pub auth: Option<ObjectstoreAuthConfig>,
 }
@@ -1366,7 +1360,6 @@ impl Default for ObjectstoreServiceConfig {
             stream_timeout: 5 * 60, // synced with `Upload::timeout`
             retry_delay: 1.0,
             max_attempts: NonZeroU16::new(5).unwrap(),
-            fallback_to_kafka: true,
             auth: None,
         }
     }
@@ -1938,6 +1931,22 @@ impl ConfigInner {
             self.values.processing.kafka_config = other.values.processing.kafka_config.clone();
             self.values.processing.secondary_kafka_configs =
                 other.values.processing.secondary_kafka_configs.clone();
+            changed = true;
+        }
+
+        if self.values.spool.envelopes.max_unspool_envelopes_per_second
+            != other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second
+        {
+            relay_log::debug!("updating spool.envelopes.max_unspool_envelopes_per_second");
+            self.values.spool.envelopes.max_unspool_envelopes_per_second = other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second;
             changed = true;
         }
 

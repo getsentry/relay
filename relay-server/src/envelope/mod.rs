@@ -561,48 +561,6 @@ impl Envelope {
         self
     }
 
-    /// Splits off the items from the envelope using provided predicates.
-    ///
-    /// First predicate is the additional condition on the count of found items by second
-    /// predicate.
-    #[cfg(test)]
-    fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
-    where
-        C: Fn(usize) -> bool,
-        F: FnMut(&Item) -> bool,
-    {
-        let split_count = self.items().filter(|item| f(item)).count();
-        if cond(split_count) {
-            return None;
-        }
-
-        let old_items = std::mem::take(&mut self.items);
-        let (split_items, own_items) = old_items.into_iter().partition(f);
-        self.items = own_items;
-
-        Some(split_items)
-    }
-
-    /// Splits the envelope by the given predicate.
-    ///
-    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
-    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
-    /// with all items that return `true`. Items that return `false` remain in this envelope.
-    ///
-    /// The returned envelope assumes the same headers.
-    #[cfg(test)]
-    pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        let items_count = self.len();
-        let split_items = self.split_off_items(|count| count == 0 || count == items_count, f)?;
-        Some(Box::new(Envelope {
-            headers: self.headers.clone(),
-            items: split_items,
-        }))
-    }
-
     /// Retains only the items specified by the predicate.
     ///
     /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
@@ -612,11 +570,6 @@ impl Envelope {
         F: FnMut(&mut Item) -> bool,
     {
         self.items.retain(f)
-    }
-
-    /// Drops every item in the envelope.
-    pub fn drop_items_silently(&mut self) {
-        self.items.clear()
     }
 
     /// Serializes this envelope into the given writer.
@@ -1009,6 +962,36 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_flamegraph() {
+        let payload = r#"{"version":"1","platform":"python","frames":[{"function":"main"}],"trees":[{"roots":[{"frame_id":0,"sample_count":1}]}]}"#;
+        let bytes = Bytes::from(format!(
+            "{{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}}\n\
+             {{\"type\":\"attachment\",\"length\":{},\"filename\":\"flamegraph.json\",\"content_type\":\"application/json\",\"attachment_type\":\"event.flamegraph\"}}\n{payload}\n",
+            payload.len(),
+        ));
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let item = envelope.items().next().unwrap();
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
+        assert_eq!(item.filename(), Some("flamegraph.json"));
+        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert!(!item.creates_event());
+        assert!(item.requires_event());
+        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+
+        let mut serialized = Vec::new();
+        envelope.serialize(&mut serialized).unwrap();
+        let roundtrip = Envelope::parse_bytes(Bytes::from(serialized)).unwrap();
+        let item = roundtrip.items().next().unwrap();
+        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
+        assert_eq!(item.filename(), Some("flamegraph.json"));
+        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+    }
+
+    #[test]
     fn test_parse_empty_items() {
         // Without terminating newline after header
         let items = Envelope::parse_items_bytes(Bytes::from("")).unwrap();
@@ -1186,50 +1169,6 @@ mod tests {
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
         "###);
-    }
-
-    #[test]
-    fn test_split_envelope_none() {
-        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
-        envelope.add_item(Item::new(ItemType::Attachment));
-        envelope.add_item(Item::new(ItemType::Attachment));
-
-        // Does not split when no item matches.
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
-        assert!(split_opt.is_none());
-    }
-
-    #[test]
-    fn test_split_envelope_all() {
-        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
-        envelope.add_item(Item::new(ItemType::Session));
-        envelope.add_item(Item::new(ItemType::Session));
-
-        // Does not split when all items match.
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
-        assert!(split_opt.is_none());
-    }
-
-    #[test]
-    fn test_split_envelope_some() {
-        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
-        envelope.add_item(Item::new(ItemType::Session));
-        envelope.add_item(Item::new(ItemType::Attachment));
-
-        let split_opt = envelope.split_by(|item| item.ty() == &ItemType::Session);
-        let split_envelope = split_opt.expect("split_by returns an Envelope");
-
-        assert_eq!(split_envelope.len(), 1);
-        assert_eq!(split_envelope.event_id(), envelope.event_id());
-
-        // Matching items have moved into the split envelope.
-        for item in split_envelope.items() {
-            assert_eq!(item.ty(), &ItemType::Session);
-        }
-
-        for item in envelope.items() {
-            assert_eq!(item.ty(), &ItemType::Attachment);
-        }
     }
 
     #[test]
