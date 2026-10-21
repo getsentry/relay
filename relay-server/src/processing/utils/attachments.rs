@@ -19,8 +19,7 @@ use relay_dynamic_config::Feature;
 
 /// Validates the attachments and drops any invalid ones.
 ///
-/// Flame graph transport checks apply on every Relay. Payload and placeholder validation only
-/// run on processing Relays.
+/// Flame graph validation only run on processing Relays.
 pub fn validate_attachments<T, V>(
     managed: &mut Managed<T>,
     select: impl FnOnce(&mut T) -> &mut V,
@@ -82,6 +81,7 @@ fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingEr
 }
 
 /// Checks the required transport headers of a flame graph attachment.
+#[cfg(feature = "processing")]
 fn has_valid_flamegraph_headers(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment
         && item.filename() == Some("flamegraph.json")
@@ -283,34 +283,6 @@ mod tests {
     }
 
     #[test]
-    fn test_flamegraph_headers_on_non_processing_relay() {
-        let mut invalid = flamegraph_item(flamegraph_payload());
-        invalid.set_filename("wrong.json");
-        let valid = flamegraph_item(flamegraph_payload());
-        let mut ordinary = Item::new(ItemType::Attachment);
-        ordinary.set_payload(ContentType::Text, "keep me");
-        let rejected_size = invalid.len() as u64;
-        let (mut attachments, mut handle) =
-            Managed::for_test(vec![invalid, valid, ordinary]).build();
-
-        validate_attachments(&mut attachments, |a| a, Context::for_test());
-
-        assert_eq!(attachments.len(), 2);
-        assert_eq!(attachments[0].filename(), Some("flamegraph.json"));
-        assert_eq!(attachments[1].payload().as_ref(), b"keep me");
-        attachments.accept(|_| ());
-        let outcome = crate::services::outcome::Outcome::Invalid(
-            crate::services::outcome::DiscardReason::InvalidFlamegraph,
-        );
-        handle.assert_outcome(
-            &outcome,
-            relay_quotas::DataCategory::Attachment,
-            rejected_size,
-        );
-        handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
-    }
-
-    #[test]
     fn test_flamegraph_without_length_header() {
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
@@ -438,12 +410,6 @@ mod tests {
             .remove("future");
 
         assert_eq!(&reparsed.as_object().unwrap(), &expected);
-
-        // assert!(!reparsed.contains_key("future"));
-        // let node1 = reparsed["nodes"][1].as_object().unwrap();
-        // assert!(!node1.contains_key("future"));
-
-        // assert_eq!(item.payload(), original);
     }
 
     #[cfg(feature = "processing")]

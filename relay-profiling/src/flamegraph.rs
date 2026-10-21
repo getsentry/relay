@@ -1,4 +1,4 @@
-//! Validation of version 1 [flame graph attachments] without rewriting captured data.
+//! Validation of version 1 [flame graph attachments].
 //!
 //! [flame graph attachments]: https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph
 
