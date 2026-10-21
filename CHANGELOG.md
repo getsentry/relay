@@ -5,8 +5,21 @@
 **Features**:
 
 - Set the `rate_limited` field of rate limited crash report attachments to the reason code of the quota that limited them, so that attachments dropped for exceeding a quota can be surfaced in the product. Attachments limited by a quota without a reason code keep `rate_limited: true`. ([#6521](https://github.com/getsentry/relay/pull/6521))
-
+- Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+- Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
+
+**Bug Fixes**:
+
+- Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
+
+**Internal**:
+
+- Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
+
+**Internal**:
+
+- Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default. ([#6529](https://github.com/getsentry/relay/pull/6529))
 
 ## 26.10.0
 
