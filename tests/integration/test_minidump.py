@@ -621,15 +621,18 @@ def test_minidump_with_processing(
         else "minidump.unknown"
     )
 
-    # Rate limited minidumps carry the reason code of the attachment quota.
-    rate_limited = "static_disabled_quota" if rate_limit == "attachment" else False
+    # Rate limited minidumps carry the reason code of the attachment quota, the
+    # `rate_limited` key is omitted otherwise.
+    rate_limited = (
+        {"rate_limited": "static_disabled_quota"} if rate_limit == "attachment" else {}
+    )
 
     if not use_objectstore:
         assert list(message["attachments"]) == [
             {
                 "id": attachment_id,
                 "name": "minidump.dmp",
-                "rate_limited": rate_limited,
+                **rate_limited,
                 "attachment_type": "event.minidump",
                 "content_type": "application/x-dmp",
                 "size": len(content),
@@ -647,7 +650,7 @@ def test_minidump_with_processing(
         assert attachment.pop("id")
         assert attachment == {
             "name": "minidump.dmp",
-            "rate_limited": rate_limited,
+            **rate_limited,
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),
@@ -734,7 +737,6 @@ def test_minidump_with_processing_invalid(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "rate_limited": False,
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "size": len(content),
@@ -1043,7 +1045,6 @@ def test_minidump_placeholder(
         "content_type": "application/x-dmp",
         "id": matches_any(),
         "name": "minidump.dmp",
-        "rate_limited": False,
         "retention_days": 90,
         "size": 26,
         "stored_id": matches_any(),

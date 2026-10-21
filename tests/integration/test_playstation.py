@@ -192,7 +192,6 @@ def attachments(
         {
             "id": matches_any(),
             "name": "console.log",
-            "rate_limited": False,
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": log_size,
@@ -202,7 +201,6 @@ def attachments(
         {
             "id": matches_any(),
             "name": "generated_minidump.dmp",
-            "rate_limited": False,
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "size": generated_dump_size,
@@ -212,7 +210,6 @@ def attachments(
         {
             "id": matches_any(),
             "name": "playstation.prosperodmp",
-            "rate_limited": False,
             "content_type": "application/octet-stream",
             "attachment_type": "playstation.prosperodump",
             "size": playstation_dump_size,
@@ -820,7 +817,6 @@ def test_playstation_attachment_no_feature_flag(
         {
             "id": matches_any(),
             "name": "playstation.prosperodmp",
-            "rate_limited": False,
             "content_type": "application/octet-stream",
             "attachment_type": "playstation.prosperodump",
             "size": 209385,
