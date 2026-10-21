@@ -479,11 +479,11 @@ fn enrich_ai_span_data(
         )
         && let Some(result) = data.get_str(GEN_AI__TOOL__CALL__RESULT)
     {
-        let size = result.len() as i64;
+        let size = result.len() as u64;
         data.other
             .entry(GEN_AI__TOOL__CALL__RESULT__SIZE.to_owned())
             .or_default()
-            .set_value(Some(Value::I64(size)));
+            .set_value(Some(Value::U64(size)));
     }
 }
 

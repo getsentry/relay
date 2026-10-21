@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use relay_conventions::attributes::*;
-use relay_event_schema::protocol::Attributes;
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
 use relay_protocol::{Annotated, Value};
 
 use crate::ModelMetadata;
@@ -241,7 +241,11 @@ fn normalize_tool_call_result_size(attributes: &mut Attributes) {
         return;
     };
 
-    attributes.insert(GEN_AI__TOOL__CALL__RESULT__SIZE, result.len() as i64);
+    let size = Attribute::new(AttributeType::Integer, Value::U64(result.len() as u64));
+    attributes.0.insert(
+        GEN_AI__TOOL__CALL__RESULT__SIZE.to_owned(),
+        Annotated::new(size),
+    );
 }
 
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
