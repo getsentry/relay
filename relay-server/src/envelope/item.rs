@@ -28,7 +28,7 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 stored_key: None,
-                rate_limited: RateLimited::default(),
+                rate_limited: None,
                 source_quantities: None,
                 routing_hint: None,
                 inner: BTreeMap::new(),
@@ -403,17 +403,17 @@ impl Item {
 
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
-        self.headers.rate_limited.is_limited()
+        self.headers.rate_limited.is_some()
     }
 
-    /// Returns the rate limiting state of this item, including the reason code if available.
-    pub fn rate_limited_state(&self) -> &RateLimited {
-        &self.headers.rate_limited
+    /// Returns the reason code for rate limiting the item.
+    pub fn rate_limited_state(&self) -> Option<&RateLimited> {
+        self.headers.rate_limited.as_ref()
     }
 
     /// Sets whether this item should be rate limited.
-    pub fn set_rate_limited(&mut self, rate_limited: RateLimited) {
-        self.headers.rate_limited = rate_limited;
+    pub fn set_rate_limited(&mut self, rate_limited: Option<ReasonCode>) {
+        self.headers.rate_limited = Some(RateLimited(rate_limited));
     }
 
     /// Returns the contained source quantities.
@@ -1046,39 +1046,8 @@ pub enum ItemHeaderKey {
 #[serde(transparent)]
 pub struct ItemHeaderValue(serde_json::Value);
 
-/// Whether an [`Item`] is rate limited, and why.
-///
-/// Serializes to `false` if the item is not rate limited, to the reason code of the quota that
-/// rate limited the item, or to `true` if that quota does not declare a reason code.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(untagged)]
-pub enum RateLimited {
-    /// Whether the item is rate limited by a quota without a reason code.
-    Flag(bool),
-    /// The reason code of the quota that rate limited the item.
-    Reason(ReasonCode),
-}
-
-impl RateLimited {
-    /// Creates a rate limited state for a quota with the given reason code.
-    pub fn new(reason: Option<ReasonCode>) -> Self {
-        match reason {
-            Some(reason) => Self::Reason(reason),
-            None => Self::Flag(true),
-        }
-    }
-
-    /// Returns `true` if the item is rate limited.
-    pub fn is_limited(&self) -> bool {
-        !matches!(self, Self::Flag(false))
-    }
-}
-
-impl Default for RateLimited {
-    fn default() -> Self {
-        Self::Flag(false)
-    }
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RateLimited(pub Option<ReasonCode>);
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ItemHeaders {
@@ -1104,7 +1073,7 @@ pub struct ItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    rate_limited: RateLimited,
+    rate_limited: Option<RateLimited>,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -1189,7 +1158,7 @@ impl fmt::Debug for ItemHeaders {
         if let Some(routing_hint) = routing_hint {
             map.entry(&"routing_hint", routing_hint);
         }
-        if rate_limited.is_limited() {
+        if rate_limited.is_some() {
             map.entry(&"rate_limited", rate_limited);
         }
         if let Some(source_quantities) = source_quantities {

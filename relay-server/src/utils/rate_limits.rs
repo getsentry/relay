@@ -9,9 +9,7 @@ use relay_quotas::{
 };
 use smallvec::SmallVec;
 
-use crate::envelope::{
-    AttachmentParentType, AttachmentType, Envelope, Item, ItemType, RateLimited,
-};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemType};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::Outcome;
@@ -719,9 +717,9 @@ impl Enforcement {
                             return true;
                         }
                         if item.creates_event() {
-                            item.set_rate_limited(RateLimited::new(
+                            item.set_rate_limited(
                                 self.attachments_limits.event.reason_code().cloned(),
-                            ));
+                            );
                             true
                         } else {
                             false
@@ -1377,7 +1375,7 @@ mod tests {
     use super::*;
     use crate::envelope::ParentId;
     use crate::{
-        envelope::{AttachmentType, ContentType, SourceQuantities},
+        envelope::{AttachmentType, ContentType, RateLimited, SourceQuantities},
         extractors::RequestMeta,
     };
 
@@ -1939,7 +1937,9 @@ mod tests {
         let item = envelope.items().next().unwrap();
         assert_eq!(
             item.rate_limited_state(),
-            &RateLimited::Reason(ReasonCode::new("attachment_usage_exceeded"))
+            Some(&RateLimited(Some(ReasonCode::new(
+                "attachment_usage_exceeded"
+            ))))
         );
         mock.lock().await.assert_call(DataCategory::Error, 1);
         mock.lock().await.assert_call(DataCategory::Attachment, 10);
@@ -1951,7 +1951,7 @@ mod tests {
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::OctetStream, "0123456789");
-        item.set_rate_limited(RateLimited::Flag(true));
+        item.set_rate_limited(Some(ReasonCode::new("attachment_usage_exceeded")));
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::Error]);

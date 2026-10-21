@@ -998,7 +998,7 @@ impl StoreService {
         Ok(ChunkedAttachment {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
-            rate_limited: item.rate_limited_state().clone(),
+            rate_limited: item.rate_limited_state().cloned(),
             content_type: placeholder.content_type,
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
@@ -1066,7 +1066,7 @@ impl StoreService {
                 Some(name) => name.to_owned(),
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
-            rate_limited: item.rate_limited_state().clone(),
+            rate_limited: item.rate_limited_state().cloned(),
             content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
@@ -1323,7 +1323,11 @@ struct ChunkedAttachment {
     /// Contains the reason code of the quota that rate limited the attachment if available, so
     /// that Sentry can tell an exceeded quota apart from other rate limits, such as spike
     /// protection.
-    rate_limited: RateLimited,
+    #[serde(
+        serialize_with = "serialize_rate_limited",
+        skip_serializing_if = "Option::is_none"
+    )]
+    rate_limited: Option<RateLimited>,
 
     /// Content type of the attachment payload.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1342,6 +1346,19 @@ struct ChunkedAttachment {
     /// The attachment payload, chunked, inlined, or already stored.
     #[serde(flatten)]
     payload: AttachmentPayload,
+}
+
+fn serialize_rate_limited<S>(rl: &Option<RateLimited>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match rl {
+        None => serializer.serialize_none(),
+        Some(rl) => match &rl.0 {
+            Some(code) => serializer.serialize_str(code.as_str()),
+            None => serializer.serialize_bool(true),
+        },
+    }
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.

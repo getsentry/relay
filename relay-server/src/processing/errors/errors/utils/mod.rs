@@ -3,7 +3,7 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
 
-use crate::envelope::{AttachmentType, Item, ItemType, RateLimited};
+use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::Context;
 use crate::services::outcome::DiscardItemType;
@@ -232,7 +232,5 @@ pub fn take_event_from_crash_items(
 /// but they are not persisted. The reason code is forwarded as well, so that, in the event
 /// this is rate limited due to quota, Sentry can tell which quota caused the crash report to be dropped.
 pub fn mark_rate_limited(item: &mut Item, limits: &RateLimits) {
-    item.set_rate_limited(RateLimited::new(
-        limits.longest().and_then(|limit| limit.reason_code.clone()),
-    ));
+    item.set_rate_limited(limits.longest().and_then(|limit| limit.reason_code.clone()));
 }
