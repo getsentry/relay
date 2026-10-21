@@ -518,7 +518,7 @@ mod tests {
         {
           "sentry.description": {
             "type": "string",
-            "value": "[Filtered]"
+            "value": "secret123"
           },
           "sentry.release": {
             "type": "string",
@@ -537,21 +537,6 @@ mod tests {
             "value": "[Filtered]"
           },
           "_meta": {
-            "sentry.description": {
-              "value": {
-                "": {
-                  "rem": [
-                    [
-                      "@password:filter",
-                      "s",
-                      0,
-                      10
-                    ]
-                  ],
-                  "len": 9
-                }
-              }
-            },
             "url.path": {
               "value": {
                 "": {
