@@ -59,7 +59,7 @@ enum RetentionAction<'a> {
 }
 
 impl<'a> RetentionAction<'a> {
-    fn drop_if_limited(outcome: Option<&'a Outcome>) -> Self {
+    fn drop_on_rejection(outcome: Option<&'a Outcome>) -> Self {
         match outcome {
             None => Self::Keep,
             Some(outcome) => Self::Drop(Some(outcome)),
@@ -288,7 +288,7 @@ fn filter(
             | ItemType::RawSecurity
             | ItemType::UserReportV2
             | ItemType::FormData => {
-                apply_retention(records, RetentionAction::drop_if_limited(event), [], item)
+                apply_retention(records, RetentionAction::drop_on_rejection(event), [], item)
             }
             ItemType::Sessions
             | ItemType::MetricBuckets
@@ -296,19 +296,19 @@ fn filter(
             | ItemType::Unknown(_) => true,
             ItemType::UserReport => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(event.or(enforcement.feedback.as_ref())),
+                RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_ref())),
                 [(DataCategory::UserReportV2, 1)],
                 item,
             ),
             ItemType::ReplayEvent => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(event.or(enforcement.replays.as_ref())),
+                RetentionAction::drop_on_rejection(event.or(enforcement.replays.as_ref())),
                 [(DataCategory::Replay, 1)],
                 item,
             ),
             ItemType::ReplayRecording | ItemType::ReplayVideo => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(enforcement.replays.as_ref()),
+                RetentionAction::drop_on_rejection(enforcement.replays.as_ref()),
                 [(DataCategory::Replay, 1)],
                 item,
             ),
@@ -326,7 +326,7 @@ fn filter(
             ),
             ItemType::CheckIn => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(enforcement.monitors.as_ref()),
+                RetentionAction::drop_on_rejection(enforcement.monitors.as_ref()),
                 [(
                     DataCategory::Monitor,
                     item.item_count().unwrap_or(1) as usize,
@@ -335,7 +335,7 @@ fn filter(
             ),
             ItemType::Log => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(enforcement.logs.as_ref()),
+                RetentionAction::drop_on_rejection(enforcement.logs.as_ref()),
                 [
                     (
                         DataCategory::LogItem,
@@ -347,7 +347,7 @@ fn filter(
             ),
             ItemType::TraceMetric => apply_retention(
                 records,
-                RetentionAction::drop_if_limited(enforcement.trace_metrics.as_ref()),
+                RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_ref()),
                 [
                     (
                         DataCategory::TraceMetric,
@@ -361,7 +361,7 @@ fn filter(
                 let count = item.item_count().unwrap_or(1) as usize;
                 apply_retention(
                     records,
-                    RetentionAction::drop_if_limited(enforcement.spans.as_ref()),
+                    RetentionAction::drop_on_rejection(enforcement.spans.as_ref()),
                     [
                         (DataCategory::Span, count),
                         (DataCategory::SpanIndexed, count),
@@ -373,7 +373,7 @@ fn filter(
                 None => true,
                 Some(ProfileType::Backend) => apply_retention(
                     records,
-                    RetentionAction::drop_if_limited(enforcement.backend_chunks.as_ref()),
+                    RetentionAction::drop_on_rejection(enforcement.backend_chunks.as_ref()),
                     [(
                         DataCategory::ProfileChunk,
                         item.item_count().unwrap_or(1) as usize,
@@ -382,7 +382,7 @@ fn filter(
                 ),
                 Some(ProfileType::Ui) => apply_retention(
                     records,
-                    RetentionAction::drop_if_limited(enforcement.ui_chunks.as_ref()),
+                    RetentionAction::drop_on_rejection(enforcement.ui_chunks.as_ref()),
                     [(
                         DataCategory::ProfileChunkUi,
                         item.item_count().unwrap_or(1) as usize,
@@ -393,7 +393,7 @@ fn filter(
             ItemType::Integration => match item.content_type() {
                 Some(ContentType::Integration(Integration::Logs(_))) => apply_retention(
                     records,
-                    RetentionAction::drop_if_limited(enforcement.logs.as_ref()),
+                    RetentionAction::drop_on_rejection(enforcement.logs.as_ref()),
                     [
                         (
                             DataCategory::LogItem,
@@ -407,7 +407,7 @@ fn filter(
                     let count = item.item_count().unwrap_or(1) as usize;
                     apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(enforcement.spans.as_ref()),
+                        RetentionAction::drop_on_rejection(enforcement.spans.as_ref()),
                         [
                             (DataCategory::Span, count),
                             (DataCategory::SpanIndexed, count),
@@ -437,7 +437,7 @@ fn filter(
                 match item.profile_type() {
                     None => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(enforcement.profiles.as_ref()),
+                        RetentionAction::drop_on_rejection(enforcement.profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -446,7 +446,7 @@ fn filter(
                     ),
                     Some(ProfileType::Backend) => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(enforcement.backend_profiles.as_ref()),
+                        RetentionAction::drop_on_rejection(enforcement.backend_profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -456,7 +456,7 @@ fn filter(
                     ),
                     Some(ProfileType::Ui) => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(enforcement.ui_profiles.as_ref()),
+                        RetentionAction::drop_on_rejection(enforcement.ui_profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -474,10 +474,10 @@ fn filter(
                 ) {
                     (Some(outcome), _, _) => RetentionAction::Drop(Some(outcome)),
                     (None, AttachmentParentType::Span, _) => {
-                        RetentionAction::drop_if_limited(enforcement.span_attachments.as_ref())
+                        RetentionAction::drop_on_rejection(enforcement.span_attachments.as_ref())
                     }
                     (None, AttachmentParentType::Trace, _) => {
-                        RetentionAction::drop_if_limited(enforcement.trace_attachments.as_ref())
+                        RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_ref())
                     }
                     (None, AttachmentParentType::Event, AttachmentRole::CreatesEvent) => {
                         enforcement
@@ -486,7 +486,7 @@ fn filter(
                             .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited)
                     }
                     (None, AttachmentParentType::Event, AttachmentRole::Plain) => {
-                        RetentionAction::drop_if_limited(enforcement.event_attachments.as_ref())
+                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_ref())
                     }
                 };
                 apply_retention(
