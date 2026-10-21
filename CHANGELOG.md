@@ -15,6 +15,10 @@
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
 
+**Internal**:
+
+- Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default. ([#6529](https://github.com/getsentry/relay/pull/6529))
+
 ## 26.10.0
 
 **Breaking Changes**:

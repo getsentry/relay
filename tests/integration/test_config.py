@@ -103,3 +103,25 @@ def test_variable_loaded_from_file_is_reloaded(mini_sentry, relay):
             # Unhealthy => config was reloaded.
             return
         time.sleep(0.5)
+
+
+def test_unknown_reloading_producer_topic_is_ignored(
+    mini_sentry, relay_with_processing
+):
+    """
+    Names in `reloading_producer_topics` that are not topics must not stop Relay from starting.
+
+    The option names logical topics and is set per environment, so a name that is wrong, or
+    belongs to a topic a future Relay removed, has to be inert rather than fatal.
+    """
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "reloading_producer_topics": ["ingest-events", "not-a-topic"],
+            }
+        }
+    )
+
+    assert (
+        relay.get("/api/relay/healthcheck/ready/", is_internal=True).status_code == 200
+    )

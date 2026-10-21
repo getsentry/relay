@@ -12,11 +12,12 @@
 //!     // Get the builder.
 //!     let mut builder = KafkaClient::builder();
 //!
-//!     // Then one can add different configs per topic.
-//!     builder = builder.add_kafka_topic_config(KafkaTopic::Events, &kafka_config_events).unwrap();
+//!     // Then one can add different configs per topic. The last argument opts the topic into a
+//!     // client that is replaced when the Kafka config changes; `None` keeps it fixed.
+//!     builder = builder.add_kafka_topic_config(KafkaTopic::Events, &kafka_config_events, false, None).unwrap();
 //!
 //!     // And add potentially another topic config.
-//!     builder = builder.add_kafka_topic_config(KafkaTopic::Transactions, &kafka_config_metrics).unwrap();
+//!     builder = builder.add_kafka_topic_config(KafkaTopic::Transactions, &kafka_config_metrics, false, None).unwrap();
 //!
 //!     // build the client
 //!     let kafka_client = builder.build();
