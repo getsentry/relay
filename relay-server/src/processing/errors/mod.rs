@@ -21,7 +21,6 @@ mod dynamic_sampling;
 )]
 mod errors;
 mod filter;
-#[cfg(feature = "processing")]
 mod flamegraph;
 mod process;
 

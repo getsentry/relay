@@ -918,13 +918,22 @@ def test_event_with_flamegraph(
 
 
 @pytest.mark.parametrize("processing", [False, True])
+@pytest.mark.parametrize("forwarding_relays", [0, 2])
 def test_flamegraph_culprit_stack(
-    mini_sentry, relay, relay_with_processing, attachments_consumer, processing
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+    processing,
+    forwarding_relays,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     consumer = attachments_consumer() if processing else None
-    relay = relay_with_processing() if processing else relay(mini_sentry)
+    relay_factory = relay
+    relay = relay_with_processing() if processing else relay_factory(mini_sentry)
+    for _ in range(forwarding_relays):
+        relay = relay_factory(relay)
     payload = json.dumps(
         {
             "version": "1",
@@ -997,14 +1006,11 @@ def test_flamegraph_culprit_stack(
         assert attachment.payload.bytes == payload
     exception = event["exception"]["values"][0]
     assert exception["value"] == "hangDuration:2s"
-    if processing:
-        assert exception["stacktrace"]["frames"] == [
-            {"instruction_addr": "0x10", "addr_mode": "rel:0", "in_app": False},
-            {"instruction_addr": "0x20", "addr_mode": "rel:0", "in_app": True},
-        ]
-        assert event["debug_meta"]["images"][0]["code_file"] == "SampleApp"
-    else:
-        assert "stacktrace" not in exception
+    assert exception["stacktrace"]["frames"] == [
+        {"instruction_addr": "0x10", "addr_mode": "rel:0", "in_app": False},
+        {"instruction_addr": "0x20", "addr_mode": "rel:0", "in_app": True},
+    ]
+    assert event["debug_meta"]["images"][0]["code_file"] == "SampleApp"
 
 
 @pytest.mark.parametrize("use_objectstore", [False, True])
