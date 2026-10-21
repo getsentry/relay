@@ -264,6 +264,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "processing")]
     fn flamegraph_item(payload: serde_json::Value) -> Item {
         let mut item = Item::new(ItemType::Attachment);
         item.set_attachment_type(AttachmentType::Flamegraph);
