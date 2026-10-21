@@ -9,7 +9,7 @@ use crate::envelope::{
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
 use crate::services::outcome::Outcome;
-use crate::utils::{EnvelopeSummary, EventGroup};
+use crate::utils::{AttachmentRole, EnvelopeSummary, EventGroup};
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 
@@ -247,14 +247,16 @@ fn resolve_limits(
         ) => None,
     };
     let enforcement = Enforcement {
+        // Attachment limits may have just rejected the shared event. Settle profile
+        // dependencies here so retention can use the final decisions directly.
+        profiles: event.clone().or(profiles),
+        backend_profiles: event.clone().or(backend_profiles),
+        ui_profiles: event.clone().or(ui_profiles),
         event,
         spans,
-        profiles,
         event_attachments,
         span_attachments,
         trace_attachments,
-        backend_profiles,
-        ui_profiles,
         sessions,
         feedback,
         replays,
@@ -435,7 +437,7 @@ fn filter(
                 match item.profile_type() {
                     None => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(event.or(enforcement.profiles.as_ref())),
+                        RetentionAction::drop_if_limited(enforcement.profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -444,9 +446,7 @@ fn filter(
                     ),
                     Some(ProfileType::Backend) => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(
-                            event.or(enforcement.backend_profiles.as_ref()),
-                        ),
+                        RetentionAction::drop_if_limited(enforcement.backend_profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -456,9 +456,7 @@ fn filter(
                     ),
                     Some(ProfileType::Ui) => apply_retention(
                         records,
-                        RetentionAction::drop_if_limited(
-                            event.or(enforcement.ui_profiles.as_ref()),
-                        ),
+                        RetentionAction::drop_if_limited(enforcement.ui_profiles.as_ref()),
                         [
                             (DataCategory::Profile, count),
                             (DataCategory::ProfileIndexed, count),
@@ -469,7 +467,11 @@ fn filter(
                 }
             }
             ItemType::Attachment => {
-                let action = match (event, item.attachment_parent_type(), item.attachment_type()) {
+                let action = match (
+                    event,
+                    item.attachment_parent_type(),
+                    AttachmentRole::from_type(item.attachment_type()),
+                ) {
                     (Some(outcome), _, _) => RetentionAction::Drop(Some(outcome)),
                     (None, AttachmentParentType::Span, _) => {
                         RetentionAction::drop_if_limited(enforcement.span_attachments.as_ref())
@@ -477,23 +479,13 @@ fn filter(
                     (None, AttachmentParentType::Trace, _) => {
                         RetentionAction::drop_if_limited(enforcement.trace_attachments.as_ref())
                     }
-                    (
-                        None,
-                        AttachmentParentType::Event,
-                        Some(
-                            AttachmentType::AppleCrashReport
-                            | AttachmentType::Minidump
-                            | AttachmentType::EventPayload
-                            | AttachmentType::Prosperodump
-                            | AttachmentType::Breadcrumbs
-                            | AttachmentType::NvGpuDump
-                            | AttachmentType::NintendoSwitchDyingMessage,
-                        ),
-                    ) => enforcement
-                        .event_attachments
-                        .as_ref()
-                        .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
-                    (None, AttachmentParentType::Event, _) => {
+                    (None, AttachmentParentType::Event, AttachmentRole::CreatesEvent) => {
+                        enforcement
+                            .event_attachments
+                            .as_ref()
+                            .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited)
+                    }
+                    (None, AttachmentParentType::Event, AttachmentRole::Plain) => {
                         RetentionAction::drop_if_limited(enforcement.event_attachments.as_ref())
                     }
                 };

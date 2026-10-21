@@ -340,13 +340,23 @@ fn test_last_event_contributor_rejects_associated_items() {
     // The current header model allows a crash subtype on a trace attachment. Its attachment
     // quota can remove the event contributor without an error quota. Associated items on
     // either side must follow it; the independent session must survive.
-    let mut envelope = envelope![UserReport, Attachment::Minidump, FormData, Session];
+    let mut envelope = envelope![UserReport, Attachment::Minidump, FormData, Session, Profile];
     envelope
         .items_mut()
         .nth(1)
         .unwrap()
         .set_payload(ContentType::TraceAttachment, "0123456789");
-    let cached = cached_limits(&[DataCategory::Attachment]);
+    for platform in ["python", "cocoa"] {
+        let mut profile = Item::new(ItemType::Profile);
+        profile.set_platform(platform.into());
+        envelope.add_item(profile);
+    }
+    let mut cached = cached_limits(&[DataCategory::Attachment]);
+    let mut profile_limit = rate_limit(DataCategory::Profile);
+    profile_limit.reason_code = Some(ReasonCode::new("profile"));
+    cached.add(profile_limit);
+    // This helper also checks that every outcome uses the attachment rejection's reason
+    // (None), overriding the earlier profile quota's different reason.
     let (envelope, _, outcomes) = enforce_and_apply(cached, envelope);
 
     assert_eq!(
@@ -360,6 +370,10 @@ fn test_last_event_contributor_rejects_associated_items() {
             (DataCategory::Attachment, 10),
             (DataCategory::AttachmentItem, 1),
             (DataCategory::UserReportV2, 1),
+            (DataCategory::Profile, 3),
+            (DataCategory::ProfileIndexed, 3),
+            (DataCategory::ProfileBackend, 1),
+            (DataCategory::ProfileUi, 1),
         ])
     );
 }

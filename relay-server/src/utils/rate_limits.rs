@@ -105,6 +105,40 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
     rate_limits
 }
 
+/// Whether an attachment contributes to the shared event or is a plain attachment.
+///
+/// Summary construction and early retention must use the same classification.
+pub enum AttachmentRole {
+    CreatesEvent,
+    Plain,
+}
+
+impl AttachmentRole {
+    /// Classifies attachment types exhaustively, including an absent or unknown subtype.
+    pub fn from_type(attachment_type: Option<AttachmentType>) -> Self {
+        match attachment_type {
+            Some(
+                AttachmentType::AppleCrashReport
+                | AttachmentType::Minidump
+                | AttachmentType::EventPayload
+                | AttachmentType::Prosperodump
+                | AttachmentType::Breadcrumbs
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NintendoSwitchDyingMessage,
+            ) => Self::CreatesEvent,
+            Some(
+                AttachmentType::Attachment
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs
+                | AttachmentType::ViewHierarchy
+                | AttachmentType::Flamegraph
+                | AttachmentType::NvShaderDebug,
+            )
+            | None => Self::Plain,
+        }
+    }
+}
+
 /// Items creating the envelope's one shared event, including their attachment dependencies.
 ///
 /// Only event-creating attachments participate here. Ordinary span and trace attachments
@@ -361,25 +395,11 @@ impl EnvelopeSummary {
                             AttachmentParentType::Trace => summary.has_trace_attachments = true,
                         }
                     }
-                    match attachment_type {
-                        Some(
-                            AttachmentType::AppleCrashReport
-                            | AttachmentType::Minidump
-                            | AttachmentType::EventPayload
-                            | AttachmentType::Prosperodump
-                            | AttachmentType::Breadcrumbs
-                            | AttachmentType::NvGpuDump
-                            | AttachmentType::NintendoSwitchDyingMessage,
-                        ) => summary.event.add_event_creator(DataCategory::Error, parent),
-                        Some(
-                            AttachmentType::Attachment
-                            | AttachmentType::UnrealContext
-                            | AttachmentType::UnrealLogs
-                            | AttachmentType::ViewHierarchy
-                            | AttachmentType::Flamegraph
-                            | AttachmentType::NvShaderDebug,
-                        )
-                        | None => summary.has_plain_attachments = true,
+                    match AttachmentRole::from_type(attachment_type) {
+                        AttachmentRole::CreatesEvent => {
+                            summary.event.add_event_creator(DataCategory::Error, parent);
+                        }
+                        AttachmentRole::Plain => summary.has_plain_attachments = true,
                     }
                 }
             }
