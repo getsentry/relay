@@ -192,7 +192,7 @@ impl ManagedEnvelope {
                     tags.has_user_reports = summary.user_report_quantity > 0,
                     tags.has_trace_metrics = summary.trace_metric_quantity > 0,
                     tags.has_checkins = summary.monitor_quantity > 0,
-                    tags.event_category = ?summary.event_category,
+                    tags.event_category = ?summary.event.category(),
                     cached_summary = ?summary,
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
                     "dropped envelope: {outcome}"

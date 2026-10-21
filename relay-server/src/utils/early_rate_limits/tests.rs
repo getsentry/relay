@@ -96,6 +96,9 @@ fn test_transaction_span_counts_without_header_writes() {
         let mut transaction = Item::new(ItemType::Transaction);
         transaction.set_payload(ContentType::Json, body);
         transaction.set_span_count(header);
+        // Summarizing counts only declared spans; payload parsing belongs to rejection.
+        let summary = EnvelopeSummary::compute_items([&transaction]);
+        assert_eq!(summary.span_quantity, 1 + header.unwrap_or(0));
         assert_eq!(calc_span_count(&transaction), spans);
         assert_eq!(
             transaction.header::<usize>(ItemHeaderKey::SpanCount),
@@ -215,6 +218,27 @@ fn test_error_and_user_report_outcomes() {
             outcomes.assert_no_outcomes();
         }
     }
+}
+
+#[test]
+fn test_user_report_with_nintendo_header() {
+    // Preserve the distinction between legacy accounting and early quota applicability
+    // for this misplaced attachment header.
+    let mut original = envelope![UserReport];
+    original
+        .items_mut()
+        .next()
+        .unwrap()
+        .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+    assert_eq!(EnvelopeSummary::compute(&original).user_report_quantity, 1);
+
+    let (kept, limits, outcomes) = enforce_and_apply(
+        cached_limits(&[DataCategory::UserReportV2]),
+        original.clone(),
+    );
+    assert_eq!(kept.to_vec().unwrap(), original.to_vec().unwrap());
+    assert!(limits.is_empty());
+    assert!(outcomes.is_empty());
 }
 
 #[test]

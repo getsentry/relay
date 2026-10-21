@@ -9,6 +9,7 @@ use crate::envelope::{
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
 use crate::services::outcome::Outcome;
+use crate::utils::{EnvelopeSummary, EventGroup};
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 
@@ -66,72 +67,6 @@ impl<'a> RetentionAction<'a> {
     }
 }
 
-// Items that create an event share one event per envelope. Event-creating attachments with
-// the same parent type share a retention decision, so only the present parent types and
-// their first occurrence order matter. There is no need to store or rescan individual items.
-// This tracks event-creating items only: ordinary trace attachments can coexist with
-// SpanEventCreators, and ordinary span attachments with TraceEventCreators.
-#[derive(Default)]
-enum EventGroup {
-    // No item creates an event. Items that require an event can still arrive separately.
-    #[default]
-    Absent,
-    // At least one event-creating item survives attachment limits (a direct event or a required
-    // event-parent attachment). The first event-creating item in wire order selects the category.
-    SurvivesAttachmentLimits(DataCategory),
-    // Only span-parent crash attachments create the error event.
-    SpanEventCreators,
-    // Only trace-parent crash attachments create the error event.
-    TraceEventCreators,
-    // Both parent types have event-creating attachments. Either surviving type preserves the
-    // event; if both are rejected, use the reason from the type that appeared first.
-    BothSpanFirst,
-    BothTraceFirst,
-    // The shared event quota rejected the group. Its reason takes precedence over storage
-    // limits, and its category determines whether standalone spans inherit that rejection.
-    Rejected(DataCategory, Outcome),
-}
-
-impl EventGroup {
-    fn add_event_creator(&mut self, category: DataCategory, parent: AttachmentParentType) {
-        *self = match (&*self, parent) {
-            (Self::SurvivesAttachmentLimits(_) | Self::Rejected(..), _) => return,
-            (Self::Absent, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
-            (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(DataCategory::Error),
-            (Self::Absent, AttachmentParentType::Span) => Self::SpanEventCreators,
-            (Self::Absent, AttachmentParentType::Trace) => Self::TraceEventCreators,
-            (Self::SpanEventCreators, AttachmentParentType::Trace) => Self::BothSpanFirst,
-            (Self::TraceEventCreators, AttachmentParentType::Span) => Self::BothTraceFirst,
-            _ => return,
-        };
-    }
-}
-
-// Positive presence is enough: the early pass does not consume quota.
-#[derive(Default)]
-struct Summary {
-    event: EventGroup,
-    plain_attachments: bool,
-    event_attachments: bool,
-    span_attachments: bool,
-    trace_attachments: bool,
-    sessions: bool,
-    untyped_profiles: bool,
-    backend_profiles: bool,
-    ui_profiles: bool,
-    backend_chunks: bool,
-    ui_chunks: bool,
-    feedback: bool,
-    replays: bool,
-    monitors: bool,
-    log_items: bool,
-    log_bytes: bool,
-    spans: bool,
-    trace_metrics: bool,
-    trace_metric_bytes: bool,
-    metrics: bool,
-}
-
 // Resolved rejection reasons shared by the item handlers. Quantities stay with the items.
 struct Enforcement {
     event: Option<Outcome>,
@@ -152,115 +87,8 @@ struct Enforcement {
     trace_metrics: Option<Outcome>,
 }
 
-fn summarize(items: &[Item]) -> Summary {
-    let mut summary = Summary::default();
-    for item in items {
-        // Previously limited items and Nintendo input have no individual quantities here.
-        // They still participate in the shared event, and metrics still advertise client limits.
-        let count_individual = !item.rate_limited()
-            && item.attachment_type() != Some(AttachmentType::NintendoSwitchDyingMessage);
-        match item.ty() {
-            ItemType::Event | ItemType::UnrealReport => summary
-                .event
-                .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
-            ItemType::Security | ItemType::RawSecurity => summary
-                .event
-                .add_event_creator(DataCategory::Security, AttachmentParentType::Event),
-            ItemType::UserReportV2 => summary
-                .event
-                .add_event_creator(DataCategory::UserReportV2, AttachmentParentType::Event),
-            ItemType::UserReport => summary.feedback |= count_individual,
-            ItemType::Session | ItemType::Sessions => {
-                summary.sessions |= count_individual && item.item_count() != Some(0)
-            }
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                summary.replays |= count_individual
-            }
-            ItemType::CheckIn => {
-                summary.monitors |= count_individual && item.item_count() != Some(0)
-            }
-            ItemType::Span => summary.spans |= count_individual && item.item_count() != Some(0),
-            ItemType::MetricBuckets => summary.metrics = true,
-            ItemType::FormData | ItemType::ClientReport | ItemType::Unknown(_) => {}
-            ItemType::Log => {
-                summary.log_items |= count_individual && item.item_count() != Some(0);
-                summary.log_bytes |= count_individual;
-            }
-            ItemType::Transaction => {
-                summary
-                    .event
-                    .add_event_creator(DataCategory::Transaction, AttachmentParentType::Event);
-                summary.spans |= count_individual;
-            }
-            ItemType::TraceMetric => {
-                summary.trace_metrics |= count_individual && item.item_count() != Some(0);
-                summary.trace_metric_bytes |= count_individual;
-            }
-            ItemType::Profile => match item.profile_type() {
-                Some(ProfileType::Backend) => {
-                    summary.backend_profiles |= count_individual && item.item_count() != Some(0)
-                }
-                Some(ProfileType::Ui) => {
-                    summary.ui_profiles |= count_individual && item.item_count() != Some(0)
-                }
-                None => {
-                    summary.untyped_profiles |= count_individual && item.item_count() != Some(0)
-                }
-            },
-            ItemType::ProfileChunk => match item.profile_type() {
-                None => {}
-                Some(ProfileType::Backend) => {
-                    summary.backend_chunks |= count_individual && item.item_count() != Some(0)
-                }
-                Some(ProfileType::Ui) => {
-                    summary.ui_chunks |= count_individual && item.item_count() != Some(0)
-                }
-            },
-            ItemType::Integration => match item.content_type() {
-                Some(ContentType::Integration(Integration::Spans(_))) => {
-                    summary.spans |= count_individual && item.item_count() != Some(0)
-                }
-                Some(ContentType::Integration(Integration::Logs(_))) => {
-                    summary.log_items |= count_individual && item.item_count() != Some(0);
-                    summary.log_bytes |= count_individual;
-                }
-                _ => {}
-            },
-            ItemType::Attachment => {
-                let parent = item.attachment_parent_type();
-                match parent {
-                    AttachmentParentType::Event => summary.event_attachments |= count_individual,
-                    AttachmentParentType::Span => summary.span_attachments |= count_individual,
-                    AttachmentParentType::Trace => summary.trace_attachments |= count_individual,
-                }
-                match item.attachment_type() {
-                    Some(
-                        AttachmentType::AppleCrashReport
-                        | AttachmentType::Minidump
-                        | AttachmentType::EventPayload
-                        | AttachmentType::Prosperodump
-                        | AttachmentType::Breadcrumbs
-                        | AttachmentType::NvGpuDump
-                        | AttachmentType::NintendoSwitchDyingMessage,
-                    ) => summary.event.add_event_creator(DataCategory::Error, parent),
-                    Some(
-                        AttachmentType::Attachment
-                        | AttachmentType::UnrealContext
-                        | AttachmentType::UnrealLogs
-                        | AttachmentType::ViewHierarchy
-                        | AttachmentType::Flamegraph
-                        | AttachmentType::NvShaderDebug,
-                    )
-                    | None => summary.plain_attachments = true,
-                }
-            }
-        }
-    }
-    summary
-}
-
 fn resolve_limits(
-    summary: Summary,
+    summary: EnvelopeSummary,
     scoping: &Scoping,
     cached: &RateLimits,
     quotas: &[Quota],
@@ -278,94 +106,113 @@ fn resolve_limits(
         }
         Some(outcome)
     };
-    let event = match summary.event {
-        EventGroup::Absent => EventGroup::Absent,
-        state @ EventGroup::Rejected(..) => state,
-        state => {
-            let category = match state {
-                EventGroup::SurvivesAttachmentLimits(category) => category,
-                _ => DataCategory::Error,
-            };
-            match check(true, category, true) {
-                None => state,
-                Some(outcome) => EventGroup::Rejected(category, outcome),
-            }
-        }
-    };
+    let event = summary
+        .event
+        .category()
+        .and_then(|category| check(true, category, true).map(|outcome| (category, outcome)));
     let spans = match &event {
-        EventGroup::Rejected(DataCategory::Transaction, outcome) => Some(outcome.clone()),
-        EventGroup::Rejected(..) => None,
-        _ => check(
-            summary.spans || summary.span_attachments,
+        Some((DataCategory::Transaction, outcome)) => Some(outcome.clone()),
+        Some(_) => None,
+        None => check(
+            summary.span_quantity > 0 || summary.has_span_attachments,
             DataCategory::Span,
             true,
         ),
     };
-    let profiles_present =
-        summary.untyped_profiles || summary.backend_profiles || summary.ui_profiles;
-    let profiles = match &event {
-        EventGroup::Rejected(_, outcome) => Some(outcome.clone()),
-        EventGroup::Absent => check(profiles_present, DataCategory::Profile, true)
+    let profiles_present = summary.profile_quantity.total > 0;
+    let profiles = match (&event, summary.event) {
+        (Some((_, outcome)), _) => Some(outcome.clone()),
+        (None, EventGroup::Absent) => check(profiles_present, DataCategory::Profile, true)
             .or_else(|| check(profiles_present, DataCategory::Transaction, true)),
         _ => check(profiles_present, DataCategory::Profile, true),
     };
     let event_attachments = match &event {
-        EventGroup::Rejected(_, outcome) => Some(outcome.clone()),
-        _ => check(
-            summary.event_attachments,
+        Some((_, outcome)) => Some(outcome.clone()),
+        None => check(
+            summary.has_event_attachments,
             DataCategory::Attachment,
-            summary.plain_attachments,
+            summary.has_plain_attachments,
         )
         .or_else(|| {
             check(
-                summary.event_attachments,
+                summary.has_event_attachments,
                 DataCategory::AttachmentItem,
-                summary.plain_attachments,
+                summary.has_plain_attachments,
             )
         }),
     };
     let span_attachments = spans
         .clone()
-        .or_else(|| check(summary.span_attachments, DataCategory::Attachment, false))
         .or_else(|| {
             check(
-                summary.span_attachments,
+                summary.has_span_attachments,
+                DataCategory::Attachment,
+                false,
+            )
+        })
+        .or_else(|| {
+            check(
+                summary.has_span_attachments,
                 DataCategory::AttachmentItem,
                 false,
             )
         });
-    let trace_attachments = check(summary.trace_attachments, DataCategory::Attachment, false)
-        .or_else(|| {
-            check(
-                summary.trace_attachments,
-                DataCategory::AttachmentItem,
-                false,
-            )
-        });
-    let backend_profiles = profiles
-        .clone()
-        .or_else(|| check(summary.backend_profiles, DataCategory::ProfileBackend, true));
-    let ui_profiles = profiles
-        .clone()
-        .or_else(|| check(summary.ui_profiles, DataCategory::ProfileUi, true));
-    let sessions = check(summary.sessions, DataCategory::Session, true);
-    let feedback = check(summary.feedback, DataCategory::UserReportV2, true);
-    let replays = check(summary.replays, DataCategory::Replay, true);
-    let monitors = check(summary.monitors, DataCategory::Monitor, true);
-    let backend_chunks = check(summary.backend_chunks, DataCategory::ProfileChunk, true);
-    let ui_chunks = check(summary.ui_chunks, DataCategory::ProfileChunkUi, true);
-    let logs = check(summary.log_items, DataCategory::LogItem, true)
-        .or_else(|| check(summary.log_bytes, DataCategory::LogByte, true));
-    let trace_metrics =
-        check(summary.trace_metrics, DataCategory::TraceMetric, true).or_else(|| {
-            check(
-                summary.trace_metric_bytes,
-                DataCategory::TraceMetricByte,
-                true,
-            )
-        });
+    let trace_attachments = check(
+        summary.has_trace_attachments,
+        DataCategory::Attachment,
+        false,
+    )
+    .or_else(|| {
+        check(
+            summary.has_trace_attachments,
+            DataCategory::AttachmentItem,
+            false,
+        )
+    });
+    let backend_profiles = profiles.clone().or_else(|| {
+        check(
+            summary.profile_quantity.backend > 0,
+            DataCategory::ProfileBackend,
+            true,
+        )
+    });
+    let ui_profiles = profiles.clone().or_else(|| {
+        check(
+            summary.profile_quantity.ui > 0,
+            DataCategory::ProfileUi,
+            true,
+        )
+    });
+    let sessions = check(summary.session_quantity > 0, DataCategory::Session, true);
+    let feedback = check(summary.has_user_reports, DataCategory::UserReportV2, true);
+    let replays = check(summary.replay_quantity > 0, DataCategory::Replay, true);
+    let monitors = check(summary.monitor_quantity > 0, DataCategory::Monitor, true);
+    let backend_chunks = check(
+        summary.profile_chunk_quantity > 0,
+        DataCategory::ProfileChunk,
+        true,
+    );
+    let ui_chunks = check(
+        summary.profile_chunk_ui_quantity > 0,
+        DataCategory::ProfileChunkUi,
+        true,
+    );
+    let logs = check(summary.log_item_quantity > 0, DataCategory::LogItem, true)
+        .or_else(|| check(summary.log_byte_quantity > 0, DataCategory::LogByte, true));
+    let trace_metrics = check(
+        summary.trace_metric_quantity > 0,
+        DataCategory::TraceMetric,
+        true,
+    )
+    .or_else(|| {
+        check(
+            summary.trace_metric_byte_quantity > 0,
+            DataCategory::TraceMetricByte,
+            true,
+        )
+    });
     // Metrics stay in the envelope; advertise client rate limits across namespaces without parsing them.
-    if summary.metrics {
+    if summary.has_metrics {
         let scope = ItemScoping {
             namespace: MetricNamespaceScoping::Any,
             ..scoping.item(DataCategory::MetricBucket)
@@ -373,21 +220,22 @@ fn resolve_limits(
         client_rate_limits.merge(cached.check_with_quotas(quotas, &scope));
     }
     // Settle the shared event once and retain its rejection for dependent items.
-    let event = match (event, &span_attachments, &trace_attachments) {
-        (EventGroup::Rejected(category, outcome), _, _) => {
+    let event = match (event, summary.event, &span_attachments, &trace_attachments) {
+        (Some((category, outcome)), _, _, _) => {
             for category in std::iter::once(category).chain(category.index_category()) {
                 records.reject_err(outcome.clone(), (category, 1));
             }
             Some(outcome)
         }
-        (EventGroup::SpanEventCreators, Some(outcome), _)
-        | (EventGroup::TraceEventCreators, _, Some(outcome))
-        | (EventGroup::BothSpanFirst, Some(outcome), Some(_))
-        | (EventGroup::BothTraceFirst, Some(_), Some(outcome)) => {
+        (None, EventGroup::SpanEventCreators, Some(outcome), _)
+        | (None, EventGroup::TraceEventCreators, _, Some(outcome))
+        | (None, EventGroup::BothSpanFirst, Some(outcome), Some(_))
+        | (None, EventGroup::BothTraceFirst, Some(_), Some(outcome)) => {
             records.reject_err(outcome.clone(), (DataCategory::Error, 1));
             Some(outcome.clone())
         }
         (
+            None,
             EventGroup::Absent
             | EventGroup::SurvivesAttachmentLimits(_)
             | EventGroup::SpanEventCreators
@@ -426,7 +274,7 @@ fn filter(
     quotas: &[Quota],
     records: &mut RecordKeeper<'_>,
 ) -> (Items, RateLimits) {
-    let summary = summarize(&items);
+    let summary = EnvelopeSummary::compute_items(&items);
     let (enforcement, client_rate_limits) =
         resolve_limits(summary, scoping, cached, quotas, records);
     items.retain(|item| {

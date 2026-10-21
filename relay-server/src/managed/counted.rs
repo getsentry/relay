@@ -90,7 +90,7 @@ impl Counted for EnvelopeSummary {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
 
-        if let Some(category) = self.event_category {
+        if let Some(category) = self.event.category() {
             quantities.push((category, 1));
             if let Some(category) = category.index_category() {
                 quantities.push((category, 1));

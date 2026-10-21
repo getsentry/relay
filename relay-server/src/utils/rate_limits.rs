@@ -1,11 +1,15 @@
 use std::fmt::Write;
 
+use relay_profiling::ProfileType;
 use relay_quotas::{
     DataCategory, DimensionMap, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
     Scoping,
 };
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{
+    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemType,
+};
+use crate::integrations::Integration;
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -101,39 +105,52 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
     rate_limits
 }
 
-/// Infer the data category from an item.
+/// Items creating the envelope's one shared event, including their attachment dependencies.
 ///
-/// Categories depend mostly on the item type, with a few special cases:
-/// - `Event`: the category is inferred from the event type. This requires the `event_type` header
-///   to be set on the event item.
-/// - `Attachment`: If the attachment creates an event (e.g. for minidumps), the category is assumed
-///   to be `Error`.
-fn infer_event_category(item: &Item) -> Option<DataCategory> {
-    match item.ty() {
-        ItemType::Event => Some(DataCategory::Error),
-        ItemType::Transaction => Some(DataCategory::Transaction),
-        ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-        ItemType::UnrealReport => Some(DataCategory::Error),
-        ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
-        ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
-        ItemType::Attachment => None,
-        ItemType::Session => None,
-        ItemType::Sessions => None,
-        ItemType::MetricBuckets => None,
-        ItemType::FormData => None,
-        ItemType::UserReport => None,
-        ItemType::Profile => None,
-        ItemType::ReplayEvent => None,
-        ItemType::ReplayRecording => None,
-        ItemType::ReplayVideo => None,
-        ItemType::ClientReport => None,
-        ItemType::CheckIn => None,
-        ItemType::Log => None,
-        ItemType::TraceMetric => None,
-        ItemType::Span => None,
-        ItemType::ProfileChunk => None,
-        ItemType::Integration => None,
-        ItemType::Unknown(_) => None,
+/// Only event-creating attachments participate here. Ordinary span and trace attachments
+/// can coexist with any group. Creator order determines the category and rejection precedence.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum EventGroup {
+    /// No item creates an event; associated items can still arrive separately.
+    #[default]
+    Absent,
+    /// A direct event or required event-parent attachment survives attachment limits.
+    /// The first creator in wire order selects the shared event's category.
+    SurvivesAttachmentLimits(DataCategory),
+    /// Only span-parent crash attachments create the error event.
+    SpanEventCreators,
+    /// Only trace-parent crash attachments create the error event.
+    TraceEventCreators,
+    /// Both parent types create the event, with a span-parent creator appearing first.
+    BothSpanFirst,
+    /// Both parent types create the event, with a trace-parent creator appearing first.
+    BothTraceFirst,
+}
+
+impl EventGroup {
+    /// The category counted once for this group, regardless of the number of creators.
+    pub fn category(self) -> Option<DataCategory> {
+        match self {
+            Self::Absent => None,
+            Self::SurvivesAttachmentLimits(category) => Some(category),
+            Self::SpanEventCreators
+            | Self::TraceEventCreators
+            | Self::BothSpanFirst
+            | Self::BothTraceFirst => Some(DataCategory::Error),
+        }
+    }
+
+    fn add_event_creator(&mut self, category: DataCategory, parent: AttachmentParentType) {
+        *self = match (*self, parent) {
+            (Self::SurvivesAttachmentLimits(_), _) => return,
+            (Self::Absent, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
+            (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(DataCategory::Error),
+            (Self::Absent, AttachmentParentType::Span) => Self::SpanEventCreators,
+            (Self::Absent, AttachmentParentType::Trace) => Self::TraceEventCreators,
+            (Self::SpanEventCreators, AttachmentParentType::Trace) => Self::BothSpanFirst,
+            (Self::TraceEventCreators, AttachmentParentType::Span) => Self::BothTraceFirst,
+            _ => return,
+        };
     }
 }
 
@@ -151,16 +168,27 @@ pub struct ProfileQuantities {
 
 /// A summary of `Envelope` contents.
 ///
-/// Aggregates the shared event and individual item quantities for outcome accounting and telemetry.
+/// Aggregates header-derived quantities and relationships for early filtering, accounting and
+/// telemetry. Transaction payloads are never parsed to build this summary.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnvelopeSummary {
-    /// The data category of the event in the envelope. `None` if there is no event.
-    pub event_category: Option<DataCategory>,
+    /// The shared event and the item groups that can keep it alive.
+    pub event: EventGroup,
 
     /// Total attachment storage across all parent types.
     pub attachment_bytes: usize,
     pub attachment_count: usize,
+
+    /// An attachment that does not create an event is present, even if already rate limited.
+    pub has_plain_attachments: bool,
+    /// Counted attachments are present for the corresponding parent type.
+    pub has_event_attachments: bool,
+    pub has_span_attachments: bool,
+    pub has_trace_attachments: bool,
+
+    /// Metrics items require client backoff even when they carry no accounting quantities.
+    pub has_metrics: bool,
 
     /// The number of all session updates.
     pub session_quantity: usize,
@@ -173,6 +201,10 @@ pub struct EnvelopeSummary {
 
     /// The number of user reports (legacy item type for user feedback).
     pub user_report_quantity: usize,
+
+    /// V1 reports participating in quota checks. Legacy accounting still counts a report with
+    /// a misplaced Nintendo attachment header, although early filtering excludes it.
+    pub has_user_reports: bool,
 
     /// The number of monitor check-ins.
     pub monitor_quantity: usize,
@@ -196,7 +228,8 @@ pub struct EnvelopeSummary {
     /// See `secondary_transaction_quantity`.
     pub secondary_span_quantity: usize,
 
-    /// The number of standalone spans.
+    /// Standalone spans, transaction roots and embedded spans declared in transaction headers.
+    /// Missing embedded-span counts are calculated only when a transaction is rejected.
     pub span_quantity: usize,
 
     /// The payload size of this envelope.
@@ -225,85 +258,134 @@ impl EnvelopeSummary {
         Self::compute_items(envelope.items())
     }
 
+    /// Summarizes the original items without parsing payloads or constructing per-item quantities.
     pub fn compute_items<'a>(items: impl IntoIterator<Item = &'a Item>) -> Self {
         let mut summary = Self::empty();
 
         for item in items {
-            if item.creates_event() {
-                summary.infer_category(item);
+            let rate_limited = item.rate_limited();
+            if !rate_limited {
+                if let Some(source) = item.source_quantities() {
+                    summary.secondary_transaction_quantity += source.transactions;
+                    summary.secondary_span_quantity += source.spans;
+                }
+                summary.payload_size += item.len();
             }
 
-            // If the item has been rate limited before, the quota has been consumed and outcomes
-            // emitted. We can skip it here.
-            if item.rate_limited() {
-                continue;
-            }
+            // Already-limited items and Nintendo input have no individual quantities here.
+            // They still create the shared event; metrics still advertise client limits.
+            let attachment_type = item.attachment_type();
+            let count_individual = !rate_limited
+                && attachment_type != Some(AttachmentType::NintendoSwitchDyingMessage);
+            let count = if count_individual {
+                item.item_count().unwrap_or(1) as usize
+            } else {
+                0
+            };
 
-            if let Some(source_quantities) = item.source_quantities() {
-                summary.secondary_transaction_quantity += source_quantities.transactions;
-                summary.secondary_span_quantity += source_quantities.spans;
-            }
-
-            summary.payload_size += item.len();
-
-            summary.add_quantities(item);
-
-            // Special case since v1 and v2 share a data category.
-            // Adding this in add_quantity would include v2 in the count.
-            if item.ty() == &ItemType::UserReport {
-                summary.user_report_quantity += 1;
+            match item.ty() {
+                ItemType::Event | ItemType::UnrealReport => summary
+                    .event
+                    .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
+                ItemType::Security | ItemType::RawSecurity => summary
+                    .event
+                    .add_event_creator(DataCategory::Security, AttachmentParentType::Event),
+                ItemType::UserReportV2 => summary
+                    .event
+                    .add_event_creator(DataCategory::UserReportV2, AttachmentParentType::Event),
+                ItemType::UserReport => {
+                    summary.user_report_quantity += usize::from(!rate_limited);
+                    summary.has_user_reports |= count_individual;
+                }
+                ItemType::Session | ItemType::Sessions => summary.session_quantity += count,
+                ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                    summary.replay_quantity += count;
+                }
+                ItemType::CheckIn => summary.monitor_quantity += count,
+                ItemType::Span => summary.span_quantity += count,
+                ItemType::MetricBuckets => summary.has_metrics = true,
+                ItemType::FormData | ItemType::ClientReport | ItemType::Unknown(_) => {}
+                ItemType::Log => {
+                    summary.log_item_quantity += count;
+                    if count_individual {
+                        summary.log_byte_quantity += item.len().max(1);
+                    }
+                }
+                ItemType::TraceMetric => {
+                    summary.trace_metric_quantity += count;
+                    if count_individual {
+                        summary.trace_metric_byte_quantity += item.len().max(1);
+                    }
+                }
+                ItemType::Transaction => {
+                    summary
+                        .event
+                        .add_event_creator(DataCategory::Transaction, AttachmentParentType::Event);
+                    if count_individual {
+                        summary.span_quantity += 1 + item.span_count() as usize;
+                    }
+                }
+                ItemType::Profile => {
+                    summary.profile_quantity.total += count;
+                    match item.profile_type() {
+                        Some(ProfileType::Backend) => summary.profile_quantity.backend += count,
+                        Some(ProfileType::Ui) => summary.profile_quantity.ui += count,
+                        None => {}
+                    }
+                }
+                ItemType::ProfileChunk => match item.profile_type() {
+                    Some(ProfileType::Backend) => summary.profile_chunk_quantity += count,
+                    Some(ProfileType::Ui) => summary.profile_chunk_ui_quantity += count,
+                    None => {}
+                },
+                ItemType::Integration => match item.content_type() {
+                    Some(ContentType::Integration(Integration::Spans(_))) => {
+                        summary.span_quantity += count;
+                    }
+                    Some(ContentType::Integration(Integration::Logs(_))) => {
+                        summary.log_item_quantity += count;
+                        if count_individual {
+                            summary.log_byte_quantity += item.len().max(1);
+                        }
+                    }
+                    _ => {}
+                },
+                ItemType::Attachment => {
+                    let parent = item.attachment_parent_type();
+                    if count_individual {
+                        summary.attachment_count += 1;
+                        summary.attachment_bytes += item.attachment_body_size();
+                        match parent {
+                            AttachmentParentType::Event => summary.has_event_attachments = true,
+                            AttachmentParentType::Span => summary.has_span_attachments = true,
+                            AttachmentParentType::Trace => summary.has_trace_attachments = true,
+                        }
+                    }
+                    match attachment_type {
+                        Some(
+                            AttachmentType::AppleCrashReport
+                            | AttachmentType::Minidump
+                            | AttachmentType::EventPayload
+                            | AttachmentType::Prosperodump
+                            | AttachmentType::Breadcrumbs
+                            | AttachmentType::NvGpuDump
+                            | AttachmentType::NintendoSwitchDyingMessage,
+                        ) => summary.event.add_event_creator(DataCategory::Error, parent),
+                        Some(
+                            AttachmentType::Attachment
+                            | AttachmentType::UnrealContext
+                            | AttachmentType::UnrealLogs
+                            | AttachmentType::ViewHierarchy
+                            | AttachmentType::Flamegraph
+                            | AttachmentType::NvShaderDebug,
+                        )
+                        | None => summary.has_plain_attachments = true,
+                    }
+                }
             }
         }
 
         summary
-    }
-
-    fn add_quantities(&mut self, item: &Item) {
-        // The Nintendo switch item is a special case which should've been modelled like the
-        // `Unreal4Context` as potentially a separate item type which does not have its own data
-        // category.
-        //
-        // Currently there is no outcome category for this item, as it will be dissolved into
-        // multiple different items once processed.
-        if item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage) {
-            return;
-        }
-
-        for (category, quantity) in item.quantities() {
-            let target_quantity = match category {
-                DataCategory::Attachment => &mut self.attachment_bytes,
-                DataCategory::AttachmentItem => &mut self.attachment_count,
-                DataCategory::Session => &mut self.session_quantity,
-                DataCategory::Profile => &mut self.profile_quantity.total,
-                DataCategory::ProfileBackend => &mut self.profile_quantity.backend,
-                DataCategory::ProfileUi => &mut self.profile_quantity.ui,
-                DataCategory::Replay => &mut self.replay_quantity,
-                DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
-                DataCategory::Monitor => &mut self.monitor_quantity,
-                DataCategory::Span => &mut self.span_quantity,
-                DataCategory::TraceMetric => &mut self.trace_metric_quantity,
-                DataCategory::TraceMetricByte => &mut self.trace_metric_byte_quantity,
-                DataCategory::LogItem => &mut self.log_item_quantity,
-                DataCategory::LogByte => &mut self.log_byte_quantity,
-                DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
-                DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
-                // TODO: This catch-all looks dangerous
-                _ => continue,
-            };
-            *target_quantity += quantity;
-        }
-    }
-
-    /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
-    ///
-    /// The inferred category is only applied to the [`EnvelopeSummary`] if there is not yet
-    /// a category set.
-    fn infer_category(&mut self, item: &Item) {
-        if matches!(self.event_category, None | Some(DataCategory::Default))
-            && let Some(category) = infer_event_category(item)
-        {
-            self.event_category = Some(category);
-        }
     }
 }
 
