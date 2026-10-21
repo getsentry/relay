@@ -2893,15 +2893,10 @@ impl ConfigSnapshot {
     ///
     /// # This is a stand-in
     ///
-    /// The blob is meant to be opaque to Relay: options-automator publishes one per region
-    /// covering every cluster and topic, and Relay passes the bytes to Arroyo without
-    /// interpreting them. That delivery channel does not exist, so this builds a blob out of
-    /// Relay's own `kafka_config`, `secondary_kafka_configs` and `topics` instead, which is
-    /// enough to exercise the reload path.
-    ///
-    /// Relay therefore owns the schema here, which the real design puts on the streaming side.
-    /// Replacing this means taking on options-automator delivery and the initial-config
-    /// lifecycle, not just swapping where the bytes come from.
+    /// The blob is meant to be opaque to Relay: one is published per region covering every
+    /// cluster and topic, and Relay passes the bytes to Arroyo without interpreting them. That
+    /// delivery channel does not yet exist, so this builds a blob out of Relay's own
+    /// `kafka_config`, `secondary_kafka_configs` and `topics` instead.
     pub fn kafka_config_blob(&self) -> Result<Vec<u8>, KafkaConfigError> {
         // Sorted throughout, so an unchanged config always serializes to the same bytes and the
         // caller can skip pushing by comparing them.
