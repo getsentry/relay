@@ -2925,14 +2925,12 @@ impl ConfigSnapshot {
                     serde_json::json!({ "config": config }),
                 );
 
-                // Keyed by physical topic name, which is what Arroyo's `ProducerSelector` looks
-                // up. A sharded topic contributes one entry per shard.
+                // Arroyo keys the blob by logical topic and maps it to one physical topic. Relay's
+                // sharded topics are one logical topic to many physical ones, which Arroyo cannot
+                // express yet, so each physical topic is its own entry and maps to itself.
                 topics.insert(
                     params.topic_name.clone(),
-                    serde_json::json!({
-                        "cluster": cluster_name,
-                        "logical_topic": topic.logical_topic_name(),
-                    }),
+                    serde_json::json!({ "physical_topic": { "cluster": cluster_name } }),
                 );
             }
         }
@@ -3207,7 +3205,11 @@ processing:
                 .producer_config(&ProducerSelector::new(topic, "relay"))
                 .unwrap_or_else(|_| panic!("{topic} is missing from the blob"));
 
+            // Each entry must produce to the topic it is keyed by.
+            assert_eq!(resolved.physical_topic.as_str(), topic);
+
             resolved
+                .config
                 .config_map()
                 .iter()
                 // Arroyo adds this itself when building a producer config.
@@ -3246,14 +3248,6 @@ processing:
             resolve("metrics-topic").get("bootstrap.servers").unwrap(),
             "impostor:9092"
         );
-
-        // Physical to logical topic mapping, used as a metric tag.
-        assert_eq!(parsed.logical_topic("events-1"), Some("ingest-events"));
-        assert_eq!(parsed.logical_topic("events-2"), Some("ingest-events"));
-        assert_eq!(
-            parsed.logical_topic("metrics-topic"),
-            Some("ingest-metrics")
-        );
     }
 
     /// Moving a topic to a different cluster must change the broker it resolves to.
@@ -3269,6 +3263,7 @@ processing:
                 .unwrap()
                 .producer_config(&ProducerSelector::new("events-topic", "relay"))
                 .unwrap()
+                .config
                 .get_config_value("bootstrap.servers")
                 .unwrap()
                 .clone()

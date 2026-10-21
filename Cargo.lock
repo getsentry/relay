@@ -227,6 +227,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5682,12 +5704,14 @@ dependencies = [
 
 [[package]]
 name = "sentry_arroyo"
-version = "2.47.0"
+version = "2.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7529427a38f7928d90896498d6872c60a3797e3a523fa5334afbf596d7146f09"
+checksum = "9b962caedc7c28baaf90780020e464d1f2436c6c2a38008dcfd43d96536802ce"
 dependencies = [
+ "async-stream",
  "chrono",
  "coarsetime",
+ "futures",
  "metrics",
  "once_cell",
  "parking_lot",
@@ -5698,6 +5722,8 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-stream",
+ "tokio-util",
  "tracing",
  "uuid",
 ]
