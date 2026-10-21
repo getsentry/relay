@@ -322,7 +322,7 @@ def test_relay_chain_normalizes_minidump_events(
     attachments_consumer = attachments_consumer()
     project_id = 42
 
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id)
 
     credentials = relay_credentials()
     processing = relay_with_processing(
