@@ -4,6 +4,7 @@ mod attributes;
 mod base;
 mod breadcrumb;
 mod breakdowns;
+mod browser_report;
 mod client_report;
 mod clientsdk;
 mod constants;
