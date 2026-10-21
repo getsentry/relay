@@ -146,7 +146,7 @@ def test_feedback_with_attachment_in_same_envelope(
     objectstore,
 ):
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id)
 
     other_consumer = events_consumer(timeout=20)
     feedback_consumer = feedback_consumer(timeout=20)

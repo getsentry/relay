@@ -220,7 +220,7 @@ def test_processing_normalizes_unreal_event(
 ):
     attachments_consumer = attachments_consumer()
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id)
 
     credentials = relay_credentials()
     relay_config = {"processing": {"attachment_chunk_size": "1.23 GB"}}

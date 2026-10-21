@@ -297,6 +297,7 @@ class SentryLike:
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
             **(headers or {}),
         }
+        print(headers)
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
         return response
