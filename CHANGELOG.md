@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#TBD](https://github.com/getsentry/relay/pull/TBD))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 
 ## 26.10.0

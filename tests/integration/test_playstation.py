@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from time import sleep
 import pytest
 import json
@@ -616,6 +617,94 @@ def test_playstation_user_data_extraction(
     event, payload = attachments_consumer.get_event_only()
     assert payload == user_data_event_json(response)
     assert len(event["attachments"]) == 3
+
+
+def session_relay_options():
+    # The session in the dump has a fixed `started` time, which must not be rejected as too old.
+    forever = 100 * 365 * 24 * 60 * 60
+    return {
+        "processing": {"max_session_secs_in_past": forever},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+            "max_secs_in_past": forever,
+        },
+    }
+
+
+@pytest.mark.parametrize("num_intermediate_relays", [0, 1])
+def test_playstation_with_session(
+    mini_sentry,
+    relay,
+    relay_processing_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+    metrics_consumer,
+    num_intermediate_relays,
+):
+    PROJECT_ID = 42
+    # Crash captured by sentry-playstation, which embeds the crashed session in the userdata.
+    playstation_dump = load_dump_file("session.prosperodmp")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    metrics_consumer = metrics_consumer()
+
+    upstream = relay_processing_with_playstation(options=session_relay_options())
+    for _ in range(num_intermediate_relays):
+        upstream = relay(upstream)
+
+    response = upstream.send_playstation_request(PROJECT_ID, playstation_dump)
+    assert response.ok
+
+    event, payload = attachments_consumer.get_event_only()
+    assert payload["level"] == "fatal"
+    assert payload["release"] == "test-app@1.0.0"
+
+    metrics = metrics_consumer.get_metrics(with_headers=False)
+
+    started = int(
+        datetime.fromisoformat("2026-10-21T08:11:28.881605+00:00").timestamp()
+    )
+    common_tags = {"environment": "integration-test", "release": "test-app@1.0.0"}
+    assert [
+        (m["name"], m["tags"].get("session.status"), m["value"]) for m in metrics
+    ] == [
+        ("c:sessions/session@none", "crashed", 1.0),
+        ("c:sessions/session@none", "init", 1.0),
+        ("s:sessions/error@none", None, [matches_any()]),
+        ("s:sessions/user@none", "crashed", [matches_any()]),
+        ("s:sessions/user@none", "errored", [matches_any()]),
+    ]
+    for metric in metrics:
+        assert metric["project_id"] == PROJECT_ID
+        assert metric["timestamp"] == started
+        assert {k: v for k, v in metric["tags"].items() if k in common_tags} == (
+            common_tags
+        )
+
+    outcomes_consumer.assert_empty()
+
+
+def test_playstation_without_session(
+    mini_sentry,
+    relay_processing_with_playstation,
+    attachments_consumer,
+    metrics_consumer,
+):
+    PROJECT_ID = 42
+    # Crash captured before the SDK embedded the session.
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    attachments_consumer = attachments_consumer()
+    metrics_consumer = metrics_consumer()
+
+    relay = relay_processing_with_playstation(options=session_relay_options())
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    assert response.ok
+
+    attachments_consumer.get_event_only()
+    metrics_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("use_pop_relay", [True, False])
