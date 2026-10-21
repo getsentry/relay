@@ -17,9 +17,9 @@ use crate::services::projects::project::ProjectInfo;
 use crate::utils::sample;
 use relay_dynamic_config::Feature;
 
-/// Validates the attachments and drop any invalid ones.
+/// Validates the attachments and drops any invalid ones.
 ///
-/// An attachment might be a placeholder, in which case it needs to be validated.
+/// Flame graph validation only run on processing Relays.
 pub fn validate_attachments<T, V>(
     managed: &mut Managed<T>,
     select: impl FnOnce(&mut T) -> &mut V,
@@ -28,20 +28,35 @@ pub fn validate_attachments<T, V>(
     T: Counted,
     V: RetainMut<Item>,
 {
-    if !ctx.is_processing() {
-        return;
-    }
-    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+    managed.retain(select, |attachment, r| {
+        if ctx.is_processing() {
+            r.lenient(relay_quotas::DataCategory::Attachment);
+            validate(attachment, ctx.config)
+        } else {
+            Ok(())
+        }
+    });
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 
     #[cfg(feature = "processing")]
     {
         use crate::services::upload::{Final, SignedLocation};
+
+        if item.attachment_type() == Some(AttachmentType::Flamegraph) {
+            if !has_valid_flamegraph_headers(item) {
+                return Err(ProcessingError::InvalidFlamegraph);
+            }
+            let validated_payload = relay_profiling::flamegraph::validate(&item.payload())
+                .map_err(|_| ProcessingError::InvalidFlamegraph)?;
+            item.set_payload_without_content_type(validated_payload);
+
+            return Ok(());
+        }
 
         if !item.is_attachment_ref() {
             return Ok(());
@@ -63,6 +78,14 @@ fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError>
             false => Err(ProcessingError::InvalidAttachmentRef),
         }
     }
+}
+
+/// Checks the required transport headers of a flame graph attachment.
+#[cfg(feature = "processing")]
+fn has_valid_flamegraph_headers(item: &Item) -> bool {
+    item.ty() == &ItemType::Attachment
+        && item.filename() == Some("flamegraph.json")
+        && item.content_type() == Some(ContentType::Json)
 }
 
 /// Apply data privacy rules to attachments in the envelope.
@@ -240,6 +263,190 @@ mod tests {
     use relay_pii::PiiConfig;
 
     use super::*;
+
+    #[cfg(feature = "processing")]
+    fn flamegraph_item(payload: serde_json::Value) -> Item {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        item.set_filename("flamegraph.json");
+        item.set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
+        item
+    }
+
+    fn flamegraph_payload() -> serde_json::Value {
+        serde_json::json!({
+            "version": "1",
+            "platform": "python",
+            "frames": [{"function": "main"}],
+            "nodes": [{"frame_id": 0, "sample_count": 10, "children": []}],
+            "trees": [{"roots": [0]}]
+        })
+    }
+
+    #[test]
+    fn test_flamegraph_without_length_header() {
+        let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
+        let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
+        let (item, _) = Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+        let (mut attachments, _handle) = Managed::for_test(vec![item]).build();
+
+        validate_attachments(&mut attachments, |a| a, Context::for_test());
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].payload().as_ref(), payload.as_bytes());
+        attachments.accept(|_| ());
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_flamegraph_invalid_payloads() {
+        use serde_json::json;
+        let config = relay_config::Config::default();
+        let cases = [
+            ("/version", json!("2")),
+            ("/version", json!(1)),
+            ("/platform", json!("unknown")),
+            ("/frames", json!([])),
+            ("/frames", json!([{}])),
+            ("/frames", json!([{"function": 1}])),
+            ("/frames", json!([{"instruction_addr": "not an address"}])),
+            ("/nodes", json!([])),
+            ("/trees", json!([])),
+            ("/trees/0/roots", json!([])),
+            ("/trees/0/roots/0", json!(1)),
+            ("/nodes/0/frame_id", json!(1)),
+            ("/nodes/0/frame_id", json!(-1)),
+            ("/nodes/0/frame_id", json!(0.0)),
+            ("/nodes/0/sample_count", json!(0)),
+            ("/nodes/0/sample_count", json!(-1)),
+            ("/nodes/0/sample_count", json!(1.5)),
+            ("/nodes/0/sample_count", json!(9007199254740992u64)),
+            (
+                "/nodes",
+                json!([
+                    {"frame_id": 0, "sample_count": 10, "children": [1]},
+                    {"frame_id": 0, "sample_count": 11}
+                ]),
+            ),
+            (
+                "/nodes",
+                json!([
+                    {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
+                    {"frame_id": 0, "sample_count": 6},
+                    {"frame_id": 0, "sample_count": 5}
+                ]),
+            ),
+            ("/nodes/0/children", json!(null)),
+            ("/nodes/0/children", json!([1])),
+            ("/trees/0", json!({"thread_id": 42, "roots": [0]})),
+            (
+                "/trees/0",
+                json!({"thread_attributed": "true", "roots": [0]}),
+            ),
+            ("/platform", json!("cocoa")),
+        ];
+        for (path, value) in cases {
+            let mut payload = flamegraph_payload();
+            *payload.pointer_mut(path).unwrap() = value;
+            assert!(
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
+                "{path}"
+            );
+        }
+        for field in ["version", "platform", "frames", "nodes", "trees"] {
+            let mut payload = flamegraph_payload();
+            payload.as_object_mut().unwrap().remove(field);
+            assert!(
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
+                "{field}"
+            );
+        }
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_payload(ContentType::Json, "not json");
+        assert!(validate(&mut item, &config.current()).is_err());
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_flamegraph_invalid_headers() {
+        let config = relay_config::Config::default();
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_filename("other.json");
+        assert!(validate(&mut item, &config.current()).is_err());
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_payload(ContentType::Text, item.payload());
+        assert!(validate(&mut item, &config.current()).is_err());
+        let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
+        for headers in [
+            r#"{"type":"attachment","attachment_type":"event.flamegraph","content_type":"application/json"}"#,
+            r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json"}"#,
+        ] {
+            let (mut item, _) =
+                Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+            assert!(validate(&mut item, &config.current()).is_err());
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_flamegraph_removes_unknown_fields() {
+        let config = relay_config::Config::default();
+        let mut payload = flamegraph_payload();
+        payload["future"] = serde_json::json!({"keep": "this"});
+        payload["nodes"] = serde_json::json!([
+            {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
+            {"frame_id": 0, "sample_count": 6, "future": true},
+            {"frame_id": 0, "sample_count": 4}
+        ]);
+        let mut expected = payload.clone();
+        let mut item = flamegraph_item(payload);
+        validate(&mut item, &config.current()).unwrap();
+        let reparsed: serde_json::Value = serde_json::from_slice(&item.payload()).unwrap();
+
+        let expected = expected.as_object_mut().unwrap();
+        expected.remove("future");
+        expected["nodes"][1]
+            .as_object_mut()
+            .unwrap()
+            .remove("future");
+
+        assert_eq!(&reparsed.as_object().unwrap(), &expected);
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_flamegraph_native_inputs_and_frame_budget() {
+        use serde_json::json;
+        let config = relay_config::Config::default();
+        let mut payload = flamegraph_payload();
+        payload["platform"] = json!("cocoa");
+        payload["debug_meta"] = json!({"images": [{
+            "type": "macho", "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+            "code_file": "ExampleApp", "image_addr": "0x100000000",
+            "image_size": 8192, "arch": "arm64", "future": true
+        }]});
+        let frame = json!({
+            "instruction_addr": "0x100001000", "function": "main", "package": "ExampleApp",
+            "filename": "Sources/Main.swift", "lineno": 42, "future": "preserved"
+        });
+        payload["frames"] = json!(vec![frame; 2501]);
+        payload["nodes"][0]["frame_id"] = json!(2500);
+        payload["nodes"][0]["sample_count"] = json!(9007199254740991u64);
+        payload["trees"][0]["thread_id"] = json!("42");
+        payload["trees"][0]["thread_attributed"] = json!(true);
+        for mode in ["abs", "rel:0", "rel:84a04d24-0e60-3810-a8c0-90a65e2df61a"] {
+            payload["frames"][0]["addr_mode"] = json!(mode);
+            let mut item = flamegraph_item(payload.clone());
+            assert!(validate(&mut item, &config.current()).is_ok());
+        }
+        for mode in ["bogus", "rel:1", "rel:invalid"] {
+            payload["frames"][0]["addr_mode"] = json!(mode);
+            assert!(validate(&mut flamegraph_item(payload.clone()), &config.current()).is_err());
+        }
+        payload["frames"][0]["addr_mode"] = json!("abs");
+        payload["debug_meta"] = json!({"images": [{"type": "macho", "debug_id": "invalid"}]});
+        assert!(validate(&mut flamegraph_item(payload), &config.current()).is_err());
+    }
 
     #[test]
     fn matches_attachment_selector() {

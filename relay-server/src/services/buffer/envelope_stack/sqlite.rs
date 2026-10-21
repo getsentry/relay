@@ -50,7 +50,7 @@ pub struct SqliteEnvelopeStack {
     /// Time of last flush to disk (or creation time of the envelope stack).
     last_flush: Instant,
     /// Optional throttle which paces how quickly envelopes are unspooled from disk.
-    unspool_throttle: Option<Arc<Throttle>>,
+    unspool_throttle: Arc<Throttle>,
 }
 
 /// Configuration for a [`SqliteEnvelopeStack`].
@@ -63,7 +63,7 @@ pub struct SqliteEnvelopeStackConfig {
     /// Time after which to flush the buffer to disk.
     pub flush_timeout: Option<Duration>,
     /// Optional throttle which paces how quickly envelopes are unspooled from disk.
-    pub unspool_throttle: Option<Arc<Throttle>>,
+    pub unspool_throttle: Arc<Throttle>,
 }
 
 impl SqliteEnvelopeStack {
@@ -161,9 +161,7 @@ impl SqliteEnvelopeStack {
         match batch {
             Some(batch) => {
                 self.batch = batch.into();
-                if let Some(throttle) = &self.unspool_throttle {
-                    throttle.acquire(self.batch.len()).await;
-                }
+                self.unspool_throttle.acquire(self.batch.len()).await;
             }
             None => self.check_disk = false,
         }
@@ -260,7 +258,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: 10,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -288,7 +286,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: threshold_size,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -333,7 +331,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: 2,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -357,7 +355,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: 2,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -379,7 +377,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: 9999,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -425,7 +423,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: calculate_compressed_size(&envelopes),
                 flush_timeout: Some(timeout),
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store.clone(),
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -478,7 +476,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: threshold_size,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -550,7 +548,7 @@ mod tests {
                 partition_id: 0,
                 batch_size_bytes: 10 * COMPRESSED_ENVELOPE_SIZE,
                 flush_timeout: None,
-                unspool_throttle: None,
+                unspool_throttle: Arc::new(Throttle::new(None)),
             },
             envelope_store.clone(),
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
