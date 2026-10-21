@@ -177,7 +177,7 @@ fn native_image(image: &Annotated<DebugImage>) -> Option<&NativeDebugImage> {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Annotated, get_value};
+    use relay_protocol::{Annotated, SerializableAnnotated};
     use serde_json::{Value, json};
 
     use super::*;
@@ -242,37 +242,56 @@ mod tests {
 
         assert!(enrich(event.value_mut().as_mut().unwrap(), &attachments));
 
-        let frames = get_value!(event.exceptions.values[0].stacktrace.frames!);
-        assert_eq!(frames.len(), 2);
-        assert_eq!(
-            frames[0]
-                .value()
-                .unwrap()
-                .instruction_addr
-                .value()
-                .unwrap()
-                .0,
-            0x10
-        );
-        let app = frames[1].value().unwrap();
-        assert_eq!(app.function.as_str(), Some("work"));
-        assert_eq!(app.lineno.value(), Some(&42));
-        assert_eq!(app.addr_mode.as_str(), Some("rel:0"));
-        assert_eq!(app.instruction_addr.value(), Some(&Addr(0x20)));
-        assert_eq!(app.in_app.value(), Some(&true));
-        let serialized: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
-        assert_eq!(
-            serialized["debug_meta"]["images"][0],
-            graph()["debug_meta"]["images"][0]
-        );
-        assert_eq!(
-            serialized["exception"]["values"][0]["value"],
-            "hangDuration:2s"
-        );
-        assert_eq!(
-            serialized["exception"]["values"][0]["mechanism"]["synthetic"],
-            true
-        );
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ]
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
         assert_eq!(attachments[0].payload(), original);
     }
 
@@ -294,6 +313,7 @@ mod tests {
             "code_file": "CurrentRun", "image_addr": "0x1000", "image_size": 4096
         }]});
         let mut event = Annotated::<Event>::from_json(&value.to_string()).unwrap();
+        // The absolute frame must resolve against the diagnostic's image, not the current run's.
         let mut payload = graph();
         payload["frames"][1]["addr_mode"] = json!("rel:0");
         payload["frames"][1]["instruction_addr"] = json!("0x20");
@@ -303,21 +323,63 @@ mod tests {
             &[attachment(payload)]
         ));
 
-        let serialized: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
-        assert_eq!(
-            serialized["debug_meta"]["images"][0],
-            value["debug_meta"]["images"][0]
-        );
-        assert_eq!(
-            serialized["debug_meta"]["images"][1],
-            graph()["debug_meta"]["images"][0]
-        );
-        let frames = &serialized["exception"]["values"][0]["stacktrace"]["frames"];
-        // The absolute frame must resolve against the diagnostic's image, not the current run's.
-        assert_eq!(frames[0]["addr_mode"], "rel:1");
-        assert_eq!(frames[0]["instruction_addr"], "0x10");
-        assert_eq!(frames[1]["addr_mode"], "rel:1");
-        assert_eq!(frames[1]["instruction_addr"], "0x20");
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:1"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:1"
+                    }
+                  ]
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_file": "CurrentRun",
+                "debug_id": "94a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "type": "macho"
+              },
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -359,16 +421,55 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             &[attachment(payload)]
         ));
-        let serialized: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
-        assert_eq!(
-            serialized["debug_meta"]["images"].as_array().unwrap().len(),
-            1
-        );
-        let frames = &serialized["exception"]["values"][0]["stacktrace"]["frames"];
-        assert_eq!(frames[0]["addr_mode"], "rel:0");
-        assert_eq!(frames[0]["instruction_addr"], "0x10");
-        assert_eq!(frames[1]["addr_mode"], "rel:0");
-        assert_eq!(frames[1]["instruction_addr"], "0x20");
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ]
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -391,15 +492,55 @@ mod tests {
             &[attachment(payload)]
         ));
 
-        let serialized: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
-        assert_eq!(
-            serialized["debug_meta"]["images"],
-            graph()["debug_meta"]["images"]
-        );
-        let frames = &serialized["exception"]["values"][0]["stacktrace"]["frames"];
-        assert_eq!(frames[0]["addr_mode"], "rel:0");
-        assert_eq!(frames[0]["instruction_addr"], "0x10");
-        assert_eq!(frames[1]["addr_mode"], "rel:0");
-        assert_eq!(frames[1]["instruction_addr"], "0x20");
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ]
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
     }
 }

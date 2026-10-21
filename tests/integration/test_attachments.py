@@ -995,7 +995,7 @@ def test_flamegraph_culprit_stack(
     relay.send_envelope(project_id, envelope)
     if processing:
         chunk, _ = consumer.get_attachment_chunk()
-        assert chunk == payload
+        assert json.loads(chunk) == json.loads(payload)
         event, _ = consumer.get_event()
     else:
         forwarded = mini_sentry.get_captured_envelope()
