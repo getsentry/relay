@@ -511,7 +511,6 @@ async fn validate_and_limit(
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
         .check_envelope(&mut envelope)
-        .await
         .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?
         .propagatable();
 
@@ -557,7 +556,6 @@ async fn validate(
 
     let _ = project
         .check_envelope(&mut envelope)
-        .await
         .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
 
     // We are not really processing an envelope here, only keep the updated scoping:

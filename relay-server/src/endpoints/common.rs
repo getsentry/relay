@@ -465,7 +465,6 @@ pub async fn handle_managed_envelope(
         .project_cache_handle()
         .get(project_key)
         .check_envelope(&mut envelope)
-        .await
         .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
 
     if envelope.is_empty() {

@@ -42,6 +42,11 @@ impl Item {
         &self.headers.ty
     }
 
+    /// Reads a wire header without applying item classification or accounting rules.
+    pub fn header<'a, T: Deserialize<'a>>(&'a self, key: ItemHeaderKey) -> Option<T> {
+        self.headers.get(key)
+    }
+
     /// Returns the length of this item's payload.
     pub fn len(&self) -> usize {
         self.payload.len()

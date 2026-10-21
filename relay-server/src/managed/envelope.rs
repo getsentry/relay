@@ -183,7 +183,7 @@ impl ManagedEnvelope {
 
                 relay_log::error!(
                     tags.project_key = self.scoping().project_key.to_string(),
-                    tags.has_attachments = summary.attachment_quantities.bytes() > 0,
+                    tags.has_attachments = summary.attachment_bytes > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity.total > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,

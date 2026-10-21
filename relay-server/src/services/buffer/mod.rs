@@ -582,7 +582,7 @@ impl EnvelopeBufferService {
                 sampling_project_info,
             } => {
                 let mut envelope = pop_envelope!();
-                if own_project.check_envelope(&mut envelope).await.is_err() || envelope.is_empty() {
+                if own_project.check_envelope(&mut envelope).is_err() || envelope.is_empty() {
                     // Outcomes are emitted by `check_envelope`.
                     return Ok(());
                 };

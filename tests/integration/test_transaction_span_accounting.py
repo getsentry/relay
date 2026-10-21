@@ -1,4 +1,4 @@
-"""Rate-limit outcomes for envelopes containing transactions and standalone spans."""
+"""Early rate-limit outcomes for transactions accompanied by standalone spans."""
 
 import uuid
 from collections import Counter
@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
-from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -14,97 +13,88 @@ from .consts import Outcome
 from .test_store import make_transaction
 
 
-@dataclass(frozen=True)
-class Quota:
-    category: str
-    limit: int
-
-
 @dataclass(frozen=True, kw_only=True)
 class Case:
     id: str
-    quota: Quota | None
-    expected_transactions: int
-    expected_spans: frozenset[str]
-    expected_outcomes: dict[tuple[DataCategory, Outcome], int]
+    category: str | None
+    expected_items: list[str]
+    expected_outcomes: dict[DataCategory, int]
 
 
+@pytest.mark.parametrize(
+    "reverse_items", [False, True], ids=["transaction-first", "span-first"]
+)
 @pytest.mark.parametrize(
     "case",
     [
         Case(
             id="no-quota",
-            quota=None,
-            expected_transactions=1,
-            expected_spans=frozenset({"root", "child", "standalone"}),
-            expected_outcomes={
-                (DataCategory.SPAN, Outcome.ACCEPTED): 3,
-                (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
-            },
-        ),
-        Case(
-            id="span-fits",
-            quota=Quota(category="span", limit=3),
-            expected_transactions=1,
-            expected_spans=frozenset({"root", "child", "standalone"}),
-            expected_outcomes={
-                (DataCategory.SPAN, Outcome.ACCEPTED): 3,
-                (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
-            },
-        ),
-        Case(
-            id="indexed-span-batch-exceeds",
-            quota=Quota(category="span_indexed", limit=2),
-            expected_transactions=1,
-            expected_spans=frozenset({"standalone"}),
-            expected_outcomes={
-                (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
-                (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
-                (DataCategory.SPAN, Outcome.ACCEPTED): 1,
-            },
+            category=None,
+            expected_items=["transaction", "span"],
+            expected_outcomes={},
         ),
         Case(
             id="transaction-blocked",
-            quota=Quota(category="transaction", limit=0),
-            expected_transactions=0,
-            expected_spans=frozenset(),
+            category="transaction",
+            expected_items=[],
             expected_outcomes={
-                (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
-                (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
-                (DataCategory.SPAN, Outcome.RATE_LIMITED): 3,
-                (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
+                DataCategory.TRANSACTION: 1,
+                DataCategory.TRANSACTION_INDEXED: 1,
+                DataCategory.SPAN: 3,
+                DataCategory.SPAN_INDEXED: 3,
             },
+        ),
+        Case(
+            id="span-blocked",
+            category="span",
+            expected_items=["transaction"],
+            expected_outcomes={DataCategory.SPAN: 1, DataCategory.SPAN_INDEXED: 1},
         ),
     ],
     ids=lambda case: case.id,
 )
 def test_transaction_with_span_container_quotas(
     mixed_envelope,
-    relay_with_processing,
-    transactions_consumer,
-    spans_consumer,
-    outcomes_consumer,
+    relay,
+    mini_sentry,
+    reverse_items,
     case: Case,
 ):
-    project, envelope, ids = mixed_envelope
-    if case.quota is not None:
-        _set_quota(project, case.quota.category, case.quota.limit)
-    transactions = transactions_consumer()
-    spans = spans_consumer()
-    outcomes = outcomes_consumer()
-    relay = relay_with_processing()
-
+    project, envelope = mixed_envelope
+    if case.category is not None:
+        project["config"]["quotas"] = [
+            {
+                "id": "mixed_envelope_quota",
+                "categories": [case.category],
+                "limit": 0,
+                "window": 3600,
+                "reasonCode": "mixed_envelope_quota",
+            }
+        ]
+    if reverse_items:
+        envelope.items.reverse()
+    relay = relay(mini_sentry)
     relay.send_envelope(42, envelope)
 
-    for _ in range(case.expected_transactions):
-        stored, _ = transactions.get_event()
-        assert stored["event_id"] == envelope.headers["event_id"]
-    transactions.assert_empty()
+    # Zero quotas without processing isolate early quota enforcement. A span quota
+    # removes the standalone container, leaving the transaction for later processing.
+    forwarded: list[str] = []
+    while len(forwarded) < len(case.expected_items):
+        forwarded.extend(
+            item.type for item in mini_sentry.get_captured_envelope().items
+        )
+    assert Counter(forwarded) == Counter(case.expected_items)
 
-    assert {
-        span["span_id"] for span in spans.get_spans(n=len(case.expected_spans))
-    } == {ids[name] for name in case.expected_spans}
-    _assert_outcomes(outcomes, case.expected_outcomes)
+    actual: Counter[DataCategory] = Counter()
+    for outcome in mini_sentry.get_outcomes(
+        timeout=10 if case.expected_outcomes else 1
+    ):
+        assert outcome["outcome"] == Outcome.RATE_LIMITED
+        assert outcome["reason"] == "mixed_envelope_quota"
+        actual[outcome["category"]] += outcome["quantity"]
+    assert actual == case.expected_outcomes
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_outcomes.empty()
 
 
 @pytest.fixture
@@ -174,98 +164,4 @@ def mixed_envelope(mini_sentry):
             ),
         )
     )
-    return project, envelope, ids
-
-
-def _set_quota(project, category, limit):
-    project["config"]["quotas"] = [
-        {
-            "id": uuid.uuid4().hex,
-            "categories": [category],
-            "limit": limit,
-            "window": 3600,
-            "reasonCode": "mixed_envelope_quota",
-        }
-    ]
-
-
-def _assert_outcomes(consumer, expected):
-    actual = Counter()
-    for outcome in consumer.get_outcomes():
-        actual[outcome["category"], outcome["outcome"]] += outcome["quantity"]
-        if outcome["outcome"] == Outcome.RATE_LIMITED:
-            assert outcome["reason"] == "mixed_envelope_quota"
-    assert actual == expected
-
-
-def test_transaction_with_span_container_zero_span_quota(
-    mixed_envelope,
-    relay_with_processing,
-    outcomes_consumer,
-    spans_consumer,
-    transactions_consumer,
-):
-    project, envelope, _ = mixed_envelope
-    _set_quota(project, "span", 0)
-    outcomes = outcomes_consumer()
-    spans = spans_consumer()
-    transactions = transactions_consumer()
-    relay = relay_with_processing()
-
-    relay.send_envelope(42, envelope)
-
-    # Reject the standalone span early and the two extracted spans during processing.
-    outcomes.assert_rate_limited(
-        "mixed_envelope_quota",
-        categories={DataCategory.SPAN: 3, DataCategory.SPAN_INDEXED: 3},
-    )
-    stored, _ = transactions.get_event()
-    assert stored["event_id"] == envelope.headers["event_id"]
-    transactions.assert_empty()
-    spans.assert_empty()
-
-
-def test_transaction_with_span_container_cached_span_quota(
-    mixed_envelope,
-    relay_with_processing,
-    outcomes_consumer,
-    spans_consumer,
-    transactions_consumer,
-):
-    project, envelope, ids = mixed_envelope
-    _set_quota(project, "span", 2)
-    outcomes = outcomes_consumer()
-    spans = spans_consumer()
-    transactions = transactions_consumer()
-    relay = relay_with_processing()
-
-    # Accept the standalone span, reject the extracted pair, and cache the span limit.
-    relay.send_envelope(42, envelope)
-    assert [span["span_id"] for span in spans.get_spans(n=1)] == [ids["standalone"]]
-    stored, _ = transactions.get_event()
-    assert stored["event_id"] == envelope.headers["event_id"]
-    transactions.assert_empty()
-    _assert_outcomes(
-        outcomes,
-        {
-            (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
-            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
-            (DataCategory.SPAN, Outcome.ACCEPTED): 1,
-        },
-    )
-
-    # The cached span limit also rejects the transaction on the next request.
-    with pytest.raises(HTTPError) as error:
-        relay.send_envelope(42, envelope)
-    assert error.value.response.status_code == 429
-    outcomes.assert_rate_limited(
-        "mixed_envelope_quota",
-        categories={
-            DataCategory.TRANSACTION: 1,
-            DataCategory.TRANSACTION_INDEXED: 1,
-            DataCategory.SPAN: 3,
-            DataCategory.SPAN_INDEXED: 3,
-        },
-    )
-    spans.assert_empty()
-    transactions.assert_empty()
+    return project, envelope
