@@ -13,7 +13,6 @@
 **Internal**:
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
-- Bump `webpki-root-certs` to 1.0.10 to drop the distrusted eMudhra/emSign CA roots. ([#6535](https://github.com/getsentry/relay/pull/6535))
 
 ## 26.10.0
 
