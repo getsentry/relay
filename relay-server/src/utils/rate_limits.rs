@@ -105,7 +105,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
     rate_limits
 }
 
-/// Whether an attachment contributes to the shared event or is a plain attachment.
+/// Whether an attachment creates an event or is a plain attachment.
 ///
 /// Summary construction and early retention must use the same classification.
 pub enum AttachmentRole {
@@ -139,17 +139,17 @@ impl AttachmentRole {
     }
 }
 
-/// Items creating the envelope's one shared event, including their attachment dependencies.
+/// Event-creating items in an envelope and their attachment parent types.
 ///
-/// Only event-creating attachments participate here. Ordinary span and trace attachments
-/// can coexist with any group. Creator order determines the category and rejection precedence.
+/// Plain attachments do not affect this group. The order of event-creating items determines
+/// the event category and rejection reason.
 #[derive(Clone, Copy, Debug, Default)]
 pub enum EventGroup {
     /// No item creates an event; associated items can still arrive separately.
     #[default]
     Absent,
     /// A direct event or required event-parent attachment survives attachment limits.
-    /// The first creator in wire order selects the shared event's category.
+    /// The first event-creating item determines the event category.
     SurvivesAttachmentLimits(DataCategory),
     /// Only span-parent crash attachments create the error event.
     SpanEventCreators,
@@ -162,7 +162,7 @@ pub enum EventGroup {
 }
 
 impl EventGroup {
-    /// The category counted once for this group, regardless of the number of creators.
+    /// Returns the category of the event, counted once per envelope.
     pub fn category(self) -> Option<DataCategory> {
         match self {
             Self::Absent => None,
@@ -207,7 +207,7 @@ pub struct ProfileQuantities {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnvelopeSummary {
-    /// The shared event and the item groups that can keep it alive.
+    /// The event category and attachment dependencies of the event-creating items.
     pub event: EventGroup,
 
     /// Total attachment storage across all parent types.
@@ -307,7 +307,7 @@ impl EnvelopeSummary {
             }
 
             // Already-limited items and Nintendo input have no individual quantities here.
-            // They still create the shared event; metrics still advertise client limits.
+            // Event-creating items still count toward the event; metrics still advertise client limits.
             let attachment_type = item.attachment_type();
             let count_individual = !rate_limited
                 && attachment_type != Some(AttachmentType::NintendoSwitchDyingMessage);

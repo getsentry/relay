@@ -42,7 +42,7 @@ impl Item {
         &self.headers.ty
     }
 
-    /// Reads a wire header without applying item classification or accounting rules.
+    /// Reads an item header, returning `None` if absent or invalid for `T`.
     pub fn header<'a, T: Deserialize<'a>>(&'a self, key: ItemHeaderKey) -> Option<T> {
         self.headers.get(key)
     }

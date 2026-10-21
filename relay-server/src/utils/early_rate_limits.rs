@@ -1,6 +1,5 @@
-//! Resolve envelope-wide decisions, then dispatch original items into direct handlers.
-//! The filter traverses items twice: headers first, followed by one in-place applying pass.
-//! No per-item projections, deferred items, category registry, or payload reordering.
+//! Apply cached rate limits and zero quotas before processing envelope payloads.
+//! Summarize item headers, resolve limits and event dependencies, then filter items in place.
 
 use crate::envelope::{
     AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemHeaderKey, ItemType,
@@ -51,7 +50,7 @@ pub fn enforce_rate_limits(
     client_rate_limits
 }
 
-// This is a final per-item decision, consumed immediately without caching an item plan.
+// Final item retention decision.
 enum RetentionAction<'a> {
     Keep,
     Drop(Option<&'a Outcome>),
@@ -219,7 +218,7 @@ fn resolve_limits(
         };
         client_rate_limits.merge(cached.check_with_quotas(quotas, &scope));
     }
-    // Settle the shared event once and retain its rejection for dependent items.
+    // Record the event rejection once and use its reason for dependent items.
     let event = match (event, summary.event, &span_attachments, &trace_attachments) {
         (Some((category, outcome)), _, _, _) => {
             for category in std::iter::once(category).chain(category.index_category()) {
@@ -247,8 +246,8 @@ fn resolve_limits(
         ) => None,
     };
     let enforcement = Enforcement {
-        // Attachment limits may have just rejected the shared event. Settle profile
-        // dependencies here so retention can use the final decisions directly.
+        // Attachment limits may have just removed the last event-creating item. Apply
+        // that event rejection to profiles before retention.
         profiles: event.clone().or(profiles),
         backend_profiles: event.clone().or(backend_profiles),
         ui_profiles: event.clone().or(ui_profiles),

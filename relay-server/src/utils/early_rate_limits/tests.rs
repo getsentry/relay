@@ -122,7 +122,7 @@ fn test_transaction_span_counts_without_header_writes() {
             ])
         );
 
-        // An error event selects the shared category, so a transaction limit leaves this
+        // An error event selects the envelope's event category, so a transaction limit leaves this
         // transaction intact. Its missing header must stay missing even with that limit.
         let mut original = envelope![Event];
         original.add_item(transaction);
@@ -222,8 +222,8 @@ fn test_error_and_user_report_outcomes() {
 
 #[test]
 fn test_user_report_with_nintendo_header() {
-    // Preserve the distinction between legacy accounting and early quota applicability
-    // for this misplaced attachment header.
+    // A V1 report with this misplaced header is counted in the summary but skipped by
+    // early rate limiting.
     let mut original = envelope![UserReport];
     original
         .items_mut()
@@ -309,8 +309,9 @@ fn test_surviving_event_creator_keeps_associated_items() {
         }
         envelope.add_item(Item::new(ItemType::Session));
 
-        // Only the span-parent creator is removed. The trace-parent creator still
-        // supplies the shared event, regardless of which creator appeared first.
+        // The span limit removes only the minidump attached to the span. The minidump
+        // attached to the trace still creates an event, so the user report stays in
+        // either item order.
         let (envelope, _, outcomes) =
             enforce_and_apply(cached_limits(&[DataCategory::Span]), envelope);
         assert_eq!(
@@ -337,9 +338,9 @@ fn test_surviving_event_creator_keeps_associated_items() {
 
 #[test]
 fn test_last_event_contributor_rejects_associated_items() {
-    // The current header model allows a crash subtype on a trace attachment. Its attachment
-    // quota can remove the event contributor without an error quota. Associated items on
-    // either side must follow it; the independent session must survive.
+    // An attachment quota removes this minidump attached to a trace. Without another
+    // item that creates an event, the user report, form data, and profiles must also
+    // be dropped. The session stays.
     let mut envelope = envelope![UserReport, Attachment::Minidump, FormData, Session, Profile];
     envelope
         .items_mut()
@@ -675,7 +676,7 @@ fn test_enforce_limit_assumed_event() {
     let (envelope, limits, _) = enforce_and_apply(cached, envelope);
 
     assert!(limits.is_limited());
-    assert!(envelope.is_empty()); // obviously
+    assert!(envelope.is_empty());
 }
 
 #[test]
