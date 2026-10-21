@@ -125,17 +125,6 @@ pub struct Options {
     )]
     pub http_span_allowed_hosts: Vec<String>,
 
-    /// Instructs relay to store attachments in objectstore instead of sending chunks via kafka.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all attachments will be stored in objectstore.
-    #[serde(
-        rename = "relay.objectstore-attachments.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub objectstore_attachments_sample_rate: f32,
-
     /// Rollout rate for the EAP (Event Analytics Platform) double-write for user sessions.
     ///
     /// When rolled out, session data is sent both through the legacy metrics pipeline

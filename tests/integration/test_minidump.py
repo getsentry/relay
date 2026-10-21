@@ -538,10 +538,6 @@ def test_minidump_with_processing(
         with open(compressed_dmp_path, "rb") as f:
             compressed_content = f.read()
 
-    if use_objectstore:
-        mini_sentry.global_config["options"][
-            "relay.objectstore-attachments.sample-rate"
-        ] = 1.0
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
@@ -941,9 +937,6 @@ def test_minidump_placeholder(
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
 
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
@@ -1219,9 +1212,6 @@ def test_minidump_objectstore_uploads_external_chain(
     attachments_consumer,
 ):
     """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     project_id = 42
@@ -1256,9 +1246,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     relay,
     dummy_upload,
 ):
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     project_id = 42

@@ -825,7 +825,7 @@ impl EnvelopeProcessorService {
             use crate::processing::StoreHandle;
 
             let objectstore = self.inner.addrs.objectstore.as_ref();
-            let handle = StoreHandle::new(store_forwarder, objectstore, ctx.global_config);
+            let handle = StoreHandle::new(store_forwarder, objectstore);
 
             output
                 .forward_store(handle, ctx)

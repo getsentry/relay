@@ -132,9 +132,6 @@ def test_attachments_with_objectstore(
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.add_full_project_config(project_id)
 
     options = {
@@ -637,12 +634,11 @@ def test_event_with_attachment(
 
     mini_sentry.add_full_project_config(project_id)
 
-    if use_objectstore:
-        mini_sentry.global_config["options"][
-            "relay.objectstore-attachments.sample-rate"
-        ] = 1.0
+    relay_config = {}
+    if not use_objectstore:
+        del relay_config["processing"]["objectstore"]
 
-    relay = relay_with_processing()
+    relay = relay_with_processing(options=relay_config)
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
     objectstore = objectstore("attachments", project_id)
