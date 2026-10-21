@@ -919,6 +919,7 @@ def test_event_with_flamegraph(
 
 @pytest.mark.parametrize("processing", [False, True])
 @pytest.mark.parametrize("forwarding_relays", [0, 2])
+@pytest.mark.parametrize("mechanism", ["mx_hang_diagnostic", "generic"])
 def test_flamegraph_culprit_stack(
     mini_sentry,
     relay,
@@ -926,6 +927,7 @@ def test_flamegraph_culprit_stack(
     attachments_consumer,
     processing,
     forwarding_relays,
+    mechanism,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -974,7 +976,7 @@ def test_flamegraph_culprit_stack(
                         "type": "MXHangDiagnostic",
                         "value": "hangDuration:2s",
                         "mechanism": {
-                            "type": "mx_hang_diagnostic",
+                            "type": mechanism,
                             "handled": True,
                             "synthetic": True,
                         },

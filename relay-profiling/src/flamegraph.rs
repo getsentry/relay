@@ -53,6 +53,8 @@ pub enum Error {
     ChildSampleCount,
     #[error("cyclic call path")]
     CyclicCallPath,
+    #[error("call-path traversal limit exceeded")]
+    TraversalLimit,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -196,7 +198,8 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
 ///
 /// Sample populations from different trees are never added together. Prefer trees attributed to
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
-/// the first path in input order. The attachment itself remains unchanged.
+/// the first path in input order. The attachment itself remains unchanged. Graphs whose expanded
+/// paths exceed a traversal budget linear in nodes, child edges, and roots are rejected.
 pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
     let graph = parse(payload)?;
 
@@ -221,12 +224,28 @@ pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
         .trees
         .iter()
         .any(|tree| tree.thread_attributed == Some(true));
+    // Shared nodes and repeated edges can expand exponentially when materialized as paths.
+    // Bound total visits across all trees by the size of the serialized graph structure.
+    let mut remaining_visits = graph.nodes.len()
+        + graph
+            .nodes
+            .iter()
+            .map(|node| node.children.len())
+            .sum::<usize>()
+        + graph
+            .trees
+            .iter()
+            .map(|tree| tree.roots.len())
+            .sum::<usize>();
     let mut best_score = 0;
     let mut best_path = Vec::new();
     for tree in &graph.trees {
         if has_attributed_tree && tree.thread_attributed != Some(true) {
             continue;
         }
+        remaining_visits = remaining_visits
+            .checked_sub(tree.roots.len())
+            .ok_or(Error::TraversalLimit)?;
         let mut prefixes = HashMap::new();
         let mut candidates: Vec<Prefix> = Vec::new();
         let mut pending: Vec<_> = tree.roots.iter().rev().map(|node| (node, None)).collect();
@@ -255,6 +274,9 @@ pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
                 return Err(Error::CyclicCallPath);
             }
             candidates[prefix].samples += u128::from(node.sample_count);
+            remaining_visits = remaining_visits
+                .checked_sub(node.children.len())
+                .ok_or(Error::TraversalLimit)?;
             pending.extend(
                 node.children
                     .iter()
@@ -401,6 +423,27 @@ mod tests {
         graph["nodes"][0]["sample_count"] = json!(1);
         assert!(identify(graph).is_err());
         assert!(identify(json!({"version": "2"})).is_err());
+    }
+
+    #[test]
+    fn test_culprit_bounds_repeated_child_edges() {
+        let depth = 12;
+        let mut graph = culprit_graph();
+        graph["nodes"] = (0..depth)
+            .map(|index| {
+                json!({
+                    "frame_id": 0,
+                    "sample_count": 1_u64 << (depth - index - 1),
+                    "children": if index + 1 < depth {
+                        vec![index + 1, index + 1]
+                    } else {
+                        vec![]
+                    }
+                })
+            })
+            .collect();
+        validate(&serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert!(matches!(identify(graph), Err(Error::TraversalLimit)));
     }
 
     #[test]

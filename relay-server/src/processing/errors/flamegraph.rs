@@ -1,4 +1,4 @@
-//! Enrichment of hang exceptions with a representative path from a flame graph attachment.
+//! Enrichment of exceptions with a representative path from a flame graph attachment.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -17,10 +17,10 @@ struct FlamegraphContext<'a> {
     debug_meta: Option<DeserializableAnnotated<DebugMeta>>,
 }
 
-/// Fill a missing hang exception stack without changing the attachment.
+/// Fill a missing exception stack without changing the attachment.
 ///
 /// Existing stacks remain authoritative, including when a processing Relay receives an event
-/// already enriched by another Relay. Only MetricKit hang diagnostics opt into this enrichment.
+/// already enriched by another Relay. A flame graph attachment opts into this enrichment.
 pub fn enrich(event: &mut Event, attachments: &[Item], max_event_size: usize) -> bool {
     let Some(exception) = event
         .exceptions
@@ -31,12 +31,7 @@ pub fn enrich(event: &mut Event, attachments: &[Item], max_event_size: usize) ->
         .flatten()
         .filter_map(|value| value.value_mut().as_mut())
         .find(|exception| {
-            exception.stacktrace.value().is_none()
-                && exception.raw_stacktrace.value().is_none()
-                && exception
-                    .mechanism
-                    .value()
-                    .is_some_and(|mechanism| mechanism.ty.as_str() == Some("mx_hang_diagnostic"))
+            exception.stacktrace.value().is_none() && exception.raw_stacktrace.value().is_none()
         })
     else {
         return false;
@@ -293,6 +288,19 @@ mod tests {
         }
         "#);
         assert_eq!(attachments[0].payload(), original);
+    }
+
+    #[test]
+    fn test_flamegraph_enriches_without_metrickit_mechanism() {
+        for mechanism in [json!({"type": "generic"}), Value::Null] {
+            let mut value: Value = serde_json::from_str(&event().to_json().unwrap()).unwrap();
+            value["exception"]["values"][0]["mechanism"] = mechanism;
+            let mut event = Annotated::<Event>::from_json(&value.to_string()).unwrap();
+            assert!(enrich(
+                event.value_mut().as_mut().unwrap(),
+                &[attachment(graph())]
+            ));
+        }
     }
 
     #[test]
