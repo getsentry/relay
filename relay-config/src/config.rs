@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
@@ -1178,20 +1178,8 @@ pub struct Processing {
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
     pub kafka_validate_topics: bool,
-    /// Logical topics whose Kafka client is replaced when the config changes, instead of being
-    /// fixed for the lifetime of the process.
-    ///
-    /// Named by logical topic, for example `ingest-events`. Note that `topics` additionally
-    /// accepts a short form (`events`), which this option does not: only the logical name
-    /// selects a topic here. Anything else is ignored.
-    ///
-    /// Empty by default, which is the behaviour of every topic before this option existed.
-    ///
-    /// This exists to roll the reloading producer out one topic at a time and is meant to be
-    /// removed once every topic uses it.
-    pub reloading_producer_topics: BTreeSet<String>,
-    /// Upper bound, in seconds, on the random delay before a reloading producer swaps its
-    /// client.
+    /// Upper bound, in seconds, on the random delay before a Kafka producer swaps its client
+    /// after the Kafka config changed.
     ///
     /// Spreads swaps out so that a config change does not have every pod in the fleet reconnect
     /// at once. Keep it well below how often the Kafka config is expected to change. Tests set
@@ -1240,7 +1228,6 @@ impl Default for Processing {
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
-            reloading_producer_topics: BTreeSet::new(),
             reloading_producer_jitter_secs: 60,
             redis: None,
             attachment_chunk_size: ByteSize::mebibytes(1),
@@ -1921,8 +1908,7 @@ impl ConfigInner {
         // live, so a renamed topic would be keyed by its new name while the producer still
         // selects the old one.
         //
-        // This only reaches a running Kafka client for topics using the reloading producer;
-        // see `Processing::reloading_producer_topics`. Everything else picks it up on restart.
+        // Running Kafka clients pick this up via `ConfigReloadService`.
         if self.values.processing.kafka_config != other.values.processing.kafka_config
             || self.values.processing.secondary_kafka_configs
                 != other.values.processing.secondary_kafka_configs
@@ -2865,28 +2851,9 @@ impl ConfigSnapshot {
         self.inner.values.processing.kafka_validate_topics
     }
 
-    /// Whether this topic's Kafka client is replaced when the config changes.
-    pub fn is_reloading_producer_topic(&self, topic: KafkaTopic) -> bool {
-        self.inner
-            .values
-            .processing
-            .reloading_producer_topics
-            .contains(topic.logical_topic_name())
-    }
-
-    /// Upper bound on the random delay before a reloading producer swaps its client.
+    /// Upper bound on the random delay before a Kafka producer swaps its client.
     pub fn reloading_producer_jitter(&self) -> Duration {
         Duration::from_secs(self.inner.values.processing.reloading_producer_jitter_secs)
-    }
-
-    /// Whether any topic at all uses the reloading producer.
-    pub fn has_reloading_producer_topics(&self) -> bool {
-        !self
-            .inner
-            .values
-            .processing
-            .reloading_producer_topics
-            .is_empty()
     }
 
     /// Builds the Kafka config blob describing every configured topic.
