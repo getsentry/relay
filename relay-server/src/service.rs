@@ -247,6 +247,10 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&current_config)?;
+        // Taken before the service is started, which consumes it. `ConfigReloadService` pushes
+        // a reloaded Kafka config to it.
+        #[cfg(feature = "processing")]
+        let mut kafka_client = None;
         #[cfg(feature = "processing")]
         let store = current_config
             .processing_enabled()
@@ -257,7 +261,10 @@ impl ServiceState {
                     global_config_handle.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| services.start(s))
+                .map(|s| {
+                    kafka_client = Some(s.kafka_client());
+                    services.start(s)
+                })
             })
             .transpose()?;
 
@@ -374,7 +381,11 @@ impl ServiceState {
             &objectstore,
         ));
 
-        let _ = services.start(ConfigReloadService::new(config.clone()));
+        let _ = services.start(ConfigReloadService::new(
+            config.clone(),
+            #[cfg(feature = "processing")]
+            kafka_client,
+        ));
 
         let registry = Registry {
             cogs,

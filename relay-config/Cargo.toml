@@ -37,3 +37,4 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+sentry_arroyo = { workspace = true }
