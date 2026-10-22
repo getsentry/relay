@@ -1,3 +1,4 @@
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
@@ -2895,10 +2896,18 @@ impl ConfigSnapshot {
                 // Arroyo keys the blob by logical topic and maps it to one physical topic. Relay's
                 // sharded topics are one logical topic to many physical ones, which Arroyo cannot
                 // express yet, so each physical topic is its own entry and maps to itself.
-                topics.insert(
-                    params.topic_name.clone(),
-                    serde_json::json!({ "physical_topic": { "cluster": cluster_name } }),
-                );
+                //
+                // That also means one topic name cannot point at two clusters.
+                let entry = serde_json::json!({ "physical_topic": { "cluster": cluster_name } });
+                match topics.entry(params.topic_name.clone()) {
+                    Entry::Vacant(vacant) => {
+                        vacant.insert(entry);
+                    }
+                    Entry::Occupied(occupied) if *occupied.get() != entry => {
+                        return Err(KafkaConfigError::AmbiguousTopic(params.topic_name.clone()));
+                    }
+                    Entry::Occupied(_) => {}
+                }
             }
         }
 
@@ -3269,6 +3278,34 @@ processing:
 
         assert_eq!(before, "primary:9092");
         assert_eq!(after, "other:9092");
+    }
+
+    /// The blob is keyed by topic name, so one name on two clusters cannot be expressed. That
+    /// must fail loudly instead of sending one of the two to the wrong cluster.
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_kafka_config_blob_rejects_topic_on_two_clusters() {
+        let config = processing_config(
+            r#"
+processing:
+  enabled: true
+  kafka_config:
+    - {name: "bootstrap.servers", value: "primary:9092"}
+  secondary_kafka_configs:
+    other:
+      - {name: "bootstrap.servers", value: "other:9092"}
+  topics:
+    outcomes:
+      name: "outcomes-topic"
+      config: "other"
+    outcomes-billing: "outcomes-topic"
+"#,
+        );
+
+        assert!(matches!(
+            config.current().kafka_config_blob(),
+            Err(KafkaConfigError::AmbiguousTopic(topic)) if topic == "outcomes-topic"
+        ));
     }
 
     /// Broker settings reload; topic assignments do not, since producers hold theirs from

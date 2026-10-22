@@ -136,11 +136,13 @@ def test_outcomes_custom_topic(
     options["processing"]["secondary_kafka_configs"] = {}
     options["processing"]["secondary_kafka_configs"]["foo"] = kafka_config
 
-    # ...however, we use a custom topic config to make it work again
-    options["processing"]["topics"]["outcomes"] = {
-        "name": get_topic_name("outcomes"),
-        "config": "foo",
-    }
+    # ...however, we use a custom topic config to make it work again. Billing outcomes share the
+    # topic, so they have to move along with it.
+    for topic in ("outcomes", "outcomes_billing"):
+        options["processing"]["topics"][topic] = {
+            "name": get_topic_name("outcomes"),
+            "config": "foo",
+        }
 
     outcomes_consumer = outcomes_consumer()
 
