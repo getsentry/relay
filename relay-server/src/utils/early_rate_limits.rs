@@ -32,7 +32,7 @@ pub fn enforce_rate_limits(
         #[cfg(debug_assertions)]
         if envelope.items().any(|item| {
             *item.ty() == ItemType::Transaction
-                && item.header::<usize>(ItemHeaderKey::SpanCount).is_none()
+                && item.header::<u32>(ItemHeaderKey::SpanCount).is_none()
         }) {
             records.lenient(DataCategory::Span);
             records.lenient(DataCategory::SpanIndexed);
@@ -503,19 +503,22 @@ fn filter(
     (items, client_rate_limits)
 }
 
-// Called only for rejected transactions. Keep a supplied count (including zero); otherwise
-// count the JSON array without constructing spans or caching anything on the discarded item.
+// Called only for rejected transactions. Read supplied counts as u32, matching Item::span_count;
+// otherwise count the JSON array without constructing spans or caching anything on the discarded item.
 fn calc_span_count(item: &Item) -> usize {
     #[derive(serde::Deserialize)]
     struct PartialEvent {
         spans: crate::utils::SeqCount,
     }
 
-    item.header(ItemHeaderKey::SpanCount).unwrap_or_else(|| {
-        relay_statsd::metric!(timer(crate::statsd::RelayTimers::CheckNestedSpans), {
-            serde_json::from_slice::<PartialEvent>(&item.payload()).map_or(0, |event| event.spans.0)
+    item.header::<u32>(ItemHeaderKey::SpanCount)
+        .map(|count| count as usize)
+        .unwrap_or_else(|| {
+            relay_statsd::metric!(timer(crate::statsd::RelayTimers::CheckNestedSpans), {
+                serde_json::from_slice::<PartialEvent>(&item.payload())
+                    .map_or(0, |event| event.spans.0)
+            })
         })
-    })
 }
 
 // Applies the final retention decision and records its rejected quantities once.
