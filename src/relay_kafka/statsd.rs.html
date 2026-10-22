@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>    /// - `producer_name`: The configured producer name/deployment identifier.
 <a href=#80 id=80 data-nosnippet>80</a>    </span>ProduceStatusError,
 <a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Number of Kafka config blobs handed to a topic's reloading producer.
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Number of Kafka config blobs handed to a topic's producer.
 <a href=#83 id=83 data-nosnippet>83</a>    ///
 <a href=#84 id=84 data-nosnippet>84</a>    /// Counts pushes that were accepted for rollout, which includes blobs that resolve to the
 <a href=#85 id=85 data-nosnippet>85</a>    /// config already running. It does not mean the client was replaced; watch
@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>    /// - `producer_name`: The configured producer name/deployment identifier.
 <a href=#91 id=91 data-nosnippet>91</a>    </span>ConfigReloadPushed,
 <a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Number of Kafka config blobs a topic's reloading producer refused.
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Number of Kafka config blobs a topic's producer refused.
 <a href=#94 id=94 data-nosnippet>94</a>    ///
 <a href=#95 id=95 data-nosnippet>95</a>    /// Rejection leaves the running client in place. Sustained non-zero values mean this topic
 <a href=#96 id=96 data-nosnippet>96</a>    /// is no longer applying config changes.
@@ -146,7 +146,7 @@
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// The number of times this topic's Kafka client has been replaced by a config reload.
 <a href=#148 id=148 data-nosnippet>148</a>    ///
-<a href=#149 id=149 data-nosnippet>149</a>    /// Always `0` for topics not using the reloading producer. Arroyo reports the same number
+<a href=#149 id=149 data-nosnippet>149</a>    /// Arroyo reports the same number
 <a href=#150 id=150 data-nosnippet>150</a>    /// under `arroyo.producer.config_reload_generation`; this one is tagged the way Relay tags
 <a href=#151 id=151 data-nosnippet>151</a>    /// the rest of its produce metrics, so it lines up with them.
 <a href=#152 id=152 data-nosnippet>152</a>    ///
