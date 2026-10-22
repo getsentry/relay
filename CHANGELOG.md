@@ -5,6 +5,7 @@
 **Features**:
 
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+- Initial release of the `relay-browser-reporting` crate. ([#6542](https://github.com/getsentry/relay/pull/6542))
 
 ## 26.10.0
 
