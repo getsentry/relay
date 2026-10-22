@@ -144,12 +144,12 @@ expression: chunk.inner
   "profile": {
     "samples": [
       {
-        "timestamp": 1771278043.846089,
+        "timestamp": 1771278043.8460886,
         "stack_id": 1,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278043.8560715,
+        "timestamp": 1771278043.8560712,
         "stack_id": 0,
         "thread_id": "24820"
       },
@@ -169,12 +169,12 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.1290238,
+        "timestamp": 1771278044.1290236,
         "stack_id": 5,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.2298582,
+        "timestamp": 1771278044.229858,
         "stack_id": 6,
         "thread_id": "24803"
       },
@@ -184,22 +184,22 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.280579,
+        "timestamp": 1771278044.2805789,
         "stack_id": 8,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.3310332,
+        "timestamp": 1771278044.331033,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.4623744,
+        "timestamp": 1771278044.4623742,
         "stack_id": 9,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.5128255,
+        "timestamp": 1771278044.5128253,
         "stack_id": 10,
         "thread_id": "24820"
       },
@@ -209,17 +209,17 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.6137655,
+        "timestamp": 1771278044.6137652,
         "stack_id": 11,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.6643343,
+        "timestamp": 1771278044.664334,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.7147775,
+        "timestamp": 1771278044.7147772,
         "stack_id": 4,
         "thread_id": "24820"
       },
@@ -229,22 +229,22 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.7451718,
+        "timestamp": 1771278044.7451715,
         "stack_id": 14,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.795645,
+        "timestamp": 1771278044.7956448,
         "stack_id": 13,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.8461037,
+        "timestamp": 1771278044.8461034,
         "stack_id": 15,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.8463876,
+        "timestamp": 1771278044.8463874,
         "stack_id": 16,
         "thread_id": "24820"
       },
@@ -254,7 +254,7 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.947238,
+        "timestamp": 1771278044.9472377,
         "stack_id": 7,
         "thread_id": "24820"
       },
@@ -264,12 +264,12 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.048318,
+        "timestamp": 1771278045.0483177,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.0986078,
+        "timestamp": 1771278045.0986075,
         "stack_id": 4,
         "thread_id": "24820"
       },
@@ -279,12 +279,12 @@ expression: chunk.inner
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.2300177,
+        "timestamp": 1771278045.2300174,
         "stack_id": 20,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.2804577,
+        "timestamp": 1771278045.2804575,
         "stack_id": 0,
         "thread_id": "24820"
       },
@@ -299,22 +299,22 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.4319417,
+        "timestamp": 1771278045.4319415,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.4624014,
+        "timestamp": 1771278045.4624012,
         "stack_id": 19,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.5126648,
+        "timestamp": 1771278045.5126646,
         "stack_id": 22,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.5631418,
+        "timestamp": 1771278045.5631416,
         "stack_id": 7,
         "thread_id": "24820"
       },
@@ -334,17 +334,17 @@ expression: chunk.inner
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.7653713,
+        "timestamp": 1771278045.765371,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.7954855,
+        "timestamp": 1771278045.7954853,
         "stack_id": 23,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.8156703,
+        "timestamp": 1771278045.81567,
         "stack_id": 25,
         "thread_id": "24791"
       },
@@ -364,12 +364,12 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.9976945,
+        "timestamp": 1771278045.9976943,
         "stack_id": 28,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.0987484,
+        "timestamp": 1771278046.0987482,
         "stack_id": 4,
         "thread_id": "24820"
       },
@@ -379,12 +379,12 @@ expression: chunk.inner
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.1796257,
+        "timestamp": 1771278046.1796255,
         "stack_id": 30,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.229877,
+        "timestamp": 1771278046.2298768,
         "stack_id": 0,
         "thread_id": "24820"
       },
@@ -399,32 +399,32 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.3308222,
+        "timestamp": 1771278046.330822,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.4621394,
+        "timestamp": 1771278046.4621391,
         "stack_id": 32,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.4825423,
+        "timestamp": 1771278046.482542,
         "stack_id": 33,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.5128262,
+        "timestamp": 1771278046.512826,
         "stack_id": 34,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.6137938,
+        "timestamp": 1771278046.6137936,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.6139276,
+        "timestamp": 1771278046.6139274,
         "stack_id": 31,
         "thread_id": "24804"
       },
@@ -439,7 +439,7 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.8965824,
+        "timestamp": 1771278046.8965821,
         "stack_id": 36,
         "thread_id": "24803"
       },
@@ -449,7 +449,7 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.0483384,
+        "timestamp": 1771278047.0483382,
         "stack_id": 37,
         "thread_id": "24820"
       },
@@ -459,12 +459,12 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.199614,
+        "timestamp": 1771278047.1996138,
         "stack_id": 39,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.2299235,
+        "timestamp": 1771278047.2299232,
         "stack_id": 40,
         "thread_id": "24820"
       },
@@ -474,7 +474,7 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.4319444,
+        "timestamp": 1771278047.4319441,
         "stack_id": 4,
         "thread_id": "24820"
       },
@@ -489,37 +489,37 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.5633042,
+        "timestamp": 1771278047.563304,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.6644158,
+        "timestamp": 1771278047.6644156,
         "stack_id": 44,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278047.7148435,
+        "timestamp": 1771278047.7148433,
         "stack_id": 46,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.7651818,
+        "timestamp": 1771278047.7651815,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.7954636,
+        "timestamp": 1771278047.7954633,
         "stack_id": 45,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278047.8156853,
+        "timestamp": 1771278047.815685,
         "stack_id": 47,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.8460736,
+        "timestamp": 1771278047.8460734,
         "stack_id": 8,
         "thread_id": "24820"
       },
@@ -534,17 +534,17 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.12904,
+        "timestamp": 1771278048.1290398,
         "stack_id": 49,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278048.1996746,
+        "timestamp": 1771278048.1996744,
         "stack_id": 50,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.250255,
+        "timestamp": 1771278048.2502549,
         "stack_id": 51,
         "thread_id": "24820"
       },
@@ -554,12 +554,12 @@ expression: chunk.inner
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.482544,
+        "timestamp": 1771278048.4825437,
         "stack_id": 53,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.512983,
+        "timestamp": 1771278048.5129828,
         "stack_id": 10,
         "thread_id": "24820"
       }

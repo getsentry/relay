@@ -2,12 +2,16 @@
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
-use relay_pattern::Patterns;
+use relay_pattern::{Gas, Patterns};
 
 use crate::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
 fn matches(transaction: Option<&str>, patterns: &Patterns) -> bool {
-    transaction.is_some_and(|transaction| patterns.is_match(transaction))
+    transaction.is_some_and(|transaction| {
+        patterns
+            .is_match(transaction, Gas::CONSTRAINED)
+            .unwrap_or(false)
+    })
 }
 
 /// Filters [Transaction](relay_event_schema::protocol::EventType::Transaction) events based on a list of provided transaction

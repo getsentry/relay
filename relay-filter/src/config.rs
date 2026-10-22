@@ -589,9 +589,9 @@ mod tests {
             error_messages: ErrorMessagesFilterConfig {
                 patterns: Patterns {
                     strategies: [],
-                    options: Options {
-                        case_insensitive: true,
-                    },
+                    case_sensitive: CaseSensitive(
+                        false,
+                    ),
                 },
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
@@ -604,17 +604,17 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: Patterns {
                     strategies: [],
-                    options: Options {
-                        case_insensitive: true,
-                    },
+                    case_sensitive: CaseSensitive(
+                        false,
+                    ),
                 },
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: Patterns {
                     strategies: [],
-                    options: Options {
-                        case_insensitive: true,
-                    },
+                    case_sensitive: CaseSensitive(
+                        false,
+                    ),
                 },
                 is_enabled: false,
             },
