@@ -88,8 +88,7 @@ dependencies = [
 [[package]]
 name = "android_trace_log"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b6b53e6d20664ddcbc06b80f29c64330f3c3aa01b597a8743f4368623a03718"
+source = "git+https://github.com/getsentry/android-trace-log?rev=d647745059649623ddf81ebf932f0d0012b6e06f#d647745059649623ddf81ebf932f0d0012b6e06f"
 dependencies = [
  "chrono",
  "log",
