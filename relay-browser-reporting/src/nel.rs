@@ -4,7 +4,7 @@
 
 use std::net::IpAddr;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 /// Describes which phase the error occurred in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,9 +40,11 @@ pub struct Body {
     pub referrer: Option<String>,
     /// The sampling rate.
     pub sampling_fraction: f64,
-    /// The IP address of the server where the site is hosted.
+    /// The IP address of the server where the site is hosted, or an empty string.
     ///
     /// Mandatory if `phase` is `"application"` or `"connection"`.
+    #[serde(deserialize_with = "deserialize_ip_opt")]
+    #[serde(default)]
     pub server_ip: Option<IpAddr>,
     /// HTTP status code.
     ///
@@ -51,4 +53,59 @@ pub struct Body {
     /// If request failed, the type of its network error. If request succeeded, "ok".
     #[serde(rename = "type")]
     pub ty: String,
+}
+
+/// Deserializes an optional [`IpAddr`], treating `""` as `None`.
+fn deserialize_ip_opt<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<IpAddr>, D::Error> {
+    let s = Option::<&str>::deserialize(deserializer)?;
+    match s {
+        Some("") | None => Ok(None),
+        Some(s) => Ok(Some(IpAddr::deserialize(de::value::StrDeserializer::new(
+            s,
+        ))?)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_empty_server_ip() {
+        let json = r#"{
+            "elapsed_time": 0,
+            "method": "GET",
+            "phase": "connection",
+            "protocol": "http/1.1",
+            "referrer": "",
+            "sampling_fraction": 1.0,
+            "server_ip": "",
+            "status_code": 0,
+            "type": "tcp.refused"
+        }"#;
+
+        let body: Body = serde_json::from_str(json).unwrap();
+
+        assert!(body.server_ip.is_none());
+    }
+
+    #[test]
+    fn parse_missing_server_ip() {
+        let json = r#"{
+            "elapsed_time": 0,
+            "method": "GET",
+            "phase": "connection",
+            "protocol": "http/1.1",
+            "referrer": "",
+            "sampling_fraction": 1.0,
+            "status_code": 0,
+            "type": "tcp.refused"
+        }"#;
+
+        let body: Body = serde_json::from_str(json).unwrap();
+
+        assert!(body.server_ip.is_none());
+    }
 }
