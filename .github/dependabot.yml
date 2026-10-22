@@ -5,6 +5,13 @@ updates:
     directory: "/"
     schedule:
       interval: daily
+    # Fix all open advisories in a single PR. The `dependabot-cargo-update`
+    # workflow runs a full `cargo update` on top of it.
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     reviewers:
       - "@getsentry/ingest"
 

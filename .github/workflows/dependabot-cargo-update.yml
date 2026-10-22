@@ -1,0 +1,71 @@
+name: Dependabot cargo update
+
+# Dependabot security updates only bump the vulnerable crate. This workflow
+# runs a full `cargo update` on top of every Dependabot Cargo PR, so that
+# security fixes also pull in all other semver-compatible updates.
+#
+# Workflows triggered by Dependabot only have access to Dependabot secrets,
+# so `SENTRY_RELEASE_BOT_CLIENT_ID` and `SENTRY_RELEASE_BOT_PRIVATE_KEY` must
+# be configured as Dependabot secrets. The push uses the app token instead of
+# `GITHUB_TOKEN` so that CI runs on the updated commit.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - Cargo.lock
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-update:
+    name: Run cargo update
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    if: >-
+      github.actor == 'dependabot[bot]'
+      && github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'dependabot/cargo/')
+
+    steps:
+      - name: Get auth token
+        id: token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.SENTRY_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ steps.token.outputs.token }}
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - name: Run cargo update
+        run: cargo update
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          APP_SLUG: ${{ steps.token.outputs.app-slug }}
+        run: |
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock is already up to date"
+            exit 0
+          fi
+
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+          git commit -m "build(deps): Run cargo update" -- Cargo.lock
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
