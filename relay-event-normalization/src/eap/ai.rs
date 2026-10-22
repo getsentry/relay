@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use relay_conventions::attributes::*;
-use relay_event_schema::protocol::Attributes;
-use relay_protocol::Annotated;
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
+use relay_protocol::{Annotated, Value};
 
 use crate::ModelMetadata;
 use crate::span::ai;
@@ -36,6 +36,7 @@ pub fn normalize_ai(
     normalize_tokens_per_second(attributes, duration);
     normalize_context_utilization(attributes, model_metadata);
     normalize_ai_costs(attributes, model_metadata);
+    normalize_tool_call_result_size(attributes);
 }
 
 /// Returns whether the item is should have AI normalizations applied.
@@ -76,8 +77,7 @@ fn normalize_ai_type(attributes: &mut Attributes) {
         .or_else(|| attributes.get_value(SENTRY__OP))
         .and_then(|op| op.as_str())
         .and_then(|op| ai::infer_ai_operation_type(op))
-        // This is fine, this normalization only happens for known AI spans.
-        .unwrap_or(ai::DEFAULT_AI_OPERATION);
+        .unwrap_or_else(|| ai::default_ai_operation_type(attributes));
 
     attributes.insert(GEN_AI__OPERATION__TYPE, op_name.to_owned());
 }
@@ -222,6 +222,32 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
     attributes.insert(GEN_AI__COST__TOTAL_TOKENS, costs.total());
 }
 
+/// Records a tool result's UTF-8 byte length, preserving SDK-provided sizes.
+fn normalize_tool_call_result_size(attributes: &mut Attributes) {
+    if extract_string_value(attributes, GEN_AI__OPERATION__TYPE) != Some("tool") {
+        return;
+    }
+
+    let has_valid_size = matches!(
+        attributes.get_value(GEN_AI__TOOL__CALL__RESULT__SIZE),
+        Some(Value::U64(_)) | Some(Value::I64(0..))
+    );
+
+    if has_valid_size {
+        return;
+    }
+
+    let Some(result) = extract_string_value(attributes, GEN_AI__TOOL__CALL__RESULT) else {
+        return;
+    };
+
+    let size = Attribute::new(AttributeType::Integer, Value::U64(result.len() as u64));
+    attributes.0.insert(
+        GEN_AI__TOOL__CALL__RESULT__SIZE.to_owned(),
+        Annotated::new(size),
+    );
+}
+
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
     attributes.get_value(key).and_then(|v| v.as_str())
 }
@@ -294,6 +320,38 @@ mod tests {
                     context_size: Some(100_000),
                 },
             )]),
+        }
+    }
+
+    #[test]
+    fn test_normalize_ai_type_fallback() {
+        for model_key in [
+            None,
+            Some(GEN_AI__REQUEST__MODEL),
+            Some(GEN_AI__RESPONSE__MODEL),
+        ] {
+            let mut attributes = attributes! {
+                "gen_ai.operation.name" => "embeddings".to_owned(),
+            };
+            if let Some(key) = model_key {
+                attributes.insert(key, "gpt-4".to_owned());
+            }
+            let mut attributes = Annotated::new(attributes);
+
+            normalize_ai(&mut attributes, None, None);
+
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__OPERATION__TYPE)
+                    .and_then(|v| v.as_str()),
+                Some(if model_key.is_some() {
+                    "ai_client"
+                } else {
+                    "other"
+                }),
+            );
         }
     }
 

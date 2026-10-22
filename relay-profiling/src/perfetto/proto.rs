@@ -13,6 +13,10 @@ pub struct TracePacket {
     pub interned_data: ::core::option::Option<InternedData>,
     #[prost(uint32, optional, tag = "13")]
     pub sequence_flags: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "58")]
+    pub timestamp_clock_id: ::core::option::Option<u32>,
+    #[prost(message, optional, tag = "59")]
+    pub trace_packet_defaults: ::core::option::Option<TracePacketDefaults>,
     #[prost(oneof = "trace_packet::OptionalTrustedPacketSequenceId", tags = "10")]
     pub optional_trusted_packet_sequence_id:
         ::core::option::Option<trace_packet::OptionalTrustedPacketSequenceId>,
@@ -35,6 +39,11 @@ pub mod trace_packet {
         #[prost(message, tag = "66")]
         PerfSample(super::PerfSample),
     }
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TracePacketDefaults {
+    #[prost(uint32, optional, tag = "58")]
+    pub timestamp_clock_id: ::core::option::Option<u32>,
 }
 // --- clock sync ---------------------------------------------------------------
 

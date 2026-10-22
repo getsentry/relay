@@ -365,6 +365,19 @@ impl RedisRateLimiter {
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
+        self.is_rate_limited_at(quotas, item_scoping, quantity, over_accept_once, timestamp)
+            .await
+    }
+
+    /// Like [`Self::is_rate_limited`], but checks the quotas at the given `timestamp`.
+    async fn is_rate_limited_at<'a>(
+        &self,
+        quotas: impl IntoIterator<Item = &'a Quota>,
+        item_scoping: &ItemScoping,
+        quantity: usize,
+        over_accept_once: bool,
+        timestamp: UnixTimestamp,
+    ) -> Result<RateLimits, RateLimitingError> {
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
@@ -608,7 +621,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
-                dimensional: false,
+                dimensions: DimensionMap::default(),
             }]
         );
     }
@@ -732,7 +745,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
-                        dimensional: false,
+                        dimensions: DimensionMap::default(),
                     }]
                 );
             } else {
@@ -951,7 +964,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
-                        dimensional: false,
+                        dimensions: DimensionMap::default(),
                     }]
                 );
             }
@@ -1003,7 +1016,7 @@ mod tests {
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
-                        dimensional: false,
+                        dimensions: DimensionMap::default(),
                     }]
                 );
             } else {
@@ -1649,7 +1662,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
-                dimensional: false,
+                dimensions: DimensionMap::default(),
             }]
         );
     }
@@ -1730,7 +1743,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
-                dimensional: false,
+                dimensions: DimensionMap::default(),
             }]
         );
     }
@@ -1922,7 +1935,7 @@ mod tests {
                     reason_code: Some(ReasonCode::new("get_lost")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
-                    dimensional: true,
+                    dimensions: DimensionMap::from(*dims),
                 }],
                 "second check for {dims:?}"
             );
@@ -2089,7 +2102,7 @@ mod tests {
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
-                dimensional: true,
+                dimensions: DimensionMap::from([(Dimension::CheckInSlug, "cron3")]),
             }]
         );
 
@@ -2140,9 +2153,9 @@ mod tests {
 
     /// Every dimension bucket gets its own limit, even when the opportunistic cache is enabled.
     ///
-    /// The cache is keyed on the quota's dimension *names*, not on the values of an individual
-    /// item, so all buckets of a quota share one cache entry. This test pins down that sharing
-    /// the entry does not make the buckets share their limit.
+    /// The cache is keyed on the dimension values of an item, so every bucket of a quota has its
+    /// own cache entry. This test pins down that accepting from the cache does not make the
+    /// buckets share their limit.
     #[tokio::test]
     async fn test_quota_dimensions_with_cache() {
         let limit = 50 * 60;
@@ -2163,13 +2176,17 @@ mod tests {
             monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]),
         ];
 
-        // Interleave the two slugs, so that both of them go through the shared cache entry, and
-        // send a third more than either of them is allowed.
+        // The loop below takes long enough to cross into the next window, which would start
+        // fresh buckets and over-accept. Check all items at the same timestamp instead.
+        let timestamp = UnixTimestamp::now();
+
+        // Interleave the two slugs, so that both of them go through the cache, and send 50% more
+        // than either of them is allowed.
         let mut accepted = [0u64; 2];
         for _ in 0..(limit + limit / 2) {
             for (scoping, accepted) in crons.iter().zip(accepted.iter_mut()) {
                 if !rate_limiter
-                    .is_rate_limited(quotas, scoping, 1, false)
+                    .is_rate_limited_at(quotas, scoping, 1, false, timestamp)
                     .await
                     .unwrap()
                     .is_limited()
@@ -2280,10 +2297,7 @@ mod tests {
         // The limit is enforced against the check-in which produced it.
         assert!(limits.is_limited());
 
-        // It would apply to every other monitor in the project if it were retained, so none of
-        // it survives the filter.
-        assert!(limits.cacheable().is_empty());
-        assert!(!limits.cacheable().check(&cron2).is_limited());
+        assert!(!limits.check(&cron2).is_limited());
 
         // The other monitor still has its own bucket in Redis.
         assert!(
@@ -2295,9 +2309,9 @@ mod tests {
         );
     }
 
-    /// An undimensioned quota on the same category stays cacheable.
+    /// An undimensioned quota on the same category stays propagatable.
     #[tokio::test]
-    async fn test_quota_without_dimensions_is_cacheable() {
+    async fn test_quota_without_dimensions_is_propagatable() {
         let quotas = &[monitor_quota(1, None)];
 
         let rate_limiter = build_rate_limiter();
@@ -2316,6 +2330,6 @@ mod tests {
         // This limit really does apply to the whole project, so it is kept for the cache even
         // though the item which produced it carried dimensions.
         assert!(limits.is_limited());
-        assert!(!limits.cacheable().is_empty());
+        assert!(!limits.propagatable().is_empty());
     }
 }

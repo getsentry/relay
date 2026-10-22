@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
@@ -730,7 +730,7 @@ impl Default for Limits {
             max_attachment_size: ByteSize::mebibytes(200),
             max_attachment_count: 30,
             max_attachments_size: ByteSize::mebibytes(200),
-            max_upload_size: ByteSize::mebibytes(1024),
+            max_upload_size: ByteSize::mebibytes(10240),
             max_client_reports_size: ByteSize::kibibytes(100),
             max_client_reports_count: 100,
             max_check_in_size: ByteSize::kibibytes(100),
@@ -1178,6 +1178,25 @@ pub struct Processing {
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
     pub kafka_validate_topics: bool,
+    /// Logical topics whose Kafka client is replaced when the config changes, instead of being
+    /// fixed for the lifetime of the process.
+    ///
+    /// Named by logical topic, for example `ingest-events`. Note that `topics` additionally
+    /// accepts a short form (`events`), which this option does not: only the logical name
+    /// selects a topic here. Anything else is ignored.
+    ///
+    /// Empty by default, which is the behaviour of every topic before this option existed.
+    ///
+    /// This exists to roll the reloading producer out one topic at a time and is meant to be
+    /// removed once every topic uses it.
+    pub reloading_producer_topics: BTreeSet<String>,
+    /// Upper bound, in seconds, on the random delay before a reloading producer swaps its
+    /// client.
+    ///
+    /// Spreads swaps out so that a config change does not have every pod in the fleet reconnect
+    /// at once. Keep it well below how often the Kafka config is expected to change. Tests set
+    /// this to `0` to observe a swap without waiting.
+    pub reloading_producer_jitter_secs: u64,
     /// Redis hosts to connect to for storing state for rate limits.
     pub redis: Option<RedisConfigs>,
     /// Maximum chunk size of attachments for Kafka.
@@ -1221,6 +1240,8 @@ impl Default for Processing {
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
+            reloading_producer_topics: BTreeSet::new(),
+            reloading_producer_jitter_secs: 60,
             redis: None,
             attachment_chunk_size: ByteSize::mebibytes(1),
             projectconfig_cache_prefix: "relayconfig".to_owned(),
@@ -1230,6 +1251,19 @@ impl Default for Processing {
             objectstore: ObjectstoreServiceConfig::default(),
         }
     }
+}
+
+/// Picks a cluster name for the default `kafka_config` that no secondary config uses.
+///
+/// Only relevant to [`ConfigSnapshot::kafka_config_blob`]: the blob names every cluster, while
+/// Relay's own config leaves the default one anonymous. Appends underscores to `default` until
+/// it is unused.
+fn default_cluster_name(processing: &Processing) -> String {
+    let mut name = String::from("default");
+    while processing.secondary_kafka_configs.contains_key(&name) {
+        name.push('_');
+    }
+    name
 }
 
 /// Configuration for normalization in this Relay.
@@ -1312,12 +1346,6 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum number of attempts made to upload.
     pub max_attempts: NonZeroU16,
 
-    /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
-    ///
-    /// When disabled, failed event attachments are dropped with an `upload_failed`
-    /// outcome instead of falling back to Store's Kafka attachment path.
-    pub fallback_to_kafka: bool,
-
     /// Configuration values for objectstore's auth scheme.
     pub auth: Option<ObjectstoreAuthConfig>,
 }
@@ -1332,7 +1360,6 @@ impl Default for ObjectstoreServiceConfig {
             stream_timeout: 5 * 60, // synced with `Upload::timeout`
             retry_delay: 1.0,
             max_attempts: NonZeroU16::new(5).unwrap(),
-            fallback_to_kafka: true,
             auth: None,
         }
     }
@@ -1883,6 +1910,43 @@ impl ConfigInner {
         if self.values.health != other.values.health {
             relay_log::debug!("updating health");
             self.values.health = other.values.health.clone();
+            changed = true;
+        }
+
+        // Broker settings only. Producers hold their topic name and shard list from startup,
+        // so `topics` changes cannot be applied here at all, including moving a topic to
+        // another cluster via its `config` key. Those need a restart.
+        //
+        // Merging `topics` anyway would also break later pushes: `kafka_config_blob` reads it
+        // live, so a renamed topic would be keyed by its new name while the producer still
+        // selects the old one.
+        //
+        // This only reaches a running Kafka client for topics using the reloading producer;
+        // see `Processing::reloading_producer_topics`. Everything else picks it up on restart.
+        if self.values.processing.kafka_config != other.values.processing.kafka_config
+            || self.values.processing.secondary_kafka_configs
+                != other.values.processing.secondary_kafka_configs
+        {
+            relay_log::debug!("updating kafka config");
+            self.values.processing.kafka_config = other.values.processing.kafka_config.clone();
+            self.values.processing.secondary_kafka_configs =
+                other.values.processing.secondary_kafka_configs.clone();
+            changed = true;
+        }
+
+        if self.values.spool.envelopes.max_unspool_envelopes_per_second
+            != other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second
+        {
+            relay_log::debug!("updating spool.envelopes.max_unspool_envelopes_per_second");
+            self.values.spool.envelopes.max_unspool_envelopes_per_second = other
+                .values
+                .spool
+                .envelopes
+                .max_unspool_envelopes_per_second;
             changed = true;
         }
 
@@ -2801,6 +2865,84 @@ impl ConfigSnapshot {
         self.inner.values.processing.kafka_validate_topics
     }
 
+    /// Whether this topic's Kafka client is replaced when the config changes.
+    pub fn is_reloading_producer_topic(&self, topic: KafkaTopic) -> bool {
+        self.inner
+            .values
+            .processing
+            .reloading_producer_topics
+            .contains(topic.logical_topic_name())
+    }
+
+    /// Upper bound on the random delay before a reloading producer swaps its client.
+    pub fn reloading_producer_jitter(&self) -> Duration {
+        Duration::from_secs(self.inner.values.processing.reloading_producer_jitter_secs)
+    }
+
+    /// Whether any topic at all uses the reloading producer.
+    pub fn has_reloading_producer_topics(&self) -> bool {
+        !self
+            .inner
+            .values
+            .processing
+            .reloading_producer_topics
+            .is_empty()
+    }
+
+    /// Builds the Kafka config blob describing every configured topic.
+    ///
+    /// # This is a stand-in
+    ///
+    /// The blob is meant to be opaque to Relay: one is published per region covering every
+    /// cluster and topic, and Relay passes the bytes to Arroyo without interpreting them. That
+    /// delivery channel does not yet exist, so this builds a blob out of Relay's own
+    /// `kafka_config`, `secondary_kafka_configs` and `topics` instead.
+    pub fn kafka_config_blob(&self) -> Result<Vec<u8>, KafkaConfigError> {
+        // Sorted throughout, so an unchanged config always serializes to the same bytes and the
+        // caller can skip pushing by comparing them.
+        let mut clusters = BTreeMap::new();
+        let mut topics = BTreeMap::new();
+
+        // A topic without a `config` uses the default `kafka_config`. The blob has no notion of
+        // a default, so that becomes a cluster under a name derived to not collide with any
+        // `secondary_kafka_configs` entry the user may have written.
+        let default_cluster = default_cluster_name(&self.inner.values.processing);
+
+        for topic in KafkaTopic::iter() {
+            let topic_config = self.kafka_configs(*topic)?;
+
+            for params in topic_config.topics() {
+                let cluster_name = params.config_name.unwrap_or(&default_cluster);
+
+                let config: BTreeMap<_, _> = params
+                    .params
+                    .iter()
+                    .map(|param| (param.name.as_str(), param.value.as_str()))
+                    .collect();
+
+                clusters.insert(
+                    cluster_name.to_owned(),
+                    serde_json::json!({ "config": config }),
+                );
+
+                // Arroyo keys the blob by logical topic and maps it to one physical topic. Relay's
+                // sharded topics are one logical topic to many physical ones, which Arroyo cannot
+                // express yet, so each physical topic is its own entry and maps to itself.
+                topics.insert(
+                    params.topic_name.clone(),
+                    serde_json::json!({ "physical_topic": { "cluster": cluster_name } }),
+                );
+            }
+        }
+
+        // Serializing maps of strings cannot fail.
+        Ok(serde_json::to_vec(&serde_json::json!({
+            "clusters": clusters,
+            "topics": topics,
+        }))
+        .expect("kafka config blob is serializable"))
+    }
+
     /// All unused but configured topic assignments.
     pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
         &self.inner.values.processing.topics.unused
@@ -3018,5 +3160,184 @@ mod tests {
     #[test]
     fn test_emit_outcomes_invalid() {
         assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
+    }
+
+    /// Builds a config from YAML under `processing`.
+    #[cfg(feature = "processing")]
+    fn processing_config(yaml: &str) -> Config {
+        let path = env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&path).unwrap();
+        fs::write(ConfigValues::path(&path), yaml).unwrap();
+        Config::from_path(&path).unwrap()
+    }
+
+    /// A generated blob must resolve to the same broker params Relay would have built directly.
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_kafka_config_blob_round_trips() {
+        use sentry_arroyo::backends::kafka::config_blob::{ConfigBlob, ProducerSelector};
+
+        // Covers sharding, a secondary cluster, and a secondary config named `default`.
+        let config = processing_config(
+            r#"
+processing:
+  enabled: true
+  kafka_config:
+    - {name: "bootstrap.servers", value: "primary:9092"}
+    - {name: "compression.type", value: "lz4"}
+  secondary_kafka_configs:
+    default:
+      - {name: "bootstrap.servers", value: "impostor:9092"}
+  topics:
+    ingest-events: ["events-1", "events-2"]
+    ingest-metrics:
+      name: "metrics-topic"
+      config: "default"
+"#,
+        );
+        let config = config.current();
+
+        let blob = config.kafka_config_blob().unwrap();
+        let parsed = ConfigBlob::parse(&blob).unwrap();
+
+        let resolve = |topic: &str| {
+            let resolved = parsed
+                .producer_config(&ProducerSelector::new(topic, "relay"))
+                .unwrap_or_else(|_| panic!("{topic} is missing from the blob"));
+
+            // Each entry must produce to the topic it is keyed by.
+            assert_eq!(resolved.physical_topic.as_str(), topic);
+
+            resolved
+                .config
+                .config_map()
+                .iter()
+                // Arroyo adds this itself when building a producer config.
+                .filter(|(key, _)| key.as_str() != "statistics.interval.ms")
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<BTreeMap<_, _>>()
+        };
+
+        for (topic, physical) in [
+            (KafkaTopic::Events, ["events-1", "events-2"].as_slice()),
+            (KafkaTopic::MetricsSessions, ["metrics-topic"].as_slice()),
+        ] {
+            let params = config.kafka_configs(topic).unwrap();
+
+            for (shard, physical) in params.topics().iter().zip(physical) {
+                let expected: BTreeMap<_, _> = shard
+                    .params
+                    .iter()
+                    .map(|param| (param.name.clone(), param.value.clone()))
+                    .collect();
+
+                assert_eq!(
+                    resolve(physical),
+                    expected,
+                    "{physical} resolved differently"
+                );
+            }
+        }
+
+        // The secondary config named `default` must not have swallowed the anonymous one.
+        assert_eq!(
+            resolve("events-1").get("bootstrap.servers").unwrap(),
+            "primary:9092"
+        );
+        assert_eq!(
+            resolve("metrics-topic").get("bootstrap.servers").unwrap(),
+            "impostor:9092"
+        );
+    }
+
+    /// Moving a topic to a different cluster must change the broker it resolves to.
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_topic_can_move_between_clusters() {
+        use sentry_arroyo::backends::kafka::config_blob::{ConfigBlob, ProducerSelector};
+
+        let resolve = |yaml: &str| {
+            let config = processing_config(yaml);
+            let blob = config.current().kafka_config_blob().unwrap();
+            ConfigBlob::parse(&blob)
+                .unwrap()
+                .producer_config(&ProducerSelector::new("events-topic", "relay"))
+                .unwrap()
+                .config
+                .get_config_value("bootstrap.servers")
+                .unwrap()
+                .clone()
+        };
+
+        let before = resolve(
+            r#"
+processing:
+  enabled: true
+  kafka_config:
+    - {name: "bootstrap.servers", value: "primary:9092"}
+  secondary_kafka_configs:
+    other:
+      - {name: "bootstrap.servers", value: "other:9092"}
+  topics:
+    ingest-events: "events-topic"
+"#,
+        );
+
+        // Same physical topic, now pointed at the secondary cluster.
+        let after = resolve(
+            r#"
+processing:
+  enabled: true
+  kafka_config:
+    - {name: "bootstrap.servers", value: "primary:9092"}
+  secondary_kafka_configs:
+    other:
+      - {name: "bootstrap.servers", value: "other:9092"}
+  topics:
+    ingest-events:
+      name: "events-topic"
+      config: "other"
+"#,
+        );
+
+        assert_eq!(before, "primary:9092");
+        assert_eq!(after, "other:9092");
+    }
+
+    /// Broker settings reload; topic assignments do not, since producers hold theirs from
+    /// startup.
+    #[test]
+    fn test_reload_takes_kafka_config_but_not_topics() {
+        let mut current = ConfigValues::default();
+        current.processing.kafka_config = vec![KafkaConfigParam {
+            name: "bootstrap.servers".to_owned(),
+            value: "old:9092".to_owned(),
+        }];
+        current.processing.topics.events = "old-topic".to_owned().into();
+
+        let mut other = ConfigValues::default();
+        other.processing.kafka_config = vec![KafkaConfigParam {
+            name: "bootstrap.servers".to_owned(),
+            value: "new:9092".to_owned(),
+        }];
+        other.processing.topics.events = "new-topic".to_owned().into();
+
+        let mut current = ConfigInner {
+            values: current,
+            ..Default::default()
+        };
+        let other = ConfigInner {
+            values: other,
+            ..Default::default()
+        };
+
+        assert!(current.reload_with(&other));
+        assert_eq!(current.values.processing.kafka_config[0].value, "new:9092");
+
+        let assignment = format!("{:?}", current.values.processing.topics.events);
+        assert!(
+            assignment.contains("old-topic"),
+            "topic assignment was reloaded, but the producers cannot pick it up: {assignment}"
+        );
     }
 }

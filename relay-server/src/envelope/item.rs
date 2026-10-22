@@ -180,6 +180,7 @@ impl Item {
             ItemType::Integration => match self.integration() {
                 Some(Integration::Logs(
                     LogsIntegration::Nel
+                    | LogsIntegration::Integrity
                     | LogsIntegration::OtelV1 { .. }
                     | LogsIntegration::VercelDrainLog { .. },
                 )) => smallvec![
@@ -634,6 +635,7 @@ impl Item {
                         | AttachmentType::UnrealContext
                         | AttachmentType::UnrealLogs
                         | AttachmentType::ViewHierarchy
+                        | AttachmentType::Flamegraph
                         | AttachmentType::NvShaderDebug,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,

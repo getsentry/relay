@@ -376,6 +376,46 @@ def test_upload_body_size(
         assert expected_error in response.text, response.text
 
 
+@pytest.mark.parametrize(
+    "content_encoding,expected_error",
+    [
+        pytest.param(None, None, id="no_encoding"),
+        pytest.param("utf-8", None, id="identity_encoding"),
+        pytest.param("zstd", "Missing X-Decoded-Content-Length header", id="zstd"),
+    ],
+)
+def test_missing_decoded_length(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+    content_encoding,
+    expected_error,
+):
+    """X-Decoded-Content-Length can be omitted when Content-Length is set"""
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    data = "foo"
+    response = relay.patch(
+        f"{DUMMY_UPLOAD_LOCATION}&sentry_key={mini_sentry.get_dsn_public_key(project_id)}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Content-Encoding": content_encoding,
+            # NOTE: `Content-Length` is automatically set by the client library.
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    if expected_error:
+        assert response.status_code == 400
+        assert expected_error in response.text, response.text
+    else:
+        assert response.status_code == 204
+
+
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
 def test_upload_rate_limited(
     mini_sentry, relay, data_category, dummy_upload, project_config
@@ -950,12 +990,6 @@ def test_upload_minidump_opt_in(
             409,
             f"Invalid Upload-Offset {len(RESUMABLE_DATA) + 1} for Upload-Length {len(RESUMABLE_DATA)}",
             id="offset_beyond_length",
-        ),
-        pytest.param(
-            {"headers": {"X-Decoded-Content-Length": None}},
-            400,
-            "Missing X-Decoded-Content-Length header",
-            id="missing_decoded_length",
         ),
         pytest.param(
             {"chunk": SECOND_CHUNK + b"!"},
