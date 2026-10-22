@@ -1226,9 +1226,7 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
     Rewriting `kafka_config` must replace the Kafka client underneath a running Relay, without
     interrupting produce.
 
-    This is the whole point of the feature: with a static client the config change is simply
-    ignored until a restart, so the test asserts the swap actually happened rather than just
-    that events still arrive.
+    The test asserts the swap actually happened rather than just that events still arrive.
     """
     events_consumer = events_consumer()
 
@@ -1242,7 +1240,6 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
                 "relay": {"config_reload_interval": 1},
                 "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
                 "processing": {
-                    "reloading_producer_topics": ["ingest-events"],
                     # Swap as soon as the config lands, instead of spreading it out.
                     "reloading_producer_jitter_secs": 0,
                 },

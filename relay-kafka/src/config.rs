@@ -14,6 +14,9 @@ pub enum ConfigError {
     /// The user did not configure 0 shard
     #[error("invalid kafka shard configuration: must have shard with index 0")]
     InvalidShard,
+    /// Two topic assignments produce to the same Kafka topic name on different clusters.
+    #[error("kafka topic {0:?} is configured on more than one kafka config")]
+    AmbiguousTopic(String),
 }
 
 /// Define the topics over which Relay communicates with Sentry.

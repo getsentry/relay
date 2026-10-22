@@ -7,13 +7,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use rdkafka::message::{Header, ToBytes};
+use rdkafka::message::Header;
 use rdkafka::producer::BaseRecord;
 use relay_statsd::metric;
 use sentry_arroyo::backends::ProducerError;
-use sentry_arroyo::backends::kafka::config::KafkaConfig;
 use sentry_arroyo::backends::kafka::config_blob::ProducerSelector;
-use sentry_arroyo::backends::kafka::producer::KafkaProducer as ArroyoKafkaProducer;
 use sentry_arroyo::backends::kafka::reloading_producer::{
     ReloadConfig, ReloadError, ReloadingKafkaProducer,
 };
@@ -50,10 +48,6 @@ pub enum ClientError {
     #[error("failed to find producer for the requested kafka topic")]
     InvalidTopicName,
 
-    /// Failed to create a kafka producer because of the invalid configuration.
-    #[error("failed to create kafka producer: invalid kafka config: {0}")]
-    InvalidConfig(#[source] rdkafka::error::KafkaError),
-
     /// Failed to serialize the message.
     #[error("failed to serialize kafka message")]
     InvalidMsgPack(#[source] rmp_serde::encode::Error),
@@ -75,8 +69,9 @@ pub enum ClientError {
     #[error("failed to validate the topic with name {0}: {1}")]
     TopicError(String, #[source] rdkafka::error::KafkaError),
 
-    /// Failed to build a producer that reloads its Kafka client.
-    #[error("failed to create reloading kafka producer")]
+    /// Failed to create a kafka producer, for example because the config blob does not resolve
+    /// for the topic or the resolved config is invalid.
+    #[error("failed to create kafka producer")]
     Reload(#[from] ReloadError),
 
     /// Failed to encode the protobuf into the buffer
@@ -167,14 +162,14 @@ impl TopicProducers {
 
 struct TopicProducer {
     pub topic_name: String,
-    pub producer: Arc<Backend>,
+    pub producer: Arc<ReloadingKafkaProducer<Context>>,
     pub rate_limiter: Option<KafkaRateLimits>,
 }
 
-/// Asks for a topic to be produced through a client that can be reloaded.
+/// Where producers take their initial Kafka config from, and how they reload it.
 #[derive(Debug, Clone, Copy)]
-pub struct ReloadingTopic<'a> {
-    /// The Kafka config blob the initial client is resolved from.
+pub struct KafkaConfigSource<'a> {
+    /// The Kafka config blob the initial clients are resolved from.
     pub blob: &'a [u8],
     /// Which application's overrides in the blob apply. For Relay, `"relay"`.
     pub app: &'a str,
@@ -194,74 +189,6 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
         ignore_key_ordering: true,
         jitter,
         ..ReloadConfig::default()
-    }
-}
-
-/// The Kafka client behind a topic.
-///
-/// Selects a fixed or a reloading client per topic. Both take the same
-/// [`BaseRecord`] and report through the same [`Context`]. Delete this, and the
-/// config option that selects it, once every topic is on [`Backend::Reloading`].
-enum Backend {
-    /// A client fixed for the lifetime of the process.
-    Static(ArroyoKafkaProducer<Context>),
-    /// A client that is replaced when a new Kafka config is pushed in.
-    Reloading(ReloadingKafkaProducer<Context>),
-}
-
-impl Backend {
-    fn context(&self) -> &Context {
-        match self {
-            Self::Static(producer) => producer.context(),
-            Self::Reloading(producer) => producer.context(),
-        }
-    }
-
-    fn in_flight_count(&self) -> i32 {
-        match self {
-            Self::Static(producer) => producer.in_flight_count(),
-            Self::Reloading(producer) => producer.in_flight_count(),
-        }
-    }
-
-    /// Number of times the client was replaced. Always zero for a static one.
-    fn generation(&self) -> u64 {
-        match self {
-            Self::Static(_) => 0,
-            Self::Reloading(producer) => producer.generation(),
-        }
-    }
-
-    fn produce_record<K, P>(&self, record: BaseRecord<'_, K, P>) -> Result<(), ProducerError>
-    where
-        K: ToBytes + ?Sized,
-        P: ToBytes + ?Sized,
-    {
-        match self {
-            Self::Static(producer) => producer.produce_record(record),
-            Self::Reloading(producer) => producer.produce_record(record),
-        }
-    }
-
-    fn validate_topic(
-        &self,
-        topic: Topic,
-        timeout: Duration,
-    ) -> Result<(), rdkafka::error::KafkaError> {
-        match self {
-            Self::Static(producer) => producer.validate_topic(topic, timeout),
-            Self::Reloading(producer) => producer.validate_topic(topic, timeout),
-        }
-    }
-
-    /// Hands a new Kafka config to a reloading client. A static one ignores it.
-    ///
-    /// Returns `Ok(false)` when there is nothing to push to.
-    fn push_config(&self, blob: &[u8]) -> Result<bool, ReloadError> {
-        match self {
-            Self::Static(_) => Ok(false),
-            Self::Reloading(producer) => producer.push_config(blob).map(|_| true),
-        }
     }
 }
 
@@ -477,11 +404,10 @@ impl KafkaClient {
         producer.send(key, headers, variant, payload)
     }
 
-    /// Hands a new Kafka config blob to every topic on the reloading producer.
+    /// Hands a new Kafka config blob to every topic's producer.
     ///
-    /// Topics still on a static client ignore it. A blob that does not resolve
-    /// for a topic is logged and counted rather than returned; that topic keeps
-    /// the client it is running.
+    /// A blob that does not resolve for a topic is logged and counted rather
+    /// than returned; that topic keeps the client it is running.
     ///
     /// A successful push only means the rollout started. Arroyo probes a
     /// broker before swapping; watch `kafka.reload_generation` for the swap.
@@ -491,13 +417,11 @@ impl KafkaClient {
                 let producer_name = tp.producer.context().producer_name();
 
                 match tp.producer.push_config(blob) {
-                    Ok(true) => metric!(
+                    Ok(_) => metric!(
                         counter(KafkaCounters::ConfigReloadPushed) += 1,
                         topic = &tp.topic_name,
                         producer_name = producer_name
                     ),
-                    // Not a reloading producer, nothing to push to.
-                    Ok(false) => {}
                     Err(error) => {
                         relay_log::error!(
                             error = &error as &dyn std::error::Error,
@@ -516,26 +440,14 @@ impl KafkaClient {
     }
 }
 
-/// Identifies a producer that can be shared between topics.
-///
-/// A static client is defined purely by its broker config, so everything naming the same one
-/// shares it. A reloading client additionally resolves its config out of the blob by physical
-/// topic name, so it can only be shared by topics producing to that same name. Sharing it any
-/// wider would point some of them at the wrong topic's config.
-///
-/// This also keeps a reloading and a static topic that name the same Kafka config apart, which
-/// would otherwise collide and leave one of them on the wrong backend.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct ProducerKey {
-    config_name: Option<String>,
-    /// The physical topic, for reloading producers only.
-    topic_name: Option<String>,
-}
-
 /// Helper structure responsible for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
-    reused_producers: BTreeMap<ProducerKey, Arc<Backend>>,
+    /// Producers by physical topic name.
+    ///
+    /// A producer resolves its config out of the blob by physical topic, so it can only be
+    /// shared by logical topics that produce to that same physical topic.
+    reused_producers: BTreeMap<String, Arc<ReloadingKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
 }
 
@@ -548,21 +460,18 @@ impl KafkaClientBuilder {
     /// Adds topic configuration to the current [`KafkaClientBuilder`], which in return assigns
     /// dedicates producer to the topic which can will be used to send the messages.
     ///
-    /// When `reloading` is set, the topic's client is resolved from the config blob it carries
-    /// and is replaced whenever a newer blob is pushed in through
-    /// [`KafkaClient::push_kafka_config`]. Otherwise the client is fixed for the lifetime of
-    /// the process.
+    /// Each physical topic's client is resolved from the config blob in `source`, and is
+    /// replaced whenever a newer blob is pushed in through [`KafkaClient::push_kafka_config`].
     ///
     /// # Errors
-    /// Returns [`ClientError::InvalidConfig`] error if the provided configuration is wrong and
-    /// the producer could not be created, or [`ClientError::Reload`] if a reloading producer
-    /// could not resolve its config out of the blob.
+    /// Returns [`ClientError::Reload`] if a producer could not be created, for example because
+    /// the blob has no entry for one of the topic's physical topics.
     pub fn add_kafka_topic_config(
         mut self,
         topic: KafkaTopic,
         topic_config: &KafkaTopicConfig<'_>,
         validate_topic: bool,
-        reloading: Option<&ReloadingTopic<'_>>,
+        source: &KafkaConfigSource<'_>,
     ) -> Result<Self, ClientError> {
         let mut topic_producers = TopicProducers::new();
 
@@ -584,14 +493,8 @@ impl KafkaClientBuilder {
                 )
             });
 
-            let config_name = config_name.map(str::to_owned);
-            let key = ProducerKey {
-                config_name: config_name.clone(),
-                topic_name: reloading.is_some().then(|| topic_name.clone()),
-            };
-
-            // Get or create producer for this broker config
-            let kafka_producer = if let Some(producer) = self.reused_producers.get(&key) {
+            // Get or create the producer for this physical topic
+            let kafka_producer = if let Some(producer) = self.reused_producers.get(topic_name) {
                 Arc::clone(producer)
             } else {
                 // Extract producer name from client.id, fallback to config name, then "unknown"
@@ -599,35 +502,18 @@ impl KafkaClientBuilder {
                     .iter()
                     .find(|p| p.name == "client.id")
                     .map(|p| p.value.clone())
-                    .or_else(|| config_name.clone())
+                    .or_else(|| config_name.map(str::to_owned))
                     .unwrap_or_else(|| "unknown".to_owned());
 
-                let context = Context::new(producer_name);
-                let producer = match reloading {
-                    Some(reloading) => {
-                        let selector = ProducerSelector::new(topic_name.clone(), reloading.app);
-                        Backend::Reloading(ReloadingKafkaProducer::new_with_context(
-                            reloading.blob,
-                            selector,
-                            reload_config(reloading.jitter),
-                            context,
-                        )?)
-                    }
-                    None => {
-                        let params = config_params
-                            .iter()
-                            .map(|param| (param.name.clone(), param.value.clone()))
-                            .collect();
-                        let config = KafkaConfig::new_config(Vec::new(), Some(params));
-                        Backend::Static(
-                            ArroyoKafkaProducer::new_with_context(config, context)
-                                .map_err(ClientError::InvalidConfig)?,
-                        )
-                    }
-                };
-                let producer = Arc::new(producer);
+                let producer = Arc::new(ReloadingKafkaProducer::new_with_context(
+                    source.blob,
+                    ProducerSelector::new(topic_name.clone(), source.app),
+                    reload_config(source.jitter),
+                    Context::new(producer_name),
+                )?);
 
-                self.reused_producers.insert(key, Arc::clone(&producer));
+                self.reused_producers
+                    .insert(topic_name.clone(), Arc::clone(&producer));
 
                 producer
             };
@@ -694,6 +580,14 @@ mod tests {
         .unwrap()
     }
 
+    fn source(blob: &[u8]) -> KafkaConfigSource<'_> {
+        KafkaConfigSource {
+            blob,
+            app: "relay",
+            jitter: Duration::ZERO,
+        }
+    }
+
     fn params(servers: &str) -> Vec<KafkaConfigParam> {
         vec![KafkaConfigParam {
             name: "bootstrap.servers".to_owned(),
@@ -701,22 +595,11 @@ mod tests {
         }]
     }
 
-    fn build(
-        assignment: &TopicAssignment,
-        params: &Vec<KafkaConfigParam>,
-        reloading: Option<&ReloadingTopic<'_>>,
-    ) -> KafkaClient {
-        let secondary = BTreeMap::new();
-        let configs = assignment.kafka_configs(params, &secondary).unwrap();
-
-        KafkaClient::builder()
-            .add_kafka_topic_config(KafkaTopic::Events, &configs, false, reloading)
-            .unwrap()
-            .build()
-    }
-
-    fn backends(client: &KafkaClient) -> Vec<&Arc<Backend>> {
-        client.producers[&KafkaTopic::Events]
+    fn producers(
+        client: &KafkaClient,
+        topic: KafkaTopic,
+    ) -> Vec<&Arc<ReloadingKafkaProducer<Context>>> {
+        client.producers[&topic]
             .topic_producers
             .producers
             .iter()
@@ -724,86 +607,89 @@ mod tests {
             .collect()
     }
 
-    /// Every shard needs its own reloading producer, since each is a separate
-    /// physical topic with its own entry in the blob.
+    /// Every shard needs its own producer, since each is a separate physical
+    /// topic with its own entry in the blob.
     #[test]
-    fn test_sharded_reloading_topic_gets_one_producer_per_shard() {
+    fn test_sharded_topic_gets_one_producer_per_shard() {
         let cluster = MockCluster::new(1).unwrap();
         let servers = cluster.bootstrap_servers();
         let assignment: TopicAssignment =
             serde_yaml::from_str(r#"["ingest-events-1", "ingest-events-2"]"#).unwrap();
         let blob = blob(&servers, &["ingest-events-1", "ingest-events-2"]);
+        let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let configs = assignment.kafka_configs(&params, &secondary).unwrap();
 
-        let client = build(
-            &assignment,
-            &params(&servers),
-            Some(&ReloadingTopic {
-                blob: &blob,
-                app: "relay",
-                jitter: Duration::ZERO,
-            }),
-        );
+        let client = KafkaClient::builder()
+            .add_kafka_topic_config(KafkaTopic::Events, &configs, false, &source(&blob))
+            .unwrap()
+            .build();
 
-        let backends = backends(&client);
-        assert_eq!(backends.len(), 2);
-        assert!(
-            backends
-                .iter()
-                .all(|backend| matches!(***backend, Backend::Reloading(_)))
-        );
+        let producers = producers(&client, KafkaTopic::Events);
+        assert_eq!(producers.len(), 2);
         // Sharding routes by index, so two shards sharing one producer would
         // send both to whichever topic that producer resolved.
         assert!(
-            !Arc::ptr_eq(backends[0], backends[1]),
+            !Arc::ptr_eq(producers[0], producers[1]),
             "shards share a producer, so one of them produces to the wrong topic"
         );
     }
 
-    /// A reloading and a static topic naming the same Kafka config must not
-    /// share a client, or one of them silently gets the wrong backend.
+    /// Logical topics producing to the same physical topic share a producer,
+    /// while different physical topics on the same cluster do not.
     #[test]
-    fn test_static_and_reloading_topics_do_not_share_a_client() {
+    fn test_producers_are_shared_by_physical_topic() {
         let cluster = MockCluster::new(1).unwrap();
         let servers = cluster.bootstrap_servers();
         let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let blob = blob(&servers, &["outcomes", "ingest-events"]);
+        let outcomes = TopicAssignment::from("outcomes".to_owned());
         let events = TopicAssignment::from("ingest-events".to_owned());
-        let transactions = TopicAssignment::from("ingest-transactions".to_owned());
-        let blob = blob(&servers, &["ingest-events", "ingest-transactions"]);
+        let outcomes = outcomes.kafka_configs(&params, &secondary).unwrap();
+        let events = events.kafka_configs(&params, &secondary).unwrap();
 
-        // Both use the default broker config, so only the backend keeps their cache keys apart.
         let client = KafkaClient::builder()
-            .add_kafka_topic_config(
-                KafkaTopic::Events,
-                &events.kafka_configs(&params, &BTreeMap::new()).unwrap(),
-                false,
-                Some(&ReloadingTopic {
-                    blob: &blob,
-                    app: "relay",
-                    jitter: Duration::ZERO,
-                }),
-            )
+            .add_kafka_topic_config(KafkaTopic::Outcomes, &outcomes, false, &source(&blob))
             .unwrap()
             .add_kafka_topic_config(
-                KafkaTopic::Transactions,
-                &transactions
-                    .kafka_configs(&params, &BTreeMap::new())
-                    .unwrap(),
+                KafkaTopic::OutcomesBilling,
+                &outcomes,
                 false,
-                None,
+                &source(&blob),
             )
+            .unwrap()
+            .add_kafka_topic_config(KafkaTopic::Events, &events, false, &source(&blob))
             .unwrap()
             .build();
 
-        let events = &client.producers[&KafkaTopic::Events]
-            .topic_producers
-            .producers[0]
-            .producer;
-        let transactions = &client.producers[&KafkaTopic::Transactions]
-            .topic_producers
-            .producers[0]
-            .producer;
+        let outcomes = producers(&client, KafkaTopic::Outcomes)[0];
+        let billing = producers(&client, KafkaTopic::OutcomesBilling)[0];
+        let events = producers(&client, KafkaTopic::Events)[0];
 
-        assert!(matches!(**events, Backend::Reloading(_)));
-        assert!(matches!(**transactions, Backend::Static(_)));
+        assert!(Arc::ptr_eq(outcomes, billing));
+        assert!(!Arc::ptr_eq(outcomes, events));
+    }
+
+    /// A topic missing from the blob cannot get a producer, so building fails
+    /// instead of producing with a config nobody asked for.
+    #[test]
+    fn test_topic_missing_from_blob_is_an_error() {
+        let cluster = MockCluster::new(1).unwrap();
+        let servers = cluster.bootstrap_servers();
+        let blob = blob(&servers, &["ingest-events"]);
+        let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let assignment = TopicAssignment::from("ingest-transactions".to_owned());
+        let configs = assignment.kafka_configs(&params, &secondary).unwrap();
+
+        let result = KafkaClient::builder().add_kafka_topic_config(
+            KafkaTopic::Transactions,
+            &configs,
+            false,
+            &source(&blob),
+        );
+
+        assert!(matches!(result, Err(ClientError::Reload(_))));
     }
 }
