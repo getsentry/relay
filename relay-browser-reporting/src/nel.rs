@@ -61,13 +61,30 @@ pub struct Body {
 fn deserialize_ip_opt<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<IpAddr>, D::Error> {
-    let s = <&str>::deserialize(deserializer)?;
-    match s {
-        "" => Ok(None),
-        s => Ok(Some(IpAddr::deserialize(de::value::StrDeserializer::new(
-            s,
-        ))?)),
+    struct Visitor;
+
+    impl<'de> de::Visitor<'de> for Visitor {
+        type Value = Option<IpAddr>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a valid IP address or an empty string")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if v.is_empty() {
+                return Ok(None);
+            }
+
+            Ok(Some(IpAddr::deserialize(de::value::StrDeserializer::new(
+                v,
+            ))?))
+        }
     }
+
+    deserializer.deserialize_str(Visitor)
 }
 
 #[cfg(test)]
@@ -110,12 +127,7 @@ mod tests {
             "type": "tcp.refused"
         }"#;
 
-        let body: Body = serde_json::from_str(json).unwrap();
-
-        let NetworkReportPhase::Connection { server_ip, .. } = body.phase else {
-            unreachable!();
-        };
-
-        assert!(server_ip.is_none());
+        // The `server_ip` field can be empty, but it can't be missing.
+        assert!(serde_json::from_str::<Body>(json).is_err());
     }
 }
