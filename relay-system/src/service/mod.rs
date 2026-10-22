@@ -1063,6 +1063,18 @@ pub trait Service: Sized {
     }
 }
 
+fn run_instrumented<S: Service>(
+    service: S,
+    rx: Receiver<S::Interface>,
+) -> impl Future<Output = ()> + Send + 'static {
+    let future = service.run(rx);
+    async move {
+        relay_log::debug!("service_start {}", S::name());
+        future.await;
+        relay_log::debug!("service_stop {}", S::name());
+    }
+}
+
 /// The [`ServiceSpawn`] trait allows for starting a [`Service`] on an executor that will run them to completion.
 ///
 /// Often you want to spawn your service directly via [`ServiceSpawnExt`].
@@ -1106,7 +1118,7 @@ impl ServiceObj {
     pub fn new<S: Service>(service: S, rx: Receiver<S::Interface>) -> Self {
         Self {
             name: S::name(),
-            future: service.run(rx).boxed(),
+            future: run_instrumented(service, rx).boxed(),
         }
     }
 
