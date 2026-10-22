@@ -10,14 +10,12 @@ use std::collections::{BTreeMap, HashMap};
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
-use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::debug_image::get_proguard_image;
 use crate::measurements::LegacyMeasurement;
 use crate::sample::v1::SampleProfile;
-use crate::statsd::ProfilingDistributions;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::{ClientSdk, DebugMeta};
 use crate::utils::{default_client_sdk, deserialize_number_from_string, is_zero};
@@ -131,32 +129,6 @@ impl AndroidProfilingEvent {
         }
     }
 
-    fn parse(&mut self) -> Result<(), ProfileError> {
-        let profile_bytes = match BASE64_NOPAD.decode(self.sampled_profile.as_bytes()) {
-            Ok(profile) => profile,
-            Err(_) => return Err(ProfileError::InvalidBase64Value),
-        };
-        self.profile = match android_trace_log::parse(&profile_bytes) {
-            Ok(profile) => {
-                relay_statsd::metric!(
-                    distribution(ProfilingDistributions::AndroidTraceLogEvents) =
-                        profile.events.len() as u64
-                );
-                relay_statsd::metric!(
-                    distribution(ProfilingDistributions::AndroidTraceLogMethods) =
-                        profile.methods.len() as u64
-                );
-                relay_statsd::metric!(
-                    distribution(ProfilingDistributions::AndroidTraceLogThreads) =
-                        profile.threads.len() as u64
-                );
-                profile
-            }
-            Err(_) => return Err(ProfileError::InvalidSampledProfile),
-        };
-        Ok(())
-    }
-
     fn has_transaction_metadata(&self) -> bool {
         !self.metadata.transaction_name.is_empty()
     }
@@ -200,7 +172,7 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
     }
 
     if !profile.sampled_profile.is_empty() {
-        profile.parse()?;
+        profile.profile = super::parse_trace_log(&profile.sampled_profile, "legacy")?;
     }
 
     if profile.profile.events.is_empty() {
