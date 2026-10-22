@@ -74,7 +74,6 @@ def test_mixed_attachments_with_processing(
         "type": "attachment",
         "attachment": {
             "name": "bar.txt",
-            "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"hell yeah"),
             "retention_days": 90,
@@ -91,7 +90,6 @@ def test_mixed_attachments_with_processing(
         "attachment": {
             "id": foo_id,
             "name": "foo.txt",
-            "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(large_content),
             "retention_days": 90,
@@ -109,7 +107,6 @@ def test_mixed_attachments_with_processing(
         "type": "attachment",
         "attachment": {
             "name": "foobar.txt",
-            "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
             "retention_days": 90,
@@ -168,7 +165,6 @@ def test_attachments_with_objectstore(
         "attachment": {
             "id": matches_any(),
             "name": "foo.txt",
-            "rate_limited": False,
             # Uploads guess the content type from the file name.
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
@@ -187,7 +183,6 @@ def test_attachments_with_objectstore(
         "attachment": {
             "id": matches_any(),
             "name": "foobar.txt",
-            "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
             "retention_days": 90,
@@ -609,7 +604,6 @@ def test_view_hierarchy_processing(
         "type": "attachment",
         "attachment": {
             "name": "Unnamed Attachment",
-            "rate_limited": False,
             "content_type": "application/json",
             "attachment_type": "event.view_hierarchy",
             "size": len(expected_payload),
@@ -903,7 +897,6 @@ def test_event_with_flamegraph(
     assert attachment.pop("id")
     assert attachment == {
         "name": "flamegraph.json",
-        "rate_limited": False,
         "content_type": "application/json",
         "attachment_type": "event.flamegraph",
         "size": len(json.dumps(expected_payload, separators=(",", ":")).encode()),
@@ -965,7 +958,6 @@ def test_event_with_attachment(
     assert list(event_message["attachments"]) == [
         {
             "name": "event.txt",
-            "rate_limited": False,
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
@@ -998,7 +990,6 @@ def test_event_with_attachment(
 
     expected_attachment = {
         "name": "transaction.txt",
-        "rate_limited": False,
         # Uploads normalize the generic content type by guessing from the file name.
         "content_type": "text/plain" if use_objectstore else "application/octet-stream",
         "attachment_type": "event.attachment",
@@ -1107,7 +1098,6 @@ def test_form_data_is_rejected(
         "type": "attachment",
         "attachment": {
             "name": "foo.txt",
-            "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"file content"),
             "retention_days": 90,

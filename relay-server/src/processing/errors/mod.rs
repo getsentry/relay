@@ -46,10 +46,9 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::ProcessingFailed(e) => e.to_outcome(),
-            Self::RateLimited(limits) => {
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                Some(Outcome::RateLimited(reason_code))
-            }
+            Self::RateLimited(limits) => Some(Outcome::RateLimited(
+                limits.longest().and_then(|limit| limit.reason_code.clone()),
+            )),
         };
         (outcome, self)
     }

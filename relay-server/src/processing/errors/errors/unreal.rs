@@ -138,6 +138,7 @@ impl SentryError for Unreal {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         use crate::processing::errors::Error;
+        use crate::processing::errors::errors::utils::mark_rate_limited;
 
         let Self::Process {
             minidump,
@@ -150,14 +151,14 @@ impl SentryError for Unreal {
         if let Some(apple_crash_report) = apple_crash_report
             && !apple_crash_report.rate_limited()
         {
-            apple_crash_report.set_rate_limited(true);
+            mark_rate_limited(apple_crash_report, &limits);
             records.reject_err(Error::RateLimited(limits.clone()), &*apple_crash_report);
         }
 
         if let Some(minidump) = minidump
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
+            mark_rate_limited(minidump, &limits);
             records.reject_err(Error::RateLimited(limits.clone()), &*minidump);
         }
 

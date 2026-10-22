@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use bytes::Bytes;
 use relay_event_schema::protocol::{EventType, SpanId};
-use relay_quotas::DataCategory;
+use relay_quotas::{DataCategory, ReasonCode};
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
@@ -28,7 +28,7 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 stored_key: None,
-                rate_limited: false,
+                rate_limited: None,
                 source_quantities: None,
                 routing_hint: None,
                 inner: BTreeMap::new(),
@@ -403,12 +403,17 @@ impl Item {
 
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
-        self.headers.rate_limited
+        self.headers.rate_limited.is_some()
+    }
+
+    /// Returns the reason code for rate limiting the item.
+    pub fn rate_limited_state(&self) -> Option<&RateLimited> {
+        self.headers.rate_limited.as_ref()
     }
 
     /// Sets whether this item should be rate limited.
-    pub fn set_rate_limited(&mut self, rate_limited: bool) {
-        self.headers.rate_limited = rate_limited;
+    pub fn set_rate_limited(&mut self, rate_limited: Option<ReasonCode>) {
+        self.headers.rate_limited = Some(RateLimited(rate_limited));
     }
 
     /// Returns the contained source quantities.
@@ -1042,6 +1047,9 @@ pub enum ItemHeaderKey {
 #[serde(transparent)]
 pub struct ItemHeaderValue(serde_json::Value);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RateLimited(pub Option<ReasonCode>);
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ItemHeaders {
     /// The type of the item.
@@ -1066,7 +1074,7 @@ pub struct ItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    rate_limited: bool,
+    rate_limited: Option<RateLimited>,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -1151,7 +1159,7 @@ impl fmt::Debug for ItemHeaders {
         if let Some(routing_hint) = routing_hint {
             map.entry(&"routing_hint", routing_hint);
         }
-        if *rate_limited {
+        if rate_limited.is_some() {
             map.entry(&"rate_limited", rate_limited);
         }
         if let Some(source_quantities) = source_quantities {

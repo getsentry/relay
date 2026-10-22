@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Set the `rate_limited` field of rate limited crash report attachments to the reason code of the quota that limited them, so that attachments dropped for exceeding a quota can be surfaced in the product. Attachments limited by a quota without a reason code keep `rate_limited: true`. ([#6521](https://github.com/getsentry/relay/pull/6521))
 - Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))

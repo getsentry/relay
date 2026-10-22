@@ -216,7 +216,6 @@ def test_attachment_ref(
         "content_type": "text/plain",
         "attachment_type": "event.attachment",
         "size": len(attachment_data),
-        "rate_limited": False,
         "stored_id": matches_any(),
         "retention_days": matches_any(),
     }
@@ -402,7 +401,6 @@ def test_attachment_ref_resumable_upload_in_chunks(
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(RESUMABLE_DATA),
-            "rate_limited": False,
             "stored_id": matches_any(),
             "retention_days": matches_any(),
         },

@@ -52,7 +52,7 @@ impl SentryError for AppleCrashReport {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.rate_limited() {
-            self.0.set_rate_limited(true);
+            utils::mark_rate_limited(&mut self.0, &limits);
             records.reject_err(Error::RateLimited(limits), &self.0);
         }
 
