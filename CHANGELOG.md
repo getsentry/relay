@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
+- Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
 
 **Internal**:
 
