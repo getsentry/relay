@@ -30,15 +30,20 @@ pub enum NetworkReportPhase {
         /// Request's referrer, as determined by the referrer policy associated with its client.
         referrer: String,
         /// The IP address of the server where the site is hosted, or an empty string.
-        ///
-        /// Mandatory if `phase` is `"application"` or `"connection"`.
         #[serde(deserialize_with = "deserialize_ip_opt")]
         server_ip: Option<IpAddr>,
         /// HTTP status code.
-        ///
-        /// Mandatory if `phase` is `"application"`.
         status_code: u64,
     },
+}
+
+/// The NEL report's type (either `"ok"` or an error string).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ReportType {
+    #[serde(rename = "ok")]
+    Ok,
+    #[serde(untagged)]
+    Error(String),
 }
 
 /// The body of a Network Error report, as defined in
@@ -54,7 +59,7 @@ pub struct Body {
     pub sampling_fraction: f64,
     /// If request failed, the type of its network error. If request succeeded, "ok".
     #[serde(rename = "type")]
-    pub ty: String,
+    pub ty: ReportType,
 }
 
 /// Deserializes an optional [`IpAddr`], treating `""` as `None`.
