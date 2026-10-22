@@ -380,6 +380,115 @@ fn test_last_event_contributor_rejects_associated_items() {
 }
 
 #[test]
+fn test_event_category_survives_removable_crash_attachments() {
+    // These mixed-creator envelopes are not normal SDK inputs. If we retain a direct event,
+    // its category must stay the same when earlier crash attachments are removed.
+    for (ty, category) in [
+        (ItemType::Event, DataCategory::Error),
+        (ItemType::Transaction, DataCategory::Transaction),
+        (ItemType::Security, DataCategory::Security),
+        (ItemType::UserReportV2, DataCategory::UserReportV2),
+    ] {
+        for reverse in [false, true] {
+            let mut original = envelope![];
+            let mut span_crash = trace_attachment_item(10, Some(ParentId::SpanId(None)));
+            span_crash.set_attachment_type(AttachmentType::Minidump);
+            let mut trace_crash = trace_attachment_item(10, None);
+            trace_crash.set_attachment_type(AttachmentType::Minidump);
+            let mut event = Item::new(ty.clone());
+            event.set_payload(ContentType::Json, "{}");
+            if ty == ItemType::Transaction {
+                event.set_span_count(Some(0));
+            }
+            let mut items = vec![span_crash, event, trace_crash];
+            if reverse {
+                items.reverse();
+            }
+            for item in items {
+                original.add_item(item);
+            }
+
+            assert_eq!(
+                EnvelopeSummary::compute(&original).event.category(),
+                Some(category)
+            );
+            for (denied, retained, rejected_attachments) in [
+                (&[][..], 3, 0),
+                (&[DataCategory::Span][..], 2, 1),
+                (&[DataCategory::Attachment][..], 1, 2),
+                (&[DataCategory::AttachmentItem][..], 1, 2),
+                (&[DataCategory::Span, DataCategory::Attachment][..], 1, 2),
+                (
+                    &[DataCategory::Span, DataCategory::AttachmentItem][..],
+                    1,
+                    2,
+                ),
+                (
+                    &[DataCategory::Attachment, DataCategory::AttachmentItem][..],
+                    1,
+                    2,
+                ),
+                (
+                    &[
+                        DataCategory::Span,
+                        DataCategory::Attachment,
+                        DataCategory::AttachmentItem,
+                    ][..],
+                    1,
+                    2,
+                ),
+            ] {
+                let (kept, _, outcomes) =
+                    enforce_and_apply(cached_limits(denied), original.clone());
+                assert_eq!(kept.len(), retained);
+                assert!(kept.items().any(|item| item.ty() == &ty));
+                assert_eq!(
+                    EnvelopeSummary::compute(&kept).event.category(),
+                    Some(category)
+                );
+                let expected = if rejected_attachments == 0 {
+                    BTreeMap::new()
+                } else {
+                    BTreeMap::from([
+                        (DataCategory::Attachment, 10 * rejected_attachments),
+                        (DataCategory::AttachmentItem, rejected_attachments),
+                    ])
+                };
+                assert_eq!(outcomes, expected);
+            }
+
+            // Check the selected category's own quota too, including its indexed accounting.
+            let (kept, limits, outcomes) =
+                enforce_and_apply(cached_limits(&[category]), original.clone());
+            assert!(kept.is_empty());
+            assert!(limits.is_limited());
+            let mut expected = BTreeMap::from([
+                (category, 1),
+                (DataCategory::Attachment, 20),
+                (DataCategory::AttachmentItem, 2),
+            ]);
+            if category == DataCategory::Transaction {
+                expected.extend([
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1),
+                    (DataCategory::SpanIndexed, 1),
+                ]);
+            }
+            assert_eq!(outcomes, expected);
+
+            // A preceding crash attachment must not make a non-error event use error quotas.
+            if category != DataCategory::Error {
+                let (kept, limits, outcomes) =
+                    enforce_and_apply(cached_limits(&[DataCategory::Error]), original.clone());
+                assert_eq!(kept.to_vec().unwrap(), original.to_vec().unwrap());
+                assert!(limits.is_empty());
+                assert!(outcomes.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn test_enforce_limit_error_event() {
     let envelope = envelope![Event];
 

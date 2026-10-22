@@ -141,15 +141,16 @@ impl AttachmentRole {
 
 /// Event-creating items in an envelope and their attachment parent types.
 ///
-/// Plain attachments do not affect this group. The order of event-creating items determines
-/// the event category and rejection reason.
+/// Plain attachments do not affect this group. The first creator that survives attachment limits
+/// determines the event category, even if a removable crash attachment precedes it. Otherwise,
+/// the order of crash attachments determines the rejection reason.
 #[derive(Clone, Copy, Debug, Default)]
 pub enum EventGroup {
     /// No item creates an event; associated items can still arrive separately.
     #[default]
     Absent,
     /// A direct event or required event-parent attachment survives attachment limits.
-    /// The first event-creating item determines the event category.
+    /// The first such item determines the event category.
     SurvivesAttachmentLimits(DataCategory),
     /// Only span-parent crash attachments create the error event.
     SpanEventCreators,
@@ -177,8 +178,9 @@ impl EventGroup {
     fn add_event_creator(&mut self, category: DataCategory, parent: AttachmentParentType) {
         *self = match (*self, parent) {
             (Self::SurvivesAttachmentLimits(_), _) => return,
-            (Self::Absent, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
-            (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(DataCategory::Error),
+            // A removable crash attachment must not determine the category of a surviving
+            // direct event. Otherwise removing it changes the category during accounting.
+            (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
             (Self::Absent, AttachmentParentType::Span) => Self::SpanEventCreators,
             (Self::Absent, AttachmentParentType::Trace) => Self::TraceEventCreators,
             (Self::SpanEventCreators, AttachmentParentType::Trace) => Self::BothSpanFirst,
