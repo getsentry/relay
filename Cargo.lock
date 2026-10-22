@@ -4464,6 +4464,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-browser-reporting"
+version = "26.10.0"
+dependencies = [
+ "insta",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "relay-cabi"
 version = "0.10.1"
 dependencies = [
