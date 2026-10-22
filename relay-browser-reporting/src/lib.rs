@@ -45,7 +45,7 @@ mod tests {
             "body": {
                 "elapsed_time": 0,
                 "method": "GET",
-                "phase": "connection",
+                "phase": "application",
                 "protocol": "http/1.1",
                 "referrer": "",
                 "sampling_fraction": 1.0,
@@ -68,13 +68,13 @@ mod tests {
           "type": "network-error",
           "body": {
             "elapsed_time": 0,
+            "phase": "application",
             "method": "GET",
-            "phase": "connection",
             "protocol": "http/1.1",
             "referrer": "",
-            "sampling_fraction": 1.0,
             "server_ip": "127.0.0.1",
             "status_code": 0,
+            "sampling_fraction": 1.0,
             "type": "tcp.refused"
           }
         }

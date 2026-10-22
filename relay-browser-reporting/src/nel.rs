@@ -9,13 +9,36 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 /// Describes which phase the error occurred in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[serde(tag = "phase")]
 pub enum NetworkReportPhase {
     /// The error occurred during DNS resolution.
     Dns,
     /// The error occurred during secure connection establishment.
-    Connection,
+    Connection {
+        /// The HTTP protocol and version.
+        protocol: String,
+        /// The IP address of the server where the site is hosted, or an empty string.
+        #[serde(deserialize_with = "deserialize_ip_opt")]
+        server_ip: Option<IpAddr>,
+    },
     /// The error occurred during the transmission of request and response .
-    Application,
+    Application {
+        /// HTTP method.
+        method: String,
+        /// The HTTP protocol and version.
+        protocol: String,
+        /// Request's referrer, as determined by the referrer policy associated with its client.
+        referrer: String,
+        /// The IP address of the server where the site is hosted, or an empty string.
+        ///
+        /// Mandatory if `phase` is `"application"` or `"connection"`.
+        #[serde(deserialize_with = "deserialize_ip_opt")]
+        server_ip: Option<IpAddr>,
+        /// HTTP status code.
+        ///
+        /// Mandatory if `phase` is `"application"`.
+        status_code: u64,
+    },
 }
 
 /// The body of a Network Error report, as defined in
@@ -24,32 +47,11 @@ pub enum NetworkReportPhase {
 pub struct Body {
     /// The time between the start of the resource fetch and when it was completed or aborted.
     pub elapsed_time: u64,
-    /// HTTP method.
-    ///
-    /// Mandatory if `phase` is `"application"`.
-    pub method: Option<String>,
     /// If request failed, the phase of its network error. If request succeeded, "application".
+    #[serde(flatten)]
     pub phase: NetworkReportPhase,
-    /// The HTTP protocol and version.
-    ///
-    /// Mandatory if `phase` is `"application"` or `"connection"`.
-    pub protocol: Option<String>,
-    /// Request's referrer, as determined by the referrer policy associated with its client.
-    ///
-    /// Mandatory if `phase` is `"application"`.
-    pub referrer: Option<String>,
     /// The sampling rate.
     pub sampling_fraction: f64,
-    /// The IP address of the server where the site is hosted, or an empty string.
-    ///
-    /// Mandatory if `phase` is `"application"` or `"connection"`.
-    #[serde(deserialize_with = "deserialize_ip_opt")]
-    #[serde(default)]
-    pub server_ip: Option<IpAddr>,
-    /// HTTP status code.
-    ///
-    /// Mandatory if `phase` is `"application"`.
-    pub status_code: Option<u64>,
     /// If request failed, the type of its network error. If request succeeded, "ok".
     #[serde(rename = "type")]
     pub ty: String,
@@ -59,10 +61,10 @@ pub struct Body {
 fn deserialize_ip_opt<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<IpAddr>, D::Error> {
-    let s = Option::<&str>::deserialize(deserializer)?;
+    let s = <&str>::deserialize(deserializer)?;
     match s {
-        Some("") | None => Ok(None),
-        Some(s) => Ok(Some(IpAddr::deserialize(de::value::StrDeserializer::new(
+        "" => Ok(None),
+        s => Ok(Some(IpAddr::deserialize(de::value::StrDeserializer::new(
             s,
         ))?)),
     }
@@ -88,7 +90,11 @@ mod tests {
 
         let body: Body = serde_json::from_str(json).unwrap();
 
-        assert!(body.server_ip.is_none());
+        let NetworkReportPhase::Connection { server_ip, .. } = body.phase else {
+            unreachable!();
+        };
+
+        assert!(server_ip.is_none());
     }
 
     #[test]
@@ -106,6 +112,10 @@ mod tests {
 
         let body: Body = serde_json::from_str(json).unwrap();
 
-        assert!(body.server_ip.is_none());
+        let NetworkReportPhase::Connection { server_ip, .. } = body.phase else {
+            unreachable!();
+        };
+
+        assert!(server_ip.is_none());
     }
 }
