@@ -652,6 +652,7 @@ def test_flamegraph_size_limit(
     events_consumer,
     attachments_consumer,
     outcomes_consumer,
+    objectstore,
     size,
 ):
     project_id = 42
@@ -707,12 +708,12 @@ def test_flamegraph_size_limit(
             },
         ]
     else:
-        chunk, _ = attachments.get_attachment_chunk()
-        assert json.loads(chunk) == graph
         event, message = attachments.get_event()
         assert event["event_id"] == event_id
         (attachment,) = message["attachments"]
         assert attachment["attachment_type"] == "event.flamegraph"
+        stored = objectstore("attachments", project_id).get(attachment["stored_id"])
+        assert json.loads(stored.payload.read()) == graph
         outcomes.assert_empty()
 
     attachments.assert_empty()
