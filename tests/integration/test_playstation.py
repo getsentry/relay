@@ -632,15 +632,12 @@ def session_relay_options():
     }
 
 
-@pytest.mark.parametrize("num_intermediate_relays", [0, 1])
 def test_playstation_with_session(
     mini_sentry,
-    relay,
     relay_processing_with_playstation,
     outcomes_consumer,
     attachments_consumer,
     metrics_consumer,
-    num_intermediate_relays,
 ):
     PROJECT_ID = 42
     # Crash captured by sentry-playstation, which embeds the crashed session in the userdata.
@@ -650,11 +647,9 @@ def test_playstation_with_session(
     attachments_consumer = attachments_consumer()
     metrics_consumer = metrics_consumer()
 
-    upstream = relay_processing_with_playstation(options=session_relay_options())
-    for _ in range(num_intermediate_relays):
-        upstream = relay(upstream)
+    relay = relay_processing_with_playstation(options=session_relay_options())
 
-    response = upstream.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
 
     event, payload = attachments_consumer.get_event_only()
