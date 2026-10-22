@@ -242,6 +242,24 @@ fn test_user_report_with_nintendo_header() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
+#[should_panic(
+    expected = "Missing outcomes or mismatched quantity in category 'feedback', off by 1"
+)]
+fn test_user_report_with_nintendo_header_panics_when_parent_rejected() {
+    // The misplaced Nintendo header suppresses the dropped report's outcome; prior feedback
+    // leniency hid this mismatch. Replace should_panic with outcome assertions once fixed.
+    let mut envelope = envelope![Event, UserReport];
+    envelope
+        .items_mut()
+        .nth(1)
+        .unwrap()
+        .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+
+    enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
+}
+
+#[test]
 fn test_enforce_counts_implicit_event_once() {
     for denied_categories in [
         &[][..],
