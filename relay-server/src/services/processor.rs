@@ -130,6 +130,9 @@ pub enum ProcessingError {
     #[error("playstation dump processing failed: {0}")]
     InvalidPlaystationDump(String),
 
+    #[error("invalid flame graph attachment")]
+    InvalidFlamegraph,
+
     #[cfg(feature = "processing")]
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
@@ -151,6 +154,7 @@ impl ProcessingError {
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::InvalidFlamegraph => Some(Outcome::Invalid(DiscardReason::InvalidFlamegraph)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
