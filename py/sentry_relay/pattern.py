@@ -30,9 +30,14 @@ class Pattern(RustObject):
             )
         )
 
-    def is_match(self, haystack: str) -> bool:
-        """Returns whether the pattern matches the passed string."""
-        return self._methodcall(lib.relay_pattern_is_match, encode_str(haystack))
+    def is_match(self, haystack: str, gas: int | None = None) -> bool:
+        """Returns whether the pattern matches the passed string.
+
+        Raises ``PatternOutOfGas`` if the passed ``gas`` is exhausted.
+        """
+        if gas is None:
+            gas = (1 << 64) - 1
+        return self._methodcall(lib.relay_pattern_is_match, encode_str(haystack), gas)
 
     def __str__(self) -> str:
         return decode_str(self._methodcall(lib.relay_pattern_to_string), free=True)

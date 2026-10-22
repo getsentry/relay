@@ -29,11 +29,11 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare release
-        uses: getsentry/craft@3f2abdc5703191d12ef2cc013f792f1bd220f44d
+        uses: getsentry/craft@7a7857552e2cdc08b502de96e6076849c01fba32
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
         with:
-          craft_version: 2.34.1
+          craft_version: 2.35.0
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
           path: py

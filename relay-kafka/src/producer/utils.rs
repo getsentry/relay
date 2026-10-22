@@ -74,6 +74,10 @@ where
 }
 
 /// Kafka client and producer context that logs statistics and producer errors.
+///
+/// Cloned once per client a [`super::Backend::Reloading`] producer builds, so that the
+/// callbacks keep reporting across a config reload.
+#[derive(Clone)]
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,

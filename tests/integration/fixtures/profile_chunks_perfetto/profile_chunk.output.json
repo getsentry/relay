@@ -2560,12 +2560,12 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358020.8943977
+        "timestamp": 1777358020.894398
       },
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358020.8944435
+        "timestamp": 1777358020.8944438
       },
       {
         "stack_id": 1,
@@ -2580,7 +2580,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358020.9144037
+        "timestamp": 1777358020.914404
       },
       {
         "stack_id": 1,
@@ -2590,12 +2590,12 @@
       {
         "stack_id": 4,
         "thread_id": "14996",
-        "timestamp": 1777358020.9243946
+        "timestamp": 1777358020.9243948
       },
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358020.9244382
+        "timestamp": 1777358020.9244385
       },
       {
         "stack_id": 2,
@@ -2660,7 +2660,7 @@
       {
         "stack_id": 8,
         "thread_id": "14926",
-        "timestamp": 1777358020.9844537
+        "timestamp": 1777358020.984454
       },
       {
         "stack_id": 2,
@@ -2690,7 +2690,7 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358021.0044584
+        "timestamp": 1777358021.0044587
       },
       {
         "stack_id": 0,
@@ -2700,7 +2700,7 @@
       {
         "stack_id": 9,
         "thread_id": "14935",
-        "timestamp": 1777358021.0144925
+        "timestamp": 1777358021.0144928
       },
       {
         "stack_id": 4,
@@ -2720,12 +2720,12 @@
       {
         "stack_id": 13,
         "thread_id": "14996",
-        "timestamp": 1777358021.0344083
+        "timestamp": 1777358021.0344086
       },
       {
         "stack_id": 1,
         "thread_id": "14997",
-        "timestamp": 1777358021.0344503
+        "timestamp": 1777358021.0344505
       },
       {
         "stack_id": 4,
@@ -2755,7 +2755,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.0643957
+        "timestamp": 1777358021.064396
       },
       {
         "stack_id": 2,
@@ -2805,7 +2805,7 @@
       {
         "stack_id": 13,
         "thread_id": "14997",
-        "timestamp": 1777358021.1044674
+        "timestamp": 1777358021.1044676
       },
       {
         "stack_id": 3,
@@ -2815,12 +2815,12 @@
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358021.1144407
+        "timestamp": 1777358021.114441
       },
       {
         "stack_id": 3,
         "thread_id": "14996",
-        "timestamp": 1777358021.124396
+        "timestamp": 1777358021.1243963
       },
       {
         "stack_id": 7,
@@ -2830,7 +2830,7 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358021.1344054
+        "timestamp": 1777358021.1344056
       },
       {
         "stack_id": 0,
@@ -2850,7 +2850,7 @@
       {
         "stack_id": 14,
         "thread_id": "14941",
-        "timestamp": 1777358021.1543424
+        "timestamp": 1777358021.1543427
       },
       {
         "stack_id": 16,
@@ -2865,7 +2865,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.164394
+        "timestamp": 1777358021.1643941
       },
       {
         "stack_id": 3,
@@ -2875,12 +2875,12 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358021.1743963
+        "timestamp": 1777358021.1743965
       },
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358021.174439
+        "timestamp": 1777358021.1744392
       },
       {
         "stack_id": 13,
@@ -2900,7 +2900,7 @@
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358021.1944382
+        "timestamp": 1777358021.1944385
       },
       {
         "stack_id": 15,
@@ -2970,7 +2970,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.2643955
+        "timestamp": 1777358021.2643957
       },
       {
         "stack_id": 18,
@@ -3025,12 +3025,12 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358021.3143945
+        "timestamp": 1777358021.3143947
       },
       {
         "stack_id": 13,
         "thread_id": "14997",
-        "timestamp": 1777358021.3144383
+        "timestamp": 1777358021.3144386
       },
       {
         "stack_id": 3,
@@ -3040,7 +3040,7 @@
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358021.324438
+        "timestamp": 1777358021.3244383
       },
       {
         "stack_id": 2,
@@ -3060,12 +3060,12 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358021.3444393
+        "timestamp": 1777358021.3444395
       },
       {
         "stack_id": 12,
         "thread_id": "14941",
-        "timestamp": 1777358021.3543422
+        "timestamp": 1777358021.3543425
       },
       {
         "stack_id": 4,
@@ -3080,7 +3080,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.364394
+        "timestamp": 1777358021.3643942
       },
       {
         "stack_id": 4,
@@ -3090,7 +3090,7 @@
       {
         "stack_id": 18,
         "thread_id": "14996",
-        "timestamp": 1777358021.3743973
+        "timestamp": 1777358021.3743975
       },
       {
         "stack_id": 2,
@@ -3110,7 +3110,7 @@
       {
         "stack_id": 13,
         "thread_id": "14997",
-        "timestamp": 1777358021.3844385
+        "timestamp": 1777358021.3844388
       },
       {
         "stack_id": 1,
@@ -3135,7 +3135,7 @@
       {
         "stack_id": 21,
         "thread_id": "14997",
-        "timestamp": 1777358021.4044678
+        "timestamp": 1777358021.404468
       },
       {
         "stack_id": 0,
@@ -3165,7 +3165,7 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358021.434441
+        "timestamp": 1777358021.4344413
       },
       {
         "stack_id": 0,
@@ -3185,17 +3185,17 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.454403
+        "timestamp": 1777358021.4544032
       },
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358021.4544525
+        "timestamp": 1777358021.4544528
       },
       {
         "stack_id": 4,
         "thread_id": "14996",
-        "timestamp": 1777358021.464395
+        "timestamp": 1777358021.4643953
       },
       {
         "stack_id": 13,
@@ -3205,12 +3205,12 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.4743946
+        "timestamp": 1777358021.4743948
       },
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358021.4744384
+        "timestamp": 1777358021.4744387
       },
       {
         "stack_id": 0,
@@ -3305,7 +3305,7 @@
       {
         "stack_id": 4,
         "thread_id": "14996",
-        "timestamp": 1777358021.5643938
+        "timestamp": 1777358021.564394
       },
       {
         "stack_id": 2,
@@ -3320,7 +3320,7 @@
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358021.5744388
+        "timestamp": 1777358021.574439
       },
       {
         "stack_id": 3,
@@ -3420,7 +3420,7 @@
       {
         "stack_id": 4,
         "thread_id": "14996",
-        "timestamp": 1777358021.6643941
+        "timestamp": 1777358021.6643944
       },
       {
         "stack_id": 0,
@@ -3460,7 +3460,7 @@
       {
         "stack_id": 20,
         "thread_id": "14941",
-        "timestamp": 1777358021.7043483
+        "timestamp": 1777358021.7043486
       },
       {
         "stack_id": 13,
@@ -3470,7 +3470,7 @@
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358021.7044744
+        "timestamp": 1777358021.7044747
       },
       {
         "stack_id": 2,
@@ -3495,12 +3495,12 @@
       {
         "stack_id": 30,
         "thread_id": "14926",
-        "timestamp": 1777358021.7343407
+        "timestamp": 1777358021.734341
       },
       {
         "stack_id": 29,
         "thread_id": "14996",
-        "timestamp": 1777358021.7344003
+        "timestamp": 1777358021.7344005
       },
       {
         "stack_id": 2,
@@ -3510,7 +3510,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.744395
+        "timestamp": 1777358021.7443953
       },
       {
         "stack_id": 4,
@@ -3535,7 +3535,7 @@
       {
         "stack_id": 13,
         "thread_id": "14996",
-        "timestamp": 1777358021.7643948
+        "timestamp": 1777358021.764395
       },
       {
         "stack_id": 2,
@@ -3555,7 +3555,7 @@
       {
         "stack_id": 21,
         "thread_id": "14996",
-        "timestamp": 1777358021.7843943
+        "timestamp": 1777358021.7843945
       },
       {
         "stack_id": 0,
@@ -3570,12 +3570,12 @@
       {
         "stack_id": 16,
         "thread_id": "14997",
-        "timestamp": 1777358021.7944396
+        "timestamp": 1777358021.7944398
       },
       {
         "stack_id": 6,
         "thread_id": "14941",
-        "timestamp": 1777358021.804339
+        "timestamp": 1777358021.8043392
       },
       {
         "stack_id": 4,
@@ -3585,7 +3585,7 @@
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358021.8044393
+        "timestamp": 1777358021.8044395
       },
       {
         "stack_id": 2,
@@ -3595,22 +3595,22 @@
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358021.81444
+        "timestamp": 1777358021.8144403
       },
       {
         "stack_id": 16,
         "thread_id": "14996",
-        "timestamp": 1777358021.824395
+        "timestamp": 1777358021.8243952
       },
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358021.8244526
+        "timestamp": 1777358021.8244529
       },
       {
         "stack_id": 1,
         "thread_id": "14996",
-        "timestamp": 1777358021.8343952
+        "timestamp": 1777358021.8343954
       },
       {
         "stack_id": 13,
@@ -3640,12 +3640,12 @@
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358021.8544874
+        "timestamp": 1777358021.8544877
       },
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358021.8643951
+        "timestamp": 1777358021.8643954
       },
       {
         "stack_id": 2,
@@ -3665,12 +3665,12 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358021.8844266
+        "timestamp": 1777358021.8844268
       },
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358021.884536
+        "timestamp": 1777358021.8845363
       },
       {
         "stack_id": 0,
@@ -3685,17 +3685,17 @@
       {
         "stack_id": 33,
         "thread_id": "14941",
-        "timestamp": 1777358021.904341
+        "timestamp": 1777358021.9043412
       },
       {
         "stack_id": 3,
         "thread_id": "14996",
-        "timestamp": 1777358021.9044135
+        "timestamp": 1777358021.9044137
       },
       {
         "stack_id": 7,
         "thread_id": "14997",
-        "timestamp": 1777358021.9044383
+        "timestamp": 1777358021.9044385
       },
       {
         "stack_id": 29,
@@ -3750,7 +3750,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358021.9543953
+        "timestamp": 1777358021.9543955
       },
       {
         "stack_id": 7,
@@ -3760,7 +3760,7 @@
       {
         "stack_id": 1,
         "thread_id": "14996",
-        "timestamp": 1777358021.964399
+        "timestamp": 1777358021.9643993
       },
       {
         "stack_id": 2,
@@ -3795,7 +3795,7 @@
       {
         "stack_id": 1,
         "thread_id": "14997",
-        "timestamp": 1777358021.9944384
+        "timestamp": 1777358021.9944386
       },
       {
         "stack_id": 36,
@@ -3840,7 +3840,7 @@
       {
         "stack_id": 16,
         "thread_id": "14997",
-        "timestamp": 1777358022.0344732
+        "timestamp": 1777358022.0344734
       },
       {
         "stack_id": 4,
@@ -3870,7 +3870,7 @@
       {
         "stack_id": 10,
         "thread_id": "14996",
-        "timestamp": 1777358022.0644028
+        "timestamp": 1777358022.064403
       },
       {
         "stack_id": 2,
@@ -3910,7 +3910,7 @@
       {
         "stack_id": 12,
         "thread_id": "14941",
-        "timestamp": 1777358022.1043408
+        "timestamp": 1777358022.104341
       },
       {
         "stack_id": 0,
@@ -3920,7 +3920,7 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.104487
+        "timestamp": 1777358022.1044872
       },
       {
         "stack_id": 2,
@@ -3935,7 +3935,7 @@
       {
         "stack_id": 4,
         "thread_id": "14996",
-        "timestamp": 1777358022.1243968
+        "timestamp": 1777358022.124397
       },
       {
         "stack_id": 4,
@@ -4005,17 +4005,17 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.1844387
+        "timestamp": 1777358022.184439
       },
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358022.1943944
+        "timestamp": 1777358022.1943946
       },
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358022.194481
+        "timestamp": 1777358022.1944811
       },
       {
         "stack_id": 14,
@@ -4030,7 +4030,7 @@
       {
         "stack_id": 1,
         "thread_id": "14997",
-        "timestamp": 1777358022.2044756
+        "timestamp": 1777358022.2044759
       },
       {
         "stack_id": 21,
@@ -4045,22 +4045,22 @@
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358022.2244089
+        "timestamp": 1777358022.224409
       },
       {
         "stack_id": 1,
         "thread_id": "14997",
-        "timestamp": 1777358022.2244375
+        "timestamp": 1777358022.2244377
       },
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358022.2344089
+        "timestamp": 1777358022.234409
       },
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.2344425
+        "timestamp": 1777358022.2344427
       },
       {
         "stack_id": 2,
@@ -4085,12 +4085,12 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.2544825
+        "timestamp": 1777358022.2544827
       },
       {
         "stack_id": 7,
         "thread_id": "14996",
-        "timestamp": 1777358022.264394
+        "timestamp": 1777358022.2643943
       },
       {
         "stack_id": 4,
@@ -4105,7 +4105,7 @@
       {
         "stack_id": 3,
         "thread_id": "14997",
-        "timestamp": 1777358022.2744386
+        "timestamp": 1777358022.2744389
       },
       {
         "stack_id": 0,
@@ -4115,12 +4115,12 @@
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358022.2845259
+        "timestamp": 1777358022.284526
       },
       {
         "stack_id": 3,
         "thread_id": "14996",
-        "timestamp": 1777358022.2943943
+        "timestamp": 1777358022.2943945
       },
       {
         "stack_id": 4,
@@ -4190,7 +4190,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358022.3544025
+        "timestamp": 1777358022.3544028
       },
       {
         "stack_id": 3,
@@ -4200,7 +4200,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358022.3643937
+        "timestamp": 1777358022.364394
       },
       {
         "stack_id": 2,
@@ -4230,7 +4230,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358022.3943937
+        "timestamp": 1777358022.394394
       },
       {
         "stack_id": 3,
@@ -4240,7 +4240,7 @@
       {
         "stack_id": 14,
         "thread_id": "14941",
-        "timestamp": 1777358022.4043434
+        "timestamp": 1777358022.4043436
       },
       {
         "stack_id": 2,
@@ -4250,7 +4250,7 @@
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358022.4044468
+        "timestamp": 1777358022.404447
       },
       {
         "stack_id": 7,
@@ -4265,7 +4265,7 @@
       {
         "stack_id": 2,
         "thread_id": "14996",
-        "timestamp": 1777358022.4243953
+        "timestamp": 1777358022.4243956
       },
       {
         "stack_id": 13,
@@ -4280,7 +4280,7 @@
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358022.4344385
+        "timestamp": 1777358022.4344387
       },
       {
         "stack_id": 0,
@@ -4305,7 +4305,7 @@
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.4545388
+        "timestamp": 1777358022.454539
       },
       {
         "stack_id": 13,
@@ -4345,7 +4345,7 @@
       {
         "stack_id": 13,
         "thread_id": "14997",
-        "timestamp": 1777358022.4944377
+        "timestamp": 1777358022.494438
       },
       {
         "stack_id": 41,
@@ -4400,17 +4400,17 @@
       {
         "stack_id": 2,
         "thread_id": "14997",
-        "timestamp": 1777358022.544438
+        "timestamp": 1777358022.5444381
       },
       {
         "stack_id": 35,
         "thread_id": "14941",
-        "timestamp": 1777358022.5543406
+        "timestamp": 1777358022.5543408
       },
       {
         "stack_id": 0,
         "thread_id": "14996",
-        "timestamp": 1777358022.5544221
+        "timestamp": 1777358022.5544224
       },
       {
         "stack_id": 2,
@@ -4425,12 +4425,12 @@
       {
         "stack_id": 44,
         "thread_id": "14908",
-        "timestamp": 1777358022.56444
+        "timestamp": 1777358022.5644403
       },
       {
         "stack_id": 13,
         "thread_id": "14997",
-        "timestamp": 1777358022.5644457
+        "timestamp": 1777358022.564446
       },
       {
         "stack_id": 13,
@@ -4445,7 +4445,7 @@
       {
         "stack_id": 43,
         "thread_id": "14926",
-        "timestamp": 1777358022.584342
+        "timestamp": 1777358022.5843422
       },
       {
         "stack_id": 3,
@@ -4485,12 +4485,12 @@
       {
         "stack_id": 13,
         "thread_id": "14996",
-        "timestamp": 1777358022.6143932
+        "timestamp": 1777358022.6143935
       },
       {
         "stack_id": 4,
         "thread_id": "14997",
-        "timestamp": 1777358022.6144407
+        "timestamp": 1777358022.614441
       },
       {
         "stack_id": 4,
@@ -4525,7 +4525,7 @@
       {
         "stack_id": 0,
         "thread_id": "14997",
-        "timestamp": 1777358022.6444383
+        "timestamp": 1777358022.6444385
       },
       {
         "stack_id": 50,
