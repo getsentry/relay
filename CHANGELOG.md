@@ -19,7 +19,6 @@
 **Internal**:
 
 - Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default. ([#6529](https://github.com/getsentry/relay/pull/6529))
-- Bump uv to 0.13.4 in CI. ([#6541](https://github.com/getsentry/relay/pull/6541))
 
 ## 26.10.0
 
