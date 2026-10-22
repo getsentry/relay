@@ -146,7 +146,7 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
         // FIXME
         // match timeout {
         //     Some(timeout) => handle.graceful_shutdown(Some(timeout)),
-        handle.shutdown()
+        // handle.shutdown()
         // }
     });
 
