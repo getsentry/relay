@@ -47,6 +47,7 @@ pub use relay_base_schema::{events::*, spans::*};
 pub use self::attributes::*;
 pub use self::breadcrumb::*;
 pub use self::breakdowns::*;
+pub use self::browser_report::*;
 pub use self::client_report::*;
 pub use self::clientsdk::*;
 pub use self::constants::*;

@@ -95,8 +95,7 @@ impl IntoValue for BrowserReportType {
 /// This contains a variant for each supported report type.
 #[derive(Debug, Clone, PartialEq, Empty)]
 pub enum BrowserReportBody {
-    #[cfg_attr(not(test), expect(unused))]
-    Nel(Box<nel::BodyRaw>),
+    Nel(nel::BodyRaw),
 }
 
 impl IntoValue for BrowserReportBody {
@@ -122,11 +121,19 @@ impl IntoValue for BrowserReportBody {
             Self::Nel(nel) => nel.serialize_payload(s, behavior),
         }
     }
+
+    fn extract_child_meta(&self) -> relay_protocol::MetaMap
+    where
+        Self: Sized,
+    {
+        match self {
+            BrowserReportBody::Nel(nel) => nel.extract_child_meta(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Empty, IntoValue)]
-#[cfg_attr(not(test), expect(unused))]
-struct BrowserReport {
+pub struct BrowserReport {
     /// The age of the report since it got collected and before it got sent.
     pub age: Annotated<i64>,
     /// The type of the report.
@@ -171,7 +178,7 @@ impl FromValue for BrowserReport {
                 match &mut out.ty {
                     Annotated(Some(BrowserReportType::NetworkError), _) => {
                         out.body = nel::BodyRaw::from_value(raw.body.map_value(Value::Object))
-                            .map_value(|body| BrowserReportBody::Nel(Box::new(body)));
+                            .map_value(BrowserReportBody::Nel);
                     }
                     Annotated(None, ty_meta) => {
                         if !ty_meta.has_errors() {
