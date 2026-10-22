@@ -180,7 +180,7 @@ pub struct NormalizationConfig<'a> {
     /// the SDK.
     pub force_trace_context: bool,
 
-    /// Dynamic sampling context used for dsc span normalization.
+    /// Dynamic sampling context used for span normalization and missing error trace IDs.
     pub dsc: Option<&'a DynamicSamplingContext>,
 }
 
@@ -1376,12 +1376,7 @@ fn normalize_force_trace_context(event: &mut Event, dsc: Option<&DynamicSampling
     let contexts = event.contexts.get_or_insert_with(Contexts::new);
     let trace = contexts.get_or_default::<TraceContext>();
 
-    // Prefer the DSC trace id when the error has no trace context of its own.
-    // Deriving from the event id (the historical fallback) loses the trace
-    // stitching between the error and the rest of its trace: downstream
-    // consumers see an orphan trace that will never link up with the client's
-    // actual trace from the DSC. Only fall back to the event-id-derived or
-    // random id when no DSC is present. Fixes #6287.
+    // Preserve an existing trace id; otherwise use the DSC to keep the error in its trace.
     let trace_id = trace.trace_id.get_or_insert_with(|| {
         if let Some(dsc) = dsc {
             return dsc.trace_id;
@@ -4997,27 +4992,23 @@ mod tests {
 
     #[test]
     fn test_normalize_adds_trace_context_prefers_dsc_trace_id() {
-        // Regression for #6287 — when an error arrives with a DSC but no trace
-        // context of its own, the derived trace context must inherit the DSC
-        // trace id so the error stays stitched to the rest of the client's
-        // trace. Before this fix the derived trace context used an
-        // event-id-derived uuid, orphaning the error from the trace.
-        use relay_sampling::DynamicSamplingContext;
-
-        let json = r#"{
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
             "type": "error",
             "exception": {
                 "values": [{"type": "ValueError", "value": "Should not happen"}]
             }
-        }"#;
+        }
+        "#;
+
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let dsc_json = r#"{
+        let dsc: DynamicSamplingContext = serde_json::from_value(json!({
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
-            "release": "1.0"
-        }"#;
-        let dsc: DynamicSamplingContext = serde_json::from_str(dsc_json).unwrap();
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b"
+        }))
+        .unwrap();
 
         normalize(
             &mut event,
@@ -5029,32 +5020,30 @@ mod tests {
             },
         );
 
-        let trace_ctx = event
-            .context::<relay_event_schema::protocol::TraceContext>()
-            .expect("trace context should have been inserted");
-        assert_eq!(
-            trace_ctx
-                .trace_id
-                .value()
-                .expect("trace_id set")
-                .to_string(),
-            "4c79f60c11214eb38604f4ae0781bfb2",
-            "derived trace context must inherit DSC trace id, not derive from event id",
-        );
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "4c79f60c11214eb3",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
     }
 
     #[test]
     fn test_normalize_adds_trace_context_without_dsc_falls_back_to_event_id() {
-        // Companion to the DSC test above: when no DSC is supplied, the
-        // historical event-id-derived behaviour must still apply so the trace
-        // context is non-empty for downstream consumers.
-        let json = r#"{
-            "event_id": "4c79f60c11214eb38604f4ae0781bfb2",
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
             "type": "error",
             "exception": {
                 "values": [{"type": "ValueError", "value": "Should not happen"}]
             }
-        }"#;
+        }
+        "#;
+
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
         normalize(
@@ -5062,23 +5051,207 @@ mod tests {
             &mut Meta::default(),
             &NormalizationConfig {
                 force_trace_context: true,
-                dsc: None,
                 ..Default::default()
             },
         );
 
-        let trace_ctx = event
-            .context::<relay_event_schema::protocol::TraceContext>()
-            .expect("trace context should have been inserted");
-        let trace_id = trace_ctx
-            .trace_id
-            .value()
-            .expect("trace_id set")
-            .to_string();
-        assert_eq!(
-            trace_id, "4c79f60c11214eb38604f4ae0781bfb2",
-            "without DSC, derived trace id must still match the event id (back-compat)",
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "11111111111111111111111111111111",
+            "span_id": "1111111111111111",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_fills_empty_trace_context_from_dsc() {
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+            "contexts": {
+                "trace": {}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let dsc: DynamicSamplingContext = serde_json::from_value(json!({
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b"
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                force_trace_context: true,
+                dsc: Some(&dsc),
+                ..Default::default()
+            },
         );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "4c79f60c11214eb3",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_preserves_span_id_when_using_dsc_trace_id() {
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+            "contexts": {
+                "trace": {
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let dsc: DynamicSamplingContext = serde_json::from_value(json!({
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b"
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                force_trace_context: true,
+                dsc: Some(&dsc),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "aaaaaaaaaaaaaaaa",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_derives_span_id_from_existing_trace_id() {
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "22222222222222222222222222222222"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let dsc: DynamicSamplingContext = serde_json::from_value(json!({
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b"
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                force_trace_context: true,
+                dsc: Some(&dsc),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "22222222222222222222222222222222",
+            "span_id": "2222222222222222",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_preserves_trace_context_with_conflicting_dsc() {
+        let json = r#"
+        {
+            "event_id": "11111111111111111111111111111111",
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "22222222222222222222222222222222",
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let dsc: DynamicSamplingContext = serde_json::from_value(json!({
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b"
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                force_trace_context: true,
+                dsc: Some(&dsc),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r#"
+        {
+          "trace": {
+            "trace_id": "22222222222222222222222222222222",
+            "span_id": "aaaaaaaaaaaaaaaa",
+            "status": "unknown",
+            "type": "trace",
+          },
+        }
+        "#);
     }
 
     #[test]

@@ -43,7 +43,7 @@
 - Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
 - Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
 - Add more sensitive session cookie names for PII scrubbing. ([#6499](https://github.com/getsentry/relay/pull/6499))
-- Prefer the DSC `trace_id` when deriving a trace context for errors that arrive without one, so an error ties back to the parent transaction's trace instead of starting a fresh trace. ([#6508](https://github.com/getsentry/relay/pull/6508))
+- Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 
 **Internal**:
 
