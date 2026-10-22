@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::debug_image::get_proguard_image;
 use crate::measurements::LegacyMeasurement;
 use crate::sample::v1::SampleProfile;
+use crate::statsd::ProfilingDistributions;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::{ClientSdk, DebugMeta};
 use crate::utils::{default_client_sdk, deserialize_number_from_string, is_zero};
@@ -136,7 +137,21 @@ impl AndroidProfilingEvent {
             Err(_) => return Err(ProfileError::InvalidBase64Value),
         };
         self.profile = match android_trace_log::parse(&profile_bytes) {
-            Ok(profile) => profile,
+            Ok(profile) => {
+                relay_statsd::metric!(
+                    distribution(ProfilingDistributions::AndroidTraceLogEvents) =
+                        profile.events.len() as u64
+                );
+                relay_statsd::metric!(
+                    distribution(ProfilingDistributions::AndroidTraceLogMethods) =
+                        profile.methods.len() as u64
+                );
+                relay_statsd::metric!(
+                    distribution(ProfilingDistributions::AndroidTraceLogThreads) =
+                        profile.threads.len() as u64
+                );
+                profile
+            }
             Err(_) => return Err(ProfileError::InvalidSampledProfile),
         };
         Ok(())
