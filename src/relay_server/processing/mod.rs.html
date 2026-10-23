@@ -117,85 +117,84 @@
 <a href=#117 id=117 data-nosnippet>117</a>    </span><span class="kw">pub fn </span>to_forward(<span class="self">self</span>) -&gt; ForwardContext&lt;<span class="lifetime">'a</span>&gt; {
 <a href=#118 id=118 data-nosnippet>118</a>        ForwardContext {
 <a href=#119 id=119 data-nosnippet>119</a>            config: <span class="self">self</span>.config,
-<a href=#120 id=120 data-nosnippet>120</a>            global_config: <span class="self">self</span>.global_config,
-<a href=#121 id=121 data-nosnippet>121</a>            project_info: <span class="self">self</span>.project_info,
-<a href=#122 id=122 data-nosnippet>122</a>        }
-<a href=#123 id=123 data-nosnippet>123</a>    }
-<a href=#124 id=124 data-nosnippet>124</a>}
-<a href=#125 id=125 data-nosnippet>125</a>
-<a href=#126 id=126 data-nosnippet>126</a><span class="attr">#[cfg(test)]
-<a href=#127 id=127 data-nosnippet>127</a></span><span class="kw">impl </span>Context&lt;<span class="lifetime">'static</span>&gt; {
-<a href=#128 id=128 data-nosnippet>128</a>    <span class="doccomment">/// Returns a [`Context`] with default values for testing.
-<a href=#129 id=129 data-nosnippet>129</a>    </span><span class="kw">pub fn </span>for_test() -&gt; <span class="self">Self </span>{
-<a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">use </span>relay_config::Config;
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">use </span>std::sync::LazyLock;
-<a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">static </span>CONFIG: LazyLock&lt;ConfigSnapshot&gt; = LazyLock::new(|| Config::default().current());
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">static </span>GLOBAL_CONFIG: LazyLock&lt;GlobalConfig&gt; = LazyLock::new(Default::default);
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">static </span>PROJECT_INFO: LazyLock&lt;ProjectInfo&gt; = LazyLock::new(Default::default);
-<a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">static </span>RATE_LIMITS: LazyLock&lt;RateLimits&gt; = LazyLock::new(Default::default);
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>        <span class="self">Self </span>{
-<a href=#139 id=139 data-nosnippet>139</a>            config: <span class="kw-2">&amp;</span>CONFIG,
-<a href=#140 id=140 data-nosnippet>140</a>            global_config: <span class="kw-2">&amp;</span>GLOBAL_CONFIG,
-<a href=#141 id=141 data-nosnippet>141</a>            project_info: <span class="kw-2">&amp;</span>PROJECT_INFO,
-<a href=#142 id=142 data-nosnippet>142</a>            sampling_project_info: <span class="prelude-val">None</span>,
-<a href=#143 id=143 data-nosnippet>143</a>            rate_limits: <span class="kw-2">&amp;</span>RATE_LIMITS,
-<a href=#144 id=144 data-nosnippet>144</a>        }
-<a href=#145 id=145 data-nosnippet>145</a>    }
-<a href=#146 id=146 data-nosnippet>146</a>}
-<a href=#147 id=147 data-nosnippet>147</a>
-<a href=#148 id=148 data-nosnippet>148</a><span class="doccomment">/// The main processing output and all of its by products.
-<a href=#149 id=149 data-nosnippet>149</a></span><span class="attr">#[derive(Debug)]
-<a href=#150 id=150 data-nosnippet>150</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
-<a href=#151 id=151 data-nosnippet>151</a>    <span class="doccomment">/// The main output of a [`Processor`].
-<a href=#152 id=152 data-nosnippet>152</a>    </span><span class="kw">pub </span>main: <span class="prelude-ty">Option</span>&lt;T&gt;,
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// Metric by products.
-<a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">pub </span>metrics: <span class="prelude-ty">Option</span>&lt;Managed&lt;ExtractedMetrics&gt;&gt;,
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// An envelope containing items that the processor
-<a href=#156 id=156 data-nosnippet>156</a>    /// extracted from an envelope, but couldn't process
-<a href=#157 id=157 data-nosnippet>157</a>    /// itself.
-<a href=#158 id=158 data-nosnippet>158</a>    </span><span class="kw">pub </span>intermediates: <span class="prelude-ty">Option</span>&lt;ManagedEnvelope&gt;,
-<a href=#159 id=159 data-nosnippet>159</a>}
-<a href=#160 id=160 data-nosnippet>160</a>
-<a href=#161 id=161 data-nosnippet>161</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
-<a href=#162 id=162 data-nosnippet>162</a>    <span class="doccomment">/// Creates a new output with just a main output.
-<a href=#163 id=163 data-nosnippet>163</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="self">Self </span>{
-<a href=#165 id=165 data-nosnippet>165</a>            main: <span class="prelude-val">Some</span>(main),
-<a href=#166 id=166 data-nosnippet>166</a>            metrics: <span class="prelude-val">None</span>,
-<a href=#167 id=167 data-nosnippet>167</a>            intermediates: <span class="prelude-val">None</span>,
-<a href=#168 id=168 data-nosnippet>168</a>        }
-<a href=#169 id=169 data-nosnippet>169</a>    }
-<a href=#170 id=170 data-nosnippet>170</a>
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="doccomment">/// Creates a new output just containing metrics.
-<a href=#172 id=172 data-nosnippet>172</a>    </span><span class="kw">pub fn </span>metrics(metrics: Managed&lt;ExtractedMetrics&gt;) -&gt; <span class="self">Self </span>{
-<a href=#173 id=173 data-nosnippet>173</a>        <span class="self">Self </span>{
-<a href=#174 id=174 data-nosnippet>174</a>            main: <span class="prelude-val">None</span>,
-<a href=#175 id=175 data-nosnippet>175</a>            metrics: <span class="prelude-val">Some</span>(metrics),
-<a href=#176 id=176 data-nosnippet>176</a>            intermediates: <span class="prelude-val">None</span>,
-<a href=#177 id=177 data-nosnippet>177</a>        }
-<a href=#178 id=178 data-nosnippet>178</a>    }
-<a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// Creates an new empty output.
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="self">Self </span>{
-<a href=#183 id=183 data-nosnippet>183</a>            main: <span class="prelude-val">None</span>,
-<a href=#184 id=184 data-nosnippet>184</a>            metrics: <span class="prelude-val">None</span>,
-<a href=#185 id=185 data-nosnippet>185</a>            intermediates: <span class="prelude-val">None</span>,
-<a href=#186 id=186 data-nosnippet>186</a>        }
-<a href=#187 id=187 data-nosnippet>187</a>    }
-<a href=#188 id=188 data-nosnippet>188</a>
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="doccomment">/// Maps an `Output&lt;T&gt;` to `Output&lt;S&gt;` by applying a function to [`Self::main`].
-<a href=#190 id=190 data-nosnippet>190</a>    </span><span class="kw">pub fn </span>map&lt;F, S&gt;(<span class="self">self</span>, f: F) -&gt; Output&lt;S&gt;
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">where
-<a href=#192 id=192 data-nosnippet>192</a>        </span>F: FnOnce(T) -&gt; S,
-<a href=#193 id=193 data-nosnippet>193</a>    {
-<a href=#194 id=194 data-nosnippet>194</a>        Output {
-<a href=#195 id=195 data-nosnippet>195</a>            main: <span class="self">self</span>.main.map(f),
-<a href=#196 id=196 data-nosnippet>196</a>            metrics: <span class="self">self</span>.metrics,
-<a href=#197 id=197 data-nosnippet>197</a>            intermediates: <span class="self">self</span>.intermediates,
-<a href=#198 id=198 data-nosnippet>198</a>        }
-<a href=#199 id=199 data-nosnippet>199</a>    }
-<a href=#200 id=200 data-nosnippet>200</a>}
+<a href=#120 id=120 data-nosnippet>120</a>            project_info: <span class="self">self</span>.project_info,
+<a href=#121 id=121 data-nosnippet>121</a>        }
+<a href=#122 id=122 data-nosnippet>122</a>    }
+<a href=#123 id=123 data-nosnippet>123</a>}
+<a href=#124 id=124 data-nosnippet>124</a>
+<a href=#125 id=125 data-nosnippet>125</a><span class="attr">#[cfg(test)]
+<a href=#126 id=126 data-nosnippet>126</a></span><span class="kw">impl </span>Context&lt;<span class="lifetime">'static</span>&gt; {
+<a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// Returns a [`Context`] with default values for testing.
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>for_test() -&gt; <span class="self">Self </span>{
+<a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">use </span>relay_config::Config;
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">use </span>std::sync::LazyLock;
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a>        <span class="kw">static </span>CONFIG: LazyLock&lt;ConfigSnapshot&gt; = LazyLock::new(|| Config::default().current());
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">static </span>GLOBAL_CONFIG: LazyLock&lt;GlobalConfig&gt; = LazyLock::new(Default::default);
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">static </span>PROJECT_INFO: LazyLock&lt;ProjectInfo&gt; = LazyLock::new(Default::default);
+<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">static </span>RATE_LIMITS: LazyLock&lt;RateLimits&gt; = LazyLock::new(Default::default);
+<a href=#136 id=136 data-nosnippet>136</a>
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="self">Self </span>{
+<a href=#138 id=138 data-nosnippet>138</a>            config: <span class="kw-2">&amp;</span>CONFIG,
+<a href=#139 id=139 data-nosnippet>139</a>            global_config: <span class="kw-2">&amp;</span>GLOBAL_CONFIG,
+<a href=#140 id=140 data-nosnippet>140</a>            project_info: <span class="kw-2">&amp;</span>PROJECT_INFO,
+<a href=#141 id=141 data-nosnippet>141</a>            sampling_project_info: <span class="prelude-val">None</span>,
+<a href=#142 id=142 data-nosnippet>142</a>            rate_limits: <span class="kw-2">&amp;</span>RATE_LIMITS,
+<a href=#143 id=143 data-nosnippet>143</a>        }
+<a href=#144 id=144 data-nosnippet>144</a>    }
+<a href=#145 id=145 data-nosnippet>145</a>}
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a><span class="doccomment">/// The main processing output and all of its by products.
+<a href=#148 id=148 data-nosnippet>148</a></span><span class="attr">#[derive(Debug)]
+<a href=#149 id=149 data-nosnippet>149</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
+<a href=#150 id=150 data-nosnippet>150</a>    <span class="doccomment">/// The main output of a [`Processor`].
+<a href=#151 id=151 data-nosnippet>151</a>    </span><span class="kw">pub </span>main: <span class="prelude-ty">Option</span>&lt;T&gt;,
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// Metric by products.
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">pub </span>metrics: <span class="prelude-ty">Option</span>&lt;Managed&lt;ExtractedMetrics&gt;&gt;,
+<a href=#154 id=154 data-nosnippet>154</a>    <span class="doccomment">/// An envelope containing items that the processor
+<a href=#155 id=155 data-nosnippet>155</a>    /// extracted from an envelope, but couldn't process
+<a href=#156 id=156 data-nosnippet>156</a>    /// itself.
+<a href=#157 id=157 data-nosnippet>157</a>    </span><span class="kw">pub </span>intermediates: <span class="prelude-ty">Option</span>&lt;ManagedEnvelope&gt;,
+<a href=#158 id=158 data-nosnippet>158</a>}
+<a href=#159 id=159 data-nosnippet>159</a>
+<a href=#160 id=160 data-nosnippet>160</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// Creates a new output with just a main output.
+<a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="self">Self </span>{
+<a href=#164 id=164 data-nosnippet>164</a>            main: <span class="prelude-val">Some</span>(main),
+<a href=#165 id=165 data-nosnippet>165</a>            metrics: <span class="prelude-val">None</span>,
+<a href=#166 id=166 data-nosnippet>166</a>            intermediates: <span class="prelude-val">None</span>,
+<a href=#167 id=167 data-nosnippet>167</a>        }
+<a href=#168 id=168 data-nosnippet>168</a>    }
+<a href=#169 id=169 data-nosnippet>169</a>
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="doccomment">/// Creates a new output just containing metrics.
+<a href=#171 id=171 data-nosnippet>171</a>    </span><span class="kw">pub fn </span>metrics(metrics: Managed&lt;ExtractedMetrics&gt;) -&gt; <span class="self">Self </span>{
+<a href=#172 id=172 data-nosnippet>172</a>        <span class="self">Self </span>{
+<a href=#173 id=173 data-nosnippet>173</a>            main: <span class="prelude-val">None</span>,
+<a href=#174 id=174 data-nosnippet>174</a>            metrics: <span class="prelude-val">Some</span>(metrics),
+<a href=#175 id=175 data-nosnippet>175</a>            intermediates: <span class="prelude-val">None</span>,
+<a href=#176 id=176 data-nosnippet>176</a>        }
+<a href=#177 id=177 data-nosnippet>177</a>    }
+<a href=#178 id=178 data-nosnippet>178</a>
+<a href=#179 id=179 data-nosnippet>179</a>    <span class="doccomment">/// Creates an new empty output.
+<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="self">Self </span>{
+<a href=#182 id=182 data-nosnippet>182</a>            main: <span class="prelude-val">None</span>,
+<a href=#183 id=183 data-nosnippet>183</a>            metrics: <span class="prelude-val">None</span>,
+<a href=#184 id=184 data-nosnippet>184</a>            intermediates: <span class="prelude-val">None</span>,
+<a href=#185 id=185 data-nosnippet>185</a>        }
+<a href=#186 id=186 data-nosnippet>186</a>    }
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="doccomment">/// Maps an `Output&lt;T&gt;` to `Output&lt;S&gt;` by applying a function to [`Self::main`].
+<a href=#189 id=189 data-nosnippet>189</a>    </span><span class="kw">pub fn </span>map&lt;F, S&gt;(<span class="self">self</span>, f: F) -&gt; Output&lt;S&gt;
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">where
+<a href=#191 id=191 data-nosnippet>191</a>        </span>F: FnOnce(T) -&gt; S,
+<a href=#192 id=192 data-nosnippet>192</a>    {
+<a href=#193 id=193 data-nosnippet>193</a>        Output {
+<a href=#194 id=194 data-nosnippet>194</a>            main: <span class="self">self</span>.main.map(f),
+<a href=#195 id=195 data-nosnippet>195</a>            metrics: <span class="self">self</span>.metrics,
+<a href=#196 id=196 data-nosnippet>196</a>            intermediates: <span class="self">self</span>.intermediates,
+<a href=#197 id=197 data-nosnippet>197</a>        }
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>}
 </code></pre></div></section></main></body></html>
