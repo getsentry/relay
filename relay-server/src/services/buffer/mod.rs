@@ -411,8 +411,11 @@ impl EnvelopeBufferService {
         config: &ConfigSnapshot,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-    ) -> Result<Duration, EnvelopeBufferError> {
-        let sleep = match buffer.peek().await? {
+    ) -> Result<Option<Duration>, EnvelopeBufferError> {
+        let sleep = match dbg!(buffer.peek().await?) {
+            Peek::Done => {
+                return Ok(None);
+            }
             Peek::Empty => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -485,7 +488,7 @@ impl EnvelopeBufferService {
             }
         };
 
-        Ok(sleep)
+        Ok(Some(sleep))
     }
 
     fn trigger_project_fetch(project_key_pair: ProjectKeyPair, services: &Services) {
@@ -516,29 +519,6 @@ impl EnvelopeBufferService {
             }
         };
     }
-
-    // FIXME
-    // async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
-    //     // We gracefully shut down only if the shutdown has a timeout.
-    //     if let Some(shutdown_timeout) = message.timeout {
-    //         relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
-
-    //         let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
-    //         match shutdown_result {
-    //             Ok(shutdown_result) => {
-    //                 return shutdown_result;
-    //             }
-    //             Err(error) => {
-    //                 relay_log::error!(
-    //                     error = &error as &dyn Error,
-    //                     "the envelope buffer didn't shut down in time, some envelopes might be lost",
-    //                 );
-    //             }
-    //         }
-    //     }
-
-    //     false
-    // }
 
     async fn push(
         buffer: &mut PolymorphicEnvelopeBuffer,
@@ -690,9 +670,13 @@ impl Service for EnvelopeBufferService {
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
-                            Ok(new_sleep) => {
+                    match dbg!(Self::try_pop(&partition_tag, &config, &mut buffer, &services).await) {
+                            Ok(Some(new_sleep)) => {
                                 sleep = new_sleep;
+                            }
+                            Ok(None) => {
+                                // The buffer will neither input nor output anything from this point.
+                                break;
                             }
                             Err(error) => {
                                 relay_log::error!(
@@ -715,18 +699,17 @@ impl Service for EnvelopeBufferService {
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                 }
-                Some(message) = rx.recv() => {
-                    Self::handle_message(&mut buffer, message, &services).await;
-                        sleep = Duration::ZERO;
+                signal = rx.recv() => {
+                    match signal {
+                        Some(message) => {
+                            Self::handle_message(&mut buffer, message, &services).await;
+                        }
+                        None => {
+                            buffer.shutdown().await;
+                        }
+                    }
+                    sleep = Duration::ZERO;
                 }
-                // FIXME
-                // shutdown = shutdown.notified() => {
-                //     // In case the shutdown was handled, we break out of the loop signaling that
-                //         // there is no need to process anymore envelopes.
-                //         if Self::handle_shutdown(&mut buffer, shutdown).await {
-                //             break;
-                //         }
-                // }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
                 }

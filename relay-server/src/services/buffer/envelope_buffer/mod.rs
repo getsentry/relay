@@ -191,18 +191,19 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
-    pub async fn shutdown(&mut self) -> bool {
+    pub async fn shutdown(&mut self) {
         // Currently, we want to flush the buffer only for disk, since the in memory implementation
         // tries to not do anything and pop as many elements as possible within the shutdown
         // timeout.
         match self {
             Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
                 buffer.flush().await;
-                true
             }
-            _ => {
-                relay_log::trace!("shutdown procedure not needed");
-                false
+            Self::InMemory(buffer) => {
+                buffer.done = true;
+            }
+            Self::Sqlite(buffer) => {
+                buffer.done = true;
             }
         }
     }
@@ -270,6 +271,9 @@ struct EnvelopeBuffer<P: StackProvider> {
     total_count_initialized: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
+
+    /// Whether the buffer expects any new input.
+    done: bool,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -283,6 +287,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
+            done: false,
         }
     }
 }
@@ -303,6 +308,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
+            done: false,
         })
     }
 }
@@ -379,7 +385,11 @@ where
             },
         )) = self.priority_queue.peek_mut()
         else {
-            return Ok(Peek::Empty);
+            return Ok(if dbg!(self.done) {
+                Peek::Done
+            } else {
+                Peek::Empty
+            });
         };
 
         let ready = readiness.ready();
@@ -499,6 +509,7 @@ where
         self.stack_provider
             .flush(priority_queue.into_iter().map(|(q, _)| q.value))
             .await;
+        self.done = true;
     }
 
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
@@ -607,6 +618,7 @@ where
 }
 
 /// Contains the state of the first element in the buffer.
+#[derive(Debug)]
 pub enum Peek {
     Empty,
     Ready {
@@ -618,12 +630,13 @@ pub enum Peek {
         next_project_fetch: Instant,
         last_received_at: DateTime<Utc>,
     },
+    Done,
 }
 
 impl Peek {
     pub fn last_received_at(&self) -> Option<DateTime<Utc>> {
         match self {
-            Self::Empty => None,
+            Self::Empty | Self::Done => None,
             Self::Ready {
                 last_received_at, ..
             }
