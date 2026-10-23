@@ -295,18 +295,14 @@ fn filter(
                 [(DataCategory::UserReportV2, 1)],
                 item,
             ),
-            ItemType::ReplayEvent => apply_retention(
-                records,
-                RetentionAction::drop_on_rejection(event.or(enforcement.replays.as_ref())),
-                [(DataCategory::Replay, 1)],
-                item,
-            ),
-            ItemType::ReplayRecording | ItemType::ReplayVideo => apply_retention(
-                records,
-                RetentionAction::drop_on_rejection(enforcement.replays.as_ref()),
-                [(DataCategory::Replay, 1)],
-                item,
-            ),
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                apply_retention(
+                    records,
+                    RetentionAction::drop_on_rejection(enforcement.replays.as_ref()),
+                    [(DataCategory::Replay, 1)],
+                    item,
+                )
+            }
             ItemType::Session | ItemType::Sessions => apply_retention(
                 records,
                 enforcement

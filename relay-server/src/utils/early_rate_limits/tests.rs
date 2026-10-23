@@ -291,23 +291,15 @@ fn test_enforce_counts_implicit_event_once() {
 }
 
 #[test]
-fn test_parent_rejection_counts_only_removed_items() {
-    for (item_type, dropped_category) in [
-        (ItemType::ReplayEvent, Some(DataCategory::Replay)),
-        (ItemType::Span, None),
-    ] {
+fn test_event_rejection_preserves_independent_items() {
+    for item_type in [ItemType::ReplayEvent, ItemType::Span] {
         let mut envelope = envelope![Event];
-        envelope.add_item(Item::new(item_type));
+        envelope.add_item(Item::new(item_type.clone()));
         let (mut envelope, mut outcomes) = Managed::for_test(envelope).build();
         enforce_rate_limits(&mut envelope, &cached_limits(&[DataCategory::Error]), &[]);
         outcomes.assert_outcome(&Outcome::RateLimited(None), DataCategory::Error, 1);
-        if let Some(category) = dropped_category {
-            assert!(envelope.is_empty());
-            outcomes.assert_outcome(&Outcome::RateLimited(None), category, 1);
-        } else {
-            assert_eq!(envelope.len(), 1);
-            assert_eq!(envelope.items().next().unwrap().ty(), &ItemType::Span);
-        }
+        assert_eq!(envelope.len(), 1);
+        assert_eq!(envelope.items().next().unwrap().ty(), &item_type);
         envelope.accept(drop);
         outcomes.assert_no_outcomes();
     }
@@ -702,6 +694,74 @@ fn test_enforce_limit_replays() {
     assert_eq!(envelope.len(), 0);
 
     assert_eq!(outcomes, BTreeMap::from([(DataCategory::Replay, 3),]));
+}
+
+#[test]
+fn test_replay_limits_are_independent_of_event_limits() {
+    for replay_types in [
+        vec![ItemType::ReplayEvent, ItemType::ReplayRecording],
+        vec![ItemType::ReplayRecording],
+        vec![ItemType::ReplayVideo],
+    ] {
+        for event_blocked in [false, true] {
+            for replay_blocked in [false, true] {
+                let mut original = envelope![Event];
+                for ty in &replay_types {
+                    original.add_item(Item::new(ty.clone()));
+                }
+                let (mut envelope, mut outcomes) = Managed::for_test(original).build();
+                let mut cached = RateLimits::new();
+                for (category, blocked, reason) in [
+                    (DataCategory::Error, event_blocked, "event_quota"),
+                    (DataCategory::Replay, replay_blocked, "replay_quota"),
+                ] {
+                    if blocked {
+                        let mut limit = rate_limit(category);
+                        limit.reason_code = Some(ReasonCode::new(reason));
+                        cached.add(limit);
+                    }
+                }
+
+                let limits = enforce_rate_limits(&mut envelope, &cached, &[]);
+                let mut expected = Vec::new();
+                if !event_blocked {
+                    expected.push(ItemType::Event);
+                }
+                if !replay_blocked {
+                    expected.extend(replay_types.iter().cloned());
+                }
+                assert_eq!(
+                    envelope
+                        .items()
+                        .map(|item| item.ty().clone())
+                        .collect::<Vec<_>>(),
+                    expected
+                );
+                assert_eq!(
+                    limits.iter().count(),
+                    usize::from(event_blocked) + usize::from(replay_blocked)
+                );
+                if event_blocked {
+                    outcomes.assert_outcome(
+                        &Outcome::RateLimited(Some(ReasonCode::new("event_quota"))),
+                        DataCategory::Error,
+                        1,
+                    );
+                }
+                if replay_blocked {
+                    for _ in &replay_types {
+                        outcomes.assert_outcome(
+                            &Outcome::RateLimited(Some(ReasonCode::new("replay_quota"))),
+                            DataCategory::Replay,
+                            1,
+                        );
+                    }
+                }
+                envelope.accept(drop);
+                outcomes.assert_no_outcomes();
+            }
+        }
+    }
 }
 
 /// Limit monitor checkins.
