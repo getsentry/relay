@@ -362,7 +362,7 @@ impl EnvelopeSummary {
                         .event
                         .add_event_creator(DataCategory::Transaction, AttachmentParentType::Event);
                     if count_individual {
-                        summary.span_quantity += 1 + item.span_count() as usize;
+                        summary.span_quantity += 1 + item.span_count().unwrap_or(0) as usize;
                     }
                 }
                 ItemType::Profile => {
