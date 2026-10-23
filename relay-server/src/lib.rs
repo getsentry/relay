@@ -308,12 +308,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let mut services = handle.service_set();
 
         let state = ServiceState::start(&handle, &services, config.clone()).await?;
-        services.start(HttpServer::new(config, state.clone())?);
+        services.start(HttpServer::new(config, state)?);
 
-        shutdown().await;
-
-        state.stop();
-
+        // The HTTP server awaits the shutdown signal, and will tear down everything
+        // once it's done.
         services.join().await;
 
         anyhow::Ok(())

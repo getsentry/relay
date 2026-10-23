@@ -141,13 +141,9 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
     ));
 
     relay_system::spawn!(async move {
+        let _ = relay_system::shutdown().await;
         relay_log::info!("Shutting down HTTP server");
-
-        // FIXME
-        // match timeout {
-        //     Some(timeout) => handle.graceful_shutdown(Some(timeout)),
-        // handle.shutdown()
-        // }
+        handle.shutdown()
     });
 
     server.serve(service).await
