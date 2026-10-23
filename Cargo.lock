@@ -4879,7 +4879,6 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-protocol",
- "relay-statsd",
  "serde",
  "serde_json",
  "serde_path_to_error",
