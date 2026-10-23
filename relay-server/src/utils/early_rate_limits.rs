@@ -86,6 +86,33 @@ struct Enforcement {
     trace_metrics: Option<Outcome>,
 }
 
+impl Enforcement {
+    fn has_rejections(&self) -> bool {
+        // List every field so adding a new enforcement also requires considering it here.
+        !matches!(
+            self,
+            Self {
+                event: None,
+                spans: None,
+                profiles: None,
+                event_attachments: None,
+                span_attachments: None,
+                trace_attachments: None,
+                backend_profiles: None,
+                ui_profiles: None,
+                sessions: None,
+                feedback: None,
+                replays: None,
+                monitors: None,
+                backend_chunks: None,
+                ui_chunks: None,
+                logs: None,
+                trace_metrics: None,
+            }
+        )
+    }
+}
+
 fn resolve_limits(
     summary: EnvelopeSummary,
     scoping: &Scoping,
@@ -277,6 +304,9 @@ fn filter(
     let summary = EnvelopeSummary::compute_items(&items);
     let (enforcement, client_rate_limits) =
         resolve_limits(summary, scoping, cached, quotas, records);
+    if !enforcement.has_rejections() {
+        return (items, client_rate_limits);
+    }
     items.retain(|item| {
         let event = enforcement.event.as_ref();
         match item.ty() {
