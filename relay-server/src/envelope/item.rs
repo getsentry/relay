@@ -12,7 +12,6 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
-use crate::statsd::RelayTimers;
 use crate::utils::DebugBytes;
 
 #[derive(Clone)]
@@ -236,23 +235,6 @@ impl Item {
     /// Sets the number of spans in the transaction payload.
     pub fn set_span_count(&mut self, value: Option<usize>) {
         self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
-    }
-
-    /// Sets the `span_count` item header by shallow parsing the event.
-    ///
-    /// Returns the recomputed count.
-    fn refresh_span_count(&mut self) -> usize {
-        let count = self.parse_span_count();
-        self.set_span_count(count);
-        count.unwrap_or(0)
-    }
-
-    /// Returns the `span_count` header, computing and setting it if absent or invalid.
-    pub fn ensure_span_count(&mut self) -> usize {
-        match self.span_count() {
-            Some(count) => count as usize,
-            None => self.refresh_span_count(),
-        }
     }
 
     /// Returns the content type of this item's payload.
@@ -726,23 +708,6 @@ impl Item {
     /// Determines if this item is an `ItemContainer` based on its content type.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
-    }
-
-    fn parse_span_count(&self) -> Option<usize> {
-        #[derive(Debug, serde::Deserialize)]
-        struct PartialEvent {
-            spans: crate::utils::SeqCount,
-        }
-
-        if self.headers.ty != ItemType::Transaction {
-            return None;
-        }
-
-        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
-        });
-
-        Some(event.spans.0)
     }
 }
 

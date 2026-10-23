@@ -108,7 +108,6 @@ fn test_transaction_span_counts_without_header_writes() {
         );
         assert_eq!(calc_span_count(&transaction), spans);
         assert_eq!(transaction.span_count(), declared_spans);
-        assert_eq!(transaction.clone().ensure_span_count(), spans);
 
         // Count each rejected transaction, including repeated items without count headers.
         let mut envelope = envelope![];
