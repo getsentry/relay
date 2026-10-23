@@ -1,0 +1,52 @@
+---
+source: relay-event-normalization/src/normalize/browser_report.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424000.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "info",
+  "body": "WebSQL is deprecated and will be removed in Chrome 97 around January 2020",
+  "attributes": {
+    "browser.report.body.anticipated_removal": {
+      "type": "string",
+      "value": "2020-01-01"
+    },
+    "browser.report.body.column_number": {
+      "type": "integer",
+      "value": 42
+    },
+    "browser.report.body.id": {
+      "type": "string",
+      "value": "websql"
+    },
+    "browser.report.body.line_number": {
+      "type": "integer",
+      "value": 1234
+    },
+    "browser.report.body.message": {
+      "type": "string",
+      "value": "WebSQL is deprecated and will be removed in Chrome 97 around January 2020"
+    },
+    "browser.report.body.source_file": {
+      "type": "string",
+      "value": "https://example.com/index.js"
+    },
+    "browser.report.type": {
+      "type": "string",
+      "value": "deprecation"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report.deprecation"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://example.com/page"
+    }
+  }
+}

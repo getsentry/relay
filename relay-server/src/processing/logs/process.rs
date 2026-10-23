@@ -47,7 +47,7 @@ pub fn expand(
         let (settings, logs) = match items {
             LogItems::Container(item) => expand_log_container(&item, trust, max_ops)?,
             LogItems::Integration(item) => {
-                logs::integrations::expand(item, records, &headers).unwrap_or_default()
+                logs::integrations::expand(item, records, &headers, max_ops).unwrap_or_default()
             }
         };
 

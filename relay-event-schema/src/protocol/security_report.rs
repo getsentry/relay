@@ -476,16 +476,23 @@ impl CspRaw {
             )),
         ];
 
-        if let Ok(url) = Url::parse(&self.blocked_uri)
-            && let ("http" | "https", Some(host)) = (url.scheme(), url.host_str())
-        {
+        if let Some(host) = self.blocked_host() {
             tags.push(Annotated::new(TagEntry(
                 Annotated::new("blocked-host".to_owned()),
-                Annotated::new(host.to_owned()),
+                Annotated::new(host),
             )));
         }
 
         Tags(PairList::from(tags))
+    }
+
+    /// Returns the host of the blocked URI, if it is an `http` or `https` URI.
+    fn blocked_host(&self) -> Option<String> {
+        let url = Url::parse(&self.blocked_uri).ok()?;
+        match (url.scheme(), url.host_str()) {
+            ("http" | "https", Some(host)) => Some(host.to_owned()),
+            _ => None,
+        }
     }
 
     fn get_request(&self) -> Request {
@@ -603,6 +610,109 @@ impl Csp {
         event.csp = Annotated::new(raw_csp.into_protocol(effective_directive));
 
         Ok(())
+    }
+}
+
+/// A single CSP violation, parsed from a standalone security report.
+///
+/// Unlike [`Csp`], which is attached to an error event, this contains the extracted and normalized
+/// fields of a single violation so it can be converted into other formats, such as logs.
+///
+/// Supports both the legacy format sent by the `report-uri` directive and `csp-violation` reports
+/// sent through the [Reporting API](https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API)
+/// via the `report-to` directive.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CspViolationReport {
+    /// Human readable description of the violation, e.g. `Blocked 'script' from 'example.com'`.
+    pub message: String,
+    /// The directive whose enforcement caused the violation.
+    pub effective_directive: String,
+    /// The name of the policy section that was violated.
+    pub violated_directive: String,
+    /// The URI of the blocked resource, with known sensitive query strings removed.
+    pub blocked_uri: String,
+    /// The host of the blocked URI, only set for `http` and `https` URIs.
+    pub blocked_host: Option<String>,
+    /// The URI of the document in which the violation occurred.
+    pub document_uri: Option<String>,
+    /// The referrer of the document in which the violation occurred.
+    pub referrer: Option<String>,
+    /// The HTTP status code of the resource on which the global object was instantiated.
+    pub status_code: Option<u64>,
+    /// The URL of the resource where the violation occurred.
+    pub source_file: Option<String>,
+    /// The line number in source-file on which the violation occurred.
+    pub line_number: Option<u64>,
+    /// The column number in source-file on which the violation occurred.
+    pub column_number: Option<u64>,
+    /// The first 40 characters of the inline script, event handler, or style that caused the
+    /// violation.
+    pub script_sample: Option<String>,
+    /// Policy disposition (enforce or report).
+    pub disposition: Option<String>,
+    /// The age of the report in milliseconds at the time it was sent.
+    ///
+    /// Only available for reports sent through the Reporting API.
+    pub age: Option<u64>,
+}
+
+impl CspViolationReport {
+    /// Parses a single CSP violation from a JSON security report.
+    ///
+    /// Returns `Ok(None)` if the payload is a Reporting API report of a different type, for
+    /// example a network error or integrity violation report.
+    pub fn from_json(data: &[u8]) -> Result<Option<Self>, serde_json::Error> {
+        #[derive(Deserialize)]
+        struct Report {
+            #[serde(default, rename = "type")]
+            ty: Option<CspViolationType>,
+            #[serde(default, rename = "csp-report")]
+            csp_report: Option<CspRaw>,
+            #[serde(default)]
+            body: Option<serde_json::Value>,
+            #[serde(default)]
+            age: Option<serde_json::Value>,
+        }
+
+        let report: Report = serde_json::from_slice(data)?;
+
+        let (raw, age) = match report {
+            Report {
+                csp_report: Some(raw),
+                ..
+            } => (raw, None),
+            Report {
+                ty: Some(CspViolationType::CspViolation),
+                body: Some(body),
+                age,
+                ..
+            } => (
+                serde_json::from_value::<CspRaw>(body)?,
+                age.as_ref().and_then(serde_json::Value::as_u64),
+            ),
+            _ => return Ok(None),
+        };
+
+        let effective_directive = raw
+            .effective_directive()
+            .map_err(serde::de::Error::custom)?;
+
+        Ok(Some(Self {
+            message: raw.get_message(effective_directive),
+            effective_directive: effective_directive.to_string(),
+            blocked_uri: raw.sanitized_blocked_uri(),
+            blocked_host: raw.blocked_host(),
+            violated_directive: raw.violated_directive,
+            document_uri: raw.document_uri,
+            referrer: raw.referrer,
+            status_code: raw.status_code,
+            source_file: raw.source_file,
+            line_number: raw.line_number,
+            column_number: raw.column_number,
+            script_sample: raw.script_sample,
+            disposition: raw.disposition,
+            age,
+        }))
     }
 }
 
@@ -1352,5 +1462,136 @@ mod tests {
             csp_raw.effective_directive(),
             Ok(CspDirective::DefaultSrc)
         ));
+    }
+
+    #[test]
+    fn test_csp_violation_report_legacy() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo/bar",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "script-src 'self'",
+                "effective-directive": "script-src",
+                "blocked-uri": "https://evil.com/script.js",
+                "status-code": 200,
+                "source-file": "https://example.com/foo/bar",
+                "line-number": 12,
+                "column-number": 34,
+                "disposition": "enforce"
+            }
+        }"#;
+
+        let report = CspViolationReport::from_json(json.as_bytes())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            report,
+            CspViolationReport {
+                message: "Blocked 'script' from 'evil.com'".to_owned(),
+                effective_directive: "script-src".to_owned(),
+                violated_directive: "script-src 'self'".to_owned(),
+                blocked_uri: "https://evil.com/script.js".to_owned(),
+                blocked_host: Some("evil.com".to_owned()),
+                document_uri: Some("https://example.com/foo/bar".to_owned()),
+                referrer: Some("https://www.google.com/".to_owned()),
+                status_code: Some(200),
+                source_file: Some("https://example.com/foo/bar".to_owned()),
+                line_number: Some(12),
+                column_number: Some(34),
+                script_sample: None,
+                disposition: Some("enforce".to_owned()),
+                age: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_csp_violation_report_reporting_api() {
+        let json = r#"{
+            "age": 53531,
+            "body": {
+                "blockedURL": "inline",
+                "columnNumber": 39,
+                "disposition": "enforce",
+                "documentURL": "https://example.com/csp-report",
+                "effectiveDirective": "script-src-elem",
+                "lineNumber": 121,
+                "originalPolicy": "default-src 'self'; report-to csp-endpoint-name",
+                "referrer": "https://www.google.com/",
+                "sample": "console.log(\"lo\")",
+                "sourceFile": "https://example.com/csp-report",
+                "statusCode": 200
+            },
+            "type": "csp-violation",
+            "url": "https://example.com/csp-report",
+            "user_agent": "Mozilla/5.0"
+        }"#;
+
+        let report = CspViolationReport::from_json(json.as_bytes())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            report,
+            CspViolationReport {
+                message: "Blocked 'script' from 'inline:'".to_owned(),
+                effective_directive: "script-src-elem".to_owned(),
+                violated_directive: "".to_owned(),
+                blocked_uri: "inline".to_owned(),
+                blocked_host: None,
+                document_uri: Some("https://example.com/csp-report".to_owned()),
+                referrer: Some("https://www.google.com/".to_owned()),
+                status_code: Some(200),
+                source_file: Some("https://example.com/csp-report".to_owned()),
+                line_number: Some(121),
+                column_number: Some(39),
+                script_sample: Some("console.log(\"lo\")".to_owned()),
+                disposition: Some("enforce".to_owned()),
+                age: Some(53531),
+            }
+        );
+    }
+
+    #[test]
+    fn test_csp_violation_report_strips_stripe_query() {
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "https://example.com",
+                "effective-directive": "connect-src",
+                "blocked-uri": "https://api.stripe.com/v1/tokens?card=1234"
+            }
+        }"#;
+
+        let report = CspViolationReport::from_json(json.as_bytes())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(report.blocked_uri, "https://api.stripe.com/v1/tokens");
+        assert_eq!(report.blocked_host.as_deref(), Some("api.stripe.com"));
+    }
+
+    #[test]
+    fn test_csp_violation_report_ignores_other_report_types() {
+        let json = r#"{
+            "age": 10,
+            "body": {
+                "documentURL": "https://example.com",
+                "blockedURL": "https://example.com/script.js",
+                "destination": "script",
+                "reportOnly": false
+            },
+            "type": "integrity-violation",
+            "url": "https://example.com"
+        }"#;
+
+        let report = CspViolationReport::from_json(json.as_bytes()).unwrap();
+        assert_eq!(report, None);
+    }
+
+    #[test]
+    fn test_csp_violation_report_invalid_directive() {
+        let json = r#"{"csp-report": {"effective-directive": "not-a-directive"}}"#;
+        assert!(CspViolationReport::from_json(json.as_bytes()).is_err());
     }
 }

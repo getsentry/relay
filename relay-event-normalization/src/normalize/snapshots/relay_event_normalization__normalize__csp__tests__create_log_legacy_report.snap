@@ -1,0 +1,68 @@
+---
+source: relay-event-normalization/src/normalize/csp.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424005.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "warn",
+  "body": "Blocked 'script' from 'evil.com'",
+  "attributes": {
+    "browser.report.type": {
+      "type": "string",
+      "value": "csp-violation"
+    },
+    "code.file.path": {
+      "type": "string",
+      "value": "https://example.com/foo/bar"
+    },
+    "code.line.number": {
+      "type": "integer",
+      "value": 12
+    },
+    "csp.blocked_host": {
+      "type": "string",
+      "value": "evil.com"
+    },
+    "csp.blocked_uri": {
+      "type": "string",
+      "value": "https://evil.com/script.js"
+    },
+    "csp.column_number": {
+      "type": "integer",
+      "value": 34
+    },
+    "csp.disposition": {
+      "type": "string",
+      "value": "enforce"
+    },
+    "csp.effective_directive": {
+      "type": "string",
+      "value": "script-src"
+    },
+    "csp.violated_directive": {
+      "type": "string",
+      "value": "script-src 'self'"
+    },
+    "http.request.header.referer": {
+      "type": "string",
+      "value": "https://www.google.com/"
+    },
+    "http.response.status_code": {
+      "type": "integer",
+      "value": 200
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report.csp"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://example.com/foo/bar"
+    }
+  }
+}
