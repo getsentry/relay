@@ -255,7 +255,10 @@ impl Attributes {
     }
 
     pub fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
-        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+        self.get_attribute_with_deprecations(key)?
+            .value
+            .value
+            .value()
     }
 
     /// Returns the attribute with the given key.
@@ -265,6 +268,13 @@ impl Attributes {
         Q: Ord + ?Sized,
     {
         self.0.get(key)?.value()
+    }
+
+    pub fn get_attribute_with_deprecations(&self, key: &str) -> Option<&Attribute> {
+        relay_conventions::attribute_names(key).find_map(|name| {
+            self.get_attribute(name.as_ref())
+                .filter(|attribute| attribute.value.value.value().is_some())
+        })
     }
 
     /// Returns the attribute value as annotated.
@@ -417,6 +427,13 @@ mod deprecation_tests {
                 .and_then(Value::as_str),
             expected
         );
+        assert_eq!(
+            attributes
+                .get_attribute_with_deprecations(key)
+                .and_then(|attribute| attribute.value.value.value())
+                .and_then(Value::as_str),
+            expected
+        );
         assert_eq!(attributes, original_attributes);
         assert_eq!(data, original_data);
     }
@@ -510,6 +527,10 @@ mod deprecation_tests {
             data.get_value_with_deprecations("http.request.method")
                 .and_then(Value::as_str),
             Some("POST")
+        );
+        assert_eq!(
+            attributes.get_attribute_with_deprecations("http.request.method"),
+            attributes.get_attribute("method"),
         );
         attributes.0.insert(
             "http.request.method".to_owned(),

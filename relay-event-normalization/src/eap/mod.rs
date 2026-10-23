@@ -738,7 +738,7 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .unwrap_or_default();
 
     let raw_query = attributes
-        .get_value(DB__QUERY__TEXT)
+        .get_value_with_deprecations(DB__QUERY__TEXT)
         .or_else(|| {
             if op == "db" {
                 attributes.get_value(SENTRY__DESCRIPTION)
@@ -749,15 +749,15 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .and_then(|v| v.as_str());
 
     let db_system = attributes
-        .get_value(DB__SYSTEM__NAME)
+        .get_value_with_deprecations(DB__SYSTEM__NAME)
         .and_then(|v| v.as_str());
 
     let db_operation = attributes
-        .get_value(DB__OPERATION__NAME)
+        .get_value_with_deprecations(DB__OPERATION__NAME)
         .and_then(|v| v.as_str());
 
     let collection_name = attributes
-        .get_value(DB__COLLECTION__NAME)
+        .get_value_with_deprecations(DB__COLLECTION__NAME)
         .and_then(|v| v.as_str());
 
     let span_origin = attributes
@@ -992,7 +992,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             continue;
         }
 
-        let Some(attr) = attributes.get_attribute(current_attribute) else {
+        let Some(attr) = attributes.get_attribute_with_deprecations(current_attribute) else {
             continue;
         };
 
@@ -1001,7 +1001,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
     if !attributes.contains_key(SENTRY__DOMAIN)
         && let Some(db_domain) = attributes
-            .get_value(DB__COLLECTION__NAME)
+            .get_value_with_deprecations(DB__COLLECTION__NAME)
             .and_then(|value| value.as_str())
             .map(|collection_name| collection_name.to_owned())
     {
@@ -1871,6 +1871,205 @@ mod tests {
           }
         }
         "#);
+    }
+
+    fn db_test_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(pairs.iter().map(|(key, value)| {
+            ((*key).to_owned(), Annotated::new(Attribute::from(*value)))
+        })))
+    }
+
+    #[test]
+    fn db_query_aliases_are_normalized_without_renaming() {
+        for query_key in ["db.statement", "query"] {
+            let mut attributes = db_test_attributes(&[
+                ("db.system", "mysql"),
+                (query_key, "SELECT \"not an identifier\""),
+            ]);
+            let original = attributes.clone().into_value().unwrap();
+            normalize_sentry_op(&mut attributes);
+            normalize_db_attributes(&mut attributes);
+            write_legacy_attributes(&mut attributes);
+            let result = attributes.value().unwrap();
+            for (key, expected) in [
+                (SENTRY__OP, "db"),
+                (DB__OPERATION__NAME, "SELECT"),
+                (SENTRY__NORMALIZED_DB_QUERY, "SELECT %s"),
+                (SENTRY__NORMALIZED_DB_QUERY__HASH, "3a377dcc490b1690"),
+                (SENTRY__NORMALIZED_DESCRIPTION, "SELECT %s"),
+                (SENTRY__ACTION, "SELECT"),
+            ] {
+                assert_eq!(
+                    result.get_value(key).and_then(Value::as_str),
+                    Some(expected)
+                );
+            }
+            for (key, value) in original.0 {
+                assert_eq!(result.0.get(&key), Some(&value));
+            }
+            assert!(!result.contains_key(DB__QUERY__TEXT));
+            assert!(!result.contains_key(DB__SYSTEM__NAME));
+            let normalized = attributes.clone();
+            normalize_db_attributes(&mut attributes);
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn db_operation_and_collection_aliases_match_current_names() {
+        for (system, query, operation_key, operation, collection) in [
+            (
+                "sqlite",
+                "SELECT * FROM users WHERE id = 42",
+                "cloudflare.d1.query_type",
+                "select",
+                None,
+            ),
+            ("redis", "del private-key:123", "redis.command", "del", None),
+            (
+                "mongodb",
+                r#"{"find":"documents_a1b2c3d4","foo":"bar"}"#,
+                "db.operation",
+                "find",
+                Some("documents_a1b2c3d4"),
+            ),
+        ] {
+            for query_key in ["db.statement", "query"] {
+                let mut deprecated_pairs = vec![
+                    ("db.system", system),
+                    (query_key, query),
+                    (operation_key, operation),
+                ];
+                let mut current_pairs = vec![
+                    (DB__SYSTEM__NAME, system),
+                    (DB__QUERY__TEXT, query),
+                    (DB__OPERATION__NAME, operation),
+                ];
+                if let Some(collection) = collection {
+                    deprecated_pairs.push(("db.mongodb.collection", collection));
+                    current_pairs.push((DB__COLLECTION__NAME, collection));
+                }
+                let mut deprecated = db_test_attributes(&deprecated_pairs);
+                let original = deprecated.clone().into_value().unwrap();
+                let mut current = db_test_attributes(&current_pairs);
+                for attributes in [&mut deprecated, &mut current] {
+                    normalize_sentry_op(attributes);
+                    normalize_db_attributes(attributes);
+                    write_legacy_attributes(attributes);
+                }
+                let result = deprecated.value().unwrap();
+                let expected = current.value().unwrap();
+                for key in [
+                    SENTRY__NORMALIZED_DB_QUERY,
+                    SENTRY__NORMALIZED_DB_QUERY__HASH,
+                    DB__OPERATION__NAME,
+                    DB__COLLECTION__NAME,
+                    SENTRY__NORMALIZED_DESCRIPTION,
+                    SENTRY__ACTION,
+                    SENTRY__DOMAIN,
+                ] {
+                    assert_eq!(
+                        result.get_attribute(key),
+                        expected.get_attribute(key),
+                        "{system}: {key}"
+                    );
+                }
+                assert!(result.get_value(SENTRY__NORMALIZED_DB_QUERY).is_some());
+                assert_eq!(
+                    result.get_value(SENTRY__ACTION).and_then(Value::as_str),
+                    Some(operation.to_uppercase().as_str())
+                );
+                if collection.is_some() {
+                    assert_eq!(
+                        result.get_value(SENTRY__DOMAIN).and_then(Value::as_str),
+                        Some(",documents_{%s},")
+                    );
+                }
+                for (key, value) in original.0 {
+                    assert_eq!(result.0.get(&key), Some(&value));
+                }
+                assert!(!result.contains_key(DB__QUERY__TEXT));
+                assert!(!result.contains_key(DB__SYSTEM__NAME));
+            }
+        }
+    }
+
+    #[test]
+    fn db_current_names_take_precedence_over_conflicting_aliases() {
+        let current_pairs = [
+            (DB__SYSTEM__NAME, "mongodb"),
+            (DB__QUERY__TEXT, r#"{"find":"documents","foo":"bar"}"#),
+            (DB__OPERATION__NAME, "find"),
+            (DB__COLLECTION__NAME, "documents"),
+        ];
+        let mut current = db_test_attributes(&current_pairs);
+        let mut mixed_pairs = current_pairs.to_vec();
+        mixed_pairs.extend([
+            ("db.system", "redis"),
+            ("db.statement", "del private-key"),
+            ("query", "SELECT 123"),
+            ("db.operation", "delete"),
+            ("db.mongodb.collection", "wrong_collection"),
+        ]);
+        let mut mixed = db_test_attributes(&mixed_pairs);
+        for attributes in [&mut current, &mut mixed] {
+            normalize_sentry_op(attributes);
+            normalize_db_attributes(attributes);
+            write_legacy_attributes(attributes);
+        }
+        let expected = current.value().unwrap();
+        let result = mixed.value().unwrap();
+        for (key, value) in &expected.0 {
+            assert_eq!(result.0.get(key), Some(value));
+        }
+        for (key, value) in &mixed_pairs[current_pairs.len()..] {
+            assert_eq!(result.get_value(*key).and_then(Value::as_str), Some(*value));
+        }
+    }
+
+    #[test]
+    fn db_legacy_attributes_use_aliases_even_when_already_normalized() {
+        let mut attributes = db_test_attributes(&[
+            (SENTRY__NORMALIZED_DB_QUERY, "already normalized"),
+            ("db.operation", "FIND"),
+            ("db.mongodb.collection", "documents"),
+        ]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_annotated_value_mut("db.operation")
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        let original = attributes.clone();
+        normalize_db_attributes(&mut attributes);
+        assert_eq!(attributes, original);
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_attribute(SENTRY__ACTION).unwrap().value,
+            result.get_attribute("db.operation").unwrap().value,
+        );
+        assert_eq!(
+            result.get_value(SENTRY__DOMAIN).and_then(Value::as_str),
+            Some(",documents,")
+        );
+        assert_eq!(
+            result
+                .get_value(SENTRY__NORMALIZED_DESCRIPTION)
+                .and_then(Value::as_str),
+            Some("already normalized")
+        );
+        assert!(!result.contains_key(DB__OPERATION__NAME));
+        assert!(!result.contains_key(DB__COLLECTION__NAME));
+        let attributes = attributes.value_mut().as_mut().unwrap();
+        attributes.insert(SENTRY__ACTION, "existing action");
+        attributes.insert(SENTRY__DOMAIN, "existing domain");
+        let original = attributes.clone();
+        let mut attributes = Annotated::new(original.clone());
+        write_legacy_attributes(&mut attributes);
+        assert_eq!(attributes.value(), Some(&original));
     }
 
     #[test]
