@@ -222,8 +222,7 @@ fn test_error_and_user_report_outcomes() {
 
 #[test]
 fn test_user_report_with_nintendo_header() {
-    // A V1 report with this misplaced header is counted in the summary but skipped by
-    // early rate limiting.
+    // Attachment headers do not change a feedback item's category or quantity.
     let mut original = envelope![UserReport];
     original
         .items_mut()
@@ -232,23 +231,15 @@ fn test_user_report_with_nintendo_header() {
         .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
     assert_eq!(EnvelopeSummary::compute(&original).user_report_quantity, 1);
 
-    let (kept, limits, outcomes) = enforce_and_apply(
-        cached_limits(&[DataCategory::UserReportV2]),
-        original.clone(),
-    );
-    assert_eq!(kept.to_vec().unwrap(), original.to_vec().unwrap());
-    assert!(limits.is_empty());
-    assert!(outcomes.is_empty());
+    let (kept, limits, outcomes) =
+        enforce_and_apply(cached_limits(&[DataCategory::UserReportV2]), original);
+    assert!(kept.is_empty());
+    assert!(limits.is_limited());
+    assert_eq!(outcomes, BTreeMap::from([(DataCategory::UserReportV2, 1)]));
 }
 
 #[test]
-#[cfg(debug_assertions)]
-#[should_panic(
-    expected = "Missing outcomes or mismatched quantity in category 'feedback', off by 1"
-)]
-fn test_user_report_with_nintendo_header_panics_when_parent_rejected() {
-    // The misplaced Nintendo header suppresses the dropped report's outcome; prior feedback
-    // leniency hid this mismatch. Replace should_panic with outcome assertions once fixed.
+fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
     let mut envelope = envelope![Event, UserReport];
     envelope
         .items_mut()
@@ -256,7 +247,28 @@ fn test_user_report_with_nintendo_header_panics_when_parent_rejected() {
         .unwrap()
         .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
 
-    enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
+    let (kept, _, outcomes) = enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
+    assert!(kept.is_empty());
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([(DataCategory::Error, 1), (DataCategory::UserReportV2, 1),])
+    );
+}
+
+#[test]
+fn test_nintendo_attachment_has_no_individual_attachment_quantity() {
+    let original = envelope![Attachment::NintendoSwitchDyingMessage];
+    let (kept, limits, outcomes) = enforce_and_apply(
+        cached_limits(&[DataCategory::Attachment, DataCategory::AttachmentItem]),
+        original.clone(),
+    );
+    assert_eq!(kept.to_vec().unwrap(), original.to_vec().unwrap());
+    assert!(limits.is_empty());
+    assert!(outcomes.is_empty());
+
+    let (kept, _, outcomes) = enforce_and_apply(cached_limits(&[DataCategory::Error]), original);
+    assert!(kept.is_empty());
+    assert_eq!(outcomes, BTreeMap::from([(DataCategory::Error, 1)]));
 }
 
 #[test]

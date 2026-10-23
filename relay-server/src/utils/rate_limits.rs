@@ -308,9 +308,13 @@ impl EnvelopeSummary {
                 summary.payload_size += item.len();
             }
 
-            // Already-limited items and Nintendo input have no individual quantities here.
+            // Already-limited items and Nintendo attachments have no individual quantities here.
             // Event-creating items still count toward the event; metrics still advertise client limits.
-            let attachment_type = item.attachment_type();
+            let attachment_type = if *item.ty() == ItemType::Attachment {
+                item.attachment_type()
+            } else {
+                None
+            };
             let count_individual = !rate_limited
                 && attachment_type != Some(AttachmentType::NintendoSwitchDyingMessage);
             let count = if count_individual {

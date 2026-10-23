@@ -558,12 +558,11 @@ fn apply_retention(
     if item.rate_limited() {
         return keep;
     }
-    match item.attachment_type() {
-        Some(AttachmentType::NintendoSwitchDyingMessage) => {}
-        _ => {
-            for quantity in quantities.into_iter().filter(|(_, quantity)| *quantity > 0) {
-                records.reject_err(outcome.cloned(), quantity);
-            }
+    if *item.ty() != ItemType::Attachment
+        || item.attachment_type() != Some(AttachmentType::NintendoSwitchDyingMessage)
+    {
+        for quantity in quantities.into_iter().filter(|(_, quantity)| *quantity > 0) {
+            records.reject_err(outcome.cloned(), quantity);
         }
     }
     // Source quantities transfer total accounting only; no indexed categories are added.
