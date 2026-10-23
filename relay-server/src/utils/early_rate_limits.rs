@@ -111,8 +111,7 @@ fn resolve_limits(
         .and_then(|category| check(true, category, true).map(|outcome| (category, outcome)));
     let spans = match &event {
         Some((DataCategory::Transaction, outcome)) => Some(outcome.clone()),
-        Some(_) => None,
-        None => check(
+        _ => check(
             summary.span_quantity > 0 || summary.has_span_attachments,
             DataCategory::Span,
             true,

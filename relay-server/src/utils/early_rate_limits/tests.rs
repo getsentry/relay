@@ -924,6 +924,47 @@ fn test_enforce_span() {
 }
 
 #[test]
+fn test_event_rejection_does_not_skip_standalone_span_limits() {
+    for (event_type, event_category) in [
+        (ItemType::Event, DataCategory::Error),
+        (ItemType::Security, DataCategory::Security),
+        (ItemType::UserReportV2, DataCategory::UserReportV2),
+    ] {
+        let mut original = envelope![Span];
+        original.add_item(Item::new(event_type));
+        let (mut envelope, mut outcomes) = Managed::for_test(original).build();
+        let mut cached = RateLimits::new();
+        for (category, reason) in [
+            (event_category, "event_quota"),
+            (DataCategory::Span, "span_quota"),
+        ] {
+            let mut limit = rate_limit(category);
+            limit.reason_code = Some(ReasonCode::new(reason));
+            cached.add(limit);
+        }
+
+        let client_limits = enforce_rate_limits(&mut envelope, &cached, &[]);
+
+        assert!(envelope.is_empty());
+        assert_eq!(client_limits.iter().count(), 2);
+        outcomes.assert_outcome(
+            &Outcome::RateLimited(Some(ReasonCode::new("event_quota"))),
+            event_category,
+            1,
+        );
+        for category in [DataCategory::Span, DataCategory::SpanIndexed] {
+            outcomes.assert_outcome(
+                &Outcome::RateLimited(Some(ReasonCode::new("span_quota"))),
+                category,
+                1,
+            );
+        }
+        envelope.accept(drop);
+        outcomes.assert_no_outcomes();
+    }
+}
+
+#[test]
 fn test_enforce_span_no_indexing_quota() {
     let envelope = envelope![Span, Span];
 
