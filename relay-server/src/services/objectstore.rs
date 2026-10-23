@@ -502,11 +502,11 @@ impl ObjectstoreService {
 
             builder.build()?
         };
-        let event_attachments = Usecase::new("attachments")
+        let event_attachments = Usecase::from_static("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let trace_attachments = Usecase::new("trace_attachments")
+        let trace_attachments = Usecase::from_static("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let profile_attachments = Usecase::new("profile_attachments")
+        let profile_attachments = Usecase::from_static("profile_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
