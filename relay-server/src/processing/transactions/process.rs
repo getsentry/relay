@@ -58,7 +58,7 @@ pub fn expand(
             // Fix broken span count headers
             use relay_protocol::get_value;
             let embedded = get_value!(event.spans).map_or(0, Vec::len);
-            let diff = embedded as isize - transaction_item.span_count() as isize;
+            let diff = embedded as isize - transaction_item.span_count().unwrap_or(0) as isize;
             record_keeper.modify_by(DataCategory::Span, diff);
             record_keeper.modify_by(DataCategory::SpanIndexed, diff);
         }

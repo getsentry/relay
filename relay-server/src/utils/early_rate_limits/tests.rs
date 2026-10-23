@@ -85,25 +85,30 @@ fn test_enforce_pass_empty() {
 
 #[test]
 fn test_transaction_span_counts_without_header_writes() {
-    for (body, header, spans) in [
-        (r#"{"spans":[{},null,1]}"#, None, 3),
-        (r#"{"spans":[],"spans":[{}]}"#, None, 0),
-        (r#"{"spans":null}"#, None, 0),
-        (r#"{}"#, None, 0),
-        (r#"{"spans":[{}]}"#, Some(0), 0),
-        (r#"{"spans":[{}]}"#, Some(12), 12),
+    for (body, header, declared_spans, spans) in [
+        (r#"{"spans":[{},null,1]}"#, None, None, 3),
+        (r#"{"spans":[],"spans":[{}]}"#, None, None, 0),
+        (r#"{"spans":null}"#, None, None, 0),
+        (r#"{}"#, None, None, 0),
+        (r#"{"spans":[{}]}"#, Some("0"), Some(0), 0),
+        (r#"{"spans":[{}]}"#, Some("12"), Some(12), 12),
+        (r#"{"spans":[{}]}"#, Some("null"), None, 1),
+        (r#"{"spans":[{}]}"#, Some(r#""invalid""#), None, 1),
+        (r#"{"spans":[{}]}"#, Some("-1"), None, 1),
+        (r#"{"spans":[{}]}"#, Some("4294967296"), None, 1),
     ] {
-        let mut transaction = Item::new(ItemType::Transaction);
-        transaction.set_payload(ContentType::Json, body);
-        transaction.set_span_count(header);
+        let header = header.map_or(String::new(), |value| format!(r#", "span_count":{value}"#));
+        let bytes = format!("{{\"type\":\"transaction\"{header}}}\n{body}\n");
+        let (transaction, _) = Item::parse(bytes.into()).unwrap();
         // Summarizing counts only declared spans; payload parsing belongs to rejection.
         let summary = EnvelopeSummary::compute_items([&transaction]);
-        assert_eq!(summary.span_quantity, 1 + header.unwrap_or(0));
-        assert_eq!(calc_span_count(&transaction), spans);
         assert_eq!(
-            transaction.header::<usize>(ItemHeaderKey::SpanCount),
-            header
+            summary.span_quantity,
+            1 + declared_spans.unwrap_or(0) as usize
         );
+        assert_eq!(calc_span_count(&transaction), spans);
+        assert_eq!(transaction.span_count(), declared_spans);
+        assert_eq!(transaction.clone().ensure_span_count(), spans);
 
         // Count each rejected transaction, including repeated items without count headers.
         let mut envelope = envelope![];

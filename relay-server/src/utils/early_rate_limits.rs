@@ -2,8 +2,7 @@
 //! Summarize item headers, resolve limits and event dependencies, then filter items in place.
 
 use crate::envelope::{
-    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemHeaderKey, ItemType,
-    Items,
+    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemType, Items,
 };
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
@@ -30,10 +29,10 @@ pub fn enforce_rate_limits(
         // Rejected transactions can reveal span quantities absent from the serialized input.
         // This is only debug bookkeeping; the filter calculates each rejected quantity once.
         #[cfg(debug_assertions)]
-        if envelope.items().any(|item| {
-            *item.ty() == ItemType::Transaction
-                && item.header::<u32>(ItemHeaderKey::SpanCount).is_none()
-        }) {
+        if envelope
+            .items()
+            .any(|item| *item.ty() == ItemType::Transaction && item.span_count().is_none())
+        {
             records.lenient(DataCategory::Span);
             records.lenient(DataCategory::SpanIndexed);
         }
@@ -511,7 +510,7 @@ fn calc_span_count(item: &Item) -> usize {
         spans: crate::utils::SeqCount,
     }
 
-    item.header::<u32>(ItemHeaderKey::SpanCount)
+    item.span_count()
         .map(|count| count as usize)
         .unwrap_or_else(|| {
             relay_statsd::metric!(timer(crate::statsd::RelayTimers::CheckNestedSpans), {

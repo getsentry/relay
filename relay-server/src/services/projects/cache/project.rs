@@ -131,7 +131,7 @@ mod tests {
     }
 
     fn get_span_count(envelope: &Envelope) -> usize {
-        envelope.items().next().unwrap().span_count() as usize
+        envelope.items().next().unwrap().span_count().unwrap_or(0) as usize
     }
 
     #[tokio::test]
