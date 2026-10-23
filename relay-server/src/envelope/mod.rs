@@ -166,6 +166,11 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
+    /// Returns a mutable reference to the contained meta.
+    pub fn meta_mut(&mut self) -> &mut M {
+        &mut self.meta
+    }
+
     /// Returns the event ID of the envelope, if any.
     pub fn event_id(&self) -> Option<EventId> {
         self.event_id

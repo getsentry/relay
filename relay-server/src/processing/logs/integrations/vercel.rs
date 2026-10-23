@@ -1,12 +1,17 @@
 use relay_event_schema::protocol::OurLog;
+use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_ourlogs::VercelLog;
 
 use crate::integrations::VercelLogDrainFormat;
-use crate::processing::logs::{Error, Result, Settings};
+use crate::processing::logs::integrations::Error;
 use crate::services::outcome::DiscardReason;
 
 /// Expands Vercel logs into the [`OurLog`] format.
-pub fn expand<F>(format: VercelLogDrainFormat, payload: &[u8], mut produce: F) -> Result<Settings>
+pub fn expand<F>(
+    format: VercelLogDrainFormat,
+    payload: &[u8],
+    mut produce: F,
+) -> Result<IngestSettings, Error>
 where
     F: FnMut(OurLog),
 {
@@ -48,5 +53,8 @@ where
         return Err(Error::Invalid(DiscardReason::InvalidJson));
     }
 
-    Ok(Settings::default())
+    Ok(IngestSettings {
+        infer_user_agent: Some(InferUserAgent::Never),
+        infer_ip: Some(InferIp::Never),
+    })
 }

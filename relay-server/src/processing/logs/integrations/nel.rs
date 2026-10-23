@@ -1,13 +1,18 @@
 use relay_event_normalization::nel;
 use relay_event_schema::protocol::OurLog;
+use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_protocol::DeserializableAnnotated;
 
 use crate::envelope::EnvelopeHeaders;
-use crate::processing::logs::{Error, Result, Settings};
+use crate::processing::logs::integrations::Error;
 use crate::services::outcome::DiscardReason;
 
 /// Expands Nel logs into the [`OurLog`] format.
-pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, produce: F) -> Result<Settings>
+pub fn expand<F>(
+    payload: &[u8],
+    headers: &EnvelopeHeaders,
+    produce: F,
+) -> Result<IngestSettings, Error>
 where
     F: FnMut(OurLog),
 {
@@ -19,8 +24,8 @@ where
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
         .for_each(produce);
 
-    Ok(Settings {
-        infer_user_agent: true,
-        infer_ip: false,
+    Ok(IngestSettings {
+        infer_user_agent: Some(InferUserAgent::Auto),
+        infer_ip: Some(InferIp::Never),
     })
 }

@@ -8,9 +8,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
 use crate::extractors::RequestTrust;
 use crate::managed::Rejected;
-use crate::processing::logs::{
-    self, Error, ExpandedLogs, LogItems, Result, SerializedLogs, Settings,
-};
+use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs, Settings};
 use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
 
@@ -26,7 +24,7 @@ pub fn expand(
     logs.try_map(|logs, records| {
         let SerializedLogs {
             headers,
-            items,
+            log_container,
             invalid,
         } = logs;
 
@@ -38,22 +36,10 @@ pub fn expand(
         // Log byte counts will change here as we go from an estimated count based on the body, to
         // accurately counted bytes.
         records.lenient(DataCategory::LogByte);
-
-        let ingress = match &items {
-            LogItems::Container(_) => Ingress::Container,
-            LogItems::Integration(_) => Ingress::Integration,
-        };
-
-        let (settings, logs) = match items {
-            LogItems::Container(item) => expand_log_container(&item, trust, max_ops)?,
-            LogItems::Integration(item) => {
-                logs::integrations::expand(item, records, &headers).unwrap_or_default()
-            }
-        };
+        let (settings, logs) = expand_log_container(&log_container, trust, max_ops)?;
 
         Ok::<_, Error>(ExpandedLogs {
             headers,
-            ingress,
             settings,
             logs,
         })
@@ -66,12 +52,11 @@ pub fn expand(
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     let settings = logs.settings;
-    let ingress = logs.ingress.clone();
 
     logs.retain_with_context(
         |logs| (&mut logs.logs, &logs.headers),
         |log, headers, _| {
-            normalize_log(log, &ingress, headers, settings, ctx).inspect_err(|err| {
+            normalize_log(log, headers, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -168,7 +153,6 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 
 fn normalize_log(
     log: &mut Annotated<OurLog>,
-    ingress: &Ingress,
     headers: &EnvelopeHeaders,
     settings: Settings,
     ctx: Context<'_>,
@@ -194,7 +178,10 @@ fn normalize_log(
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
-        eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress), None);
+
+        // If the log arrived via an integration, the `ingress` attribute is already set. Therefore we can
+        // always use `Container` here.
+        eap::normalize_pipeline_attributes(&mut log.attributes, Some(&Ingress::Container), None);
     }
 
     if let Annotated(None, meta) = log {

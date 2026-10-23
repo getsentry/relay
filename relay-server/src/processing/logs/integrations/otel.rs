@@ -1,13 +1,18 @@
 use opentelemetry_proto::tonic::logs::v1::LogsData;
 use prost::Message as _;
 use relay_event_schema::protocol::OurLog;
+use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 
 use crate::integrations::OtelFormat;
-use crate::processing::logs::{Error, Result, Settings};
+use crate::processing::logs::integrations::Error;
 use crate::services::outcome::DiscardReason;
 
 /// Expands OTeL logs into the [`OurLog`] format.
-pub fn expand<F>(format: OtelFormat, payload: &[u8], mut produce: F) -> Result<Settings>
+pub fn expand<F>(
+    format: OtelFormat,
+    payload: &[u8],
+    mut produce: F,
+) -> Result<IngestSettings, Error>
 where
     F: FnMut(OurLog),
 {
@@ -24,7 +29,10 @@ where
         }
     }
 
-    Ok(Settings::default())
+    Ok(IngestSettings {
+        infer_user_agent: Some(InferUserAgent::Never),
+        infer_ip: Some(InferIp::Never),
+    })
 }
 
 fn parse_logs_data(format: OtelFormat, payload: &[u8]) -> Result<LogsData, Error> {
