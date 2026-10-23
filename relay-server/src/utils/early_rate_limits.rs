@@ -288,10 +288,7 @@ fn filter(
             | ItemType::FormData => {
                 apply_retention(records, RetentionAction::drop_on_rejection(event), [], item)
             }
-            ItemType::Sessions
-            | ItemType::MetricBuckets
-            | ItemType::ClientReport
-            | ItemType::Unknown(_) => true,
+            ItemType::MetricBuckets | ItemType::ClientReport | ItemType::Unknown(_) => true,
             ItemType::UserReport => apply_retention(
                 records,
                 RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_ref())),
@@ -310,7 +307,7 @@ fn filter(
                 [(DataCategory::Replay, 1)],
                 item,
             ),
-            ItemType::Session => apply_retention(
+            ItemType::Session | ItemType::Sessions => apply_retention(
                 records,
                 enforcement
                     .sessions

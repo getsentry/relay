@@ -771,27 +771,52 @@ fn test_enforce_skip_rate_limited_minidump() {
 
 #[test]
 fn test_enforce_pass_sessions() {
-    let envelope = envelope![Session, Session, Session];
+    let envelope = envelope![Session, Sessions, Session];
 
     let cached = cached_limits(&[DataCategory::Error]);
     let (envelope, limits, _) = enforce_and_apply(cached, envelope);
 
-    // If only crash report attachments are present, we don't emit a rate limit.
     assert!(!limits.is_limited());
     assert_eq!(envelope.len(), 3);
 }
 
 #[test]
 fn test_enforce_limit_sessions() {
-    let envelope = envelope![Session, Session, Event];
+    let envelope = envelope![Session, Sessions, Event];
 
     let cached = cached_limits(&[DataCategory::Session]);
     let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
 
-    // If only crash report attachments are present, we don't emit a rate limit.
     assert!(limits.is_limited());
     assert_eq!(envelope.len(), 1);
     assert!(outcomes.is_empty());
+}
+
+#[test]
+fn test_enforce_aggregate_sessions_without_updates() {
+    for limited in [false, true] {
+        let original = envelope![Sessions, Event];
+        let cached = cached_limits(if limited {
+            &[DataCategory::Session]
+        } else {
+            &[]
+        });
+        let (kept, limits, outcomes) = enforce_and_apply(cached, original);
+
+        let expected = if limited {
+            vec![ItemType::Event]
+        } else {
+            vec![ItemType::Sessions, ItemType::Event]
+        };
+        assert_eq!(
+            kept.items()
+                .map(|item| item.ty().clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(limits.is_limited(), limited);
+        assert!(outcomes.is_empty());
+    }
 }
 
 #[test]
