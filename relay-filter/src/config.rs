@@ -67,6 +67,16 @@ pub enum LegacyBrowser {
     Chrome,
     /// Apply to Edge
     Edge,
+    /// Apply to Chrome on Android and iOS, including Android WebViews.
+    ChromeMobile,
+    /// Apply to Safari on iOS, including WKWebViews.
+    SafariMobile,
+    /// Apply to Firefox on Android and iOS.
+    FirefoxMobile,
+    /// Apply to Edge on Android and iOS.
+    EdgeMobile,
+    /// Apply to Opera on Android and iOS.
+    OperaMobile,
     /// An unknown browser configuration for forward compatibility.
     Unknown(String),
 }
@@ -94,6 +104,11 @@ impl FromStr for LegacyBrowser {
             "firefox" => LegacyBrowser::Firefox,
             "chrome" => LegacyBrowser::Chrome,
             "edge" => LegacyBrowser::Edge,
+            "chrome_mobile" => LegacyBrowser::ChromeMobile,
+            "safari_mobile" => LegacyBrowser::SafariMobile,
+            "firefox_mobile" => LegacyBrowser::FirefoxMobile,
+            "edge_mobile" => LegacyBrowser::EdgeMobile,
+            "opera_mobile" => LegacyBrowser::OperaMobile,
             _ => LegacyBrowser::Unknown(s.to_owned()),
         };
         Ok(v)
@@ -134,6 +149,11 @@ impl Serialize for LegacyBrowser {
             LegacyBrowser::Firefox => "firefox",
             LegacyBrowser::Chrome => "chrome",
             LegacyBrowser::Edge => "edge",
+            LegacyBrowser::ChromeMobile => "chrome_mobile",
+            LegacyBrowser::SafariMobile => "safari_mobile",
+            LegacyBrowser::FirefoxMobile => "firefox_mobile",
+            LegacyBrowser::EdgeMobile => "edge_mobile",
+            LegacyBrowser::OperaMobile => "opera_mobile",
             LegacyBrowser::Unknown(string) => string,
         })
     }

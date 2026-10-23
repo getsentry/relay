@@ -55,6 +55,7 @@
 - Default unrecognized AI operations to `other` instead of `ai_client` when neither `gen_ai.request.model` nor `gen_ai.response.model` contains a string value. ([#6507](https://github.com/getsentry/relay/pull/6507))
 - Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
+- Add `chrome_mobile`, `safari_mobile`, `firefox_mobile`, `edge_mobile` and `opera_mobile` options to the legacy browser filter. The existing desktop options never matched mobile user agents. ([#6476](https://github.com/getsentry/relay/pull/6476))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 - Limit the number of deserialization ops on ItemContainer. ([#6429](https://github.com/getsentry/relay/pull/6429))
