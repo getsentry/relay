@@ -186,6 +186,7 @@ pub enum RuleType {
     /// A PEM encoded key
     Pemkey,
     /// Auth info from URLs
+    #[serde(alias = "urlauth")]
     UrlAuth,
     /// US SSN.
     UsSsn,
@@ -283,5 +284,19 @@ impl PiiConfig {
     #[inline]
     pub fn compiled_uncached(&self) -> CompiledPiiConfig {
         CompiledPiiConfig::new(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rule_type_aliases() {
+        let rule: RuleType = serde_json::from_str(r#"{"type": "urlauth"}"#).unwrap();
+        assert!(matches!(rule, RuleType::UrlAuth));
+
+        let rule: RuleType = serde_json::from_str(r#"{"type": "url_auth"}"#).unwrap();
+        assert!(matches!(rule, RuleType::UrlAuth));
     }
 }
