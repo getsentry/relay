@@ -7,9 +7,11 @@ use crate::statsd::ProfilingDistributions;
 pub mod chunk;
 pub mod legacy;
 
-const MAX_THREADS: usize = 10_000; // TBD
-const MAX_METHODS: usize = 100_000; // TBD
-const MAX_EVENTS: usize = 1_000_000; // TBD
+// These limits were determined by observing actual counts in production
+// and adding plenty of headroom:
+const MAX_THREADS: usize = 10_000;
+const MAX_METHODS: usize = 100_000;
+const MAX_EVENTS: usize = 1_000_000;
 
 /// Decodes an Android trace log with entity limits, recording its size by profile type.
 fn parse_trace_log(
