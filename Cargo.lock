@@ -88,7 +88,7 @@ dependencies = [
 [[package]]
 name = "android_trace_log"
 version = "0.3.0"
-source = "git+https://github.com/getsentry/android-trace-log?rev=d647745059649623ddf81ebf932f0d0012b6e06f#d647745059649623ddf81ebf932f0d0012b6e06f"
+source = "git+https://github.com/getsentry/android-trace-log?rev=40643d68a9af4bd88175f647656d2707e9e6e474#40643d68a9af4bd88175f647656d2707e9e6e474"
 dependencies = [
  "chrono",
  "log",
