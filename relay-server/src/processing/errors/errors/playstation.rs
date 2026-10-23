@@ -53,11 +53,11 @@ impl SentryError for Playstation {
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
-        let (event, minidump) = utils::if_not_processing!(ctx, {
+        let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
             let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
-            (event, None)
+            (event, None, vec![])
         } else {
-            use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
+            use crate::constants::{SENTRY_CRASH_PAYLOAD_KEY, SENTRY_SESSION_PAYLOAD_KEY};
             use crate::statsd::RelayCounters;
             use crate::utils::playstation;
 
@@ -103,6 +103,22 @@ impl SentryError for Playstation {
                 &prospero_dump,
             );
 
+            // The SDK embeds the session that the crash terminated as a ready-to-use session update.
+            // It is sent back into the pipeline to be processed like any other session update.
+            let session_updates: Vec<_> = prospero_dump
+                .userdata
+                .get(SENTRY_SESSION_PAYLOAD_KEY)
+                .map(|session| {
+                    let mut item = Item::new(ItemType::Session);
+                    item.set_payload(
+                        crate::envelope::ContentType::Json,
+                        session.as_bytes().to_owned(),
+                    );
+                    item
+                })
+                .into_iter()
+                .collect();
+
             let minidump = {
                 metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
                 let mut item = Item::new(ItemType::Attachment);
@@ -143,14 +159,14 @@ impl SentryError for Playstation {
                 })
             }
 
-            (Box::new(event), Some(minidump))
+            (Box::new(event), Some(minidump), session_updates)
         });
 
         Ok(Some(Expansion {
             event,
             attachments,
             user_reports,
-            intermediates: vec![],
+            intermediates: session_updates,
             error: Self {
                 prosperodump,
                 minidump,

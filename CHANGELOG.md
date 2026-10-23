@@ -7,18 +7,17 @@
 - Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
+- Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
 
 **Bug Fixes**:
 
+- Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
 
 **Internal**:
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
-
-**Internal**:
-
-- Add `processing.reloading_producer_topics`, which lets a topic replace its Kafka client when `processing.kafka_config` changes instead of requiring a restart. Empty by default. ([#6529](https://github.com/getsentry/relay/pull/6529))
+- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))
 
 ## 26.10.0
 
