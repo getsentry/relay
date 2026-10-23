@@ -5,6 +5,11 @@ updates:
     directory: "/"
     schedule:
       interval: daily
+    groups:
+      security: # see https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-security-updates#overriding-the-default-behavior-with-a-configuration-file
+        applies-to: security-updates
+        patterns:
+          - "*"
     reviewers:
       - "@getsentry/ingest"
 
