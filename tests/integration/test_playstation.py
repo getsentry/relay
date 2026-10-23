@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import datetime
 from time import sleep
 import pytest
@@ -198,7 +197,7 @@ def attachments(
             "attachment_type": "event.attachment",
             "size": log_size,
             "retention_days": 36500,
-            "chunks": 1,
+            "stored_id": matches_any(),
         },
         {
             "id": matches_any(),
@@ -208,7 +207,7 @@ def attachments(
             "attachment_type": "event.minidump",
             "size": generated_dump_size,
             "retention_days": 36500,
-            "chunks": 1,
+            "stored_id": matches_any(),
         },
         {
             "id": matches_any(),
@@ -218,7 +217,7 @@ def attachments(
             "attachment_type": "playstation.prosperodump",
             "size": playstation_dump_size,
             "retention_days": 36500,
-            "chunks": 1,
+            "stored_id": matches_any(),
         },
     ]
 
@@ -728,32 +727,23 @@ def test_playstation_upload_attachments(
         PROJECT_ID, playstation_dump, video_content
     )
 
-    chunks = defaultdict(bytes)
-    event = None
-    while not event:
-        _, msg = attachments_consumer.get_message()
-        if msg.get("type") == "attachment_chunk":
-            chunks[msg["id"]] += msg["payload"]
-        elif msg.get("type") == "event":
-            event = msg
-
     assert response.ok
     assert len(outcomes_consumer.get_outcomes()) == 0
 
-    # Attachment chunks (created from the envelope) don't contain the video attachment, but instead
-    # a location/reference to it in objectstore.
+    _, event = attachments_consumer.get_event()
+    objectstore_session = objectstore("attachments", PROJECT_ID)
+
     video_attachment = [
         a for a in event["attachments"] if a["name"] == "crash-video.webm"
     ][0]
     video_key = video_attachment["stored_id"]
-    objectstore_session = objectstore("attachments", PROJECT_ID)
     assert objectstore_session.get(video_key).payload.read() == video_content.encode()
 
-    # Prospero dump is located in attachment chunks.
     dump_attachment = [
         a for a in event["attachments"] if a["name"] == "playstation.prosperodmp"
     ][0]
-    assert chunks[dump_attachment["id"]] == playstation_dump
+    dump_key = dump_attachment["stored_id"]
+    assert objectstore_session.get(dump_key).payload.read() == playstation_dump
 
 
 def test_playstation_ignore_large_attachments_when_uploading_disabled(
@@ -909,7 +899,7 @@ def test_playstation_attachment_no_feature_flag(
             "attachment_type": "playstation.prosperodump",
             "size": 209385,
             "retention_days": 90,
-            "chunks": 1,
+            "stored_id": matches_any(),
         },
     )
 

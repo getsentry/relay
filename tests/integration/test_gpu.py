@@ -157,7 +157,7 @@ def test_gpu_crash_split_with_processing(
         files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG],
     )
 
-    # Both events reach processing; `get_event_only` skips the attachment chunks.
+    # Both events reach processing with references to their stored attachments.
     events = {}
     for _ in range(2):
         message, event = attachments_consumer.get_event_only()
