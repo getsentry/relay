@@ -80,7 +80,7 @@ impl ConfigReloadService {
 impl Service for ConfigReloadService {
     type Interface = ();
 
-    async fn run(mut self, rx: Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         // #[cfg(not(test))]
         // let mut shutdown_handle = relay_system::Controller::shutdown_handle();
 
@@ -91,9 +91,11 @@ impl Service for ConfigReloadService {
 
         relay_log::info!("watching for configuration changes every {interval:?}");
 
-        while rx.is_open() {
-            tokio::time::sleep(interval).await;
-            self.handle_reload().await;
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => self.handle_reload().await,
+                None = rx.recv() => break,
+            }
         }
     }
 }

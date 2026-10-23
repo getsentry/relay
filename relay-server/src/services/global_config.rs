@@ -377,11 +377,8 @@ impl Service for GlobalConfigService {
 
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                Some(message) = rx.recv() => self.handle_message(message),
-                // FIXME
-                // _ = shutdown_handle.notified() => self.handle_shutdown(),
-
-                else => break,
+                message = rx.recv() => {match message { Some(message) => self.handle_message(message), None => self.handle_shutdown() }},
+                else => break
             }
         }
         relay_log::info!("global config service stopped");
@@ -427,7 +424,6 @@ mod tests {
 
         assert!(service.send(Get).await.is_ok());
 
-        // Controller::shutdown(ShutdownMode::Immediate);
         tokio::time::sleep(fetch_interval * 2).await;
 
         assert!(service.send(Get).await.is_ok());

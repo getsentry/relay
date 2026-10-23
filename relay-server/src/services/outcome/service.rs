@@ -232,8 +232,10 @@ impl Service for ClientReportOutcomeProducerService {
                 biased;
 
                 () = &mut self.flush_handle => self.do_flush(),
-                Some(message) = rx.recv() => self.handle_message(message),
-                // _ = shutdown.notified() => self.handle_shutdown(), // FIXME
+                signal = rx.recv() => match signal {
+                    None => self.handle_shutdown(),
+                    Some(message) => self.handle_message(message),
+                },
 
                 else => break,
             }
