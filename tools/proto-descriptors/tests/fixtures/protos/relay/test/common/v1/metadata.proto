@@ -1,0 +1,15 @@
+// Imported by `tree.proto`; nothing here is reachable unless the descriptor set was built with
+// `--include_imports`.
+syntax = "proto3";
+
+package relay.test.common.v1;
+
+message Metadata {
+  string name = 1;
+  repeated Tag tags = 2;
+}
+
+message Tag {
+  string key = 1;
+  string value = 2;
+}
