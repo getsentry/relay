@@ -21,6 +21,7 @@ mod dynamic_sampling;
 )]
 mod errors;
 mod filter;
+mod flamegraph;
 mod process;
 
 pub use errors::SwitchProcessingError;
