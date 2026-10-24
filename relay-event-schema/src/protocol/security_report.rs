@@ -313,6 +313,17 @@ impl CspRaw {
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
+        // CSP Level 3 names the blocked script resource with the exact blocked-uri
+        // markers `inline` and `eval`. Other local URIs stay ambiguous:
+        // `'unsafe-inline'` and `'unsafe-eval'` are permissions.
+        if effective_directive == CspDirective::ScriptSrc {
+            match self.blocked_uri.as_str() {
+                "inline" => return "Blocked unsafe inline 'script'".to_owned(),
+                "eval" => return "Blocked unsafe eval() 'script'".to_owned(),
+                _ => {}
+            }
+        }
+
         if is_local(&self.blocked_uri) {
             match effective_directive {
                 CspDirective::ChildSrc => "Blocked inline 'child'".to_owned(),
@@ -327,15 +338,7 @@ impl CspRaw {
                 CspDirective::StyleSrc => "Blocked inline 'style'".to_owned(),
                 CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".to_owned(),
                 CspDirective::StyleSrcAttr => "Blocked style attribute".to_owned(),
-                CspDirective::ScriptSrc => {
-                    if self.violated_directive.contains("'unsafe-inline'") {
-                        "Blocked unsafe inline 'script'".to_owned()
-                    } else if self.violated_directive.contains("'unsafe-eval'") {
-                        "Blocked unsafe eval() 'script'".to_owned()
-                    } else {
-                        "Blocked unsafe (eval() or inline) 'script'".to_owned()
-                    }
-                }
+                CspDirective::ScriptSrc => "Blocked unsafe (eval() or inline) 'script'".to_owned(),
                 directive => format!("Blocked inline '{directive}'"),
             }
         } else {
@@ -1099,6 +1102,8 @@ mod tests {
 
     #[test]
     fn test_csp_get_message_2() {
+        // An empty blocked URI does not identify the blocked operation.
+        // `'unsafe-inline'` in the violated directive is only a permission.
         let json = r#"{
             "csp-report": {
                 "document-uri": "http://example.com/foo",
@@ -1111,11 +1116,13 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe inline 'script'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe (eval() or inline) 'script'""###);
     }
 
     #[test]
     fn test_csp_get_message_3() {
+        // An empty blocked URI does not identify the blocked operation.
+        // `'unsafe-eval'` in the violated directive is only a permission.
         let json = r#"{
             "csp-report": {
                 "document-uri": "http://example.com/foo",
@@ -1128,7 +1135,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe eval() 'script'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe (eval() or inline) 'script'""###);
     }
 
     #[test]
@@ -1226,6 +1233,436 @@ mod tests {
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
         insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'style' from 'notlocalhost:8000'""###);
+    }
+
+    const INLINE_MSG: &str = "Blocked unsafe inline 'script'";
+    const EVAL_MSG: &str = "Blocked unsafe eval() 'script'";
+    const AMBIGUOUS_MSG: &str = "Blocked unsafe (eval() or inline) 'script'";
+
+    /// Violated-directive values that name neither permission, either permission, or both.
+    const SCRIPT_SRC_POLICIES: [Option<&str>; 5] = [
+        None,
+        Some("script-src"),
+        Some("script-src 'unsafe-inline'"),
+        Some("script-src 'unsafe-eval'"),
+        Some("script-src 'unsafe-inline' 'unsafe-eval'"),
+    ];
+
+    #[derive(Clone, Copy, Debug)]
+    enum CspPayloadFormat {
+        /// Legacy `report-uri` payload with hyphenated keys.
+        Legacy,
+        /// Reporting API `csp-violation` payload with camelCase body fields.
+        ReportingApi,
+    }
+
+    fn apply_csp_payload(
+        format: CspPayloadFormat,
+        effective_directive: Option<&str>,
+        violated_directive: Option<&str>,
+        blocked_uri: Option<&str>,
+    ) -> Result<Event, serde_json::Error> {
+        let (effective_key, violated_key, blocked_key, document_key) = match format {
+            CspPayloadFormat::Legacy => (
+                "effective-directive",
+                "violated-directive",
+                "blocked-uri",
+                "document-uri",
+            ),
+            CspPayloadFormat::ReportingApi => (
+                "effectiveDirective",
+                "violatedDirective",
+                "blockedURL",
+                "documentURL",
+            ),
+        };
+
+        let mut report = serde_json::Map::new();
+        {
+            let mut insert = |key: &str, value: &str| {
+                report.insert(key.to_owned(), serde_json::Value::String(value.to_owned()));
+            };
+            insert(document_key, "http://example.com/foo");
+            if let Some(directive) = effective_directive {
+                insert(effective_key, directive);
+            }
+            if let Some(directive) = violated_directive {
+                insert(violated_key, directive);
+            }
+            if let Some(uri) = blocked_uri {
+                insert(blocked_key, uri);
+            }
+        }
+
+        let payload = match format {
+            CspPayloadFormat::Legacy => serde_json::json!({ "csp-report": report }),
+            CspPayloadFormat::ReportingApi => serde_json::json!({
+                "type": "csp-violation",
+                "age": 0,
+                "url": "http://example.com/foo",
+                "user_agent": "Mozilla/5.0",
+                "body": report
+            }),
+        };
+
+        let mut event = Event::default();
+        Csp::apply_to_event(&serde_json::to_vec(&payload)?, &mut event)?;
+        Ok(event)
+    }
+
+    #[track_caller]
+    fn assert_csp_outcome(
+        event: &Event,
+        message: &str,
+        blocked_uri: &str,
+        directive: &str,
+        context: &str,
+    ) {
+        let csp = event.csp.value();
+        assert_eq!(
+            event
+                .logentry
+                .value()
+                .and_then(|entry| entry.formatted.as_str()),
+            Some(message),
+            "{context}"
+        );
+        assert_eq!(
+            csp.and_then(|csp| csp.blocked_uri.as_str()),
+            Some(blocked_uri),
+            "{context}"
+        );
+        assert_eq!(
+            csp.and_then(|csp| csp.effective_directive.as_str()),
+            Some(directive),
+            "{context}"
+        );
+    }
+
+    #[test]
+    fn test_csp_script_src_blocked_uri_marker_selects_message() {
+        let markers = [("inline", INLINE_MSG), ("eval", EVAL_MSG)];
+
+        for report_format in [CspPayloadFormat::Legacy, CspPayloadFormat::ReportingApi] {
+            for (blocked_uri, message) in markers {
+                for violated in SCRIPT_SRC_POLICIES {
+                    let context = format!(
+                        "format={report_format:?} blocked_uri={blocked_uri:?} violated={violated:?}"
+                    );
+                    let event = apply_csp_payload(
+                        report_format,
+                        Some("script-src"),
+                        violated,
+                        Some(blocked_uri),
+                    )
+                    .unwrap_or_else(|error| panic!("{context}: {error}"));
+                    assert_csp_outcome(&event, message, blocked_uri, "script-src", &context);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_csp_script_src_local_blocked_uri_stays_ambiguous() {
+        // Explicit values, plus `None` for an omitted blocked URI. Omission defaults to "self".
+        let blocked_uris = [Some(""), Some("self"), Some("'self'"), None];
+
+        for report_format in [CspPayloadFormat::Legacy, CspPayloadFormat::ReportingApi] {
+            for blocked_uri in blocked_uris {
+                for violated in SCRIPT_SRC_POLICIES {
+                    let context = format!(
+                        "format={report_format:?} blocked_uri={blocked_uri:?} violated={violated:?}"
+                    );
+                    let event =
+                        apply_csp_payload(report_format, Some("script-src"), violated, blocked_uri)
+                            .unwrap_or_else(|error| panic!("{context}: {error}"));
+                    assert_csp_outcome(
+                        &event,
+                        AMBIGUOUS_MSG,
+                        blocked_uri.unwrap_or("self"),
+                        "script-src",
+                        &context,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_csp_apply_to_event_script_src_fallback_and_other_directives() {
+        struct Case {
+            effective: Option<&'static str>,
+            violated: Option<&'static str>,
+            blocked: Option<&'static str>,
+            message: &'static str,
+            raw_blocked_uri: &'static str,
+            directive: &'static str,
+        }
+
+        let cases = [
+            // Effective directive omitted: violated-directive selects script-src, and the
+            // blocked-uri marker still wins over the opposite permission keyword.
+            Case {
+                effective: None,
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("inline"),
+                message: INLINE_MSG,
+                raw_blocked_uri: "inline",
+                directive: "script-src",
+            },
+            Case {
+                effective: None,
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("eval"),
+                message: EVAL_MSG,
+                raw_blocked_uri: "eval",
+                directive: "script-src",
+            },
+            Case {
+                effective: None,
+                violated: Some("script-src example.com"),
+                blocked: Some(""),
+                message: AMBIGUOUS_MSG,
+                raw_blocked_uri: "",
+                directive: "script-src",
+            },
+            Case {
+                effective: None,
+                violated: Some("script-src 'unsafe-inline' 'unsafe-eval'"),
+                blocked: None,
+                message: AMBIGUOUS_MSG,
+                raw_blocked_uri: "self",
+                directive: "script-src",
+            },
+            Case {
+                effective: None,
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("'self'"),
+                message: AMBIGUOUS_MSG,
+                raw_blocked_uri: "'self'",
+                directive: "script-src",
+            },
+            // Unparseable effective-directive falls back to violated-directive.
+            Case {
+                effective: Some("not-a-directive"),
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("eval"),
+                message: EVAL_MSG,
+                raw_blocked_uri: "eval",
+                directive: "script-src",
+            },
+            // CSP2 may append the policy source list to effective-directive.
+            Case {
+                effective: Some("script-src 'unsafe-eval'"),
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("inline"),
+                message: INLINE_MSG,
+                raw_blocked_uri: "inline",
+                directive: "script-src",
+            },
+            // External and non-marker URIs keep normalized messages and the raw blocked URI.
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("https://cdn.example.com/app.js"),
+                message: "Blocked 'script' from 'cdn.example.com'",
+                raw_blocked_uri: "https://cdn.example.com/app.js",
+                directive: "script-src",
+            },
+            Case {
+                effective: None,
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("https://cdn.example.com/app.js"),
+                message: "Blocked 'script' from 'cdn.example.com'",
+                raw_blocked_uri: "https://cdn.example.com/app.js",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src"),
+                blocked: Some("https://cdn.example.com:8443/app.js"),
+                message: "Blocked 'script' from 'cdn.example.com:8443'",
+                raw_blocked_uri: "https://cdn.example.com:8443/app.js",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"),
+                message: "Blocked 'script' from 'data:'",
+                raw_blocked_uri: "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src"),
+                blocked: Some("data"),
+                message: "Blocked 'script' from 'data:'",
+                raw_blocked_uri: "data",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("https://example.com/eval"),
+                message: "Blocked 'script' from 'example.com'",
+                raw_blocked_uri: "https://example.com/eval",
+                directive: "script-src",
+            },
+            // Only the exact markers `inline` and `eval` select the specific messages.
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("INLINE"),
+                message: "Blocked 'script' from 'INLINE:'",
+                raw_blocked_uri: "INLINE",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-eval'"),
+                blocked: Some("eval:"),
+                message: "Blocked 'script' from 'eval:'",
+                raw_blocked_uri: "eval:",
+                directive: "script-src",
+            },
+            Case {
+                effective: Some("script-src"),
+                violated: Some("script-src 'unsafe-inline'"),
+                blocked: Some("inline "),
+                message: "Blocked 'script' from 'inline :'",
+                raw_blocked_uri: "inline ",
+                directive: "script-src",
+            },
+            // Other directives keep their own wording. `inline` and `eval` are ordinary URIs there.
+            Case {
+                effective: Some("style-src"),
+                violated: Some("style-src 'unsafe-inline'"),
+                blocked: Some(""),
+                message: "Blocked inline 'style'",
+                raw_blocked_uri: "",
+                directive: "style-src",
+            },
+            Case {
+                effective: Some("style-src"),
+                violated: Some("style-src 'unsafe-inline'"),
+                blocked: Some("inline"),
+                message: "Blocked 'style' from 'inline:'",
+                raw_blocked_uri: "inline",
+                directive: "style-src",
+            },
+            Case {
+                effective: Some("style-src-elem"),
+                violated: Some("style-src-elem"),
+                blocked: Some("http://fonts.google.com/foo"),
+                message: "Blocked 'style' from 'fonts.google.com'",
+                raw_blocked_uri: "http://fonts.google.com/foo",
+                directive: "style-src-elem",
+            },
+            Case {
+                effective: Some("style-src-elem"),
+                violated: Some("style-src-elem 'unsafe-inline'"),
+                blocked: Some("self"),
+                message: "Blocked 'style' or 'link' element",
+                raw_blocked_uri: "self",
+                directive: "style-src-elem",
+            },
+            Case {
+                effective: Some("style-src-attr"),
+                violated: Some("style-src-attr"),
+                blocked: Some(""),
+                message: "Blocked style attribute",
+                raw_blocked_uri: "",
+                directive: "style-src-attr",
+            },
+            Case {
+                effective: Some("script-src-elem"),
+                violated: Some("script-src-elem 'unsafe-inline'"),
+                blocked: Some("http://cdn.ajaxapis.com/foo"),
+                message: "Blocked 'script' from 'cdn.ajaxapis.com'",
+                raw_blocked_uri: "http://cdn.ajaxapis.com/foo",
+                directive: "script-src-elem",
+            },
+            Case {
+                effective: Some("script-src-elem"),
+                violated: Some("script-src-elem 'unsafe-inline'"),
+                blocked: Some("inline"),
+                message: "Blocked 'script' from 'inline:'",
+                raw_blocked_uri: "inline",
+                directive: "script-src-elem",
+            },
+            Case {
+                effective: Some("script-src-elem"),
+                violated: Some("script-src-elem 'unsafe-inline'"),
+                blocked: Some(""),
+                message: "Blocked inline script attribute",
+                raw_blocked_uri: "",
+                directive: "script-src-elem",
+            },
+            Case {
+                effective: Some("script-src-attr"),
+                violated: Some("script-src-attr 'unsafe-eval'"),
+                blocked: Some("eval"),
+                message: "Blocked inline script attribute from 'eval:'",
+                raw_blocked_uri: "eval",
+                directive: "script-src-attr",
+            },
+            Case {
+                effective: Some("script-src-attr"),
+                violated: Some("script-src-attr"),
+                blocked: Some("'self'"),
+                message: "Blocked unsafe 'script' element",
+                raw_blocked_uri: "'self'",
+                directive: "script-src-attr",
+            },
+        ];
+
+        for report_format in [CspPayloadFormat::Legacy, CspPayloadFormat::ReportingApi] {
+            for case in &cases {
+                let context = format!(
+                    "format={report_format:?} effective={:?} violated={:?} blocked={:?}",
+                    case.effective, case.violated, case.blocked
+                );
+                let event =
+                    apply_csp_payload(report_format, case.effective, case.violated, case.blocked)
+                        .unwrap_or_else(|error| panic!("{context}: {error}"));
+                assert_csp_outcome(
+                    &event,
+                    case.message,
+                    case.raw_blocked_uri,
+                    case.directive,
+                    &context,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_csp_apply_to_event_requires_a_known_directive() {
+        // An inline or eval marker does not imply script-src when both directive fields are
+        // missing or unparseable.
+        let cases = [
+            (None, None, Some("inline")),
+            (None, None, Some("eval")),
+            (None, Some(""), Some("inline")),
+            (None, Some("'unsafe-inline'"), Some("inline")),
+            (None, Some("'unsafe-eval'"), Some("eval")),
+            (Some("not-a-directive"), None, Some("inline")),
+            (Some("not-a-directive"), Some("also-not"), Some("eval")),
+            (Some(""), Some(""), Some("inline")),
+            (None, None, None),
+        ];
+
+        for report_format in [CspPayloadFormat::Legacy, CspPayloadFormat::ReportingApi] {
+            for (effective, violated, blocked) in cases {
+                let error = apply_csp_payload(report_format, effective, violated, blocked)
+                    .expect_err("missing directives must not produce a CSP event");
+                assert!(
+                    error.to_string().contains("invalid security report"),
+                    "format={report_format:?} effective={effective:?} violated={violated:?} blocked={blocked:?}: {error}"
+                );
+            }
+        }
     }
 
     #[test]
