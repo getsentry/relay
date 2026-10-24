@@ -2525,6 +2525,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::from([
                         (
                             "claude-2.1".parse().unwrap(),
@@ -2656,6 +2657,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::from([
                         (
                             "claude-2.1".parse().unwrap(),
@@ -2773,6 +2775,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::from([(
                         "claude-2.1".parse().unwrap(),
                         ModelMetadataEntry {
@@ -2848,6 +2851,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::from([
                         (
                             "claude-2.1".parse().unwrap(),
@@ -2947,6 +2951,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2991,6 +2996,7 @@ mod tests {
             &NormalizationConfig {
                 ai_model_metadata: Some(&ModelMetadata {
                     version: 1,
+                    providers: HashMap::new(),
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()

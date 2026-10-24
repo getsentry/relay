@@ -343,7 +343,8 @@ fn set_total_tokens(data: &mut SpanData) {
 fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetadata) {
     let model_id = data.get_str(GEN_AI__RESPONSE__MODEL);
 
-    let context_size = model_id.and_then(|id| model_metadata.context_size(id));
+    let provider = data.get_str(GEN_AI__PROVIDER__NAME);
+    let context_size = model_id.and_then(|id| model_metadata.context_size(id, provider));
 
     let Some(context_size) = context_size else {
         return;
@@ -394,7 +395,7 @@ fn extract_ai_data(
     // Extracts the total cost of the AI model used
     if let Some(model_id) = data.get_str(GEN_AI__RESPONSE__MODEL) {
         extract_ai_model_cost_data(
-            model_metadata.cost_per_token(model_id),
+            model_metadata.cost_per_token(model_id, data.get_str(GEN_AI__PROVIDER__NAME)),
             data,
             origin,
             platform,
@@ -1362,9 +1363,52 @@ mod tests {
         "#);
     }
 
+    #[test]
+    fn test_provider_specific_metadata() {
+        let mut metadata = metadata_with_context_size();
+        let mut provider_models = metadata.models.clone();
+        let entry = provider_models.get_mut("claude-2.1").unwrap();
+        entry.costs.as_mut().unwrap().input_per_token = 0.03;
+        entry.context_size = Some(200_000);
+        metadata
+            .providers
+            .insert("anthropic".to_owned(), provider_models);
+
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.provider.name": "anthropic",
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.input_tokens": 1000,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+        enrich_ai_span(&mut span, Some(&metadata));
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.get_value(GEN_AI__COST__TOTAL_TOKENS)
+                .and_then(Value::as_f64),
+            Some(30.0)
+        );
+        assert_eq!(
+            data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE)
+                .and_then(Value::as_f64),
+            Some(200_000.0)
+        );
+        assert_eq!(
+            data.get_value(GEN_AI__CONTEXT__UTILIZATION)
+                .and_then(Value::as_f64),
+            Some(0.005)
+        );
+    }
+
     fn metadata_with_context_size() -> ModelMetadata {
         ModelMetadata {
             version: 1,
+            providers: HashMap::new(),
             models: HashMap::from([(
                 "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
@@ -1416,6 +1460,7 @@ mod tests {
     fn test_context_utilization_no_context_size() {
         let metadata = ModelMetadata {
             version: 1,
+            providers: HashMap::new(),
             models: HashMap::from([(
                 "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
