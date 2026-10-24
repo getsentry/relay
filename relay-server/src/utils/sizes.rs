@@ -214,7 +214,6 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
         envelope.retain_items(|item| {
             if item.is_unknown() {
                 relay_log::debug!("dropping unknown item");
-                // Reject items silently, without outcomes.
                 records.reject_err(None, &*item);
                 false
             } else {
