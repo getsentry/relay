@@ -33,7 +33,12 @@ def test_mixed_attachments_with_processing(
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
-    options = {"processing": {"attachment_chunk_size": "100KB"}}
+    options = {
+        "processing": {
+            "attachment_chunk_size": "100KB",
+            "objectstore": {"objectstore_url": None},
+        }
+    }
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
@@ -132,9 +137,6 @@ def test_attachments_with_objectstore(
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.add_full_project_config(project_id)
 
     options = {
@@ -474,6 +476,7 @@ def test_attachments_quotas(
     relay_with_processing,
     attachments_consumer,
     outcomes_consumer,
+    objectstore,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
     attachment_body = b"blabla"
@@ -501,7 +504,11 @@ def test_attachments_quotas(
         )
         attachment = attachments_consumer.get_individual_attachment()
         assert attachment["attachment"]["name"] == "%s.txt" % i
-        assert attachment["attachment"]["data"] == attachment_body
+        stored_id = attachment["attachment"]["stored_id"]
+        assert (
+            objectstore("attachments", project_id).get(stored_id).payload.read()
+            == attachment_body
+        )
 
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
@@ -526,6 +533,7 @@ def test_attachments_quotas_items(
     relay_with_processing,
     attachments_consumer,
     outcomes_consumer,
+    objectstore,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
     attachment_body = b"blabla"
@@ -553,7 +561,11 @@ def test_attachments_quotas_items(
         )
         attachment = attachments_consumer.get_individual_attachment()
         assert attachment["attachment"]["name"] == "%s.txt" % i
-        assert attachment["attachment"]["data"] == attachment_body
+        stored_id = attachment["attachment"]["stored_id"]
+        assert (
+            objectstore("attachments", project_id).get(stored_id).payload.read()
+            == attachment_body
+        )
 
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
@@ -575,7 +587,11 @@ def test_attachments_quotas_items(
 
 
 def test_view_hierarchy_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+    objectstore,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -614,11 +630,17 @@ def test_view_hierarchy_processing(
             "attachment_type": "event.view_hierarchy",
             "size": len(expected_payload),
             "retention_days": 90,
-            "data": expected_payload,
+            "stored_id": matches_any(),
         },
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    stored_id = attachment["attachment"]["stored_id"]
+    assert (
+        objectstore("attachments", project_id).get(stored_id).payload.read()
+        == expected_payload
+    )
 
     outcomes_consumer.assert_empty()
 
@@ -630,6 +652,7 @@ def test_flamegraph_size_limit(
     events_consumer,
     attachments_consumer,
     outcomes_consumer,
+    objectstore,
     size,
 ):
     project_id = 42
@@ -685,12 +708,12 @@ def test_flamegraph_size_limit(
             },
         ]
     else:
-        chunk, _ = attachments.get_attachment_chunk()
-        assert json.loads(chunk) == graph
         event, message = attachments.get_event()
         assert event["event_id"] == event_id
         (attachment,) = message["attachments"]
         assert attachment["attachment_type"] == "event.flamegraph"
+        stored = objectstore("attachments", project_id).get(attachment["stored_id"])
+        assert json.loads(stored.payload.read()) == graph
         outcomes.assert_empty()
 
     attachments.assert_empty()
@@ -1029,17 +1052,16 @@ def test_event_with_attachment(
 
     mini_sentry.add_full_project_config(project_id)
 
-    if use_objectstore:
-        mini_sentry.global_config["options"][
-            "relay.objectstore-attachments.sample-rate"
-        ] = 1.0
+    relay_config = {}
+    if not use_objectstore:
+        relay_config = {"processing": {"objectstore": {"objectstore_url": None}}}
 
-    relay = relay_with_processing()
+    relay = relay_with_processing(options=relay_config)
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
     objectstore = objectstore("attachments", project_id)
 
-    # event attachments are always sent as chunks, and added to events
+    # Event attachments are referenced in the event's attachment metadata.
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_event({"message": "Hello, World!"})
     envelope.add_item(
@@ -1080,8 +1102,8 @@ def test_event_with_attachment(
         assert stored.metadata.filename == "event.txt"
         assert stored.metadata.content_type == "text/plain"
 
-    # transaction attachments are sent as individual attachments,
-    # either using chunks by default, or contents inlined
+    # Transaction attachments are sent as individual attachment messages,
+    # with an objectstore reference or inline contents for small Kafka attachments.
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_transaction(make_transaction({"event_id": event_id}))
     envelope.add_item(
@@ -1178,7 +1200,11 @@ def test_attachment_without_event_id(
 
 
 def test_form_data_is_rejected(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+    objectstore,
 ):
     """
     Test that form data entries (those without filenames) are rejected and generate outcomes.
@@ -1206,14 +1232,21 @@ def test_form_data_is_rejected(
         "attachment": {
             "name": "foo.txt",
             "rate_limited": False,
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(b"file content"),
             "retention_days": 90,
-            "data": b"file content",
+            "stored_id": matches_any(),
         },
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    stored_id = attachment["attachment"]["stored_id"]
+    assert (
+        objectstore("attachments", project_id).get(stored_id).payload.read()
+        == b"file content"
+    )
 
     # Verify no more attachments were processed
     attachments_consumer.assert_empty()

@@ -105,14 +105,12 @@ def test_variable_loaded_from_file_is_reloaded(mini_sentry, relay):
         time.sleep(0.5)
 
 
-def test_unknown_reloading_producer_topic_is_ignored(
+def test_removed_reloading_producer_topics_option_is_ignored(
     mini_sentry, relay_with_processing
 ):
     """
-    Names in `reloading_producer_topics` that are not topics must not stop Relay from starting.
-
-    The option names logical topics and is set per environment, so a name that is wrong, or
-    belongs to a topic a future Relay removed, has to be inert rather than fatal.
+    `reloading_producer_topics` was removed, but deployments still set it until their config
+    catches up. It must not stop Relay from starting.
     """
     relay = relay_with_processing(
         options={

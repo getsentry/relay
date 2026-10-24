@@ -27,7 +27,7 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{
-    ClientError, KafkaClient, KafkaTopic, Message, ReloadingTopic, SerializationOutput,
+    ClientError, KafkaClient, KafkaConfigSource, KafkaTopic, Message, SerializationOutput,
 };
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -101,30 +101,22 @@ impl Producer {
     pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
-        // Only needed by topics on the reloading producer, and building it walks every topic,
-        // so skip it entirely when no topic asked for one.
-        let blob = config
-            .has_reloading_producer_topics()
-            .then(|| config.kafka_config_blob())
-            .transpose()?;
+        let blob = config.kafka_config_blob()?;
+        let source = KafkaConfigSource {
+            blob: &blob,
+            app: KAFKA_CONFIG_APP,
+            jitter: config.reloading_producer_jitter(),
+        };
 
         for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
-            let reloading = blob
-                .as_ref()
-                .filter(|_| config.is_reloading_producer_topic(*topic))
-                .map(|blob| ReloadingTopic {
-                    blob,
-                    app: KAFKA_CONFIG_APP,
-                    jitter: config.reloading_producer_jitter(),
-                });
 
             client_builder = client_builder
                 .add_kafka_topic_config(
                     *topic,
                     &kafka_configs,
                     config.kafka_validate_topics(),
-                    reloading.as_ref(),
+                    &source,
                 )
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
