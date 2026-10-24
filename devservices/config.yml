@@ -24,35 +24,45 @@ x-sentry-service-config:
         mode: containerized
     relay:
       description: Service that pushes some functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
+    relay-siloed:
+      description: Relay for split-silo dev, where the region silo serves the upstream API.
   modes:
     default: [redis, kafka, objectstore]
     containerized: [redis, kafka, objectstore, relay]
+    containerized-siloed: [redis, kafka, objectstore, relay-siloed]
 
 x-programs:
   devserver:
     command: cargo run
 
+x-relay-base: &relay-base
+  image: ghcr.io/getsentry/relay:nightly
+  ports:
+    - 127.0.0.1:7899:7899
+  command: [run, --config, /etc/relay]
+  healthcheck:
+    test: ["CMD", "/bin/relay", "--config", "/etc/relay", "healthcheck", "--mode", "live"]
+    interval: 5s
+    timeout: 5s
+    retries: 3
+  volumes:
+    - ./config/relay.yml:/etc/relay/config.yml
+    - ./config/devservices-credentials.json:/etc/relay/credentials.json
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  networks:
+    - devservices
+  labels:
+    - orchestrator=devservices
+  restart: unless-stopped
+
 services:
   relay:
-    image: ghcr.io/getsentry/relay:nightly
-    ports:
-      - 127.0.0.1:7899:7899
-    command: [run, --config, /etc/relay]
-    healthcheck:
-      test: ["CMD", "/bin/relay", "--config", "/etc/relay", "healthcheck", "--mode", "live"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-    volumes:
-      - ./config/relay.yml:/etc/relay/config.yml
-      - ./config/devservices-credentials.json:/etc/relay/credentials.json
-    extra_hosts:
-      - host.docker.internal:host-gateway
-    networks:
-      - devservices
-    labels:
-      - orchestrator=devservices
-    restart: unless-stopped
+    <<: *relay-base
+  # relay.yml uses port 8001, but that port is the control silo in split-silo dev.
+  relay-siloed:
+    <<: *relay-base
+    command: [run, --config, /etc/relay, --upstream, "http://host.docker.internal:8010/"]
 
 networks:
   devservices:
