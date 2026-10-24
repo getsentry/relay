@@ -299,6 +299,11 @@ pub struct ModelMetadata {
     /// The mappings of model ID => metadata as a dictionary.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub models: HashMap<ModelPattern, ModelMetadataEntry>,
+
+    /// Provider-specific metadata, keyed by models.dev provider IDs.
+    /// Older configurations omit this and use the model-only table.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub providers: HashMap<String, HashMap<ModelPattern, ModelMetadataEntry>>,
 }
 
 impl ModelMetadata {
@@ -306,7 +311,8 @@ impl ModelMetadata {
 
     /// `true` if the model metadata is empty or the version is unsupported.
     pub fn is_empty(&self) -> bool {
-        self.models.is_empty() || !self.is_enabled()
+        (self.models.is_empty() && self.providers.values().all(HashMap::is_empty))
+            || !self.is_enabled()
     }
 
     /// `false` if the version is unsupported.
@@ -315,40 +321,62 @@ impl ModelMetadata {
     }
 
     /// Gets the cost per token for a given model, if defined.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
-        self.get(model_id).and_then(|entry| entry.costs.as_ref())
+    pub fn cost_per_token(&self, model_id: &str, provider: Option<&str>) -> Option<&ModelCostV2> {
+        self.get(model_id, provider)
+            .and_then(|entry| entry.costs.as_ref())
     }
 
     /// Gets the context window size for a given model, if defined.
     ///
     /// Returns `None` for a zero context size, as it is not a meaningful value.
-    pub fn context_size(&self, model_id: &str) -> Option<u64> {
-        self.get(model_id)
+    pub fn context_size(&self, model_id: &str, provider: Option<&str>) -> Option<u64> {
+        self.get(model_id, provider)
             .and_then(|entry| entry.context_size)
             .filter(|&size| size > 0)
     }
 
     /// Gets the metadata for a given model, if defined.
-    pub fn get(&self, model_id: &str) -> Option<&ModelMetadataEntry> {
+    ///
+    /// With provider tables available, never fall back to another provider's
+    /// prices. Retain the legacy lookup for old configs or provider-less spans.
+    pub fn get(&self, model_id: &str, provider: Option<&str>) -> Option<&ModelMetadataEntry> {
         if !self.is_enabled() {
             return None;
         }
 
+        let models = match provider.filter(|provider| !provider.is_empty()) {
+            Some(provider) if !self.providers.is_empty() => {
+                // Map OpenTelemetry provider names to models.dev catalog IDs.
+                let provider = match provider {
+                    "cloudflare.workers_ai" => "cloudflare-workers-ai",
+                    "gcp.gemini" => "google",
+                    "gcp.vertex_ai" => "google-vertex",
+                    "aws.bedrock" => "amazon-bedrock",
+                    "azure.ai.openai" => "azure",
+                    provider => provider,
+                };
+                self.providers.get(provider)?
+            }
+            _ => &self.models,
+        };
         let normalized_model_id = normalize_ai_model_name(model_id);
 
-        // First try exact match.
-        if let Some(value) = self.models.get(normalized_model_id) {
+        // Prefer full IDs, including snapshots, before normalized aliases.
+        if let Some(value) = models
+            .get(model_id)
+            .or_else(|| models.get(normalized_model_id))
+        {
             return Some(value);
         }
 
-        // Fall back to glob matching.
-        self.models.iter().find_map(|(key, value)| {
-            if key.is_match(normalized_model_id) {
-                Some(value)
-            } else {
-                None
-            }
-        })
+        // Prefer the most specific matching pattern, independent of map order.
+        models
+            .iter()
+            .filter(|(key, _)| key.is_match(normalized_model_id))
+            .max_by(|(a, _), (b, _)| {
+                (a.original.len(), &a.original).cmp(&(b.original.len(), &b.original))
+            })
+            .map(|(_, value)| value)
     }
 }
 
@@ -458,6 +486,100 @@ mod tests {
     use crate::{EventValidationConfig, GeoIpLookup, NormalizationConfig, normalize_event};
 
     use super::*;
+
+    #[test]
+    fn test_provider_metadata_lookup() {
+        let mut metadata: ModelMetadata = serde_json::from_value(json!({
+            "version": 1,
+            "models": {"clef": {"contextSize": 100}},
+            "providers": {
+                "cloudflare-workers-ai": {
+                    "clef": {"contextSize": 200},
+                    "clef-20240101": {"contextSize": 300},
+                    "*clef": {"contextSize": 200},
+                    "*author/clef": {"contextSize": 400}
+                },
+                "openrouter": {"cloudflare/clef": {"contextSize": 500}}
+            }
+        }))
+        .unwrap();
+        assert!(!metadata.is_empty());
+        for (provider, model, expected) in [
+            (Some("cloudflare.workers_ai"), "clef", Some(200)),
+            (Some("cloudflare-workers-ai"), "clef", Some(200)),
+            (Some("cloudflare.workers_ai"), "clef-20240101", Some(300)),
+            (Some("cloudflare.workers_ai"), "clef-20240202", Some(200)),
+            (
+                Some("cloudflare.workers_ai"),
+                "@cf/cloudflare/clef",
+                Some(200),
+            ),
+            (
+                Some("cloudflare.workers_ai"),
+                "prefix/author/clef",
+                Some(400),
+            ),
+            (Some("openrouter"), "cloudflare/clef", Some(500)),
+            (Some("unknown"), "clef", None),
+            (Some("openrouter"), "clef", None),
+            (Some("cloudflare.workers_ai"), "unknown", None),
+            (None, "clef", Some(100)),
+            (Some(""), "clef", Some(100)),
+        ] {
+            assert_eq!(
+                metadata.context_size(model, provider),
+                expected,
+                "{provider:?}: {model}"
+            );
+        }
+        metadata.models.clear();
+        assert!(!metadata.is_empty());
+        metadata.version = 2;
+        assert!(metadata.is_empty());
+        assert!(
+            metadata
+                .get("clef", Some("cloudflare.workers_ai"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_legacy_model_metadata() {
+        let metadata: ModelMetadata = serde_json::from_value(json!({
+            "version": 1,
+            "models": {"clef": {"contextSize": 100}}
+        }))
+        .unwrap();
+        assert_eq!(metadata.context_size("clef", None), Some(100));
+        assert_eq!(
+            metadata.context_size("clef", Some("cloudflare.workers_ai")),
+            Some(100)
+        );
+        assert!(
+            !serde_json::to_value(&metadata)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .contains_key("providers")
+        );
+    }
+
+    #[test]
+    fn test_provider_metadata_aliases() {
+        for (provider, catalog_id) in [
+            ("gcp.gemini", "google"),
+            ("gcp.vertex_ai", "google-vertex"),
+            ("aws.bedrock", "amazon-bedrock"),
+            ("azure.ai.openai", "azure"),
+        ] {
+            let metadata: ModelMetadata = serde_json::from_value(json!({
+                "version": 1,
+                "providers": {catalog_id: {"model": {"contextSize": 100}}}
+            }))
+            .unwrap();
+            assert_eq!(metadata.context_size("model", Some(provider)), Some(100));
+        }
+    }
 
     #[test]
     fn test_normalize_ai_model_name() {
