@@ -1,4 +1,7 @@
 import os
+import struct
+import zlib
+
 import pytest
 
 
@@ -297,3 +300,76 @@ def test_unreal_proxy_mode(mini_sentry, relay):
     item = envelope.items[0]
     assert item.headers.get("type") == "unreal_report"
     assert item.headers.get("content_type") == "application/octet-stream"
+
+
+def make_unreal_report(files):
+    """Builds a compressed Unreal crash report in the `CR1` format."""
+
+    def ansi_string(value):
+        data = value.encode() + b"\0"
+        return struct.pack("<I", len(data)) + data
+
+    entries = b"".join(
+        struct.pack("<i", index)
+        + ansi_string(name)
+        + struct.pack("<i", len(data))
+        + data
+        for index, (name, data) in enumerate(files)
+    )
+    header = ansi_string("CrashReport") + ansi_string("CrashReport")
+    header += struct.pack("<ii", len(entries), len(files))
+    return zlib.compress(b"CR1" + header + entries)
+
+
+LINUX_CRASH_CONTEXT = b"""<?xml version="1.0" encoding="UTF-8"?>
+<FGenericCrashContext>
+  <RuntimeProperties>
+    <IsEnsure>true</IsEnsure>
+    <CrashType>Ensure</CrashType>
+    <ErrorMessage>Ensure condition failed: false [File:../../Game/Source/Game/GameInstance.cpp] [Line: 112]</ErrorMessage>
+    <CallStack>Game-Linux-Test!UnknownFunction(0xb3a7401)
+libc.so.6!__libc_start_main(+0x8a)
+</CallStack>
+    <PCallStack>Game-Linux-Test 0x0000000000200000 + b3a7402 libc.so 0x00007f0b38200000 + 2a28b</PCallStack>
+  </RuntimeProperties>
+</FGenericCrashContext>
+"""
+
+
+def test_unreal_stacktrace_without_minidump_with_processing(
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
+):
+    project_id = 42
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+    objectstore("attachments", project_id)
+
+    mini_sentry.add_full_project_config(project_id)
+    unreal_content = make_unreal_report(
+        [("CrashContext.runtime-xml", LINUX_CRASH_CONTEXT)]
+    )
+
+    relay.send_unreal_request(project_id, unreal_content)
+
+    event_data, event = attachments_consumer.get_event()
+    assert [a["name"] for a in event["attachments"]] == ["CrashContext.runtime-xml"]
+
+    assert event_data["exception"]["values"] == [
+        {
+            "type": "Ensure",
+            "value": "Ensure condition failed: false [File:../../Game/Source/Game/GameInstance.cpp] [Line: 112]",
+            "stacktrace": {
+                "frames": [
+                    {
+                        "package": "libc.so.6",
+                        "instruction_addr": "0x7f0b3822a28b",
+                    },
+                    {
+                        "package": "Game-Linux-Test",
+                        "instruction_addr": "0xb5a7402",
+                    },
+                ]
+            },
+            "mechanism": {"type": "unreal", "handled": True},
+        }
+    ]
