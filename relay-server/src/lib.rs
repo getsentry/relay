@@ -321,7 +321,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 relay_log::debug!("all services have stopped");
             }
             _ = shutdown() => {
-                relay_log::warn!("shutdown interrupted");
+                relay_log::warn!("shutdown interrupted, data loss may occur");
                 std::process::exit(-1);
             }
         };

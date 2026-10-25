@@ -198,15 +198,12 @@ impl Service for HealthCheckService {
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + config.health_probe_timeout()).mul_f64(1.1);
 
-        relay_system::spawn!(async move {
-            while true {
-                // FIXME
-                let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
-                    timer(RelayTimers::HealthCheckDuration),
-                    type = "readiness",
-                    { self.check_readiness().await }
-                )));
-
+        let update_task = relay_system::spawn!(async move {
+            while let Ok(_) = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
+                timer(RelayTimers::HealthCheckDuration),
+                type = "readiness",
+                { self.check_readiness().await }
+            ))) {
                 tokio::time::sleep(check_interval).await;
             }
 
@@ -225,6 +222,9 @@ impl Service for HealthCheckService {
                 update.status
             });
         }
+
+        drop(update_rx); // close the watch channel
+        let _ = update_task.await;
     }
 }
 

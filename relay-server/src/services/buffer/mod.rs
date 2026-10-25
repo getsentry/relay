@@ -411,11 +411,8 @@ impl EnvelopeBufferService {
         config: &ConfigSnapshot,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-    ) -> Result<Option<Duration>, EnvelopeBufferError> {
-        let sleep = match dbg!(buffer.peek().await?) {
-            Peek::Done => {
-                return Ok(None);
-            }
+    ) -> Result<Duration, EnvelopeBufferError> {
+        let sleep = match buffer.peek().await? {
             Peek::Empty => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -488,7 +485,7 @@ impl EnvelopeBufferService {
             }
         };
 
-        Ok(Some(sleep))
+        Ok(sleep)
     }
 
     fn trigger_project_fetch(project_key_pair: ProjectKeyPair, services: &Services) {
@@ -656,7 +653,8 @@ impl Service for EnvelopeBufferService {
         }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
-        loop {
+        while buffer.expects_input() || !buffer.is_empty() {
+            relay_log::trace!("buffer service loop");
             relay_statsd::metric!(
                 counter(RelayCounters::BufferServiceLoopIteration) += 1,
                 partition_id = &partition_tag
@@ -671,12 +669,8 @@ impl Service for EnvelopeBufferService {
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
                     match dbg!(Self::try_pop(&partition_tag, &config, &mut buffer, &services).await) {
-                            Ok(Some(new_sleep)) => {
+                            Ok(new_sleep) => {
                                 sleep = new_sleep;
-                            }
-                            Ok(None) => {
-                                // The buffer will neither input nor output anything from this point.
-                                break;
                             }
                             Err(error) => {
                                 relay_log::error!(
@@ -699,7 +693,7 @@ impl Service for EnvelopeBufferService {
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                 }
-                signal = rx.recv() => {
+                signal = rx.recv(), if buffer.expects_input() => {
                     match signal {
                         Some(message) => {
                             Self::handle_message(&mut buffer, message, &services).await;
