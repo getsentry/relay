@@ -310,14 +310,24 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let state = ServiceState::start(&handle, &services, config.clone()).await?;
         services.start(HttpServer::new(config, state)?);
 
-        // The HTTP server awaits the shutdown signal, and will tear down everything
-        // once it's done.
-        services.join().await;
+        // Wait for first shutdown signal. This is redundant because the HTTP server also does it.
+        // Here we use it for accelarated shutdown.
+        let _ = shutdown().await?;
+
+        relay_log::debug!("Shutting down...");
+
+        tokio::select! {
+            _ = services.join() => {
+                relay_log::debug!("All services have stopped.");
+            }
+            _ = shutdown() => {
+                relay_log::warn!("Shutdown interrupted.");
+                std::process::exit(-1);
+            }
+        };
 
         anyhow::Ok(())
     })?;
-
-    drop(runtime);
 
     relay_log::info!("relay shutdown complete");
     Ok(())
