@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -77,14 +78,6 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.initialize().await,
             PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.initialize().await,
-        }
-    }
-
-    /// Whether the buffer has handled all new and buffered items.
-    pub fn expects_input(&self) -> bool {
-        match self {
-            Self::InMemory(buffer) => buffer.expects_input,
-            Self::Sqlite(buffer) => buffer.expects_input,
         }
     }
 
@@ -199,21 +192,16 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
-    pub async fn shutdown(&mut self) {
-        // Currently, we want to flush the buffer only for disk, since the in memory implementation
-        // tries to not do anything and pop as many elements as possible within the shutdown
-        // timeout.
+    ///
+    /// - In persistent disk mode, flush everything to disk and shut down.
+    /// - Otherwise, attempt to pop all envelopes and forward them to the processor.
+    pub async fn shutdown(&mut self) -> ControlFlow<()> {
         match self {
             Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
-                buffer.expects_input = false;
                 buffer.flush().await;
+                ControlFlow::Break(())
             }
-            Self::InMemory(buffer) => {
-                buffer.expects_input = false;
-            }
-            Self::Sqlite(buffer) => {
-                buffer.expects_input = false;
-            }
+            Self::InMemory(_) | Self::Sqlite(_) => ControlFlow::Continue(()),
         }
     }
 
@@ -280,9 +268,6 @@ struct EnvelopeBuffer<P: StackProvider> {
     total_count_initialized: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
-
-    /// Whether the buffer expects any new input.
-    expects_input: bool,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -296,7 +281,6 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
-            expects_input: true,
         }
     }
 }
@@ -317,7 +301,6 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
-            expects_input: true,
         })
     }
 }

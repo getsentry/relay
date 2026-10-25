@@ -2,6 +2,7 @@
 
 use std::error::Error;
 use std::num::{NonZeroU8, NonZeroU32};
+use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -653,7 +654,8 @@ impl Service for EnvelopeBufferService {
         }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
-        while buffer.expects_input() || !buffer.is_empty() {
+        let mut expects_input = true;
+        while expects_input || !buffer.is_empty() {
             relay_log::trace!("buffer service loop");
             relay_statsd::metric!(
                 counter(RelayCounters::BufferServiceLoopIteration) += 1,
@@ -668,7 +670,7 @@ impl Service for EnvelopeBufferService {
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    match dbg!(Self::try_pop(&partition_tag, &config, &mut buffer, &services).await) {
+                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -693,13 +695,17 @@ impl Service for EnvelopeBufferService {
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                 }
-                signal = rx.recv(), if buffer.expects_input() => {
+                signal = rx.recv() => {
                     match signal {
                         Some(message) => {
                             Self::handle_message(&mut buffer, message, &services).await;
                         }
                         None => {
-                            buffer.shutdown().await;
+                            expects_input = false;
+                            match buffer.shutdown().await {
+                                ControlFlow::Break(_) => break,
+                                ControlFlow::Continue(_) => {},
+                            }
                         }
                     }
                     sleep = Duration::ZERO;
