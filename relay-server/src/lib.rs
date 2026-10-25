@@ -314,20 +314,22 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         // Here we use it for accelarated shutdown.
         let _ = shutdown().await?;
 
-        relay_log::debug!("Shutting down...");
+        relay_log::debug!("shutting down...");
 
         tokio::select! {
             _ = services.join() => {
-                relay_log::debug!("All services have stopped.");
+                relay_log::debug!("all services have stopped");
             }
             _ = shutdown() => {
-                relay_log::warn!("Shutdown interrupted.");
+                relay_log::warn!("shutdown interrupted");
                 std::process::exit(-1);
             }
         };
 
         anyhow::Ok(())
     })?;
+
+    relay_log::debug!("dropping runtime");
 
     relay_log::info!("relay shutdown complete");
     Ok(())
