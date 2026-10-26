@@ -11,6 +11,7 @@ pub(crate) mod common;
 mod attachments;
 mod autoscaling;
 mod batch_metrics;
+mod browser_reports;
 mod envelope;
 mod forward;
 mod health_check;
@@ -98,6 +99,7 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .route("/api/{project_id}/security/", security_report::route(config))
         .route("/api/{project_id}/csp-report/", security_report::route(config))
         .route("/api/{project_id}/nel/", nel::route(config))
+        .route("/api/{project_id}/reports/", browser_reports::route(config))
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))

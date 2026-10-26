@@ -9,7 +9,9 @@ use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
+pub mod browser_report;
 pub mod contexts;
+pub mod csp;
 pub mod integrity;
 pub mod nel;
 pub mod request;

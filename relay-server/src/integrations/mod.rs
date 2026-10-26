@@ -38,6 +38,7 @@ macro_rules! define_integrations {
 }
 
 define_integrations!(
+    "application/vnd.sentry.integration.browser.reports+json" => Integration::Logs(LogsIntegration::BrowserReports),
     "application/vnd.sentry.integration.browser.nel+json" => Integration::Logs(LogsIntegration::Nel),
     "application/vnd.sentry.integration.browser.integrity+json" => Integration::Logs(LogsIntegration::Integrity),
     "application/vnd.sentry.integration.otel.logs+json" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Json }),
@@ -74,6 +75,10 @@ impl From<SpansIntegration> for Integration {
 /// All logging integrations supported by Relay.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LogsIntegration {
+    /// Browser reports sent through the Reporting API.
+    ///
+    /// Supports all report types, as well as legacy `report-uri` CSP reports.
+    BrowserReports,
     /// Browser Network Error Logging.
     Nel,
     /// Browser Integrity Policy

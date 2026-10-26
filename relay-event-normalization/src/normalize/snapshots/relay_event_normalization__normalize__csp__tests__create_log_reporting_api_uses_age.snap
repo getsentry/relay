@@ -1,0 +1,40 @@
+---
+source: relay-event-normalization/src/normalize/csp.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424000.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "warn",
+  "body": "Blocked style attribute from 'inline:'",
+  "attributes": {
+    "browser.report.type": {
+      "type": "string",
+      "value": "csp-violation"
+    },
+    "csp.blocked_uri": {
+      "type": "string",
+      "value": "inline"
+    },
+    "csp.disposition": {
+      "type": "string",
+      "value": "report"
+    },
+    "csp.effective_directive": {
+      "type": "string",
+      "value": "style-src-attr"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report.csp"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://example.com/page"
+    }
+  }
+}
