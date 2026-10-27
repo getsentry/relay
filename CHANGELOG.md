@@ -14,6 +14,7 @@
 
 **Internal**:
 
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore.
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
 
 **Internal**:

@@ -5,20 +5,23 @@
 //!
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
+use std::convert::Infallible;
 use std::io;
 
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, Path, Query};
+use axum::extract::{DefaultBodyLimit, Path, Query, Request};
+use axum::handler::Handler;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, NoContent, Response};
-use axum::routing::{MethodRouter, head as axum_head, patch, post};
+use axum::routing::{MethodRouter, head as axum_head, patch, patch_service, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{ConfigSnapshot, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, HttpCompression, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
+use tower::{ServiceBuilder, ServiceExt, service_fn};
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -33,8 +36,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, CreateResult, HeadResult, LocationKind, LocationQueryParams, ProjectContext,
-    Provisional, SignedLocation, StreamResult, UPLOAD_CHUNK_GRANULARITY, UploadMode,
+    self, CreateResult, HeadResult, LocationKind, LocationQueryParams, ProjectContext, Provisional,
+    SignedLocation, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -59,11 +62,53 @@ pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         .route_layer(tus::resumable_header_layer())
 }
 
-pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
-    patch(handle_patch)
-        .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
-        .route_layer(DefaultBodyLimit::disable())
-        .route_layer(tus::resumable_header_layer())
+pub fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
+    let config = service.config();
+    #[cfg(feature = "processing")]
+    let has_objectstore = service.objectstore().is_some();
+    #[cfg(not(feature = "processing"))]
+    let has_objectstore = false;
+
+    // Match the upload backend selected at startup. If backend switching becomes dynamic,
+    // rebuild this route too: the decoded handler relies on its decompression layer.
+    let middleware = ServiceBuilder::new()
+        .layer(crate::middlewares::cors())
+        .layer(tus::resumable_header_layer())
+        .layer(DefaultBodyLimit::disable());
+    let max_upload_size = config.max_upload_size();
+    if has_objectstore {
+        patch(handle_patch_decoded)
+            .route_layer(RequestBodyLimitLayer::new(max_upload_size))
+            .route_layer(middleware)
+            .layer(axum::middleware::from_fn(crate::middlewares::decompress))
+    } else {
+        let state = service.clone();
+        patch_service(service_fn(move |request: Request| {
+            let state = state.clone();
+            let middleware = middleware.clone();
+            async move {
+                // Match the decoder's rejection order, before limits, auth, CORS, and TUS.
+                let compression = match upload_compression(request.headers()) {
+                    Ok(compression) => compression,
+                    Err(error) => return Ok::<_, Infallible>(error.into_response()),
+                };
+                let handler = move |state, meta, headers, path, params, body| {
+                    handle_patch(state, meta, headers, path, params, body, compression)
+                };
+                let limit = match compression {
+                    None => max_upload_size,
+                    // A decoded-size limit must not reject larger compressed representations.
+                    Some(_) => usize::MAX,
+                };
+                middleware
+                    .map_response(IntoResponse::into_response)
+                    .layer(RequestBodyLimitLayer::new(limit))
+                    .service(handler.with_state(state))
+                    .oneshot(request)
+                    .await
+            }
+        }))
+    }
 }
 
 pub fn route_head() -> MethodRouter<ServiceState> {
@@ -271,9 +316,50 @@ async fn handle_post(
     Ok(response)
 }
 
+/// Uploads decoded bytes. Installed only behind decompression middleware.
+async fn handle_patch_decoded(
+    state: ServiceState,
+    meta: RequestMeta,
+    headers: HeaderMap,
+    path: Path<upload::LocationPath>,
+    params: Query<LocationQueryParams>,
+    body: Body,
+) -> axum::response::Result<Response> {
+    handle_patch(state, meta, headers, path, params, body, None).await
+}
+
+/// The same unsupported-encoding response as the request decompressor.
+struct UnsupportedUploadEncoding;
+
+impl IntoResponse for UnsupportedUploadEncoding {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            [(header::ACCEPT_ENCODING, "zstd,gzip,deflate,br")],
+        )
+            .into_response()
+    }
+}
+
+fn upload_compression(
+    headers: &HeaderMap,
+) -> Result<Option<HttpCompression>, UnsupportedUploadEncoding> {
+    let Some(value) = headers.get(header::CONTENT_ENCODING) else {
+        return Ok(None);
+    };
+    let encoding = value
+        .to_str()
+        .ok()
+        .and_then(HttpEncoding::parse_strict)
+        .ok_or(UnsupportedUploadEncoding)?;
+    Ok(HttpCompression::from_encoding(encoding))
+}
+
 /// Handles TUS PATCH requests that upload data to an existing location.
 ///
 /// See <https://tus.io/protocols/resumable-upload#patch>.
+///
+/// Shared validation and dispatch. The selected handler supplies the body representation.
 async fn handle_patch(
     state: ServiceState,
     meta: RequestMeta,
@@ -281,7 +367,8 @@ async fn handle_patch(
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(location_params): Query<LocationQueryParams>,
     body: Body,
-) -> axum::response::Result<impl IntoResponse> {
+    compression: Option<HttpCompression>,
+) -> axum::response::Result<Response> {
     let LocationQueryParams {
         upload_length,
         upload_id,
@@ -311,18 +398,38 @@ async fn handle_patch(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
+    // Measure stream latency before any outgoing compression.
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_mode {
-        UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
-        // If the client provided the length at creation use it to enforce the size.
-        UploadMode::Oneshot { length: Some(l) } => (l, l),
-        UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
+    let (lower, upper) = match compression {
+        // Only the objectstore Relay can validate the decoded length. Compressed bytes may
+        // exceed max_upload_size even when their decoded representation fits.
+        Some(_) => (0, usize::MAX),
+        None => match upload_mode {
+            UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+            UploadMode::Oneshot {
+                length: Some(length),
+            } => (length, length),
+            UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
+        },
     };
-    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
+    // Count wire bytes when forwarding, decoded bytes for objectstore.
+    let stream = BoundedStream::new(stream, lower, upper);
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, upload_mode, stream).await;
+    let result = state
+        .upload()
+        .send(upload::Stream {
+            received: Utc::now(),
+            project: project_context,
+            location,
+            stream,
+            compression,
+            mode: upload_mode,
+        })
+        .await
+        .map_err(Error::from)
+        .and_then(|result| result.map_err(Error::from));
     let result = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -446,27 +553,6 @@ async fn create(
         .await??;
 
     Ok(result)
-}
-
-async fn upload(
-    state: &ServiceState,
-    project: ProjectContext,
-    location: SignedLocation<Provisional>,
-    mode: UploadMode,
-    stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<StreamResult, Error> {
-    let location = state
-        .upload()
-        .send(upload::Stream {
-            received: Utc::now(),
-            project,
-            location,
-            stream,
-            mode,
-        })
-        .await??;
-
-    Ok(location)
 }
 
 async fn head(
@@ -636,4 +722,269 @@ fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
             io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use crate::middlewares::{decompress, remove_empty_encoding};
+    use crate::services::upload::UPLOAD_PATCH_PATH;
+    use axum::Router;
+    use axum::body::to_bytes;
+    use axum::extract::Request;
+    use axum::http::{HeaderMap, Method, StatusCode};
+    use axum::routing::{any, patch, post};
+    use bytes::Bytes;
+    use tower::ServiceBuilder;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    const UPLOAD: &str = "/api/42/upload/key/";
+    const ENVELOPE: &str = "/api/42/envelope/";
+    const DATA: &[u8] = b"hello world";
+
+    fn app(has_objectstore: bool) -> Router {
+        async fn echo(request: Request) -> Result<(HeaderMap, Bytes), StatusCode> {
+            let (parts, body) = request.into_parts();
+            let bytes = to_bytes(body, 1024)
+                .await
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            Ok((parts.headers, bytes))
+        }
+
+        let middleware = ServiceBuilder::new()
+            .layer(crate::middlewares::cors())
+            .layer(tus::resumable_header_layer());
+        let upload = if has_objectstore {
+            patch(echo)
+                .route_layer(RequestBodyLimitLayer::new(DATA.len()))
+                .route_layer(middleware)
+                .layer(axum::middleware::from_fn(decompress))
+        } else {
+            patch_service(service_fn(move |request: Request| {
+                let middleware = middleware.clone();
+                async move {
+                    match upload_compression(request.headers()) {
+                        Ok(compression) => {
+                            middleware
+                                .map_response(IntoResponse::into_response)
+                                .layer(RequestBodyLimitLayer::new(match compression {
+                                    None => DATA.len(),
+                                    Some(_) => usize::MAX,
+                                }))
+                                .service(echo.with_state(()))
+                                .oneshot(request)
+                                .await
+                        }
+                        Err(error) => Ok::<_, Infallible>(error.into_response()),
+                    }
+                }
+            }))
+        };
+        let decoded_routes = Router::new()
+            .route(UPLOAD_PATCH_PATH, post(echo))
+            .route("/api/{project_id}/envelope/", any(echo))
+            .layer(axum::middleware::from_fn(decompress));
+        Router::new()
+            .route(UPLOAD_PATCH_PATH, upload)
+            .merge(decoded_routes)
+            .layer(ServiceBuilder::new().map_request(remove_empty_encoding))
+    }
+
+    fn compress(encoding: &str) -> Vec<u8> {
+        match encoding {
+            "zstd" => zstd::encode_all(DATA, 0).unwrap(),
+            "gzip" => {
+                let mut encoder = flate2::write::GzEncoder::new(Vec::new(), Default::default());
+                encoder.write_all(DATA).unwrap();
+                encoder.finish().unwrap()
+            }
+            "deflate" => {
+                let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), Default::default());
+                encoder.write_all(DATA).unwrap();
+                encoder.finish().unwrap()
+            }
+            "br" => {
+                let mut data = Vec::new();
+                {
+                    let mut encoder = brotli::CompressorWriter::new(&mut data, 4096, 5, 22);
+                    encoder.write_all(DATA).unwrap();
+                }
+                data
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn only_forwarding_upload_patches_bypass_decompression() {
+        for encoding in ["zstd", "gzip", "deflate", "br"] {
+            let compressed = compress(encoding);
+            for (has_objectstore, method, path, expected_encoding, expected_body) in [
+                (
+                    false,
+                    Method::PATCH,
+                    UPLOAD,
+                    Some(encoding),
+                    compressed.as_slice(),
+                ),
+                (true, Method::PATCH, UPLOAD, None, DATA),
+                (false, Method::POST, UPLOAD, None, DATA),
+                (false, Method::PATCH, ENVELOPE, None, DATA),
+            ] {
+                let case = format!("{encoding}, objectstore={has_objectstore}, {method} {path}");
+                let response = app(has_objectstore)
+                    .oneshot(
+                        Request::builder()
+                            .method(method)
+                            .uri(path)
+                            .header(header::CONTENT_ENCODING, encoding)
+                            .header(header::CONTENT_LENGTH, compressed.len())
+                            .body(Body::from(compressed.clone()))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK, "{case}");
+                assert_eq!(
+                    response
+                        .headers()
+                        .get(header::CONTENT_ENCODING)
+                        .map(|v| v.to_str().unwrap()),
+                    expected_encoding,
+                    "{case}",
+                );
+                assert_eq!(
+                    response.headers()[header::CONTENT_LENGTH],
+                    expected_body.len().to_string(),
+                    "{case}",
+                );
+                let body = to_bytes(response.into_body(), 1024).await.unwrap();
+                assert_eq!(body.as_ref(), expected_body, "{case}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn unsupported_and_compatibility_encodings() {
+        for (encoding, expected_status, expected_body) in [
+            ("", StatusCode::OK, DATA),
+            ("UTF-8", StatusCode::OK, DATA),
+            ("identity", StatusCode::OK, DATA),
+            ("unknown", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+            ("x-gzip", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+            ("GZIP", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+            (" gzip ", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+            ("zstd, gzip", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+        ] {
+            let request = || {
+                Request::builder()
+                    .method(Method::PATCH)
+                    .uri(UPLOAD)
+                    .header(header::CONTENT_ENCODING, encoding)
+                    .body(Body::from(DATA))
+                    .unwrap()
+            };
+            // Compare with Tower's real response so its advertised codecs cannot drift.
+            let reference = app(true).oneshot(request()).await.unwrap();
+            let response = app(false).oneshot(request()).await.unwrap();
+            assert_eq!(response.headers(), reference.headers(), "{encoding}");
+            for response in [reference, response] {
+                assert_eq!(response.status(), expected_status, "{encoding}");
+                assert_eq!(
+                    to_bytes(response.into_body(), 1024).await.unwrap(),
+                    expected_body,
+                    "{encoding}",
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn unsupported_encoding_precedes_limits_and_response_layers() {
+        for has_objectstore in [false, true] {
+            let response = app(has_objectstore)
+                .oneshot(
+                    Request::builder()
+                        .method(Method::PATCH)
+                        .uri(UPLOAD)
+                        .header(header::CONTENT_ENCODING, "unknown")
+                        .header(header::CONTENT_LENGTH, "2048")
+                        .header(header::ORIGIN, "https://example.com")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+            assert_eq!(
+                response.headers()[header::ACCEPT_ENCODING],
+                "zstd,gzip,deflate,br"
+            );
+            assert!(!response.headers().contains_key("tus-resumable"));
+            assert!(
+                !response
+                    .headers()
+                    .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            );
+            assert!(
+                to_bytes(response.into_body(), 1024)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn unsupported_methods_keep_encoding_validation() {
+        for has_objectstore in [false, true] {
+            for method in [Method::DELETE, Method::OPTIONS] {
+                let response = app(has_objectstore)
+                    .oneshot(
+                        Request::builder()
+                            .method(method)
+                            .uri(UPLOAD)
+                            .header(header::CONTENT_ENCODING, "unknown")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+                assert_eq!(
+                    response.headers()[header::ACCEPT_ENCODING],
+                    "zstd,gzip,deflate,br"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_upload_is_validated_before_objectstore() {
+        for data in [b"invalid zstd".to_vec(), compress("zstd")[..8].to_vec()] {
+            for (has_objectstore, expected_status) in
+                [(false, StatusCode::OK), (true, StatusCode::BAD_REQUEST)]
+            {
+                let response = app(has_objectstore)
+                    .oneshot(
+                        Request::builder()
+                            .method(Method::PATCH)
+                            .uri(UPLOAD)
+                            .header(header::CONTENT_ENCODING, "zstd")
+                            .body(Body::from(data.clone()))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    response.status(),
+                    expected_status,
+                    "objectstore={has_objectstore}, data={data:?}"
+                );
+            }
+        }
+    }
 }

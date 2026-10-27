@@ -5,6 +5,7 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import timedelta
 from urllib.parse import urlparse
 
@@ -12,6 +13,7 @@ from flask import Response, request
 import pytest
 
 from sentry_relay.auth import SecretKey
+from sentry_sdk.envelope import Envelope
 from objectstore_client.metadata import TimeToLive
 
 from .consts import (
@@ -20,6 +22,7 @@ from .consts import (
     DUMMY_UPLOAD_LOCATION,
 )
 from .consts import Outcome
+from .test_attachment_ref import make_ref_item
 from .tus import (
     FIRST_CHUNK,
     RESUMABLE_DATA,
@@ -1407,3 +1410,306 @@ def test_head_session_unavailable(mini_sentry, relay_with_processing, project_co
     assert response.status_code == 404
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert "Upload-Offset" not in response.headers
+
+
+@dataclass(frozen=True, kw_only=True)
+class EncodingRequestCase:
+    id: str
+    location: str
+    max_upload_size: int
+
+
+@pytest.mark.parametrize("encoding", ["unknown", "x-gzip", "zstd, gzip"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        EncodingRequestCase(
+            id="valid-request",
+            location=f"{DUMMY_UPLOAD_LOCATION}&sentry_key={{project_key}}",
+            max_upload_size=1024,
+        ),
+        EncodingRequestCase(
+            id="invalid-request",
+            location="/api/not-a-project/upload/key/",
+            max_upload_size=1,
+        ),
+    ],
+    ids=lambda case: case.id,
+)
+def test_unsupported_upload_encoding_contract(
+    mini_sentry, relay, project_config, encoding, case: EncodingRequestCase
+):
+    edge = relay(
+        mini_sentry,
+        options={"limits": {"max_upload_size": case.max_upload_size}},
+    )
+    # Encoding rejection must precede auth, path extraction, and the body limit.
+    response = edge.patch(
+        case.location.format(project_key=mini_sentry.get_dsn_public_key(42)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Upload-Offset": "0",
+            "X-Decoded-Content-Length": "11",
+            "Content-Encoding": encoding,
+            "Origin": "https://example.com",
+        },
+        data=b"hello world",
+    )
+    assert response.status_code == 415
+    assert response.headers["Accept-Encoding"] == "zstd,gzip,deflate,br"
+    assert response.content == b""
+    assert "Tus-Resumable" not in response.headers
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+@pytest.mark.parametrize("chunked", [False, True])
+@pytest.mark.parametrize("processing", [False, True])
+def test_compressed_upload_passthrough(
+    mini_sentry,
+    relay,
+    processing_config,
+    project_config,
+    events_consumer,
+    encoding,
+    chunked,
+    processing,
+):
+    """Forwarding preserves the encoded bytes even when they exceed the decoded length."""
+    mini_sentry.allow_chunked = True
+    data = b"hello world"
+    compressed = compress_upload(data, encoding)
+    assert len(compressed) > len(data)
+    received = []
+
+    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
+    def upload(**opts):
+        received.append((dict(request.headers), request.get_data()))
+        return Response(
+            "",
+            status=204,
+            headers={
+                "Location": DUMMY_UPLOAD_LOCATION,
+                "Upload-Offset": str(len(data)),
+            },
+        )
+
+    # Neither hop's configured output encoding may replace the incoming encoding.
+    options = {
+        "http": {"encoding": "zstd"},
+        "limits": {"max_upload_size": len(data)},
+    }
+    if processing:
+        # Processing alone must not trigger decoding: this Relay still forwards uploads.
+        options["processing"] = {"objectstore": {"objectstore_url": None}}
+        options = processing_config(options)
+        receive_event = events_consumer().get_event
+    else:
+        receive_event = mini_sentry.get_captured_envelope
+    upstream = relay(mini_sentry, options=options)
+    edge = relay(
+        upstream,
+        options={
+            "http": {"encoding": "gzip"},
+            "limits": {"max_upload_size": len(data)},
+        },
+    )
+    # An accepted event confirms that both hops have loaded global/project config.
+    edge.send_event(42)
+    receive_event()
+
+    response = edge.patch(
+        f"{DUMMY_UPLOAD_LOCATION}&sentry_key={mini_sentry.get_dsn_public_key(42)}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Content-Encoding": encoding,
+            "X-Decoded-Content-Length": str(len(data)),
+            "Upload-Offset": "0",
+        },
+        data=iter([compressed[:5], compressed[5:]]) if chunked else compressed,
+    )
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(len(data))
+    assert len(received) == 1
+    headers, body = received[0]
+    assert body == compressed
+    assert headers["Content-Encoding"] == encoding
+    assert headers["X-Decoded-Content-Length"] == str(len(data))
+    assert headers["Upload-Offset"] == "0"
+
+
+def compress_upload(data, encoding):
+    import gzip
+    import zlib
+    import zstandard
+
+    return {
+        "zstd": zstandard.ZstdCompressor(write_checksum=True).compress,
+        "gzip": gzip.compress,
+        "deflate": zlib.compress,
+    }[encoding](data)
+
+
+@dataclass(frozen=True, kw_only=True)
+class UploadCase:
+    id: str
+    upload_features: list[str]
+    creation_headers: dict[str, str]
+    chunks: list[tuple[bytes, int]]
+
+
+@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        UploadCase(
+            id="resumable",
+            upload_features=["projects:resumable-uploads"],
+            creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
+            chunks=[
+                (FIRST_CHUNK, len(FIRST_CHUNK)),
+                (SECOND_CHUNK, len(RESUMABLE_DATA)),
+            ],
+        ),
+        UploadCase(
+            id="oneshot",
+            upload_features=[],
+            creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
+            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+        ),
+        UploadCase(
+            id="deferred",
+            upload_features=["projects:resumable-uploads"],
+            creation_headers={"Upload-Defer-Length": "1"},
+            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+        ),
+    ],
+    ids=lambda case: case.id,
+)
+def test_compressed_upload_processing_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    attachments_consumer,
+    outcomes_consumer,
+    objectstore,
+    encoding,
+    case: UploadCase,
+):
+    """Forwarding, decoded offsets, stored content, and attachment-byte accounting."""
+    project_key = mini_sentry.get_dsn_public_key(42)
+    project_config["quotas"] = [
+        {
+            "id": uuid.uuid4().hex,
+            "categories": ["attachment"],
+            "window": 3600,
+            "limit": len(RESUMABLE_DATA),
+            "reasonCode": "compressed_upload_bytes",
+        }
+    ]
+    project_config["features"] = [
+        "projects:relay-minidump-uploads",
+        *case.upload_features,
+    ]
+    edge = relay(relay(relay_with_processing()))
+    consumer = events_consumer()
+    attachments = attachments_consumer()
+    outcomes = outcomes_consumer()
+    edge.send_event(42)
+    consumer.get_event()
+
+    create = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", **case.creation_headers},
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    offset = 0
+    for chunk, expected_offset in case.chunks:
+        response = patch_chunk(
+            edge,
+            location,
+            project_key,
+            compress_upload(chunk, encoding),
+            offset,
+            headers={
+                "Content-Encoding": encoding,
+                "X-Decoded-Content-Length": str(len(chunk)),
+            },
+        )
+        assert response.status_code == 204, response.text
+        assert response.headers["Upload-Offset"] == str(expected_offset)
+        offset = expected_offset
+        location = response.headers["Location"]
+
+    key = urlparse(location).path.rstrip("/").split("/")[-1]
+    assert objectstore("attachments", 42).get(key).payload.read() == RESUMABLE_DATA
+    progress = head_upload(edge, location, project_key)
+    assert progress.status_code == 204, progress.text
+    assert progress.headers["Upload-Offset"] == str(len(RESUMABLE_DATA))
+
+    # The signed location must validate against the decoded attachment length.
+    envelope = Envelope(headers={"event_id": uuid.uuid4().hex})
+    envelope.add_item(make_ref_item(location, len(RESUMABLE_DATA)))
+    edge.send_envelope(42, envelope)
+    attachment = attachments.get_individual_attachment()["attachment"]
+    assert attachment["size"] == len(RESUMABLE_DATA)
+
+    # One decoded attachment exactly fills the byte quota, regardless of wire size.
+    edge.send_envelope(42, envelope)
+    outcomes.assert_rate_limited(
+        "compressed_upload_bytes",
+        categories={"attachment": len(RESUMABLE_DATA), "attachment_item": 1},
+    )
+
+
+@dataclass(frozen=True, kw_only=True)
+class InvalidUploadCase:
+    id: str
+    data: bytes
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        InvalidUploadCase(id="malformed", data=b"not a zstd stream"),
+        InvalidUploadCase(
+            id="truncated", data=compress_upload(b"hello world", "zstd")[:8]
+        ),
+        InvalidUploadCase(id="short", data=compress_upload(b"hello", "zstd")),
+        InvalidUploadCase(id="long", data=compress_upload(b"hello world!", "zstd")),
+    ],
+    ids=lambda case: case.id,
+)
+def test_invalid_compressed_upload_processing_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    case: InvalidUploadCase,
+):
+    mini_sentry.fail_on_relay_error = False
+    project_key = mini_sentry.get_dsn_public_key(42)
+    edge = relay(relay(relay_with_processing()))
+    consumer = events_consumer()
+    edge.send_event(42)
+    consumer.get_event()
+    create = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": "11"},
+    )
+    assert create.status_code == 201, create.text
+    response = patch_chunk(
+        edge,
+        create.headers["Location"],
+        project_key,
+        case.data,
+        0,
+        headers={"Content-Encoding": "zstd", "X-Decoded-Content-Length": "11"},
+    )
+    assert response.status_code == 400, response.text

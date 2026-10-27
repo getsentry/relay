@@ -624,6 +624,7 @@ where
             project,
             location,
             stream,
+            compression: None,
             mode: UploadMode::Oneshot { length: None },
         })
         .await

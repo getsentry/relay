@@ -54,7 +54,7 @@ type App = NormalizePath<axum::Router>;
 /// Build the axum application with all routes and middleware.
 fn make_app(
     service: ServiceState,
-    f: impl FnOnce(&ConfigSnapshot) -> axum::Router<ServiceState>,
+    f: impl FnOnce(&ServiceState) -> axum::Router<ServiceState>,
 ) -> App {
     // Build the router middleware into a single service which runs _after_ routing. Service
     // builder order defines layers added first will be called first. This means:
@@ -78,13 +78,12 @@ fn make_app(
         .layer(SentryHttpLayer::new().enable_transaction())
         .layer(middlewares::trace_http_layer())
         .map_request(middlewares::remove_empty_encoding)
-        .layer(axum::middleware::from_fn(middlewares::decompress))
         .layer(
             CompressionLayer::new()
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
         );
 
-    let router = f(&service.config()).layer(middleware).with_state(service);
+    let router = f(&service).layer(middleware).with_state(service);
 
     // Add middlewares that need to run _before_ routing, which need to wrap the router. This are
     // especially middlewares that modify the request path for the router:

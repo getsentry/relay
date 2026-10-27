@@ -620,6 +620,9 @@ pub struct Limits {
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum size for a TUS upload request body.
+    ///
+    /// Applies to decoded bytes. Compressed uploads forwarded upstream are checked after
+    /// decompression by the Relay writing to objectstore.
     pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,
@@ -783,7 +786,7 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
@@ -813,6 +816,9 @@ pub enum HttpEncoding {
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
+    ///
+    /// Accepts aliases, whitespace, and mixed case; unknown values fall back to identity.
+    /// Use [`Self::parse_strict`] when validating an incoming request header.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
         if str.eq_ignore_ascii_case("zstd") {
@@ -828,6 +834,15 @@ impl HttpEncoding {
         }
     }
 
+    /// Parses a canonical `Content-Encoding` value, returning `None` for unsupported values.
+    ///
+    /// Like the request decompressor, this accepts only lowercase names without aliases,
+    /// whitespace, or multiple encodings. Unknown values must not be treated as identity.
+    pub fn parse_strict(value: &str) -> Option<Self> {
+        let encoding = Self::parse(value);
+        (encoding.name().unwrap_or("identity") == value).then_some(encoding)
+    }
+
     /// Returns the value for the `content-encoding` HTTP header.
     ///
     /// Returns `None` for [`Identity`](Self::Identity), and `Some` for other encodings.
@@ -838,6 +853,42 @@ impl HttpEncoding {
             Self::Gzip => Some("gzip"),
             Self::Br => Some("br"),
             Self::Zstd => Some("zstd"),
+        }
+    }
+}
+
+/// A compression codec. Unlike [`HttpEncoding`], this cannot describe decoded bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpCompression {
+    /// Zlib-wrapped DEFLATE compression.
+    Deflate,
+    /// Gzip compression.
+    Gzip,
+    /// Brotli compression.
+    Br,
+    /// Zstandard compression.
+    Zstd,
+}
+
+impl HttpCompression {
+    /// Classifies an encoding exhaustively, preserving the codec when it is compressed.
+    pub fn from_encoding(encoding: HttpEncoding) -> Option<Self> {
+        match encoding {
+            HttpEncoding::Identity => None,
+            HttpEncoding::Deflate => Some(Self::Deflate),
+            HttpEncoding::Gzip => Some(Self::Gzip),
+            HttpEncoding::Br => Some(Self::Br),
+            HttpEncoding::Zstd => Some(Self::Zstd),
+        }
+    }
+
+    /// Returns the corresponding HTTP content encoding.
+    pub fn encoding(self) -> HttpEncoding {
+        match self {
+            Self::Deflate => HttpEncoding::Deflate,
+            Self::Gzip => HttpEncoding::Gzip,
+            Self::Br => HttpEncoding::Br,
+            Self::Zstd => HttpEncoding::Zstd,
         }
     }
 }
@@ -3112,6 +3163,25 @@ impl fmt::Debug for ConfigSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_http_encoding_parse_strict() {
+        for (value, expected) in [
+            ("identity", Some(HttpEncoding::Identity)),
+            ("gzip", Some(HttpEncoding::Gzip)),
+            ("deflate", Some(HttpEncoding::Deflate)),
+            ("br", Some(HttpEncoding::Br)),
+            ("zstd", Some(HttpEncoding::Zstd)),
+            ("", None),
+            ("unknown", None),
+            ("x-gzip", None),
+            ("GZIP", None),
+            (" gzip ", None),
+            ("zstd, gzip", None),
+        ] {
+            assert_eq!(HttpEncoding::parse_strict(value), expected, "{value:?}");
+        }
+    }
 
     #[cfg(feature = "processing")]
     #[test]
