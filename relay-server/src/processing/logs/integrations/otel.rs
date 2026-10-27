@@ -50,7 +50,7 @@ impl Counted for SerializedOtelLogsIntegration {
     }
 }
 
-/// A processor for Logs Integrations.
+/// A processor for OTEL log integrations.
 ///
 /// This processor only produces intermediates (items
 /// that are put back into the processing pipeline) by
@@ -108,10 +108,8 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
     }
 }
 
-/// Expands a log [`Integration`] into an envelope of logs that can be
+/// Expands a OTEL log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
-///
-/// The function expects *only* log item integrations.
 pub fn expand(
     work: SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,

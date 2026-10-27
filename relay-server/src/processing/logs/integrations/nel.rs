@@ -41,7 +41,7 @@ impl Forward for NelLogsIntegrationOutput {
     }
 }
 
-/// A processor for Logs Integrations.
+/// A processor for NEL log integrations.
 ///
 /// This processor only produces intermediates (items
 /// that are put back into the processing pipeline) by
@@ -95,10 +95,8 @@ impl processing::Processor for NelLogsIntegrationProcessor {
     }
 }
 
-/// Expands a log [`Integration`] into an envelope of logs that can be
+/// Expands a NEL log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
-///
-/// The function expects *only* log item integrations.
 pub fn expand(
     work: SerializedLogsIntegration,
     records: &mut RecordKeeper,

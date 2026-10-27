@@ -49,7 +49,7 @@ impl Counted for SerializedVercelLogsIntegration {
     }
 }
 
-/// A processor for Logs Integrations.
+/// A processor for Vercel log integrations.
 ///
 /// This processor only produces intermediates (items
 /// that are put back into the processing pipeline) by
@@ -109,10 +109,8 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
     }
 }
 
-/// Expands a log [`Integration`] into an envelope of logs that can be
+/// Expands a Vercel log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
-///
-/// The function expects *only* log item integrations.
 pub fn expand(
     work: SerializedVercelLogsIntegration,
     records: &mut RecordKeeper,
