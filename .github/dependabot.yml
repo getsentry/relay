@@ -6,7 +6,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    versioning-strategy: increase-if-necessary
+    versioning-strategy: auto
     allow:
       - dependency-type: all
     ignore:
