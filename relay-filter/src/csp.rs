@@ -4,6 +4,7 @@
 
 use relay_event_schema::protocol::Csp;
 
+use crate::localhost::host_matches_or_is_subdomain_of;
 use crate::{CspFilterConfig, FilterStatKey, Filterable};
 
 /// Checks if the event is a CSP Event from one of the disallowed sources.
@@ -150,7 +151,10 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain)
                     && let Some(suffix) = origin_domain.strip_prefix('*')
-                    && matches_domain_suffix(domain, suffix.strip_prefix('.').unwrap_or(suffix))
+                    && host_matches_or_is_subdomain_of(
+                        domain,
+                        suffix.strip_prefix('.').unwrap_or(suffix),
+                    )
                 {
                     return true; // partial domain pattern match
                 }
@@ -161,20 +165,6 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
         }
     }
     false
-}
-
-/// Checks if `domain` is `suffix` itself or one of its subdomains.
-///
-/// The match only happens on a label boundary, so `notabc.com` and `bc.com` are not
-/// subdomains of `abc.com`.
-fn matches_domain_suffix(domain: &str, suffix: &str) -> bool {
-    if suffix.is_empty() {
-        return false;
-    }
-    domain == suffix
-        || domain
-            .strip_suffix(suffix)
-            .is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 #[cfg(test)]

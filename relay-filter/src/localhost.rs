@@ -45,7 +45,14 @@ fn matches<F: Filterable>(item: &F) -> bool {
     false
 }
 
-fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
+/// Checks if `host` is `domain` itself or one of its subdomains.
+///
+/// The match only happens on a label boundary, so `notabc.com` and `bc.com` are not subdomains of
+/// `abc.com`. An empty `domain` never matches.
+pub(crate) fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
+    if domain.is_empty() {
+        return false;
+    }
     host.strip_suffix(domain)
         .is_some_and(|s| s.is_empty() || s.ends_with('.'))
 }
