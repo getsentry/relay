@@ -62,7 +62,19 @@ pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         .route_layer(tus::resumable_header_layer())
 }
 
-pub fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
+pub fn route(service: &ServiceState) -> MethodRouter<ServiceState> {
+    let head = axum_head(handle_head)
+        .route_layer(tus::resumable_header_layer())
+        .route_layer(tus::no_store_layer())
+        .route_layer(crate::middlewares::cors())
+        .layer(axum::middleware::from_fn(crate::middlewares::decompress));
+
+    // Axum keeps the right-hand default method fallback. Preserve its decompression so
+    // unsupported methods with unsupported encodings still return 415 before 405.
+    route_patch(service).merge(head)
+}
+
+fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
     let config = service.config();
     #[cfg(feature = "processing")]
     let has_objectstore = service.objectstore().is_some();
@@ -109,12 +121,6 @@ pub fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
             }
         }))
     }
-}
-
-pub fn route_head() -> MethodRouter<ServiceState> {
-    axum_head(handle_head)
-        .route_layer(tus::resumable_header_layer())
-        .route_layer(tus::no_store_layer())
 }
 
 #[derive(Debug, thiserror::Error)]
