@@ -710,7 +710,7 @@
 <a href=#710 id=710 data-nosnippet>710</a>                }
 <a href=#711 id=711 data-nosnippet>711</a>
 <a href=#712 id=712 data-nosnippet>712</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(intermediates) = intermediates {
-<a href=#713 id=713 data-nosnippet>713</a>                    envelopes.push(intermediates)
+<a href=#713 id=713 data-nosnippet>713</a>                    envelopes.extend(intermediates.split(|i| i).map(ManagedEnvelope::from));
 <a href=#714 id=714 data-nosnippet>714</a>                }
 <a href=#715 id=715 data-nosnippet>715</a>
 <a href=#716 id=716 data-nosnippet>716</a>                <span class="comment">// Every envelope past the first is an intermediate.
