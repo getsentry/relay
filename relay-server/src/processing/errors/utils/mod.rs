@@ -3,8 +3,8 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 
 use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::processing;
 use crate::processing::errors::Result;
-use crate::processing::errors::errors::Context;
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
@@ -74,7 +74,7 @@ pub fn event_from_json_payload(
     item: Item,
     event_type: impl Into<Option<EventType>>,
     metrics: &mut Metrics,
-    ctx: Context<'_>,
+    ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     event_from_json(&item.payload(), event_type, metrics, ctx)
 }
@@ -83,11 +83,11 @@ pub fn event_from_json(
     payload: &[u8],
     event_type: impl Into<Option<EventType>>,
     metrics: &mut Metrics,
-    ctx: Context<'_>,
+    ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     let event_type = event_type.into();
 
-    if payload.len() > ctx.processing.config.max_event_size() {
+    if payload.len() > ctx.config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
 
@@ -112,7 +112,7 @@ pub fn event_from_json(
 pub fn take_parsed_event(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
-    ctx: Context<'_>,
+    ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     let Some(item) = take_item_of_type(items, ItemType::Event) else {
         return Ok(Annotated::empty());
@@ -129,7 +129,7 @@ pub fn take_parsed_event(
 pub fn take_event_from_attachments(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
-    ctx: Context<'_>,
+    ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     let ev = take_item_by(items, |item| {
         item.attachment_type() == Some(AttachmentType::EventPayload)
@@ -145,7 +145,7 @@ pub fn take_event_from_attachments(
         return Ok(Annotated::empty());
     }
 
-    let (event, len) = attachment::event_from_attachments(ctx.processing.config, ev, b1, b2)?;
+    let (event, len) = attachment::event_from_attachments(ctx.config, ev, b1, b2)?;
     metrics.bytes_ingested_event = Annotated::new(len as u64);
 
     Ok(event)
@@ -187,7 +187,7 @@ pub fn take_event_from_formdata(
 pub fn take_event_from_crash_items(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
-    ctx: Context<'_>,
+    ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     // Remove other event creating items to make sure there are no leftovers.
     let remove_other_event_items = |items: &mut Vec<Item>| {

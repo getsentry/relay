@@ -844,6 +844,24 @@ impl<'a> RecordKeeper<'a> {
         }
     }
 
+    /// Adds the `item` quantities to the expected count.
+    ///
+    /// See also: [`Self::modify_by`].
+    pub fn add(&mut self, item: &dyn Counted) {
+        for (category, quantities) in item.quantities() {
+            self.modify_by(category, quantities as isize);
+        }
+    }
+
+    /// Removes the `item` quantities from the expected count.
+    ///
+    /// See also: [`Self::modify_by`].
+    pub fn remove(&mut self, item: &dyn Counted) {
+        for (category, quantities) in item.quantities() {
+            self.modify_by(category, -(quantities as isize));
+        }
+    }
+
     /// Finalizes all records and emits the necessary outcomes.
     ///
     /// This uses the quantities of the original item.

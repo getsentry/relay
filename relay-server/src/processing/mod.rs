@@ -176,6 +176,15 @@ impl<T> Output<T> {
         }
     }
 
+    /// Creates a new output just containing intermediates.
+    pub fn intermediates(intermediates: Managed<Intermediates>) -> Self {
+        Self {
+            main: None,
+            metrics: None,
+            intermediates: Some(intermediates),
+        }
+    }
+
     /// Creates an new empty output.
     pub fn empty() -> Self {
         Self {
@@ -208,6 +217,13 @@ pub struct Intermediates {
 }
 
 impl Intermediates {
+    /// Creates a new [`Self`] from an envelope.
+    pub fn from_envelope(envelope: Box<Envelope>) -> Self {
+        let mut this = Self::default();
+        this.add_envelope(envelope);
+        this
+    }
+
     /// Adds an envelope as an intermediate product.
     pub fn add_envelope(&mut self, envelope: Box<Envelope>) {
         self.envelopes.push(envelope);

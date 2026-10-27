@@ -13,13 +13,35 @@ def load_dump_file(base_file_name: str):
     return dmp_file
 
 
-@pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-def test_unreal_crash(mini_sentry, relay, dump_file_name):
-    """
-    Asserts that non-processing Relays forward the Unreal report either as a
-    single unreal_report item or as expanded attachment items depending on
-    the endpoint expansion rollout rate.
-    """
+@pytest.mark.parametrize(
+    "dump_file_name, expected",
+    [
+        (
+            "unreal_crash",
+            [
+                "event",
+                "UE4Minidump.dmp",
+                "YetAnother.log",
+                "CrashReportClient.ini",
+                "CrashContext.runtime-xml",
+            ],
+        ),
+        (
+            "unreal_crash_apple",
+            [
+                "event",
+                "minidump.dmp",
+                "Diagnostics.txt",
+                "CrashReportClient.ini",
+                "info.txt",
+                "YetAnotherMac.log",
+                "CrashContext.runtime-xml",
+                "user_report",
+            ],
+        ),
+    ],
+)
+def test_unreal_crash(mini_sentry, relay, dump_file_name, expected):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -30,16 +52,13 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
 
     event_id = response.text.replace("-", "")
     envelope = mini_sentry.get_captured_envelope()
-    assert envelope
     assert event_id == envelope.headers.get("event_id")
-    items = envelope.items
 
-    assert len(items) == 1
-    unreal_item = items[0]
-    assert unreal_item.headers
-    assert unreal_item.headers.get("type") == "unreal_report"
-    assert unreal_item.headers.get("content_type") == "application/octet-stream"
-    assert unreal_item.payload is not None
+    def fmt_item(item):
+        ty = item.headers.get("type")
+        return ty if not ty == "attachment" else item.headers.get("filename")
+
+    assert [fmt_item(item) for item in envelope.items] == expected
 
 
 def test_unreal_minidump_with_processing(

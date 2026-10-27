@@ -16,9 +16,7 @@ mod nswitch;
 mod playstation;
 mod raw_security;
 mod security;
-mod unreal;
 mod user_report_v2;
-mod utils;
 
 pub use self::apple_crash_report::*;
 pub use self::generic::*;
@@ -28,7 +26,6 @@ pub use self::nswitch::*;
 pub use self::playstation::*;
 pub use self::raw_security::*;
 pub use self::security::*;
-pub use self::unreal::*;
 pub use self::user_report_v2::*;
 
 /// Context required to expand a [`SentryError`].
@@ -182,7 +179,6 @@ macro_rules! gen_error_kind {
 // error.
 gen_error_kind![
     Nswitch,
-    Unreal,
     Minidump,
     GpuCrash,
     AppleCrashReport,

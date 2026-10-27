@@ -3,8 +3,8 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Error, Result, utils};
 #[cfg(feature = "processing")]
 use crate::utils::AdditionalExceptions;
 
@@ -25,7 +25,7 @@ impl SentryError for Minidump {
 
         let mut metrics = Default::default();
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
 
         utils::if_processing!(ctx, {
             crate::utils::process_minidump(

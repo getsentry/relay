@@ -10,7 +10,7 @@ use crate::managed::ManagedEnvelope;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
-use crate::processing::errors::ErrorsProcessor;
+use crate::processing::errors::{ErrorsProcessor, UnrealErrorIntegrationProcessor};
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
 use crate::processing::logs::LogsProcessor;
@@ -36,6 +36,7 @@ pub struct RelayProcessor {
     attachments: AttachmentProcessor,
     check_ins: CheckInsProcessor,
     client_reports: ClientReportsProcessor,
+    errors_unreal_integration: UnrealErrorIntegrationProcessor,
     errors: ErrorsProcessor,
     forward_unknown: ForwardUnknownProcessor,
     invalid: InvalidUnhandledProcessor,
@@ -68,6 +69,7 @@ impl RelayProcessor {
             attachments: AttachmentProcessor::new(ql()),
             check_ins: CheckInsProcessor::new(ql()),
             client_reports: ClientReportsProcessor::new(outcome_aggregator),
+            errors_unreal_integration: UnrealErrorIntegrationProcessor,
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
@@ -125,6 +127,7 @@ impl RelayProcessor {
         run!(self.check_ins);
 
         // Event based envelopes.
+        run!(self.errors_unreal_integration);
         run!(self.errors);
         run!(self.transactions);
 
