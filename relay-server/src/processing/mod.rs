@@ -221,7 +221,8 @@ impl Intermediates {
 
 impl Counted for Intermediates {
     fn quantities(&self) -> Quantities {
-        self.envelopes.iter().flat_map(|e| e.quantities()).collect()
+        let Self { envelopes } = self;
+        envelopes.quantities()
     }
 }
 
