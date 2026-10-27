@@ -7,6 +7,10 @@ include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 #[cfg(feature = "processing")]
 pub const SENTRY_CRASH_PAYLOAD_KEY: &str = "__sentry";
 
+/// Name of the custom tag in the crash user data for the session update of the crashed session.
+#[cfg(all(sentry, feature = "processing"))]
+pub const SENTRY_SESSION_PAYLOAD_KEY: &str = "__sentry_session";
+
 /// Name of the event attachment.
 ///
 /// This is a special attachment that can contain a sentry event payload encoded as message pack.

@@ -84,7 +84,9 @@ relay-ua = { path = "relay-ua" }
 # Use Cargo.lock via `cargo update` to define the exact version
 # of dependencies used in builds.
 ahash = "0.8"
-android_trace_log = { version = "0.3", features = ["serde"] }
+android_trace_log = { git = "https://github.com/getsentry/android-trace-log", rev = "40643d68a9af4bd88175f647656d2707e9e6e474", features = [
+    "serde",
+] }
 # This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
 # which will increase processing time for transactions massively.
 # Keep it pinned until it's possible to disable backtrace.

@@ -53,11 +53,11 @@ impl SentryError for Playstation {
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
-        let (event, minidump) = utils::if_not_processing!(ctx, {
+        let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
             let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
-            (event, None)
+            (event, None, vec![])
         } else {
-            use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
+            use crate::constants::{SENTRY_CRASH_PAYLOAD_KEY, SENTRY_SESSION_PAYLOAD_KEY};
             use crate::statsd::RelayCounters;
             use crate::utils::playstation;
 
@@ -103,6 +103,22 @@ impl SentryError for Playstation {
                 &prospero_dump,
             );
 
+            // The SDK embeds the session that the crash terminated as a ready-to-use session update.
+            // It is sent back into the pipeline to be processed like any other session update.
+            let session_updates: Vec<_> = prospero_dump
+                .userdata
+                .get(SENTRY_SESSION_PAYLOAD_KEY)
+                .map(|session| {
+                    let mut item = Item::new(ItemType::Session);
+                    item.set_payload(
+                        crate::envelope::ContentType::Json,
+                        session.as_bytes().to_owned(),
+                    );
+                    item
+                })
+                .into_iter()
+                .collect();
+
             let minidump = {
                 metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
                 let mut item = Item::new(ItemType::Attachment);
@@ -143,14 +159,14 @@ impl SentryError for Playstation {
                 })
             }
 
-            (Box::new(event), Some(minidump))
+            (Box::new(event), Some(minidump), session_updates)
         });
 
         Ok(Some(Expansion {
             event,
             attachments,
             user_reports,
-            intermediates: vec![],
+            intermediates: session_updates,
             error: Self {
                 prosperodump,
                 minidump,
@@ -167,15 +183,15 @@ impl SentryError for Playstation {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.prosperodump.rate_limited() {
-            self.prosperodump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
+            self.prosperodump.set_rate_limited(true);
         }
 
         if let Some(minidump) = self.minidump.as_mut()
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits), &*minidump);
+            minidump.set_rate_limited(true);
         }
 
         Ok(())
@@ -240,4 +256,25 @@ fn merge_events_inner(
     crate::utils::merge_values(&mut from_prospero, from_envelope);
 
     Annotated::<Event>::deserialize_with_meta(from_prospero)
+}
+
+#[test]
+fn test_playstation_crash_rate_limit() {
+    use super::tests::{assert_crash_rate_limit, attachment};
+    use crate::envelope::AttachmentType;
+
+    assert_crash_rate_limit(
+        || Playstation {
+            prosperodump: attachment(AttachmentType::Prosperodump, "prospero"),
+            minidump: Some(attachment(AttachmentType::Minidump, "dump")),
+        },
+        &[8, 4],
+        |crash| {
+            assert!(crash.prosperodump.rate_limited());
+            assert_eq!(crash.prosperodump.payload().as_ref(), b"prospero");
+            let minidump = crash.minidump.unwrap();
+            assert!(minidump.rate_limited());
+            assert_eq!(minidump.payload().as_ref(), b"dump");
+        },
+    );
 }
