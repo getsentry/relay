@@ -4,16 +4,26 @@
 
 **Features**:
 
+- Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
+- Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
 
 **Bug Fixes**:
 
+- Preserve consistent quota and outcome quantities for empty attachments after expansion, preventing debug accounting panics. ([#6569](https://github.com/getsentry/relay/pull/6569))
+- Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
+- Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
+- Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
+- Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
 
 **Internal**:
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
+- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))
+- Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
 
 **Internal**:
 

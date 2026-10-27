@@ -88,8 +88,7 @@ dependencies = [
 [[package]]
 name = "android_trace_log"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b6b53e6d20664ddcbc06b80f29c64330f3c3aa01b597a8743f4368623a03718"
+source = "git+https://github.com/getsentry/android-trace-log?rev=40643d68a9af4bd88175f647656d2707e9e6e474#40643d68a9af4bd88175f647656d2707e9e6e474"
 dependencies = [
  "chrono",
  "log",
@@ -224,6 +223,28 @@ dependencies = [
  "event-listener",
  "event-listener-strategy",
  "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -4464,6 +4485,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-browser-reporting"
+version = "26.10.0"
+dependencies = [
+ "insta",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-cabi"
 version = "0.10.1"
 dependencies = [
@@ -4521,6 +4551,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-redis",
+ "sentry_arroyo",
  "serde",
  "serde-vars",
  "serde_json",
@@ -4864,7 +4895,7 @@ dependencies = [
  "dircpy",
  "lz4_flex",
  "minidump-writer",
- "object 0.37.3",
+ "object 0.39.1",
  "rmpv",
  "tempfile",
  "tracing",
@@ -5681,12 +5712,14 @@ dependencies = [
 
 [[package]]
 name = "sentry_arroyo"
-version = "2.45.0"
+version = "2.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0613349751745af9d0dc617b78c531754e4443343809b19c6c78a1c68fa78c8a"
+checksum = "9b962caedc7c28baaf90780020e464d1f2436c6c2a38008dcfd43d96536802ce"
 dependencies = [
+ "async-stream",
  "chrono",
  "coarsetime",
+ "futures",
  "metrics",
  "once_cell",
  "parking_lot",
@@ -5697,6 +5730,8 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-stream",
+ "tokio-util",
  "tracing",
  "uuid",
 ]

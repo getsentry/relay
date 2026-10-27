@@ -103,3 +103,23 @@ def test_variable_loaded_from_file_is_reloaded(mini_sentry, relay):
             # Unhealthy => config was reloaded.
             return
         time.sleep(0.5)
+
+
+def test_removed_reloading_producer_topics_option_is_ignored(
+    mini_sentry, relay_with_processing
+):
+    """
+    `reloading_producer_topics` was removed, but deployments still set it until their config
+    catches up. It must not stop Relay from starting.
+    """
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "reloading_producer_topics": ["ingest-events", "not-a-topic"],
+            }
+        }
+    )
+
+    assert (
+        relay.get("/api/relay/healthcheck/ready/", is_internal=True).status_code == 200
+    )

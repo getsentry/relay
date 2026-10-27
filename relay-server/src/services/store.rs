@@ -26,7 +26,9 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
+use relay_kafka::{
+    ClientError, KafkaClient, KafkaConfigSource, KafkaTopic, Message, SerializationOutput,
+};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
     MetricNamespace, SetView,
@@ -88,23 +90,39 @@ impl OutcomeError for StoreError {
     }
 }
 
+/// Selects Relay's overrides in the Kafka config blob.
+const KAFKA_CONFIG_APP: &str = "relay";
+
 struct Producer {
-    client: KafkaClient,
+    client: Arc<KafkaClient>,
 }
 
 impl Producer {
     pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
+        let blob = config.kafka_config_blob()?;
+        let source = KafkaConfigSource {
+            blob: &blob,
+            app: KAFKA_CONFIG_APP,
+            jitter: config.reloading_producer_jitter(),
+        };
+
         for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
+
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, &kafka_configs, config.kafka_validate_topics())
+                .add_kafka_topic_config(
+                    *topic,
+                    &kafka_configs,
+                    config.kafka_validate_topics(),
+                    &source,
+                )
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
         Ok(Self {
-            client: client_builder.build(),
+            client: Arc::new(client_builder.build()),
         })
     }
 }
@@ -459,6 +477,14 @@ impl StoreService {
             producer,
             last_span_report: Instant::now().into(),
         })
+    }
+
+    /// The Kafka client this service produces through.
+    ///
+    /// Handed to [`ConfigReloadService`](crate::services::config_reload::ConfigReloadService)
+    /// so a reloaded config can reach topics whose client can be replaced.
+    pub fn kafka_client(&self) -> Arc<KafkaClient> {
+        Arc::clone(&self.producer.client)
     }
 
     fn handle_message(&self, message: Store) {

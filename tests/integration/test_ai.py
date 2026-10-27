@@ -755,6 +755,7 @@ def test_ai_spans_example_transaction(
                     '(56°F)","temperatureC":13,"temperatureF":56,"condition":"Haze","humidity":"88%","windSpeed":"4 '
                     'km/h"}',
                 },
+                "gen_ai.tool.call.result.size": {"type": "integer", "value": 177},
                 "gen_ai.tool.input": None,
                 "gen_ai.tool.output": None,
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
@@ -914,6 +915,7 @@ def test_ai_spans_example_transaction(
                     'cloudy","humidity":"72%","windSpeed":"21 '
                     'km/h"}',
                 },
+                "gen_ai.tool.call.result.size": {"type": "integer", "value": 170},
                 "gen_ai.tool.input": None,
                 "gen_ai.tool.output": None,
                 "gen_ai.tool.type": {"type": "string", "value": "function"},

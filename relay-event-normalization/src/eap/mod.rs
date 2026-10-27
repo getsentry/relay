@@ -571,6 +571,28 @@ pub fn normalize_client_sample_rate(
     }
 }
 
+/// Validates the [`SENTRY__RELEASE`] attribute.
+///
+/// Invalid releases are removed and marked with an error, the same way releases are validated on
+/// events.
+pub fn normalize_release(attributes: &mut Annotated<Attributes>) {
+    let Some(release) = attributes
+        .value_mut()
+        .as_mut()
+        .and_then(|attributes| attributes.0.get_mut(SENTRY__RELEASE))
+    else {
+        return;
+    };
+
+    if let Some(Value::String(value)) = release.value().and_then(|r| r.value.value.value())
+        && crate::validate_release(value).is_err()
+    {
+        let original = release.value_mut().take();
+        release.meta_mut().add_error(ErrorKind::InvalidData);
+        release.meta_mut().set_original_value(original);
+    }
+}
+
 /// Normalizes deprecated attributes according to `sentry-conventions`.
 ///
 /// Attributes with a status of `"normalize"` will be moved to their replacement name.
@@ -2967,6 +2989,78 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_release_valid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.release": {
+            "type": "string",
+            "value": "my-app@1.0.0"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_release(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.release": {
+            "type": "string",
+            "value": "my-app@1.0.0"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_release_invalid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.release": {
+            "type": "string",
+            "value": "latest"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_release(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.release": null,
+          "_meta": {
+            "sentry.release": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ],
+                "val": {
+                  "type": "string",
+                  "value": "latest"
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_release_too_long() {
+        let mut attributes = Annotated::new(Attributes::new());
+        attributes
+            .get_or_insert_with(Default::default)
+            .insert(SENTRY__RELEASE, "a".repeat(251));
+
+        normalize_release(&mut attributes);
+
+        let release = attributes.value().unwrap().0.get(SENTRY__RELEASE).unwrap();
+        assert!(release.value().is_none());
+        assert!(release.meta().has_errors());
     }
 
     #[test]
