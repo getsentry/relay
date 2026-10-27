@@ -1,138 +1,232 @@
 //! Transforms Heroku Logplex syslog messages to Sentry Logs.
+//!
+//! Heroku's [HTTPS log drains](https://devcenter.heroku.com/articles/log-drains#https-drains)
+//! send batches of syslog messages framed with the octet counting method of
+//! [RFC 6587](https://tools.ietf.org/html/rfc6587#section-3.4.1):
+//!
+//! ```text
+//! 83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up
+//! ```
+//!
+//! The messages themselves are almost [RFC 5424](https://tools.ietf.org/html/rfc5424) syslog
+//! messages, but Logplex omits the `STRUCTURED-DATA` field instead of sending a `NILVALUE`.
 
-use chrono::Utc;
-use relay_conventions::ORIGIN;
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, Timestamp};
-use relay_protocol::Annotated;
-use rsyslog::parser::{DateTime, Skip};
-use rsyslog::{Message, Originator, ParseMsg, ParsePart};
+use chrono::{DateTime, Utc};
+use relay_conventions::attributes::SENTRY__ORIGIN;
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, Timestamp, TraceId};
+use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
-/// Header names for Heroku Logplex integration.
+/// Attribute names for Heroku logs.
 ///
-/// These are the keys used to store Heroku-specific metadata on envelope items.
-/// The values come from HTTP headers sent by Logplex in HTTPS drain requests.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HerokuHeader {
-    /// The unique request identifier.
-    ///
-    /// Logplex sets this to a unique ID for each request. If a request is retried
-    /// (e.g., due to non-2xx response or network failure), this ID enables detection
-    /// of duplicate requests.
-    FrameId,
-    /// The drain token.
-    ///
-    /// This token identifies the specific log drain sending the request.
-    /// It can be used to associate logs with their source drain configuration.
-    DrainToken,
-    /// The Logplex user agent.
-    ///
-    /// Describes the version of Logplex (e.g., "Logplex/v72").
-    /// This changes with Logplex releases.
-    UserAgent,
+/// TODO: Replace with the generated constants from `relay_conventions` once the attributes are
+/// defined in `sentry-conventions`.
+mod attributes {
+    pub const HEROKU__SOURCE: &str = "heroku.source";
+    pub const HEROKU__DYNO: &str = "heroku.dyno";
+    pub const HEROKU__ERROR__CODE: &str = "heroku.error.code";
+    pub const HEROKU__ERROR__DESCRIPTION: &str = "heroku.error.description";
+    pub const HEROKU__LOGPLEX__FRAME_ID: &str = "heroku.logplex.frame_id";
+    pub const HEROKU__LOGPLEX__DRAIN_TOKEN: &str = "heroku.logplex.drain_token";
+    pub const HEROKU__LOGPLEX__USER_AGENT: &str = "heroku.logplex.user_agent";
+    pub const HEROKU__ROUTER__AT: &str = "heroku.router.at";
+    pub const HEROKU__ROUTER__METHOD: &str = "heroku.router.method";
+    pub const HEROKU__ROUTER__PATH: &str = "heroku.router.path";
+    pub const HEROKU__ROUTER__HOST: &str = "heroku.router.host";
+    pub const HEROKU__ROUTER__REQUEST_ID: &str = "heroku.router.request_id";
+    pub const HEROKU__ROUTER__FWD: &str = "heroku.router.fwd";
+    pub const HEROKU__ROUTER__DYNO: &str = "heroku.router.dyno";
+    pub const HEROKU__ROUTER__CONNECT: &str = "heroku.router.connect";
+    pub const HEROKU__ROUTER__SERVICE: &str = "heroku.router.service";
+    pub const HEROKU__ROUTER__STATUS: &str = "heroku.router.status";
+    pub const HEROKU__ROUTER__BYTES: &str = "heroku.router.bytes";
+    pub const HEROKU__ROUTER__PROTOCOL: &str = "heroku.router.protocol";
+    pub const HEROKU__ROUTER__TLS: &str = "heroku.router.tls";
+    pub const HEROKU__ROUTER__TLS_VERSION: &str = "heroku.router.tls_version";
 }
 
-impl HerokuHeader {
-    /// Returns the HTTP header name sent by Logplex.
-    ///
-    /// These are the original header names from the Logplex HTTPS drain request.
-    pub fn http_header_name(&self) -> &'static str {
-        match self {
-            Self::FrameId => "Logplex-Frame-Id",
-            Self::DrainToken => "Logplex-Drain-Token",
-            Self::UserAgent => "User-Agent",
-        }
-    }
+use self::attributes::*;
 
-    /// Returns the string key used to store this header on envelope items.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::FrameId => "heroku-frame-id",
-            Self::DrainToken => "heroku-drain-token",
-            Self::UserAgent => "heroku-user-agent",
-        }
-    }
-}
-
-/// Parsed message body from a Logplex syslog message.
+/// The maximum amount of digits accepted in the octet count of a frame.
 ///
-/// This struct stores the raw message body along with any logfmt key-value pairs
-/// that were parsed from it, using Sentry's message parameterization conventions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogplexMsgBody<'a> {
-    /// The raw message body.
-    pub msg: &'a str,
-    /// The parameterized template string (if logfmt pairs were found).
-    /// Example: `"source={source} sample#db_size={sample#db_size}"`
-    pub template: Option<String>,
-    /// The parsed logfmt parameters as (key, value) pairs.
-    /// Keys are the original logfmt keys, values are the parsed values.
-    pub parameters: Vec<(&'a str, &'a str)>,
+/// Logplex batches are around 100KB, nine digits leave plenty of room while making sure the
+/// count cannot overflow.
+const MAX_FRAME_LENGTH_DIGITS: usize = 9;
+
+/// The syslog `APP-NAME` Heroku uses for messages emitted by the platform itself.
+const HEROKU_SOURCE: &str = "heroku";
+
+/// The syslog `PROCID` Heroku uses for messages emitted by the HTTP router.
+const ROUTER_DYNO: &str = "router";
+
+/// An error while parsing a Logplex payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum LogplexError {
+    /// The octet count of a frame is missing or not a valid number.
+    #[error("invalid frame length")]
+    InvalidFrameLength,
+    /// The payload ended before the end of a frame.
+    #[error("truncated frame")]
+    TruncatedFrame,
+    /// The `PRI` part of the syslog header is missing or invalid.
+    #[error("invalid syslog priority")]
+    InvalidPriority,
+    /// The syslog version is not supported.
+    #[error("unsupported syslog version")]
+    UnsupportedVersion,
+    /// The syslog header ended prematurely.
+    #[error("incomplete syslog header")]
+    IncompleteHeader,
 }
 
-impl<'a> ParseMsg<'a> for LogplexMsgBody<'a> {
-    fn parse(msg: &'a str, _: &Originator) -> Result<(&'a str, Self), rsyslog::Error<'a>> {
-        let mut template_parts = Vec::new();
-        let mut parameters = Vec::new();
+/// Request metadata Logplex sends as HTTP headers with every drain request.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LogplexHeaders<'a> {
+    /// The unique identifier of the request, `Logplex-Frame-Id`.
+    ///
+    /// It stays the same when Logplex retries a request.
+    pub frame_id: Option<&'a str>,
+    /// The token of the drain sending the request, `Logplex-Drain-Token`.
+    pub drain_token: Option<&'a str>,
+    /// The version of Logplex sending the request, `User-Agent`.
+    pub user_agent: Option<&'a str>,
+}
 
-        for pair in msg.split_whitespace() {
-            if let Some((key, value)) = pair.split_once('=')
-                && !key.is_empty()
-            {
-                template_parts.push(format!("{key}={{{key}}}"));
-                parameters.push((key, value));
+/// Iterator over the octet counted frames of a Logplex payload.
+///
+/// Returned by [`parse_logplex_frames`].
+#[derive(Debug, Clone)]
+pub struct LogplexFrames<'a> {
+    rest: &'a [u8],
+}
+
+impl<'a> Iterator for LogplexFrames<'a> {
+    type Item = Result<&'a [u8], LogplexError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Logplex terminates every message with a newline, which is included in the octet count.
+        // Tolerate additional whitespace between frames from other senders.
+        let input = self.rest.trim_ascii_start();
+        if input.is_empty() {
+            return None;
+        }
+
+        match split_frame(input) {
+            Ok((frame, rest)) => {
+                self.rest = rest;
+                Some(Ok(frame))
+            }
+            Err(err) => {
+                // The frame boundaries are lost after an invalid frame, stop parsing.
+                self.rest = &[];
+                Some(Err(err))
             }
         }
-
-        Ok((
-            "",
-            LogplexMsgBody {
-                msg,
-                template: (!parameters.is_empty()).then_some(template_parts.join(" ")),
-                parameters,
-            },
-        ))
     }
 }
 
-/// A required timestamp that errors during parsing if missing.
+/// Splits the first frame (`<length> <message>`) off the input.
+fn split_frame(input: &[u8]) -> Result<(&[u8], &[u8]), LogplexError> {
+    let space = input
+        .iter()
+        .take(MAX_FRAME_LENGTH_DIGITS + 1)
+        .position(|&b| b == b' ')
+        .ok_or(LogplexError::InvalidFrameLength)?;
+
+    let (length, rest) = input.split_at(space);
+    if length.is_empty() || !length.iter().all(u8::is_ascii_digit) {
+        return Err(LogplexError::InvalidFrameLength);
+    }
+
+    let length = std::str::from_utf8(length)
+        .ok()
+        .and_then(|length| length.parse::<usize>().ok())
+        .filter(|&length| length > 0)
+        .ok_or(LogplexError::InvalidFrameLength)?;
+
+    // Skip the space separating the length from the message.
+    let rest = rest.get(1..).unwrap_or_default();
+    rest.split_at_checked(length)
+        .ok_or(LogplexError::TruncatedFrame)
+}
+
+/// Splits a Logplex payload into its octet counted frames.
 ///
-/// Unlike `Option<DateTime>`, this type rejects the syslog nil value "-"
-/// and requires a valid RFC3339 timestamp.
+/// Frames are returned as bytes, as Logplex does not guarantee they are valid UTF-8. Parsing
+/// stops after the first invalid frame.
+pub fn parse_logplex_frames(payload: &[u8]) -> LogplexFrames<'_> {
+    LogplexFrames { rest: payload }
+}
+
+/// A syslog message sent by Logplex.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequiredDateTime(pub DateTime);
-
-impl<'a> ParsePart<'a> for RequiredDateTime {
-    fn parse(part: &'a str) -> Result<(&'a str, Self), rsyslog::Error<'a>> {
-        let (rem, timestamp) = <Option<DateTime>>::parse(part)?;
-        match timestamp {
-            Some(dt) => Ok((rem, RequiredDateTime(dt))),
-            None => Err(rsyslog::Error::Custom("timestamp is required".to_owned())),
-        }
-    }
+pub struct LogplexMessage<'a> {
+    /// The syslog severity (0-7) from the `PRI` header.
+    pub severity: u8,
+    /// The timestamp of the message, `None` if missing or invalid.
+    pub timestamp: Option<DateTime<Utc>>,
+    /// The `APP-NAME` header, which Heroku sets to the source of the message: `app` for
+    /// messages emitted by the application, `heroku` for messages emitted by the platform.
+    pub source: Option<&'a str>,
+    /// The `PROCID` header, which Heroku sets to the dyno or platform component, e.g. `web.1` or
+    /// `router`.
+    pub dyno: Option<&'a str>,
+    /// The message body.
+    pub msg: &'a str,
 }
 
-impl From<RequiredDateTime> for Timestamp {
-    fn from(value: RequiredDateTime) -> Self {
-        Timestamp(value.0.with_timezone(&Utc))
+/// Parses a single syslog message from a Logplex frame.
+///
+/// The `HOSTNAME` and `MSGID` headers are discarded, Logplex always sends `host` and `-`.
+pub fn parse_logplex_message(frame: &str) -> Result<LogplexMessage<'_>, LogplexError> {
+    let rest = frame.strip_suffix('\n').unwrap_or(frame);
+
+    let (priority, rest) = rest
+        .strip_prefix('<')
+        .and_then(|rest| rest.split_once('>'))
+        .ok_or(LogplexError::InvalidPriority)?;
+    let severity = parse_priority(priority)? & 0x07;
+
+    let (version, rest) = rest.split_once(' ').ok_or(LogplexError::IncompleteHeader)?;
+    if version != "1" {
+        return Err(LogplexError::UnsupportedVersion);
     }
+
+    let mut parts = rest.splitn(6, ' ');
+    let mut next_part = || parts.next().ok_or(LogplexError::IncompleteHeader);
+    let timestamp = next_part()?;
+    let _hostname = next_part()?;
+    let source = next_part()?;
+    let dyno = next_part()?;
+    let _msg_id = next_part()?;
+    let msg = parts.next().unwrap_or_default();
+
+    Ok(LogplexMessage {
+        severity,
+        timestamp: nil(timestamp)
+            .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
+            .map(|ts| ts.with_timezone(&Utc)),
+        source: nil(source),
+        dyno: nil(dyno),
+        msg,
+    })
 }
 
-/// A parsed Logplex syslog message.
-///
-/// This type uses rsyslog's generic Message type with:
-/// - `RequiredDateTime` for the timestamp (must be present, not "-")
-/// - `Skip` for the structured data (which Logplex omits per their docs)
-/// - `LogplexMsgBody<'a>` for the message body (with logfmt parsing)
-pub type LogplexMessage<'a> = Message<'a, RequiredDateTime, Skip, LogplexMsgBody<'a>>;
+/// Parses the numeric `PRI` value, which must be within `0..=191`.
+fn parse_priority(priority: &str) -> Result<u8, LogplexError> {
+    if priority.is_empty() || priority.len() > 3 || !priority.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(LogplexError::InvalidPriority);
+    }
 
-/// Parse a Logplex-framed syslog message.
-///
-/// Logplex uses octet counting framing (RFC 6587 Section 3.4.1) where messages
-/// are prefixed with their length: `<length> <syslog_message>`. The rsyslog parser
-/// handles this by skipping any content before the first `<` when parsing the
-/// priority field.
-pub fn parse_logplex(msg: &str) -> Result<LogplexMessage<'_>, rsyslog::Error<'_>> {
-    LogplexMessage::parse(msg)
+    priority
+        .parse::<u8>()
+        .ok()
+        .filter(|&priority| priority <= 191)
+        .ok_or(LogplexError::InvalidPriority)
+}
+
+/// Returns `None` for the syslog `NILVALUE` (`-`) and empty header values.
+fn nil(value: &str) -> Option<&str> {
+    (!value.is_empty() && value != "-").then_some(value)
 }
 
 /// Maps syslog severity (0-7) to Sentry log level.
@@ -152,75 +246,202 @@ fn map_syslog_severity_to_level(severity: u8) -> OurLogLevel {
     }
 }
 
+/// Iterator over the `key=value` pairs of a [logfmt](https://brandur.org/logfmt) message.
+///
+/// Values may be wrapped in double quotes to contain spaces, escape sequences are not supported.
+/// Words without a `=` are skipped.
+struct Logfmt<'a>(&'a str);
+
+impl<'a> Iterator for Logfmt<'a> {
+    type Item = (&'a str, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let input = self.0.trim_start_matches(' ');
+            if input.is_empty() {
+                return None;
+            }
+
+            let key_end = input.find(['=', ' ']).unwrap_or(input.len());
+            let (key, rest) = input.split_at(key_end);
+
+            let Some(rest) = rest.strip_prefix('=') else {
+                // A word without a value.
+                self.0 = rest;
+                continue;
+            };
+
+            let (value, rest) = match rest.strip_prefix('"') {
+                Some(quoted) => match quoted.split_once('"') {
+                    Some((value, rest)) => (value, rest),
+                    None => (quoted, ""),
+                },
+                None => rest.split_at(rest.find(' ').unwrap_or(rest.len())),
+            };
+            self.0 = rest;
+
+            if !key.is_empty() {
+                return Some((key, value));
+            }
+        }
+    }
+}
+
+/// Extracts a Heroku error code from a platform message like `Error R14 (Memory quota exceeded)`.
+///
+/// Returns the code and the description in parentheses, if any. See
+/// <https://devcenter.heroku.com/articles/error-codes>.
+fn parse_error_code(msg: &str) -> Option<(&str, Option<&str>)> {
+    let rest = msg.strip_prefix("Error ")?;
+
+    let code = rest.get(..3)?;
+    let mut bytes = code.bytes();
+    if !matches!(bytes.next(), Some(b'H' | b'L' | b'R')) || !bytes.all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+
+    let rest = rest.get(3..)?;
+    if rest.starts_with(|c: char| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+
+    let description = rest
+        .strip_prefix(" (")
+        .and_then(|rest| rest.split_once(')'))
+        .map(|(description, _)| description)
+        .filter(|description| !description.is_empty());
+
+    Some((code, description))
+}
+
+/// Adds the attributes of a Heroku router message and returns the log level it reports.
+///
+/// Only the documented [router fields](https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format)
+/// are extracted.
+fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLogLevel> {
+    let mut level = None;
+
+    for (key, value) in Logfmt(msg) {
+        if value.is_empty() {
+            continue;
+        }
+
+        match key {
+            "at" => {
+                level = match value {
+                    "error" => Some(OurLogLevel::Error),
+                    "warning" => Some(OurLogLevel::Warn),
+                    _ => None,
+                };
+                attributes.insert(HEROKU__ROUTER__AT, value.to_owned());
+            }
+            "code" => attributes.insert(HEROKU__ERROR__CODE, value.to_owned()),
+            "desc" => attributes.insert(HEROKU__ERROR__DESCRIPTION, value.to_owned()),
+            "method" => attributes.insert(HEROKU__ROUTER__METHOD, value.to_owned()),
+            "path" => attributes.insert(HEROKU__ROUTER__PATH, value.to_owned()),
+            "host" => attributes.insert(HEROKU__ROUTER__HOST, value.to_owned()),
+            "request_id" => attributes.insert(HEROKU__ROUTER__REQUEST_ID, value.to_owned()),
+            "fwd" => attributes.insert(HEROKU__ROUTER__FWD, value.to_owned()),
+            "dyno" => attributes.insert(HEROKU__ROUTER__DYNO, value.to_owned()),
+            "protocol" => attributes.insert(HEROKU__ROUTER__PROTOCOL, value.to_owned()),
+            "tls_version" => attributes.insert(HEROKU__ROUTER__TLS_VERSION, value.to_owned()),
+            "connect" | "service" => {
+                let key = match key {
+                    "connect" => HEROKU__ROUTER__CONNECT,
+                    _ => HEROKU__ROUTER__SERVICE,
+                };
+                let millis = value.strip_suffix("ms").unwrap_or(value);
+                if let Ok(millis) = millis.parse::<i64>() {
+                    attributes.insert(key, millis);
+                }
+            }
+            "status" | "bytes" => {
+                let key = match key {
+                    "status" => HEROKU__ROUTER__STATUS,
+                    _ => HEROKU__ROUTER__BYTES,
+                };
+                if let Ok(value) = value.parse::<i64>() {
+                    attributes.insert(key, value);
+                }
+            }
+            "tls" => {
+                if let Ok(value) = value.parse::<bool>() {
+                    attributes.insert(HEROKU__ROUTER__TLS, value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    level
+}
+
 /// Converts a parsed Logplex message to a Sentry log.
 pub fn logplex_message_to_sentry_log(
-    logplex_message: LogplexMessage<'_>,
-    frame_id: Option<&str>,
-    drain_token: Option<&str>,
-    user_agent: Option<&str>,
+    message: LogplexMessage<'_>,
+    headers: LogplexHeaders<'_>,
 ) -> OurLog {
     let LogplexMessage {
-        facility,
         severity,
-        version,
         timestamp,
-        hostname,
-        app_name,
-        proc_id,
-        msg_id,
+        source,
+        dyno,
         msg,
-        structured_data: _,
-    } = logplex_message;
+    } = message;
 
-    let LogplexMsgBody {
-        msg,
-        template,
-        parameters,
-    } = msg;
+    let LogplexHeaders {
+        frame_id,
+        drain_token,
+        user_agent,
+    } = headers;
 
     let mut attributes = Attributes::default();
 
     macro_rules! add_optional_attribute {
         ($name:expr, $value:expr) => {{
             if let Some(value) = $value {
-                attributes.insert($name.to_owned(), value.to_owned());
+                attributes.insert($name, value.to_owned());
             }
         }};
     }
 
-    macro_rules! add_attribute {
-        ($name:expr, $value:expr) => {{
-            let val = $value;
-            attributes.insert($name.to_owned(), val.to_owned());
-        }};
+    attributes.insert(SENTRY__ORIGIN, "auto.log_drain.heroku".to_owned());
+    add_optional_attribute!(HEROKU__SOURCE, source);
+    add_optional_attribute!(HEROKU__DYNO, dyno);
+    add_optional_attribute!(HEROKU__LOGPLEX__FRAME_ID, frame_id);
+    add_optional_attribute!(HEROKU__LOGPLEX__DRAIN_TOKEN, drain_token);
+    add_optional_attribute!(HEROKU__LOGPLEX__USER_AGENT, user_agent);
+
+    let mut level = map_syslog_severity_to_level(severity);
+
+    // Only messages emitted by the Heroku platform contain router fields and error codes,
+    // application output is kept as is.
+    if source == Some(HEROKU_SOURCE) {
+        if dyno == Some(ROUTER_DYNO) {
+            if let Some(router_level) = add_router_attributes(&mut attributes, msg) {
+                level = router_level;
+            }
+        } else if let Some((code, description)) = parse_error_code(msg) {
+            attributes.insert(HEROKU__ERROR__CODE, code.to_owned());
+            add_optional_attribute!(HEROKU__ERROR__DESCRIPTION, description);
+            level = OurLogLevel::Error;
+        }
     }
 
-    add_attribute!(ORIGIN, "auto.log_drain.heroku");
-
-    // Add syslog fields following OpenTelemetry syslog semantic conventions
-    // See: https://opentelemetry.io/docs/specs/otel/logs/data-model-appendix/#rfc5424-syslog
-    add_attribute!("syslog.facility", facility as i64);
-    add_attribute!("syslog.version", version as i64);
-    add_optional_attribute!("syslog.procid", proc_id);
-    add_optional_attribute!("syslog.msgid", msg_id);
-    add_optional_attribute!("resource.host.name", hostname);
-    add_optional_attribute!("resource.service.name", app_name);
-
-    // Add Heroku Logplex specific fields from log drain
-    add_optional_attribute!("heroku.logplex.frame_id", frame_id);
-    add_optional_attribute!("heroku.logplex.drain_token", drain_token);
-    add_optional_attribute!("heroku.logplex.user_agent", user_agent);
-
-    // Add pre-parsed logfmt parameters from the message body
-    add_optional_attribute!("sentry.message.template", template);
-    for (key, value) in parameters {
-        let param_key = format!("sentry.message.parameter.{key}");
-        add_attribute!(param_key, value);
-    }
+    let timestamp = match timestamp {
+        Some(timestamp) => Annotated::new(Timestamp(timestamp)),
+        None => {
+            let mut meta = Meta::default();
+            meta.add_remark(Remark::new(RemarkType::Substituted, "timestamp.invalid"));
+            Annotated(Some(Timestamp(Utc::now())), meta)
+        }
+    };
 
     OurLog {
-        timestamp: Annotated::new(timestamp.into()),
-        level: Annotated::new(map_syslog_severity_to_level(severity)),
+        timestamp,
+        // Logplex messages carry no trace context.
+        trace_id: TraceId::try_from_str_or_random(""),
+        level: Annotated::new(level),
         body: Annotated::new(msg.to_owned()),
         attributes: Annotated::new(attributes),
         ..Default::default()
@@ -229,270 +450,274 @@ pub fn logplex_message_to_sentry_log(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::SerializableAnnotated;
+
+    use super::*;
+
+    const HEADERS: LogplexHeaders<'static> = LogplexHeaders {
+        frame_id: Some("09C557EAFCFB6CF2740EE62F62971098"),
+        drain_token: Some("d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"),
+        user_agent: Some("Logplex/v72"),
+    };
+
+    fn frames(payload: &str) -> Vec<Result<&str, LogplexError>> {
+        parse_logplex_frames(payload.as_bytes())
+            .map(|frame| frame.map(|frame| std::str::from_utf8(frame).unwrap()))
+            .collect()
+    }
+
+    /// Converts a message to a log, removing the random trace id to keep snapshots stable.
+    fn to_log_with_headers(line: &str, headers: LogplexHeaders<'_>) -> Annotated<OurLog> {
+        let message = parse_logplex_message(line).unwrap();
+        let mut log = logplex_message_to_sentry_log(message, headers);
+
+        assert!(log.trace_id.value().is_some());
+        assert!(!log.trace_id.meta().is_empty());
+        log.trace_id = Annotated::empty();
+
+        Annotated::new(log)
+    }
+
+    fn to_log(line: &str) -> Annotated<OurLog> {
+        to_log_with_headers(line, LogplexHeaders::default())
+    }
+
     #[test]
-    fn test_parse_logplex_basic_state_change() {
-        let input =
-            "83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up";
-        let msg = parse_logplex(input).unwrap();
+    fn test_frames_documentation_example() {
+        // https://devcenter.heroku.com/articles/log-drains#https-drains
+        let payload = "83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up\n\
+            119 <40>1 2012-11-30T06:45:26+00:00 host app web.3 - Starting process with command `bundle exec rackup config.ru -p 24405`\n";
+
+        insta::assert_debug_snapshot!(frames(payload), @r#"
+        [
+            Ok(
+                "<40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up\n",
+            ),
+            Ok(
+                "<40>1 2012-11-30T06:45:26+00:00 host app web.3 - Starting process with command `bundle exec rackup config.ru -p 24405`\n",
+            ),
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_frames_with_newline_in_message() {
+        let frame = |msg: &str| format!("{} {msg}", msg.len());
+        let payload = frame("<190>1 - - - - a\nb\n") + &frame("<190>1 - - - - c");
+        assert_eq!(
+            frames(&payload),
+            vec![Ok("<190>1 - - - - a\nb\n"), Ok("<190>1 - - - - c")]
+        );
+    }
+
+    #[test]
+    fn test_frames_separated_by_whitespace() {
+        let payload = "\r\n 3 abc\n\n3 def\n";
+        assert_eq!(frames(payload), vec![Ok("abc"), Ok("def")]);
+    }
+
+    #[test]
+    fn test_frames_invalid() {
+        assert_eq!(frames(""), vec![]);
+        assert_eq!(frames("abc"), vec![Err(LogplexError::InvalidFrameLength)]);
+        assert_eq!(frames("0 abc"), vec![Err(LogplexError::InvalidFrameLength)]);
+        assert_eq!(
+            frames("-1 abc"),
+            vec![Err(LogplexError::InvalidFrameLength)]
+        );
+        assert_eq!(
+            frames("+3 abc"),
+            vec![Err(LogplexError::InvalidFrameLength)]
+        );
+        assert_eq!(frames("3abc"), vec![Err(LogplexError::InvalidFrameLength)]);
+        assert_eq!(frames("3"), vec![Err(LogplexError::InvalidFrameLength)]);
+        assert_eq!(frames("4 abc"), vec![Err(LogplexError::TruncatedFrame)]);
+        assert_eq!(frames("3 "), vec![Err(LogplexError::TruncatedFrame)]);
+        assert_eq!(
+            frames("99999999999999999999999 abc"),
+            vec![Err(LogplexError::InvalidFrameLength)]
+        );
+        assert_eq!(
+            frames("999999999 abc"),
+            vec![Err(LogplexError::TruncatedFrame)]
+        );
+        // Parsing stops after the first invalid frame.
+        assert_eq!(
+            frames("3 abc x 3 def"),
+            vec![Ok("abc"), Err(LogplexError::InvalidFrameLength)]
+        );
+    }
+
+    #[test]
+    fn test_frames_split_inside_multibyte_character() {
+        // The frame ends in the middle of the `ü`, the frame is still returned as bytes and the
+        // remaining byte is not a valid frame.
+        let frames: Vec<_> = parse_logplex_frames("2 aü".as_bytes()).collect();
+        assert_eq!(
+            frames,
+            vec![Ok(&b"a\xc3"[..]), Err(LogplexError::InvalidFrameLength)]
+        );
+    }
+
+    #[test]
+    fn test_parse_message_documentation_example() {
+        let msg = parse_logplex_message(
+            "<40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up\n",
+        )
+        .unwrap();
+
         insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
+        LogplexMessage {
             severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:29+00:00,
+            timestamp: Some(
+                2012-11-30T06:45:29Z,
             ),
-            hostname: Some(
-                "host",
-            ),
-            app_name: Some(
+            source: Some(
                 "app",
             ),
-            proc_id: Some(
+            dyno: Some(
                 "web.3",
             ),
-            msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
-                msg: "State changed from starting to up",
-                template: None,
-                parameters: [],
-            },
+            msg: "State changed from starting to up",
         }
         "#);
     }
 
     #[test]
-    fn test_parse_logplex_process_start_with_backticks() {
-        let input = "119 <40>1 2012-11-30T06:45:26+00:00 host app web.3 - Starting process with command `bundle exec rackup config.ru -p 24405`";
-        let msg = parse_logplex(input).unwrap();
-        insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
-            severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:26+00:00,
-            ),
-            hostname: Some(
-                "host",
-            ),
-            app_name: Some(
-                "app",
-            ),
-            proc_id: Some(
-                "web.3",
-            ),
-            msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
-                msg: "Starting process with command `bundle exec rackup config.ru -p 24405`",
-                template: None,
-                parameters: [],
-            },
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_logplex_heroku_dyno_with_drain_token() {
-        let input = "156 <40>1 2012-11-30T06:45:26+00:00 heroku web.3 d.73ea7440-270a-435a-a0ea-adf50b4e5f5a - Starting process with command `bundle exec rackup config.ru -p 24405`";
-        let msg = parse_logplex(input).unwrap();
-        insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 5,
-            severity: 0,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2012-11-30T06:45:26+00:00,
-            ),
-            hostname: Some(
-                "heroku",
-            ),
-            app_name: Some(
-                "web.3",
-            ),
-            proc_id: Some(
-                "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a",
-            ),
-            msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
-                msg: "Starting process with command `bundle exec rackup config.ru -p 24405`",
-                template: None,
-                parameters: [],
-            },
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_logplex_heroku_postgres_metrics() {
-        let input = "530 <134>1 2016-02-13T21:20:25+00:00 host app heroku-postgres - source=DATABASE sample#current_transaction=15365 sample#db_size=4347350804bytes sample#tables=43 sample#active-connections=6 sample#waiting-connections=0 sample#index-cache-hit-rate=0.97116 sample#table-cache-hit-rate=0.73958 sample#load-avg-1m=0.05 sample#load-avg-5m=0.03 sample#load-avg-15m=0.035 sample#read-iops=0 sample#write-iops=112.73 sample#memory-total=15405636.0kB sample#memory-free=214004kB sample#memory-cached=14392920.0kB sample#memory-postgres=181644kB";
-        let msg = parse_logplex(input).unwrap();
-        insta::assert_debug_snapshot!(msg, @r#"
-        Message {
-            facility: 16,
-            severity: 6,
-            version: 1,
-            timestamp: RequiredDateTime(
-                2016-02-13T21:20:25+00:00,
-            ),
-            hostname: Some(
-                "host",
-            ),
-            app_name: Some(
-                "app",
-            ),
-            proc_id: Some(
-                "heroku-postgres",
-            ),
-            msg_id: None,
-            structured_data: Skip,
-            msg: LogplexMsgBody {
-                msg: "source=DATABASE sample#current_transaction=15365 sample#db_size=4347350804bytes sample#tables=43 sample#active-connections=6 sample#waiting-connections=0 sample#index-cache-hit-rate=0.97116 sample#table-cache-hit-rate=0.73958 sample#load-avg-1m=0.05 sample#load-avg-5m=0.03 sample#load-avg-15m=0.035 sample#read-iops=0 sample#write-iops=112.73 sample#memory-total=15405636.0kB sample#memory-free=214004kB sample#memory-cached=14392920.0kB sample#memory-postgres=181644kB",
-                template: Some(
-                    "source={source} sample#current_transaction={sample#current_transaction} sample#db_size={sample#db_size} sample#tables={sample#tables} sample#active-connections={sample#active-connections} sample#waiting-connections={sample#waiting-connections} sample#index-cache-hit-rate={sample#index-cache-hit-rate} sample#table-cache-hit-rate={sample#table-cache-hit-rate} sample#load-avg-1m={sample#load-avg-1m} sample#load-avg-5m={sample#load-avg-5m} sample#load-avg-15m={sample#load-avg-15m} sample#read-iops={sample#read-iops} sample#write-iops={sample#write-iops} sample#memory-total={sample#memory-total} sample#memory-free={sample#memory-free} sample#memory-cached={sample#memory-cached} sample#memory-postgres={sample#memory-postgres}",
-                ),
-                parameters: [
-                    (
-                        "source",
-                        "DATABASE",
-                    ),
-                    (
-                        "sample#current_transaction",
-                        "15365",
-                    ),
-                    (
-                        "sample#db_size",
-                        "4347350804bytes",
-                    ),
-                    (
-                        "sample#tables",
-                        "43",
-                    ),
-                    (
-                        "sample#active-connections",
-                        "6",
-                    ),
-                    (
-                        "sample#waiting-connections",
-                        "0",
-                    ),
-                    (
-                        "sample#index-cache-hit-rate",
-                        "0.97116",
-                    ),
-                    (
-                        "sample#table-cache-hit-rate",
-                        "0.73958",
-                    ),
-                    (
-                        "sample#load-avg-1m",
-                        "0.05",
-                    ),
-                    (
-                        "sample#load-avg-5m",
-                        "0.03",
-                    ),
-                    (
-                        "sample#load-avg-15m",
-                        "0.035",
-                    ),
-                    (
-                        "sample#read-iops",
-                        "0",
-                    ),
-                    (
-                        "sample#write-iops",
-                        "112.73",
-                    ),
-                    (
-                        "sample#memory-total",
-                        "15405636.0kB",
-                    ),
-                    (
-                        "sample#memory-free",
-                        "214004kB",
-                    ),
-                    (
-                        "sample#memory-cached",
-                        "14392920.0kB",
-                    ),
-                    (
-                        "sample#memory-postgres",
-                        "181644kB",
-                    ),
-                ],
-            },
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_logplex_invalid_format() {
-        let msg = "invalid";
-        let result = parse_logplex(msg);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_logplex_message_to_sentry_log() {
-        let msg =
-            "83 <40>1 2012-11-30T06:45:29+00:00 host app web.3 - State changed from starting to up";
-        let parsed = parse_logplex(msg).unwrap();
-
-        let ourlog = logplex_message_to_sentry_log(
-            parsed,
-            Some("frame-123"),
-            Some("d.abc123"),
-            Some("Logplex/v72"),
+    fn test_parse_message_nil_values() {
+        let msg = parse_logplex_message("<190>1 - - - - - -").unwrap();
+        assert_eq!(
+            msg,
+            LogplexMessage {
+                severity: 6,
+                timestamp: None,
+                source: None,
+                dyno: None,
+                msg: "-",
+            }
         );
 
-        let ourlog = Annotated::new(ourlog);
-        insta::assert_json_snapshot!(SerializableAnnotated(&ourlog), @r#"
+        let msg = parse_logplex_message("<190>1 - - - - ").unwrap();
+        assert_eq!(msg.msg, "");
+
+        let msg = parse_logplex_message("<190>1 - - - - -").unwrap();
+        assert_eq!(msg.msg, "");
+    }
+
+    #[test]
+    fn test_parse_message_invalid_timestamp() {
+        let msg = parse_logplex_message("<190>1 yesterday host app web.1 - hi").unwrap();
+        assert_eq!(msg.timestamp, None);
+        assert_eq!(msg.msg, "hi");
+    }
+
+    #[test]
+    fn test_parse_message_invalid() {
+        let parse = |s| parse_logplex_message(s).unwrap_err();
+
+        assert_eq!(parse(""), LogplexError::InvalidPriority);
+        assert_eq!(parse("hello"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<>1 - - - - - hi"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<192>1 - - - - - hi"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<999>1 - - - - - hi"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<0190>1 - - - - - hi"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<+19>1 - - - - - hi"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<190"), LogplexError::InvalidPriority);
+        assert_eq!(
+            parse("<190>2 - - - - - hi"),
+            LogplexError::UnsupportedVersion
+        );
+        assert_eq!(parse("<190>1"), LogplexError::IncompleteHeader);
+        assert_eq!(parse("<190>1 - - -"), LogplexError::IncompleteHeader);
+        assert_eq!(parse("<190>1 - - - -"), LogplexError::IncompleteHeader);
+    }
+
+    #[test]
+    fn test_logfmt() {
+        let pairs: Vec<_> =
+            Logfmt(r#"at=error  desc="Request timeout" word path="/a b" =x dyno= fwd="1.2.3.4"#)
+                .collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("at", "error"),
+                ("desc", "Request timeout"),
+                ("path", "/a b"),
+                ("dyno", ""),
+                ("fwd", "1.2.3.4"),
+            ]
+        );
+
+        assert_eq!(Logfmt("").count(), 0);
+        assert_eq!(Logfmt("   ").count(), 0);
+        assert_eq!(Logfmt("=").count(), 0);
+        assert_eq!(Logfmt("a=\"").collect::<Vec<_>>(), vec![("a", "")]);
+        assert_eq!(Logfmt("ü=ö ä").collect::<Vec<_>>(), vec![("ü", "ö")]);
+    }
+
+    #[test]
+    fn test_parse_error_code() {
+        assert_eq!(
+            parse_error_code("Error R14 (Memory quota exceeded)"),
+            Some(("R14", Some("Memory quota exceeded")))
+        );
+        assert_eq!(
+            parse_error_code(
+                "Error R10 (Boot timeout) -> Web process failed to bind to $PORT within 60 seconds of launch"
+            ),
+            Some(("R10", Some("Boot timeout")))
+        );
+        assert_eq!(
+            parse_error_code(
+                "Error L10 (output buffer overflow): 500 messages dropped since 2013-04-17T19:04:46+00:00."
+            ),
+            Some(("L10", Some("output buffer overflow")))
+        );
+        assert_eq!(parse_error_code("Error H99"), Some(("H99", None)));
+        assert_eq!(parse_error_code("Error R1"), None);
+        assert_eq!(parse_error_code("Error R144 (x)"), None);
+        assert_eq!(parse_error_code("Error X14 (x)"), None);
+        assert_eq!(parse_error_code("Error Rü4"), None);
+        assert_eq!(parse_error_code("error R14"), None);
+        assert_eq!(parse_error_code("Process running mem=1028MB(103.3%)"), None);
+    }
+
+    #[test]
+    fn test_app_log() {
+        let log = to_log_with_headers(
+            "<190>1 2024-04-26T16:58:32.943253+00:00 host app web.1 - Completed 200 OK in 12ms (Views: 3.1ms | ActiveRecord: 1.2ms) code=H12\n",
+            HEADERS,
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&log), @r#"
         {
-          "timestamp": 1354257929.0,
-          "level": "fatal",
-          "body": "State changed from starting to up",
+          "timestamp": 1714150712.943253,
+          "level": "info",
+          "body": "Completed 200 OK in 12ms (Views: 3.1ms | ActiveRecord: 1.2ms) code=H12",
           "attributes": {
+            "heroku.dyno": {
+              "type": "string",
+              "value": "web.1"
+            },
             "heroku.logplex.drain_token": {
               "type": "string",
-              "value": "d.abc123"
+              "value": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
             },
             "heroku.logplex.frame_id": {
               "type": "string",
-              "value": "frame-123"
+              "value": "09C557EAFCFB6CF2740EE62F62971098"
             },
             "heroku.logplex.user_agent": {
               "type": "string",
               "value": "Logplex/v72"
             },
-            "resource.host.name": {
-              "type": "string",
-              "value": "host"
-            },
-            "resource.service.name": {
+            "heroku.source": {
               "type": "string",
               "value": "app"
             },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
-            },
-            "syslog.facility": {
-              "type": "integer",
-              "value": 5
-            },
-            "syslog.procid": {
-              "type": "string",
-              "value": "web.3"
-            },
-            "syslog.version": {
-              "type": "integer",
-              "value": 1
             }
           }
         }
@@ -500,57 +725,344 @@ mod tests {
     }
 
     #[test]
-    fn test_logplex_message_to_sentry_log_with_logfmt() {
-        let input = "100 <134>1 2016-02-13T21:20:25+00:00 host app heroku-postgres - source=DATABASE sample#db_size=1234bytes";
-        let parsed = parse_logplex(input).unwrap();
+    fn test_app_log_looks_like_heroku_error() {
+        // Application output is never interpreted, even if it looks like a platform message.
+        let log = to_log(
+            "<190>1 2024-04-26T16:58:32+00:00 host app web.1 - Error R14 (Memory quota exceeded)",
+        );
+        let attributes = log.value().unwrap().attributes.value().unwrap();
+        assert!(!attributes.contains_key(HEROKU__ERROR__CODE));
+        assert_eq!(log.value().unwrap().level.value(), Some(&OurLogLevel::Info));
+    }
 
-        let ourlog = logplex_message_to_sentry_log(parsed, None, None, None);
+    #[test]
+    fn test_router_info() {
+        // https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32.943253+00:00 host heroku router - at=info method=GET path=/ host=my-app.example.com request_id=6903a168-b79b-ec27-03c8-b8f64d8d8792 fwd="138.68.186.89" dyno=web.1 connect=0ms service=0ms status=200 bytes=0 protocol=http2.0 tls=true tls_version=tls1.3"#,
+        );
 
-        let ourlog = Annotated::new(ourlog);
-        insta::assert_json_snapshot!(SerializableAnnotated(&ourlog), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&log), @r#"
         {
-          "timestamp": 1455398425.0,
+          "timestamp": 1714150712.943253,
           "level": "info",
-          "body": "source=DATABASE sample#db_size=1234bytes",
+          "body": "at=info method=GET path=/ host=my-app.example.com request_id=6903a168-b79b-ec27-03c8-b8f64d8d8792 fwd=\"138.68.186.89\" dyno=web.1 connect=0ms service=0ms status=200 bytes=0 protocol=http2.0 tls=true tls_version=tls1.3",
           "attributes": {
-            "resource.host.name": {
+            "heroku.dyno": {
               "type": "string",
-              "value": "host"
+              "value": "router"
             },
-            "resource.service.name": {
+            "heroku.router.at": {
               "type": "string",
-              "value": "app"
+              "value": "info"
             },
-            "sentry.message.parameter.sample#db_size": {
-              "type": "string",
-              "value": "1234bytes"
+            "heroku.router.bytes": {
+              "type": "integer",
+              "value": 0
             },
-            "sentry.message.parameter.source": {
-              "type": "string",
-              "value": "DATABASE"
+            "heroku.router.connect": {
+              "type": "integer",
+              "value": 0
             },
-            "sentry.message.template": {
+            "heroku.router.dyno": {
               "type": "string",
-              "value": "source={source} sample#db_size={sample#db_size}"
+              "value": "web.1"
+            },
+            "heroku.router.fwd": {
+              "type": "string",
+              "value": "138.68.186.89"
+            },
+            "heroku.router.host": {
+              "type": "string",
+              "value": "my-app.example.com"
+            },
+            "heroku.router.method": {
+              "type": "string",
+              "value": "GET"
+            },
+            "heroku.router.path": {
+              "type": "string",
+              "value": "/"
+            },
+            "heroku.router.protocol": {
+              "type": "string",
+              "value": "http2.0"
+            },
+            "heroku.router.request_id": {
+              "type": "string",
+              "value": "6903a168-b79b-ec27-03c8-b8f64d8d8792"
+            },
+            "heroku.router.service": {
+              "type": "integer",
+              "value": 0
+            },
+            "heroku.router.status": {
+              "type": "integer",
+              "value": 200
+            },
+            "heroku.router.tls": {
+              "type": "boolean",
+              "value": true
+            },
+            "heroku.router.tls_version": {
+              "type": "string",
+              "value": "tls1.3"
+            },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
             },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
-            },
-            "syslog.facility": {
-              "type": "integer",
-              "value": 16
-            },
-            "syslog.procid": {
-              "type": "string",
-              "value": "heroku-postgres"
-            },
-            "syslog.version": {
-              "type": "integer",
-              "value": 1
             }
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_router_h12() {
+        // https://devcenter.heroku.com/articles/error-codes#h12-request-timeout
+        let log = to_log(
+            r#"<158>1 2010-10-06T21:51:37-07:00 host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/" host=example-app-1234567890ab.herokuapp.com fwd=17.17.17.17 dyno=web.1 connect=6ms service=30001ms status=503 bytes=0"#,
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&log), @r#"
+        {
+          "timestamp": 1286427097.0,
+          "level": "error",
+          "body": "at=error code=H12 desc=\"Request timeout\" method=GET path=\"/\" host=example-app-1234567890ab.herokuapp.com fwd=17.17.17.17 dyno=web.1 connect=6ms service=30001ms status=503 bytes=0",
+          "attributes": {
+            "heroku.dyno": {
+              "type": "string",
+              "value": "router"
+            },
+            "heroku.error.code": {
+              "type": "string",
+              "value": "H12"
+            },
+            "heroku.error.description": {
+              "type": "string",
+              "value": "Request timeout"
+            },
+            "heroku.router.at": {
+              "type": "string",
+              "value": "error"
+            },
+            "heroku.router.bytes": {
+              "type": "integer",
+              "value": 0
+            },
+            "heroku.router.connect": {
+              "type": "integer",
+              "value": 6
+            },
+            "heroku.router.dyno": {
+              "type": "string",
+              "value": "web.1"
+            },
+            "heroku.router.fwd": {
+              "type": "string",
+              "value": "17.17.17.17"
+            },
+            "heroku.router.host": {
+              "type": "string",
+              "value": "example-app-1234567890ab.herokuapp.com"
+            },
+            "heroku.router.method": {
+              "type": "string",
+              "value": "GET"
+            },
+            "heroku.router.path": {
+              "type": "string",
+              "value": "/"
+            },
+            "heroku.router.service": {
+              "type": "integer",
+              "value": 30001
+            },
+            "heroku.router.status": {
+              "type": "integer",
+              "value": 503
+            },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.log_drain.heroku"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_router_h10_empty_values() {
+        // https://devcenter.heroku.com/articles/error-codes#h10-app-crashed
+        let log = to_log(
+            r#"<158>1 2010-10-06T21:51:12-07:00 host heroku router - at=error code=H10 desc="App crashed" method=GET path="/" host=example-app-1234567890ab.herokuapp.com fwd=17.17.17.17 dyno= connect= service= status=503 bytes="#,
+        );
+
+        let log = log.value().unwrap();
+        assert_eq!(log.level.value(), Some(&OurLogLevel::Error));
+
+        let attributes = log.attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get_value(HEROKU__ERROR__CODE)
+                .and_then(|v| v.as_str()),
+            Some("H10")
+        );
+        assert!(!attributes.contains_key(HEROKU__ROUTER__DYNO));
+        assert!(!attributes.contains_key(HEROKU__ROUTER__CONNECT));
+        assert!(!attributes.contains_key(HEROKU__ROUTER__BYTES));
+    }
+
+    #[test]
+    fn test_router_ignores_unknown_and_malformed_fields() {
+        let log = to_log(
+            "<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info status=abc connect=fast tls=maybe sample#foo=1 code=",
+        );
+
+        let attributes = log.value().unwrap().attributes.value().unwrap();
+        let keys: Vec<_> = attributes.0.keys().collect();
+        assert_eq!(
+            keys,
+            vec![
+                "heroku.dyno",
+                "heroku.router.at",
+                "heroku.source",
+                "sentry.origin"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_dyno_r14() {
+        // https://devcenter.heroku.com/articles/error-codes#r14-memory-quota-exceeded
+        let log = to_log(
+            "<45>1 2011-05-03T17:40:11+00:00 host heroku worker.1 - Error R14 (Memory quota exceeded)\n",
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&log), @r#"
+        {
+          "timestamp": 1304444411.0,
+          "level": "error",
+          "body": "Error R14 (Memory quota exceeded)",
+          "attributes": {
+            "heroku.dyno": {
+              "type": "string",
+              "value": "worker.1"
+            },
+            "heroku.error.code": {
+              "type": "string",
+              "value": "R14"
+            },
+            "heroku.error.description": {
+              "type": "string",
+              "value": "Memory quota exceeded"
+            },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.log_drain.heroku"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_dyno_without_error_code() {
+        let log = to_log(
+            "<45>1 2011-05-03T17:40:10+00:00 host heroku worker.1 - Process running mem=1028MB(103.3%)",
+        );
+
+        let log = log.value().unwrap();
+        assert_eq!(log.level.value(), Some(&OurLogLevel::Info));
+        let attributes = log.attributes.value().unwrap();
+        assert!(!attributes.contains_key(HEROKU__ERROR__CODE));
+    }
+
+    #[test]
+    fn test_logplex_l10() {
+        let log = to_log(
+            "<172>1 2013-04-17T19:04:46+00:00 host heroku logplex - Error L10 (output buffer overflow): 500 messages dropped since 2013-04-17T19:04:46+00:00.",
+        );
+
+        let log = log.value().unwrap();
+        assert_eq!(log.level.value(), Some(&OurLogLevel::Error));
+        let attributes = log.attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get_value(HEROKU__ERROR__CODE)
+                .and_then(|v| v.as_str()),
+            Some("L10")
+        );
+    }
+
+    /// Runs the full pipeline over arbitrary bytes, which must never panic.
+    fn parse_all(payload: &[u8]) {
+        for frame in parse_logplex_frames(payload).flatten() {
+            let frame = String::from_utf8_lossy(frame);
+            if let Ok(message) = parse_logplex_message(&frame) {
+                logplex_message_to_sentry_log(message, HEADERS);
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_panic_on_malformed_input() {
+        let frame = |msg: &str| format!("{} {msg}", msg.len());
+        let payload = [
+            frame("<190>1 2024-04-26T16:58:32+00:00 host app web.1 - h\u{e9}llo w\u{f6}rld \u{1f600}\n"),
+            frame(r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=error code=H12 desc="Request timeout" path="/\u{fc}" fwd="1.2.3.4" connect=1ms service=30001ms status=503 bytes=0 tls=true"#),
+            frame("<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - Error R14 (Memory quota exceeded)\n"),
+        ]
+        .concat()
+        .into_bytes();
+
+        // Every truncation of a valid payload.
+        for end in 0..=payload.len() {
+            parse_all(&payload[..end]);
+            parse_all(&payload[end..]);
+        }
+
+        // Deterministic pseudo-random byte mutations, biased towards syntax characters.
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let alphabet = b" <>=\"()-:0123456789\nHLRE\xc3\xbc\xff";
+        for _ in 0..20_000 {
+            let mut mutated = payload.clone();
+            for _ in 0..(next() % 8 + 1) {
+                let pos = (next() % mutated.len() as u64) as usize;
+                let byte = alphabet[(next() % alphabet.len() as u64) as usize];
+                match next() % 3 {
+                    0 => mutated[pos] = byte,
+                    1 => mutated.insert(pos, byte),
+                    _ => drop(mutated.remove(pos)),
+                }
+            }
+            parse_all(&mutated);
+        }
+    }
+
+    #[test]
+    fn test_invalid_timestamp_is_substituted() {
+        let log = to_log("<190>1 - host app web.1 - hello");
+        let log = log.value().unwrap();
+        assert!(log.timestamp.value().is_some());
+        assert!(!log.timestamp.meta().is_empty());
     }
 }

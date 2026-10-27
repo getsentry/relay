@@ -1,6 +1,7 @@
 mod content_type;
 mod forwarded_for;
 mod integration_builder;
+mod logplex_headers;
 mod mime;
 mod received_at;
 mod request_meta;
@@ -10,6 +11,7 @@ mod signed_json;
 pub use self::content_type::*;
 pub use self::forwarded_for::*;
 pub use self::integration_builder::*;
+pub use self::logplex_headers::*;
 pub use self::mime::*;
 pub use self::received_at::*;
 pub use self::request_meta::*;

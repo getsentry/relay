@@ -12,7 +12,8 @@ mod size;
 mod vercel_to_sentry;
 
 pub use self::heroku_to_sentry::{
-    HerokuHeader, LogplexMessage, LogplexMsgBody, logplex_message_to_sentry_log, parse_logplex,
+    LogplexError, LogplexFrames, LogplexHeaders, LogplexMessage, logplex_message_to_sentry_log,
+    parse_logplex_frames, parse_logplex_message,
 };
 pub use self::otel_to_sentry::otel_to_sentry_log;
 pub use self::size::calculate_size;

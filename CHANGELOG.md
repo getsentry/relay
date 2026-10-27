@@ -8,6 +8,7 @@
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 - Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
+- Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs`, which accepts Logplex HTTPS drain batches and extracts router fields and Heroku error codes, such as `H12` and `R14`, as log attributes. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
 
 **Bug Fixes**:
 

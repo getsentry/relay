@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
+use crate::extractors::LogplexHeaders;
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
 use crate::statsd::RelayTimers;
 use crate::utils::DebugBytes;
@@ -182,12 +183,9 @@ impl Item {
                     LogsIntegration::Nel
                     | LogsIntegration::Integrity
                     | LogsIntegration::OtelV1 { .. }
-                    | LogsIntegration::VercelDrainLog { .. },
+                    | LogsIntegration::VercelDrainLog { .. }
+                    | LogsIntegration::HerokuLogDrain,
                 )) => smallvec![
-                    (DataCategory::LogByte, self.len().max(1)),
-                    (DataCategory::LogItem, item_count),
-                ],
-                Some(Integration::Logs(LogsIntegration::HerokuLogDrain)) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
                 ],
@@ -509,6 +507,16 @@ impl Item {
     pub fn set_sentry_environment(&mut self, environment: String) {
         self.headers
             .set(ItemHeaderKey::SentryEnvironment, environment);
+    }
+
+    /// Retrieves the Heroku Logplex request headers from an item header.
+    pub fn logplex_headers(&self) -> Option<LogplexHeaders> {
+        self.headers.get(ItemHeaderKey::LogplexHeaders)
+    }
+
+    /// Sets the Heroku Logplex request headers on an item header.
+    pub fn set_logplex_headers(&mut self, headers: LogplexHeaders) {
+        self.headers.set(ItemHeaderKey::LogplexHeaders, headers);
     }
 
     /// Returns the parent entity that this item is associated with, if any.
@@ -1039,6 +1047,10 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
+    /// The metadata of a Heroku Logplex drain request.
+    ///
+    /// Only set on internal [`ItemType::Integration`] items of the Heroku log drain.
+    LogplexHeaders,
 }
 
 /// The value of an item header.

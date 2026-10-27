@@ -31,29 +31,24 @@ impl IntegrationBuilder<()> {
     ///
     /// Setting the type is required.
     pub fn with_type(self, integration: impl Into<Integration>) -> IntegrationBuilder<HasType> {
-        self.with_type_and_headers(integration, [])
+        self.with_type_and(integration, |_| ())
     }
 
-    /// Configures the [`Integration`] type with additional headers.
+    /// Configures the [`Integration`] type and customizes the created integration item.
     ///
-    /// Headers are stored in the item's `other` field and can be retrieved
-    /// during processing via `item.get_header()`.
-    pub fn with_type_and_headers<I>(
+    /// This can be used to store request metadata in item headers, which can then be retrieved
+    /// during processing of the integration.
+    pub fn with_type_and(
         mut self,
         integration: impl Into<Integration>,
-        headers: I,
-    ) -> IntegrationBuilder<HasType>
-    where
-        I: IntoIterator<Item = (String, relay_protocol::Value)>,
-    {
+        configure: impl FnOnce(&mut Item),
+    ) -> IntegrationBuilder<HasType> {
         let integration = integration.into();
 
         self.envelope.add_item({
             let mut item = Item::new(ItemType::Integration);
             item.set_payload(integration.into(), self.payload.clone());
-            for (name, value) in headers {
-                item.set_header(name, value);
-            }
+            configure(&mut item);
             item
         });
 
