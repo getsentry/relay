@@ -1,5 +1,3 @@
-#![cfg(not(feature = "processing"))]
-
 use relay_quotas::{DimensionMap, ItemScoping, RateLimit, RateLimitScope, RetryAfter};
 
 use super::*;
@@ -18,7 +16,7 @@ impl RateLimiter for AttachmentLimit {
             match scope.category {
                 DataCategory::Attachment => self.bytes,
                 DataCategory::Span | DataCategory::SpanIndexed | DataCategory::AttachmentItem => 1,
-                other => panic!("unexpected quota category: {other:?}"),
+                other => unreachable!("unexpected quota category: {other:?}"),
             }
         );
         let mut limits = RateLimits::new();
@@ -77,6 +75,15 @@ fn envelope_from_wire(body: &str, associated: bool) -> Box<Envelope> {
 
 #[tokio::test]
 async fn test_attachment_accounting_from_wire() {
+    #[cfg(feature = "processing")]
+    let limiter = QuotaRateLimiter::new(
+        crate::services::projects::cache::ProjectCacheHandle::for_test(),
+        None,
+    );
+    #[cfg(not(feature = "processing"))]
+    let limiter = QuotaRateLimiter::new();
+    let processor = SpansProcessor::new(Arc::new(limiter), GeoIpLookup::empty());
+
     for (body, bytes) in [("", 1), ("x", 1), ("payload", 7)] {
         for associated in [false, true] {
             for category in [
@@ -87,8 +94,6 @@ async fn test_attachment_accounting_from_wire() {
                 let (outcomes, mut received) = relay_system::Addr::custom();
                 let mut envelope =
                     ManagedEnvelope::new(envelope_from_wire(body, associated), outcomes);
-                let processor =
-                    SpansProcessor::new(Arc::new(QuotaRateLimiter::new()), GeoIpLookup::empty());
                 let serialized = processor.prepare_envelope(&mut envelope).unwrap();
                 assert!(envelope.envelope().is_empty());
                 envelope.accept();
@@ -101,9 +106,7 @@ async fn test_attachment_accounting_from_wire() {
                     .await
                     .unwrap();
                 let serialized = output.map(|output, _| {
-                    let Either::Left(spans) = output else {
-                        panic!("span should survive an attachment limit");
-                    };
+                    let spans = output.unwrap_left();
                     assert_eq!(spans.spans.len(), 1);
                     let attachments: Vec<_> = spans.spans[0]
                         .attachments

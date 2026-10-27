@@ -40,9 +40,7 @@ mod tests {
     use super::*;
     use crate::envelope::{ContentType, Item, ItemType};
     use crate::managed::Managed;
-    #[cfg(not(feature = "processing"))]
-    use crate::processing::trace_attachments::forward;
-    use crate::processing::trace_attachments::process;
+    use crate::processing::trace_attachments::{forward, process};
 
     #[test]
     fn test_attachment_quantities_across_representations() {
@@ -61,8 +59,13 @@ mod tests {
             assert_eq!(expanded.body.as_ref(), body.as_bytes());
             assert_eq!(expanded.quantities(), expected);
 
+            let item =
+                expanded.map(|attachment, _| forward::attachment_to_item(attachment).unwrap());
+            assert_eq!(item.quantities(), expected);
+
             #[cfg(feature = "processing")]
             {
+                let expanded = item.map(|item, _| process::parse_and_validate(&item).unwrap());
                 let stored = crate::processing::trace_attachments::store::convert(
                     expanded,
                     crate::processing::Retention {
@@ -77,12 +80,7 @@ mod tests {
                 stored.accept(|_| ());
             }
             #[cfg(not(feature = "processing"))]
-            {
-                let item =
-                    expanded.map(|attachment, _| forward::attachment_to_item(attachment).unwrap());
-                assert_eq!(item.quantities(), expected);
-                item.accept(|_| ());
-            }
+            item.accept(|_| ());
             handle.assert_no_outcomes();
         }
     }
