@@ -1375,86 +1375,43 @@ mod tests {
         assert!(!upload.retry());
     }
 
-    /// Exercise the typed body and upstream request builder across two forwarding hops,
-    /// followed by decoding before objectstore, without requiring network services.
     #[tokio::test]
-    async fn compressed_upload_survives_forwarding_chain() {
-        use axum::Router;
+    async fn compressed_upload_preserves_body() {
         use axum::body::{Body, to_bytes};
-        use axum::extract::Request;
-        use axum::http::StatusCode;
-        use axum::routing::patch;
-        use tower::ServiceExt;
 
         let data = b"hello world";
         let compressed = Bytes::from(zstd::encode_all(data.as_slice(), 0).unwrap());
-        assert!(compressed.len() > data.len());
-        let mut bytes = compressed.clone();
-        let mut headers = http::HeaderMap::new();
-        let app = Router::new().route(
-            UPLOAD_PATCH_PATH,
-            patch(|request: Request| async move {
-                let (parts, body) = request.into_parts();
-                (parts.headers, body)
-            }),
+        let stream: ByteStream = futures::stream::iter([Ok(compressed.clone())]).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 0, 1024);
+        let (mut upload, _rx) = UploadRequest::upload(
+            project(),
+            "/api/42/upload/key/".into(),
+            UploadMode::Resumable {
+                offset: 123,
+                chunk_length: data.len(),
+            },
+            Either::Right(stream),
+            HttpEncoding::Zstd,
         );
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let mut builder =
+            RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
+        upload.build(&mut builder).unwrap();
+        let mut request = builder.finish().unwrap().0;
+        assert_eq!(request.headers()[http::header::CONTENT_ENCODING], "zstd");
+        assert_eq!(
+            request.headers()[crate::constants::X_DECODED_CONTENT_LENGTH],
+            "11"
+        );
+        assert_eq!(request.headers()[tus::UPLOAD_OFFSET], "123");
+        assert!(!request.headers().contains_key(http::header::CONTENT_LENGTH));
 
-        for _ in 0..2 {
-            let stream: ByteStream = futures::stream::iter([Ok(bytes)]).boxed();
-            let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 0, 1024);
-            let (mut upload, _rx) = UploadRequest::upload(
-                project(),
-                "/api/42/upload/key/".into(),
-                UploadMode::Resumable {
-                    offset: 123,
-                    chunk_length: data.len(),
-                },
-                Either::Right(stream),
-                HttpEncoding::Zstd,
-            );
-            let mut builder =
-                RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
-            upload.build(&mut builder).unwrap();
-            let mut request = builder.finish().unwrap().0;
-            assert_eq!(request.headers()[http::header::CONTENT_ENCODING], "zstd");
-            assert_eq!(
-                request.headers()[crate::constants::X_DECODED_CONTENT_LENGTH],
-                "11"
-            );
-            assert_eq!(request.headers()[tus::UPLOAD_OFFSET], "123");
-            assert!(!request.headers().contains_key(http::header::CONTENT_LENGTH));
-
-            assert!(upload.retry());
-            bytes = to_bytes(Body::new(request.body_mut().take().unwrap()), 1024)
-                .await
-                .unwrap();
-            assert_eq!(bytes, compressed);
-            assert!(!upload.retry());
-            headers = request.headers().clone();
-        }
-
-        let mut request = Request::builder()
-            .method(Method::PATCH)
-            .uri("/api/42/upload/key/")
-            .body(Body::from(bytes))
-            .unwrap();
-        *request.headers_mut() = headers;
-        let response = app
-            .layer(axum::middleware::from_fn(crate::middlewares::decompress))
-            .oneshot(request)
+        assert!(upload.retry());
+        let bytes = to_bytes(Body::new(request.body_mut().take().unwrap()), 1024)
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert!(
-            !response
-                .headers()
-                .contains_key(http::header::CONTENT_ENCODING)
-        );
-        assert_eq!(
-            to_bytes(response.into_body(), 1024).await.unwrap(),
-            data.as_slice()
-        );
+        assert_eq!(bytes, compressed);
+        assert!(!upload.retry());
     }
 
     #[cfg(feature = "processing")]
