@@ -31,6 +31,7 @@ impl Forward for VercelLogsIntegrationOutput {
         match self {}
     }
 
+    #[cfg(feature = "processing")]
     fn forward_store(
         self,
         _s: processing::StoreHandle<'_>,
