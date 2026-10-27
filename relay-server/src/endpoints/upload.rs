@@ -111,7 +111,9 @@ fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
                 };
                 let limit = match compression {
                     None => max_upload_size,
-                    // A decoded-size limit must not reject larger compressed representations.
+                    // Compressing an 11-byte payload can produce more than 11 bytes of output.
+                    // max_upload_size limits decoded bytes, enforced after decompression upstream.
+                    // Forwarding has no separate compressed-byte cap; this disables the local limit.
                     Some(_) => usize::MAX,
                 };
                 middleware
