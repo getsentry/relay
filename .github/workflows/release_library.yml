@@ -33,7 +33,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
         with:
-          craft_version: 2.35.0
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
           path: py
