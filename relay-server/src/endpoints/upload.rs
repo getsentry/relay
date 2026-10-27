@@ -89,10 +89,12 @@ fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
         .layer(DefaultBodyLimit::disable());
     let max_upload_size = config.max_upload_size();
     if has_objectstore {
-        patch(handle_patch_decoded)
-            .route_layer(RequestBodyLimitLayer::new(max_upload_size))
-            .route_layer(middleware)
-            .layer(axum::middleware::from_fn(crate::middlewares::decompress))
+        patch(|state, meta, headers, path, params, body| {
+            handle_patch(state, meta, headers, path, params, body, None)
+        })
+        .route_layer(RequestBodyLimitLayer::new(max_upload_size))
+        .route_layer(middleware)
+        .layer(axum::middleware::from_fn(crate::middlewares::decompress))
     } else {
         let state = service.clone();
         patch_service(service_fn(move |request: Request| {
@@ -320,18 +322,6 @@ async fn handle_post(
     }
 
     Ok(response)
-}
-
-/// Uploads decoded bytes. Installed only behind decompression middleware.
-async fn handle_patch_decoded(
-    state: ServiceState,
-    meta: RequestMeta,
-    headers: HeaderMap,
-    path: Path<upload::LocationPath>,
-    params: Query<LocationQueryParams>,
-    body: Body,
-) -> axum::response::Result<Response> {
-    handle_patch(state, meta, headers, path, params, body, None).await
 }
 
 /// The same unsupported-encoding response as the request decompressor.
