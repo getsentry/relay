@@ -3,6 +3,7 @@
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
+use crate::envelope::AttachmentItem;
 use std::collections::BTreeMap;
 use std::error::Error;
 
@@ -15,8 +16,6 @@ use relay_event_schema::protocol::{
     StabilityReportContext, Values,
 };
 use relay_protocol::{Annotated, Value, get_value};
-
-use crate::envelope::{Item, ItemType};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -240,10 +239,9 @@ fn write_crashpad_annotations(
 /// successfully, even if the minidump or part of its data cannot be parsed.
 pub fn process_minidump(
     event: &mut Event,
-    item: &Item,
+    item: &AttachmentItem,
     additional_exceptions: AdditionalExceptions,
 ) {
-    debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
@@ -377,7 +375,7 @@ mod tests {
 
             process_minidump(
                 event.value_mut().as_mut().unwrap(),
-                &Item::new(ItemType::Attachment),
+                &AttachmentItem::new(),
                 policy,
             );
 
@@ -417,7 +415,7 @@ mod tests {
 
         process_minidump(
             event.value_mut().as_mut().unwrap(),
-            &Item::new(ItemType::Attachment),
+            &AttachmentItem::new(),
             AdditionalExceptions::Retain,
         );
 

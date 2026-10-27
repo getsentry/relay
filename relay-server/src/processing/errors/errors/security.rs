@@ -1,10 +1,10 @@
+use super::ErrorPayload;
 use relay_base_schema::events::EventType;
 use relay_event_normalization::infer_event_type;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentItem, Item, SecurityItem, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::processor::ProcessingError;
@@ -18,13 +18,13 @@ impl SentryError for Security {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::Security) else {
+        let Some(ev) = utils::take_payload::<SecurityItem>(items) else {
             return Ok(None);
         };
 
         let payload = ev.payload();
         let mut metrics = Default::default();
-        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx)?;
+        let mut event = utils::event_from_json(&ev.payload(), None, &mut metrics, ctx)?;
 
         // Normalization honours a declared `transaction` or `feedback` type. Discard it, a
         // security item must not turn into an event of a different data category.
@@ -40,8 +40,8 @@ impl SentryError for Security {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self,
             metrics,
@@ -58,11 +58,11 @@ impl SentryError for Security {
         Ok(())
     }
 
-    fn serialize_into(self, _items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::Attachments(Default::default())
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }
@@ -76,6 +76,7 @@ impl Counted for Security {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envelope::ItemType;
 
     use crate::envelope::ContentType;
     use crate::processing::errors::Error;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
-use crate::envelope::{EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{EnvelopeHeaders, UserReportItem};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -74,10 +74,10 @@ impl Processor for UserReportsProcessor {
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
-        let reports: Vec<Item> = envelope
+        let reports: Vec<UserReportItem> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::UserReport))
-            .into_vec();
+            .drain_items::<UserReportItem>()
+            .collect();
 
         if reports.is_empty() {
             return None;
@@ -107,7 +107,7 @@ pub struct SerializedUserReports {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of reports.
-    reports: Vec<Item>,
+    reports: Vec<UserReportItem>,
 }
 
 impl Counted for SerializedUserReports {

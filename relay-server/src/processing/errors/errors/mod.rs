@@ -2,10 +2,10 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item, UnrealReportItem, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing;
 use crate::processing::errors::Result;
-use crate::processing::{self, ForwardContext};
 use crate::statsd::RelayCounters;
 
 mod apple_crash_report;
@@ -56,6 +56,35 @@ impl Context<'static> {
     }
 }
 
+/// Serialized native error data. Unreal reports may be forwarded without expansion;
+/// all other remaining native data is already known to consist of attachments.
+pub enum ErrorPayload {
+    Attachments(smallvec::SmallVec<[AttachmentItem; 2]>),
+    UnrealReport(UnrealReportItem),
+}
+
+impl ErrorPayload {
+    pub fn append_to_envelope(self, items: &mut Vec<Item>) {
+        match self {
+            Self::Attachments(attachments) => items.extend(attachments.into_iter().map(Item::from)),
+            Self::UnrealReport(report) => items.push(report.into()),
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    pub fn append_to_store(self, attachments: &mut Vec<AttachmentItem>) -> Result<()> {
+        match self {
+            Self::Attachments(native) => {
+                attachments.extend(native);
+                Ok(())
+            }
+            Self::UnrealReport(_) => {
+                Err(crate::services::processor::ProcessingError::UnsupportedItem.into())
+            }
+        }
+    }
+}
+
 /// A shape of error Sentry supports.
 pub trait SentryError: Counted {
     /// The event category this error/event counts in.
@@ -82,12 +111,12 @@ pub trait SentryError: Counted {
     ) -> Result<()>;
 
     /// Serializes the error back into items, ready to be attached to an envelope.
-    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()>
+    fn into_payload(self) -> ErrorPayload
     where
         Self: Sized;
 
     /// Returns a minidump item if this error holds a minidump.
-    fn minidump_mut(&mut self) -> Option<&mut Item>;
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem>;
 }
 
 macro_rules! gen_error_kind {
@@ -145,13 +174,11 @@ macro_rules! gen_error_kind {
                 }
             }
 
-            fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
-                match self {
-                    $(Self::$name(error) => error.serialize_into(items, ctx),)*
-                }
+            fn into_payload(self) -> ErrorPayload {
+                match self { $(Self::$name(error) => error.into_payload(),)* }
             }
 
-            fn minidump_mut(&mut self) -> Option<&mut Item> {
+            fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
                 match self {
                     $(Self::$name(error) => error.minidump_mut(),)*
                 }
@@ -199,9 +226,9 @@ pub struct Expansion<T> {
     /// The event, may be empty.
     pub event: Box<Annotated<Event>>,
     /// A list of attachments, either from the original envelope or created through the expansion.
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
     /// A list of user reports, either from the original envelope or created through the expansion.
-    pub user_reports: Vec<Item>,
+    pub user_reports: Vec<UserReportItem>,
     /// Additional items extracted from the error that need to be processed in a separate pass.
     pub intermediates: Vec<Item>,
     /// The custom error data.

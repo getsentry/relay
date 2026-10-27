@@ -1,0 +1,19 @@
+[package]
+name = "relay-server-macros"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Compile-time declarations for Relay server processing"
+version = "26.10.0"
+edition = "2024"
+license-file = "../LICENSE.md"
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }

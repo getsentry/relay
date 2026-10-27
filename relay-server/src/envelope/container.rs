@@ -8,7 +8,9 @@ use serde::de::DeserializeOwned;
 use serde::ser::SerializeMap as _;
 use serde::{Deserialize, Serialize, de, ser};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{
+    ContainerPayload, ContentType, ItemPayload, LogItem, SpanItem, TraceMetricItem,
+};
 
 /// Error emitted when failing to parse an [`ItemContainer`].
 #[derive(thiserror::Error, Debug)]
@@ -18,12 +20,6 @@ pub enum ContainerParseError {
     MismatchedContentType {
         expected: ContentType,
         actual: Option<ContentType>,
-    },
-    /// The item container was expected to have a different item type.
-    #[error("expected item with item type {expected} but got {actual:?}")]
-    MismatchedItemType {
-        expected: ItemType,
-        actual: ItemType,
     },
     /// The item container specified length does not match the amount of items contained in the
     /// container.
@@ -58,8 +54,8 @@ pub struct InvalidMetadata(());
 
 /// Any item contained in an [`ItemContainer`] needs to implement this trait.
 pub trait ContainerItem: FromValue + IntoValue {
-    /// The expected item type of the container for this type.
-    const ITEM_TYPE: ItemType;
+    /// The envelope payload type, e.g. `SpanItem` for a span container.
+    type EnvelopeItem: ContainerPayload;
     /// The expected content type of the container for this type.
     const CONTENT_TYPE: ContentType;
 
@@ -249,22 +245,15 @@ impl<T: ContainerItem> ItemContainer<T> {
         (self.metadata, self.items)
     }
 
-    /// Parses an [`ItemContainer`] from an envelope [`Item`].
+    /// Parses a container from the matching envelope payload type.
     ///
     /// This function also validates metadata of the container, specifically the content type
     /// and amount of contained items.
-    pub fn parse(item: &Item, max_ops: usize) -> Result<Self, ContainerParseError> {
+    pub fn parse(item: &T::EnvelopeItem, max_ops: usize) -> Result<Self, ContainerParseError> {
         if item.content_type() != Some(T::CONTENT_TYPE) {
             return Err(ContainerParseError::MismatchedContentType {
                 expected: T::CONTENT_TYPE,
                 actual: item.content_type(),
-            });
-        }
-
-        if item.ty() != &T::ITEM_TYPE {
-            return Err(ContainerParseError::MismatchedItemType {
-                expected: T::ITEM_TYPE,
-                actual: item.ty().clone(),
             });
         }
 
@@ -288,11 +277,8 @@ impl<T: ContainerItem> ItemContainer<T> {
         Ok(container)
     }
 
-    /// Serializes the [`ItemContainer`] into an envelope [`Item`].
-    ///
-    /// This will serialize the contained items into the [`Item::payload`] as well as
-    /// update the [Item::content_type] and [`Item::item_count`].
-    pub fn write_to(&self, item: &mut Item) -> Result<(), ContainerWriteError> {
+    /// Writes the container payload, content type, and item count to the envelope item.
+    pub fn write_to(&self, item: &mut T::EnvelopeItem) -> Result<(), ContainerWriteError> {
         let mut payload = bytes::BytesMut::with_capacity(256).writer();
         let mut ser = serde_json::Serializer::new(&mut payload);
 
@@ -305,11 +291,6 @@ impl<T: ContainerItem> ItemContainer<T> {
         );
 
         Ok(())
-    }
-
-    /// Checks whether a given item is a container of `T`s, according to its item and content types.
-    pub fn is_container(item: &Item) -> bool {
-        item.ty() == &T::ITEM_TYPE && item.content_type() == Some(T::CONTENT_TYPE)
     }
 
     fn deserialize<'de, D: de::Deserializer<'de>>(
@@ -383,7 +364,7 @@ impl<T: ContainerItem<Metadata = NoMetadata>> From<ContainerItems<T>> for ItemCo
 }
 
 impl ContainerItem for relay_event_schema::protocol::OurLog {
-    const ITEM_TYPE: ItemType = ItemType::Log;
+    type EnvelopeItem = LogItem;
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 
     type Metadata = relay_event_schema::protocol::ourlog::container::ContainerMetadata;
@@ -391,7 +372,7 @@ impl ContainerItem for relay_event_schema::protocol::OurLog {
 }
 
 impl ContainerItem for relay_event_schema::protocol::SpanV2 {
-    const ITEM_TYPE: ItemType = ItemType::Span;
+    type EnvelopeItem = SpanItem;
     const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
 
     type Metadata = relay_event_schema::protocol::span_v2::container::ContainerMetadata;
@@ -399,7 +380,7 @@ impl ContainerItem for relay_event_schema::protocol::SpanV2 {
 }
 
 impl ContainerItem for relay_event_schema::protocol::TraceMetric {
-    const ITEM_TYPE: ItemType = ItemType::TraceMetric;
+    type EnvelopeItem = TraceMetricItem;
     const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
 
     type Metadata = relay_event_schema::protocol::trace_metric::container::ContainerMetadata;
@@ -412,9 +393,8 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_protocol::{Empty, Object, Value};
 
-    use crate::envelope::ItemType;
-
     use super::*;
+    use crate::envelope::Item;
 
     macro_rules! container {
         ($header:literal, version: $version:literal, $($item:literal),*) => {
@@ -441,7 +421,7 @@ mod tests {
     }
 
     impl ContainerItem for TestLog {
-        const ITEM_TYPE: ItemType = ItemType::Log;
+        type EnvelopeItem = LogItem;
         const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 
         type Metadata = TestMetadata;
@@ -463,11 +443,16 @@ mod tests {
         ItemContainer::from_parts(TestMetadata { version: Some(42) }, items)
     }
 
+    fn parse_log(bytes: bytes::Bytes) -> Result<(LogItem, usize), crate::envelope::EnvelopeError> {
+        let (item, consumed) = Item::parse(bytes)?;
+        Ok((item.try_into().expect("log wire fixture"), consumed))
+    }
+
     #[test]
     fn test_container_serialize() {
         let container = logs([("info", "foobar"), ("error", "ohno")]);
 
-        let mut item = Item::new(ItemType::Log);
+        let mut item = LogItem::new();
         container.write_to(&mut item).unwrap();
 
         assert_eq!(item.content_type(), Some(ContentType::LogContainer));
@@ -480,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_invalid_item_count() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":2}"#,
             r#"{"level":"info","message":"foobar"}"#
         )))
@@ -498,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_invalid_content_type() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/json","item_count":1}"#,
             r#"{"level":"info","message":"foobar"},"#
         )))
@@ -516,25 +501,17 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_invalid_item_type() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = Item::parse(bytes::Bytes::from_static(container!(
             r#"{"type":"span","content_type":"application/vnd.sentry.items.log+json","item_count":1}"#,
             r#"{"level":"info","message":"foobar"},"#
-        )))
-        .unwrap();
-
+        ))).unwrap();
         assert_eq!(item.item_count(), Some(1));
-        assert!(matches!(
-            ItemContainer::<TestLog>::parse(&item, usize::MAX),
-            Err(ContainerParseError::MismatchedItemType {
-                expected: ItemType::Log,
-                actual: ItemType::Span,
-            })
-        ));
+        assert!(LogItem::try_from(item).is_err());
     }
 
     #[test]
     fn test_container_deserialize_missing_content_type() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","item_count":1}"#,
             r#"{"level":"info","message":"foobar"},"#
         )))
@@ -552,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_missing_items() {
-        let (item, _) = Item::parse(Bytes::from_static(
+        let (item, _) = parse_log(Bytes::from_static(
             br#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":1}
 {"items2":[{"level":"info","message":"foobar"}]}
         "#,
@@ -568,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_unexpected_type() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":1}"#,
             r#"{"level":"info","message":"foobar"},"#
         )))
@@ -583,7 +560,7 @@ mod tests {
 
     #[test]
     fn test_container_invalid_meta() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":1}"#,
             version: "\"not_a_number\"",
             r#"{"level":"info","message":"foobar"}"#
@@ -613,7 +590,7 @@ mod tests {
         }
         "#);
 
-        let mut new_item = Item::new(ItemType::Log);
+        let mut new_item = LogItem::new();
         container.write_to(&mut new_item).unwrap();
 
         // The invalid value was not persisted and now metadata serializes as default.
@@ -641,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_container_deserialize_successful() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":2}"#,
             version: 123,
             r#"{"level":"info","message":"foobar"},"#,
@@ -685,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_container_roundtrip() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":2}"#,
             r#"{"level":"info","message":"foobar"},"#,
             r#"{"level":"error","message":"ohno"}"#
@@ -693,7 +670,7 @@ mod tests {
         .unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
-        let mut new_item = Item::new(ItemType::Log);
+        let mut new_item = LogItem::new();
         container.write_to(&mut new_item).unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&new_item, usize::MAX).unwrap();
@@ -728,7 +705,7 @@ mod tests {
 
     #[test]
     fn test_container_with_headers() {
-        let (item, _) = Item::parse(Bytes::from_static(container!(
+        let (item, _) = parse_log(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":2}"#,
             r#"{"__header":{},"level":"info","message":"foobar"},"#,
             r#"{"__header":{"foo":[1,"bar"]},"level":"error","message":"ohno"}"#
@@ -736,7 +713,7 @@ mod tests {
         .unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&item, usize::MAX).unwrap();
-        let mut new_item = Item::new(ItemType::Log);
+        let mut new_item = LogItem::new();
         container.write_to(&mut new_item).unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&new_item, usize::MAX).unwrap();
@@ -787,7 +764,7 @@ mod tests {
         }
         "#);
 
-        let mut new_item = Item::new(ItemType::Log);
+        let mut new_item = LogItem::new();
         container.write_to(&mut new_item).unwrap();
 
         // Make sure the headers serialize back in the original format.

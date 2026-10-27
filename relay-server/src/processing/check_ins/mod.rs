@@ -5,7 +5,7 @@ use relay_monitors::{CheckIn, ProcessCheckInError};
 use relay_quotas::{DataCategory, DimensionMap, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{CheckInItem, ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -79,10 +79,10 @@ impl processing::Processor for CheckInsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let check_ins = envelope
+        let check_ins: Vec<_> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
-            .into_vec();
+            .drain_items::<CheckInItem>()
+            .collect();
 
         if check_ins.is_empty() {
             return None;
@@ -178,7 +178,7 @@ pub struct SerializedCheckIns {
     /// A list of check-ins waiting to be processed.
     ///
     /// All items contained here must be check-ins.
-    check_ins: Vec<Item>,
+    check_ins: Vec<CheckInItem>,
 }
 
 impl Counted for SerializedCheckIns {

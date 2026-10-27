@@ -70,6 +70,7 @@ relay-replays = { path = "relay-replays" }
 relay-sampling = { path = "relay-sampling" }
 relay-serialization = { path = "relay-serialization" }
 relay-server = { path = "relay-server" }
+relay-server-macros = { path = "relay-server-macros" }
 relay-spans = { path = "relay-spans" }
 relay-statsd = { path = "relay-statsd" }
 relay-system = { path = "relay-system" }

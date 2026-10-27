@@ -2,7 +2,7 @@ use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, EventItem, FormDataItem, Item, ItemPayload};
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::Context;
 use crate::services::outcome::DiscardItemType;
@@ -43,40 +43,36 @@ macro_rules! if_processing {
 }
 pub(crate) use if_processing;
 
-pub fn take_item_by<F>(items: &mut Vec<Item>, f: F) -> Option<Item>
+#[cfg(feature = "processing")]
+pub fn take_item_by<T, F>(items: &mut Vec<T>, f: F) -> Option<T>
 where
-    F: FnMut(&Item) -> bool,
+    F: FnMut(&T) -> bool,
 {
     let index = items.iter().position(f);
     index.map(|index| items.swap_remove(index))
 }
 
-pub fn take_item_of_type(items: &mut Vec<Item>, ty: ItemType) -> Option<Item> {
-    take_item_by(items, |item| item.ty() == &ty)
+pub fn take_payload<T: ItemPayload>(items: &mut Vec<Item>) -> Option<T> {
+    take_payload_if(items, |_| true)
 }
 
-pub fn take_items_by<T, F>(items: &mut Vec<Item>, mut f: F) -> T
-where
-    F: FnMut(&Item) -> bool,
-    T: FromIterator<Item>,
-{
-    items.extract_if(.., |item| f(item)).collect()
+pub fn take_payloads<T: ItemPayload>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
+    items
+        .extract_if(.., |item| T::from_item_ref(item).is_some())
+        .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
 }
 
-pub fn take_items_of_type<T>(items: &mut Vec<Item>, ty: ItemType) -> T
-where
-    T: FromIterator<Item>,
-{
-    take_items_by(items, |item| item.ty() == &ty)
-}
-
-pub fn event_from_json_payload(
-    item: Item,
-    event_type: impl Into<Option<EventType>>,
-    metrics: &mut Metrics,
-    ctx: Context<'_>,
-) -> Result<Annotated<Event>> {
-    event_from_json(&item.payload(), event_type, metrics, ctx)
+pub fn take_payload_if<T: ItemPayload>(
+    items: &mut Vec<Item>,
+    mut predicate: impl FnMut(&T) -> bool,
+) -> Option<T> {
+    let index = items
+        .iter()
+        .position(|item| T::from_item_ref(item).is_some_and(&mut predicate))?;
+    Some(
+        T::try_from(items.swap_remove(index))
+            .unwrap_or_else(|_| unreachable!("selected payload type")),
+    )
 }
 
 pub fn event_from_json(
@@ -105,7 +101,7 @@ pub fn event_from_json(
     Ok(event)
 }
 
-/// Attempts to parse an event from an [`ItemType::Event`].
+/// Attempts to parse an event from an [`EventItem`].
 ///
 /// Takes the event item from the `items` vector and returns the parsed event,
 /// if there is no event item, returns [`Annotated::empty`].
@@ -114,7 +110,7 @@ pub fn take_parsed_event(
     metrics: &mut Metrics,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    let Some(item) = take_item_of_type(items, ItemType::Event) else {
+    let Some(item) = take_payload::<EventItem>(items) else {
         return Ok(Annotated::empty());
     };
     event_from_json(&item.payload(), None, metrics, ctx)
@@ -128,6 +124,32 @@ pub fn take_parsed_event(
 /// Returns [`Annotated::empty`] if `items` does not contain the necessary attachments.
 pub fn take_event_from_attachments(
     items: &mut Vec<Item>,
+    metrics: &mut Metrics,
+    ctx: Context<'_>,
+) -> Result<Annotated<Event>> {
+    let ev = take_payload_if::<AttachmentItem>(items, |item| {
+        item.attachment_type() == Some(AttachmentType::EventPayload)
+    });
+    let b1 = take_payload_if::<AttachmentItem>(items, |item| {
+        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+    });
+    let b2 = take_payload_if::<AttachmentItem>(items, |item| {
+        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+    });
+
+    if ev.is_none() && b1.is_none() {
+        return Ok(Annotated::empty());
+    }
+
+    let (event, len) = attachment::event_from_attachments(ctx.processing.config, ev, b1, b2)?;
+    metrics.bytes_ingested_event = Annotated::new(len as u64);
+
+    Ok(event)
+}
+
+#[cfg(feature = "processing")]
+pub fn take_event_from_typed_attachments(
+    items: &mut Vec<AttachmentItem>,
     metrics: &mut Metrics,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
@@ -151,7 +173,7 @@ pub fn take_event_from_attachments(
     Ok(event)
 }
 
-/// Attempts to parse an event from [`ItemType::FormData`].
+/// Attempts to parse an event from [`FormDataItem`].
 ///
 /// Takes the element from the `items` vector and returns the parsed event,
 /// if there is no form data item in the `items` vector, returns [`Annotated::empty`].
@@ -159,7 +181,7 @@ pub fn take_event_from_formdata(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
 ) -> Result<Annotated<Event>> {
-    let Some(form_data) = take_item_of_type(items, ItemType::FormData) else {
+    let Some(form_data) = take_payload::<FormDataItem>(items) else {
         return Ok(Annotated::empty());
     };
 
@@ -192,14 +214,13 @@ pub fn take_event_from_crash_items(
     // Remove other event creating items to make sure there are no leftovers.
     let remove_other_event_items = |items: &mut Vec<Item>| {
         items
-            .extract_if(.., |item| {
-                let is_ev_item = matches!(item.ty(), ItemType::FormData);
-                let is_ev_attachment = matches!(
-                    item.attachment_type(),
+            .extract_if(.., |item| match item {
+                Item::FormData(_) => true,
+                Item::Attachment(attachment) => matches!(
+                    attachment.attachment_type(),
                     Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
-                );
-
-                is_ev_item || is_ev_attachment
+                ),
+                _ => false,
             })
             .for_each(drop);
     };

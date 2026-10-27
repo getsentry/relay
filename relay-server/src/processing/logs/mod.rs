@@ -10,7 +10,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, IntegrationItem, Item, ItemContainer,
+    Items, LogItem,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -92,7 +93,7 @@ impl From<RateLimits> for Error {
 
 /// A processor for Logs.
 ///
-/// It processes items of type: [`ItemType::Log`].
+/// It processes items of type: [`LogItem`].
 #[derive(Debug)]
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -117,26 +118,28 @@ impl processing::Processor for LogsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let items = if let Some(container) = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Log))
-        {
+        let items = if let Some(container) = envelope.envelope_mut().take_item::<LogItem>() {
             LogItems::Container(container)
         } else {
             let integration = envelope
                 .envelope_mut()
-                .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))?;
+                .take_item_if::<IntegrationItem>(|item| {
+                    matches!(item.integration(), Some(Integration::Logs(_)))
+                })?;
             LogItems::Integration(integration)
         };
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
             .envelope_mut()
-            .take_items_by(|item| {
-                matches!(item.ty(), ItemType::Log)
-                    || matches!(item.integration(), Some(Integration::Logs(_)))
+            .take_items_by(|item| match item {
+                Item::Log(_) => true,
+                Item::Integration(integration) => {
+                    matches!(integration.integration(), Some(Integration::Logs(_)))
+                }
+                _ => false,
             })
-            .to_vec();
+            .into_vec();
 
         let work = SerializedLogs {
             headers,
@@ -217,9 +220,9 @@ impl Forward for LogOutput {
 #[derive(Debug)]
 enum LogItems {
     /// A log container.
-    Container(Item),
+    Container(LogItem),
     /// A log integration item.
-    Integration(Item),
+    Integration(IntegrationItem),
 }
 
 /// Logs in their serialized state, as transported in an envelope.
@@ -236,26 +239,26 @@ pub struct SerializedLogs {
 }
 
 impl SerializedLogs {
-    fn items(&self) -> impl Iterator<Item = &Item> {
-        self.invalid.iter().chain(match &self.items {
-            LogItems::Container(item) => Some(item),
-            LogItems::Integration(item) => Some(item),
-        })
-    }
-
-    /// Returns the total count of all logs contained.
-    ///
-    /// This contains all logical log items, not just envelope items and is safe
-    /// to use for rate limiting.
+    /// Counts serialized log records, retaining the distinction between containers and integrations.
     fn count(&self) -> usize {
-        self.items()
-            .map(|item| item.item_count().unwrap_or(1) as usize)
-            .sum()
+        let count = match &self.items {
+            LogItems::Container(item) => item.item_count(),
+            LogItems::Integration(item) => item.item_count(),
+        }
+        .unwrap_or(1) as usize;
+        count
+            + self
+                .invalid
+                .iter()
+                .map(|item| item.item_count().unwrap_or(1) as usize)
+                .sum::<usize>()
     }
-
-    /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
-        self.items().map(|item| item.len()).sum()
+        let bytes = match &self.items {
+            LogItems::Container(item) => item.len(),
+            LogItems::Integration(item) => item.len(),
+        };
+        bytes + self.invalid.iter().map(Item::len).sum::<usize>()
     }
 }
 
@@ -314,7 +317,7 @@ impl ExpandedLogs {
         let mut logs = Vec::new();
 
         if !self.logs.is_empty() {
-            let mut item = Item::new(ItemType::Log);
+            let mut item = LogItem::new();
             ItemContainer::from_parts(
                 ourlog::container::ContainerMetadata {
                     // Latest supported version.
@@ -326,7 +329,7 @@ impl ExpandedLogs {
             )
             .write_to(&mut item)
             .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
-            logs.push(item);
+            logs.push(Item::from(item));
         }
 
         Ok(Envelope::from_parts(self.headers, Items::from_vec(logs)))

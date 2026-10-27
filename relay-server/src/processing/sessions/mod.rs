@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, Item, ItemPayload, Items, SessionItem, SessionsItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::sessions::process::Expansion;
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
@@ -68,15 +68,15 @@ impl processing::Processor for SessionsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let updates = envelope
+        let updates: Vec<_> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Session))
-            .into_vec();
+            .drain_items::<SessionItem>()
+            .collect();
 
-        let aggregates = envelope
+        let aggregates: Vec<_> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Sessions))
-            .into_vec();
+            .drain_items::<SessionsItem>()
+            .collect();
 
         if updates.is_empty() && aggregates.is_empty() {
             return None;
@@ -144,19 +144,23 @@ pub struct SerializedSessions {
     headers: EnvelopeHeaders,
 
     /// A list of sessions waiting to be processed.
-    updates: Vec<Item>,
+    updates: Vec<SessionItem>,
     /// A list of session aggregates waiting to be processed.
-    aggregates: Vec<Item>,
+    aggregates: Vec<SessionsItem>,
 }
 
 impl SerializedSessions {
     fn serialize_envelope(self) -> Box<Envelope> {
-        let (mut long, short) = match self.updates.len() > self.aggregates.len() {
-            true => (self.updates, self.aggregates),
-            false => (self.aggregates, self.updates),
-        };
-        long.extend(short);
-        Envelope::from_parts(self.headers, Items::from_vec(long))
+        let mut items = Items::with_capacity(self.updates.len() + self.aggregates.len());
+        // Preserve the previous longer-collection-first wire order.
+        if self.updates.len() > self.aggregates.len() {
+            items.extend(self.updates.into_iter().map(Item::from));
+            items.extend(self.aggregates.into_iter().map(Item::from));
+        } else {
+            items.extend(self.aggregates.into_iter().map(Item::from));
+            items.extend(self.updates.into_iter().map(Item::from));
+        }
+        Envelope::from_parts(self.headers, items)
     }
 }
 
@@ -196,7 +200,7 @@ impl CountRateLimited for Managed<ExpandedSessions> {
     type Error = Error;
 }
 
-fn item_count(items: &[Item]) -> usize {
+fn item_count<T: ItemPayload>(items: &[T]) -> usize {
     items
         .iter()
         .map(|item| item.item_count().unwrap_or(1) as usize)

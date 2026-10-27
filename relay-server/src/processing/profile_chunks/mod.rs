@@ -6,7 +6,7 @@ use relay_profiling::{ProfileChunk, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, ProfileChunkItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -64,7 +64,7 @@ impl crate::managed::OutcomeError for Error {
 
 /// A processor for profile chunks.
 ///
-/// It processes items of type: [`ItemType::ProfileChunk`].
+/// It processes items of type: [`ProfileChunkItem`].
 #[derive(Debug)]
 pub struct ProfileChunksProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -87,10 +87,10 @@ impl processing::Processor for ProfileChunksProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let profile_chunks = envelope
+        let profile_chunks: Vec<ProfileChunkItem> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::ProfileChunk))
-            .into_vec();
+            .drain_items::<ProfileChunkItem>()
+            .collect();
 
         if profile_chunks.is_empty() {
             return None;
@@ -143,8 +143,12 @@ impl Forward for ProfileChunkOutput {
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
-            Self::Serialized(profile_chunks) => Ok(profile_chunks
-                .map(|pc, _| Envelope::from_parts(pc.headers, Items::from_vec(pc.profile_chunks)))),
+            Self::Serialized(profile_chunks) => Ok(profile_chunks.map(|pc, _| {
+                Envelope::from_parts(
+                    pc.headers,
+                    pc.profile_chunks.into_iter().map(Into::into).collect(),
+                )
+            })),
             Self::Expanded(m) => {
                 Err(m.internal_error("serialize_envelope called with expanded profile chunks"))
             }
@@ -185,7 +189,7 @@ pub struct SerializedProfileChunks {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// List of serialized profile chunk items.
-    profile_chunks: Vec<Item>,
+    profile_chunks: Vec<ProfileChunkItem>,
 }
 
 impl Counted for SerializedProfileChunks {

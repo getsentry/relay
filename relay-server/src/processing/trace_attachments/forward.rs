@@ -1,5 +1,5 @@
 use crate::Envelope;
-use crate::envelope::{ContentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, ContentType, Item, Items};
 use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::processing::trace_attachments::ExpandedAttachments;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -68,10 +68,10 @@ pub fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, serde_
     payload.extend_from_slice(&meta_bytes);
     payload.extend_from_slice(&body);
 
-    let mut item = Item::new(ItemType::Attachment);
+    let mut item = AttachmentItem::new();
     item.set_payload(ContentType::TraceAttachment, payload.freeze());
     item.set_meta_length(meta_length as u32);
     item.set_parent_id(parent_id);
 
-    Ok(item)
+    Ok(item.into())
 }

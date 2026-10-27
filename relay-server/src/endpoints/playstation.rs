@@ -13,7 +13,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -140,9 +140,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+    ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
@@ -211,6 +211,7 @@ async fn multipart_to_items(
     items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
         let prosperodump = inner
             .iter_mut()
+            .filter_map(Item::as_attachment_mut)
             .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         let payload = prosperodump.payload();

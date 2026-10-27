@@ -1,16 +1,16 @@
+use crate::envelope::AttachmentItem;
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Breadcrumb, Event, Values};
 use relay_protocol::{Annotated, Array, Object};
 
-use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
 use crate::utils::rmp;
 
 pub fn event_from_attachments(
     config: &ConfigSnapshot,
-    event_item: Option<Item>,
-    breadcrumbs_item1: Option<Item>,
-    breadcrumbs_item2: Option<Item>,
+    event_item: Option<AttachmentItem>,
+    breadcrumbs_item1: Option<AttachmentItem>,
+    breadcrumbs_item2: Option<AttachmentItem>,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
     let len = event_item.as_ref().map_or(0, |item| item.len())
         + breadcrumbs_item1.as_ref().map_or(0, |item| item.len())
@@ -60,7 +60,7 @@ pub fn event_from_attachments(
 
 fn extract_attached_event(
     config: &ConfigSnapshot,
-    item: Option<Item>,
+    item: Option<AttachmentItem>,
 ) -> Result<Annotated<Event>, ProcessingError> {
     let item = match item {
         Some(item) if !item.is_empty() => item,
@@ -84,7 +84,7 @@ fn extract_attached_event(
 
 fn parse_msgpack_breadcrumbs(
     config: &ConfigSnapshot,
-    item: Option<Item>,
+    item: Option<AttachmentItem>,
 ) -> Result<Array<Breadcrumb>, ProcessingError> {
     let mut breadcrumbs = Array::new();
     let item = match item {
@@ -122,7 +122,7 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use relay_config::Config;
 
-    use crate::envelope::{ContentType, ItemType};
+    use crate::envelope::ContentType;
 
     use super::*;
 
@@ -130,7 +130,7 @@ mod tests {
         Config::default().current()
     }
 
-    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
+    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> AttachmentItem {
         let mut data = Vec::new();
 
         for (date, message) in breadcrumbs {
@@ -143,7 +143,7 @@ mod tests {
             rmp_serde::encode::write(&mut data, &breadcrumb).expect("write msgpack");
         }
 
-        let mut item = Item::new(ItemType::Attachment);
+        let mut item = AttachmentItem::new();
         item.set_payload(ContentType::MsgPack, data);
         item
     }
@@ -267,7 +267,7 @@ mod tests {
         let payload = deeply_nested_msgpack_event(200_000);
         assert!(payload.len() < config().max_event_size());
 
-        let mut item = Item::new(ItemType::Attachment);
+        let mut item = AttachmentItem::new();
         item.set_payload(ContentType::MsgPack, payload);
 
         let result = extract_attached_event(&config(), Some(item));

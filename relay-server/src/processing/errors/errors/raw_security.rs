@@ -1,12 +1,12 @@
+use super::ErrorPayload;
 use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentItem, Item, RawSecurityItem, UserReportItem};
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::processor::ProcessingError;
@@ -21,7 +21,7 @@ impl SentryError for RawSecurity {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(item) = utils::take_item_of_type(items, ItemType::RawSecurity) else {
+        let Some(item) = utils::take_payload::<RawSecurityItem>(items) else {
             return Ok(None);
         };
 
@@ -33,8 +33,8 @@ impl SentryError for RawSecurity {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self,
             metrics,
@@ -51,11 +51,11 @@ impl SentryError for RawSecurity {
         Ok(())
     }
 
-    fn serialize_into(self, _items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::Attachments(Default::default())
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }
@@ -67,7 +67,7 @@ impl Counted for RawSecurity {
 }
 
 fn event_from_security_report(
-    item: Item,
+    item: RawSecurityItem,
     meta: &RequestMeta,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
     let len = item.len();

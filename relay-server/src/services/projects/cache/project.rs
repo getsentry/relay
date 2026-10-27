@@ -131,7 +131,14 @@ mod tests {
     }
 
     fn get_span_count(envelope: &Envelope) -> usize {
-        envelope.items().next().unwrap().span_count().unwrap_or(0) as usize
+        envelope
+            .items()
+            .next()
+            .unwrap()
+            .as_transaction()
+            .unwrap()
+            .span_count()
+            .unwrap_or(0) as usize
     }
 
     #[tokio::test]
@@ -230,7 +237,10 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
         let mut transaction = Item::new(ItemType::Transaction);
-        transaction.set_span_count(Some(666));
+        transaction
+            .as_transaction_mut()
+            .unwrap()
+            .set_span_count(Some(666));
         transaction.set_payload(
             ContentType::Json,
             r#"{

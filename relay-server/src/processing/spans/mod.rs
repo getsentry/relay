@@ -11,7 +11,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items, WithHeader,
+    AttachmentItem, ContainerWriteError, EnvelopeHeaders, IntegrationItem, Item, ItemContainer,
+    ItemPayload, Items, SpanItem, WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -131,41 +132,46 @@ impl processing::Processor for SpansProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let items = if let Some(container) = envelope
-            .envelope_mut()
-            .take_item_by(ItemContainer::<SpanV2>::is_container)
-        {
-            SpanItems::Container(container)
-        } else if let legacy = envelope
-            .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::Span))
-            .into_vec()
-            && !legacy.is_empty()
-        {
-            SpanItems::Legacy(legacy)
-        } else if let Some(integration) = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
-        {
-            SpanItems::Integration(integration)
-        } else {
-            SpanItems::None
-        };
+        let items =
+            if let Some(container) = envelope.envelope_mut().take_item_if::<SpanItem>(|item| {
+                item.content_type()
+                    == Some(<SpanV2 as crate::envelope::ContainerItem>::CONTENT_TYPE)
+            }) {
+                SpanItems::Container(container)
+            } else if let legacy = envelope
+                .envelope_mut()
+                .drain_items::<SpanItem>()
+                .collect::<Vec<_>>()
+                && !legacy.is_empty()
+            {
+                SpanItems::Legacy(legacy)
+            } else if let Some(integration) = envelope
+                .envelope_mut()
+                .take_item_if::<IntegrationItem>(|item| {
+                    matches!(item.integration(), Some(Integration::Spans(_)))
+                })
+            {
+                SpanItems::Integration(integration)
+            } else {
+                SpanItems::None
+            };
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
             .envelope_mut()
-            .take_items_by(|item| {
-                ItemContainer::<SpanV2>::is_container(item)
-                    || matches!(item.ty(), ItemType::Span)
-                    || matches!(item.integration(), Some(Integration::Spans(_)))
+            .take_items_by(|item| match item {
+                Item::Span(_) => true,
+                Item::Integration(integration) => {
+                    matches!(integration.integration(), Some(Integration::Spans(_)))
+                }
+                _ => false,
             })
-            .to_vec();
+            .into_vec();
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|item| item.is_span_attachment())
-            .to_vec();
+            .drain_items_if(AttachmentItem::is_span_attachment)
+            .collect();
 
         let work = SerializedSpans {
             headers,
@@ -309,11 +315,11 @@ impl Forward for SpanOutput {
 #[derive(Debug)]
 enum SpanItems {
     /// A span 'v2' item container.
-    Container(Item),
+    Container(SpanItem),
     /// A list of legacy span 'v1' items.
-    Legacy(Vec<Item>),
+    Legacy(Vec<SpanItem>),
     /// Spans received from an integration.
-    Integration(Item),
+    Integration(IntegrationItem),
     /// No spans at all.
     ///
     /// This may happen if there are only span attachments sent in the envelope.
@@ -333,7 +339,7 @@ pub struct SerializedSpans {
     invalid: Vec<Item>,
 
     /// A list of span attachments.
-    attachments: Vec<Item>,
+    attachments: Vec<AttachmentItem>,
 }
 
 impl SerializedSpans {
@@ -351,11 +357,15 @@ impl Counted for SerializedSpans {
             SpanItems::Legacy(items) => outcome_count(items),
             SpanItems::Integration(item) => outcome_count(std::slice::from_ref(item)),
             SpanItems::None => 0,
-        } + outcome_count(&self.invalid)) as usize;
+        } + self
+            .invalid
+            .iter()
+            .map(|item| item.item_count().unwrap_or(1))
+            .sum::<u32>()) as usize;
         let attachment_quantity = self
             .attachments
             .iter()
-            .map(Item::attachment_body_size)
+            .map(AttachmentItem::attachment_body_size)
             .sum();
 
         let mut quantities = smallvec::smallvec![];
@@ -445,7 +455,7 @@ impl<C> ExpandedSpans<C> {
         let mut items = Vec::new();
 
         if !self.spans.is_empty() {
-            let mut item = Item::new(ItemType::Span);
+            let mut item = SpanItem::new();
             let mut spans_without_attachments = Vec::new();
 
             for ExpandedSpan { span, attachments } in self.spans {
@@ -467,7 +477,7 @@ impl<C> ExpandedSpans<C> {
             )
             .write_to(&mut item)
             .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
-            items.push(item);
+            items.push(Item::from(item));
         }
 
         for attachment in self.stand_alone_attachments {
@@ -714,7 +724,7 @@ impl Counted for ExpandedSpan {
 /// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
 ///
 /// The function expects all passed items to only contain spans.
-fn outcome_count(spans: &[Item]) -> u32 {
+fn outcome_count<T: ItemPayload>(spans: &[T]) -> u32 {
     // We rely here on the invariant that all items in `self.spans` are actually spans,
     // that's why sum up `item_count`'s blindly instead of checking again for the item type
     // or using `Item::quantities`.

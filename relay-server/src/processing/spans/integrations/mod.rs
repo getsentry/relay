@@ -1,7 +1,8 @@
+use crate::managed::Counted;
 use relay_event_schema::protocol::SpanV2;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, WithHeader};
+use crate::envelope::{ContainerItems, IntegrationItem, WithHeader};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::spans::Settings;
@@ -13,7 +14,7 @@ mod otel;
 /// The function expects *only* span item integrations.
 pub fn expand(
     records: &mut RecordKeeper<'_>,
-    items: &[Item],
+    items: &[IntegrationItem],
 ) -> (Settings, ContainerItems<SpanV2>) {
     let mut result = Vec::new();
 

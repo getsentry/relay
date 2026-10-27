@@ -2,7 +2,9 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{AttachmentType, Item, ItemType};
+#[cfg(test)]
+use crate::envelope::ItemType;
+use crate::envelope::{AttachmentType, Item};
 use crate::managed::Managed;
 
 /// Splits a GPU crash dump off an error envelope into its own event.
@@ -60,27 +62,30 @@ pub fn split_crash(
     (cpu, Some(gpu))
 }
 
-/// Items an event is assembled from. Narrower than [`Item::creates_event`], which
+/// Items an event is assembled from. Narrower than [`Item::carries_event_payload`], which
 /// also matches crash reports that must stay on the original event.
 fn is_scope_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Event
-        || matches!(
-            item.attachment_type(),
+    match item {
+        Item::Event(_) => true,
+        Item::Attachment(attachment) => matches!(
+            attachment.attachment_type(),
             Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
-        )
+        ),
+        _ => false,
+    }
 }
 
 /// The GPU crash dump whose presence triggers the split.
 fn is_gpu_dump_item(item: &Item) -> bool {
-    item.attachment_type() == Some(AttachmentType::NvGpuDump)
+    matches!(item, Item::Attachment(attachment)
+        if attachment.attachment_type() == Some(AttachmentType::NvGpuDump))
 }
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
 fn is_gpu_crash_item(item: &Item) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(AttachmentType::NvGpuDump) | Some(AttachmentType::NvShaderDebug)
-    )
+    matches!(item, Item::Attachment(attachment)
+        if matches!(attachment.attachment_type(),
+            Some(AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug)))
 }
 
 #[cfg(test)]
@@ -92,7 +97,7 @@ mod tests {
 
     fn attachment(ty: AttachmentType) -> Item {
         let mut item = Item::new(ItemType::Attachment);
-        item.set_attachment_type(ty);
+        item.as_attachment_mut().unwrap().set_attachment_type(ty);
         item
     }
 
@@ -112,7 +117,10 @@ mod tests {
     fn attachment_types(envelope: &Envelope) -> Vec<Option<AttachmentType>> {
         envelope
             .items()
-            .map(|item| item.attachment_type())
+            .map(|item| {
+                item.as_attachment()
+                    .and_then(|attachment| attachment.attachment_type())
+            })
             .collect()
     }
 

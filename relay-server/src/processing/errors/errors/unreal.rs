@@ -1,8 +1,10 @@
+use super::ErrorPayload;
+#[cfg(feature = "processing")]
+use crate::envelope::EventItem;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentItem, Item, UnrealReportItem, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 #[cfg(feature = "processing")]
@@ -11,12 +13,12 @@ use crate::utils::AdditionalExceptions;
 #[derive(Debug)]
 pub enum Unreal {
     Forward {
-        report: Item,
+        report: UnrealReportItem,
     },
     #[cfg(feature = "processing")]
     Process {
-        minidump: Option<Item>,
-        apple_crash_report: Option<Item>,
+        minidump: Option<AttachmentItem>,
+        apple_crash_report: Option<AttachmentItem>,
     },
 }
 
@@ -26,7 +28,7 @@ impl SentryError for Unreal {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
+        let Some(report) = utils::take_payload::<UnrealReportItem>(items) else {
             return Ok(None);
         };
 
@@ -35,8 +37,8 @@ impl SentryError for Unreal {
         let expansion = utils::if_not_processing!(ctx, {
             Expansion {
                 event: Box::new(utils::take_event_from_crash_items(items, &mut metrics, ctx)?),
-                attachments: utils::take_items_of_type(items, ItemType::Attachment),
-                user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+                attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+                user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
                 intermediates: vec![],
                 error: Self::Forward { report },
                 metrics,
@@ -50,17 +52,17 @@ impl SentryError for Unreal {
 
             let event = expansion.event;
             let mut attachments = expansion.attachments.into_vec();
-            attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
+            attachments.extend(utils::take_payloads::<AttachmentItem>(items));
 
             // `process` later fills this event in, ideally the event is already filled in here,
             // during the expansion, it is split into two phases now, to keep compatibility with
             // the existing unreal code.
-            let mut event = match utils::take_item_of_type(items, ItemType::Event).or(event) {
-                Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-                None => utils::take_event_from_attachments(&mut attachments, &mut metrics, ctx)?,
+            let mut event = match utils::take_payload::<EventItem>(items).or(event) {
+                Some(event) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?,
+                None => utils::take_event_from_typed_attachments(&mut attachments, &mut metrics, ctx)?,
             };
 
-            let mut user_reports: Vec<Item> = utils::take_items_of_type(items, ItemType::UserReport);
+            let mut user_reports: Vec<UserReportItem> = utils::take_payloads::<UserReportItem>(items).collect();
 
             let event_id = ctx.envelope.event_id().unwrap_or_default();
             debug_assert_ne!(event_id, Default::default(), "event id must always be set");
@@ -164,23 +166,20 @@ impl SentryError for Unreal {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+    fn into_payload(self) -> ErrorPayload {
         match self {
-            Self::Forward { report } => items.push(report),
+            Self::Forward { report } => ErrorPayload::UnrealReport(report),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,
                 apple_crash_report,
             } => {
-                items.extend(minidump);
-                items.extend(apple_crash_report);
+                ErrorPayload::Attachments(minidump.into_iter().chain(apple_crash_report).collect())
             }
         }
-
-        Ok(())
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         match self {
             Self::Forward { .. } => None,
             #[cfg(feature = "processing")]
