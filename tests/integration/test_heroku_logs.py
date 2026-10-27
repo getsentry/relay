@@ -80,50 +80,52 @@ def expected_item(body, attributes):
     }
 
 
-EXPECTED_ITEMS = [
-    expected_item(
-        "Completed 200 OK in 12ms",
-        {
-            "sentry.severity_text": {"stringValue": "info"},
-            "heroku.source": {"stringValue": "app"},
-            "heroku.dyno": {"stringValue": "web.1"},
-        },
-    ),
-    expected_item(
-        'at=error code=H12 desc="Request timeout" method=GET path="/forecast" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
-        {
-            "sentry.severity_text": {"stringValue": "error"},
-            "heroku.source": {"stringValue": "heroku"},
-            "heroku.dyno": {"stringValue": "router"},
-            "heroku.error.code": {"stringValue": "H12"},
-            "heroku.error.description": {"stringValue": "Request timeout"},
-            "heroku.router.at": {"stringValue": "error"},
-            "heroku.router.method": {"stringValue": "GET"},
-            "heroku.router.path": {"stringValue": "/forecast"},
-            "heroku.router.host": {"stringValue": "example.herokuapp.com"},
-            "heroku.router.request_id": {
-                "stringValue": "8601b555-6a83-4c12-8269-97c8e32cdb22"
+def expected_items():
+    # Built at test time, `time_within_delta` is relative to when it is created.
+    return [
+        expected_item(
+            "Completed 200 OK in 12ms",
+            {
+                "sentry.severity_text": {"stringValue": "info"},
+                "heroku.source": {"stringValue": "app"},
+                "heroku.dyno": {"stringValue": "web.1"},
             },
-            "heroku.router.fwd": {"stringValue": "203.0.113.7"},
-            "heroku.router.dyno": {"stringValue": "web.1"},
-            "heroku.router.connect": {"intValue": "1"},
-            "heroku.router.service": {"intValue": "30001"},
-            "heroku.router.status": {"intValue": "503"},
-            "heroku.router.bytes": {"intValue": "0"},
-            "heroku.router.protocol": {"stringValue": "http1.1"},
-        },
-    ),
-    expected_item(
-        "Error R14 (Memory quota exceeded)",
-        {
-            "sentry.severity_text": {"stringValue": "error"},
-            "heroku.source": {"stringValue": "heroku"},
-            "heroku.dyno": {"stringValue": "web.1"},
-            "heroku.error.code": {"stringValue": "R14"},
-            "heroku.error.description": {"stringValue": "Memory quota exceeded"},
-        },
-    ),
-]
+        ),
+        expected_item(
+            'at=error code=H12 desc="Request timeout" method=GET path="/forecast" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
+            {
+                "sentry.severity_text": {"stringValue": "error"},
+                "heroku.source": {"stringValue": "heroku"},
+                "heroku.dyno": {"stringValue": "router"},
+                "heroku.error.code": {"stringValue": "H12"},
+                "heroku.error.description": {"stringValue": "Request timeout"},
+                "heroku.router.at": {"stringValue": "error"},
+                "heroku.router.method": {"stringValue": "GET"},
+                "heroku.router.path": {"stringValue": "/forecast"},
+                "heroku.router.host": {"stringValue": "example.herokuapp.com"},
+                "heroku.router.request_id": {
+                    "stringValue": "8601b555-6a83-4c12-8269-97c8e32cdb22"
+                },
+                "heroku.router.fwd": {"stringValue": "203.0.113.7"},
+                "heroku.router.dyno": {"stringValue": "web.1"},
+                "heroku.router.connect": {"intValue": "1"},
+                "heroku.router.service": {"intValue": "30001"},
+                "heroku.router.status": {"intValue": "503"},
+                "heroku.router.bytes": {"intValue": "0"},
+                "heroku.router.protocol": {"stringValue": "http1.1"},
+            },
+        ),
+        expected_item(
+            "Error R14 (Memory quota exceeded)",
+            {
+                "sentry.severity_text": {"stringValue": "error"},
+                "heroku.source": {"stringValue": "heroku"},
+                "heroku.dyno": {"stringValue": "web.1"},
+                "heroku.error.code": {"stringValue": "R14"},
+                "heroku.error.description": {"stringValue": "Memory quota exceeded"},
+            },
+        ),
+    ]
 
 
 def heroku_project(mini_sentry, features=True):
@@ -153,11 +155,11 @@ def test_heroku_logs(mini_sentry, relay, relay_with_processing, items_consumer):
     assert response.content == b""
 
     items = items_consumer.get_items(n=3)
-    assert sorted(
-        items, key=lambda i: i["attributes"]["sentry.body"]["stringValue"]
-    ) == sorted(
-        EXPECTED_ITEMS, key=lambda i: i["attributes"]["sentry.body"]["stringValue"]
-    )
+
+    def by_body(item):
+        return item["attributes"]["sentry.body"]["stringValue"]
+
+    assert sorted(items, key=by_body) == sorted(expected_items(), key=by_body)
 
 
 def test_heroku_logs_requires_feature(
