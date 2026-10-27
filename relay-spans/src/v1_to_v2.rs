@@ -7,6 +7,7 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
+use crate::USER__GEO__SUBREGION;
 use crate::name::name_for_attributes;
 
 /// Converts a legacy span to the new Span V2 schema.
@@ -103,6 +104,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1, infer_name: bool) -> SpanV2 {
                 "user.geo.country_code" => Some(USER__GEO__COUNTRY_CODE),
                 "user.geo.region" => Some(USER__GEO__REGION),
                 "user.geo.subdivision" => Some(USER__GEO__SUBDIVISION),
+                "user.geo.subregion" => Some(USER__GEO__SUBREGION),
                 "user.id" => Some(USER__ID),
                 "user.ip" => Some(USER__IP_ADDRESS),
                 "user.username" => Some(USER__NAME),
@@ -517,6 +519,10 @@ mod tests {
               "type": "string",
               "value": "AT-9"
             },
+            "user.geo.subregion": {
+              "type": "string",
+              "value": "155"
+            },
             "user.id": {
               "type": "string",
               "value": "user123"
@@ -801,6 +807,10 @@ mod tests {
             "user.geo.subdivision": {
               "type": "string",
               "value": "AT-9"
+            },
+            "user.geo.subregion": {
+              "type": "string",
+              "value": "155"
             },
             "user.id": {
               "type": "string",

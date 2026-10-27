@@ -8,13 +8,15 @@ use relay_conventions::attributes::{
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
     SENTRY__METRIC__SOURCE, SENTRY__ORIGIN, SENTRY__PAGELOAD__SPAN_ID, SENTRY__PLATFORM,
     SENTRY__RELEASE, SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME,
-    USER_AGENT__ORIGINAL,
+    USER__GEO__COUNTRY_CODE, USER__GEO__REGION, USER_AGENT__ORIGINAL,
 };
 use relay_conventions::interpolate::browser__web_vital__cls__source__key;
 use relay_event_schema::protocol::{Attributes, SpanV2, TraceMetric};
 use relay_metrics::MetricUnit;
 use relay_protocol::Value;
 use std::collections::BTreeMap;
+
+use crate::USER__GEO__SUBREGION;
 
 const MAX_CLS_SOURCES: u32 = 128;
 
@@ -34,7 +36,7 @@ const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "ui.interaction.press",
 ];
 
-const COMMON_ATTRIBUTES: [&str; 13] = [
+const COMMON_ATTRIBUTES: [&str; 16] = [
     BROWSER__NAME,
     BROWSER__VERSION,
     BROWSER__NAVIGATION__TYPE,
@@ -48,6 +50,9 @@ const COMMON_ATTRIBUTES: [&str; 13] = [
     SENTRY__SDK__NAME,
     SENTRY__SDK__VERSION,
     SENTRY__PLATFORM,
+    USER__GEO__COUNTRY_CODE,
+    USER__GEO__REGION,
+    USER__GEO__SUBREGION,
 ];
 
 const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
@@ -309,5 +314,89 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_geo_attributes() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
+                    "user.geo.country_code": {"type": "string", "value": "AT"},
+                    "user.geo.region": {"type": "string", "value": "Austria"},
+                    "user.geo.subregion": {"type": "string", "value": "155"},
+                    "user.geo.city": {"type": "string", "value": "Vienna"},
+                    "user.geo.subdivision": {"type": "string", "value": "AT-9"}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 1);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&metrics[0].attributes), @r#"
+        {
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          },
+          "user.geo.country_code": {
+            "type": "string",
+            "value": "AT"
+          },
+          "user.geo.region": {
+            "type": "string",
+            "value": "Austria"
+          },
+          "user.geo.subregion": {
+            "type": "string",
+            "value": "155"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_geo_attributes_legacy_span() {
+        let span = Annotated::<SpanV1>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "op": "ui.webvital.lcp",
+                "start_timestamp": 1742921669.25,
+                "timestamp": 1742921669.75,
+                "measurements": {"lcp": {"value": 400.0, "unit": "millisecond"}},
+                "sentry_tags": {"user.geo.country_code": "AT", "user.geo.subregion": "155"}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = crate::span_v1_to_span_v2(span, true);
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 1);
+
+        let attributes = metrics[0].attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get_value(USER__GEO__COUNTRY_CODE)
+                .and_then(|v| v.as_str()),
+            Some("AT")
+        );
+        assert_eq!(
+            attributes
+                .get_value(USER__GEO__SUBREGION)
+                .and_then(|v| v.as_str()),
+            Some("155")
+        );
     }
 }

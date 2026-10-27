@@ -13,6 +13,13 @@ pub use crate::otel_to_sentry_v2::otel_to_sentry_span as otel_to_sentry_span_v2;
 pub use crate::v1_to_v2::span_v1_to_span_v2;
 pub use crate::web_vitals::extract_web_vital_metrics;
 
+/// UN M49 subregion code derived from the user's country code, e.g. `155` for Western Europe.
+///
+/// Legacy spans carry this as the `user.geo.subregion` sentry tag. It is not yet defined in
+/// `sentry-conventions`, so it lives here until it is and can be imported from
+/// `relay_conventions::attributes` instead.
+pub const USER__GEO__SUBREGION: &str = "user.geo.subregion";
+
 pub use opentelemetry_proto::tonic::trace::v1 as otel_trace;
 
 mod description;

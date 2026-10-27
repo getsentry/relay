@@ -15,9 +15,10 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
-use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
+use relay_spans::{USER__GEO__SUBREGION, derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
+use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
@@ -455,10 +456,19 @@ pub fn normalize_user_geo(
         return;
     };
 
+    // UN M49 subregion derived from the country code, as legacy span tag extraction does.
+    let subregion = geo
+        .country_code
+        .value()
+        .and_then(|cc| Subregion::from_iso2(cc));
+
     attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
     attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
     attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
+    if let Some(subregion) = subregion {
+        attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
+    }
 }
 
 /// Normalizes the dynamic sampling context into [`Attributes`].
@@ -1644,6 +1654,46 @@ mod tests {
         }
         "#
         );
+    }
+
+    #[test]
+    fn test_normalize_user_geo_subregion() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_user_geo(&mut attributes, |_| {
+            Some(Geo {
+                country_code: "AT".to_owned().into(),
+                city: Annotated::empty(),
+                subdivision: Annotated::empty(),
+                region: Annotated::empty(),
+                other: Default::default(),
+            })
+        });
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
+          "user.geo.country_code": {
+            "type": "string",
+            "value": "AT"
+          },
+          "user.geo.subregion": {
+            "type": "string",
+            "value": "155"
+          }
+        }
+        "#);
     }
 
     #[test]
