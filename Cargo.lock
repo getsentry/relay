@@ -4326,6 +4326,7 @@ dependencies = [
  "num_enum",
  "openssl-sys",
  "pkg-config",
+ "zstd-sys",
 ]
 
 [[package]]

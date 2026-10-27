@@ -17,6 +17,7 @@ rdkafka = { workspace = true, optional = true, features = [
   "tracing",
   "ssl",
   "libz-static",
+  "zstd",
 ] }
 rdkafka-sys = { workspace = true, optional = true }
 relay-log = { workspace = true, optional = true }
