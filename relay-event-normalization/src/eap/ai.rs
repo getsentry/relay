@@ -126,7 +126,9 @@ fn normalize_context_utilization(
         .get_value(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str());
 
-    let context_size = model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id)));
+    let provider = extract_string_value(attributes, GEN_AI__PROVIDER__NAME);
+    let context_size =
+        model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id, provider)));
 
     let Some(context_size) = context_size else {
         return;
@@ -173,7 +175,8 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
         return;
     };
 
-    let Some(model_cost) = model_metadata.and_then(|m| m.cost_per_token(model_id)) else {
+    let provider = extract_string_value(attributes, GEN_AI__PROVIDER__NAME);
+    let Some(model_cost) = model_metadata.and_then(|m| m.cost_per_token(model_id, provider)) else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
             result = "calculation_no_model_cost_available",
@@ -273,6 +276,7 @@ mod tests {
     fn model_metadata() -> ModelMetadata {
         ModelMetadata {
             version: 1,
+            providers: HashMap::new(),
             models: HashMap::from([
                 (
                     "claude-2.1".parse().unwrap(),
@@ -307,6 +311,7 @@ mod tests {
     fn model_metadata_with_context_size() -> ModelMetadata {
         ModelMetadata {
             version: 1,
+            providers: HashMap::new(),
             models: HashMap::from([(
                 "claude-2.1".parse().unwrap(),
                 ModelMetadataEntry {
@@ -320,6 +325,54 @@ mod tests {
                     context_size: Some(100_000),
                 },
             )]),
+        }
+    }
+
+    #[test]
+    fn test_normalize_ai_provider_prices() {
+        let entry = |input_per_token| {
+            serde_json::json!({
+                "costs": {
+                    "inputPerToken": input_per_token,
+                    "outputPerToken": 0.0,
+                    "outputReasoningPerToken": 0.0,
+                    "inputCachedPerToken": 0.0,
+                    "inputCacheWritePerToken": 0.0
+                }
+            })
+        };
+        let metadata: ModelMetadata = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "models": {"clef": entry(0.042 / 1_000_000.0)},
+            "providers": {
+                "cloudflare-workers-ai": {"clef": entry(0.24 / 1_000_000.0)},
+                "openrouter": {"cloudflare/clef": entry(0.042 / 1_000_000.0)},
+                "anthropic": {"claude-sonnet-4": entry(3.0 / 1_000_000.0)},
+                "poe": {"claude-sonnet-4": entry(2.6 / 1_000_000.0)}
+            }
+        }))
+        .unwrap();
+        for (provider, model, expected) in [
+            ("cloudflare.workers_ai", "clef", 0.01323168),
+            ("openrouter", "cloudflare/clef", 0.002315544),
+            ("anthropic", "claude-sonnet-4", 0.165396),
+            ("poe", "claude-sonnet-4", 0.1433432),
+        ] {
+            let mut attributes = Annotated::new(attributes! {
+                "gen_ai.operation.name" => "chat".to_owned(),
+                "gen_ai.provider.name" => provider.to_owned(),
+                "gen_ai.response.model" => model.to_owned(),
+                "gen_ai.usage.input_tokens" => 55_132,
+            });
+            normalize_ai(&mut attributes, None, Some(&metadata));
+            let cost = attributes
+                .value()
+                .unwrap()
+                .get_value(GEN_AI__COST__TOTAL_TOKENS)
+                .unwrap()
+                .as_f64()
+                .unwrap();
+            assert!((cost - expected).abs() < 1e-10, "{provider}: {cost}");
         }
     }
 
