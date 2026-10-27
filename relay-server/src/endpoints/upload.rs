@@ -399,7 +399,7 @@ async fn handle_patch(
     // Measure stream latency before any outgoing compression.
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower, upper) = match compression {
+    let (lower_bound, upper_bound) = match compression {
         // Only the objectstore Relay can validate the decoded length. Compressed bytes may
         // exceed max_upload_size even when their decoded representation fits.
         Some(_) => (0, usize::MAX),
@@ -412,7 +412,7 @@ async fn handle_patch(
         },
     };
     // Count wire bytes when forwarding, decoded bytes for objectstore.
-    let stream = BoundedStream::new(stream, lower, upper);
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
 
     relay_log::trace!("Uploading");
     let result = state
