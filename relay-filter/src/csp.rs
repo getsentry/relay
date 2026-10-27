@@ -149,9 +149,8 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
             if origin.domain.is_some() && url.domain != origin.domain {
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain)
-                    && origin_domain.starts_with('*')
-                    && ((*domain).ends_with(origin_domain.get(1..).unwrap_or(""))
-                        || domain.as_str() == origin_domain.get(2..).unwrap_or(""))
+                    && let Some(suffix) = origin_domain.strip_prefix('*')
+                    && matches_domain_suffix(domain, suffix.strip_prefix('.').unwrap_or(suffix))
                 {
                     return true; // partial domain pattern match
                 }
@@ -162,6 +161,20 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
         }
     }
     false
+}
+
+/// Checks if `domain` is `suffix` itself or one of its subdomains.
+///
+/// The match only happens on a label boundary, so `notabc.com` and `bc.com` are not
+/// subdomains of `abc.com`.
+fn matches_domain_suffix(domain: &str, suffix: &str) -> bool {
+    if suffix.is_empty() {
+        return false;
+    }
+    domain == suffix
+        || domain
+            .strip_suffix(suffix)
+            .is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 #[cfg(test)]
@@ -383,6 +396,15 @@ mod tests {
                 vec!["*abc.software.example.com*"],
                 false,
             ),
+            // wildcard without a dot only matches on a label boundary
+            ("http://notabc.com", vec!["*abc.com"], false),
+            ("http://bc.com", vec!["*abc.com"], false),
+            ("http://abc.com", vec!["*abc.com"], true),
+            ("http://www.abc.com", vec!["*abc.com"], true),
+            ("http://bc.com", vec!["*.abc.com"], false),
+            ("http://notabc.com", vec!["*.abc.com"], false),
+            ("http://www.abc.com", vec!["*.abc.com"], true),
+            ("http://abc.com", vec!["*."], false),
         ];
 
         for (url, origins, expected) in examples {
