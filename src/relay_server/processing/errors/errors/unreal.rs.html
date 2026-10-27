@@ -150,15 +150,15 @@
 <a href=#150 id=150 data-nosnippet>150</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(apple_crash_report) = apple_crash_report
 <a href=#151 id=151 data-nosnippet>151</a>            &amp;&amp; !apple_crash_report.rate_limited()
 <a href=#152 id=152 data-nosnippet>152</a>        {
-<a href=#153 id=153 data-nosnippet>153</a>            apple_crash_report.set_rate_limited(<span class="bool-val">true</span>);
-<a href=#154 id=154 data-nosnippet>154</a>            records.reject_err(Error::RateLimited(limits.clone()), <span class="kw-2">&amp;*</span>apple_crash_report);
+<a href=#153 id=153 data-nosnippet>153</a>            records.reject_err(Error::RateLimited(limits.clone()), <span class="kw-2">&amp;*</span>apple_crash_report);
+<a href=#154 id=154 data-nosnippet>154</a>            apple_crash_report.set_rate_limited(<span class="bool-val">true</span>);
 <a href=#155 id=155 data-nosnippet>155</a>        }
 <a href=#156 id=156 data-nosnippet>156</a>
 <a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(minidump) = minidump
 <a href=#158 id=158 data-nosnippet>158</a>            &amp;&amp; !minidump.rate_limited()
 <a href=#159 id=159 data-nosnippet>159</a>        {
-<a href=#160 id=160 data-nosnippet>160</a>            minidump.set_rate_limited(<span class="bool-val">true</span>);
-<a href=#161 id=161 data-nosnippet>161</a>            records.reject_err(Error::RateLimited(limits.clone()), <span class="kw-2">&amp;*</span>minidump);
+<a href=#160 id=160 data-nosnippet>160</a>            records.reject_err(Error::RateLimited(limits.clone()), <span class="kw-2">&amp;*</span>minidump);
+<a href=#161 id=161 data-nosnippet>161</a>            minidump.set_rate_limited(<span class="bool-val">true</span>);
 <a href=#162 id=162 data-nosnippet>162</a>        }
 <a href=#163 id=163 data-nosnippet>163</a>
 <a href=#164 id=164 data-nosnippet>164</a>        <span class="prelude-val">Ok</span>(())
