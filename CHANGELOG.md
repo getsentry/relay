@@ -14,6 +14,7 @@
 - Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
 - Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
+- Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
 
