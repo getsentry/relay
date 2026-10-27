@@ -150,15 +150,15 @@ impl SentryError for Unreal {
         if let Some(apple_crash_report) = apple_crash_report
             && !apple_crash_report.rate_limited()
         {
-            apple_crash_report.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits.clone()), &*apple_crash_report);
+            apple_crash_report.set_rate_limited(true);
         }
 
         if let Some(minidump) = minidump
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits.clone()), &*minidump);
+            minidump.set_rate_limited(true);
         }
 
         Ok(())
