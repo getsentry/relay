@@ -24,8 +24,7 @@ fn trace(json: &str) -> Vec<String> {
     let mut de = serde_json::Deserializer::from_str(json);
     let scrubber = Deserializer::new(&mut de, trace.clone());
     serde_transcode::transcode(scrubber, &mut serde_json::Serializer::new(Vec::new())).unwrap();
-    let events = trace.0.borrow().clone();
-    events
+    trace.0.borrow().clone()
 }
 
 /// `{"n<unicode escape for e>sted": {"k": "x"}}`, with the backslash spliced in at runtime.
