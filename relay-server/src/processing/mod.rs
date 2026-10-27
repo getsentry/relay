@@ -117,7 +117,6 @@ impl<'a> Context<'a> {
     pub fn to_forward(self) -> ForwardContext<'a> {
         ForwardContext {
             config: self.config,
-            global_config: self.global_config,
             project_info: self.project_info,
         }
     }
