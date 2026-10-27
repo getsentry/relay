@@ -559,14 +559,15 @@ impl Service {
         } = stream;
         match &self.backend {
             Backend::Upstream { addr, config } => {
-                let (request, rx) = UploadRequest::upload(
-                    project,
-                    location.try_to_uri()?,
-                    mode,
-                    stream,
-                    compression,
-                    config.current().http_encoding(),
-                );
+                let uri = location.try_to_uri()?;
+                let (stream, encoding) = match compression {
+                    Some(codec) => (Either::Right(stream), codec.encoding()),
+                    None => {
+                        let encoding = config.current().http_encoding();
+                        (encode_body(stream, encoding), encoding)
+                    }
+                };
+                let (request, rx) = UploadRequest::upload(project, uri, mode, stream, encoding);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 StreamResult::try_from_response(response)
@@ -1130,21 +1131,13 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         mode: UploadMode,
-        stream: UploadStream,
-        compression: Option<HttpCompression>,
-        configured_encoding: HttpEncoding,
+        stream: PreparedStream,
+        encoding: HttpEncoding,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
-        let (stream, encoding) = match compression {
-            None => (
-                encode_body(stream, configured_encoding),
-                configured_encoding,
-            ),
-            Some(codec) => (Either::Right(stream), codec.encoding()),
-        };
         (
             Self {
                 project,
@@ -1311,7 +1304,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn uncompressed_upload_uses_configured_encoding() {
+    async fn gzip_upload_encodes_body() {
         use axum::body::{Body, to_bytes};
         use std::io::Read;
 
@@ -1325,8 +1318,7 @@ mod tests {
             UploadMode::Oneshot {
                 length: Some(length),
             },
-            stream,
-            None,
+            encode_body(stream, HttpEncoding::Gzip),
             HttpEncoding::Gzip,
         );
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
@@ -1358,8 +1350,7 @@ mod tests {
             project(),
             "/api/42/upload/key/".into(),
             UploadMode::Oneshot { length: Some(11) },
-            stream,
-            None,
+            encode_body(stream, HttpEncoding::Identity),
             HttpEncoding::Identity,
         );
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
@@ -1419,9 +1410,8 @@ mod tests {
                     offset: 123,
                     chunk_length: data.len(),
                 },
-                stream,
-                Some(HttpCompression::Zstd),
-                HttpEncoding::Gzip, // Must not replace the incoming codec.
+                Either::Right(stream),
+                HttpEncoding::Zstd,
             );
             let mut builder =
                 RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
