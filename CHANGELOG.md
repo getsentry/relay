@@ -15,11 +15,14 @@
 - Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
 - Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
+- Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
 
 **Internal**:
 
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
 - Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))
+- Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
 
 ## 26.10.0
 
