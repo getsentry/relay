@@ -980,6 +980,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     let current_to_legacy_attributes = [
         // DB attributes
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
+        (SENTRY__NORMALIZED_DB_QUERY__HASH, SENTRY__GROUP),
         (DB__OPERATION__NAME, SENTRY__ACTION),
         // HTTP attributes
         (SERVER__ADDRESS, SENTRY__DOMAIN),
@@ -2516,6 +2517,10 @@ mod tests {
           "sentry.domain": {
             "type": "string",
             "value": ",documents,"
+          },
+          "sentry.group": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
           },
           "sentry.normalized_db_query": {
             "type": "string",
