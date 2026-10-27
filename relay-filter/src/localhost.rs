@@ -1,5 +1,6 @@
 //! Implements filtering for events originating from the localhost
 
+use crate::origin::host_matches_or_is_subdomain_of;
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
@@ -45,18 +46,6 @@ fn matches<F: Filterable>(item: &F) -> bool {
     false
 }
 
-/// Checks if `host` is `domain` itself or one of its subdomains.
-///
-/// The match only happens on a label boundary, so `notabc.com` and `bc.com` are not subdomains of
-/// `abc.com`. An empty `domain` never matches.
-pub(crate) fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
-    if domain.is_empty() {
-        return false;
-    }
-    host.strip_suffix(domain)
-        .is_some_and(|s| s.is_empty() || s.ends_with('.'))
-}
-
 /// Filters events originating from the local host.
 pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
@@ -76,29 +65,6 @@ mod tests {
     use relay_protocol::Annotated;
 
     use super::*;
-
-    #[test]
-    fn test_host_matches_or_is_subdomain_of() {
-        for (host, domain, expected) in [
-            ("abc.com", "abc.com", true),
-            ("www.abc.com", "abc.com", true),
-            ("a.b.abc.com", "abc.com", true),
-            ("notabc.com", "abc.com", false),
-            ("bc.com", "abc.com", false),
-            ("abc.com.evil.org", "abc.com", false),
-            ("", "abc.com", false),
-            // an empty domain never matches
-            ("", "", false),
-            ("abc.com", "", false),
-            ("abc.", "", false),
-        ] {
-            assert_eq!(
-                host_matches_or_is_subdomain_of(host, domain),
-                expected,
-                "host `{host}` against domain `{domain}`"
-            );
-        }
-    }
 
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {
