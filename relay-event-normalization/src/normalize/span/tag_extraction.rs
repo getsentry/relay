@@ -841,7 +841,8 @@ pub fn extract_tags(
             (Some("http"), _, _) => span
                 .data
                 .value()
-                .and_then(|data| data.get_str(HTTP__REQUEST__METHOD))
+                .and_then(|data| data.get_value_with_deprecations(HTTP__REQUEST__METHOD))
+                .and_then(Value::as_str)
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
                 // This only works as long as redis span descriptions contain the command + " *"
@@ -885,9 +886,14 @@ pub fn extract_tags(
                 } else if let Some(server_address) = span
                     .data
                     .value()
-                    .and_then(|data| data.get_str(SERVER__ADDRESS))
+                    .and_then(|data| data.get_value_with_deprecations(SERVER__ADDRESS))
+                    .and_then(Value::as_str)
                 {
-                    let url_scheme = span.data.value().and_then(|data| data.get_str(URL__SCHEME));
+                    let url_scheme = span
+                        .data
+                        .value()
+                        .and_then(|data| data.get_value_with_deprecations(URL__SCHEME))
+                        .and_then(Value::as_str);
 
                     let (normalized_domain, raw_domain) =
                         domain_from_server_address(Some(server_address), url_scheme);
@@ -1012,21 +1018,21 @@ pub fn extract_tags(
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
-                    .get_value(HTTP__RESPONSE__BODY__SIZE)
+                    .get_value_with_deprecations(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
+                    .get_value_with_deprecations(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .get_value(HTTP__RESPONSE__SIZE)
+                    .get_value_with_deprecations(HTTP__RESPONSE__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_transfer_size = value.into();
@@ -1208,7 +1214,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
             (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
             (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
         ] {
-            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
+            if let Some(value) = value_to_finite_f64(data.get_value_with_deprecations(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1904,6 +1910,160 @@ LIMIT 1
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
             assert_eq!(tags.get_value("ttid"), None);
             assert_eq!(tags.get_value("ttfd"), None);
+        }
+    }
+
+    fn http_test_extract_tags(span: &Span) -> SentryTags {
+        extract_tags(
+            span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        )
+    }
+
+    #[test]
+    fn http_action_and_status_use_aliases_without_renaming() {
+        for method_key in ["method", "http.method", "http.request_method"] {
+            for include_current in [false, true] {
+                let mut json = serde_json::json!({
+                    "op": "http.client",
+                    "description": "GET https://example.com/path",
+                    "data": {
+                        method_key: "post",
+                        "http.status_code": 201,
+                    },
+                });
+                if include_current {
+                    json["data"]["http.request.method"] = "get".into();
+                    json["data"]["http.response.status_code"] = 200.into();
+                }
+                let span = Annotated::<Span>::from_json(&json.to_string())
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                let original = span.clone();
+                let tags = http_test_extract_tags(&span);
+                assert_eq!(
+                    tags.action.as_str(),
+                    Some(if include_current { "GET" } else { "POST" })
+                );
+                assert_eq!(
+                    tags.status_code.as_str(),
+                    Some(if include_current { "200" } else { "201" })
+                );
+                assert_eq!(span, original);
+            }
+        }
+    }
+
+    #[test]
+    fn resource_domains_use_aliases_without_renaming() {
+        for address_key in [
+            "address",
+            "server_name",
+            "net.host.name",
+            "http.server_name",
+        ] {
+            for include_current in [false, true] {
+                let mut json = serde_json::json!({
+                    "op": "resource.script",
+                    "description": "/static/script.js",
+                    "data": {
+                        address_key: "subdomain.example.com:5688",
+                        "http.scheme": "https",
+                    },
+                });
+                if include_current {
+                    json["data"]["server.address"] = "other.example.org:8080".into();
+                    json["data"]["url.scheme"] = "http".into();
+                }
+                let span = Annotated::<Span>::from_json(&json.to_string())
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                let original = span.clone();
+                let tags = http_test_extract_tags(&span);
+                assert_eq!(
+                    tags.domain.as_str(),
+                    Some(if include_current {
+                        "*.example.org:8080"
+                    } else {
+                        "*.example.com:5688"
+                    })
+                );
+                assert_eq!(
+                    tags.raw_domain.as_str(),
+                    Some(if include_current {
+                        "http://other.example.org:8080"
+                    } else {
+                        "https://subdomain.example.com:5688"
+                    })
+                );
+                assert_eq!(span, original);
+            }
+        }
+    }
+
+    #[test]
+    fn resource_sizes_use_aliases_without_renaming() {
+        for decoded_key in [
+            "http.decoded_response_content_length",
+            "http.response_content_length_uncompressed",
+        ] {
+            for include_current in [false, true] {
+                let mut json = serde_json::json!({
+                    "op": "resource.script",
+                    "data": {
+                        "http.response_content_length": 1,
+                        decoded_key: 2.0,
+                        "http.response_transfer_size": 3.3,
+                    },
+                });
+                if include_current {
+                    json["data"]["http.response.body.size"] = 10.into();
+                    json["data"]["http.response.body.decoded_size"] = 20.0.into();
+                    json["data"]["http.response.size"] = 30.3.into();
+                }
+                let mut span = Annotated::<Span>::from_json(&json.to_string())
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                let original_data = span.data.clone();
+                let tags = http_test_extract_tags(&span);
+                let expected = if include_current {
+                    [10.0, 20.0, 30.3]
+                } else {
+                    [1.0, 2.0, 3.3]
+                };
+                for (tag, value) in [
+                    &tags.http_response_content_length,
+                    &tags.http_decoded_response_content_length,
+                    &tags.http_response_transfer_size,
+                ]
+                .into_iter()
+                .zip(expected)
+                {
+                    assert_eq!(tag.as_str(), Some(value.to_string().as_str()));
+                }
+                extract_measurements(&mut span, false);
+                let measurements = span.measurements.value().unwrap();
+                for (key, value) in [
+                    "http.response_content_length",
+                    "http.decoded_response_content_length",
+                    "http.response_transfer_size",
+                ]
+                .into_iter()
+                .zip(expected)
+                {
+                    assert_eq!(measurements.get_value(key).unwrap().to_f64(), value);
+                }
+                assert_eq!(span.data, original_data);
+            }
         }
     }
 

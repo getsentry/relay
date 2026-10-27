@@ -870,19 +870,21 @@ fn normalize_http_attributes(
     };
 
     let method = attributes
-        .get_value(HTTP__REQUEST__METHOD)
+        .get_value_with_deprecations(HTTP__REQUEST__METHOD)
         .and_then(|v| v.as_str())
         .or(description_method);
 
     let server_address = attributes
-        .get_value(SERVER__ADDRESS)
+        .get_value_with_deprecations(SERVER__ADDRESS)
         .and_then(|v| v.as_str());
 
     let url: Option<&str> = attributes
-        .get_value(URL__FULL)
+        .get_value_with_deprecations(URL__FULL)
         .and_then(|v| v.as_str())
         .or(description_url);
-    let url_scheme = attributes.get_value(URL__SCHEME).and_then(|v| v.as_str());
+    let url_scheme = attributes
+        .get_value_with_deprecations(URL__SCHEME)
+        .and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
     // extract a normalized domain to be stored in the "server.address" attribute.
@@ -2308,6 +2310,166 @@ mod tests {
           }
         }
         "#);
+    }
+
+    fn http_test_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(
+            [(SENTRY__CATEGORY, "http"), (SENTRY__OP, "http.client")]
+                .into_iter()
+                .chain(pairs.iter().copied())
+                .map(|(key, value)| (key.to_owned(), Annotated::new(value.into()))),
+        ))
+    }
+
+    #[test]
+    fn http_aliases_normalize_without_renaming() {
+        for method_key in ["method", "http.method", "http.request_method"] {
+            for url_key in ["url", "http.url", "aws.request.url", "messaging.url"] {
+                let mut attributes = http_test_attributes(&[
+                    (method_key, "get"),
+                    (url_key, "https://subdomain.example.com/users/123"),
+                    ("http.status_code", "201"),
+                ]);
+                let original = attributes.clone().into_value().unwrap();
+                normalize_http_attributes(&mut attributes, &[]);
+                write_legacy_attributes(&mut attributes);
+                let result = attributes.value().unwrap();
+                for (key, expected) in [
+                    (HTTP__REQUEST__METHOD, "GET"),
+                    (SERVER__ADDRESS, "*.example.com"),
+                    (URL__FULL, "https://subdomain.example.com/users/123"),
+                    (SENTRY__ACTION, "GET"),
+                    (SENTRY__DOMAIN, "*.example.com"),
+                    (SENTRY__STATUS_CODE, "201"),
+                ] {
+                    assert_eq!(
+                        result.get_value(key).and_then(Value::as_str),
+                        Some(expected)
+                    );
+                }
+                for (key, value) in original.0 {
+                    assert_eq!(result.0.get(&key), Some(&value));
+                }
+                let normalized = attributes.clone();
+                normalize_http_attributes(&mut attributes, &[]);
+                write_legacy_attributes(&mut attributes);
+                assert_eq!(attributes, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn http_server_address_aliases_normalize_without_renaming() {
+        for address_key in [
+            "address",
+            "server_name",
+            "net.host.name",
+            "http.server_name",
+        ] {
+            let mut attributes = http_test_attributes(&[
+                ("http.method", "GET"),
+                (address_key, "subdomain.example.com:5688"),
+                ("http.scheme", "https"),
+            ]);
+            let original = attributes.clone().into_value().unwrap();
+            normalize_http_attributes(&mut attributes, &[]);
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result.get_value(SERVER__ADDRESS).and_then(Value::as_str),
+                Some("*.example.com:5688")
+            );
+            assert_eq!(
+                result.get_value(URL__FULL).and_then(Value::as_str),
+                Some("https://subdomain.example.com:5688")
+            );
+            assert!(!result.contains_key(URL__SCHEME));
+            for (key, value) in original.0 {
+                assert_eq!(result.0.get(&key), Some(&value));
+            }
+        }
+    }
+
+    #[test]
+    fn http_current_names_take_precedence_over_conflicting_aliases() {
+        for pairs in [
+            vec![
+                (HTTP__REQUEST__METHOD, "GET"),
+                (URL__FULL, "https://subdomain.example.com/users/123"),
+                (HTTP__RESPONSE__STATUS_CODE, "201"),
+            ],
+            vec![
+                (HTTP__REQUEST__METHOD, "GET"),
+                (SERVER__ADDRESS, "subdomain.example.com:5688"),
+                (URL__SCHEME, "https"),
+                (HTTP__RESPONSE__STATUS_CODE, "201"),
+            ],
+        ] {
+            let mut aliases = vec![
+                ("method", "DELETE"),
+                ("http.method", "POST"),
+                ("http.request_method", "PUT"),
+                ("server_name", "wrong.invalid"),
+                ("http.scheme", "http"),
+                ("http.status_code", "500"),
+            ];
+            if pairs.iter().any(|(key, _)| *key == URL__FULL) {
+                aliases.push(("http.url", "http://wrong.invalid"));
+            }
+            let mut current = http_test_attributes(&pairs);
+            let mut mixed_pairs = pairs.clone();
+            mixed_pairs.extend(aliases.iter().copied());
+            let mut mixed = http_test_attributes(&mixed_pairs);
+            for attributes in [&mut current, &mut mixed] {
+                normalize_http_attributes(attributes, &[]);
+                write_legacy_attributes(attributes);
+            }
+            let result = mixed.value().unwrap();
+            for (key, value) in &current.value().unwrap().0 {
+                assert_eq!(result.0.get(key), Some(value));
+            }
+            for (key, value) in aliases {
+                assert_eq!(result.get_value(key).and_then(Value::as_str), Some(value));
+            }
+        }
+    }
+
+    #[test]
+    fn http_legacy_attributes_use_aliases_without_normalization() {
+        let mut attributes = http_test_attributes(&[
+            ("http.method", "GET"),
+            ("server_name", "example.com"),
+            ("http.status_code", "201"),
+        ]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_annotated_value_mut("http.status_code")
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        for (source, target) in [
+            ("http.method", SENTRY__ACTION),
+            ("server_name", SENTRY__DOMAIN),
+            ("http.status_code", SENTRY__STATUS_CODE),
+        ] {
+            assert_eq!(
+                result.get_attribute(source).unwrap().value,
+                result.get_attribute(target).unwrap().value
+            );
+        }
+        for key in [
+            HTTP__REQUEST__METHOD,
+            SERVER__ADDRESS,
+            HTTP__RESPONSE__STATUS_CODE,
+        ] {
+            assert!(!result.contains_key(key));
+        }
+        let normalized = attributes.clone();
+        write_legacy_attributes(&mut attributes);
+        assert_eq!(attributes, normalized);
     }
 
     #[test]

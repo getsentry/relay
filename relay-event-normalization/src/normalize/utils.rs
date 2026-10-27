@@ -32,7 +32,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     if let Some(status_code) = span
         .data
         .value()
-        .and_then(|data| data.get_value(HTTP__RESPONSE__STATUS_CODE))
+        .and_then(|data| data.get_value_with_deprecations(HTTP__RESPONSE__STATUS_CODE))
         .map(|v| match v {
             Value::String(s) => Some(s.as_str().to_owned()),
             Value::I64(i) => Some(i.to_string()),
@@ -249,6 +249,42 @@ mod tests {
         let user = User::default();
 
         assert!(get_event_user_tag(&user).is_none());
+    }
+
+    #[test]
+    fn http_status_code_uses_aliases_without_renaming() {
+        for (data, expected) in [
+            (serde_json::json!({"http.status_code": 201}), "201"),
+            (serde_json::json!({"http.status_code": "202"}), "202"),
+            (serde_json::json!({"http.status_code": -1}), "-1"),
+            (
+                serde_json::json!({
+                    "http.status_code": 500,
+                    "http.response.status_code": 200,
+                }),
+                "200",
+            ),
+            (
+                serde_json::json!({
+                    "http.status_code": 201,
+                    "http.response.status_code": null,
+                }),
+                "201",
+            ),
+            (serde_json::json!({}), "503"),
+        ] {
+            let json = serde_json::json!({
+                "data": data,
+                "tags": {"http.status_code": "503"},
+            });
+            let span = Annotated::<Span>::from_json(&json.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            let original = span.clone();
+            assert_eq!(http_status_code_from_span(&span).as_deref(), Some(expected));
+            assert_eq!(span, original);
+        }
     }
 
     #[test]
