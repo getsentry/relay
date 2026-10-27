@@ -726,265 +726,67 @@ fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
-    use crate::middlewares::{decompress, remove_empty_encoding};
-    use crate::services::upload::UPLOAD_PATCH_PATH;
-    use axum::Router;
     use axum::body::to_bytes;
-    use axum::extract::Request;
-    use axum::http::{HeaderMap, Method, StatusCode};
-    use axum::routing::{any, patch, post};
-    use bytes::Bytes;
-    use tower::ServiceBuilder;
-    use tower::ServiceExt;
+    use axum::http::HeaderValue;
+    use tower_http::decompression::RequestDecompression;
 
     use super::*;
 
-    const UPLOAD: &str = "/api/42/upload/key/";
-    const ENVELOPE: &str = "/api/42/envelope/";
-    const DATA: &[u8] = b"hello world";
-
-    fn app(has_objectstore: bool) -> Router {
-        async fn echo(request: Request) -> Result<(HeaderMap, Bytes), StatusCode> {
-            let (parts, body) = request.into_parts();
-            let bytes = to_bytes(body, 1024)
-                .await
-                .map_err(|_| StatusCode::BAD_REQUEST)?;
-            Ok((parts.headers, bytes))
-        }
-
-        let middleware = ServiceBuilder::new()
-            .layer(crate::middlewares::cors())
-            .layer(tus::resumable_header_layer());
-        let upload = if has_objectstore {
-            patch(echo)
-                .route_layer(RequestBodyLimitLayer::new(DATA.len()))
-                .route_layer(middleware)
-                .layer(axum::middleware::from_fn(decompress))
-        } else {
-            patch_service(service_fn(move |request: Request| {
-                let middleware = middleware.clone();
-                async move {
-                    match upload_compression(request.headers()) {
-                        Ok(compression) => {
-                            middleware
-                                .map_response(IntoResponse::into_response)
-                                .layer(RequestBodyLimitLayer::new(match compression {
-                                    None => DATA.len(),
-                                    Some(_) => usize::MAX,
-                                }))
-                                .service(echo.with_state(()))
-                                .oneshot(request)
-                                .await
-                        }
-                        Err(error) => Ok::<_, Infallible>(error.into_response()),
-                    }
-                }
-            }))
-        };
-        let decoded_routes = Router::new()
-            .route(UPLOAD_PATCH_PATH, post(echo))
-            .route("/api/{project_id}/envelope/", any(echo))
-            .layer(axum::middleware::from_fn(decompress));
-        Router::new()
-            .route(UPLOAD_PATCH_PATH, upload)
-            .merge(decoded_routes)
-            .layer(ServiceBuilder::new().map_request(remove_empty_encoding))
-    }
-
-    fn compress(encoding: &str) -> Vec<u8> {
-        match encoding {
-            "zstd" => zstd::encode_all(DATA, 0).unwrap(),
-            "gzip" => {
-                let mut encoder = flate2::write::GzEncoder::new(Vec::new(), Default::default());
-                encoder.write_all(DATA).unwrap();
-                encoder.finish().unwrap()
-            }
-            "deflate" => {
-                let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), Default::default());
-                encoder.write_all(DATA).unwrap();
-                encoder.finish().unwrap()
-            }
-            "br" => {
-                let mut data = Vec::new();
-                {
-                    let mut encoder = brotli::CompressorWriter::new(&mut data, 4096, 5, 22);
-                    encoder.write_all(DATA).unwrap();
-                }
-                data
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    #[tokio::test]
-    async fn only_forwarding_upload_patches_bypass_decompression() {
-        for encoding in ["zstd", "gzip", "deflate", "br"] {
-            let compressed = compress(encoding);
-            for (has_objectstore, method, path, expected_encoding, expected_body) in [
-                (
-                    false,
-                    Method::PATCH,
-                    UPLOAD,
-                    Some(encoding),
-                    compressed.as_slice(),
-                ),
-                (true, Method::PATCH, UPLOAD, None, DATA),
-                (false, Method::POST, UPLOAD, None, DATA),
-                (false, Method::PATCH, ENVELOPE, None, DATA),
-            ] {
-                let case = format!("{encoding}, objectstore={has_objectstore}, {method} {path}");
-                let response = app(has_objectstore)
-                    .oneshot(
-                        Request::builder()
-                            .method(method)
-                            .uri(path)
-                            .header(header::CONTENT_ENCODING, encoding)
-                            .header(header::CONTENT_LENGTH, compressed.len())
-                            .body(Body::from(compressed.clone()))
-                            .unwrap(),
-                    )
-                    .await
-                    .unwrap();
-                assert_eq!(response.status(), StatusCode::OK, "{case}");
-                assert_eq!(
-                    response
-                        .headers()
-                        .get(header::CONTENT_ENCODING)
-                        .map(|v| v.to_str().unwrap()),
-                    expected_encoding,
-                    "{case}",
-                );
-                assert_eq!(
-                    response.headers()[header::CONTENT_LENGTH],
-                    expected_body.len().to_string(),
-                    "{case}",
-                );
-                let body = to_bytes(response.into_body(), 1024).await.unwrap();
-                assert_eq!(body.as_ref(), expected_body, "{case}");
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn unsupported_and_compatibility_encodings() {
-        for (encoding, expected_status, expected_body) in [
-            ("", StatusCode::OK, DATA),
-            ("UTF-8", StatusCode::OK, DATA),
-            ("identity", StatusCode::OK, DATA),
-            ("unknown", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
-            ("x-gzip", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
-            ("GZIP", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
-            (" gzip ", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
-            ("zstd, gzip", StatusCode::UNSUPPORTED_MEDIA_TYPE, b""),
+    #[test]
+    fn classify_upload_compression() {
+        for (value, expected) in [
+            (None, Ok(None)),
+            (Some("identity"), Ok(None)),
+            (Some("zstd"), Ok(Some(HttpCompression::Zstd))),
+            (Some("gzip"), Ok(Some(HttpCompression::Gzip))),
+            (Some("deflate"), Ok(Some(HttpCompression::Deflate))),
+            (Some("br"), Ok(Some(HttpCompression::Br))),
+            (Some("unknown"), Err(())),
+            (Some("x-gzip"), Err(())),
+            (Some("GZIP"), Err(())),
+            (Some(" gzip "), Err(())),
+            (Some("zstd, gzip"), Err(())),
         ] {
-            let request = || {
-                Request::builder()
-                    .method(Method::PATCH)
-                    .uri(UPLOAD)
-                    .header(header::CONTENT_ENCODING, encoding)
-                    .body(Body::from(DATA))
-                    .unwrap()
-            };
-            // Compare with Tower's real response so its advertised codecs cannot drift.
-            let reference = app(true).oneshot(request()).await.unwrap();
-            let response = app(false).oneshot(request()).await.unwrap();
-            assert_eq!(response.headers(), reference.headers(), "{encoding}");
-            for response in [reference, response] {
-                assert_eq!(response.status(), expected_status, "{encoding}");
-                assert_eq!(
-                    to_bytes(response.into_body(), 1024).await.unwrap(),
-                    expected_body,
-                    "{encoding}",
-                );
+            let mut headers = HeaderMap::new();
+            if let Some(value) = value {
+                headers.insert(header::CONTENT_ENCODING, value.parse().unwrap());
             }
-        }
-    }
-
-    #[tokio::test]
-    async fn unsupported_encoding_precedes_limits_and_response_layers() {
-        for has_objectstore in [false, true] {
-            let response = app(has_objectstore)
-                .oneshot(
-                    Request::builder()
-                        .method(Method::PATCH)
-                        .uri(UPLOAD)
-                        .header(header::CONTENT_ENCODING, "unknown")
-                        .header(header::CONTENT_LENGTH, "2048")
-                        .header(header::ORIGIN, "https://example.com")
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
             assert_eq!(
-                response.headers()[header::ACCEPT_ENCODING],
-                "zstd,gzip,deflate,br"
-            );
-            assert!(!response.headers().contains_key("tus-resumable"));
-            assert!(
-                !response
-                    .headers()
-                    .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-            );
-            assert!(
-                to_bytes(response.into_body(), 1024)
-                    .await
-                    .unwrap()
-                    .is_empty()
+                upload_compression(&headers).map_err(|_| ()),
+                expected,
+                "{value:?}"
             );
         }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_bytes(b"\xff").unwrap(),
+        );
+        assert!(upload_compression(&headers).is_err());
     }
 
     #[tokio::test]
-    async fn unsupported_methods_keep_encoding_validation() {
-        for has_objectstore in [false, true] {
-            for method in [Method::DELETE, Method::OPTIONS] {
-                let response = app(has_objectstore)
-                    .oneshot(
-                        Request::builder()
-                            .method(method)
-                            .uri(UPLOAD)
-                            .header(header::CONTENT_ENCODING, "unknown")
-                            .body(Body::empty())
-                            .unwrap(),
-                    )
-                    .await
-                    .unwrap();
-                assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
-                assert_eq!(
-                    response.headers()[header::ACCEPT_ENCODING],
-                    "zstd,gzip,deflate,br"
-                );
-            }
-        }
-    }
+    async fn unsupported_encoding_response_matches_tower() {
+        let request = Request::builder()
+            .header(header::CONTENT_ENCODING, "unknown")
+            .body(Body::empty())
+            .unwrap();
+        let reference = RequestDecompression::new(service_fn(|_: Request<_>| async {
+            Ok::<_, Infallible>(StatusCode::OK.into_response())
+        }))
+        .oneshot(request)
+        .await
+        .unwrap();
+        let response = UnsupportedUploadEncoding.into_response();
 
-    #[tokio::test]
-    async fn invalid_upload_is_validated_before_objectstore() {
-        for data in [b"invalid zstd".to_vec(), compress("zstd")[..8].to_vec()] {
-            for (has_objectstore, expected_status) in
-                [(false, StatusCode::OK), (true, StatusCode::BAD_REQUEST)]
-            {
-                let response = app(has_objectstore)
-                    .oneshot(
-                        Request::builder()
-                            .method(Method::PATCH)
-                            .uri(UPLOAD)
-                            .header(header::CONTENT_ENCODING, "zstd")
-                            .body(Body::from(data.clone()))
-                            .unwrap(),
-                    )
-                    .await
-                    .unwrap();
-                assert_eq!(
-                    response.status(),
-                    expected_status,
-                    "objectstore={has_objectstore}, data={data:?}"
-                );
-            }
-        }
+        assert_eq!(response.status(), reference.status());
+        assert_eq!(response.headers(), reference.headers());
+        assert_eq!(
+            to_bytes(response.into_body(), 1024).await.unwrap(),
+            to_bytes(Body::new(reference.into_body()), 1024)
+                .await
+                .unwrap(),
+        );
     }
 }

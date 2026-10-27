@@ -106,8 +106,9 @@ def test_header(mini_sentry, relay, dummy_upload, upload_max_chunk_size):
         pytest.param(True, 503, id="killswitch on"),
     ],
 )
+@pytest.mark.parametrize("encoding", [None, "identity", "", "UTF-8"])
 def test_forward_patch(
-    mini_sentry, relay, dummy_upload, killswitched, expected_status_code
+    mini_sentry, relay, dummy_upload, killswitched, expected_status_code, encoding
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -125,6 +126,7 @@ def test_forward_patch(
             mini_sentry.get_dsn_public_key(project_id),
         ),
         headers={
+            "Content-Encoding": encoding,
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
@@ -1417,9 +1419,11 @@ class EncodingRequestCase:
     id: str
     location: str
     max_upload_size: int
+    method: str = "PATCH"
 
 
-@pytest.mark.parametrize("encoding", ["unknown", "x-gzip", "zstd, gzip"])
+@pytest.mark.parametrize("has_objectstore", [False, True])
+@pytest.mark.parametrize("encoding", ["unknown", "x-gzip", "GZIP", "zstd, gzip"])
 @pytest.mark.parametrize(
     "case",
     [
@@ -1433,18 +1437,39 @@ class EncodingRequestCase:
             location="/api/not-a-project/upload/key/",
             max_upload_size=1,
         ),
+        EncodingRequestCase(
+            id="delete",
+            location=DUMMY_UPLOAD_PATH,
+            max_upload_size=1,
+            method="DELETE",
+        ),
+        EncodingRequestCase(
+            id="options",
+            location=DUMMY_UPLOAD_PATH,
+            max_upload_size=1,
+            method="OPTIONS",
+        ),
     ],
     ids=lambda case: case.id,
 )
 def test_unsupported_upload_encoding_contract(
-    mini_sentry, relay, project_config, encoding, case: EncodingRequestCase
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    encoding,
+    has_objectstore,
+    case: EncodingRequestCase,
 ):
-    edge = relay(
-        mini_sentry,
-        options={"limits": {"max_upload_size": case.max_upload_size}},
+    options = {"limits": {"max_upload_size": case.max_upload_size}}
+    edge = (
+        relay_with_processing(options=options)
+        if has_objectstore
+        else relay(mini_sentry, options=options)
     )
     # Encoding rejection must precede auth, path extraction, and the body limit.
-    response = edge.patch(
+    response = edge.request(
+        case.method,
         case.location.format(project_key=mini_sentry.get_dsn_public_key(42)),
         headers={
             "Tus-Resumable": "1.0.0",
@@ -1463,7 +1488,48 @@ def test_unsupported_upload_encoding_contract(
     assert "Access-Control-Allow-Origin" not in response.headers
 
 
-@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+def compress_upload(data, encoding):
+    import gzip
+    import zlib
+    import zstandard
+
+    return {
+        "zstd": zstandard.ZstdCompressor(write_checksum=True).compress,
+        "gzip": gzip.compress,
+        "deflate": zlib.compress,
+    }[encoding](data)
+
+
+@dataclass(frozen=True, kw_only=True)
+class EncodedUploadCase:
+    id: str
+    encoding: str
+    data: bytes
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        EncodedUploadCase(
+            id="zstd", encoding="zstd", data=compress_upload(b"hello world", "zstd")
+        ),
+        EncodedUploadCase(
+            id="gzip", encoding="gzip", data=compress_upload(b"hello world", "gzip")
+        ),
+        EncodedUploadCase(
+            id="deflate",
+            encoding="deflate",
+            data=compress_upload(b"hello world", "deflate"),
+        ),
+        EncodedUploadCase(id="malformed", encoding="zstd", data=b"not a zstd stream"),
+        EncodedUploadCase(
+            id="truncated",
+            encoding="zstd",
+            data=compress_upload(b"hello world", "zstd")[:8],
+        ),
+    ],
+    ids=lambda case: case.id,
+)
 @pytest.mark.parametrize("chunked", [False, True])
 @pytest.mark.parametrize("processing", [False, True])
 def test_compressed_upload_passthrough(
@@ -1472,15 +1538,15 @@ def test_compressed_upload_passthrough(
     processing_config,
     project_config,
     events_consumer,
-    encoding,
+    case: EncodedUploadCase,
     chunked,
     processing,
 ):
-    """Forwarding preserves the encoded bytes even when they exceed the decoded length."""
+    """Forwarders preserve opaque bytes, including larger or malformed compressed bodies."""
     mini_sentry.allow_chunked = True
     data = b"hello world"
-    compressed = compress_upload(data, encoding)
-    assert len(compressed) > len(data)
+    compressed = case.data
+    assert len(compressed) != len(data)
     received = []
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -1524,7 +1590,7 @@ def test_compressed_upload_passthrough(
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
-            "Content-Encoding": encoding,
+            "Content-Encoding": case.encoding,
             "X-Decoded-Content-Length": str(len(data)),
             "Upload-Offset": "0",
         },
@@ -1535,21 +1601,9 @@ def test_compressed_upload_passthrough(
     assert len(received) == 1
     headers, body = received[0]
     assert body == compressed
-    assert headers["Content-Encoding"] == encoding
+    assert headers["Content-Encoding"] == case.encoding
     assert headers["X-Decoded-Content-Length"] == str(len(data))
     assert headers["Upload-Offset"] == "0"
-
-
-def compress_upload(data, encoding):
-    import gzip
-    import zlib
-    import zstandard
-
-    return {
-        "zstd": zstandard.ZstdCompressor(write_checksum=True).compress,
-        "gzip": gzip.compress,
-        "deflate": zlib.compress,
-    }[encoding](data)
 
 
 @dataclass(frozen=True, kw_only=True)
