@@ -415,20 +415,19 @@ async fn handle_patch(
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
 
     relay_log::trace!("Uploading");
-    let result = state
-        .upload()
-        .send(upload::Stream {
+    let result = upload(
+        &state,
+        upload::Stream {
             received: Utc::now(),
             project: project_context,
             location,
             stream,
             compression,
             mode: upload_mode,
-        })
-        .await
-        .map_err(Error::from)
-        .and_then(|result| result.map_err(Error::from));
-    let result = result.inspect_err(|e| {
+        },
+    )
+    .await
+    .inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
@@ -551,6 +550,13 @@ async fn create(
         .await??;
 
     Ok(result)
+}
+
+async fn upload(
+    state: &ServiceState,
+    request: upload::Stream,
+) -> Result<upload::StreamResult, Error> {
+    Ok(state.upload().send(request).await??)
 }
 
 async fn head(
