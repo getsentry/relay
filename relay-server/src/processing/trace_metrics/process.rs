@@ -9,7 +9,9 @@ use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
-use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
+use crate::processing::trace_metrics::{
+    ExpandedTraceMetrics, SerializedTraceMetrics, TraceMetricItems, integrations,
+};
 use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
 
@@ -36,8 +38,15 @@ pub fn expand(
             invalid: _,
         } = metrics;
 
-        let expanded = expand_trace_metric_container(&item, trust, max_ops);
-        let (settings, metrics) = records.or_default(expanded, item);
+        let (settings, metrics) = match item {
+            TraceMetricItems::Container(item) => {
+                let expanded = expand_trace_metric_container(&item, trust, max_ops);
+                records.or_default(expanded, item)
+            }
+            TraceMetricItems::Integration(item) => {
+                integrations::expand(item, records).unwrap_or_default()
+            }
+        };
 
         ExpandedTraceMetrics {
             headers,
@@ -205,7 +214,7 @@ pub fn normalize_derived(metrics: &mut Managed<ExpandedTraceMetrics>) {
     );
 }
 
-fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result<()> {
+pub(super) fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result<()> {
     process_value(
         metric,
         &mut SchemaProcessor::new()

@@ -5074,6 +5074,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-monitors",
+ "relay-otel",
  "relay-ourlogs",
  "relay-pii",
  "relay-profiling",

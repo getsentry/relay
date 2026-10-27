@@ -3,6 +3,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceResponse;
+use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceResponse;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceResponse;
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
@@ -11,7 +12,7 @@ use crate::endpoints::common;
 use crate::envelope::ContentType;
 use crate::extractors::IntegrationBuilderRejection;
 use crate::extractors::{IntegrationBuilder, RawContentType};
-use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration};
+use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration, TraceMetricsIntegration};
 use crate::managed::Rejected;
 use crate::service::ServiceState;
 
@@ -20,12 +21,15 @@ use crate::service::ServiceState;
 /// The integration currently supports the following endpoints:
 ///  - V1 Traces
 ///  - V1 Logs
+///  - V1 Metrics
 pub fn routes(config: &ConfigSnapshot) -> axum::Router<ServiceState> {
     axum::Router::new()
         .route("/v1/traces", traces::route(config))
         .route("/v1/traces/", traces::route(config))
         .route("/v1/logs", logs::route(config))
         .route("/v1/logs/", logs::route(config))
+        .route("/v1/metrics", metrics::route(config))
+        .route("/v1/metrics/", metrics::route(config))
 }
 
 mod traces {
@@ -79,6 +83,40 @@ mod logs {
             .map_err(|err| OtlpError::from_err(format, err))?
             .with_type(LogsIntegration::OtelV1 { format })
             .with_required_feature(Feature::OurLogsIngestion)
+            .build();
+
+        common::handle_envelope(&state, envelope)
+            .await
+            .map_err(Rejected::into_inner)
+            .and_then(|r| r.check_rate_limits())
+            .map_err(|err| OtlpError::from_err(format, err))?;
+
+        Ok(SuccessResponse::new(format))
+    }
+
+    pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
+    }
+}
+
+mod metrics {
+    use super::*;
+
+    async fn handle(
+        content_type: RawContentType,
+        state: ServiceState,
+        builder: Result<IntegrationBuilder, IntegrationBuilderRejection>,
+    ) -> Result<SuccessResponse<ExportMetricsServiceResponse>, OtlpError> {
+        let format = match content_type.as_ref().parse::<ContentType>() {
+            Ok(ContentType::Json) => OtelFormat::Json,
+            Ok(ContentType::Protobuf) => OtelFormat::Protobuf,
+            _ => return Err(OtlpError::unsupported_content_type(content_type)),
+        };
+
+        let envelope = builder
+            .map_err(|err| OtlpError::from_err(format, err))?
+            .with_type(TraceMetricsIntegration::OtelV1 { format })
+            .with_required_feature(Feature::TraceMetricsIngestion)
             .build();
 
         common::handle_envelope(&state, envelope)

@@ -10,11 +10,13 @@ use std::sync::Arc;
 use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
+use crate::integrations::Integration;
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
 mod filter;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -98,7 +100,7 @@ impl crate::managed::OutcomeError for Error {
 
 /// A processor for trace metrics.
 ///
-/// It processes items of type: [`ItemType::TraceMetric`].
+/// It processes items of type: [`ItemType::TraceMetric`] and trace metric integrations.
 #[derive(Debug)]
 pub struct TraceMetricsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -123,14 +125,25 @@ impl processing::Processor for TraceMetricsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let item = envelope
+        let item = if let Some(container) = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::TraceMetric))?;
+            .take_item_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
+        {
+            TraceMetricItems::Container(container)
+        } else {
+            let integration = envelope.envelope_mut().take_item_by(|item| {
+                matches!(item.integration(), Some(Integration::TraceMetrics(_)))
+            })?;
+            TraceMetricItems::Integration(integration)
+        };
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
+            .take_items_by(|item| {
+                matches!(*item.ty(), ItemType::TraceMetric)
+                    || matches!(item.integration(), Some(Integration::TraceMetrics(_)))
+            })
             .to_vec();
 
         let work = SerializedTraceMetrics {
@@ -216,20 +229,37 @@ impl Forward for TraceMetricOutput {
     }
 }
 
+/// Different trace metric containers which can be expanded into trace metrics.
+#[derive(Debug)]
+enum TraceMetricItems {
+    /// A trace metric container.
+    Container(Item),
+    /// A trace metric integration item.
+    Integration(Item),
+}
+
+impl TraceMetricItems {
+    fn item(&self) -> &Item {
+        match self {
+            Self::Container(item) | Self::Integration(item) => item,
+        }
+    }
+}
+
 /// Serialized trace metrics extracted from an envelope.
 #[derive(Debug)]
 pub struct SerializedTraceMetrics {
     /// Original envelope headers.
     pub headers: EnvelopeHeaders,
-    /// Trace metric item container.
-    item: Item,
+    /// Trace metric item container or integration item.
+    item: TraceMetricItems,
     /// Invalid trace metric items which are not allowed to be in the envelope.
     invalid: Vec<Item>,
 }
 
 impl SerializedTraceMetrics {
     fn all_items(&self) -> impl Iterator<Item = &Item> {
-        std::iter::once(&self.item).chain(self.invalid.iter())
+        std::iter::once(self.item.item()).chain(self.invalid.iter())
     }
 }
 

@@ -85,6 +85,11 @@ pub fn check_envelope_size_limits(
         total_count: 1,
         total_size: config.max_container_size(),
     };
+    let mut trace_metric_integration = Limit {
+        item_size: config.max_container_size(),
+        total_count: 1,
+        total_size: config.max_container_size(),
+    };
     let mut span = Limit {
         item_size: config.max_span_size(),
         total_count: 1,
@@ -127,6 +132,7 @@ pub fn check_envelope_size_limits(
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => &mut log_integration,
                 Some(Integration::Spans(_)) => &mut span_integration,
+                Some(Integration::TraceMetrics(_)) => &mut trace_metric_integration,
                 None => {
                     // Shouldn't be possible, if it still happens due to a bug, be defensive.
                     debug_assert!(false);

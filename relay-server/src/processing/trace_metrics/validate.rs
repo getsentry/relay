@@ -70,9 +70,17 @@ pub fn validate(metrics: &mut Managed<ExpandedTraceMetrics>) {
     );
 }
 
-fn validate_trace_metric(metric: &Annotated<TraceMetric>, client_name: &str) -> Result<()> {
+pub(super) fn validate_trace_metric(
+    metric: &Annotated<TraceMetric>,
+    client_name: &str,
+) -> Result<()> {
     match metric.value().and_then(|m| m.ty.value()) {
-        Some(MetricType::Gauge | MetricType::Distribution | MetricType::Counter) => {}
+        Some(
+            MetricType::Gauge
+            | MetricType::Distribution
+            | MetricType::Counter
+            | MetricType::Histogram,
+        ) => {}
         Some(MetricType::Unknown(_)) | None => {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }

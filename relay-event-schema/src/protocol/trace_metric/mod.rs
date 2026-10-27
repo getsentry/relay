@@ -92,6 +92,10 @@ pub enum MetricType {
     Distribution,
     /// A counter metric represents a single numerical value.
     Counter,
+    /// A pre-aggregated histogram, for example from OTLP histogram data points.
+    ///
+    /// Each trace metric of this type represents a single bucket (or exemplar) of a histogram.
+    Histogram,
     /// Unknown type, for forward compatibility.
     Unknown(String),
 }
@@ -102,6 +106,7 @@ impl MetricType {
             MetricType::Gauge => "gauge",
             MetricType::Distribution => "distribution",
             MetricType::Counter => "counter",
+            MetricType::Histogram => "histogram",
             MetricType::Unknown(s) => s.as_str(),
         }
     }
@@ -119,6 +124,7 @@ impl From<String> for MetricType {
             "gauge" => MetricType::Gauge,
             "distribution" => MetricType::Distribution,
             "counter" => MetricType::Counter,
+            "histogram" => MetricType::Histogram,
             _ => MetricType::Unknown(value),
         }
     }
