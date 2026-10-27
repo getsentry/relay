@@ -172,7 +172,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>    }
 <a href=#173 id=173 data-nosnippet>173</a>
 <a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">if </span>!profile.sampled_profile.is_empty() {
-<a href=#175 id=175 data-nosnippet>175</a>        profile.profile = <span class="kw">super</span>::parse_trace_log(<span class="kw-2">&amp;</span>profile.sampled_profile, <span class="string">"legacy"</span>)<span class="question-mark">?</span>;
+<a href=#175 id=175 data-nosnippet>175</a>        profile.profile = <span class="kw">super</span>::parse_trace_log(<span class="kw-2">&amp;</span>profile.sampled_profile)<span class="question-mark">?</span>;
 <a href=#176 id=176 data-nosnippet>176</a>    }
 <a href=#177 id=177 data-nosnippet>177</a>
 <a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">if </span>profile.profile.events.is_empty() {
