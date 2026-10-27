@@ -172,7 +172,7 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
     }
 
     if !profile.sampled_profile.is_empty() {
-        profile.profile = super::parse_trace_log(&profile.sampled_profile, "legacy")?;
+        profile.profile = super::parse_trace_log(&profile.sampled_profile)?;
     }
 
     if profile.profile.events.is_empty() {
