@@ -116,7 +116,7 @@ impl ScrubberTransform<'_> {
 }
 
 impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
-    fn push_path(&mut self, key: &'de str) {
+    fn push_path(&mut self, key: &str) {
         self.path.push(key.to_owned());
         let field_attrs = if scrub_at_path(&self.path) {
             &FIELD_ATTRS_PII_TRUE
@@ -660,6 +660,26 @@ mod tests {
         let scrubbed: serde_json::Value = serde_json::from_str(scrubbed_result).unwrap();
 
         insta::assert_ron_snapshot!(scrubbed);
+    }
+
+    #[test]
+    fn test_scrub_pii_key_with_json_escape() {
+        // A key containing an escape sequence (here `\n`) must not desynchronize the path
+        // tracking, later siblings must still be scrubbed.
+        let payload =
+            br#"[{"type":5,"data":{"payload":{"data":{"a\nb":"x","password":"hunter2"}}}}]"#;
+
+        let mut transcoded = Vec::new();
+        let config = default_pii_config();
+        scrubber(&config)
+            .scrub_replay(payload.as_slice(), &mut transcoded)
+            .unwrap();
+
+        let scrubbed: serde_json::Value = serde_json::from_slice(&transcoded).unwrap();
+        assert_eq!(
+            scrubbed[0]["data"]["payload"]["data"]["password"],
+            "[Filtered]"
+        );
     }
 
     #[test]
