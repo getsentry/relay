@@ -30,7 +30,7 @@ where
     }
 
     let logplex = item.logplex_headers().unwrap_or_default();
-    let headers = logplex.as_log_headers();
+    let drain_token = logplex.drain_token.as_deref();
     let mut count: usize = 0;
 
     for frame in relay_ourlogs::parse_logplex_frames(payload) {
@@ -50,7 +50,8 @@ where
             Ok(message) => {
                 count += 1;
                 produce(relay_ourlogs::logplex_message_to_sentry_log(
-                    message, headers,
+                    message,
+                    drain_token,
                 ));
             }
             Err(err) => {
@@ -102,7 +103,7 @@ mod tests {
     fn test_expand() {
         let mut item = Item::new(ItemType::Integration);
         item.set_logplex_headers(LogplexHeaders {
-            frame_id: Some("abc123".to_owned()),
+            drain_token: Some("d.123".to_owned()),
             ..Default::default()
         });
 
@@ -120,9 +121,9 @@ mod tests {
         let attributes = logs[1].attributes.value().unwrap();
         assert_eq!(
             attributes
-                .get_value("heroku.logplex.frame_id")
+                .get_value("heroku.logplex.drain_token")
                 .and_then(Value::as_str),
-            Some("abc123")
+            Some("d.123")
         );
         assert_eq!(
             attributes

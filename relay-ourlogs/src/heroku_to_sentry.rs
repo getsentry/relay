@@ -11,9 +11,13 @@
 //! The messages themselves are almost [RFC 5424](https://tools.ietf.org/html/rfc5424) syslog
 //! messages, but Logplex omits the `STRUCTURED-DATA` field instead of sending a `NILVALUE`.
 
+use std::borrow::Cow;
+
 use chrono::{DateTime, Utc};
 use relay_conventions::attributes::SENTRY__ORIGIN;
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, Timestamp, TraceId};
+use relay_event_schema::protocol::{
+    AttributeValue, Attributes, OurLog, OurLogLevel, Timestamp, TraceId,
+};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
 /// Attribute names for Heroku logs.
@@ -25,9 +29,7 @@ mod attributes {
     pub const HEROKU__DYNO: &str = "heroku.dyno";
     pub const HEROKU__ERROR__CODE: &str = "heroku.error.code";
     pub const HEROKU__ERROR__DESCRIPTION: &str = "heroku.error.description";
-    pub const HEROKU__LOGPLEX__FRAME_ID: &str = "heroku.logplex.frame_id";
     pub const HEROKU__LOGPLEX__DRAIN_TOKEN: &str = "heroku.logplex.drain_token";
-    pub const HEROKU__LOGPLEX__USER_AGENT: &str = "heroku.logplex.user_agent";
     pub const HEROKU__ROUTER__AT: &str = "heroku.router.at";
     pub const HEROKU__ROUTER__METHOD: &str = "heroku.router.method";
     pub const HEROKU__ROUTER__PATH: &str = "heroku.router.path";
@@ -76,19 +78,6 @@ pub enum LogplexError {
     /// The syslog header ended prematurely.
     #[error("incomplete syslog header")]
     IncompleteHeader,
-}
-
-/// Request metadata Logplex sends as HTTP headers with every drain request.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct LogplexHeaders<'a> {
-    /// The unique identifier of the request, `Logplex-Frame-Id`.
-    ///
-    /// It stays the same when Logplex retries a request.
-    pub frame_id: Option<&'a str>,
-    /// The token of the drain sending the request, `Logplex-Drain-Token`.
-    pub drain_token: Option<&'a str>,
-    /// The version of Logplex sending the request, `User-Agent`.
-    pub user_agent: Option<&'a str>,
 }
 
 /// Iterator over the octet counted frames of a Logplex payload.
@@ -179,6 +168,7 @@ pub struct LogplexMessage<'a> {
 /// The `HOSTNAME` and `MSGID` headers are discarded, Logplex always sends `host` and `-`.
 pub fn parse_logplex_message(frame: &str) -> Result<LogplexMessage<'_>, LogplexError> {
     let rest = frame.strip_suffix('\n').unwrap_or(frame);
+    let rest = rest.strip_suffix('\r').unwrap_or(rest);
 
     let (priority, rest) = rest
         .strip_prefix('<')
@@ -248,12 +238,12 @@ fn map_syslog_severity_to_level(severity: u8) -> OurLogLevel {
 
 /// Iterator over the `key=value` pairs of a [logfmt](https://brandur.org/logfmt) message.
 ///
-/// Values may be wrapped in double quotes to contain spaces, escape sequences are not supported.
-/// Words without a `=` are skipped.
+/// Values may be wrapped in double quotes to contain spaces, a backslash escapes the following
+/// character within quotes. Words without a `=` are skipped.
 struct Logfmt<'a>(&'a str);
 
 impl<'a> Iterator for Logfmt<'a> {
-    type Item = (&'a str, &'a str);
+    type Item = (&'a str, Cow<'a, str>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -272,11 +262,11 @@ impl<'a> Iterator for Logfmt<'a> {
             };
 
             let (value, rest) = match rest.strip_prefix('"') {
-                Some(quoted) => match quoted.split_once('"') {
-                    Some((value, rest)) => (value, rest),
-                    None => (quoted, ""),
-                },
-                None => rest.split_at(rest.find(' ').unwrap_or(rest.len())),
+                Some(quoted) => split_quoted(quoted),
+                None => {
+                    let (value, rest) = rest.split_at(rest.find(' ').unwrap_or(rest.len()));
+                    (Cow::Borrowed(value), rest)
+                }
             };
             self.0 = rest;
 
@@ -285,6 +275,44 @@ impl<'a> Iterator for Logfmt<'a> {
             }
         }
     }
+}
+
+/// Splits a quoted logfmt value at its closing quote, the opening quote is already removed.
+///
+/// Without a closing quote, the value extends to the end of the input.
+fn split_quoted(input: &str) -> (Cow<'_, str>, &str) {
+    let mut escaped = false;
+    for (index, c) in input.char_indices() {
+        match c {
+            _ if escaped => escaped = false,
+            '\\' => escaped = true,
+            '"' => {
+                let (value, rest) = input.split_at(index);
+                return (unescape(value), rest.get(1..).unwrap_or_default());
+            }
+            _ => {}
+        }
+    }
+
+    (unescape(input), "")
+}
+
+/// Removes the backslashes of escape sequences in a quoted logfmt value.
+fn unescape(value: &str) -> Cow<'_, str> {
+    if !value.contains('\\') {
+        return Cow::Borrowed(value);
+    }
+
+    let mut unescaped = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => unescaped.extend(chars.next().or(Some(c))),
+            c => unescaped.push(c),
+        }
+    }
+
+    Cow::Owned(unescaped)
 }
 
 /// Extracts a Heroku error code from a platform message like `Error R14 (Memory quota exceeded)`.
@@ -314,62 +342,95 @@ fn parse_error_code(msg: &str) -> Option<(&str, Option<&str>)> {
     Some((code, description))
 }
 
+/// The type of a router field value.
+#[derive(Debug, Clone, Copy)]
+enum RouterValue {
+    String,
+    Integer,
+    Millis,
+    Boolean,
+}
+
+/// Returns the attribute name and value type of a documented router field.
+fn router_field(key: &str) -> Option<(&'static str, RouterValue)> {
+    use RouterValue::*;
+
+    Some(match key {
+        "at" => (HEROKU__ROUTER__AT, String),
+        "code" => (HEROKU__ERROR__CODE, String),
+        "desc" => (HEROKU__ERROR__DESCRIPTION, String),
+        "method" => (HEROKU__ROUTER__METHOD, String),
+        "path" => (HEROKU__ROUTER__PATH, String),
+        "host" => (HEROKU__ROUTER__HOST, String),
+        "request_id" => (HEROKU__ROUTER__REQUEST_ID, String),
+        "fwd" => (HEROKU__ROUTER__FWD, String),
+        "dyno" => (HEROKU__ROUTER__DYNO, String),
+        "connect" => (HEROKU__ROUTER__CONNECT, Millis),
+        "service" => (HEROKU__ROUTER__SERVICE, Millis),
+        "status" => (HEROKU__ROUTER__STATUS, Integer),
+        "bytes" => (HEROKU__ROUTER__BYTES, Integer),
+        "protocol" => (HEROKU__ROUTER__PROTOCOL, String),
+        "tls" => (HEROKU__ROUTER__TLS, Boolean),
+        "tls_version" => (HEROKU__ROUTER__TLS_VERSION, String),
+        _ => return None,
+    })
+}
+
 /// Adds the attributes of a Heroku router message and returns the log level it reports.
 ///
 /// Only the documented [router fields](https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format)
 /// are extracted.
+///
+/// The router logs `path` and `fwd` with values chosen by the client of the app. If Heroku does
+/// not escape quotes in them, they can contain fake `key=value` pairs. The router logs its fields
+/// in a fixed order starting with `at`, `code`, `desc`, `method` and `path`, so:
+///  - `at`, `code`, `desc` and `method` are only accepted before the first `path`, they determine
+///    the log level and error code,
+///  - the first `path` is accepted,
+///  - for all other fields the last value wins, the genuine value follows injected ones.
+///
+/// `host` and `request_id`, which are logged between `path` and `fwd`, can still be replaced by
+/// pairs injected through `fwd`.
 fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLogLevel> {
+    let mut seen_path = false;
     let mut level = None;
 
     for (key, value) in Logfmt(msg) {
-        if value.is_empty() {
+        let Some((name, ty)) = router_field(key) else {
             continue;
-        }
+        };
 
         match key {
-            "at" => {
-                level = match value {
-                    "error" => Some(OurLogLevel::Error),
-                    "warning" => Some(OurLogLevel::Warn),
-                    _ => None,
-                };
-                attributes.insert(HEROKU__ROUTER__AT, value.to_owned());
-            }
-            "code" => attributes.insert(HEROKU__ERROR__CODE, value.to_owned()),
-            "desc" => attributes.insert(HEROKU__ERROR__DESCRIPTION, value.to_owned()),
-            "method" => attributes.insert(HEROKU__ROUTER__METHOD, value.to_owned()),
-            "path" => attributes.insert(HEROKU__ROUTER__PATH, value.to_owned()),
-            "host" => attributes.insert(HEROKU__ROUTER__HOST, value.to_owned()),
-            "request_id" => attributes.insert(HEROKU__ROUTER__REQUEST_ID, value.to_owned()),
-            "fwd" => attributes.insert(HEROKU__ROUTER__FWD, value.to_owned()),
-            "dyno" => attributes.insert(HEROKU__ROUTER__DYNO, value.to_owned()),
-            "protocol" => attributes.insert(HEROKU__ROUTER__PROTOCOL, value.to_owned()),
-            "tls_version" => attributes.insert(HEROKU__ROUTER__TLS_VERSION, value.to_owned()),
-            "connect" | "service" => {
-                let key = match key {
-                    "connect" => HEROKU__ROUTER__CONNECT,
-                    _ => HEROKU__ROUTER__SERVICE,
-                };
-                let millis = value.strip_suffix("ms").unwrap_or(value);
-                if let Ok(millis) = millis.parse::<i64>() {
-                    attributes.insert(key, millis);
-                }
-            }
-            "status" | "bytes" => {
-                let key = match key {
-                    "status" => HEROKU__ROUTER__STATUS,
-                    _ => HEROKU__ROUTER__BYTES,
-                };
-                if let Ok(value) = value.parse::<i64>() {
-                    attributes.insert(key, value);
-                }
-            }
-            "tls" => {
-                if let Ok(value) = value.parse::<bool>() {
-                    attributes.insert(HEROKU__ROUTER__TLS, value);
-                }
-            }
+            "at" | "code" | "desc" | "method" | "path" if seen_path => continue,
+            "path" => seen_path = true,
             _ => {}
+        }
+
+        if key == "at" {
+            level = match &*value {
+                "error" => Some(OurLogLevel::Error),
+                "warning" => Some(OurLogLevel::Warn),
+                _ => None,
+            };
+        }
+
+        let value: Option<AttributeValue> = match ty {
+            _ if value.is_empty() => None,
+            RouterValue::String => Some(value.into_owned().into()),
+            RouterValue::Integer => value.parse::<i64>().ok().map(Into::into),
+            RouterValue::Millis => value
+                .strip_suffix("ms")
+                .unwrap_or(&value)
+                .parse::<i64>()
+                .ok()
+                .map(Into::into),
+            RouterValue::Boolean => value.parse::<bool>().ok().map(Into::into),
+        };
+
+        // Later values of a field replace earlier ones, also when they are empty.
+        match value {
+            Some(value) => attributes.insert(name, value),
+            None => drop(attributes.remove(name)),
         }
     }
 
@@ -377,9 +438,12 @@ fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLo
 }
 
 /// Converts a parsed Logplex message to a Sentry log.
+///
+/// `drain_token` is the `Logplex-Drain-Token` header of the drain request, it identifies the Heroku
+/// app sending the logs.
 pub fn logplex_message_to_sentry_log(
     message: LogplexMessage<'_>,
-    headers: LogplexHeaders<'_>,
+    drain_token: Option<&str>,
 ) -> OurLog {
     let LogplexMessage {
         severity,
@@ -388,12 +452,6 @@ pub fn logplex_message_to_sentry_log(
         dyno,
         msg,
     } = message;
-
-    let LogplexHeaders {
-        frame_id,
-        drain_token,
-        user_agent,
-    } = headers;
 
     let mut attributes = Attributes::default();
 
@@ -408,9 +466,7 @@ pub fn logplex_message_to_sentry_log(
     attributes.insert(SENTRY__ORIGIN, "auto.log_drain.heroku".to_owned());
     add_optional_attribute!(HEROKU__SOURCE, source);
     add_optional_attribute!(HEROKU__DYNO, dyno);
-    add_optional_attribute!(HEROKU__LOGPLEX__FRAME_ID, frame_id);
     add_optional_attribute!(HEROKU__LOGPLEX__DRAIN_TOKEN, drain_token);
-    add_optional_attribute!(HEROKU__LOGPLEX__USER_AGENT, user_agent);
 
     let mut level = map_syslog_severity_to_level(severity);
 
@@ -450,15 +506,11 @@ pub fn logplex_message_to_sentry_log(
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{SerializableAnnotated, Value};
 
     use super::*;
 
-    const HEADERS: LogplexHeaders<'static> = LogplexHeaders {
-        frame_id: Some("09C557EAFCFB6CF2740EE62F62971098"),
-        drain_token: Some("d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"),
-        user_agent: Some("Logplex/v72"),
-    };
+    const DRAIN_TOKEN: Option<&str> = Some("d.73ea7440-270a-435a-a0ea-adf50b4e5f5a");
 
     fn frames(payload: &str) -> Vec<Result<&str, LogplexError>> {
         parse_logplex_frames(payload.as_bytes())
@@ -467,9 +519,9 @@ mod tests {
     }
 
     /// Converts a message to a log, removing the random trace id to keep snapshots stable.
-    fn to_log_with_headers(line: &str, headers: LogplexHeaders<'_>) -> Annotated<OurLog> {
+    fn to_log_with_drain_token(line: &str, drain_token: Option<&str>) -> Annotated<OurLog> {
         let message = parse_logplex_message(line).unwrap();
-        let mut log = logplex_message_to_sentry_log(message, headers);
+        let mut log = logplex_message_to_sentry_log(message, drain_token);
 
         assert!(log.trace_id.value().is_some());
         assert!(!log.trace_id.meta().is_empty());
@@ -479,7 +531,7 @@ mod tests {
     }
 
     fn to_log(line: &str) -> Annotated<OurLog> {
-        to_log_with_headers(line, LogplexHeaders::default())
+        to_log_with_drain_token(line, None)
     }
 
     #[test]
@@ -632,27 +684,43 @@ mod tests {
         assert_eq!(parse("<190>1 - - - -"), LogplexError::IncompleteHeader);
     }
 
+    fn logfmt(msg: &str) -> Vec<String> {
+        Logfmt(msg)
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect()
+    }
+
     #[test]
     fn test_logfmt() {
-        let pairs: Vec<_> =
-            Logfmt(r#"at=error  desc="Request timeout" word path="/a b" =x dyno= fwd="1.2.3.4"#)
-                .collect();
         assert_eq!(
-            pairs,
+            logfmt(r#"at=error  desc="Request timeout" word path="/a b" =x dyno= fwd="1.2.3.4"#),
             vec![
-                ("at", "error"),
-                ("desc", "Request timeout"),
-                ("path", "/a b"),
-                ("dyno", ""),
-                ("fwd", "1.2.3.4"),
+                "at=error",
+                "desc=Request timeout",
+                "path=/a b",
+                "dyno=",
+                "fwd=1.2.3.4",
             ]
         );
 
-        assert_eq!(Logfmt("").count(), 0);
-        assert_eq!(Logfmt("   ").count(), 0);
-        assert_eq!(Logfmt("=").count(), 0);
-        assert_eq!(Logfmt("a=\"").collect::<Vec<_>>(), vec![("a", "")]);
-        assert_eq!(Logfmt("ü=ö ä").collect::<Vec<_>>(), vec![("ü", "ö")]);
+        assert_eq!(logfmt(""), Vec::<String>::new());
+        assert_eq!(logfmt("   "), Vec::<String>::new());
+        assert_eq!(logfmt("="), Vec::<String>::new());
+        assert_eq!(logfmt("a=\""), vec!["a="]);
+        assert_eq!(logfmt("ü=ö ä"), vec!["ü=ö"]);
+    }
+
+    #[test]
+    fn test_logfmt_escapes() {
+        assert_eq!(
+            logfmt(r#"path="/x\" at=error code=H99" host=a"#),
+            vec![r#"path=/x" at=error code=H99"#, "host=a"]
+        );
+        assert_eq!(logfmt(r#"a="b\\" c=d"#), vec![r"a=b\", "c=d"]);
+        assert_eq!(logfmt(r#"a="b\"#), vec![r"a=b\"]);
+        assert_eq!(logfmt(r#"a="ü\ö""#), vec!["a=üö"]);
+        // Escapes have no meaning outside of quotes.
+        assert_eq!(logfmt(r#"a=b\" c=d"#), vec![r#"a=b\""#, "c=d"]);
     }
 
     #[test]
@@ -684,9 +752,9 @@ mod tests {
 
     #[test]
     fn test_app_log() {
-        let log = to_log_with_headers(
+        let log = to_log_with_drain_token(
             "<190>1 2024-04-26T16:58:32.943253+00:00 host app web.1 - Completed 200 OK in 12ms (Views: 3.1ms | ActiveRecord: 1.2ms) code=H12\n",
-            HEADERS,
+            DRAIN_TOKEN,
         );
 
         insta::assert_json_snapshot!(SerializableAnnotated(&log), @r#"
@@ -702,14 +770,6 @@ mod tests {
             "heroku.logplex.drain_token": {
               "type": "string",
               "value": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
-            },
-            "heroku.logplex.frame_id": {
-              "type": "string",
-              "value": "09C557EAFCFB6CF2740EE62F62971098"
-            },
-            "heroku.logplex.user_agent": {
-              "type": "string",
-              "value": "Logplex/v72"
             },
             "heroku.source": {
               "type": "string",
@@ -940,6 +1000,94 @@ mod tests {
         );
     }
 
+    fn attribute<'a>(log: &'a Annotated<OurLog>, key: &str) -> Option<&'a Value> {
+        log.value()?.attributes.value()?.get_value(key)
+    }
+
+    #[test]
+    fn test_router_escaped_path_cannot_spoof_fields() {
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/x\" at=error code=H99 desc=\"pwned\" status=500" host=a.example.com request_id=r1 fwd="1.2.3.4" dyno=web.1 connect=0ms service=5ms status=200 bytes=10 protocol=http1.1"#,
+        );
+
+        assert_eq!(log.value().unwrap().level.value(), Some(&OurLogLevel::Info));
+        assert_eq!(attribute(&log, HEROKU__ERROR__CODE), None);
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__PATH).and_then(|v| v.as_str()),
+            Some(r#"/x" at=error code=H99 desc="pwned" status=500"#)
+        );
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__STATUS),
+            Some(&Value::I64(200))
+        );
+    }
+
+    #[test]
+    fn test_router_unescaped_path_cannot_spoof_fields() {
+        // If Heroku does not escape quotes, fake pairs end up as separate fields.
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/x" at=error code=H99 desc="pwned" method=POST status=500 host=evil path="/evil" fwd="6.6.6.6" dyno=evil" host=a.example.com request_id=r1 fwd="1.2.3.4" dyno=web.1 connect=0ms service=5ms status=200 bytes=10 protocol=http1.1"#,
+        );
+
+        assert_eq!(log.value().unwrap().level.value(), Some(&OurLogLevel::Info));
+        assert_eq!(attribute(&log, HEROKU__ERROR__CODE), None);
+        assert_eq!(attribute(&log, HEROKU__ERROR__DESCRIPTION), None);
+        let str_attr = |key| attribute(&log, key).and_then(|v| v.as_str());
+        assert_eq!(str_attr(HEROKU__ROUTER__METHOD), Some("GET"));
+        assert_eq!(str_attr(HEROKU__ROUTER__PATH), Some("/x"));
+        assert_eq!(str_attr(HEROKU__ROUTER__HOST), Some("a.example.com"));
+        assert_eq!(str_attr(HEROKU__ROUTER__FWD), Some("1.2.3.4"));
+        assert_eq!(str_attr(HEROKU__ROUTER__DYNO), Some("web.1"));
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__STATUS),
+            Some(&Value::I64(200))
+        );
+    }
+
+    #[test]
+    fn test_router_unescaped_fwd_cannot_spoof_fields() {
+        // H10 lines log empty values, which must still replace values injected through `fwd`.
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=error code=H10 desc="App crashed" method=GET path="/" host=a.example.com fwd="1.2.3.4" dyno=evil status=200 code=H99 path=/evil" dyno= connect= service= status=503 bytes="#,
+        );
+
+        assert_eq!(
+            log.value().unwrap().level.value(),
+            Some(&OurLogLevel::Error)
+        );
+        let str_attr = |key| attribute(&log, key).and_then(|v| v.as_str());
+        assert_eq!(str_attr(HEROKU__ERROR__CODE), Some("H10"));
+        assert_eq!(str_attr(HEROKU__ROUTER__PATH), Some("/"));
+        assert_eq!(str_attr(HEROKU__ROUTER__FWD), Some("1.2.3.4"));
+        assert_eq!(attribute(&log, HEROKU__ROUTER__DYNO), None);
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__STATUS),
+            Some(&Value::I64(503))
+        );
+    }
+
+    #[test]
+    fn test_router_fwd_with_multiple_addresses() {
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/" host=a.example.com fwd="203.0.113.7, 10.0.0.1" dyno=web.1 status=200"#,
+        );
+
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__FWD).and_then(|v| v.as_str()),
+            Some("203.0.113.7, 10.0.0.1")
+        );
+        assert_eq!(
+            attribute(&log, HEROKU__ROUTER__STATUS),
+            Some(&Value::I64(200))
+        );
+    }
+
+    #[test]
+    fn test_parse_message_crlf() {
+        let msg = parse_logplex_message("<190>1 - host app web.1 - hello\r\n").unwrap();
+        assert_eq!(msg.msg, "hello");
+    }
+
     #[test]
     fn test_dyno_r14() {
         // https://devcenter.heroku.com/articles/error-codes#r14-memory-quota-exceeded
@@ -1012,7 +1160,7 @@ mod tests {
         for frame in parse_logplex_frames(payload).flatten() {
             let frame = String::from_utf8_lossy(frame);
             if let Ok(message) = parse_logplex_message(&frame) {
-                logplex_message_to_sentry_log(message, HEADERS);
+                logplex_message_to_sentry_log(message, DRAIN_TOKEN);
             }
         }
     }

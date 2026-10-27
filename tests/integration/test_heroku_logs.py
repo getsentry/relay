@@ -56,13 +56,9 @@ def expected_item(body, attributes):
             "sentry._meta.fields.trace_id": {
                 "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
             },
-            "heroku.logplex.frame_id": {
-                "stringValue": "09C557EAFCFB6CF2740EE62F62971098"
-            },
             "heroku.logplex.drain_token": {
                 "stringValue": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
             },
-            "heroku.logplex.user_agent": {"stringValue": "Logplex/v72"},
             **attributes,
         },
         "clientSampleRate": 1.0,

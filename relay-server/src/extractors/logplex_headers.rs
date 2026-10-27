@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use axum::extract::FromRequestParts;
+use axum::http::HeaderMap;
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, header};
 use serde::{Deserialize, Serialize};
 
 /// Header values longer than this are ignored.
@@ -12,6 +12,9 @@ const MAX_HEADER_VALUE_LENGTH: usize = 256;
 
 /// The metadata headers Heroku's Logplex sends with every HTTPS log drain request.
 ///
+/// Only the headers Relay uses are extracted. `Logplex-Frame-Id` and `User-Agent` are the same for
+/// every message of a request and are not added to logs.
+///
 /// The headers are stored on the integration item, see [`Item::logplex_headers`](crate::envelope::Item::logplex_headers).
 ///
 /// See: <https://devcenter.heroku.com/articles/log-drains#https-drains>.
@@ -20,20 +23,15 @@ pub struct LogplexHeaders {
     /// The number of messages in the request body, `Logplex-Msg-Count`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub msg_count: Option<u32>,
-    /// The unique identifier of the request, `Logplex-Frame-Id`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame_id: Option<String>,
     /// The token of the drain sending the request, `Logplex-Drain-Token`.
+    ///
+    /// Identifies the Heroku app sending the logs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drain_token: Option<String>,
-    /// The version of Logplex sending the request, `User-Agent`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_agent: Option<String>,
 }
 
 impl LogplexHeaders {
     const MSG_COUNT: &str = "Logplex-Msg-Count";
-    const FRAME_ID: &str = "Logplex-Frame-Id";
     const DRAIN_TOKEN: &str = "Logplex-Drain-Token";
 
     fn from_headers(headers: &HeaderMap) -> Self {
@@ -46,18 +44,7 @@ impl LogplexHeaders {
 
         Self {
             msg_count: get(Self::MSG_COUNT).and_then(|value| value.parse().ok()),
-            frame_id: get(Self::FRAME_ID).map(str::to_owned),
             drain_token: get(Self::DRAIN_TOKEN).map(str::to_owned),
-            user_agent: get(header::USER_AGENT.as_str()).map(str::to_owned),
-        }
-    }
-
-    /// Returns the headers which are added to every log.
-    pub fn as_log_headers(&self) -> relay_ourlogs::LogplexHeaders<'_> {
-        relay_ourlogs::LogplexHeaders {
-            frame_id: self.frame_id.as_deref(),
-            drain_token: self.drain_token.as_deref(),
-            user_agent: self.user_agent.as_deref(),
         }
     }
 }
@@ -90,17 +77,7 @@ mod tests {
             logplex,
             LogplexHeaders {
                 msg_count: Some(2),
-                frame_id: Some("abc123".to_owned()),
                 drain_token: Some("d.123".to_owned()),
-                user_agent: Some("Logplex/v72".to_owned()),
-            }
-        );
-        assert_eq!(
-            logplex.as_log_headers(),
-            relay_ourlogs::LogplexHeaders {
-                frame_id: Some("abc123"),
-                drain_token: Some("d.123"),
-                user_agent: Some("Logplex/v72"),
             }
         );
     }
@@ -109,12 +86,28 @@ mod tests {
     fn test_from_headers_missing_and_invalid() {
         let mut headers = HeaderMap::new();
         headers.insert("Logplex-Msg-Count", HeaderValue::from_static("-1"));
-        headers.insert("Logplex-Frame-Id", HeaderValue::from_static(""));
         headers.insert(
             "Logplex-Drain-Token",
             HeaderValue::from_str(&"x".repeat(MAX_HEADER_VALUE_LENGTH + 1)).unwrap(),
         );
-        headers.insert("User-Agent", HeaderValue::from_bytes(b"\xff").unwrap());
+
+        assert_eq!(
+            LogplexHeaders::from_headers(&headers),
+            LogplexHeaders::default()
+        );
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Logplex-Drain-Token", HeaderValue::from_static(""));
+        assert_eq!(
+            LogplexHeaders::from_headers(&headers),
+            LogplexHeaders::default()
+        );
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Logplex-Drain-Token",
+            HeaderValue::from_bytes(b"d.\xff").unwrap(),
+        );
 
         assert_eq!(
             LogplexHeaders::from_headers(&headers),
@@ -126,9 +119,7 @@ mod tests {
     fn test_item_round_trip() {
         let logplex = LogplexHeaders {
             msg_count: Some(2),
-            frame_id: Some("abc123".to_owned()),
-            drain_token: None,
-            user_agent: Some("Logplex/v72".to_owned()),
+            drain_token: Some("d.123".to_owned()),
         };
 
         let mut item = Item::new(ItemType::Integration);
