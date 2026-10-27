@@ -27,7 +27,10 @@ mod store;
 mod utils;
 mod validate;
 
-pub use self::integrations::LogsIntegrationsProcessor;
+pub use self::integrations::{
+    IntegrityLogsIntegrationProcessor, NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor,
+    VercelLogsIntegrationProcessor,
+};
 pub use self::utils::get_calculated_byte_size;
 
 type Result<T, E = Error> = std::result::Result<T, E>;

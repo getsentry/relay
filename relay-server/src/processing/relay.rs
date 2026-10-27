@@ -13,7 +13,10 @@ use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
-use crate::processing::logs::{LogsIntegrationsProcessor, LogsProcessor};
+use crate::processing::logs::{
+    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
+    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
+};
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -40,7 +43,10 @@ pub struct RelayProcessor {
     forward_unknown: ForwardUnknownProcessor,
     invalid: InvalidUnhandledProcessor,
     logs: LogsProcessor,
-    logs_integration: LogsIntegrationsProcessor,
+    logs_integration_integrity: IntegrityLogsIntegrationProcessor,
+    logs_integration_nel: NelLogsIntegrationProcessor,
+    logs_integration_otel: OtelLogsIntegrationProcessor,
+    logs_integration_vercel: VercelLogsIntegrationProcessor,
     profile_chunks: ProfileChunksProcessor,
     profiles: ProfilesProcessor,
     replays: ReplaysProcessor,
@@ -73,7 +79,10 @@ impl RelayProcessor {
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
             logs: LogsProcessor::new(ql()),
-            logs_integration: LogsIntegrationsProcessor::new(),
+            logs_integration_nel: NelLogsIntegrationProcessor::new(),
+            logs_integration_integrity: IntegrityLogsIntegrationProcessor::new(),
+            logs_integration_otel: OtelLogsIntegrationProcessor::new(),
+            logs_integration_vercel: VercelLogsIntegrationProcessor::new(),
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
             replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
@@ -122,7 +131,10 @@ impl RelayProcessor {
         run!(self.replays);
         run!(self.spans);
         run!(self.logs);
-        run!(self.logs_integration);
+        run!(self.logs_integration_integrity);
+        run!(self.logs_integration_nel);
+        run!(self.logs_integration_otel);
+        run!(self.logs_integration_vercel);
         run!(self.trace_metrics);
         run!(self.profile_chunks);
         run!(self.check_ins);
