@@ -140,6 +140,12 @@ pub fn expand(
         })
         .collect();
 
+    // Undo all the base item quantities, as they will be completely taken over by the parsed
+    // contents, which contains an arbitrary amount of items (even 0).
+    for (category, quantity) in item.quantities() {
+        records.modify_by(category, -(quantity as isize));
+    }
+
     let settings = IngestSettings {
         infer_user_agent: Some(InferUserAgent::Auto),
         infer_ip: Some(InferIp::Never),
