@@ -2,12 +2,17 @@ use relay_event_normalization::GeoIpLookup;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
+use crate::managed::{Counted, Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
-use crate::processing::{self, Context};
+use crate::processing::{self, Context, Intermediates};
 use crate::services::processor::ProcessingError;
+
+/// The result of [`expand`].
+///
+/// A tuple of the expanded error and potential [`Intermediates`].
+pub type Expansion = (Managed<ExpandedError>, Option<Managed<Intermediates>>);
 
 /// Expands an (error) event envelope.
 ///
@@ -22,19 +27,21 @@ use crate::services::processor::ProcessingError;
 pub fn expand(
     error: Managed<SerializedError>,
     ctx: Context<'_>,
-) -> Result<(Managed<ExpandedError>, Option<ManagedEnvelope>), Rejected<Error>> {
+) -> Result<Expansion, Rejected<Error>> {
     let (error, intermediates) = error
         .try_map(|error, records| do_expand(error, ctx, records))?
-        .split_once(|(error, intermediates), _| (error, intermediates));
-    let intermediates = intermediates.transpose().map(ManagedEnvelope::from);
-    Ok((error, intermediates))
+        .split_once(|(error, intermediates), _| {
+            (error, (!intermediates.is_empty()).then_some(intermediates))
+        });
+
+    Ok((error, intermediates.transpose()))
 }
 
 fn do_expand(
     mut error: SerializedError,
     ctx: Context<'_>,
     records: &mut RecordKeeper<'_>,
-) -> Result<(ExpandedError, Option<Box<Envelope>>)> {
+) -> Result<(ExpandedError, Intermediates)> {
     let is_trusted = error.headers.meta().request_trust().is_trusted();
 
     // Certain attachment types are dissolved into different types (Nintendo Switch),
@@ -43,8 +50,6 @@ fn do_expand(
     records.lenient(DataCategory::AttachmentItem);
     // User feedback is extracted from unreal reports.
     records.lenient(DataCategory::UserReportV2);
-    // Session updates are extracted from Switch and PlayStation crashes
-    records.lenient(DataCategory::Session);
 
     let Some(parsed) = ErrorKind::try_expand(
         &mut error.items,
@@ -75,13 +80,18 @@ fn do_expand(
         }
     }
 
-    let intermediates = if !parsed.intermediates.is_empty() {
-        Some(Envelope::from_parts(
+    let mut intermediates = Intermediates::default();
+    if !parsed.intermediates.is_empty() {
+        // Currently all intermediates are new items which were not accounted for before.
+        //
+        // Intermediates are currently used for session items for Switch and PlayStation crashes.
+        for (category, quantity) in parsed.intermediates.quantities() {
+            records.modify_by(category, quantity as isize);
+        }
+        intermediates.add_envelope(Envelope::from_parts(
             error.headers.clone(),
             parsed.intermediates.into(),
-        ))
-    } else {
-        None
+        ));
     };
 
     let expanded_error = ExpandedError {
