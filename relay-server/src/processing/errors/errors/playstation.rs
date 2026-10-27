@@ -183,15 +183,15 @@ impl SentryError for Playstation {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.prosperodump.rate_limited() {
-            self.prosperodump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
+            self.prosperodump.set_rate_limited(true);
         }
 
         if let Some(minidump) = self.minidump.as_mut()
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits), &*minidump);
+            minidump.set_rate_limited(true);
         }
 
         Ok(())
@@ -256,4 +256,25 @@ fn merge_events_inner(
     crate::utils::merge_values(&mut from_prospero, from_envelope);
 
     Annotated::<Event>::deserialize_with_meta(from_prospero)
+}
+
+#[test]
+fn test_playstation_crash_rate_limit() {
+    use super::tests::{assert_crash_rate_limit, attachment};
+    use crate::envelope::AttachmentType;
+
+    assert_crash_rate_limit(
+        || Playstation {
+            prosperodump: attachment(AttachmentType::Prosperodump, "prospero"),
+            minidump: Some(attachment(AttachmentType::Minidump, "dump")),
+        },
+        &[8, 4],
+        |crash| {
+            assert!(crash.prosperodump.rate_limited());
+            assert_eq!(crash.prosperodump.payload().as_ref(), b"prospero");
+            let minidump = crash.minidump.unwrap();
+            assert!(minidump.rate_limited());
+            assert_eq!(minidump.payload().as_ref(), b"dump");
+        },
+    );
 }

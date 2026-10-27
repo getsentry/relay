@@ -213,3 +213,6 @@ pub struct Expansion<T> {
     /// Callers must still verify that the information can be trusted.
     pub fully_normalized: bool,
 }
+
+#[cfg(test)]
+mod tests;
