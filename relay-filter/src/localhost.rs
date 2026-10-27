@@ -77,6 +77,29 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_host_matches_or_is_subdomain_of() {
+        for (host, domain, expected) in [
+            ("abc.com", "abc.com", true),
+            ("www.abc.com", "abc.com", true),
+            ("a.b.abc.com", "abc.com", true),
+            ("notabc.com", "abc.com", false),
+            ("bc.com", "abc.com", false),
+            ("abc.com.evil.org", "abc.com", false),
+            ("", "abc.com", false),
+            // an empty domain never matches
+            ("", "", false),
+            ("abc.com", "", false),
+            ("abc.", "", false),
+        ] {
+            assert_eq!(
+                host_matches_or_is_subdomain_of(host, domain),
+                expected,
+                "host `{host}` against domain `{domain}`"
+            );
+        }
+    }
+
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {
             user: Annotated::from(User {
