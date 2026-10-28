@@ -574,6 +574,7 @@ fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<E
         mechanism: Annotated::new(Mechanism {
             ty: Annotated::new("unreal".to_owned()),
             handled: Annotated::new(handled),
+            synthetic: Annotated::new(true),
             ..Mechanism::default()
         }),
         ..Exception::default()
@@ -583,12 +584,16 @@ fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<E
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
+///
+/// With `context_stacktrace`, crashes without a minidump or Apple crash report get an exception
+/// with the stack trace from the crash context.
 pub fn process_unreal(
     context: Option<Unreal4Context>,
     event_id: EventId,
     event: &mut Annotated<Event>,
     attachments: &[Item],
     user_header: Option<&str>,
+    context_stacktrace: bool,
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
     let mut logs_items = attachments
         .iter()
@@ -625,14 +630,19 @@ pub fn process_unreal(
             )
         });
 
-        if !has_native_crash
-            && event.exceptions.is_empty()
-            && let Some(exception) = context
+        let exception = if context_stacktrace && !has_native_crash && event.exceptions.is_empty() {
+            context
                 .runtime_properties
                 .as_ref()
                 .and_then(unreal_exception)
-        {
+        } else {
+            None
+        };
+
+        if let Some(exception) = exception {
             event.exceptions = Annotated::new(Values::new(vec![Annotated::new(exception)]));
+            // The frames are native, like those of a minidump.
+            *event.platform.value_mut() = Some("native".to_owned());
         }
 
         merge_unreal_context(event, context);
@@ -998,9 +1008,21 @@ Game-Linux-Test!UnknownFunction(0x4871028)
             &mut event,
             attachments,
             None,
+            true,
         )
         .unwrap();
         event
+    }
+
+    fn process_runtime_properties(runtime_properties: &str) -> Event {
+        let raw_context = format!(
+            "<FGenericCrashContext><RuntimeProperties>{runtime_properties}</RuntimeProperties></FGenericCrashContext>"
+        );
+        let context = Unreal4Context::parse(raw_context.as_bytes()).unwrap();
+
+        let mut event = Annotated::empty();
+        process_unreal(Some(context), EventId::new(), &mut event, &[], None, true).unwrap();
+        event.into_value().unwrap()
     }
 
     #[test]
@@ -1177,12 +1199,82 @@ Game-Linux-Test!UnknownFunction(0x4871028)
               },
               "mechanism": {
                 "type": "unreal",
+                "synthetic": true,
                 "handled": true
               }
             }
           ]
         }
         "#);
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_native_event() {
+        let event = process_with_attachments(&[]);
+        let event = event.value().unwrap();
+
+        assert_eq!(event.platform.as_str(), Some("native"));
+        // The crash context of the sample is an ensure.
+        assert_eq!(event.level.value(), Some(&Level::Warning));
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_disabled() {
+        let mut event = Annotated::empty();
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            false,
+        )
+        .unwrap();
+        let event = event.value().unwrap();
+
+        assert!(event.exceptions.is_empty());
+        assert!(event.platform.is_empty());
+        assert_eq!(event.level.value(), Some(&Level::Warning));
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_level() {
+        let cases = [
+            ("<IsAssert>true</IsAssert>", Level::Error),
+            ("<IsEnsure>true</IsEnsure>", Level::Warning),
+            ("<CrashType>Crash</CrashType>", Level::Fatal),
+            ("<CrashType>Stall</CrashType>", Level::Fatal),
+            ("", Level::Fatal),
+        ];
+
+        for (properties, level) in cases {
+            let event = process_runtime_properties(&format!(
+                "{properties}<CallStack>Game!Main()</CallStack>"
+            ));
+            assert_eq!(event.level.value(), Some(&level), "{properties}");
+        }
+
+        // A level sent by the client is kept.
+        let mut event = Annotated::new(Event {
+            level: Annotated::new(Level::Info),
+            ..Event::default()
+        });
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            true,
+        )
+        .unwrap();
+        let event = event.into_value().unwrap();
+        assert!(!event.exceptions.is_empty());
+        assert_eq!(event.level.value(), Some(&Level::Info));
+
+        // Without a call stack, there is no exception.
+        let event = process_runtime_properties("<CrashType>Crash</CrashType>");
+        assert!(event.exceptions.is_empty());
     }
 
     #[test]
@@ -1213,6 +1305,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
             &mut event,
             &[],
             None,
+            true,
         )
         .unwrap();
 

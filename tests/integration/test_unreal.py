@@ -336,15 +336,24 @@ libc.so.6!__libc_start_main(+0x8a)
 """
 
 
+@pytest.mark.parametrize("feature_enabled", [True, False])
 def test_unreal_stacktrace_without_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, objectstore
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    objectstore,
+    feature_enabled,
 ):
     project_id = 42
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     objectstore("attachments", project_id)
 
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        project_config["config"]["features"] = [
+            "projects:relay-unreal-crash-context-stacktrace"
+        ]
     unreal_content = make_unreal_report(
         [("CrashContext.runtime-xml", LINUX_CRASH_CONTEXT)]
     )
@@ -354,6 +363,14 @@ def test_unreal_stacktrace_without_minidump_with_processing(
     event_data, event = attachments_consumer.get_event()
     assert [a["name"] for a in event["attachments"]] == ["CrashContext.runtime-xml"]
 
+    if not feature_enabled:
+        assert "exception" not in event_data
+        assert event_data["platform"] == "other"
+        assert event_data["level"] == "warning"
+        return
+
+    assert event_data["platform"] == "native"
+    assert event_data["level"] == "warning"
     assert event_data["exception"]["values"] == [
         {
             "type": "Ensure",
@@ -370,6 +387,6 @@ def test_unreal_stacktrace_without_minidump_with_processing(
                     },
                 ]
             },
-            "mechanism": {"type": "unreal", "handled": True},
+            "mechanism": {"type": "unreal", "synthetic": True, "handled": True},
         }
     ]
