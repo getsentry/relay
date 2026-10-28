@@ -181,6 +181,7 @@ impl Item {
                 Some(Integration::Logs(
                     LogsIntegration::Nel
                     | LogsIntegration::Integrity
+                    | LogsIntegration::BrowserReport
                     | LogsIntegration::OtelV1 { .. }
                     | LogsIntegration::VercelDrainLog { .. },
                 )) => smallvec![

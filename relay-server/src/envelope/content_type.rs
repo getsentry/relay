@@ -40,6 +40,8 @@ pub enum ContentType {
     AttachmentRef,
     /// `application/x-perfetto-trace`
     PerfettoTrace,
+    /// `application/reports+json`
+    BrowserReport,
     /// All integration content types.
     Integration(Integration),
 }
@@ -63,6 +65,7 @@ impl ContentType {
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
             Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
             Self::PerfettoTrace => "application/x-perfetto-trace",
+            Self::BrowserReport => "application/reports+json",
             Self::Integration(integration) => integration.as_content_type(),
         }
     }
@@ -114,6 +117,8 @@ impl ContentType {
             Some(Self::AttachmentRef)
         } else if ct.eq_ignore_ascii_case(Self::PerfettoTrace.as_str()) {
             Some(Self::PerfettoTrace)
+        } else if ct.eq_ignore_ascii_case(Self::BrowserReport.as_str()) {
+            Some(Self::BrowserReport)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }
