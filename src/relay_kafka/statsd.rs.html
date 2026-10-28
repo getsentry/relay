@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>    ///
 <a href=#84 id=84 data-nosnippet>84</a>    /// Counts pushes that were accepted for rollout, which includes blobs that resolve to the
 <a href=#85 id=85 data-nosnippet>85</a>    /// config already running. It does not mean the client was replaced; watch
-<a href=#86 id=86 data-nosnippet>86</a>    /// [`KafkaGauges::ReloadGeneration`] for that.
+<a href=#86 id=86 data-nosnippet>86</a>    /// `arroyo.producer.config_reload_generation` for that.
 <a href=#87 id=87 data-nosnippet>87</a>    ///
 <a href=#88 id=88 data-nosnippet>88</a>    /// This metric is tagged with:
 <a href=#89 id=89 data-nosnippet>89</a>    /// - `topic`: The Kafka topic being produced to.
@@ -143,25 +143,13 @@
 <a href=#143 id=143 data-nosnippet>143</a>    /// - `variant`: The Kafka message variant.
 <a href=#144 id=144 data-nosnippet>144</a>    /// - `producer_name`: The configured producer name/deployment identifier.
 <a href=#145 id=145 data-nosnippet>145</a>    </span>InFlightCount,
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// The number of times this topic's Kafka client has been replaced by a config reload.
-<a href=#148 id=148 data-nosnippet>148</a>    ///
-<a href=#149 id=149 data-nosnippet>149</a>    /// Arroyo reports the same number
-<a href=#150 id=150 data-nosnippet>150</a>    /// under `arroyo.producer.config_reload_generation`; this one is tagged the way Relay tags
-<a href=#151 id=151 data-nosnippet>151</a>    /// the rest of its produce metrics, so it lines up with them.
-<a href=#152 id=152 data-nosnippet>152</a>    ///
-<a href=#153 id=153 data-nosnippet>153</a>    /// This metric is tagged with:
-<a href=#154 id=154 data-nosnippet>154</a>    /// - `topic`: The Kafka topic being produced to.
-<a href=#155 id=155 data-nosnippet>155</a>    /// - `producer_name`: The configured producer name/deployment identifier.
-<a href=#156 id=156 data-nosnippet>156</a>    </span>ReloadGeneration,
-<a href=#157 id=157 data-nosnippet>157</a>}
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a><span class="kw">impl </span>GaugeMetric <span class="kw">for </span>KafkaGauges {
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#162 id=162 data-nosnippet>162</a>            KafkaGauges::InFlightCount =&gt; <span class="string">"kafka.in_flight_count"</span>,
-<a href=#163 id=163 data-nosnippet>163</a>            KafkaGauges::ReloadGeneration =&gt; <span class="string">"kafka.reload_generation"</span>,
-<a href=#164 id=164 data-nosnippet>164</a>        }
-<a href=#165 id=165 data-nosnippet>165</a>    }
-<a href=#166 id=166 data-nosnippet>166</a>}
+<a href=#146 id=146 data-nosnippet>146</a>}
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a><span class="kw">impl </span>GaugeMetric <span class="kw">for </span>KafkaGauges {
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#151 id=151 data-nosnippet>151</a>            KafkaGauges::InFlightCount =&gt; <span class="string">"kafka.in_flight_count"</span>,
+<a href=#152 id=152 data-nosnippet>152</a>        }
+<a href=#153 id=153 data-nosnippet>153</a>    }
+<a href=#154 id=154 data-nosnippet>154</a>}
 </code></pre></div></section></main></body></html>
