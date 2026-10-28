@@ -116,7 +116,7 @@
 <a href=#116 id=116 data-nosnippet>116</a>}
 <a href=#117 id=117 data-nosnippet>117</a>
 <a href=#118 id=118 data-nosnippet>118</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Transform&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="kw-2">mut </span>ScrubberTransform&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">fn </span>push_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>str) {
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">fn </span>push_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) {
 <a href=#120 id=120 data-nosnippet>120</a>        <span class="self">self</span>.path.push(key.to_owned());
 <a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">let </span>field_attrs = <span class="kw">if </span>scrub_at_path(<span class="kw-2">&amp;</span><span class="self">self</span>.path) {
 <a href=#122 id=122 data-nosnippet>122</a>            <span class="kw-2">&amp;</span>FIELD_ATTRS_PII_TRUE
@@ -663,20 +663,40 @@
 <a href=#663 id=663 data-nosnippet>663</a>    }
 <a href=#664 id=664 data-nosnippet>664</a>
 <a href=#665 id=665 data-nosnippet>665</a>    <span class="attr">#[test]
-<a href=#666 id=666 data-nosnippet>666</a>    </span><span class="kw">fn </span>test_scrub_at_path() {
-<a href=#667 id=667 data-nosnippet>667</a>        <span class="kw">for </span>(should_scrub, path) <span class="kw">in </span>[
-<a href=#668 id=668 data-nosnippet>668</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[]),
-<a href=#669 id=669 data-nosnippet>669</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>]),
-<a href=#670 id=670 data-nosnippet>670</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>]),
-<a href=#671 id=671 data-nosnippet>671</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"foo"</span>]),
-<a href=#672 id=672 data-nosnippet>672</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"foo"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>]),
-<a href=#673 id=673 data-nosnippet>673</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>]),
-<a href=#674 id=674 data-nosnippet>674</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>, <span class="string">"request"</span>]),
-<a href=#675 id=675 data-nosnippet>675</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>, <span class="string">"request"</span>, <span class="string">"body"</span>]),
-<a href=#676 id=676 data-nosnippet>676</a>        ] {
-<a href=#677 id=677 data-nosnippet>677</a>            <span class="kw">let </span>path = path.into_iter().map(|p| p.to_owned()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#678 id=678 data-nosnippet>678</a>            <span class="macro">assert_eq!</span>(should_scrub, scrub_at_path(<span class="kw-2">&amp;</span>path));
-<a href=#679 id=679 data-nosnippet>679</a>        }
-<a href=#680 id=680 data-nosnippet>680</a>    }
-<a href=#681 id=681 data-nosnippet>681</a>}
+<a href=#666 id=666 data-nosnippet>666</a>    </span><span class="kw">fn </span>test_scrub_pii_key_with_json_escape() {
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="comment">// A key containing an escape sequence (here `\n`) must not desynchronize the path
+<a href=#668 id=668 data-nosnippet>668</a>        // tracking, later siblings must still be scrubbed.
+<a href=#669 id=669 data-nosnippet>669</a>        </span><span class="kw">let </span>payload =
+<a href=#670 id=670 data-nosnippet>670</a>            <span class="string">br#"[{"type":5,"data":{"payload":{"data":{"a\nb":"x","password":"hunter2"}}}}]"#</span>;
+<a href=#671 id=671 data-nosnippet>671</a>
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="kw">let </span><span class="kw-2">mut </span>transcoded = Vec::new();
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">let </span>config = default_pii_config();
+<a href=#674 id=674 data-nosnippet>674</a>        scrubber(<span class="kw-2">&amp;</span>config)
+<a href=#675 id=675 data-nosnippet>675</a>            .scrub_replay(payload.as_slice(), <span class="kw-2">&amp;mut </span>transcoded)
+<a href=#676 id=676 data-nosnippet>676</a>            .unwrap();
+<a href=#677 id=677 data-nosnippet>677</a>
+<a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">let </span>scrubbed: serde_json::Value = serde_json::from_slice(<span class="kw-2">&amp;</span>transcoded).unwrap();
+<a href=#679 id=679 data-nosnippet>679</a>        <span class="macro">assert_eq!</span>(
+<a href=#680 id=680 data-nosnippet>680</a>            scrubbed[<span class="number">0</span>][<span class="string">"data"</span>][<span class="string">"payload"</span>][<span class="string">"data"</span>][<span class="string">"password"</span>],
+<a href=#681 id=681 data-nosnippet>681</a>            <span class="string">"[Filtered]"
+<a href=#682 id=682 data-nosnippet>682</a>        </span>);
+<a href=#683 id=683 data-nosnippet>683</a>    }
+<a href=#684 id=684 data-nosnippet>684</a>
+<a href=#685 id=685 data-nosnippet>685</a>    <span class="attr">#[test]
+<a href=#686 id=686 data-nosnippet>686</a>    </span><span class="kw">fn </span>test_scrub_at_path() {
+<a href=#687 id=687 data-nosnippet>687</a>        <span class="kw">for </span>(should_scrub, path) <span class="kw">in </span>[
+<a href=#688 id=688 data-nosnippet>688</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[]),
+<a href=#689 id=689 data-nosnippet>689</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>]),
+<a href=#690 id=690 data-nosnippet>690</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>]),
+<a href=#691 id=691 data-nosnippet>691</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"foo"</span>]),
+<a href=#692 id=692 data-nosnippet>692</a>            (<span class="bool-val">false</span>, <span class="macro">vec!</span>[<span class="string">"foo"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>]),
+<a href=#693 id=693 data-nosnippet>693</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>]),
+<a href=#694 id=694 data-nosnippet>694</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>, <span class="string">"request"</span>]),
+<a href=#695 id=695 data-nosnippet>695</a>            (<span class="bool-val">true</span>, <span class="macro">vec!</span>[<span class="string">"data"</span>, <span class="string">"payload"</span>, <span class="string">"data"</span>, <span class="string">"request"</span>, <span class="string">"body"</span>]),
+<a href=#696 id=696 data-nosnippet>696</a>        ] {
+<a href=#697 id=697 data-nosnippet>697</a>            <span class="kw">let </span>path = path.into_iter().map(|p| p.to_owned()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#698 id=698 data-nosnippet>698</a>            <span class="macro">assert_eq!</span>(should_scrub, scrub_at_path(<span class="kw-2">&amp;</span>path));
+<a href=#699 id=699 data-nosnippet>699</a>        }
+<a href=#700 id=700 data-nosnippet>700</a>    }
+<a href=#701 id=701 data-nosnippet>701</a>}
 </code></pre></div></section></main></body></html>
