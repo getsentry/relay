@@ -11,6 +11,7 @@ use crate::services::processor::ProcessingError;
 mod attachment;
 mod formdata;
 
+#[cfg(sentry)]
 macro_rules! if_not_processing {
     ($ctx:expr, $if_true:block) => {
         match $ctx {
@@ -30,6 +31,7 @@ macro_rules! if_not_processing {
         }
     };
 }
+#[cfg(sentry)]
 pub(crate) use if_not_processing;
 
 macro_rules! if_processing {
