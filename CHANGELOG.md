@@ -19,6 +19,7 @@
 - Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Fix PII scrubbing for JSON objects that contain keys with an escape sequence (such as `\n` or `\uXXXX`). ([#6573](https://github.com/getsentry/relay/pull/6573))
 
 **Internal**:
 
