@@ -21,6 +21,7 @@
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Fix PII scrubbing for JSON objects that contain keys with an escape sequence (such as `\n` or `\uXXXX`). ([#6573](https://github.com/getsentry/relay/pull/6573))
+- Ignore the `fully_normalized` item header on error events unless the request comes from a trusted Relay, as transactions already do. ([#6591](https://github.com/getsentry/relay/pull/6591))
 
 **Internal**:
 
