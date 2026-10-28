@@ -254,11 +254,11 @@ async fn handle_post(
     let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
-    let project_context = validate_and_limit(&state, meta, &headers, project).await?;
+    let project = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+    let result = create(&state, project, &headers).await;
     let CreateResult {
         location,
         granularity,
@@ -351,7 +351,7 @@ async fn handle_patch(
     let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
-    let project_context = validate(&state, meta, project).await?;
+    let project = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -362,7 +362,7 @@ async fn handle_patch(
         &state,
         upload::Stream {
             received: Utc::now(),
-            project: project_context,
+            project,
             location,
             stream,
             source: upload::StreamSource::Tus,
