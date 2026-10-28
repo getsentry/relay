@@ -97,7 +97,9 @@ pub fn otel_to_sentry_log(
         .unwrap_or_else(Utc::now);
 
     let level = map_severity_to_level(severity_number, &severity_text);
-    let body = otel_body_to_sentry_body(body);
+    // OTel makes the body optional, but Sentry logs require one. Without it, schema validation
+    // would remove the whole log, so keep the log with an empty body instead.
+    let body = otel_body_to_sentry_body(body).unwrap_or_default();
 
     let mut attribute_data = Attributes::default();
     attribute_data.insert(SENTRY__ORIGIN, "auto.otlp.logs".to_owned());
@@ -127,7 +129,7 @@ pub fn otel_to_sentry_log(
         trace_id,
         span_id,
         level: Annotated::new(level),
-        body: Annotated::from(body),
+        body: Annotated::new(body),
         attributes: Annotated::new(attribute_data),
         other: Object::default(),
     }
@@ -144,6 +146,8 @@ fn nanos_to_utc(ts: u64) -> Option<DateTime<Utc>> {
 mod tests {
     use super::*;
     use opentelemetry_proto::tonic::common::v1::{ArrayValue, KeyValue, KeyValueList};
+    use relay_event_normalization::{RequiredMode, SchemaProcessor};
+    use relay_event_schema::processor::{ProcessingState, process_value};
     use relay_protocol::{SerializableAnnotated, get_path};
 
     #[test]
@@ -772,6 +776,45 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["key1"], "value1");
         assert_eq!(parsed["key2"], 42);
+    }
+
+    #[test]
+    fn parse_otel_log_without_body() {
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "eventName": "browser.page_view"
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let mut our_log = Annotated::new(otel_to_sentry_log(otel_log, None, None));
+
+        // Logs are validated like this during processing.
+        process_value(
+            &mut our_log,
+            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&our_log), @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "level": "info",
+          "body": "",
+          "attributes": {
+            "event.name": {
+              "type": "string",
+              "value": "browser.page_view"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            }
+          }
+        }
+        "#);
     }
 
     #[test]
