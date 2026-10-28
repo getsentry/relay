@@ -25,7 +25,7 @@ fn create_message(body: &Body) -> String {
     }
 }
 
-/// Creates a log from the provided NEL [`Body`].
+/// Creates a log from the provided Integrity [`Body`].
 pub fn create_log_from_integrity_body(body: Body, mut attributes: Attributes) -> OurLog {
     let message = create_message(&body);
 
