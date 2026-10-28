@@ -4805,6 +4805,7 @@ dependencies = [
  "hex",
  "insta",
  "opentelemetry-proto",
+ "relay-browser-reporting",
  "relay-common",
  "relay-conventions",
  "relay-event-normalization",
@@ -4813,6 +4814,7 @@ dependencies = [
  "relay-protocol",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
