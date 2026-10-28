@@ -1422,8 +1422,8 @@ class EncodingRequestCase:
     method: str = "PATCH"
 
 
+# Unit tests cover encoding variants; this matrix checks routing and rejection order.
 @pytest.mark.parametrize("has_objectstore", [False, True])
-@pytest.mark.parametrize("encoding", ["unknown", "x-gzip", "GZIP", "zstd, gzip"])
 @pytest.mark.parametrize(
     "case",
     [
@@ -1457,7 +1457,6 @@ def test_unsupported_upload_encoding_contract(
     relay,
     relay_with_processing,
     project_config,
-    encoding,
     has_objectstore,
     case: EncodingRequestCase,
 ):
@@ -1476,7 +1475,7 @@ def test_unsupported_upload_encoding_contract(
             "Content-Type": "application/offset+octet-stream",
             "Upload-Offset": "0",
             "X-Decoded-Content-Length": "11",
-            "Content-Encoding": encoding,
+            "Content-Encoding": "unknown",
             "Origin": "https://example.com",
         },
         data=b"hello world",
