@@ -18,7 +18,7 @@ use chrono::Utc;
 use futures::StreamExt;
 use http::header;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{ConfigSnapshot, HttpCompression, HttpEncoding, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -35,8 +35,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, CreateResult, HeadResult, LocationKind, LocationQueryParams, ProjectContext, Provisional,
-    SignedLocation, UPLOAD_CHUNK_GRANULARITY, UploadMode,
+    self, CreateResult, HeadResult, HttpCompression, LocationKind, LocationQueryParams,
+    ProjectContext, Provisional, SignedLocation, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;

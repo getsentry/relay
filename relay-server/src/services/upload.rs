@@ -21,7 +21,7 @@ use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
 #[cfg(feature = "processing")]
 use relay_config::ConfigSnapshot;
-use relay_config::{Config, HttpCompression, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -219,6 +219,42 @@ pub struct Create {
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
+}
+
+/// A non-identity HTTP compression codec.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpCompression {
+    /// Zlib-wrapped DEFLATE compression.
+    Deflate,
+    /// Gzip compression.
+    Gzip,
+    /// Brotli compression.
+    Br,
+    /// Zstandard compression.
+    Zstd,
+}
+
+impl HttpCompression {
+    /// Returns `None` for identity encoding.
+    pub fn from_encoding(encoding: HttpEncoding) -> Option<Self> {
+        match encoding {
+            HttpEncoding::Identity => None,
+            HttpEncoding::Deflate => Some(Self::Deflate),
+            HttpEncoding::Gzip => Some(Self::Gzip),
+            HttpEncoding::Br => Some(Self::Br),
+            HttpEncoding::Zstd => Some(Self::Zstd),
+        }
+    }
+
+    /// Returns the corresponding HTTP content encoding.
+    pub fn encoding(self) -> HttpEncoding {
+        match self {
+            Self::Deflate => HttpEncoding::Deflate,
+            Self::Gzip => HttpEncoding::Gzip,
+            Self::Br => HttpEncoding::Br,
+            Self::Zstd => HttpEncoding::Zstd,
+        }
+    }
 }
 
 /// The type used to stream a request body.
