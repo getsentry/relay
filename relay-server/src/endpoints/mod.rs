@@ -43,15 +43,15 @@ const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 /// All of Relay's routes.
 ///
 /// This includes [`public_routes`] as well as [`internal_routes`].
-pub fn all_routes(service: &ServiceState) -> Router<ServiceState> {
-    public_routes_raw(&service.config()).merge(internal_routes(service))
+pub fn all_routes(config: &ConfigSnapshot) -> Router<ServiceState> {
+    public_routes_raw(config).merge(internal_routes(config))
 }
 
 /// Relay's internal routes.
 ///
 /// Routes which do not need to be exposed.
 #[rustfmt::skip]
-pub fn internal_routes(_: &ServiceState) -> Router<ServiceState>{
+pub fn internal_routes(_: &ConfigSnapshot) -> Router<ServiceState>{
     Router::new()
         .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
         .route("/api/relay/autoscaling/", get(autoscaling::handle))
@@ -63,9 +63,9 @@ pub fn internal_routes(_: &ServiceState) -> Router<ServiceState>{
 /// Relay's public routes.
 ///
 /// Routes which are public API and must be exposed.
-pub fn public_routes(service: &ServiceState) -> Router<ServiceState> {
+pub fn public_routes(config: &ConfigSnapshot) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
-    public_routes_raw(&service.config()).route(
+    public_routes_raw(config).route(
         "/api/relay/{*not_found}",
         any(statics::not_found).layer(axum::middleware::from_fn(middlewares::decompress)),
     )
