@@ -32,6 +32,9 @@ relay-log = { workspace = true, optional = true }
 relay-statsd = { workspace = true, optional = true }
 relay-system = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+
 [features]
 default = []
 impl = ["dep:deadpool", "dep:relay-log", "dep:relay-statsd", "dep:redis"]
