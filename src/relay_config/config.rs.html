@@ -2898,7 +2898,7 @@
 <a href=#2898 id=2898 data-nosnippet>2898</a>                // express yet, so each physical topic is its own entry and maps to itself.
 <a href=#2899 id=2899 data-nosnippet>2899</a>                //
 <a href=#2900 id=2900 data-nosnippet>2900</a>                // That also means one topic name cannot point at two clusters.
-<a href=#2901 id=2901 data-nosnippet>2901</a>                </span><span class="kw">let </span>entry = <span class="macro">serde_json::json!</span>({ <span class="string">"physical_topic"</span>: { <span class="string">"cluster"</span>: cluster_name } });
+<a href=#2901 id=2901 data-nosnippet>2901</a>                </span><span class="kw">let </span>entry = <span class="macro">serde_json::json!</span>({ <span class="string">"physical_topics"</span>: [{ <span class="string">"cluster"</span>: cluster_name }] });
 <a href=#2902 id=2902 data-nosnippet>2902</a>                <span class="kw">match </span>topics.entry(params.topic_name.clone()) {
 <a href=#2903 id=2903 data-nosnippet>2903</a>                    Entry::Vacant(vacant) =&gt; {
 <a href=#2904 id=2904 data-nosnippet>2904</a>                        vacant.insert(entry);
@@ -3188,8 +3188,8 @@
 <a href=#3188 id=3188 data-nosnippet>3188</a>                .config
 <a href=#3189 id=3189 data-nosnippet>3189</a>                .config_map()
 <a href=#3190 id=3190 data-nosnippet>3190</a>                .iter()
-<a href=#3191 id=3191 data-nosnippet>3191</a>                <span class="comment">// Arroyo adds this itself when building a producer config.
-<a href=#3192 id=3192 data-nosnippet>3192</a>                </span>.filter(|(key, <span class="kw">_</span>)| key.as_str() != <span class="string">"statistics.interval.ms"</span>)
+<a href=#3191 id=3191 data-nosnippet>3191</a>                <span class="comment">// Arroyo adds these itself when building a producer config.
+<a href=#3192 id=3192 data-nosnippet>3192</a>                </span>.filter(|(key, <span class="kw">_</span>)| !<span class="macro">matches!</span>(key.as_str(), <span class="string">"statistics.interval.ms" </span>| <span class="string">"client.id"</span>))
 <a href=#3193 id=3193 data-nosnippet>3193</a>                .map(|(key, value)| (key.clone(), value.clone()))
 <a href=#3194 id=3194 data-nosnippet>3194</a>                .collect::&lt;BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;()
 <a href=#3195 id=3195 data-nosnippet>3195</a>        };

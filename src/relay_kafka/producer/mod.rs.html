@@ -561,7 +561,7 @@
 <a href=#561 id=561 data-nosnippet>561</a>            .map(|topic| {
 <a href=#562 id=562 data-nosnippet>562</a>                (
 <a href=#563 id=563 data-nosnippet>563</a>                    (<span class="kw-2">*</span>topic).to_owned(),
-<a href=#564 id=564 data-nosnippet>564</a>                    <span class="macro">serde_json::json!</span>({<span class="string">"physical_topic"</span>: {<span class="string">"cluster"</span>: <span class="string">"default"</span>}}),
+<a href=#564 id=564 data-nosnippet>564</a>                    <span class="macro">serde_json::json!</span>({<span class="string">"physical_topics"</span>: [{<span class="string">"cluster"</span>: <span class="string">"default"</span>}]}),
 <a href=#565 id=565 data-nosnippet>565</a>                )
 <a href=#566 id=566 data-nosnippet>566</a>            })
 <a href=#567 id=567 data-nosnippet>567</a>            .collect();
