@@ -955,9 +955,6 @@ def test_flamegraph_culprit_stack(
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     consumer = attachments_consumer() if processing else None
     relay_factory = relay
     relay = relay_with_processing() if processing else relay_factory(mini_sentry)
