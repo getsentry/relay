@@ -19,6 +19,7 @@
 - Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
 
 **Internal**:
 
