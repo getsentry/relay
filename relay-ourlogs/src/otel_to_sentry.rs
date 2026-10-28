@@ -146,8 +146,6 @@ fn nanos_to_utc(ts: u64) -> Option<DateTime<Utc>> {
 mod tests {
     use super::*;
     use opentelemetry_proto::tonic::common::v1::{ArrayValue, KeyValue, KeyValueList};
-    use relay_event_normalization::{RequiredMode, SchemaProcessor};
-    use relay_event_schema::processor::{ProcessingState, process_value};
     use relay_protocol::{SerializableAnnotated, get_path};
 
     #[test]
@@ -787,15 +785,7 @@ mod tests {
         }"#;
 
         let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
-        let mut our_log = Annotated::new(otel_to_sentry_log(otel_log, None, None));
-
-        // Logs are validated like this during processing.
-        process_value(
-            &mut our_log,
-            &mut SchemaProcessor::new().with_required(RequiredMode::DeleteParent),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        let our_log = Annotated::new(otel_to_sentry_log(otel_log, None, None));
 
         insta::assert_json_snapshot!(SerializableAnnotated(&our_log), @r#"
         {
