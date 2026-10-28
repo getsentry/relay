@@ -34,11 +34,9 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{
     ProfileAttachment, Store, StoreAttachment, StoreEvent, StoreProfileChunk, StoreTraceItem,
 };
-use crate::services::upload::ByteStream;
+use crate::services::upload::PassthroughBoundedMeteredStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    BoundedStream, ByteCounter, MeteredStream, RetryableStream, TakeOnce, find_error_source,
-};
+use crate::utils::{ByteCounter, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -231,7 +229,7 @@ pub struct Stream {
     pub project_id: ProjectId,
     pub context: StreamContext,
     pub retention: u16,
-    pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    pub stream: PassthroughBoundedMeteredStream,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -1141,7 +1139,7 @@ impl ObjectstoreServiceInner {
     async fn attempt_upload_stream(
         &self,
         session: &Session,
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     ) -> Result<UploadRef, objectstore_client::Error> {
@@ -1242,7 +1240,7 @@ enum Upload {
         filename: Option<String>,
     },
     Stream {
-        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        body: TakeOnce<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1289,7 +1287,7 @@ enum UploadAttempt {
         filename: Option<String>,
     },
     Stream {
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1376,6 +1374,7 @@ mod tests {
 
     use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
+    use crate::utils::{BoundedStream, MeteredStream};
 
     use super::*;
 

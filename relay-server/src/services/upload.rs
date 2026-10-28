@@ -261,10 +261,12 @@ impl HttpCompression {
 pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 
 /// An upload stream with byte-count bounds and latency metrics.
-pub type UploadStream = BoundedStream<MeteredStream<ByteStream>>;
+pub type PassthroughBoundedMeteredStream = BoundedStream<MeteredStream<ByteStream>>;
+
+type EncodedByteStream = ByteStream;
 
 // Keep the passthrough stream inline; only the existing encoder path needs a boxed stream.
-type PreparedStream = Either<ByteStream, UploadStream>;
+type OutgoingStream = Either<EncodedByteStream, PassthroughBoundedMeteredStream>;
 
 /// Where an upload stream originated, including whether HTTP already metered decoding.
 #[derive(Clone, Copy)]
@@ -1155,7 +1157,7 @@ enum RequestKind {
     Upload {
         uri: String,
         mode: UploadMode,
-        stream: TakeOnce<PreparedStream>,
+        stream: TakeOnce<OutgoingStream>,
         encoding: HttpEncoding,
     },
     Head {
@@ -1198,7 +1200,7 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         mode: UploadMode,
-        stream: PreparedStream,
+        stream: OutgoingStream,
         encoding: HttpEncoding,
     ) -> (
         Self,
@@ -1338,7 +1340,7 @@ impl UpstreamRequest for UploadRequest {
     }
 }
 
-fn encode_body(stream: UploadStream, encoding: HttpEncoding) -> PreparedStream {
+fn encode_body(stream: PassthroughBoundedMeteredStream, encoding: HttpEncoding) -> OutgoingStream {
     let compression = match HttpCompression::from_encoding(encoding) {
         None => return Either::Right(stream),
         Some(compression) => compression,
