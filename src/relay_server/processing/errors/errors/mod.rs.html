@@ -203,17 +203,20 @@
 <a href=#203 id=203 data-nosnippet>203</a>    <span class="doccomment">/// A list of user reports, either from the original envelope or created through the expansion.
 <a href=#204 id=204 data-nosnippet>204</a>    </span><span class="kw">pub </span>user_reports: Vec&lt;Item&gt;,
 <a href=#205 id=205 data-nosnippet>205</a>    <span class="doccomment">/// Additional items extracted from the error that need to be processed in a separate pass.
-<a href=#206 id=206 data-nosnippet>206</a>    </span><span class="kw">pub </span>intermediates: Vec&lt;Item&gt;,
-<a href=#207 id=207 data-nosnippet>207</a>    <span class="doccomment">/// The custom error data.
-<a href=#208 id=208 data-nosnippet>208</a>    </span><span class="kw">pub </span>error: T,
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="doccomment">/// Metrics about the error/event.
-<a href=#210 id=210 data-nosnippet>210</a>    </span><span class="kw">pub </span>metrics: Metrics,
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="doccomment">/// Whether the event can be considered fully normalized.
-<a href=#212 id=212 data-nosnippet>212</a>    ///
-<a href=#213 id=213 data-nosnippet>213</a>    /// Callers must still verify that the information can be trusted.
-<a href=#214 id=214 data-nosnippet>214</a>    </span><span class="kw">pub </span>fully_normalized: bool,
-<a href=#215 id=215 data-nosnippet>215</a>}
-<a href=#216 id=216 data-nosnippet>216</a>
-<a href=#217 id=217 data-nosnippet>217</a><span class="attr">#[cfg(test)]
-<a href=#218 id=218 data-nosnippet>218</a></span><span class="kw">mod </span>tests;
+<a href=#206 id=206 data-nosnippet>206</a>    ///
+<a href=#207 id=207 data-nosnippet>207</a>    /// All items will be added to a single envelope with a new event id and no envelope headers retained
+<a href=#208 id=208 data-nosnippet>208</a>    /// and all items must make up a valid envelope.
+<a href=#209 id=209 data-nosnippet>209</a>    </span><span class="kw">pub </span>intermediates: Vec&lt;Item&gt;,
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="doccomment">/// The custom error data.
+<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="kw">pub </span>error: T,
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="doccomment">/// Metrics about the error/event.
+<a href=#213 id=213 data-nosnippet>213</a>    </span><span class="kw">pub </span>metrics: Metrics,
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// Whether the event can be considered fully normalized.
+<a href=#215 id=215 data-nosnippet>215</a>    ///
+<a href=#216 id=216 data-nosnippet>216</a>    /// Callers must still verify that the information can be trusted.
+<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub </span>fully_normalized: bool,
+<a href=#218 id=218 data-nosnippet>218</a>}
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a><span class="attr">#[cfg(test)]
+<a href=#221 id=221 data-nosnippet>221</a></span><span class="kw">mod </span>tests;
 </code></pre></div></section></main></body></html>
