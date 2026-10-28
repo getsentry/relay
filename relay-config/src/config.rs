@@ -836,12 +836,15 @@ impl HttpEncoding {
     }
 
     /// Parses a canonical `Content-Encoding` value, returning `None` for unsupported values.
-    ///
-    /// Like the request decompressor, this accepts only lowercase names without aliases,
-    /// whitespace, or multiple encodings. Unknown values must not be treated as identity.
     pub fn parse_strict(value: &str) -> Option<Self> {
-        let encoding = Self::parse(value);
-        (encoding.name().unwrap_or("identity") == value).then_some(encoding)
+        match value {
+            "identity" => Some(Self::Identity),
+            "deflate" => Some(Self::Deflate),
+            "gzip" => Some(Self::Gzip),
+            "br" => Some(Self::Br),
+            "zstd" => Some(Self::Zstd),
+            _ => None,
+        }
     }
 
     /// Returns the value for the `content-encoding` HTTP header.
