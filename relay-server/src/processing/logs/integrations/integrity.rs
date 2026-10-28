@@ -46,14 +46,7 @@ impl Forward for IntegrityLogsIntegrationOutput {
 /// converting log integration items into actual logs. It
 /// never passes anything on to the store or another Relay.
 #[derive(Debug)]
-pub struct IntegrityLogsIntegrationProcessor {}
-
-impl IntegrityLogsIntegrationProcessor {
-    /// Creates a new [`Self`].
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct IntegrityLogsIntegrationProcessor;
 
 impl processing::Processor for IntegrityLogsIntegrationProcessor {
     type Input = SerializedLogsIntegration;

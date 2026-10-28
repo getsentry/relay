@@ -53,14 +53,7 @@ impl Counted for SerializedVercelLogsIntegration {
 /// converting log integration items into actual logs. It
 /// never passes anything on to the store or another Relay.
 #[derive(Debug)]
-pub struct VercelLogsIntegrationProcessor {}
-
-impl VercelLogsIntegrationProcessor {
-    /// Creates a new [`Self`].
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct VercelLogsIntegrationProcessor;
 
 impl processing::Processor for VercelLogsIntegrationProcessor {
     type Input = SerializedVercelLogsIntegration;

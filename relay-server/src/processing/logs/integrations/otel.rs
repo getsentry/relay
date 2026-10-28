@@ -54,14 +54,7 @@ impl Counted for SerializedOtelLogsIntegration {
 /// converting log integration items into actual logs. It
 /// never passes anything on to the store or another Relay.
 #[derive(Debug)]
-pub struct OtelLogsIntegrationProcessor {}
-
-impl OtelLogsIntegrationProcessor {
-    /// Creates a new [`Self`].
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct OtelLogsIntegrationProcessor;
 
 impl processing::Processor for OtelLogsIntegrationProcessor {
     type Input = SerializedOtelLogsIntegration;
