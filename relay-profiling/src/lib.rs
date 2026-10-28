@@ -63,6 +63,7 @@ mod outcomes;
 mod perfetto;
 mod profile_chunk;
 mod sample;
+mod statsd;
 mod transaction_metadata;
 mod types;
 mod utils;

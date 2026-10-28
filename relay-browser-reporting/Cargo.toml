@@ -1,0 +1,21 @@
+[package]
+name = "relay-browser-reporting"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Support for the Browser Reporting API in Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "26.10.0"
+edition = "2024"
+license-file = "../LICENSE.md"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+serde_json = { workspace = true }
+

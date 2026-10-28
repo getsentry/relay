@@ -43,7 +43,7 @@ fn do_expand(
     records.lenient(DataCategory::AttachmentItem);
     // User feedback is extracted from unreal reports.
     records.lenient(DataCategory::UserReportV2);
-    // Session updates are extracted from Switch crashes
+    // Session updates are extracted from Switch and PlayStation crashes
     records.lenient(DataCategory::Session);
 
     let Some(parsed) = ErrorKind::try_expand(

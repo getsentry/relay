@@ -1,6 +1,5 @@
 import os
 import pytest
-import json
 
 
 def load_dump_file(base_file_name: str):
@@ -44,35 +43,23 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
 
 
 def test_unreal_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
 ):
     project_id = 42
-    options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
-    relay = relay_with_processing(options)
+    relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     mini_sentry.add_full_project_config(project_id)
     unreal_content = load_dump_file("unreal_crash")
 
     relay.send_unreal_request(project_id, unreal_content)
 
-    attachments = {}
-
-    while True:
-        raw_message, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-        attachments[message["id"]] = message
-
-    assert event
-    assert event["type"] == "event"
-
-    project_id = event["project_id"]
+    event_data, event = attachments_consumer.get_event()
+    assert event["project_id"] == project_id
     event_id = event["event_id"]
 
     assert len(event["attachments"]) == 4
-    assert len(attachments) == 4
 
     logs_file_found = False
     mini_dump_found = False
@@ -80,11 +67,6 @@ def test_unreal_minidump_with_processing(
     unreal_context_found = False
 
     for attachment_entry in event["attachments"]:
-        # check that the attachment is registered in the event
-        attachment_id = attachment_entry["id"]
-        # check that we didn't get the messages chunked
-        assert attachment_entry["chunks"] == 1
-
         entry_name = attachment_entry["name"]
 
         if entry_name == "UE4Minidump.dmp":
@@ -96,10 +78,9 @@ def test_unreal_minidump_with_processing(
         elif entry_name == "CrashReportClient.ini":
             crash_report_ini_found = True
 
-        attachment = attachments.get(attachment_id)
-        assert attachment is not None
-        assert attachment["event_id"] == event_id
-        assert attachment["project_id"] == project_id
+        attachment = objectstore.get(attachment_entry["stored_id"])
+        assert attachment.metadata.filename == entry_name
+        assert len(attachment.payload.read()) == attachment_entry["size"]
 
     assert mini_dump_found
     assert logs_file_found
@@ -107,8 +88,6 @@ def test_unreal_minidump_with_processing(
     assert crash_report_ini_found
 
     # check the created event
-    event_data = json.loads(event["payload"])
-
     assert event_data["event_id"] == event_id
 
     exception = event_data.get("exception")
@@ -131,42 +110,24 @@ def test_unreal_minidump_with_processing(
 
 
 def test_unreal_apple_crash_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
 ):
     project_id = 42
-    options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
-    relay = relay_with_processing(options)
+    relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     mini_sentry.add_full_project_config(project_id)
     unreal_content = load_dump_file("unreal_crash_apple")
 
     relay.send_unreal_request(project_id, unreal_content)
 
-    attachments = {}
-
-    user_report = None
-    event = None
-    while True:
-        raw_message, message = attachments_consumer.get_message()
-        if message is None:
-            pytest.fail("could not get messages from attachment consumer")
-        if message["type"] == "attachment_chunk":
-            attachments[message["id"]] = message
-        elif message["type"] == "user_report":
-            user_report = message
-        elif message["type"] == "event":
-            event = message
-            break
-
-    assert event is not None
-    assert user_report is not None
-
-    project_id = event["project_id"]
+    attachments_consumer.get_user_report()
+    event_data, event = attachments_consumer.get_event()
+    assert event["project_id"] == project_id
     event_id = event["event_id"]
 
     assert len(event["attachments"]) == 6
-    assert len(attachments) == 6
 
     mini_dump_found = False
     crash_report_ini_found = False
@@ -176,11 +137,6 @@ def test_unreal_apple_crash_with_processing(
     diagnostics_file_found = False
 
     for attachment_entry in event["attachments"]:
-        # check that the attachment is registered in the event
-        attachment_id = attachment_entry["id"]
-        # check that we didn't get the messages chunked
-        assert attachment_entry["chunks"] == 1
-
         entry_name = attachment_entry["name"]
 
         if entry_name == "minidump.dmp":
@@ -196,10 +152,9 @@ def test_unreal_apple_crash_with_processing(
         elif entry_name == "Diagnostics.txt":
             diagnostics_file_found = True
 
-        attachment = attachments.get(attachment_id)
-        assert attachment is not None
-        assert attachment["event_id"] == event_id
-        assert attachment["project_id"] == project_id
+        attachment = objectstore.get(attachment_entry["stored_id"])
+        assert attachment.metadata.filename == entry_name
+        assert len(attachment.payload.read()) == attachment_entry["size"]
 
     assert mini_dump_found
     assert logs_file_found
@@ -209,8 +164,6 @@ def test_unreal_apple_crash_with_processing(
     assert diagnostics_file_found
 
     # check the created event
-    event_data = json.loads(event["payload"])
-
     assert event_data["event_id"] == event_id
 
     exception = event_data.get("exception")
@@ -237,40 +190,29 @@ def test_unreal_apple_crash_with_processing(
 
 
 def test_unreal_minidump_with_config_and_processing(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
 ):
     project_id = 42
-    options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
-    relay = relay_with_processing(options)
+    relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     mini_sentry.add_full_project_config(project_id)
     unreal_content = load_dump_file("unreal_crash_with_config")
 
     relay.send_unreal_request(project_id, unreal_content)
 
-    attachments = {}
-
-    while True:
-        raw_message, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-        attachments[message["id"]] = message
-
-    assert event
-    assert event["type"] == "event"
+    event_data, event = attachments_consumer.get_event()
 
     # Test dump sets `IsAssert` to true but also supplies a custom `__sentry`
     # value setting the error level to warning. Relay should not overwrite
     # the user supplied level in this case.
-    assert json.loads(event["payload"])["level"] == "warning"
+    assert event_data["level"] == "warning"
 
-    project_id = event["project_id"]
+    assert event["project_id"] == project_id
     event_id = event["event_id"]
 
     assert len(event["attachments"]) == 4
-    assert len(attachments) == 4
 
     logs_file_found = False
     mini_dump_found = False
@@ -278,11 +220,6 @@ def test_unreal_minidump_with_config_and_processing(
     unreal_context_found = False
 
     for attachment_entry in event["attachments"]:
-        # check that the attachment is registered in the event
-        attachment_id = attachment_entry["id"]
-        # check that we didn't get the messages chunked
-        assert attachment_entry["chunks"] == 1
-
         entry_name = attachment_entry["name"]
 
         if entry_name == "UE4Minidump.dmp":
@@ -294,10 +231,9 @@ def test_unreal_minidump_with_config_and_processing(
         elif entry_name == "CrashReportClient.ini":
             crash_report_ini_found = True
 
-        attachment = attachments.get(attachment_id)
-        assert attachment is not None
-        assert attachment["event_id"] == event_id
-        assert attachment["project_id"] == project_id
+        attachment = objectstore.get(attachment_entry["stored_id"])
+        assert attachment.metadata.filename == entry_name
+        assert len(attachment.payload.read()) == attachment_entry["size"]
 
     assert mini_dump_found
     assert logs_file_found
@@ -305,7 +241,6 @@ def test_unreal_minidump_with_config_and_processing(
     assert crash_report_ini_found
 
     # check the created event
-    event_data = json.loads(event["payload"])
     assert event_data["release"] == "foo-bar@1.0.0"
 
     assert event_data["event_id"] == event_id

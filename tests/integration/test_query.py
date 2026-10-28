@@ -172,7 +172,7 @@ def test_processing_redis_query(
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"
     ]
-    redis_client.setex(f"{projectconfig_cache_prefix}:{key}", 3600, json.dumps(cfg))
+    redis_client.set(f"{projectconfig_cache_prefix}:{key}", json.dumps(cfg), ex=3600)
 
     relay.send_event(project_id)
 
