@@ -561,7 +561,7 @@ mod tests {
             .map(|topic| {
                 (
                     (*topic).to_owned(),
-                    serde_json::json!({"physical_topic": {"cluster": "default"}}),
+                    serde_json::json!({"physical_topics": [{"cluster": "default"}]}),
                 )
             })
             .collect();
