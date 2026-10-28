@@ -5,10 +5,7 @@ use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
-use crate::processing::logs::{
-    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
-    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
-};
+use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -70,10 +67,6 @@ outputs!(
     Errors => ErrorsProcessor,
     ForwardUnknown => ForwardUnknownProcessor,
     Logs => LogsProcessor,
-    IntegrityLogsIntegrations => IntegrityLogsIntegrationProcessor ,
-    NelLogsIntegrations => NelLogsIntegrationProcessor ,
-    OtelLogsIntegrations => OtelLogsIntegrationProcessor ,
-    VercelLogsIntegrations => VercelLogsIntegrationProcessor ,
     ProfileChunks => ProfileChunksProcessor,
     Profiles => ProfilesProcessor,
     Replays => ReplaysProcessor,

@@ -9,35 +9,9 @@ use relay_quotas::DataCategory;
 use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
-use crate::processing;
 use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
-use crate::processing::{Forward, Intermediates, Output};
+use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::DiscardReason;
-
-/// The "output" of a [`IntegrityLogsIntegrationProcessor`].
-///
-/// This type is uninhabited to enforce that the processor
-/// can only produce intermediates.
-#[derive(Debug, Clone, Copy)]
-pub enum IntegrityLogsIntegrationOutput {}
-
-impl Forward for IntegrityLogsIntegrationOutput {
-    fn serialize_envelope(
-        self,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        match self {}
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _s: processing::StoreHandle<'_>,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        match self {}
-    }
-}
 
 /// A processor for Integrity Report log integrations.
 ///
@@ -50,7 +24,7 @@ pub struct IntegrityLogsIntegrationProcessor;
 
 impl processing::Processor for IntegrityLogsIntegrationProcessor {
     type Input = SerializedLogsIntegration;
-    type Output = IntegrityLogsIntegrationOutput;
+    type Output = Nothing;
     type Error = Error;
 
     fn cogs() -> relay_cogs::FeatureWeights {

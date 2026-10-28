@@ -9,33 +9,8 @@ use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration, VercelLogDrainFormat};
 use crate::managed::{Counted, Managed, ManagedEnvelope, RecordKeeper, Rejected};
 use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
-use crate::processing::{self, Forward, Intermediates, Output};
+use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::DiscardReason;
-
-/// The "output" of a [`VercelLogsIntegrationProcessor`].
-///
-/// This type is uninhabited to enforce that the processor
-/// can only produce intermediates.
-#[derive(Debug, Clone, Copy)]
-pub enum VercelLogsIntegrationOutput {}
-
-impl Forward for VercelLogsIntegrationOutput {
-    fn serialize_envelope(
-        self,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        match self {}
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _s: processing::StoreHandle<'_>,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        match self {}
-    }
-}
 
 #[derive(Debug)]
 pub struct SerializedVercelLogsIntegration(SerializedLogsIntegration, VercelLogDrainFormat);
@@ -57,7 +32,7 @@ pub struct VercelLogsIntegrationProcessor;
 
 impl processing::Processor for VercelLogsIntegrationProcessor {
     type Input = SerializedVercelLogsIntegration;
-    type Output = VercelLogsIntegrationOutput;
+    type Output = Nothing;
     type Error = Error;
 
     fn cogs() -> relay_cogs::FeatureWeights {

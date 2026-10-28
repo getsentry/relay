@@ -10,33 +10,8 @@ use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
 use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
-use crate::processing::{self, Forward, Intermediates, Output};
+use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::DiscardReason;
-
-/// The "output" of a [`NelLogsIntegrationProcessor`].
-///
-/// This type is uninhabited to enforce that the processor
-/// can only produce intermediates.
-#[derive(Debug, Clone, Copy)]
-pub enum NelLogsIntegrationOutput {}
-
-impl Forward for NelLogsIntegrationOutput {
-    fn serialize_envelope(
-        self,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        match self {}
-    }
-
-    #[cfg(feature = "processing")]
-    fn forward_store(
-        self,
-        _s: processing::StoreHandle<'_>,
-        _ctx: processing::ForwardContext<'_>,
-    ) -> Result<(), Rejected<()>> {
-        match self {}
-    }
-}
 
 /// A processor for NEL log integrations.
 ///
@@ -49,7 +24,7 @@ pub struct NelLogsIntegrationProcessor;
 
 impl processing::Processor for NelLogsIntegrationProcessor {
     type Input = SerializedLogsIntegration;
-    type Output = NelLogsIntegrationOutput;
+    type Output = Nothing;
     type Error = Error;
 
     fn cogs() -> relay_cogs::FeatureWeights {
