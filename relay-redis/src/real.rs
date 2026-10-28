@@ -401,9 +401,10 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
                     let secondary = secondary.as_mut()?;
                     let filtered = secondary_pipeline(cmd)?;
                     // Mirrors the offset and count of `Pipeline::query_async`.
-                    let (offset, count) = match filtered.is_transaction() {
-                        true => (filtered.len() + 1, 1),
-                        false => (0, filtered.len()),
+                    let (offset, count) = if filtered.is_transaction() {
+                        (filtered.len() + 1, 1)
+                    } else {
+                        (0, filtered.len())
                     };
                     Some(
                         secondary
