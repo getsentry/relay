@@ -3,6 +3,7 @@
 //! The browser reporting API is defined in
 //! <https://www.w3.org/TR/reporting-1/>.
 
+pub mod integrity;
 pub mod nel;
 
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
     NetworkError(nel::Body),
+    IntegrityViolation(integrity::Body),
 }
 
 impl BrowserReportBody {
@@ -25,6 +27,7 @@ impl BrowserReportBody {
     pub fn report_type(&self) -> &'static str {
         match self {
             BrowserReportBody::NetworkError(_) => "network-error",
+            BrowserReportBody::IntegrityViolation(_) => "integrity-violation",
         }
     }
 }
