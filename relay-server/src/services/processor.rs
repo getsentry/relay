@@ -710,7 +710,7 @@ impl EnvelopeProcessorService {
                 }
 
                 if let Some(intermediates) = intermediates {
-                    envelopes.push(intermediates)
+                    envelopes.extend(intermediates.split(|i| i).map(ManagedEnvelope::from));
                 }
 
                 // Every envelope past the first is an intermediate.
