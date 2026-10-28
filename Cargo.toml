@@ -84,7 +84,9 @@ relay-ua = { path = "relay-ua" }
 # Use Cargo.lock via `cargo update` to define the exact version
 # of dependencies used in builds.
 ahash = "0.8"
-android_trace_log = { version = "0.3", features = ["serde"] }
+android_trace_log = { git = "https://github.com/getsentry/android-trace-log", rev = "40643d68a9af4bd88175f647656d2707e9e6e474", features = [
+    "serde",
+] }
 # This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
 # which will increase processing time for transactions massively.
 # Keep it pinned until it's possible to disable backtrace.
@@ -160,8 +162,8 @@ metrics-exporter-dogstatsd = "0.9"
 metrics-util = { version = "0.20", default-features = false }
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = { version = "0.2.9", features = ["resumable-upload-api"] }
-objectstore-types = { version = "0.2" }
+objectstore-client = { version = "0.3.0", features = ["resumable-upload-api"] }
+objectstore-types = { version = "0.3" }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
 papaya = "0.2"
@@ -201,7 +203,7 @@ sentry = { version = "0.49", default-features = false, features = [
     "panic",
     "transport",
 ] }
-sentry_arroyo = "2.48.0"
+sentry_arroyo = "2.49.0"
 sentry-core = "0.49"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [

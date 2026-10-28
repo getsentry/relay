@@ -3,8 +3,8 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Error, Result, utils};
 
 #[derive(Debug)]
 pub struct AppleCrashReport(pub Item);
@@ -23,7 +23,7 @@ impl SentryError for AppleCrashReport {
 
         let mut metrics = Default::default();
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
 
         utils::if_processing!(ctx, {
             crate::utils::process_apple_crash_report(
@@ -52,8 +52,8 @@ impl SentryError for AppleCrashReport {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.rate_limited() {
-            self.0.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits), &self.0);
+            self.0.set_rate_limited(true);
         }
 
         Ok(())

@@ -33,7 +33,7 @@ impl SentryError for Playstation {
     #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         use crate::envelope::{AttachmentType, ItemType};
-        use crate::processing::errors::errors::utils;
+        use crate::processing::errors::utils;
         use relay_dynamic_config::Feature;
         use relay_event_schema::protocol::Metrics;
 
@@ -54,7 +54,7 @@ impl SentryError for Playstation {
         let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
 
         let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
-            let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
+            let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx.processing)?);
             (event, None, vec![])
         } else {
             use crate::constants::{SENTRY_CRASH_PAYLOAD_KEY, SENTRY_SESSION_PAYLOAD_KEY};
@@ -83,9 +83,9 @@ impl SentryError for Playstation {
                         ((event.len() + prospero.len()) as u64).into();
                     merge_events(&event, prospero.as_bytes(), ctx)?
                 }
-                (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
+                (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx.processing)?,
                 (None, Some(prospero)) => {
-                    utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
+                    utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx.processing)?
                 }
                 (None, None) => Annotated::empty(),
             };
@@ -183,15 +183,15 @@ impl SentryError for Playstation {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.prosperodump.rate_limited() {
-            self.prosperodump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
+            self.prosperodump.set_rate_limited(true);
         }
 
         if let Some(minidump) = self.minidump.as_mut()
             && !minidump.rate_limited()
         {
-            minidump.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits), &*minidump);
+            minidump.set_rate_limited(true);
         }
 
         Ok(())
@@ -256,4 +256,25 @@ fn merge_events_inner(
     crate::utils::merge_values(&mut from_prospero, from_envelope);
 
     Annotated::<Event>::deserialize_with_meta(from_prospero)
+}
+
+#[test]
+fn test_playstation_crash_rate_limit() {
+    use super::tests::{assert_crash_rate_limit, attachment};
+    use crate::envelope::AttachmentType;
+
+    assert_crash_rate_limit(
+        || Playstation {
+            prosperodump: attachment(AttachmentType::Prosperodump, "prospero"),
+            minidump: Some(attachment(AttachmentType::Minidump, "dump")),
+        },
+        &[8, 4],
+        |crash| {
+            assert!(crash.prosperodump.rate_limited());
+            assert_eq!(crash.prosperodump.payload().as_ref(), b"prospero");
+            let minidump = crash.minidump.unwrap();
+            assert!(minidump.rate_limited());
+            assert_eq!(minidump.payload().as_ref(), b"dump");
+        },
+    );
 }
