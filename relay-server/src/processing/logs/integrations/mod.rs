@@ -1,7 +1,11 @@
+use relay_event_schema::protocol::ourlog::container::{ContainerMetadata, IngestSettings};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::Envelope;
+use crate::envelope::{Item, ItemContainer, ItemType, WithHeader};
+use crate::extractors::RequestMeta;
 use crate::managed::{Counted, OutcomeError, Quantities};
+use crate::processing::Intermediates;
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod integrity;
@@ -35,8 +39,8 @@ impl OutcomeError for Error {
 
 #[derive(Debug)]
 pub struct SerializedLogsIntegration {
-    /// Original envelope headers.
-    headers: EnvelopeHeaders,
+    /// Original request metadata.
+    meta: RequestMeta,
     /// The first log integration item in the envelope.
     item: Item,
 }
@@ -58,4 +62,28 @@ impl Counted for SerializedLogsIntegration {
             (DataCategory::LogByte, self.bytes())
         ]
     }
+}
+
+fn create_intermediates(
+    meta: crate::extractors::RequestMeta,
+    logs: Vec<WithHeader<relay_event_schema::protocol::OurLog>>,
+    settings: IngestSettings,
+) -> Result<Intermediates, Error> {
+    let metadata = ContainerMetadata {
+        version: Some(2),
+        ingest_settings: Some(settings),
+    };
+
+    let mut log_container = Item::new(ItemType::Log);
+    ItemContainer::from_parts(metadata, logs)
+        .write_to(&mut log_container)
+        .map_err(|_| Error::Invalid(DiscardReason::Internal))?;
+
+    let mut envelope = Envelope::from_request(None, meta);
+    envelope.add_item(log_container);
+
+    let mut intermediates = Intermediates::default();
+    intermediates.add_envelope(envelope);
+
+    Ok(intermediates)
 }

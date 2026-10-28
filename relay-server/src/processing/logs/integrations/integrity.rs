@@ -2,20 +2,17 @@ use relay_cogs::AppFeature;
 use relay_conventions::attributes::SENTRY__RELAY__INGRESS;
 use relay_event_normalization::eap::Ingress;
 use relay_event_normalization::integrity;
-use relay_event_schema::protocol::OurLogHeader;
-use relay_event_schema::protocol::ourlog::container::{
-    ContainerMetadata, InferIp, InferUserAgent, IngestSettings,
-};
+use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_protocol::DeserializableAnnotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemContainer, ItemType, WithHeader};
+use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
+use crate::processing;
 use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
-use crate::processing::{Forward, Output};
+use crate::processing::{Forward, Intermediates, Output};
 use crate::services::outcome::DiscardReason;
-use crate::{Envelope, processing};
 
 /// The "output" of a [`IntegrityLogsIntegrationProcessor`].
 ///
@@ -68,7 +65,7 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let headers = envelope.envelope().headers().clone();
+        let meta = envelope.envelope().headers().meta().clone();
 
         let item = envelope.envelope_mut().take_item_by(|item| {
             matches!(
@@ -77,7 +74,7 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
             )
         })?;
 
-        let work = SerializedLogsIntegration { headers, item };
+        let work = SerializedLogsIntegration { meta, item };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -91,7 +88,7 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
         Ok(Output {
             main: None,
             metrics: None,
-            intermediates: Some(ManagedEnvelope::from(intermediates)),
+            intermediates: Some(intermediates),
         })
     }
 }
@@ -101,15 +98,15 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
 pub fn expand(
     work: SerializedLogsIntegration,
     records: &mut RecordKeeper,
-) -> Result<Box<Envelope>, Error> {
-    let SerializedLogsIntegration { mut headers, item } = work;
+) -> Result<Intermediates, Error> {
+    let SerializedLogsIntegration { meta, item } = work;
 
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
 
     let payload = item.payload();
-    let received_at = headers.meta().received_at();
+    let received_at = meta.received_at();
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
@@ -129,13 +126,7 @@ pub fn expand(
                 .get_or_insert_default()
                 .insert(SENTRY__RELAY__INGRESS, Ingress::Integration.to_string());
 
-            WithHeader {
-                header: Some(OurLogHeader {
-                    byte_size: Some(byte_size),
-                    other: Default::default(),
-                }),
-                value: log.into(),
-            }
+            WithHeader::just(log.into())
         })
         .collect();
 
@@ -150,23 +141,5 @@ pub fn expand(
         infer_ip: Some(InferIp::Never),
     };
 
-    let metadata = ContainerMetadata {
-        version: Some(2),
-        ingest_settings: Some(settings),
-    };
-
-    let mut log_container = Item::new(ItemType::Log);
-    ItemContainer::from_parts(metadata, logs)
-        .write_to(&mut log_container)
-        .map_err(|_| Error::Invalid(DiscardReason::Internal))?;
-
-    // The envelope comes from a trusted Relay (this one).
-    headers
-        .meta_mut()
-        .set_request_trust(crate::extractors::RequestTrust::Trusted);
-
-    Ok(Envelope::from_parts(
-        headers,
-        smallvec::smallvec![log_container],
-    ))
+    super::create_intermediates(meta, logs, settings)
 }
