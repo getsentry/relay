@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 
 ## 26.10.1

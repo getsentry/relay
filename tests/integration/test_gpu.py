@@ -1,12 +1,15 @@
 """Integration tests for the GPU crash split.
 
-Relay splits a minidump upload that carries an NVIDIA Aftermath GPU crash dump
+Relay splits a minidump or Unreal upload carrying an NVIDIA Aftermath GPU crash dump
 (`.nv-gpudmp`) into two events: the CPU crash (minidump) keeps the original event,
 and the GPU crash becomes a second, trace-connected event that carries a copy of the
 scope plus the `.nv-gpudmp` / `.nvdbg` attachments. Gated on the
 `organizations:gpu-crash-symbolication` feature.
 """
 
+import json
+import struct
+import zlib
 from uuid import UUID
 
 import msgpack
@@ -178,3 +181,72 @@ def test_gpu_crash_split_with_processing(
     gpu_names = {att["name"] for att in gpu_message.get("attachments", [])}
     assert {"crash.nv-gpudmp", "shader-abc.nvdbg"} <= gpu_names
     assert "minidump.dmp" not in gpu_names
+
+
+def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
+    relay = relay(mini_sentry)
+
+    scope = json.dumps(msgpack.unpackb(scope_attachment()[2]))
+    context = (
+        "<FGenericCrashContext>"
+        "<RuntimeProperties><CrashType>GPUCrash</CrashType></RuntimeProperties>"
+        f"<GameData><__sentry>{scope}</__sentry></GameData>"
+        "</FGenericCrashContext>"
+    ).encode()
+    files = [
+        (MINIDUMP[1], MINIDUMP[2].encode()),
+        ("CrashContext.runtime-xml", context),
+        (GPU_DUMP[1], GPU_DUMP[2]),
+        (SHADER_DBG[1], SHADER_DBG[2]),
+    ]
+
+    def unreal_string(value):
+        content = value.encode() + b"\0"
+        return struct.pack("<i", len(content)) + content
+
+    payload = b""
+    for index, (filename, content) in enumerate(files):
+        payload += (
+            struct.pack("<i", index)
+            + unreal_string(filename)
+            + struct.pack("<i", len(content))
+            + content
+        )
+    header = b"CR1" + unreal_string("crash") + unreal_string("crash.ue4crash")
+    header += struct.pack("<ii", len(header) + 8 + len(payload), len(files))
+
+    response = relay.send_unreal_request(project_id, zlib.compress(header + payload))
+    cpu_event_id = UUID(response.text.strip())
+
+    envelopes = [mini_sentry.get_captured_envelope() for _ in range(2)]
+    assert mini_sentry.captured_envelopes.empty()
+    cpu, gpu = None, None
+    for envelope in envelopes:
+        if "event.nv_gpudmp" in attachment_types(envelope):
+            gpu = envelope
+        else:
+            cpu = envelope
+    assert cpu is not None and gpu is not None
+
+    cpu_types = attachment_types(cpu)
+    assert "event.minidump" in cpu_types
+    assert "event.nv_gpudmp" not in cpu_types
+    assert "event.nv_shader_debug" not in cpu_types
+
+    gpu_types = attachment_types(gpu)
+    assert {"event.nv_gpudmp", "event.nv_shader_debug"} <= gpu_types
+    assert "event.minidump" not in gpu_types
+
+    assert UUID(cpu.headers["event_id"]) == cpu_event_id
+    assert cpu.headers["event_id"] != gpu.headers["event_id"]
+
+    cpu_event = cpu.get_event()
+    gpu_event = gpu.get_event()
+    assert gpu_event["release"] == "game@1.0.0"
+    assert gpu_event["environment"] == "prod"
+    assert gpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
+    assert gpu_event["tags"] == cpu_event["tags"]
+    assert cpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
