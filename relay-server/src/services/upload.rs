@@ -224,9 +224,7 @@ pub struct Create {
 /// The type used to stream a request body.
 pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 
-/// An upload stream with byte-count limits and throughput metrics.
-///
-/// Limits count request bytes when forwarding and decoded bytes when writing to objectstore.
+/// An upload stream with byte-count bounds and latency metrics.
 pub type UploadStream = BoundedStream<MeteredStream<ByteStream>>;
 
 // Keep the passthrough stream inline; only the existing encoder path needs a boxed stream.
@@ -258,11 +256,11 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
-    /// The upload body as received, before decompression or size validation.
+    /// Incoming upload bytes; TUS bodies retain their content encoding.
     pub stream: ByteStream,
     /// The source of the stream, used for latency labels and decompression accounting.
     pub source: StreamSource,
-    /// The body's compression codec, or `None` for decoded bytes.
+    /// The incoming compression codec, or `None` for uncompressed bytes.
     pub compression: Option<HttpCompression>,
     /// The upload mode to use, either Oneshot or Resumable.
     pub mode: UploadMode,

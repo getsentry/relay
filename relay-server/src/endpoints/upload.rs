@@ -290,7 +290,7 @@ async fn handle_post(
     Ok(response)
 }
 
-/// Preserves Tower's unsupported-encoding response for uploads that bypass decompression.
+/// Matches the decompression middleware's unsupported-encoding response.
 struct UnsupportedUploadEncoding;
 
 impl IntoResponse for UnsupportedUploadEncoding {

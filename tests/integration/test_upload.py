@@ -1494,7 +1494,7 @@ def compress_upload(data, encoding):
     import zstandard
 
     if encoding == "br":
-        # Precompressed versions of the fixed TUS payloads; no Python Brotli dependency needed.
+        # Precompressed Brotli fixtures for the fixed TUS payloads.
         return {
             FIRST_CHUNK: bytes.fromhex(
                 "1b2100f805e296d37af32a9112ca67fb1e4411461492104c91071e8deb641c61ed5d15fb01"
@@ -1772,7 +1772,6 @@ def test_compressed_upload_processing_chain(
     concatenated,
     case: UploadCase,
 ):
-    """Forwarding, decoded offsets, stored content, and attachment-byte accounting."""
     project_key = mini_sentry.get_dsn_public_key(42)
     project_config["quotas"] = [
         {

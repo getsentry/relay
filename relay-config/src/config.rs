@@ -861,7 +861,7 @@ impl HttpEncoding {
     }
 }
 
-/// A compression codec. Unlike [`HttpEncoding`], this cannot describe decoded bytes.
+/// A non-identity HTTP compression codec.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HttpCompression {
     /// Zlib-wrapped DEFLATE compression.
@@ -875,7 +875,7 @@ pub enum HttpCompression {
 }
 
 impl HttpCompression {
-    /// Classifies an encoding exhaustively, preserving the codec when it is compressed.
+    /// Returns `None` for identity encoding.
     pub fn from_encoding(encoding: HttpEncoding) -> Option<Self> {
         match encoding {
             HttpEncoding::Identity => None,
