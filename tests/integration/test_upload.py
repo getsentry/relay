@@ -1542,11 +1542,12 @@ def test_compressed_upload_passthrough(
     chunked,
     processing,
 ):
-    """Forwarders preserve opaque bytes, including larger or malformed compressed bodies."""
+    """Forwarders preserve opaque bytes within the limit, including malformed bodies."""
     mini_sentry.allow_chunked = True
     data = b"hello world"
     compressed = case.data
     assert len(compressed) != len(data)
+    max_upload_size = max(len(compressed), len(data))
     received = []
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -1564,7 +1565,7 @@ def test_compressed_upload_passthrough(
     # Neither hop's configured output encoding may replace the incoming encoding.
     options = {
         "http": {"encoding": "zstd"},
-        "limits": {"max_upload_size": len(data)},
+        "limits": {"max_upload_size": max_upload_size},
     }
     if processing:
         # Processing alone must not trigger decoding: this Relay still forwards uploads.
@@ -1578,7 +1579,7 @@ def test_compressed_upload_passthrough(
         upstream,
         options={
             "http": {"encoding": "gzip"},
-            "limits": {"max_upload_size": len(data)},
+            "limits": {"max_upload_size": max_upload_size},
         },
     )
     # An accepted event confirms that both hops have loaded global/project config.
@@ -1604,6 +1605,97 @@ def test_compressed_upload_passthrough(
     assert headers["Content-Encoding"] == case.encoding
     assert headers["X-Decoded-Content-Length"] == str(len(data))
     assert headers["Upload-Offset"] == "0"
+
+
+@dataclass(frozen=True, kw_only=True)
+class UploadLimitCase:
+    id: str
+    data: bytes
+    max_upload_size: int
+    chunked: bool
+    expected_status: int
+
+
+@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        UploadLimitCase(
+            id="compressed-fixed",
+            data=b"hello world",
+            max_upload_size=11,
+            chunked=False,
+            expected_status=413,
+        ),
+        UploadLimitCase(
+            id="compressed-chunked",
+            data=b"hello world",
+            max_upload_size=11,
+            chunked=True,
+            expected_status=400,
+        ),
+        UploadLimitCase(
+            id="decoded-fixed",
+            data=b"x" * 1024,
+            max_upload_size=64,
+            chunked=False,
+            expected_status=400,
+        ),
+        UploadLimitCase(
+            id="decoded-chunked",
+            data=b"x" * 1024,
+            max_upload_size=64,
+            chunked=True,
+            expected_status=400,
+        ),
+    ],
+    ids=lambda case: case.id,
+)
+def test_compressed_upload_size_limits(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    encoding,
+    case: UploadLimitCase,
+):
+    """Forwarders bound wire bytes; storage bounds decoded bytes, even without Content-Length."""
+    mini_sentry.fail_on_relay_error = False
+    project_key = mini_sentry.get_dsn_public_key(42)
+    options = {"limits": {"max_upload_size": case.max_upload_size}}
+    storage = relay_with_processing(options=options)
+    edge = relay(storage, options=options)
+    consumer = events_consumer()
+    edge.send_event(42)
+    consumer.get_event()
+
+    # Defer the length so creation does not reject before we exercise the body limits.
+    create = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Defer-Length": "1"},
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    compressed = compress_upload(case.data, encoding)
+    # Exactly one representation exceeds the cap, isolating wire and decoded limits.
+    sizes = (len(compressed), len(case.data))
+    assert min(sizes) <= case.max_upload_size < max(sizes)
+    response = edge.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Content-Encoding": encoding,
+            "X-Decoded-Content-Length": str(len(case.data)),
+            "Upload-Offset": "0",
+        },
+        data=iter([compressed[:5], compressed[5:]]) if case.chunked else compressed,
+    )
+    assert response.status_code == case.expected_status, response.text
+    progress = head_upload(edge, location, project_key)
+    assert progress.status_code == 204, progress.text
+    assert progress.headers["Upload-Offset"] == "0"
 
 
 @dataclass(frozen=True, kw_only=True)

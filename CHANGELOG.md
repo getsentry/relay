@@ -21,7 +21,7 @@
 
 **Internal**:
 
-- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage. ([#6572](https://github.com/getsentry/relay/pull/6572))
 - Fix missing rejection outcomes and debug accounting panics when crash attachments are rate-limited. ([#6568](https://github.com/getsentry/relay/pull/6568))
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
 - Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))

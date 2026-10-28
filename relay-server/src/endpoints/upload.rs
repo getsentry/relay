@@ -109,16 +109,9 @@ fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
                 let handler = move |state, meta, headers, path, params, body| {
                     handle_patch(state, meta, headers, path, params, body, compression)
                 };
-                let limit = match compression {
-                    None => max_upload_size,
-                    // Compressing an 11-byte payload can produce more than 11 bytes of output.
-                    // max_upload_size limits decoded bytes, enforced after decompression upstream.
-                    // Forwarding has no separate compressed-byte cap; this disables the local limit.
-                    Some(_) => usize::MAX,
-                };
                 middleware
                     .map_response(IntoResponse::into_response)
-                    .layer(RequestBodyLimitLayer::new(limit))
+                    .layer(RequestBodyLimitLayer::new(max_upload_size))
                     .service(handler.with_state(state))
                     .oneshot(request)
                     .await
@@ -400,9 +393,8 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match compression {
-        // Only the objectstore Relay can validate the decoded length. Compressed bytes may
-        // exceed max_upload_size even when their decoded representation fits.
-        Some(_) => (0, usize::MAX),
+        // Bound compressed bytes here; the objectstore Relay validates decoded bytes separately.
+        Some(_) => (0, config.max_upload_size()),
         None => match upload_mode {
             UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
             UploadMode::Oneshot {
