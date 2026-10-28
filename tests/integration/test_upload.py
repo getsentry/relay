@@ -1493,6 +1493,20 @@ def compress_upload(data, encoding):
     import zlib
     import zstandard
 
+    if encoding == "br":
+        # Precompressed versions of the fixed TUS payloads; no Python Brotli dependency needed.
+        return {
+            FIRST_CHUNK: bytes.fromhex(
+                "1b2100f805e296d37af32a9112ca67fb1e4411461492104c91071e8deb641c61ed5d15fb01"
+            ),
+            SECOND_CHUNK: bytes.fromhex(
+                "1b1900f8c5636c5dfb3ba42cb210496c29706a221bf506f39007"
+            ),
+            RESUMABLE_DATA: bytes.fromhex(
+                "1b3b008004649bd7bbfb155114b1a0f20b1c72e0f0159d02c5c021077afe2ad0e0a331abd88e70ec4e6748937f6894fe88583e"
+            ),
+        }[data]
+
     return {
         "zstd": zstandard.ZstdCompressor(write_checksum=True).compress,
         "gzip": gzip.compress,
@@ -1617,6 +1631,7 @@ class UploadLimitCase:
 
 
 @pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+@pytest.mark.parametrize("direct_storage", [False, True])
 @pytest.mark.parametrize(
     "case",
     [
@@ -1658,14 +1673,15 @@ def test_compressed_upload_size_limits(
     project_config,
     events_consumer,
     encoding,
+    direct_storage,
     case: UploadLimitCase,
 ):
-    """Forwarders bound wire bytes; storage bounds decoded bytes, even without Content-Length."""
+    """Bound wire bytes at every hop and decoded bytes at storage, with or without Content-Length."""
     mini_sentry.fail_on_relay_error = False
     project_key = mini_sentry.get_dsn_public_key(42)
     options = {"limits": {"max_upload_size": case.max_upload_size}}
     storage = relay_with_processing(options=options)
-    edge = relay(storage, options=options)
+    edge = storage if direct_storage else relay(storage, options=options)
     consumer = events_consumer()
     edge.send_event(42)
     consumer.get_event()
@@ -1706,7 +1722,16 @@ class UploadCase:
     chunks: list[tuple[bytes, int]]
 
 
-@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+@pytest.mark.parametrize(
+    "encoding,concatenated",
+    [
+        pytest.param("zstd", False, id="zstd"),
+        pytest.param("gzip", False, id="gzip"),
+        pytest.param("deflate", False, id="deflate"),
+        pytest.param("br", False, id="br"),
+        pytest.param("zstd", True, id="zstd-concatenated"),
+    ],
+)
 @pytest.mark.parametrize(
     "case",
     [
@@ -1744,6 +1769,7 @@ def test_compressed_upload_processing_chain(
     outcomes_consumer,
     objectstore,
     encoding,
+    concatenated,
     case: UploadCase,
 ):
     """Forwarding, decoded offsets, stored content, and attachment-byte accounting."""
@@ -1776,11 +1802,18 @@ def test_compressed_upload_processing_chain(
     location = create.headers["Location"]
     offset = 0
     for chunk, expected_offset in case.chunks:
+        if concatenated:
+            midpoint = len(chunk) // 2
+            compressed = compress_upload(chunk[:midpoint], encoding) + compress_upload(
+                chunk[midpoint:], encoding
+            )
+        else:
+            compressed = compress_upload(chunk, encoding)
         response = patch_chunk(
             edge,
             location,
             project_key,
-            compress_upload(chunk, encoding),
+            compressed,
             offset,
             headers={
                 "Content-Encoding": encoding,

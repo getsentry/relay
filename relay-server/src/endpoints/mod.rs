@@ -31,6 +31,7 @@ mod upload;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{Router, any, get, post};
+use relay_config::ConfigSnapshot;
 
 use crate::middlewares;
 use crate::service::ServiceState;
@@ -43,7 +44,7 @@ const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 ///
 /// This includes [`public_routes`] as well as [`internal_routes`].
 pub fn all_routes(service: &ServiceState) -> Router<ServiceState> {
-    public_routes_raw(service).merge(internal_routes(service))
+    public_routes_raw(&service.config()).merge(internal_routes(service))
 }
 
 /// Relay's internal routes.
@@ -64,15 +65,14 @@ pub fn internal_routes(_: &ServiceState) -> Router<ServiceState>{
 /// Routes which are public API and must be exposed.
 pub fn public_routes(service: &ServiceState) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
-    public_routes_raw(service).route(
+    public_routes_raw(&service.config()).route(
         "/api/relay/{*not_found}",
         any(statics::not_found).layer(axum::middleware::from_fn(middlewares::decompress)),
     )
 }
 
 #[rustfmt::skip]
-fn public_routes_raw(service: &ServiceState) -> Router<ServiceState> {
-    let config = &service.config();
+fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
     // Sentry Web API routes pointing to /api/0/relays/
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
@@ -133,5 +133,5 @@ fn public_routes_raw(service: &ServiceState) -> Router<ServiceState> {
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)
         .layer(axum::middleware::from_fn(middlewares::decompress))
-        .route(UPLOAD_PATCH_PATH, upload::route(service))
+        .route(UPLOAD_PATCH_PATH, upload::route(config))
 }

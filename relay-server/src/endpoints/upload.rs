@@ -5,15 +5,15 @@
 //!
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
-use std::convert::Infallible;
 use std::io;
 
+use axum::Extension;
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Query, Request};
-use axum::handler::Handler;
 use axum::http::{HeaderMap, StatusCode};
+use axum::middleware::Next;
 use axum::response::{IntoResponse, NoContent, Response};
-use axum::routing::{MethodRouter, head as axum_head, patch, patch_service, post};
+use axum::routing::{MethodRouter, head as axum_head, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
@@ -21,7 +21,6 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::{ConfigSnapshot, HttpCompression, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
-use tower::{ServiceBuilder, ServiceExt, service_fn};
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
@@ -42,8 +41,7 @@ use crate::services::upload::{
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
 use crate::utils::tus::PatchHeaders;
-use crate::utils::{ApiErrorResponse, MeteredStream};
-use crate::utils::{BoundedStream, find_error_source, tus};
+use crate::utils::{ApiErrorResponse, find_error_source, tus};
 
 /// Header advertising the minimum chunk size to clients.
 ///
@@ -62,7 +60,7 @@ pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         .route_layer(tus::resumable_header_layer())
 }
 
-pub fn route(service: &ServiceState) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     let head = axum_head(handle_head)
         .route_layer(tus::resumable_header_layer())
         .route_layer(tus::no_store_layer())
@@ -71,53 +69,26 @@ pub fn route(service: &ServiceState) -> MethodRouter<ServiceState> {
 
     // Axum keeps the right-hand default method fallback. Preserve its decompression so
     // unsupported methods with unsupported encodings still return 415 before 405.
-    route_patch(service).merge(head)
+    route_patch(config).merge(head)
 }
 
-fn route_patch(service: &ServiceState) -> MethodRouter<ServiceState> {
-    let config = service.config();
-    #[cfg(feature = "processing")]
-    let has_objectstore = service.objectstore().is_some();
-    #[cfg(not(feature = "processing"))]
-    let has_objectstore = false;
+fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+    patch(handle_patch)
+        .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
+        .route_layer(DefaultBodyLimit::disable())
+        .route_layer(tus::resumable_header_layer())
+        .route_layer(crate::middlewares::cors())
+        // Reject unsupported encodings before limits, auth, CORS, and TUS.
+        .layer(axum::middleware::from_fn(validate_upload_encoding))
+}
 
-    // Match the upload backend selected at startup. If backend switching becomes dynamic,
-    // rebuild this route too: the decoded handler relies on its decompression layer.
-    let middleware = ServiceBuilder::new()
-        .layer(crate::middlewares::cors())
-        .layer(tus::resumable_header_layer())
-        .layer(DefaultBodyLimit::disable());
-    let max_upload_size = config.max_upload_size();
-    if has_objectstore {
-        patch(|state, meta, headers, path, params, body| {
-            handle_patch(state, meta, headers, path, params, body, None)
-        })
-        .route_layer(RequestBodyLimitLayer::new(max_upload_size))
-        .route_layer(middleware)
-        .layer(axum::middleware::from_fn(crate::middlewares::decompress))
-    } else {
-        let state = service.clone();
-        patch_service(service_fn(move |request: Request| {
-            let state = state.clone();
-            let middleware = middleware.clone();
-            async move {
-                // Match the decoder's rejection order, before limits, auth, CORS, and TUS.
-                let compression = match upload_compression(request.headers()) {
-                    Ok(compression) => compression,
-                    Err(error) => return Ok::<_, Infallible>(error.into_response()),
-                };
-                let handler = move |state, meta, headers, path, params, body| {
-                    handle_patch(state, meta, headers, path, params, body, compression)
-                };
-                middleware
-                    .map_response(IntoResponse::into_response)
-                    .layer(RequestBodyLimitLayer::new(max_upload_size))
-                    .service(handler.with_state(state))
-                    .oneshot(request)
-                    .await
-            }
-        }))
-    }
+async fn validate_upload_encoding(
+    mut request: Request,
+    next: Next,
+) -> Result<Response, UnsupportedUploadEncoding> {
+    let compression = upload_compression(request.headers())?;
+    request.extensions_mut().insert(compression);
+    Ok(next.run(request).await)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -349,16 +320,14 @@ fn upload_compression(
 /// Handles TUS PATCH requests that upload data to an existing location.
 ///
 /// See <https://tus.io/protocols/resumable-upload#patch>.
-///
-/// Shared validation and dispatch. The selected handler supplies the body representation.
 async fn handle_patch(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(location_params): Query<LocationQueryParams>,
+    Extension(compression): Extension<Option<HttpCompression>>,
     body: Body,
-    compression: Option<HttpCompression>,
 ) -> axum::response::Result<Response> {
     let LocationQueryParams {
         upload_length,
@@ -379,7 +348,6 @@ async fn handle_patch(
     let upload_mode = upload_mode(&kind, upload_offset, decoded_content_length)?;
     let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
-    let config = state.config();
     let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
@@ -389,23 +357,6 @@ async fn handle_patch(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    // Measure stream latency before any outgoing compression.
-    let stream = MeteredStream::new(stream, "upload");
-
-    let (lower_bound, upper_bound) = match compression {
-        // Bound compressed bytes here; the objectstore Relay validates decoded bytes separately.
-        Some(_) => (0, config.max_upload_size()),
-        None => match upload_mode {
-            UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
-            UploadMode::Oneshot {
-                length: Some(length),
-            } => (length, length),
-            UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
-        },
-    };
-    // Count wire bytes when forwarding, decoded bytes for objectstore.
-    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-
     relay_log::trace!("Uploading");
     let result = upload(
         &state,
@@ -414,6 +365,7 @@ async fn handle_patch(
             project: project_context,
             location,
             stream,
+            source: upload::StreamSource::Tus,
             compression,
             mode: upload_mode,
         },
@@ -722,8 +674,11 @@ fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
+
     use axum::body::to_bytes;
     use axum::http::HeaderValue;
+    use tower::{ServiceExt, service_fn};
     use tower_http::decompression::RequestDecompression;
 
     use super::*;

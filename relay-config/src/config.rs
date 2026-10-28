@@ -622,8 +622,8 @@ pub struct Limits {
     pub max_attachments_size: ByteSize,
     /// The maximum size for a TUS upload request body.
     ///
-    /// Applies to compressed bytes when forwarding and decoded bytes when writing to objectstore.
-    /// Compression overhead can therefore make an otherwise valid decoded body exceed this limit.
+    /// Applies to incoming request bytes at every hop and also to decoded bytes when writing to
+    /// objectstore.
     pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,

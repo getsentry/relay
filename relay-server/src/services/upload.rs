@@ -226,11 +226,29 @@ pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 
 /// An upload stream with byte-count limits and throughput metrics.
 ///
-/// Limits count compressed bytes for passthrough uploads and decoded bytes otherwise.
+/// Limits count request bytes when forwarding and decoded bytes when writing to objectstore.
 pub type UploadStream = BoundedStream<MeteredStream<ByteStream>>;
 
 // Keep the passthrough stream inline; only the existing encoder path needs a boxed stream.
 type PreparedStream = Either<ByteStream, UploadStream>;
+
+/// Where an upload stream originated, including whether HTTP already metered decoding.
+#[derive(Clone, Copy)]
+pub enum StreamSource {
+    /// A TUS request body, with its original content encoding.
+    Tus,
+    /// A decoded multipart field, with its latency metric label.
+    Multipart(&'static str),
+}
+
+impl StreamSource {
+    fn referrer(self) -> &'static str {
+        match self {
+            Self::Tus => "upload",
+            Self::Multipart(referrer) => referrer,
+        }
+    }
+}
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
@@ -240,8 +258,10 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
-    /// The upload body, with byte-count limits and throughput metrics.
-    pub stream: UploadStream,
+    /// The upload body as received, before decompression or size validation.
+    pub stream: ByteStream,
+    /// The source of the stream, used for latency labels and decompression accounting.
+    pub source: StreamSource,
     /// The body's compression codec, or `None` for decoded bytes.
     pub compression: Option<HttpCompression>,
     /// The upload mode to use, either Oneshot or Resumable.
@@ -556,12 +576,19 @@ impl Service {
             project,
             location,
             stream,
+            source,
             compression,
             mode,
         } = stream;
+        let referrer = source.referrer();
         match &self.backend {
             Backend::Upstream { addr, config } => {
                 let uri = location.try_to_uri()?;
+                let stream = BoundedStream::new(
+                    MeteredStream::new(stream, referrer),
+                    0,
+                    config.current().max_upload_size(),
+                );
                 let (stream, encoding) = match compression {
                     Some(codec) => (Either::Right(stream), codec.encoding()),
                     None => {
@@ -579,13 +606,21 @@ impl Service {
                 use crate::services::objectstore::{StreamContext, UploadRef};
                 use objectstore_client::SessionToken;
 
-                match compression {
-                    None => {}
-                    Some(_) => {
-                        return Err(Error::InvalidInput("objectstore requires a decoded upload"));
-                    }
-                };
                 let config = config.current();
+                let stream = BoundedStream::new(stream, 0, config.max_upload_size());
+                let stream = decode_body(stream, compression, source).await;
+                let (lower_bound, upper_bound) = match mode {
+                    UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+                    UploadMode::Oneshot {
+                        length: Some(length),
+                    } => (length, length),
+                    UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
+                };
+                let stream = BoundedStream::new(
+                    MeteredStream::new(stream, referrer),
+                    lower_bound,
+                    upper_bound.min(config.max_upload_size()),
+                );
 
                 let Location {
                     project_id,
@@ -621,11 +656,7 @@ impl Service {
                     }
                 };
 
-                let UploadRef {
-                    key,
-                    session_token,
-                    offset,
-                } = addr
+                let result = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
@@ -633,8 +664,13 @@ impl Service {
                         retention: project.retention,
                         stream,
                     })
-                    .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                    .await;
+
+                let UploadRef {
+                    key,
+                    session_token,
+                    offset,
+                } = result.map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 // If the location contains a length, communicate that back as is. If it doesn't
                 // (because it is a oneshot upload) derive the length based on the offset (progress).
@@ -1287,9 +1323,89 @@ fn encode_body(stream: UploadStream, encoding: HttpEncoding) -> PreparedStream {
     })
 }
 
+#[cfg(feature = "processing")]
+async fn decode_body(
+    stream: impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin + 'static,
+    compression: Option<HttpCompression>,
+    source: StreamSource,
+) -> ByteStream {
+    if matches!(source, StreamSource::Multipart(_)) {
+        return stream.boxed();
+    }
+    use http_body_util::BodyExt;
+
+    let body =
+        http_body_util::StreamBody::new(stream.map(|result| result.map(hyper::body::Frame::data)));
+    let mut request = http::Request::new(body);
+    if let Some(codec) = compression {
+        request.headers_mut().insert(
+            http::header::CONTENT_ENCODING,
+            HeaderValue::from_static(codec.encoding().name().unwrap()),
+        );
+    }
+    let request = crate::middlewares::decompress_request(request, UPLOAD_PATCH_PATH.into())
+        .await
+        .expect("the upload encoding has already been validated");
+    request
+        .into_body()
+        .into_data_stream()
+        .map(|result| result.map_err(std::io::Error::other))
+        .boxed()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn decode_body_metrics_by_source() {
+        use futures::TryStreamExt;
+        use std::io::Write;
+
+        let data = Bytes::from_static(b"hello world");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&data).unwrap();
+        let compressed = Bytes::from(encoder.finish().unwrap());
+        let expected_ratio = data.len() as f64 / compressed.len() as f64;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        for (source, compression, input, ratio) in [
+            (
+                StreamSource::Tus,
+                Some(HttpCompression::Gzip),
+                compressed,
+                Some(expected_ratio),
+            ),
+            (StreamSource::Tus, None, data.clone(), Some(1.0)),
+            (
+                StreamSource::Multipart("attachment"),
+                None,
+                data.clone(),
+                None,
+            ),
+        ] {
+            let captures = relay_statsd::with_capturing_test_client(|| {
+                runtime.block_on(async {
+                    let stream = futures::stream::iter([Ok(input)]);
+                    let chunks: Vec<Bytes> = decode_body(stream, compression, source)
+                        .await
+                        .try_collect()
+                        .await
+                        .unwrap();
+                    assert_eq!(chunks.concat(), data);
+                });
+            });
+            let encoding = compression
+                .and_then(|codec| codec.encoding().name())
+                .unwrap_or("other");
+            let expected: Vec<_> = ratio.into_iter().map(|ratio| {
+                format!("requests.decompression_ratio:{ratio}|d|#route:{UPLOAD_PATCH_PATH},content_encoding:{encoding}")
+            }).collect();
+            assert_eq!(captures, expected);
+        }
+    }
 
     fn project() -> ProjectContext {
         ProjectContext {
