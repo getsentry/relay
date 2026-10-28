@@ -6,7 +6,8 @@ use std::collections::{HashMap, HashSet};
 
 use bytes::Bytes;
 use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::value::RawValue;
 
 use crate::sample;
 
@@ -57,18 +58,59 @@ pub enum Error {
     TraversalLimit,
 }
 
+/// A validated flame graph with borrowed source data for selected frames and debug images.
 #[derive(Deserialize, Serialize)]
-struct Graph {
+pub struct Graph<'a> {
     version: String,
     platform: String,
-    frames: Vec<Frame>,
+    #[serde(borrow)]
+    frames: Vec<Source<'a, Frame>>,
     nodes: Vec<Node>,
     trees: Vec<Tree>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    debug_meta: Option<sample::DebugMeta>,
+    #[serde(borrow)]
+    debug_meta: Option<Source<'a, sample::DebugMeta>>,
 }
 
-impl Graph {
+/// Retain source fields for event enrichment while validating the profiling schema.
+struct Source<'a, T> {
+    raw: &'a RawValue,
+    parsed: T,
+}
+
+impl<'de: 'a, 'a, T: Deserialize<'de>> Deserialize<'de> for Source<'a, T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = <&'de RawValue>::deserialize(deserializer)?;
+        let parsed = serde_json::from_str(raw.get()).map_err(serde::de::Error::custom)?;
+        Ok(Self { raw, parsed })
+    }
+}
+
+impl<T: Serialize> Serialize for Source<'_, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.parsed.serialize(serializer)
+    }
+}
+
+impl<T> std::ops::Deref for Source<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.parsed
+    }
+}
+
+impl Graph<'_> {
+    /// Original JSON for a selected frame.
+    pub fn frame(&self, index: usize) -> &RawValue {
+        self.frames[index].raw
+    }
+
+    /// Original debug metadata, including event-specific image fields.
+    pub fn debug_meta(&self) -> Option<&RawValue> {
+        self.debug_meta.as_ref().map(|meta| meta.raw)
+    }
+
     fn node(&self, index: usize) -> Result<&Node, Error> {
         self.nodes.get(index).ok_or(Error::NodeIndex(index))
     }
@@ -107,7 +149,8 @@ pub fn validate(payload: &[u8]) -> Result<Bytes, Error> {
     Ok(serialized.into())
 }
 
-fn parse(payload: &[u8]) -> Result<Graph, Error> {
+/// Parse and validate an attachment for reuse during normalization and enrichment.
+pub fn parse(payload: &[u8]) -> Result<Graph<'_>, Error> {
     if payload.len() > MAX_FLAMEGRAPH_SIZE {
         return Err(Error::AttachmentTooLarge);
     }
@@ -192,6 +235,8 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
 
 /// Identify a representative caller-to-callee path, expressed as frame-table indices.
 ///
+/// Retain the first 50 and last 200 frames, matching event stacktrace trimming.
+///
 /// Like the `AnrCulpritIdentifier` in the Android SDK, this scores identical root-to-frame prefixes by
 /// `sample_count * (depth + application_frames)`. Node counts are inclusive, so they already
 /// include the observations ending in descendants. Explicit `in_app: true` supplies the app boost.
@@ -200,114 +245,137 @@ fn parse(payload: &[u8]) -> Result<Graph, Error> {
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
 /// the first path in input order. The attachment itself remains unchanged. Graphs whose expanded
 /// paths exceed a traversal budget linear in nodes, child edges, and roots are rejected.
-pub fn identify_culprit(payload: &[u8]) -> Result<Vec<usize>, Error> {
-    let graph = parse(payload)?;
+pub struct Culprit {
+    /// Retained frame-table indices in caller-to-callee order.
+    pub frames: Vec<usize>,
+    /// Number of frames before middle-frame trimming.
+    pub original_len: usize,
+}
 
-    // A producer may emit duplicate frame-table entries. Intern their known frame data once,
-    // rather than copying or hashing entire paths at every node.
-    let mut frames = HashMap::new();
-    let mut frame_ids = Vec::with_capacity(graph.frames.len());
-    for (index, frame) in graph.frames.iter().enumerate() {
-        let key = (&frame.frame, frame.addr_mode.as_deref().unwrap_or("abs"));
-        frame_ids.push(*frames.entry(key).or_insert(index));
-    }
+impl Graph<'_> {
+    /// Select the bounded culprit path from this validated graph without reparsing it.
+    pub fn identify_culprit(&self) -> Result<Culprit, Error> {
+        let graph = self;
 
-    struct Prefix {
-        parent: Option<usize>,
-        frame_id: usize,
-        depth: usize,
-        app_frames: usize,
-        samples: u128,
-    }
+        // A producer may emit duplicate frame-table entries. Intern their known frame data once,
+        // rather than copying or hashing entire paths at every node.
+        let mut frames = HashMap::new();
+        let mut frame_ids = Vec::with_capacity(graph.frames.len());
+        for (index, frame) in graph.frames.iter().enumerate() {
+            let key = (&frame.frame, frame.addr_mode.as_deref().unwrap_or("abs"));
+            frame_ids.push(*frames.entry(key).or_insert(index));
+        }
 
-    let has_attributed_tree = graph
-        .trees
-        .iter()
-        .any(|tree| tree.thread_attributed == Some(true));
-    // Shared nodes and repeated edges can expand exponentially when materialized as paths.
-    // Bound total visits across all trees by the size of the serialized graph structure.
-    let mut remaining_visits = graph.nodes.len()
-        + graph
-            .nodes
-            .iter()
-            .map(|node| node.children.len())
-            .sum::<usize>()
-        + graph
+        struct Prefix {
+            parent: Option<usize>,
+            frame_id: usize,
+            depth: usize,
+            app_frames: usize,
+            samples: u128,
+        }
+
+        let has_attributed_tree = graph
             .trees
             .iter()
-            .map(|tree| tree.roots.len())
-            .sum::<usize>();
-    let mut best_score = 0;
-    let mut best_path = Vec::new();
-    for tree in &graph.trees {
-        if has_attributed_tree && tree.thread_attributed != Some(true) {
-            continue;
-        }
-        remaining_visits = remaining_visits
-            .checked_sub(tree.roots.len())
-            .ok_or(Error::TraversalLimit)?;
+            .any(|tree| tree.thread_attributed == Some(true));
+        // Shared nodes and repeated edges can expand exponentially when materialized as paths.
+        // Bound total visits across all trees by the size of the serialized graph structure.
+        let mut remaining_visits = graph.nodes.len()
+            + graph
+                .nodes
+                .iter()
+                .map(|node| node.children.len())
+                .sum::<usize>()
+            + graph
+                .trees
+                .iter()
+                .map(|tree| tree.roots.len())
+                .sum::<usize>();
+        let mut best_score = 0;
+        let mut best_path = Culprit {
+            frames: Vec::new(),
+            original_len: 0,
+        };
         let mut prefixes = HashMap::new();
         let mut candidates: Vec<Prefix> = Vec::new();
-        let mut pending: Vec<_> = tree.roots.iter().rev().map(|node| (node, None)).collect();
-        while let Some((node_index, parent)) = pending.pop() {
-            let node = graph.node(*node_index)?;
-            let frame_id = frame_ids[node.frame_id];
-            let prefix = *prefixes.entry((parent, frame_id)).or_insert_with(|| {
-                let (depth, app_frames) = parent
-                    .map(|parent: usize| {
-                        let prefix = &candidates[parent];
-                        (prefix.depth, prefix.app_frames)
-                    })
-                    .unwrap_or_default();
-                let index = candidates.len();
-                candidates.push(Prefix {
-                    parent,
-                    frame_id,
-                    depth: depth + 1,
-                    app_frames: app_frames
-                        + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
-                    samples: 0,
-                });
-                index
-            });
-            if candidates[prefix].depth > graph.nodes.len() {
-                return Err(Error::CyclicCallPath);
+        let mut pending = Vec::new();
+        for tree in &graph.trees {
+            if has_attributed_tree && tree.thread_attributed != Some(true) {
+                continue;
             }
-            candidates[prefix].samples += u128::from(node.sample_count);
             remaining_visits = remaining_visits
-                .checked_sub(node.children.len())
+                .checked_sub(tree.roots.len())
                 .ok_or(Error::TraversalLimit)?;
-            pending.extend(
-                node.children
-                    .iter()
-                    .rev()
-                    .map(|child| (child, Some(prefix))),
-            );
-        }
+            prefixes.clear();
+            candidates.clear();
+            pending.clear();
+            pending.extend(tree.roots.iter().rev().map(|node| (node, None)));
+            while let Some((node_index, parent)) = pending.pop() {
+                let node = graph.node(*node_index)?;
+                let frame_id = frame_ids[node.frame_id];
+                let prefix = *prefixes.entry((parent, frame_id)).or_insert_with(|| {
+                    let (depth, app_frames) = parent
+                        .map(|parent: usize| {
+                            let prefix = &candidates[parent];
+                            (prefix.depth, prefix.app_frames)
+                        })
+                        .unwrap_or_default();
+                    let index = candidates.len();
+                    candidates.push(Prefix {
+                        parent,
+                        frame_id,
+                        depth: depth + 1,
+                        app_frames: app_frames
+                            + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
+                        samples: 0,
+                    });
+                    index
+                });
+                if candidates[prefix].depth > graph.nodes.len() {
+                    return Err(Error::CyclicCallPath);
+                }
+                candidates[prefix].samples += u128::from(node.sample_count);
+                remaining_visits = remaining_visits
+                    .checked_sub(node.children.len())
+                    .ok_or(Error::TraversalLimit)?;
+                pending.extend(
+                    node.children
+                        .iter()
+                        .rev()
+                        .map(|child| (child, Some(prefix))),
+                );
+            }
 
-        // Integer scores retain differences near the maximum safe JSON sample count. The input
-        // byte limit bounds the number of nodes and path depth, so u128 also bounds aggregation.
-        let mut best_prefix = None;
-        for (index, prefix) in candidates.iter().enumerate() {
-            let score = prefix.samples * (prefix.depth + prefix.app_frames) as u128;
-            if score > best_score {
-                best_score = score;
-                best_prefix = Some(index);
+            // Integer scores retain differences near the maximum safe JSON sample count. The input
+            // byte limit bounds the number of nodes and path depth, so u128 also bounds aggregation.
+            let mut best_prefix = None;
+            for (index, prefix) in candidates.iter().enumerate() {
+                let score = prefix.samples * (prefix.depth + prefix.app_frames) as u128;
+                if score > best_score {
+                    best_score = score;
+                    best_prefix = Some(index);
+                }
+            }
+            if let Some(index) = best_prefix {
+                let depth = candidates[index].depth;
+                let mut path = Vec::with_capacity(depth.min(250));
+                let mut current = Some(index);
+                while let Some(index) = current {
+                    let prefix = &candidates[index];
+                    if prefix.depth <= 50 || prefix.depth > depth.saturating_sub(200) {
+                        path.push(prefix.frame_id);
+                    }
+                    current = prefix.parent;
+                }
+                path.reverse();
+                best_path = Culprit {
+                    frames: path,
+                    original_len: depth,
+                };
             }
         }
-        if let Some(index) = best_prefix {
-            let mut path = Vec::new();
-            let mut current = Some(index);
-            while let Some(index) = current {
-                let prefix = &candidates[index];
-                path.push(prefix.frame_id);
-                current = prefix.parent;
-            }
-            path.reverse();
-            best_path = path;
-        }
+        Ok(best_path)
     }
-    Ok(best_path)
 }
 
 #[cfg(test)]
@@ -316,7 +384,9 @@ mod tests {
     use serde_json::json;
 
     fn identify(graph: serde_json::Value) -> Result<Vec<usize>, Error> {
-        identify_culprit(&serde_json::to_vec(&graph).unwrap())
+        Ok(parse(&serde_json::to_vec(&graph).unwrap())?
+            .identify_culprit()?
+            .frames)
     }
 
     fn culprit_graph() -> serde_json::Value {
@@ -461,7 +531,7 @@ mod tests {
         let nodes: Vec<_> = (0..depth)
             .map(|index| {
                 json!({
-                    "frame_id": 0,
+                    "frame_id": index,
                     "sample_count": 1,
                     "children": if index + 1 < depth { vec![index + 1] } else { vec![] }
                 })
@@ -469,14 +539,16 @@ mod tests {
             .collect();
         let mut graph = json!({
             "version": "1", "platform": "cocoa",
-            "frames": [{"instruction_addr": "0x1000"}],
+            "frames": (0..depth).map(|index| json!({
+                "instruction_addr": format!("0x{:x}", 0x1000 + index)
+            })).collect::<Vec<_>>(),
             "nodes": nodes,
             "trees": [{"roots": [0]}]
         });
         validate(&serde_json::to_vec(&graph).unwrap()).unwrap();
         assert_eq!(
-            identify_culprit(&serde_json::to_vec(&graph).unwrap()).unwrap(),
-            vec![0; depth]
+            identify(graph.clone()).unwrap(),
+            (0..50).chain(800..1000).collect::<Vec<_>>()
         );
 
         graph["nodes"][depth - 1]["sample_count"] = json!(0);

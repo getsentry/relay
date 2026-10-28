@@ -925,12 +925,16 @@ def test_flamegraph_culprit_stack(
     relay,
     relay_with_processing,
     attachments_consumer,
+    objectstore,
     processing,
     forwarding_relays,
     mechanism,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
     consumer = attachments_consumer() if processing else None
     relay_factory = relay
     relay = relay_with_processing() if processing else relay_factory(mini_sentry)
@@ -996,9 +1000,10 @@ def test_flamegraph_culprit_stack(
     )
     relay.send_envelope(project_id, envelope)
     if processing:
-        chunk, _ = consumer.get_attachment_chunk()
-        assert json.loads(chunk) == json.loads(payload)
-        event, _ = consumer.get_event()
+        event, message = consumer.get_event()
+        (attachment,) = message["attachments"]
+        stored = objectstore("attachments", project_id).get(attachment["stored_id"])
+        assert json.loads(stored.payload.read()) == json.loads(payload)
     else:
         forwarded = mini_sentry.get_captured_envelope()
         event = next(

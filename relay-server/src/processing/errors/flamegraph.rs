@@ -6,22 +6,29 @@ use relay_event_schema::protocol::{
     Addr, DebugId, DebugImage, DebugMeta, Event, Frame, NativeDebugImage, RawStacktrace, Stacktrace,
 };
 use relay_protocol::{Annotated, Array, DeserializableAnnotated};
-use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Item};
 
-#[derive(Deserialize)]
-struct FlamegraphContext<'a> {
-    #[serde(borrow)]
-    frames: Vec<&'a serde_json::value::RawValue>,
-    debug_meta: Option<DeserializableAnnotated<DebugMeta>>,
+pub(super) type Culprit = (Annotated<Array<Frame>>, Option<DebugMeta>);
+
+pub(super) fn needs_enrichment(event: &Event) -> bool {
+    event
+        .exceptions
+        .value()
+        .and_then(|exceptions| exceptions.values.value())
+        .into_iter()
+        .flatten()
+        .filter_map(|exception| exception.value())
+        .any(|exception| {
+            exception.stacktrace.value().is_none() && exception.raw_stacktrace.value().is_none()
+        })
 }
 
 /// Fill a missing exception stack without changing the attachment.
 ///
 /// Existing stacks remain authoritative, including when a processing Relay receives an event
 /// already enriched by another Relay. A flame graph attachment opts into this enrichment.
-pub fn enrich(event: &mut Event, attachments: &[Item], max_event_size: usize) -> bool {
+pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> bool {
     let Some(exception) = event
         .exceptions
         .value_mut()
@@ -37,48 +44,68 @@ pub fn enrich(event: &mut Event, attachments: &[Item], max_event_size: usize) ->
         return false;
     };
 
-    let Some((mut frames, debug_meta)) = attachments
-        .iter()
-        .find_map(|item| extract(item, max_event_size))
-    else {
+    let Some((mut frames, debug_meta)) = culprit() else {
         return false;
     };
     if let Some(debug_meta) = debug_meta {
-        merge_debug_images(&mut event.debug_meta, debug_meta, &mut frames);
+        merge_debug_images(
+            &mut event.debug_meta,
+            debug_meta,
+            frames.get_or_insert_with(Vec::new),
+        );
     }
     exception.stacktrace = Annotated::new(Stacktrace::from(RawStacktrace {
-        frames: Annotated::new(frames),
+        frames,
         ..Default::default()
     }));
     true
 }
 
-fn extract(item: &Item, max_event_size: usize) -> Option<(Array<Frame>, Option<DebugMeta>)> {
-    if item.attachment_type() != Some(AttachmentType::Flamegraph) {
-        return None;
-    }
-    let payload = item.payload();
-    let indices = relay_profiling::flamegraph::identify_culprit(&payload).ok()?;
-    let context: FlamegraphContext = serde_json::from_slice(&payload).ok()?;
+pub(super) fn extract_attachments(attachments: &[Item], max_event_size: usize) -> Option<Culprit> {
+    attachments.iter().find_map(|item| {
+        if item.attachment_type() != Some(AttachmentType::Flamegraph) {
+            return None;
+        }
+        let payload = item.payload();
+        let graph = relay_profiling::flamegraph::parse(&payload).ok()?;
+        extract(&graph, max_event_size)
+    })
+}
+
+pub(super) fn extract(
+    graph: &relay_profiling::flamegraph::Graph<'_>,
+    max_event_size: usize,
+) -> Option<Culprit> {
+    let culprit = graph.identify_culprit().ok()?;
+    let indices = culprit.frames;
     // Recursion can reference one large frame many times. Bound the derived event before
     // materializing frames, rather than amplifying a small attachment ahead of normalization.
     indices
         .iter()
         .try_fold(max_event_size, |remaining, index| {
-            remaining.checked_sub(context.frames[*index].get().len())
+            remaining.checked_sub(graph.frame(*index).get().len())
         })?;
     let frames = indices
         .into_iter()
         .map(|index| {
-            serde_json::from_str::<DeserializableAnnotated<Frame>>(context.frames[index].get())
+            serde_json::from_str::<DeserializableAnnotated<Frame>>(graph.frame(index).get())
                 .map(|frame| frame.0)
         })
         .collect::<Result<Array<Frame>, _>>()
         .ok()?;
-    Some((
-        frames,
-        context.debug_meta.and_then(|meta| meta.0.into_value()),
-    ))
+    let debug_meta = graph
+        .debug_meta()
+        .map(|raw| serde_json::from_str::<DeserializableAnnotated<DebugMeta>>(raw.get()))
+        .transpose()
+        .ok()?
+        .and_then(|meta| meta.0.into_value());
+    let mut frames = Annotated::new(frames);
+    if culprit.original_len > 250 {
+        frames
+            .meta_mut()
+            .set_original_length(Some(culprit.original_len));
+    }
+    Some((frames, debug_meta))
 }
 
 fn merge_debug_images(
@@ -179,11 +206,12 @@ mod tests {
     use crate::envelope::{AttachmentType, ContentType, ItemType};
 
     fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
-        super::enrich(
-            event,
-            attachments,
-            relay_config::Config::default().current().max_event_size(),
-        )
+        super::enrich(event, || {
+            extract_attachments(
+                attachments,
+                relay_config::Config::default().current().max_event_size(),
+            )
+        })
     }
 
     fn event() -> Annotated<Event> {
@@ -388,6 +416,55 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_flamegraph_does_not_materialize_discarded_middle_frames() {
+        let mut payload = graph();
+        payload["frames"][2]["filename"] = json!("x".repeat(200_000));
+        payload["nodes"] = (0..251)
+            .map(|index| {
+                json!({
+                    "frame_id": if index == 50 { 2 } else { 1 },
+                    "sample_count": 1,
+                    "children": if index < 250 { vec![index + 1] } else { vec![] }
+                })
+            })
+            .collect();
+        let mut event = event();
+        assert!(super::enrich(event.value_mut().as_mut().unwrap(), || {
+            extract_attachments(&[attachment(payload)], 100_000)
+        }));
+        let event = event.value().unwrap();
+        let exception = event.exceptions.value().unwrap().values.value().unwrap()[0]
+            .value()
+            .unwrap();
+        let frames = exception
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap();
+        assert_eq!(
+            exception
+                .stacktrace
+                .value()
+                .unwrap()
+                .frames
+                .meta()
+                .original_length(),
+            Some(251)
+        );
+        assert_eq!(frames.len(), 250);
+        assert!(frames.iter().all(|frame| {
+            frame
+                .value()
+                .unwrap()
+                .filename
+                .value()
+                .is_some_and(|path| path.0 == "App.swift")
+        }));
     }
 
     #[test]

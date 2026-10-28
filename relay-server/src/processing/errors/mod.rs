@@ -121,12 +121,26 @@ impl processing::Processor for ErrorsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let (mut error, intermediates) = process::expand(error, ctx)?;
 
-        attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
+        let needs_culprit = error
+            .event
+            .value()
+            .is_some_and(flamegraph::needs_enrichment);
+        let mut culprit = None;
+        attachments::validate_attachments_with(
+            &mut error,
+            |e| &mut e.attachments,
+            ctx,
+            |graph| {
+                if needs_culprit && culprit.is_none() {
+                    culprit = flamegraph::extract(graph, ctx.config.max_event_size());
+                }
+            },
+        );
 
         process::process(&mut error)?;
 
         process::finalize(&mut error, ctx)?;
-        process::normalize(&mut error, &self.geoip_lookup, ctx)?;
+        process::normalize(&mut error, &self.geoip_lookup, ctx, culprit)?;
 
         filter::filter(&error, ctx).reject(&error)?;
 

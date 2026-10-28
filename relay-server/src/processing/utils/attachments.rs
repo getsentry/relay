@@ -28,10 +28,23 @@ pub fn validate_attachments<T, V>(
     T: Counted,
     V: RetainMut<Item>,
 {
+    validate_attachments_with(managed, select, ctx, |_| {});
+}
+
+/// Validate attachments and expose parsed flame graphs to consumers before serialization.
+pub fn validate_attachments_with<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+    ctx: Context<'_>,
+    mut on_flamegraph: impl FnMut(&relay_profiling::flamegraph::Graph<'_>),
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
     managed.retain(select, |attachment, r| {
         if ctx.is_processing() {
             r.lenient(relay_quotas::DataCategory::Attachment);
-            validate(attachment, ctx.config)
+            validate(attachment, ctx.config, &mut on_flamegraph)
         } else {
             Ok(())
         }
@@ -39,7 +52,11 @@ pub fn validate_attachments<T, V>(
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+fn validate(
+    item: &mut Item,
+    config: &ConfigSnapshot,
+    on_flamegraph: &mut impl FnMut(&relay_profiling::flamegraph::Graph<'_>),
+) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 
@@ -51,8 +68,12 @@ fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingEr
             if !has_valid_flamegraph_headers(item) {
                 return Err(ProcessingError::InvalidFlamegraph);
             }
-            let validated_payload = relay_profiling::flamegraph::validate(&item.payload())
+            let payload = item.payload();
+            let graph = relay_profiling::flamegraph::parse(&payload)
                 .map_err(|_| ProcessingError::InvalidFlamegraph)?;
+            let validated_payload =
+                serde_json::to_vec(&graph).map_err(|_| ProcessingError::InvalidFlamegraph)?;
+            on_flamegraph(&graph);
             item.set_payload_without_content_type(validated_payload);
 
             return Ok(());
@@ -263,6 +284,10 @@ mod tests {
     use relay_pii::PiiConfig;
 
     use super::*;
+
+    fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+        super::validate(item, config, &mut |_| {})
+    }
 
     #[cfg(feature = "processing")]
     fn flamegraph_item(payload: serde_json::Value) -> Item {
