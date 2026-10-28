@@ -384,6 +384,13 @@ pub fn process_unreal<'a>(
         merge_unreal_context(event, context);
     }
 
+    // This matches the native processing, minidumps and other crash reports which do not have a
+    // dedicated level set are assumed to be fatal.
+    //
+    // We update this at the very end where we can be sure all event data has already been merged into
+    // the event (e.g. the unreal context which may set the level).
+    event.level.get_or_insert_with(|| Level::Fatal);
+
     Ok(Some(ProcessedUnrealReport { user_reports }))
 }
 
