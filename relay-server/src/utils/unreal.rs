@@ -424,7 +424,11 @@ struct PortableFrame<'a> {
 /// Each frame is written as `Module 0xImageBase + Offset`, older versions omit the module.
 /// Returns `None` if the call stack cannot be fully parsed or contains placeholder addresses.
 fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>> {
-    let tokens: Vec<&str> = call_stack.split_whitespace().collect();
+    // A frame has at most four tokens, so this is enough for `MAX_NUM_UNREAL_FRAMES` frames.
+    let tokens: Vec<&str> = call_stack
+        .split_whitespace()
+        .take(MAX_NUM_UNREAL_FRAMES * 4)
+        .collect();
     let mut frames = Vec::new();
     let mut tokens = tokens.as_slice();
 
@@ -1396,6 +1400,15 @@ Game-Linux-Test!UnknownFunction(0x4871028)
                 .collect();
 
             assert_eq!(actual, expected, "{legacy:?} {portable:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_portable_call_stack_frame_limit() {
+        for frame in ["Game 0x1000 + 10 ", "0x1000 + 10 "] {
+            let call_stack = frame.repeat(1000);
+            let frames = parse_portable_call_stack(&call_stack).unwrap();
+            assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
         }
     }
 

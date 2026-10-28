@@ -8,6 +8,7 @@
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 - Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
+- Allow pii scrubbing of the `script_sample` field on Csp. ([#6582](https://github.com/getsentry/relay/pull/6582))
 - Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
 
 **Bug Fixes**:
