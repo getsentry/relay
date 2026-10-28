@@ -242,6 +242,10 @@ mod tests {
               "type": "string",
               "value": "dns"
             },
+            "nel.sampling_fraction": {
+              "type": "double",
+              "value": 0.5
+            },
             "nel.type": {
               "type": "string",
               "value": "dns.unreachable"

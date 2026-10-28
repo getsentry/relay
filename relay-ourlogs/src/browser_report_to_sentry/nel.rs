@@ -186,6 +186,7 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
     add_attribute!(attributes, HTTP__REQUEST__DURATION, elapsed_time as i64);
     add_attribute!(attributes, NEL__PHASE, phase.name());
     add_attribute!(attributes, NEL__TYPE, ty.to_string());
+    add_attribute!(attributes, NEL__SAMPLING_FRACTION, sampling_fraction);
 
     let status_code = match &phase {
         NetworkReportPhase::Application { status_code, .. } => Some(*status_code),
@@ -200,8 +201,11 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
             protocol,
             server_ip,
         } => {
-            if let Some((protocol, version)) = protocol.split_once('/') {
+            let mut parts = protocol.split('/');
+            if let Some(protocol) = parts.next() {
                 add_string_attribute!(attributes, NETWORK__PROTOCOL__NAME, protocol);
+            }
+            if let Some(version) = parts.next() {
                 add_string_attribute!(attributes, NETWORK__PROTOCOL__VERSION, version);
             }
 
@@ -216,8 +220,11 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
             server_ip,
             status_code,
         } => {
-            if let Some((protocol, version)) = protocol.split_once('/') {
+            let mut parts = protocol.split('/');
+            if let Some(protocol) = parts.next() {
                 add_string_attribute!(attributes, NETWORK__PROTOCOL__NAME, protocol);
+            }
+            if let Some(version) = parts.next() {
                 add_string_attribute!(attributes, NETWORK__PROTOCOL__VERSION, version);
             }
 
@@ -231,7 +238,6 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
             add_attribute!(attributes, referrer_key, referrer.clone());
             add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
             add_attribute!(attributes, NEL__REFERRER, referrer);
-            add_attribute!(attributes, NEL__SAMPLING_FRACTION, sampling_fraction);
         }
     }
 
