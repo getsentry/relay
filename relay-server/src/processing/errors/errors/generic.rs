@@ -24,7 +24,9 @@ impl SentryError for Generic {
 
         let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx.processing)?;
 
-        let skip_normalization = ctx.processing.is_processing() && fully_normalized;
+        let skip_normalization = ctx.processing.is_processing()
+            && ctx.envelope.meta().request_trust().is_trusted()
+            && fully_normalized;
         if !skip_normalization && let Some(event) = event.value_mut() {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
@@ -63,5 +65,87 @@ impl SentryError for Generic {
 impl Counted for Generic {
     fn quantities(&self) -> Quantities {
         Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use relay_config::{Config, OverridableConfig};
+    use relay_event_schema::protocol::EventType;
+
+    use crate::envelope::ContentType;
+    use crate::extractors::RequestTrust;
+    use crate::processing;
+
+    /// Expands a fully normalized event item with the given payload and returns the resulting
+    /// event type.
+    fn expand(
+        payload: &'static str,
+        processing_enabled: bool,
+        trust: RequestTrust,
+    ) -> Option<EventType> {
+        let mut config = Config::default();
+        if processing_enabled {
+            config
+                .apply_override(OverridableConfig {
+                    processing: Some("true".to_owned()),
+                    ..Default::default()
+                })
+                .unwrap();
+        }
+        let config = config.current();
+
+        let mut envelope = crate::testutils::new_envelope(false, "");
+        envelope.meta_mut().set_request_trust(trust);
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, payload);
+        item.set_fully_normalized(true);
+
+        let ctx = Context {
+            envelope: envelope.headers(),
+            processing: processing::Context {
+                config: &config,
+                ..processing::Context::for_test()
+            },
+        };
+
+        let expansion = Generic::try_expand(&mut vec![item], ctx)
+            .unwrap()
+            .expect("an event item is expanded by `Generic`");
+
+        expansion.event.value().unwrap().ty.value().copied()
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_fully_normalized_untrusted_resets_event_type() {
+        // Only internal Relays are allowed to skip normalization.
+        for payload in [r#"{"type":"transaction"}"#, r#"{"type":"feedback"}"#] {
+            assert_eq!(
+                expand(payload, true, RequestTrust::Untrusted),
+                None,
+                "{payload}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_fully_normalized_trusted_keeps_event_type() {
+        assert_eq!(
+            expand(r#"{"type":"transaction"}"#, true, RequestTrust::Trusted),
+            Some(EventType::Transaction)
+        );
+    }
+
+    #[test]
+    fn test_fully_normalized_not_processing_resets_event_type() {
+        assert_eq!(
+            expand(r#"{"type":"transaction"}"#, false, RequestTrust::Trusted),
+            None
+        );
     }
 }
