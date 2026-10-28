@@ -1,6 +1,4 @@
 use relay_cogs::AppFeature;
-use relay_conventions::attributes::SENTRY__RELAY__INGRESS;
-use relay_event_normalization::eap::Ingress;
 use relay_event_normalization::integrity;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_protocol::DeserializableAnnotated;
@@ -83,17 +81,11 @@ pub fn expand(
         .filter_map(|DeserializableAnnotated(integrity)| {
             integrity::create_log(integrity, received_at)
         })
-        .map(|mut log| {
+        .map(|log| {
             let byte_size = relay_ourlogs::calculate_size(&log);
 
             records.modify_by(DataCategory::LogItem, 1);
             records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-            // Set the `ingress` attribute. The logs processor will not overwrite it.
-            log.attributes
-                .value_mut()
-                .get_or_insert_default()
-                .insert(SENTRY__RELAY__INGRESS, Ingress::Integration.to_string());
 
             WithHeader::just(log.into())
         })

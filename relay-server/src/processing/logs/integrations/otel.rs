@@ -1,7 +1,5 @@
 use prost::Message;
 use relay_cogs::AppFeature;
-use relay_conventions::attributes::SENTRY__RELAY__INGRESS;
-use relay_event_normalization::eap::Ingress;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_ourlogs::otel_logs::LogsData;
 use relay_quotas::DataCategory;
@@ -93,17 +91,11 @@ pub fn expand(
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
-                let mut log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
+                let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
                 let byte_size = relay_ourlogs::calculate_size(&log);
 
                 records.modify_by(DataCategory::LogItem, 1);
                 records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-                // Set the `ingress` attribute. The logs processor will not overwrite it.
-                log.attributes
-                    .value_mut()
-                    .get_or_insert_default()
-                    .insert(SENTRY__RELAY__INGRESS, Ingress::Integration.to_string());
 
                 logs.push(WithHeader::just(log.into()));
             }

@@ -1,4 +1,4 @@
-use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress};
+use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
@@ -178,10 +178,6 @@ fn normalize_log(
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
-
-        // If the log arrived via an integration, the `ingress` attribute is already set. Therefore we can
-        // always use `Container` here.
-        eap::normalize_pipeline_attributes(&mut log.attributes, Some(&Ingress::Container), None);
     }
 
     if let Annotated(None, meta) = log {

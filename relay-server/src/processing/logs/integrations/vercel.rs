@@ -1,6 +1,4 @@
 use relay_cogs::AppFeature;
-use relay_conventions::attributes::SENTRY__RELAY__INGRESS;
-use relay_event_normalization::eap::Ingress;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_ourlogs::VercelLog;
 use relay_quotas::DataCategory;
@@ -87,17 +85,11 @@ pub fn expand(
     records.lenient(DataCategory::LogByte);
 
     let mut logs = Vec::new();
-    let mut produce = |mut log| {
+    let mut produce = |log| {
         let byte_size = relay_ourlogs::calculate_size(&log);
 
         records.modify_by(DataCategory::LogItem, 1);
         records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-        // Set the `ingress` attribute. The logs processor will not overwrite it.
-        log.attributes
-            .value_mut()
-            .get_or_insert_default()
-            .insert(SENTRY__RELAY__INGRESS, Ingress::Integration.to_string());
 
         logs.push(WithHeader::just(log.into()));
     };

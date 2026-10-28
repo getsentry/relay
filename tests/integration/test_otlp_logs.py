@@ -464,7 +464,7 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay(mini_sentry, options={"limits": {"max_log_size": 70}})
+    relay = relay(mini_sentry, options={"limits": {"max_log_size": 50}})
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
@@ -511,7 +511,7 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
         {
             "category": DataCategory.LOG_BYTE,
             "outcome": Outcome.INVALID,
-            "quantity": 158,
+            "quantity": 127,
             "reason": "too_large:log",
         },
     ]
