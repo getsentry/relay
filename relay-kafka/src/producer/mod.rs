@@ -292,13 +292,6 @@ impl Producer {
                 topic = topic_name,
                 producer_name = producer_name
             );
-            // Flat at zero for a static producer. Watching it move is how a
-            // config reload is confirmed to have reached this topic.
-            metric!(
-                gauge(KafkaGauges::ReloadGeneration) = producer.generation(),
-                topic = topic_name,
-                producer_name = producer_name
-            );
         });
 
         producer
@@ -410,7 +403,7 @@ impl KafkaClient {
     /// than returned; that topic keeps the client it is running.
     ///
     /// A successful push only means the rollout started. Arroyo probes a
-    /// broker before swapping; watch `kafka.reload_generation` for the swap.
+    /// broker before swapping; watch `arroyo.producer.config_reload_generation` for the swap.
     pub fn push_kafka_config(&self, blob: &[u8]) {
         for producer in self.producers.values() {
             for tp in &producer.topic_producers.producers {
@@ -568,7 +561,7 @@ mod tests {
             .map(|topic| {
                 (
                     (*topic).to_owned(),
-                    serde_json::json!({"physical_topic": {"cluster": "default"}}),
+                    serde_json::json!({"physical_topics": [{"cluster": "default"}]}),
                 )
             })
             .collect();

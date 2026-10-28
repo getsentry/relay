@@ -3,8 +3,8 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Error, Result, utils};
 
 /// An NVIDIA Aftermath GPU crash dump
 ///
@@ -26,7 +26,7 @@ impl SentryError for GpuCrash {
         };
 
         let mut metrics = Default::default();
-        let event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
+        let event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
 
         Ok(Some(Expansion {
             event: Box::new(event),

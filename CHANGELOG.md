@@ -8,6 +8,7 @@
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 - Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
+- Allow pii scrubbing of the `script_sample` field on Csp. ([#6582](https://github.com/getsentry/relay/pull/6582))
 
 **Bug Fixes**:
 
@@ -20,12 +21,14 @@
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
+- Fix PII scrubbing for JSON objects that contain keys with an escape sequence (such as `\n` or `\uXXXX`). ([#6573](https://github.com/getsentry/relay/pull/6573))
 
 **Internal**:
 
 - Fix missing rejection outcomes and debug accounting panics when crash attachments are rate-limited. ([#6568](https://github.com/getsentry/relay/pull/6568))
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
-- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))
+- Always convert Unreal crash reports instead of only when processing is enabled. ([#6578](https://github.com/getsentry/relay/pull/6578))
+- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549), [#6579](https://github.com/getsentry/relay/pull/6579))
 - Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
 
 ## 26.10.0
