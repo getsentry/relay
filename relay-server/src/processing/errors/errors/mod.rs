@@ -199,6 +199,9 @@ pub struct Expansion<T> {
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<Item>,
     /// Additional items extracted from the error that need to be processed in a separate pass.
+    ///
+    /// All items will be added to a single envelope with a new event id and no envelope headers retained
+    /// and all items must make up a valid envelope.
     pub intermediates: Vec<Item>,
     /// The custom error data.
     pub error: T,

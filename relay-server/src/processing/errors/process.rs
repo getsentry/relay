@@ -1,4 +1,5 @@
 use relay_event_normalization::GeoIpLookup;
+use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
@@ -88,10 +89,15 @@ fn do_expand(
         for (category, quantity) in parsed.intermediates.quantities() {
             records.modify_by(category, quantity as isize);
         }
-        intermediates.add_envelope(Envelope::from_parts(
-            error.headers.clone(),
-            parsed.intermediates.into(),
-        ));
+
+        // The forked off envelope is completely standalone, to prevent any issues with duplicated
+        // event ids that may get de-duplicated later, we always create a new event id here.
+        let mut envelope =
+            Envelope::from_request(Some(EventId::new()), error.headers.meta().clone());
+        for item in parsed.intermediates {
+            envelope.add_item(item);
+        }
+        intermediates.add_envelope(envelope);
     };
 
     let expanded_error = ExpandedError {
