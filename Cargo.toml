@@ -203,7 +203,7 @@ sentry = { version = "0.49", default-features = false, features = [
     "panic",
     "transport",
 ] }
-sentry_arroyo = "2.48.0"
+sentry_arroyo = "2.49.0"
 sentry-core = "0.49"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [
