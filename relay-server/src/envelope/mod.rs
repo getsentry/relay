@@ -166,11 +166,6 @@ impl<M> EnvelopeHeaders<M> {
         &self.meta
     }
 
-    /// Returns a mutable reference to the contained meta.
-    pub fn meta_mut(&mut self) -> &mut M {
-        &mut self.meta
-    }
-
     /// Returns the event ID of the envelope, if any.
     pub fn event_id(&self) -> Option<EventId> {
         self.event_id
@@ -539,7 +534,9 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
-    /// Removes and returns the first item that matches the given condition.
+    /// Removes and returns the first item for which `cond` returns `Some`.
+    ///
+    /// The data returned by `cond` is returned along with the item.
     pub fn take_item_by_map<F, R>(&mut self, mut cond: F) -> Option<(Item, R)>
     where
         F: FnMut(&Item) -> Option<R>,
