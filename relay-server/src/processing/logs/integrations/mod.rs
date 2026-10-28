@@ -82,8 +82,5 @@ fn create_intermediates(
     let mut envelope = Envelope::from_request(None, meta);
     envelope.add_item(log_container);
 
-    let mut intermediates = Intermediates::default();
-    intermediates.add_envelope(envelope);
-
-    Ok(intermediates)
+    Ok(Intermediates::from_envelope(envelope))
 }

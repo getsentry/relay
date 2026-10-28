@@ -63,12 +63,7 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
         _ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let intermediates = work.try_map(expand)?;
-
-        Ok(Output {
-            main: None,
-            metrics: None,
-            intermediates: Some(intermediates),
-        })
+        Ok(Output::intermediates(intermediates))
     }
 }
 
