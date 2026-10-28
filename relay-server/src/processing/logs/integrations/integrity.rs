@@ -9,7 +9,9 @@ use relay_quotas::DataCategory;
 use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
-use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
+use crate::processing::logs::integrations::{
+    Error, SerializedLogsIntegration, create_intermediates,
+};
 use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::DiscardReason;
 
@@ -108,5 +110,5 @@ pub fn expand(
         infer_ip: Some(InferIp::Never),
     };
 
-    super::create_intermediates(meta, logs, settings)
+    create_intermediates(meta, logs, settings)
 }
