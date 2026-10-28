@@ -456,7 +456,6 @@ pub fn normalize_user_geo(
         return;
     };
 
-    // UN M49 subregion derived from the country code, as legacy span tag extraction does.
     let subregion = geo
         .country_code
         .value()

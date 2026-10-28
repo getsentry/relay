@@ -15,9 +15,8 @@ pub use crate::web_vitals::extract_web_vital_metrics;
 
 /// UN M49 subregion code derived from the user's country code, e.g. `155` for Western Europe.
 ///
-/// Legacy spans carry this as the `user.geo.subregion` sentry tag. It is not yet defined in
-/// `sentry-conventions`, so it lives here until it is and can be imported from
-/// `relay_conventions::attributes` instead.
+/// TODO: Remove this once user.geo.subregion is defined in `sentry-conventions`:
+/// <https://github.com/getsentry/sentry-conventions/pull/753>
 pub const USER__GEO__SUBREGION: &str = "user.geo.subregion";
 
 pub use opentelemetry_proto::tonic::trace::v1 as otel_trace;
