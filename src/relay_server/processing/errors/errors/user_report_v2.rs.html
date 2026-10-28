@@ -4,8 +4,8 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Item, ItemType};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Quantities, RecordKeeper};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::ForwardContext;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::Result;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::{Context, Expansion, SentryError, utils};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::{Context, Expansion, SentryError};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::{<span class="prelude-ty">Result</span>, utils};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="attr">#[derive(Debug)]
@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>                ev,
 <a href=#35 id=35 data-nosnippet>35</a>                EventType::UserReportV2,
 <a href=#36 id=36 data-nosnippet>36</a>                <span class="kw-2">&amp;mut </span>metrics,
-<a href=#37 id=37 data-nosnippet>37</a>                ctx,
+<a href=#37 id=37 data-nosnippet>37</a>                ctx.processing,
 <a href=#38 id=38 data-nosnippet>38</a>            )<span class="question-mark">?</span>),
 <a href=#39 id=39 data-nosnippet>39</a>            attachments,
 <a href=#40 id=40 data-nosnippet>40</a>            user_reports: Default::default(),

@@ -33,7 +33,7 @@
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="attr">#[cfg(sentry)]
 <a href=#34 id=34 data-nosnippet>34</a>    </span><span class="kw">fn </span>try_expand(items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Expansion&lt;<span class="self">Self</span>&gt;&gt;&gt; {
 <a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ItemType};
-<a href=#36 id=36 data-nosnippet>36</a>        <span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::utils;
+<a href=#36 id=36 data-nosnippet>36</a>        <span class="kw">use </span><span class="kw">crate</span>::processing::errors::utils;
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="kw">use </span>relay_dynamic_config::Feature;
 <a href=#38 id=38 data-nosnippet>38</a>        <span class="kw">use </span>relay_event_schema::protocol::Metrics;
 <a href=#39 id=39 data-nosnippet>39</a>
@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>attachments: Vec&lt;<span class="kw">_</span>&gt; = utils::take_items_of_type(items, ItemType::Attachment);
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">let </span>(event, minidump, session_updates) = <span class="macro">utils::if_not_processing!</span>(ctx, {
-<a href=#57 id=57 data-nosnippet>57</a>            <span class="kw">let </span>event = Box::new(utils::take_parsed_event(items, <span class="kw-2">&amp;mut </span>metrics, ctx)<span class="question-mark">?</span>);
+<a href=#57 id=57 data-nosnippet>57</a>            <span class="kw">let </span>event = Box::new(utils::take_parsed_event(items, <span class="kw-2">&amp;mut </span>metrics, ctx.processing)<span class="question-mark">?</span>);
 <a href=#58 id=58 data-nosnippet>58</a>            (event, <span class="prelude-val">None</span>, <span class="macro">vec!</span>[])
 <a href=#59 id=59 data-nosnippet>59</a>        } <span class="kw">else </span>{
 <a href=#60 id=60 data-nosnippet>60</a>            <span class="kw">use </span><span class="kw">crate</span>::constants::{SENTRY_CRASH_PAYLOAD_KEY, SENTRY_SESSION_PAYLOAD_KEY};
@@ -83,9 +83,9 @@
 <a href=#83 id=83 data-nosnippet>83</a>                        ((event.len() + prospero.len()) <span class="kw">as </span>u64).into();
 <a href=#84 id=84 data-nosnippet>84</a>                    merge_events(<span class="kw-2">&amp;</span>event, prospero.as_bytes(), ctx)<span class="question-mark">?
 <a href=#85 id=85 data-nosnippet>85</a>                </span>}
-<a href=#86 id=86 data-nosnippet>86</a>                (<span class="prelude-val">Some</span>(event), <span class="prelude-val">None</span>) =&gt; utils::event_from_json_payload(event, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, ctx)<span class="question-mark">?</span>,
+<a href=#86 id=86 data-nosnippet>86</a>                (<span class="prelude-val">Some</span>(event), <span class="prelude-val">None</span>) =&gt; utils::event_from_json_payload(event, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, ctx.processing)<span class="question-mark">?</span>,
 <a href=#87 id=87 data-nosnippet>87</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(prospero)) =&gt; {
-<a href=#88 id=88 data-nosnippet>88</a>                    utils::event_from_json(prospero.as_bytes(), <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, ctx)<span class="question-mark">?
+<a href=#88 id=88 data-nosnippet>88</a>                    utils::event_from_json(prospero.as_bytes(), <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, ctx.processing)<span class="question-mark">?
 <a href=#89 id=89 data-nosnippet>89</a>                </span>}
 <a href=#90 id=90 data-nosnippet>90</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; Annotated::empty(),
 <a href=#91 id=91 data-nosnippet>91</a>            };

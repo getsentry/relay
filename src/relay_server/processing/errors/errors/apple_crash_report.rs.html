@@ -3,8 +3,8 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Item, ItemType};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Quantities, RecordKeeper};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::processing::ForwardContext;
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::{Context, Expansion, SentryError, utils};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::{Error, <span class="prelude-ty">Result</span>};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::{Context, Expansion, SentryError};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::{Error, <span class="prelude-ty">Result</span>, utils};
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="attr">#[derive(Debug)]
 <a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub struct </span>AppleCrashReport(<span class="kw">pub </span>Item);
@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>        <span class="kw">let </span><span class="kw-2">mut </span>metrics = Default::default();
 <a href=#25 id=25 data-nosnippet>25</a>        <span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused_mut))]
-<a href=#26 id=26 data-nosnippet>26</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>event = utils::take_event_from_crash_items(items, <span class="kw-2">&amp;mut </span>metrics, ctx)<span class="question-mark">?</span>;
+<a href=#26 id=26 data-nosnippet>26</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>event = utils::take_event_from_crash_items(items, <span class="kw-2">&amp;mut </span>metrics, ctx.processing)<span class="question-mark">?</span>;
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a>        <span class="macro">utils::if_processing!</span>(ctx, {
 <a href=#29 id=29 data-nosnippet>29</a>            <span class="kw">crate</span>::utils::process_apple_crash_report(
