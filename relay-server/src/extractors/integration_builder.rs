@@ -30,12 +30,25 @@ impl IntegrationBuilder<()> {
     /// Configures the [`Integration`] type.
     ///
     /// Setting the type is required.
-    pub fn with_type(mut self, integration: impl Into<Integration>) -> IntegrationBuilder<HasType> {
+    pub fn with_type(self, integration: impl Into<Integration>) -> IntegrationBuilder<HasType> {
+        self.with_type_and(integration, |_| ())
+    }
+
+    /// Configures the [`Integration`] type and customizes the created integration item.
+    ///
+    /// This can be used to store request metadata in item headers, which can then be retrieved
+    /// during processing of the integration.
+    pub fn with_type_and(
+        mut self,
+        integration: impl Into<Integration>,
+        configure: impl FnOnce(&mut Item),
+    ) -> IntegrationBuilder<HasType> {
         let integration = integration.into();
 
         self.envelope.add_item({
             let mut item = Item::new(ItemType::Integration);
             item.set_payload(integration.into(), self.payload.clone());
+            configure(&mut item);
             item
         });
 
