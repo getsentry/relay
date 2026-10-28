@@ -439,12 +439,12 @@ pub fn create_service(
 ) -> ConcurrentService<Service> {
     let current_config = config.current();
     let backend = create_backend(
-        config,
         upstream,
         #[cfg(feature = "processing")]
         objectstore,
     );
     let service = Service {
+        config: Arc::clone(config),
         timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
     };
@@ -454,20 +454,15 @@ pub fn create_service(
 }
 
 fn create_backend(
-    #[allow(unused)] config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> Backend {
     #[cfg(feature = "processing")]
     if let Some(addr) = objectstore.as_ref() {
-        return Backend::Objectstore {
-            addr: addr.clone(),
-            config: config.clone(),
-        };
+        return Backend::Objectstore { addr: addr.clone() };
     }
     Backend::Upstream {
         addr: upstream.clone(),
-        config: config.clone(),
     }
 }
 
@@ -476,6 +471,7 @@ fn create_backend(
 /// Uploads go to either the upstream relay or objectstore.
 #[derive(Debug, Clone)]
 pub struct Service {
+    config: Arc<Config>,
     timeout: Duration,
     backend: Backend,
 }
@@ -501,12 +497,10 @@ impl<T> InstrumentedSender<T> {
 enum Backend {
     Upstream {
         addr: Addr<UpstreamRelay>,
-        config: Arc<Config>,
     },
     #[cfg(feature = "processing")]
     Objectstore {
         addr: Addr<Objectstore>,
-        config: Arc<Config>,
     },
 }
 
@@ -520,16 +514,16 @@ impl Service {
         }: Create,
     ) -> Result<CreateResult, Error> {
         match &self.backend {
-            Backend::Upstream { addr, .. } => {
+            Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 CreateResult::try_from_response(&response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::UploadRef;
-                let config = config.current();
+                let config = self.config.current();
 
                 // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
@@ -616,17 +610,18 @@ impl Service {
         } = stream;
         let referrer = source.referrer();
         match &self.backend {
-            Backend::Upstream { addr, config } => {
+            Backend::Upstream { addr } => {
+                let config = self.config.current();
                 let uri = location.try_to_uri()?;
                 let stream = BoundedStream::new(
                     MeteredStream::new(stream, referrer),
                     0,
-                    config.current().max_upload_size(),
+                    config.max_upload_size(),
                 );
                 let (stream, encoding) = match compression {
                     Some(codec) => (Either::Right(stream), codec.encoding()),
                     None => {
-                        let encoding = config.current().http_encoding();
+                        let encoding = config.http_encoding();
                         (encode_body(stream, encoding), encoding)
                     }
                 };
@@ -636,11 +631,11 @@ impl Service {
                 StreamResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::{StreamContext, UploadRef};
                 use objectstore_client::SessionToken;
 
-                let config = config.current();
+                let config = self.config.current();
                 let stream = BoundedStream::new(stream, 0, config.max_upload_size());
                 let stream = decode_body(stream, compression, source).await;
                 let (lower_bound, upper_bound) = match mode {
@@ -749,18 +744,18 @@ impl Service {
             location,
         } = head;
         match &self.backend {
-            Backend::Upstream { addr, .. } => {
+            Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::head(project, location.try_to_uri()?);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 HeadResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::HeadKind;
                 use objectstore_client::SessionToken;
 
-                let config = config.current();
+                let config = self.config.current();
 
                 // Note: Side effect of this is that only locations in the last hour can be used
                 // in the head request.
