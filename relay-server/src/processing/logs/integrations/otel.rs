@@ -87,6 +87,8 @@ pub fn expand(
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
+                // INGEST-1333: This is only used to keep records in case serializing
+                // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
 
                 records.modify_by(DataCategory::LogItem, 1);

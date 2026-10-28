@@ -81,6 +81,8 @@ pub fn expand(
 
     let mut logs = Vec::new();
     let mut produce = |log| {
+        // INGEST-1333: This is only used to keep records in case serializing
+        // the logs back into an envelope fails. Consider removing it.
         let byte_size = relay_ourlogs::calculate_size(&log);
 
         records.modify_by(DataCategory::LogItem, 1);
@@ -123,15 +125,15 @@ pub fn expand(
         }
     }
 
-    if count == 0 {
-        relay_log::debug!("Failed to parse any logs from vercel log drain payload");
-        return Err(Error::Invalid(DiscardReason::InvalidJson));
-    }
-
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
     for (category, quantity) in item.quantities() {
         records.modify_by(category, -(quantity as isize));
+    }
+
+    if count == 0 {
+        relay_log::debug!("Failed to parse any logs from vercel log drain payload");
+        return Err(Error::Invalid(DiscardReason::InvalidJson));
     }
 
     let settings = IngestSettings {

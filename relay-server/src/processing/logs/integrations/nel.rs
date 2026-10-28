@@ -75,6 +75,8 @@ pub fn expand(
         .into_iter()
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
         .map(|log| {
+            // INGEST-1333: This is only used to keep records in case serializing
+            // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
 
             records.modify_by(DataCategory::LogItem, 1);
