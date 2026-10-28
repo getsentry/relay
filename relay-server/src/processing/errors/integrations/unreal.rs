@@ -15,7 +15,7 @@ use crate::utils::{ProcessedUnrealReport, UnrealExpansion};
 pub struct UnrealErrorIntegrationProcessor;
 
 impl processing::Processor for UnrealErrorIntegrationProcessor {
-    type Input = SerailizedUnrealReport;
+    type Input = SerializedUnrealReport;
     type Output = Nothing;
     type Error = Error;
 
@@ -30,7 +30,7 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
 
         let headers = envelope.envelope().headers().clone();
 
-        let work = SerailizedUnrealReport { headers, report };
+        let work = SerializedUnrealReport { headers, report };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -46,12 +46,12 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
 
 /// A serialized unreal report.
 #[derive(Debug)]
-pub struct SerailizedUnrealReport {
+pub struct SerializedUnrealReport {
     headers: EnvelopeHeaders,
     report: Item,
 }
 
-impl Counted for SerailizedUnrealReport {
+impl Counted for SerializedUnrealReport {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Error, 1)]
     }
@@ -59,7 +59,7 @@ impl Counted for SerailizedUnrealReport {
 
 /// Converts a [`ItemType::UnrealReport`] into the envelope protocol.
 fn convert(
-    unreal: SerailizedUnrealReport,
+    unreal: SerializedUnrealReport,
     records: &mut RecordKeeper<'_>,
     ctx: Context<'_>,
 ) -> Result<Intermediates> {
