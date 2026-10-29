@@ -12,7 +12,8 @@ use relay_sampling::evaluation::MatchedRuleIds;
 pub mod metric;
 mod service;
 
-use crate::envelope::{AttachmentType, ItemType};
+use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::integrations::Integration;
 
 pub use self::service::*;
 
@@ -640,6 +641,20 @@ impl From<&ItemType> for DiscardItemType {
 impl From<ItemType> for DiscardItemType {
     fn from(value: ItemType) -> Self {
         From::from(&value)
+    }
+}
+
+impl From<&Item> for DiscardItemType {
+    fn from(item: &Item) -> Self {
+        if let Some(attachment_type) = item.attachment_type() {
+            return attachment_type.into();
+        }
+
+        match item.integration() {
+            Some(Integration::Logs(_)) => Self::Log,
+            Some(Integration::Spans(_)) => Self::Span,
+            None => item.ty().into(),
+        }
     }
 }
 
