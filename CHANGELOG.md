@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+
 ## 26.10.1
 
 **Features**:
@@ -24,7 +30,6 @@
 
 **Internal**:
 
-- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 - Fix missing rejection outcomes and debug accounting panics when crash attachments are rate-limited. ([#6568](https://github.com/getsentry/relay/pull/6568))
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
 - Always convert Unreal crash reports instead of only when processing is enabled. ([#6578](https://github.com/getsentry/relay/pull/6578))
