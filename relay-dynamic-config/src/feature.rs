@@ -97,6 +97,9 @@ pub enum Feature {
     /// Enable Nintendo event rewrite.
     #[serde(rename = "projects:relay-nintendo-event-rewrite")]
     NintendoEventRewrite,
+    /// Add a stack trace from the Unreal crash context to crashes without a minidump.
+    #[serde(rename = "projects:relay-unreal-crash-context-stacktrace")]
+    UnrealCrashContextStacktrace,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,

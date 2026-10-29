@@ -88,9 +88,19 @@ fn convert(
         .get_header(crate::constants::UNREAL_USER_HEADER)
         .and_then(|v| v.as_str());
 
-    let report =
-        crate::utils::process_unreal(context, event_id, &mut event, &attachments, user_header)
-            .map_err(ProcessingError::InvalidUnrealReport)?;
+    let context_stacktrace = ctx
+        .project_info
+        .has_feature(Feature::UnrealCrashContextStacktrace);
+
+    let report = crate::utils::process_unreal(
+        context,
+        event_id,
+        &mut event,
+        &attachments,
+        user_header,
+        context_stacktrace,
+    )
+    .map_err(ProcessingError::InvalidUnrealReport)?;
 
     let mut intermediates = Intermediates::default();
 
