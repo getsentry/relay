@@ -119,14 +119,9 @@ struct WebVital {
     attribute_value: &'static str,
     unit: MetricUnit,
     attribute_keys: &'static [&'static str],
-    /// Name of the metric carrying the vital's performance score.
-    ///
-    /// The score is the `score.ratio.*` attribute Relay computes during performance score
-    /// normalization, a `0..=1` ratio of how good the vital is. Emitting it as its own metric
-    /// lets the score be queried with plain aggregates like `avg`, instead of needing a
-    /// dedicated function that reaches into the attributes of the value metric.
+    /// Name of the metric carrying the vital's `0..=1` performance score.
     score_name: &'static str,
-    /// Span attribute holding the `0..=1` score of the vital.
+    /// Span attribute holding the vital's `0..=1` performance score.
     score_ratio_attribute: &'static str,
 }
 
