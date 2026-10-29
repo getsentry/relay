@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone, timedelta
 
 from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
@@ -268,7 +269,6 @@ def test_otlp_logs_conversion(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
-                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -300,7 +300,7 @@ def test_otlp_logs_conversion(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE,
-                        "quantity": "349",
+                        "quantity": "318",
                     },
                 ],
                 "keyId": "123",
@@ -372,7 +372,6 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
-                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -403,7 +402,7 @@ def test_otlp_logs_multiple_records(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE,
-                        "quantity": "123",
+                        "quantity": "92",
                     },
                 ],
                 "keyId": "123",
@@ -417,7 +416,6 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
-                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -448,7 +446,7 @@ def test_otlp_logs_multiple_records(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE,
-                        "quantity": "124",
+                        "quantity": "93",
                     },
                 ],
                 "keyId": "123",
@@ -515,3 +513,54 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
             "reason": "too_large:log",
         },
     ]
+
+
+def test_otlp_logs_without_body(mini_sentry, relay):
+    """OTel makes the log body optional, such logs must not be dropped."""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay(mini_sentry)
+
+    ts = datetime.now(timezone.utc)
+    ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)
+
+    otel_logs_payload = {
+        "resourceLogs": [
+            {
+                "scopeLogs": [
+                    {
+                        "logRecords": [
+                            {
+                                "timeUnixNano": ts_nanos,
+                                "traceId": "5B8EFFF798038103D269B633813FC60C",
+                                "spanId": "EEE19B7EC3C1B174",
+                                "eventName": "browser.page_view",
+                            },
+                            {
+                                "timeUnixNano": ts_nanos,
+                                "traceId": "5B8EFFF798038103D269B633813FC60C",
+                                "spanId": "EEE19B7EC3C1B175",
+                                "body": {"stringValue": "with body"},
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    relay.send_otel_logs(project_id, json=otel_logs_payload)
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert envelope == only_items("log")
+    logs = json.loads(envelope.items[0].payload.bytes.decode())["items"]
+
+    assert [log["body"] for log in logs] == ["", "with body"]
+    assert logs[0]["attributes"]["event.name"] == {
+        "type": "string",
+        "value": "browser.page_view",
+    }

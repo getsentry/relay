@@ -2898,7 +2898,7 @@ impl ConfigSnapshot {
                 // express yet, so each physical topic is its own entry and maps to itself.
                 //
                 // That also means one topic name cannot point at two clusters.
-                let entry = serde_json::json!({ "physical_topic": { "cluster": cluster_name } });
+                let entry = serde_json::json!({ "physical_topics": [{ "cluster": cluster_name }] });
                 match topics.entry(params.topic_name.clone()) {
                     Entry::Vacant(vacant) => {
                         vacant.insert(entry);
@@ -3188,8 +3188,8 @@ processing:
                 .config
                 .config_map()
                 .iter()
-                // Arroyo adds this itself when building a producer config.
-                .filter(|(key, _)| key.as_str() != "statistics.interval.ms")
+                // Arroyo adds these itself when building a producer config.
+                .filter(|(key, _)| !matches!(key.as_str(), "statistics.interval.ms" | "client.id"))
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect::<BTreeMap<_, _>>()
         };
