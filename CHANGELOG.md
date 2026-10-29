@@ -7,6 +7,7 @@
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
 
 **Bug Fixes**:
 

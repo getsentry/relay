@@ -75,11 +75,16 @@ pub fn is_gpu_dump_item(item: &Item) -> bool {
     item.attachment_type() == Some(AttachmentType::NvGpuDump)
 }
 
-/// The dump plus the debug info moved onto the GPU envelope alongside it.
+/// The dump plus the shader debug info and compiled shaders moved onto the GPU
+/// envelope alongside it.
 pub fn is_gpu_crash_item(item: &Item) -> bool {
     matches!(
         item.attachment_type(),
-        Some(AttachmentType::NvGpuDump) | Some(AttachmentType::NvShaderDebug)
+        Some(
+            AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader
+        )
     )
 }
 
@@ -132,6 +137,9 @@ mod tests {
         assert!(is_gpu_crash_item(&attachment(
             AttachmentType::NvShaderDebug
         )));
+        assert!(is_gpu_crash_item(&attachment(
+            AttachmentType::CompiledShader
+        )));
         assert!(!is_gpu_crash_item(&attachment(AttachmentType::Minidump)));
     }
 
@@ -142,12 +150,14 @@ mod tests {
             attachment(AttachmentType::EventPayload),
             attachment(AttachmentType::NvGpuDump),
             attachment(AttachmentType::NvShaderDebug),
+            attachment(AttachmentType::CompiledShader),
         ]));
         let gpu = gpu.expect("GPU envelope split off");
 
         let gpu_types = attachment_types(&gpu);
         assert!(gpu_types.contains(&Some(AttachmentType::NvGpuDump)));
         assert!(gpu_types.contains(&Some(AttachmentType::NvShaderDebug)));
+        assert!(gpu_types.contains(&Some(AttachmentType::CompiledShader)));
         assert!(gpu_types.contains(&Some(AttachmentType::EventPayload)));
         assert!(!gpu_types.contains(&Some(AttachmentType::Minidump)));
 
@@ -156,6 +166,7 @@ mod tests {
         assert!(cpu_types.contains(&Some(AttachmentType::EventPayload)));
         assert!(!cpu_types.contains(&Some(AttachmentType::NvGpuDump)));
         assert!(!cpu_types.contains(&Some(AttachmentType::NvShaderDebug)));
+        assert!(!cpu_types.contains(&Some(AttachmentType::CompiledShader)));
     }
 
     #[test]
