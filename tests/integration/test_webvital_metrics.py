@@ -302,7 +302,7 @@ def test_v1_transaction(
     assert expected_metrics == items
 
 
-def expected_score_metric(vital, span_id, ratio, weight, extra_attributes=None):
+def expected_score_metric(vital, span_id, ratio, extra_attributes=None):
     """The `browser.web_vital.<vital>.score` metric Relay emits next to the value metric."""
     name = f"browser.web_vital.{vital}.score"
     return {
@@ -320,7 +320,6 @@ def expected_score_metric(vital, span_id, ratio, weight, extra_attributes=None):
             "sentry.metric_unit": {"stringValue": "ratio"},
             "sentry._internal.cooccuring.unit.ratio": {"boolValue": True},
             "sentry.value": {"doubleValue": ratio},
-            f"score.weight.{vital}": {"doubleValue": weight},
             "user_agent.original": {
                 "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
             },
@@ -679,19 +678,14 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
     # Each vital with a score also emits the score as its own `ratio` metric
     expected_metrics.extend(
         [
-            expected_score_metric("cls", "bd429c44b67a3eb1", ratio=0.0, weight=0.25),
-            expected_score_metric(
-                "fcp", "bd429c44b67a3eb1", ratio=0.9999981846359844, weight=0.15
-            ),
-            expected_score_metric(
-                "lcp", "bd429c44b67a3eb1", ratio=0.9995380458572936, weight=0.3
-            ),
-            expected_score_metric("ttfb", "bd429c44b67a3eb1", ratio=0.0, weight=0.3),
+            expected_score_metric("cls", "bd429c44b67a3eb1", ratio=0.0),
+            expected_score_metric("fcp", "bd429c44b67a3eb1", ratio=0.9999981846359844),
+            expected_score_metric("lcp", "bd429c44b67a3eb1", ratio=0.9995380458572936),
+            expected_score_metric("ttfb", "bd429c44b67a3eb1", ratio=0.0),
             expected_score_metric(
                 "inp",
                 "cd429c44b67a3eb1",
                 ratio=0.9948129113413748,
-                weight=1.0,
                 extra_attributes={
                     "sentry.segment.name": {
                         "stringValue": "/page/with/click/interaction/*/*"

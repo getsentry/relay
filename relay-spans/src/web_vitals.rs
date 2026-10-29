@@ -56,7 +56,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.lcp",
         score_name: "browser.web_vital.lcp.score",
         score_ratio_attribute: "score.ratio.lcp",
-        score_weight_attribute: "score.weight.lcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__LCP__ELEMENT,
@@ -75,7 +74,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.cls",
         score_name: "browser.web_vital.cls.score",
         score_ratio_attribute: "score.ratio.cls",
-        score_weight_attribute: "score.weight.cls",
         unit: MetricUnit::None,
         attribute_keys: &["score.cls", "score.weight.cls", "score.ratio.cls"],
     },
@@ -84,7 +82,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.inp",
         score_name: "browser.web_vital.inp.score",
         score_ratio_attribute: "score.ratio.inp",
-        score_weight_attribute: "score.weight.inp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__INP__TARGET,
@@ -99,7 +96,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.fcp",
         score_name: "browser.web_vital.fcp.score",
         score_ratio_attribute: "score.ratio.fcp",
-        score_weight_attribute: "score.weight.fcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &["score.fcp", "score.weight.fcp", "score.ratio.fcp"],
     },
@@ -108,7 +104,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         name: "browser.web_vital.ttfb",
         score_name: "browser.web_vital.ttfb.score",
         score_ratio_attribute: "score.ratio.ttfb",
-        score_weight_attribute: "score.weight.ttfb",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__TTFB__REQUEST_TIME,
@@ -133,8 +128,6 @@ struct WebVital {
     score_name: &'static str,
     /// Span attribute holding the `0..=1` score of the vital.
     score_ratio_attribute: &'static str,
-    /// Span attribute holding the weight of the vital in the total performance score.
-    score_weight_attribute: &'static str,
 }
 
 /// Copies the attributes shared by all web vital metrics from the span.
@@ -237,11 +230,6 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         };
 
         let mut attributes = Attributes::new();
-
-        if let Some(v) = attrs.get_attribute(web_vital.score_weight_attribute) {
-            attributes.insert(web_vital.score_weight_attribute, v.value.clone());
-        }
-
         insert_common_attributes(attrs, &mut attributes);
 
         results.push(make_metric(
@@ -434,10 +422,6 @@ mod tests {
           "browser.name": {
             "type": "string",
             "value": "Chrome"
-          },
-          "score.weight.lcp": {
-            "type": "double",
-            "value": 0.3
           },
           "sentry.metric.source": {
             "type": "string",
