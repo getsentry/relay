@@ -32,7 +32,19 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
                 "type": "network-error",
                 "url": "https://example.com/index.html",
                 "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-            }
+            },
+            # This report has an invalid type. The Browser Report
+            # integration should ignore it.
+            {
+                "age": 1700000,
+                "body": {
+                    "frobnicated": True,
+                    "mana_used": 123,
+                },
+                "type": "future-magic",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+            },
         ],
     )
 
