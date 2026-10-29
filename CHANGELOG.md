@@ -46,7 +46,6 @@
 - Always convert Unreal crash reports instead of only when processing is enabled. ([#6578](https://github.com/getsentry/relay/pull/6578))
 - Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549), [#6579](https://github.com/getsentry/relay/pull/6579))
 - Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
-- Add `Item::set_content_type` to change an item's content type without setting its payload again. ([#6584](https://github.com/getsentry/relay/pull/6584))
 
 ## 26.10.0
 
