@@ -400,7 +400,8 @@ impl ProcessValue for Attributes {
 #[cfg(test)]
 mod deprecation_tests {
     use super::*;
-    use crate::protocol::SpanData;
+    use crate::protocol::{OurLog, Span, SpanData, SpanV2, TraceMetric};
+    use relay_protocol::{Getter, RuleCondition, Val};
 
     fn assert_lookup(pairs: &[(&str, &str)], key: &str, expected: Option<&str>) {
         let attributes = Attributes::from_iter(
@@ -436,6 +437,108 @@ mod deprecation_tests {
         );
         assert_eq!(attributes, original_attributes);
         assert_eq!(data, original_data);
+    }
+
+    fn assert_condition_lookup(
+        item: &(impl Getter + Clone + PartialEq + std::fmt::Debug),
+        paths: &[String],
+        expected: Option<&str>,
+    ) {
+        let original = item.clone();
+        for path in paths {
+            assert_eq!(item.get_value(path), expected.map(Val::String), "{path}");
+            if let Some(expected) = expected {
+                assert!(RuleCondition::eq(path.clone(), expected).matches(item));
+                assert!(!RuleCondition::eq(path.clone(), "not the value").matches(item));
+            }
+        }
+        assert_eq!(item, &original);
+    }
+
+    fn assert_condition_lookups(pairs: &[(&str, &str)], keys: &[&str], expected: Option<&str>) {
+        let mut attributes = Attributes::new();
+        let mut data = SpanData::default();
+        for &(key, value) in pairs {
+            attributes.insert(key, value);
+            data.insert_value(key, value.to_owned());
+        }
+        let paths = |prefix: &str| {
+            keys.iter()
+                .map(|key| format!("{prefix}.attributes.{key}.value"))
+                .collect::<Vec<_>>()
+        };
+        assert_condition_lookup(
+            &SpanV2 {
+                attributes: Annotated::new(attributes.clone()),
+                ..Default::default()
+            },
+            &paths("span"),
+            expected,
+        );
+        assert_condition_lookup(
+            &OurLog {
+                attributes: Annotated::new(attributes.clone()),
+                ..Default::default()
+            },
+            &paths("log"),
+            expected,
+        );
+        assert_condition_lookup(
+            &TraceMetric {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            },
+            &paths("trace_metric"),
+            expected,
+        );
+        let paths = keys
+            .iter()
+            .map(|key| key.replace('.', "\\."))
+            .collect::<Vec<_>>();
+        assert_condition_lookup(&data, &paths, expected);
+        assert_condition_lookup(
+            &Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            },
+            &paths
+                .iter()
+                .map(|path| format!("span.data.{path}"))
+                .collect::<Vec<_>>(),
+            expected,
+        );
+    }
+
+    #[test]
+    fn configured_conditions_resolve_deprecated_attributes() {
+        for (current, deprecated) in [
+            ("sentry.release", "release"),
+            ("sentry.environment", "environment"),
+            ("sentry.segment.name", "transaction"),
+            ("browser.name", "sentry.browser.name"),
+            ("http.request.method", "http.method"),
+            ("url.path.parameter.id", "url.path.params.id"),
+        ] {
+            let keys = [current, deprecated];
+            assert_condition_lookups(&[(deprecated, "old")], &keys, Some("old"));
+            assert_condition_lookups(&[(current, "current")], &keys, Some("current"));
+            assert_condition_lookups(
+                &[(deprecated, "old"), (current, "current")],
+                &keys,
+                Some("current"),
+            );
+            assert_condition_lookups(&[], &keys, None);
+        }
+        assert_condition_lookups(
+            &[("custom.attribute", "custom")],
+            &["custom.attribute"],
+            Some("custom"),
+        );
+        assert_condition_lookups(
+            &[("gen_ai.request.messages", "old")],
+            &["gen_ai.input.messages"],
+            None,
+        );
     }
 
     #[test]

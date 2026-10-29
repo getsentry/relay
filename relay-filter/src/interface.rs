@@ -171,19 +171,32 @@ impl Filterable for Replay {
 
 impl Filterable for Span {
     fn ip_addr(&self) -> Option<&str> {
-        self.data.value()?.get_str(CLIENT__ADDRESS)
+        self.data
+            .value()?
+            .get_value_with_deprecations(CLIENT__ADDRESS)?
+            .as_str()
     }
 
     fn release(&self) -> Option<&str> {
-        self.data.value()?.get_str(SENTRY__RELEASE)
+        self.data
+            .value()?
+            .get_value_with_deprecations(SENTRY__RELEASE)?
+            .as_str()
     }
 
     fn transaction(&self) -> Option<&str> {
-        self.data.value()?.get_str(SENTRY__SEGMENT__NAME)
+        self.data
+            .value()?
+            .get_value_with_deprecations(SENTRY__SEGMENT__NAME)?
+            .as_str()
     }
 
     fn url(&self) -> Option<Url> {
-        let url_str = self.data.value()?.get_str(URL__FULL)?;
+        let url_str = self
+            .data
+            .value()?
+            .get_value_with_deprecations(URL__FULL)?
+            .as_str()?;
         Url::parse(url_str).ok()
     }
 
@@ -191,7 +204,8 @@ impl Filterable for Span {
         let raw = self
             .data
             .value()
-            .and_then(|data| data.get_str(USER_AGENT__ORIGINAL));
+            .and_then(|data| data.get_value_with_deprecations(USER_AGENT__ORIGINAL))
+            .and_then(|value| value.as_str());
         UserAgent { raw, parsed: None }
     }
 }
@@ -245,7 +259,7 @@ macro_rules! impl_for_attributes {
                 // If the SDK indicates this really is a localhost request, use this information
                 // to provide the IP to filter on.
                 let is_localhost = attributes
-                    .get_value(SENTRY__IS_LOCALHOST)
+                    .get_value_with_deprecations(SENTRY__IS_LOCALHOST)
                     .and_then(|v| v.as_bool());
                 if let Some(true) = is_localhost {
                     return Some("127.0.0.1");
@@ -260,26 +274,30 @@ macro_rules! impl_for_attributes {
                 // they really are on `localhost` but Relay infers the internet ip address.
                 self.attributes
                     .value()?
-                    .get_value(CLIENT__ADDRESS)?
+                    .get_value_with_deprecations(CLIENT__ADDRESS)?
                     .as_str()
             }
 
             fn release(&self) -> Option<&str> {
                 self.attributes
                     .value()?
-                    .get_value(SENTRY__RELEASE)?
+                    .get_value_with_deprecations(SENTRY__RELEASE)?
                     .as_str()
             }
 
             fn transaction(&self) -> Option<&str> {
                 self.attributes
                     .value()?
-                    .get_value(SENTRY__SEGMENT__NAME)?
+                    .get_value_with_deprecations(SENTRY__SEGMENT__NAME)?
                     .as_str()
             }
 
             fn url(&self) -> Option<Url> {
-                let url = self.attributes.value()?.get_value(URL__FULL)?.as_str()?;
+                let url = self
+                    .attributes
+                    .value()?
+                    .get_value_with_deprecations(URL__FULL)?
+                    .as_str()?;
                 Url::parse(url).ok()
             }
 
@@ -298,8 +316,12 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
     let parsed = (|| {
         let attributes = attributes.value()?;
 
-        let family = attributes.get_value(BROWSER__NAME)?.as_str()?;
-        let version = attributes.get_value(BROWSER__VERSION)?.as_str()?;
+        let family = attributes
+            .get_value_with_deprecations(BROWSER__NAME)?
+            .as_str()?;
+        let version = attributes
+            .get_value_with_deprecations(BROWSER__VERSION)?
+            .as_str()?;
         let mut parts = version.splitn(3, '.');
 
         Some(relay_ua::UserAgent {
@@ -312,8 +334,169 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
 
     let raw = attributes
         .value()
-        .and_then(|attr| attr.get_value(USER_AGENT__ORIGINAL))
+        .and_then(|attr| attr.get_value_with_deprecations(USER_AGENT__ORIGINAL))
         .and_then(|ua| ua.as_str());
 
     UserAgent { raw, parsed }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_event_schema::protocol::SpanData;
+    use relay_protocol::{Annotated, Value};
+
+    fn items(pairs: &[(&str, &str)]) -> [Box<dyn Filterable>; 4] {
+        let mut attributes = Attributes::new();
+        let mut data = SpanData::default();
+        for &(key, value) in pairs {
+            attributes.insert(key, value);
+            data.insert_value(key, value.to_owned());
+        }
+        [
+            Box::new(Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            }),
+            Box::new(SpanV2 {
+                attributes: Annotated::new(attributes.clone()),
+                ..Default::default()
+            }),
+            Box::new(OurLog {
+                attributes: Annotated::new(attributes.clone()),
+                ..Default::default()
+            }),
+            Box::new(TraceMetric {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            }),
+        ]
+    }
+
+    #[test]
+    fn inbound_filters_read_deprecated_attributes() {
+        for item in items(&[
+            ("http.client_ip", "127.0.0.1"),
+            ("release", "1.0"),
+            ("transaction", "/users"),
+            ("http.url", "http://localhost/users"),
+            ("http.user_agent", "Googlebot"),
+        ]) {
+            assert_eq!(item.ip_addr(), Some("127.0.0.1"));
+            assert_eq!(item.release(), Some("1.0"));
+            assert_eq!(item.transaction(), Some("/users"));
+            assert_eq!(
+                item.url(),
+                Some(Url::parse("http://localhost/users").unwrap())
+            );
+            assert_eq!(item.user_agent().raw, Some("Googlebot"));
+        }
+    }
+
+    #[test]
+    fn inbound_filters_prefer_current_attributes() {
+        for item in items(&[
+            ("http.client_ip", "127.0.0.1"),
+            ("client.address", "192.0.2.1"),
+            ("release", "old"),
+            ("sentry.release", "current"),
+            ("transaction", "/old"),
+            ("sentry.segment.name", "/current"),
+            ("http.url", "http://localhost/old"),
+            ("url.full", "https://example.com/current"),
+            ("http.user_agent", "old"),
+            ("user_agent.original", "current"),
+        ]) {
+            assert_eq!(item.ip_addr(), Some("192.0.2.1"));
+            assert_eq!(item.release(), Some("current"));
+            assert_eq!(item.transaction(), Some("/current"));
+            assert_eq!(
+                item.url(),
+                Some(Url::parse("https://example.com/current").unwrap())
+            );
+            assert_eq!(item.user_agent().raw, Some("current"));
+        }
+    }
+
+    #[test]
+    fn inbound_filters_handle_missing_attributes() {
+        for item in items(&[]) {
+            assert_eq!(item.ip_addr(), None);
+            assert_eq!(item.release(), None);
+            assert_eq!(item.transaction(), None);
+            assert_eq!(item.url(), None);
+            assert!(item.user_agent().raw.is_none());
+            assert!(item.user_agent().parsed.is_none());
+        }
+    }
+
+    #[test]
+    fn parsed_browser_reads_deprecated_attributes() {
+        for item in items(&[
+            ("sentry.browser.name", "Internet Explorer"),
+            ("sentry.browser.version", "8.0.1"),
+        ])
+        .into_iter()
+        .skip(1)
+        {
+            let ua = item.user_agent().parsed.unwrap();
+            assert_eq!(ua.family, "Internet Explorer");
+            assert_eq!(ua.major.as_deref(), Some("8"));
+            assert_eq!(ua.minor.as_deref(), Some("0"));
+            assert_eq!(ua.patch.as_deref(), Some("1"));
+        }
+    }
+
+    #[test]
+    fn parsed_browser_prefers_current_attributes() {
+        for item in items(&[
+            ("sentry.browser.name", "Internet Explorer"),
+            ("sentry.browser.version", "8.0"),
+            ("browser.name", "Chrome"),
+            ("browser.version", "120.1"),
+        ])
+        .into_iter()
+        .skip(1)
+        {
+            let ua = item.user_agent().parsed.unwrap();
+            assert_eq!(ua.family, "Chrome");
+            assert_eq!(ua.major.as_deref(), Some("120"));
+            assert_eq!(ua.minor.as_deref(), Some("1"));
+        }
+    }
+
+    #[test]
+    fn localhost_flag_takes_precedence_over_deprecated_address() {
+        let mut attributes = Attributes::new();
+        attributes.insert("sentry.is_localhost", true);
+        attributes.insert("http.client_ip", "192.0.2.1");
+        let span = SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        };
+        assert_eq!(span.ip_addr(), Some("127.0.0.1"));
+    }
+
+    #[test]
+    fn inbound_filters_do_not_skip_present_invalid_current_values() {
+        let span =
+            Annotated::<Span>::from_json(r#"{"data":{"sentry.release":42,"release":"old"}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        assert_eq!(span.release(), None);
+
+        let mut attributes = Attributes::new();
+        attributes.insert("sentry.release", 42i64);
+        attributes.insert("release", "old");
+        let span = SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        };
+        assert_eq!(span.release(), None);
+        assert_eq!(
+            span.attributes.value().unwrap().get_value("sentry.release"),
+            Some(&Value::I64(42))
+        );
+    }
 }

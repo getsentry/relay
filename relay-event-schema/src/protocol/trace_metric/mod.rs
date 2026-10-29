@@ -78,7 +78,10 @@ impl Getter for TraceMetric {
             path => {
                 let key = path.strip_prefix("attributes.")?;
                 let key = key.strip_suffix(".value")?;
-                self.attributes.value()?.get_value(key)?.into()
+                self.attributes
+                    .value()?
+                    .get_value_with_deprecations(key)?
+                    .into()
             }
         })
     }

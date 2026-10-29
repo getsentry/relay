@@ -189,10 +189,30 @@ impl Getter for Span {
         // for a span.
         let event_prefix = path.strip_prefix("event.")?;
         Some(match event_prefix {
-            "release" => self.data.value()?.get_str(SENTRY__RELEASE)?.into(),
-            "environment" => self.data.value()?.get_str(SENTRY__ENVIRONMENT)?.into(),
-            "transaction" => self.data.value()?.get_str(SENTRY__SEGMENT__NAME)?.into(),
-            "contexts.browser.name" => self.data.value()?.get_str(BROWSER__NAME)?.into(),
+            "release" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__RELEASE)?
+                .as_str()?
+                .into(),
+            "environment" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__ENVIRONMENT)?
+                .as_str()?
+                .into(),
+            "transaction" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__SEGMENT__NAME)?
+                .as_str()?
+                .into(),
+            "contexts.browser.name" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(BROWSER__NAME)?
+                .as_str()?
+                .into(),
             // TODO: we might want to add additional fields once they are added to the span.
             _ => return None,
         })
@@ -527,7 +547,7 @@ impl Getter for SpanData {
         let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
         let root = path.next()?;
 
-        let mut val = self.get(&root)?.value()?;
+        let mut val = self.get_value_with_deprecations(&root)?;
         for part in path {
             // While there is path segments left, `val` has to be an Object.
             let relay_protocol::Value::Object(map) = val else {
@@ -887,6 +907,74 @@ mod tests {
             span.get_value("span.measurements.some.value"),
             Some(Val::F64(100.0))
         );
+    }
+
+    #[test]
+    fn test_span_fields_as_event_with_deprecated_attributes() {
+        for (path, current, deprecated) in [
+            ("event.release", "sentry.release", "release"),
+            ("event.environment", "sentry.environment", "environment"),
+            (
+                "event.transaction",
+                "sentry.segment.name",
+                "sentry.transaction",
+            ),
+            (
+                "event.contexts.browser.name",
+                "browser.name",
+                "sentry.browser.name",
+            ),
+        ] {
+            let mut data = SpanData::default();
+            data.insert_value(deprecated, "old".to_owned());
+            let mut span = Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            };
+            let original = span.clone();
+            assert_eq!(span.get_value(path), Some(Val::String("old")));
+            assert!(RuleCondition::eq(path, "old").matches(&span));
+            assert_eq!(span, original);
+
+            span.data
+                .get_or_insert_with(Default::default)
+                .insert_value(current, "current".to_owned());
+            let original = span.clone();
+            assert_eq!(span.get_value(path), Some(Val::String("current")));
+            assert!(RuleCondition::eq(path, "current").matches(&span));
+            assert!(!RuleCondition::eq(path, "old").matches(&span));
+            assert_eq!(span, original);
+        }
+    }
+
+    #[test]
+    fn test_getter_span_data_deprecations_preserve_nested_paths_and_tag_fallback() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "data": {
+                    "custom": {"nested": "nested"},
+                    "http.method": "GET"
+                },
+                "tags": {"custom.tag": "tag"}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(
+            span.get_value(r"span.data.http\.request\.method"),
+            Some(Val::String("GET"))
+        );
+        assert_eq!(
+            span.get_value("span.data.custom.tag"),
+            Some(Val::String("tag"))
+        );
+        assert_eq!(
+            span.get_value("span.data.custom.nested"),
+            Some(Val::String("nested"))
+        );
+        assert_eq!(span.get_value("span.data.http.request.method"), None);
     }
 
     #[test]
