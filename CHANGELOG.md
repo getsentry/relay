@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
+
 **Internal**:
 
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
