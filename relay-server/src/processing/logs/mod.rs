@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::eap::Ingress;
 use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
@@ -12,7 +11,6 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
-use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
@@ -29,6 +27,10 @@ mod store;
 mod utils;
 mod validate;
 
+pub use self::integrations::{
+    IntegrityLogsIntegrationProcessor, NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor,
+    VercelLogsIntegrationProcessor,
+};
 pub use self::utils::get_calculated_byte_size;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -117,30 +119,19 @@ impl processing::Processor for LogsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let items = if let Some(container) = envelope
+        let log_container = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Log))
-        {
-            LogItems::Container(container)
-        } else {
-            let integration = envelope
-                .envelope_mut()
-                .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))?;
-            LogItems::Integration(integration)
-        };
+            .take_item_by(|item| matches!(*item.ty(), ItemType::Log))?;
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
             .envelope_mut()
-            .take_items_by(|item| {
-                matches!(item.ty(), ItemType::Log)
-                    || matches!(item.integration(), Some(Integration::Logs(_)))
-            })
+            .take_items_by(|item| matches!(item.ty(), ItemType::Log))
             .to_vec();
 
         let work = SerializedLogs {
             headers,
-            items,
+            log_container,
             invalid,
         };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
@@ -213,15 +204,6 @@ impl Forward for LogOutput {
     }
 }
 
-/// Different log containers which can be expanded into logs.
-#[derive(Debug)]
-enum LogItems {
-    /// A log container.
-    Container(Item),
-    /// A log integration item.
-    Integration(Item),
-}
-
 /// Logs in their serialized state, as transported in an envelope.
 #[derive(Debug)]
 pub struct SerializedLogs {
@@ -229,7 +211,7 @@ pub struct SerializedLogs {
     headers: EnvelopeHeaders,
 
     /// Serialized logs.
-    items: LogItems,
+    log_container: Item,
 
     /// Invalid log items which are not allowed to be in the envelope.
     invalid: Vec<Item>,
@@ -237,10 +219,7 @@ pub struct SerializedLogs {
 
 impl SerializedLogs {
     fn items(&self) -> impl Iterator<Item = &Item> {
-        self.invalid.iter().chain(match &self.items {
-            LogItems::Container(item) => Some(item),
-            LogItems::Integration(item) => Some(item),
-        })
+        self.invalid.iter().chain(Some(&self.log_container))
     }
 
     /// Returns the total count of all logs contained.
@@ -286,11 +265,6 @@ struct Settings {
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
-    /// How the contained logs entered Relay.
-    ///
-    /// This is only for reporting purposes. If you want the pipeline
-    /// to behave differently based on where spans came from, use `settings`.
-    ingress: Ingress,
     /// Client/protocol supplied settings controlling how logs should be normalized.
     settings: Settings,
     /// Expanded and parsed logs.

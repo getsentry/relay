@@ -1,73 +1,86 @@
-use relay_event_schema::protocol::{OurLog, OurLogHeader};
+use relay_event_schema::protocol::ourlog::container::{ContainerMetadata, IngestSettings};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, WithHeader};
-use crate::integrations::{Integration, LogsIntegration};
-use crate::managed::RecordKeeper;
-use crate::processing::logs::Settings;
+use crate::Envelope;
+use crate::envelope::{Item, ItemContainer, ItemType, WithHeader};
+use crate::extractors::RequestMeta;
+use crate::managed::{Counted, OutcomeError, Quantities};
+use crate::processing::Intermediates;
+use crate::services::outcome::{DiscardReason, Outcome};
 
 mod integrity;
 mod nel;
 mod otel;
 mod vercel;
 
-/// Expands a log [`Integration`] into a list of logs.
-///
-/// The function expects *only* log item integrations.
-pub fn expand(
-    item: Item,
-    records: &mut RecordKeeper<'_>,
-    headers: &EnvelopeHeaders,
-) -> Option<(Settings, ContainerItems<OurLog>)> {
-    let integration = match item.integration() {
-        Some(Integration::Logs(integration)) => integration,
-        integration => {
-            records.internal_error(InvalidIntegration(integration), item);
-            return None;
-        }
-    };
+pub use integrity::IntegrityLogsIntegrationProcessor;
+pub use nel::NelLogsIntegrationProcessor;
+pub use otel::OtelLogsIntegrationProcessor;
+pub use vercel::VercelLogsIntegrationProcessor;
 
-    let mut logs = Vec::new();
-    let produce = |log: OurLog| {
-        let byte_size = relay_ourlogs::calculate_size(&log);
-
-        records.modify_by(DataCategory::LogItem, 1);
-        records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-        logs.push(WithHeader {
-            header: Some(OurLogHeader {
-                byte_size: Some(byte_size),
-                other: Default::default(),
-            }),
-            value: log.into(),
-        });
-    };
-
-    let payload = item.payload();
-
-    let settings = match integration {
-        LogsIntegration::Nel => nel::expand(&payload, headers, produce),
-        LogsIntegration::Integrity => integrity::expand(&payload, headers, produce),
-        LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
-        LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
-    };
-    let settings = match settings {
-        Ok(settings) => settings,
-        Err(err) => {
-            let _ = records.reject_err(err, &item);
-            return None;
-        }
-    };
-
-    // Undo all the base item quantities, as they will be completely taken over by the parsed
-    // contents, which contains an arbitrary amount of items (even 0).
-    for (category, quantity) in item.quantities() {
-        records.modify_by(category, -(quantity as isize));
-    }
-
-    Some((settings, logs))
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum Error {
+    /// The log is invalid.
+    #[error("invalid: {0}")]
+    Invalid(DiscardReason),
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("Expected a logs integration, got: {0:?}")]
-struct InvalidIntegration(Option<Integration>);
+impl OutcomeError for Error {
+    type Error = Self;
+
+    fn consume(self) -> (Option<crate::services::outcome::Outcome>, Self::Error) {
+        let outcome = match self {
+            Self::Invalid(discard_reason) => Some(Outcome::Invalid(discard_reason)),
+        };
+
+        (outcome, self)
+    }
+}
+
+#[derive(Debug)]
+pub struct SerializedLogsIntegration {
+    /// Original request metadata.
+    meta: RequestMeta,
+    /// The first log integration item in the envelope.
+    item: Item,
+}
+
+impl SerializedLogsIntegration {
+    fn count(&self) -> usize {
+        self.item.item_count().unwrap_or(1) as usize
+    }
+
+    fn bytes(&self) -> usize {
+        self.item.len()
+    }
+}
+
+impl Counted for SerializedLogsIntegration {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![
+            (DataCategory::LogItem, self.count()),
+            (DataCategory::LogByte, self.bytes())
+        ]
+    }
+}
+
+fn create_intermediates(
+    meta: crate::extractors::RequestMeta,
+    logs: Vec<WithHeader<relay_event_schema::protocol::OurLog>>,
+    settings: IngestSettings,
+) -> Result<Intermediates, Error> {
+    let metadata = ContainerMetadata {
+        version: Some(2),
+        ingest_settings: Some(settings),
+    };
+
+    let mut log_container = Item::new(ItemType::Log);
+    ItemContainer::from_parts(metadata, logs)
+        .write_to(&mut log_container)
+        .map_err(|_| Error::Invalid(DiscardReason::Internal))?;
+
+    let mut envelope = Envelope::from_request(None, meta);
+    envelope.add_item(log_container);
+
+    Ok(Intermediates::from_envelope(envelope))
+}
