@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
@@ -26,7 +27,6 @@
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 - Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
 - Allow pii scrubbing of the `script_sample` field on Csp. ([#6582](https://github.com/getsentry/relay/pull/6582))
-- Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
 
 **Bug Fixes**:
 
