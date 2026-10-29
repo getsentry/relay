@@ -3,9 +3,10 @@
 //! [flame graph attachments]: https://develop.sentry.dev/sdk/telemetry/attachments/#flame-graph
 
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
 
 use bytes::Bytes;
-use relay_event_schema::protocol::{DebugId, VALID_PLATFORMS};
+use relay_event_schema::protocol::{DebugId, RawStacktrace, VALID_PLATFORMS};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
@@ -101,11 +102,6 @@ impl<T> std::ops::Deref for Source<'_, T> {
 }
 
 impl Graph<'_> {
-    /// Original JSON for a selected frame.
-    pub fn frame(&self, index: usize) -> &RawValue {
-        self.frames[index].raw
-    }
-
     /// Original debug metadata, including event-specific image fields.
     pub fn debug_meta(&self) -> Option<&RawValue> {
         self.debug_meta.as_ref().map(|meta| meta.raw)
@@ -233,9 +229,9 @@ pub fn parse(payload: &[u8]) -> Result<Graph<'_>, Error> {
     Ok(graph)
 }
 
-/// Identify a representative caller-to-callee path, expressed as frame-table indices.
+/// A representative caller-to-callee path, borrowing frame JSON from the attachment.
 ///
-/// Retain the first 50 and last 200 frames, matching event stacktrace trimming.
+/// Retention follows the frame limits on [`RawStacktrace`], matching event stacktrace trimming.
 ///
 /// Like the `AnrCulpritIdentifier` in the Android SDK, this scores identical root-to-frame prefixes by
 /// `sample_count * (depth + application_frames)`. Node counts are inclusive, so they already
@@ -245,16 +241,29 @@ pub fn parse(payload: &[u8]) -> Result<Graph<'_>, Error> {
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
 /// the first path in input order. The attachment itself remains unchanged. Graphs whose expanded
 /// paths exceed a traversal budget linear in nodes, child edges, and roots are rejected.
-pub struct Culprit {
-    /// Retained frame-table indices in caller-to-callee order.
-    pub frames: Vec<usize>,
+pub struct Culprit<'payload> {
+    /// Retained source frames in caller-to-callee order.
+    pub frames: Vec<&'payload RawValue>,
     /// Number of frames before middle-frame trimming.
     pub original_len: usize,
 }
 
-impl Graph<'_> {
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+struct PrefixId(NonZeroUsize);
+
+impl PrefixId {
+    fn new(index: usize) -> Self {
+        Self(NonZeroUsize::new(index + 1).unwrap())
+    }
+
+    fn index(self) -> usize {
+        self.0.get() - 1
+    }
+}
+
+impl<'payload> Graph<'payload> {
     /// Select the bounded culprit path from this validated graph without reparsing it.
-    pub fn identify_culprit(&self) -> Result<Culprit, Error> {
+    pub fn identify_culprit(&self) -> Result<Culprit<'payload>, Error> {
         let graph = self;
 
         // A producer may emit duplicate frame-table entries. Intern their known frame data once,
@@ -267,7 +276,7 @@ impl Graph<'_> {
         }
 
         struct Prefix {
-            parent: Option<usize>,
+            parent: Option<PrefixId>,
             frame_id: usize,
             depth: usize,
             app_frames: usize,
@@ -315,12 +324,12 @@ impl Graph<'_> {
                 let frame_id = frame_ids[node.frame_id];
                 let prefix = *prefixes.entry((parent, frame_id)).or_insert_with(|| {
                     let (depth, app_frames) = parent
-                        .map(|parent: usize| {
-                            let prefix = &candidates[parent];
+                        .map(|parent: PrefixId| {
+                            let prefix = &candidates[parent.index()];
                             (prefix.depth, prefix.app_frames)
                         })
                         .unwrap_or_default();
-                    let index = candidates.len();
+                    let index = PrefixId::new(candidates.len());
                     candidates.push(Prefix {
                         parent,
                         frame_id,
@@ -331,10 +340,10 @@ impl Graph<'_> {
                     });
                     index
                 });
-                if candidates[prefix].depth > graph.nodes.len() {
+                if candidates[prefix.index()].depth > graph.nodes.len() {
                     return Err(Error::CyclicCallPath);
                 }
-                candidates[prefix].samples += u128::from(node.sample_count);
+                candidates[prefix.index()].samples += u128::from(node.sample_count);
                 remaining_visits = remaining_visits
                     .checked_sub(node.children.len())
                     .ok_or(Error::TraversalLimit)?;
@@ -358,12 +367,14 @@ impl Graph<'_> {
             }
             if let Some(index) = best_prefix {
                 let depth = candidates[index].depth;
-                let mut path = Vec::with_capacity(depth.min(250));
-                let mut current = Some(index);
+                let mut path = Vec::with_capacity(depth.min(RawStacktrace::MAX_FRAMES));
+                let mut current = Some(PrefixId::new(index));
                 while let Some(index) = current {
-                    let prefix = &candidates[index];
-                    if prefix.depth <= 50 || prefix.depth > depth.saturating_sub(200) {
-                        path.push(prefix.frame_id);
+                    let prefix = &candidates[index.index()];
+                    if prefix.depth <= RawStacktrace::MAX_OLDEST_FRAMES
+                        || prefix.depth > depth.saturating_sub(RawStacktrace::MAX_NEWEST_FRAMES)
+                    {
+                        path.push(graph.frames[prefix.frame_id].raw);
                     }
                     current = prefix.parent;
                 }
@@ -384,9 +395,20 @@ mod tests {
     use serde_json::json;
 
     fn identify(graph: serde_json::Value) -> Result<Vec<usize>, Error> {
-        Ok(parse(&serde_json::to_vec(&graph).unwrap())?
+        let payload = serde_json::to_vec(&graph).unwrap();
+        let graph = parse(&payload)?;
+        Ok(graph
             .identify_culprit()?
-            .frames)
+            .frames
+            .into_iter()
+            .map(|raw| {
+                graph
+                    .frames
+                    .iter()
+                    .position(|frame| std::ptr::eq(frame.raw, raw))
+                    .unwrap()
+            })
+            .collect())
     }
 
     fn culprit_graph() -> serde_json::Value {
@@ -406,6 +428,31 @@ mod tests {
             ],
             "trees": [{"roots": [0]}]
         })
+    }
+
+    #[test]
+    fn test_culprit_borrows_payload_independently_of_graph() {
+        fn select(payload: &[u8]) -> Vec<&RawValue> {
+            parse(payload).unwrap().identify_culprit().unwrap().frames
+        }
+
+        let payload = serde_json::to_vec(&culprit_graph()).unwrap();
+        let frames = select(&payload);
+        assert_eq!(frames.len(), 2);
+        for frame in frames {
+            assert!(payload.as_ptr_range().contains(&frame.get().as_ptr()));
+        }
+    }
+
+    #[test]
+    fn test_prefix_id_compact_optional_handle() {
+        assert_eq!(
+            std::mem::size_of::<Option<PrefixId>>(),
+            std::mem::size_of::<usize>()
+        );
+        for index in [0, 1, 50_000] {
+            assert_eq!(PrefixId::new(index).index(), index);
+        }
     }
 
     #[test]
@@ -523,6 +570,30 @@ mod tests {
             {"frame_id": 0, "sample_count": 1, "children": [0]}
         ]);
         assert!(matches!(identify(graph), Err(Error::CyclicCallPath)));
+    }
+
+    #[test]
+    fn test_culprit_retention_boundary() {
+        for depth in [
+            RawStacktrace::MAX_FRAMES - 1,
+            RawStacktrace::MAX_FRAMES,
+            RawStacktrace::MAX_FRAMES + 1,
+        ] {
+            let mut graph = culprit_graph();
+            graph["nodes"] = (0..depth)
+                .map(|index| {
+                    json!({
+                        "frame_id": 1,
+                        "sample_count": 1,
+                        "children": if index + 1 < depth { vec![index + 1] } else { vec![] }
+                    })
+                })
+                .collect();
+            let payload = serde_json::to_vec(&graph).unwrap();
+            let culprit = parse(&payload).unwrap().identify_culprit().unwrap();
+            assert_eq!(culprit.frames.len(), depth.min(RawStacktrace::MAX_FRAMES));
+            assert_eq!(culprit.original_len, depth);
+        }
     }
 
     #[test]

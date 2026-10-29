@@ -9,6 +9,7 @@ use relay_protocol::{Annotated, Array, DeserializableAnnotated};
 
 use crate::envelope::{AttachmentType, Item};
 
+/// Relative frame addresses index the retained images, independently of existing event images.
 pub(super) type Culprit = (Annotated<Array<Frame>>, Option<DebugMeta>);
 
 pub(super) fn needs_enrichment(event: &Event) -> bool {
@@ -48,11 +49,26 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
         return false;
     };
     if let Some(debug_meta) = debug_meta {
-        merge_debug_images(
-            &mut event.debug_meta,
-            debug_meta,
-            frames.get_or_insert_with(Vec::new),
-        );
+        let images = event
+            .debug_meta
+            .get_or_insert_with(DebugMeta::default)
+            .images
+            .get_or_insert_with(Vec::new);
+        for frame in frames
+            .get_or_insert_with(Vec::new)
+            .iter_mut()
+            .filter_map(|frame| frame.value_mut().as_mut())
+        {
+            if let Some(index) = frame
+                .addr_mode
+                .as_str()
+                .and_then(|mode| mode.strip_prefix("rel:"))
+                .and_then(|index| index.parse::<usize>().ok())
+            {
+                frame.addr_mode = Annotated::new(format!("rel:{}", images.len() + index));
+            }
+        }
+        images.extend(debug_meta.images.into_value().unwrap_or_default());
     }
     exception.stacktrace = Annotated::new(Stacktrace::from(RawStacktrace {
         frames,
@@ -77,35 +93,40 @@ pub(super) fn extract(
     max_event_size: usize,
 ) -> Option<Culprit> {
     let culprit = graph.identify_culprit().ok()?;
-    let indices = culprit.frames;
+    let source_frames = culprit.frames;
     // Recursion can reference one large frame many times. Bound the derived event before
     // materializing frames, rather than amplifying a small attachment ahead of normalization.
-    indices
+    let remaining = source_frames
         .iter()
-        .try_fold(max_event_size, |remaining, index| {
-            remaining.checked_sub(graph.frame(*index).get().len())
+        .try_fold(max_event_size, |remaining, raw| {
+            remaining.checked_sub(raw.get().len())
         })?;
-    let frames = indices
+    let mut frames = source_frames
         .into_iter()
-        .map(|index| {
-            serde_json::from_str::<DeserializableAnnotated<Frame>>(graph.frame(index).get())
-                .map(|frame| frame.0)
+        .map(|raw| {
+            serde_json::from_str::<DeserializableAnnotated<Frame>>(raw.get()).map(|frame| frame.0)
         })
         .collect::<Result<Array<Frame>, _>>()
         .ok()?;
-    let debug_meta = graph
+    let source_debug_meta = graph
         .debug_meta()
         .map(|raw| serde_json::from_str::<DeserializableAnnotated<DebugMeta>>(raw.get()))
         .transpose()
         .ok()?
         .and_then(|meta| meta.0.into_value());
+    let mut debug_meta = Annotated::empty();
+    if let Some(source) = source_debug_meta {
+        merge_debug_images(&mut debug_meta, source, &mut frames);
+        remaining.checked_sub(debug_meta.to_json().ok()?.len())?;
+    }
+    let retained_len = frames.len();
     let mut frames = Annotated::new(frames);
-    if culprit.original_len > 250 {
+    if culprit.original_len > retained_len {
         frames
             .meta_mut()
             .set_original_length(Some(culprit.original_len));
     }
-    Some((frames, debug_meta))
+    Some((frames, debug_meta.into_value()))
 }
 
 fn merge_debug_images(
@@ -465,6 +486,49 @@ mod tests {
                 .value()
                 .is_some_and(|path| path.0 == "App.swift")
         }));
+    }
+
+    #[test]
+    fn test_flamegraph_budgets_referenced_debug_images() {
+        let mut payload = graph();
+        payload["frames"][1]["filename"] = json!("x".repeat(40_000));
+        payload["debug_meta"]["images"][0]["code_file"] = json!("x".repeat(60_000));
+        let mut event = event();
+        let original = event.clone();
+        assert!(!super::enrich(event.value_mut().as_mut().unwrap(), || {
+            extract_attachments(&[attachment(payload)], 100_000)
+        }));
+        assert_eq!(event, original);
+    }
+
+    #[test]
+    fn test_flamegraph_does_not_budget_unused_debug_images() {
+        let mut payload = graph();
+        let mut unused = payload["debug_meta"]["images"][0].clone();
+        unused["code_file"] = json!("x".repeat(100_000));
+        unused["image_addr"] = json!("0x5000");
+        unused["debug_id"] = json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+        payload["debug_meta"]["images"]
+            .as_array_mut()
+            .unwrap()
+            .push(unused);
+        let mut event = event();
+        assert!(super::enrich(event.value_mut().as_mut().unwrap(), || {
+            extract_attachments(&[attachment(payload)], 100_000)
+        }));
+        assert_eq!(
+            event
+                .value()
+                .unwrap()
+                .debug_meta
+                .value()
+                .unwrap()
+                .images
+                .value()
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]
