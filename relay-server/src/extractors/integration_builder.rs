@@ -8,6 +8,7 @@ use bytes::Bytes;
 use relay_dynamic_config::Feature;
 
 use crate::Envelope;
+use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{Item, ItemType};
 use crate::extractors::{BadEventMeta, RequestMeta};
 use crate::integrations::Integration;
@@ -73,7 +74,11 @@ impl FromRequest<ServiceState> for IntegrationBuilder {
 
     async fn from_request(mut req: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
         let meta: RequestMeta = req.extract_parts_with_state(state).await?;
-        let payload = req.extract().await?;
+        let payload: Bytes = req.extract().await?;
+
+        if payload.is_empty() {
+            return Err(IntegrationBuilderRejection::EmptyBody);
+        }
 
         let envelope = Envelope::from_request(None, meta);
 
@@ -89,6 +94,8 @@ impl FromRequest<ServiceState> for IntegrationBuilder {
 pub enum IntegrationBuilderRejection {
     #[error(transparent)]
     BadEventMeta(#[from] BadEventMeta),
+    #[error("empty request body")]
+    EmptyBody,
     #[error("unable to read body: {0}")]
     Body(#[from] BytesRejection),
 }
@@ -97,6 +104,7 @@ impl IntoResponse for IntegrationBuilderRejection {
     fn into_response(self) -> axum::response::Response {
         match self {
             Self::BadEventMeta(err) => err.into_response(),
+            Self::EmptyBody => BadStoreRequest::EmptyBody.into_response(),
             Self::Body(err) => err.into_response(),
         }
     }
