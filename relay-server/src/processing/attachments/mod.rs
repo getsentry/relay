@@ -1,9 +1,10 @@
+use smallvec::SmallVec;
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -71,13 +72,14 @@ impl processing::Processor for AttachmentProcessor {
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         debug_assert!(
-            !envelope.envelope().items().any(Item::creates_event),
+            !envelope.envelope().items().any(Item::carries_event_payload),
             "AttachmentProcessor should not receive items that create events"
         );
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|i| i.requires_event() && matches!(i.ty(), ItemType::Attachment));
+            .drain_items::<AttachmentItem>()
+            .collect::<SmallVec<_>>();
 
         if attachments.is_empty() {
             return None;
@@ -114,7 +116,7 @@ pub struct SerializedAttachments {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of attachments.
-    attachments: Items,
+    attachments: SmallVec<[AttachmentItem; 3]>,
 }
 
 impl Counted for SerializedAttachments {

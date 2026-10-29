@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, UnrealReportItem};
 use crate::extractors::RequestMeta;
 use crate::middlewares;
 use crate::service::ServiceState;
@@ -42,7 +42,7 @@ impl UnrealParams {
             envelope.set_header(UNREAL_USER_HEADER, user_id);
         }
 
-        let mut item = Item::new(ItemType::UnrealReport);
+        let mut item = UnrealReportItem::new();
         item.set_payload(ContentType::OctetStream, data);
         envelope.add_item(item);
 

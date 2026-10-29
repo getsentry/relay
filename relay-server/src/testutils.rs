@@ -1,3 +1,4 @@
+use crate::envelope::{AttachmentItem, Envelope, TransactionItem};
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -10,7 +11,6 @@ use relay_sampling::DynamicSamplingContext;
 use relay_system::Addr;
 use relay_test::mock_service;
 
-use crate::envelope::{Envelope, Item, ItemType};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::MetricOutcomes;
 #[cfg(feature = "processing")]
@@ -63,13 +63,13 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
 
-    let item1 = Item::new(ItemType::Transaction);
+    let item1 = TransactionItem::new();
     envelope.add_item(item1);
 
-    let item2 = Item::new(ItemType::Attachment);
+    let item2 = AttachmentItem::new();
     envelope.add_item(item2);
 
-    let item3 = Item::new(ItemType::Attachment);
+    let item3 = AttachmentItem::new();
     envelope.add_item(item3);
 
     envelope

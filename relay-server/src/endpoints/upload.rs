@@ -24,7 +24,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use crate::Envelope;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
@@ -497,7 +497,7 @@ async fn validate_and_limit(
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
-    let mut item = Item::new(ItemType::Attachment);
+    let mut item = AttachmentItem::new();
     item.set_payload(ContentType::AttachmentRef, vec![]);
     item.set_attachment_length(headers.upload_length.unwrap_or(1));
     if let Some(ref metadata) = headers.metadata {

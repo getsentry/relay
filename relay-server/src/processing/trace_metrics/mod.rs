@@ -8,8 +8,10 @@ use smallvec::smallvec;
 use std::sync::Arc;
 
 use crate::Envelope;
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
-use crate::envelope::{ContainerWriteError, ItemContainer};
+use crate::envelope::{
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemPayload, Items,
+    TraceMetricItem,
+};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
@@ -98,7 +100,7 @@ impl crate::managed::OutcomeError for Error {
 
 /// A processor for trace metrics.
 ///
-/// It processes items of type: [`ItemType::TraceMetric`].
+/// It processes items of type: [`TraceMetricItem`].
 #[derive(Debug)]
 pub struct TraceMetricsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -123,15 +125,13 @@ impl processing::Processor for TraceMetricsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let item = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::TraceMetric))?;
+        let item = envelope.envelope_mut().take_item::<TraceMetricItem>()?;
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
-            .to_vec();
+            .drain_items::<TraceMetricItem>()
+            .collect();
 
         let work = SerializedTraceMetrics {
             headers,
@@ -222,13 +222,13 @@ pub struct SerializedTraceMetrics {
     /// Original envelope headers.
     pub headers: EnvelopeHeaders,
     /// Trace metric item container.
-    item: Item,
+    item: TraceMetricItem,
     /// Invalid trace metric items which are not allowed to be in the envelope.
-    invalid: Vec<Item>,
+    invalid: Vec<TraceMetricItem>,
 }
 
 impl SerializedTraceMetrics {
-    fn all_items(&self) -> impl Iterator<Item = &Item> {
+    fn all_items(&self) -> impl Iterator<Item = &TraceMetricItem> {
         std::iter::once(&self.item).chain(self.invalid.iter())
     }
 }
@@ -294,7 +294,7 @@ impl ExpandedTraceMetrics {
         let mut metrics = Vec::new();
 
         if !self.metrics.is_empty() {
-            let mut item = Item::new(ItemType::TraceMetric);
+            let mut item = TraceMetricItem::new();
             ItemContainer::from_parts(
                 trace_metric::container::ContainerMetadata {
                     // Latest supported version.
@@ -306,7 +306,7 @@ impl ExpandedTraceMetrics {
             )
             .write_to(&mut item)
             .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
-            metrics.push(item);
+            metrics.push(Item::from(item));
         }
 
         Ok(Envelope::from_parts(self.headers, Items::from_vec(metrics)))

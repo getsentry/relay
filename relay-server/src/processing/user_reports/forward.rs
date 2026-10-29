@@ -10,7 +10,7 @@ impl Forward for UserReportsOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(reports) = self;
         let envelope = reports.map(|SerializedUserReports { headers, reports }, _| {
-            Envelope::from_parts(headers, reports.into())
+            Envelope::from_parts(headers, reports.into_iter().map(Into::into).collect())
         });
         Ok(envelope)
     }

@@ -64,7 +64,10 @@ fn do_expand(
     //
     // It is reasonable to just reject such envelopes, this is ported over from a prior
     // implementation of the error processing pipeline.
-    for item in error.items.extract_if(.., |item| item.creates_event()) {
+    for item in error
+        .items
+        .extract_if(.., |item| item.carries_event_payload())
+    {
         records.reject_err(ProcessingError::DuplicateItem(item.ty().clone()), item);
     }
 

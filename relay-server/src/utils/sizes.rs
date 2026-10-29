@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -102,29 +102,29 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
-        let limit = match item.ty() {
-            ItemType::Event
-            | ItemType::Transaction
-            | ItemType::Security
-            | ItemType::ReplayEvent
-            | ItemType::RawSecurity
-            | ItemType::UserReportV2
-            | ItemType::FormData => &mut event,
-            ItemType::Attachment | ItemType::UnrealReport | ItemType::UserReport => &mut attachment,
-            ItemType::ReplayRecording => &mut replay_recording,
-            ItemType::ReplayVideo => &mut replay_video,
-            ItemType::Session | ItemType::Sessions => &mut session,
-            ItemType::ClientReport => &mut client_report,
-            ItemType::Profile | ItemType::ProfileChunk => &mut profile,
-            ItemType::CheckIn => &mut check_in,
-            ItemType::MetricBuckets => &mut metric_bucket,
-            ItemType::Log => &mut log,
-            ItemType::TraceMetric => &mut trace_metric,
-            ItemType::Span => match item.is_container() {
+        let limit = match item {
+            Item::Event(_)
+            | Item::Transaction(_)
+            | Item::Security(_)
+            | Item::ReplayEvent(_)
+            | Item::RawSecurity(_)
+            | Item::UserReportV2(_)
+            | Item::FormData(_) => &mut event,
+            Item::Attachment(_) | Item::UnrealReport(_) | Item::UserReport(_) => &mut attachment,
+            Item::ReplayRecording(_) => &mut replay_recording,
+            Item::ReplayVideo(_) => &mut replay_video,
+            Item::Session(_) | Item::Sessions(_) => &mut session,
+            Item::ClientReport(_) => &mut client_report,
+            Item::Profile(_) | Item::ProfileChunk(_) => &mut profile,
+            Item::CheckIn(_) => &mut check_in,
+            Item::MetricBuckets(_) => &mut metric_bucket,
+            Item::Log(_) => &mut log,
+            Item::TraceMetric(_) => &mut trace_metric,
+            Item::Span(item) => match item.is_container() {
                 true => &mut span,
                 false => &mut span_legacy,
             },
-            ItemType::Integration => match item.integration() {
+            Item::Integration(item) => match item.integration() {
                 Some(Integration::Logs(_)) => &mut log_integration,
                 Some(Integration::Spans(_)) => &mut span_integration,
                 None => {
@@ -134,7 +134,7 @@ pub fn check_envelope_size_limits(
                 }
             },
             // Unknown items are either filtered or forwarded as is.
-            ItemType::Unknown(_) => continue,
+            Item::Unknown(_) => continue,
         };
 
         if let Err(err) = limit.apply(item) {
@@ -148,10 +148,13 @@ pub fn check_envelope_size_limits(
                 }
             );
 
-            let discard_item: DiscardItemType = item
-                .attachment_type()
-                .map(|t| t.into())
-                .unwrap_or_else(|| item.ty().into());
+            let discard_item = match item {
+                Item::Attachment(attachment) => attachment
+                    .attachment_type()
+                    .map(DiscardItemType::from)
+                    .unwrap_or_else(|| item.ty().into()),
+                _ => item.ty().into(),
+            };
             return Err(discard_item);
         }
     }
@@ -214,6 +217,7 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
         envelope.retain_items(|item| {
             if item.is_unknown() {
                 relay_log::debug!("dropping unknown item");
+                // Reject items silently, without outcomes.
                 records.reject_err(None, &*item);
                 false
             } else {

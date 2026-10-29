@@ -39,7 +39,10 @@ use relay_statsd::metric;
 use relay_system::{FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
+use crate::envelope::{
+    AttachmentItem, AttachmentPlaceholder, AttachmentType, ContentType, Item, ProfileItem,
+    UserReportItem,
+};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 
@@ -135,9 +138,9 @@ pub struct StoreEvent {
     /// The event to be stored.
     pub event: Annotated<Event>,
     /// A list of attachments associated with the event.
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
     /// A list of user reports associated with the event.
-    pub user_reports: Vec<Item>,
+    pub user_reports: Vec<UserReportItem>,
     /// Event retention in days.
     pub retention_days: u16,
 }
@@ -261,7 +264,7 @@ pub struct StoreAttachment {
     /// The event ID.
     pub event_id: EventId,
     /// That attachment item.
-    pub attachment: Item,
+    pub attachment: AttachmentItem,
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
     /// Data retention in days for this attachment.
@@ -280,7 +283,7 @@ pub struct StoreUserReport {
     /// The event ID.
     pub event_id: EventId,
     /// The user report.
-    pub report: Item,
+    pub report: UserReportItem,
 }
 
 impl Counted for StoreUserReport {
@@ -295,7 +298,7 @@ pub struct StoreProfile {
     /// Number of days to retain.
     pub retention_days: u16,
     /// The profile.
-    pub profile: Item,
+    pub profile: ProfileItem,
     /// Outcome quantities associated with this profile.
     pub quantities: Quantities,
 }
@@ -1002,7 +1005,7 @@ impl StoreService {
 
     fn chunked_attachment_from_placeholder(
         &self,
-        item: &Item,
+        item: &AttachmentItem,
         retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
         debug_assert!(
@@ -1038,7 +1041,7 @@ impl StoreService {
         event_id: EventId,
         project_id: ProjectId,
         org_id: OrganizationId,
-        item: &Item,
+        item: &AttachmentItem,
         send_individual_attachments: bool,
         retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
@@ -1117,7 +1120,7 @@ impl StoreService {
         event_id: EventId,
         project_id: ProjectId,
         org_id: OrganizationId,
-        item: &Item,
+        item: &AttachmentItem,
         send_individual_attachments: bool,
         retention_days: u16,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
@@ -1154,7 +1157,7 @@ impl StoreService {
         project_id: ProjectId,
         org_id: OrganizationId,
         received_at: DateTime<Utc>,
-        item: &Item,
+        item: &UserReportItem,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::UserReport(UserReportKafkaMessage {
             project_id,
@@ -1248,7 +1251,7 @@ impl StoreService {
         key_id: Option<u64>,
         received_at: DateTime<Utc>,
         retention_days: u16,
-        item: &Item,
+        item: &ProfileItem,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
             organization_id,

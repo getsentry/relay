@@ -136,7 +136,7 @@ ITEM_TYPE_RATE_LIMIT_BEHAVIORS = [
     ),
     RateLimitBehavior("profile_chunk", PayloadType.BINARY, None),
     RateLimitBehavior("metric_buckets", PayloadType.JSON, [], True),
-    RateLimitBehavior("sessions", PayloadType.BINARY, [], True),
+    RateLimitBehavior("sessions", PayloadType.BINARY, []),
     RateLimitBehavior("session", PayloadType.BINARY, []),
     RateLimitBehavior(
         "event",

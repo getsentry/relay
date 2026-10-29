@@ -1,15 +1,15 @@
+use super::ErrorPayload;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, Item, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 #[cfg(feature = "processing")]
 use crate::utils::AdditionalExceptions;
 
 #[derive(Debug)]
-pub struct Minidump(pub Item);
+pub struct Minidump(pub AttachmentItem);
 
 impl SentryError for Minidump {
     fn event_category(&self) -> DataCategory {
@@ -17,7 +17,7 @@ impl SentryError for Minidump {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(minidump) = utils::take_item_by(items, |item| {
+        let Some(minidump) = utils::take_payload_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::Minidump)
         }) else {
             return Ok(None);
@@ -38,8 +38,8 @@ impl SentryError for Minidump {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self(minidump),
             metrics,
@@ -61,12 +61,11 @@ impl SentryError for Minidump {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.0);
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::Attachments(smallvec::smallvec![self.0])
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         Some(&mut self.0)
     }
 }

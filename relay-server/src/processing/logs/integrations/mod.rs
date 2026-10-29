@@ -1,7 +1,8 @@
+use crate::managed::Counted;
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, WithHeader};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, IntegrationItem, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::logs::Settings;
@@ -15,7 +16,7 @@ mod vercel;
 ///
 /// The function expects *only* log item integrations.
 pub fn expand(
-    item: Item,
+    item: IntegrationItem,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
 ) -> Option<(Settings, ContainerItems<OurLog>)> {

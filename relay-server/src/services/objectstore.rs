@@ -26,7 +26,7 @@ use relay_system::{
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, ContentType};
 use crate::managed::{Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected};
 use crate::processing::trace_attachments::store::CONTENT_TYPE_ATTRIBUTE;
 use crate::processing::utils::store::item_id_to_uuid;
@@ -1350,11 +1350,8 @@ fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'sta
     }
 }
 
-fn should_upload(item: &Item) -> bool {
-    *item.ty() == ItemType::Attachment
-        && item.stored_key().is_none()
-        && !item.is_empty()
-        && !item.is_attachment_ref()
+fn should_upload(item: &AttachmentItem) -> bool {
+    item.stored_key().is_none() && !item.is_empty() && !item.is_attachment_ref()
 }
 
 fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
@@ -1447,7 +1444,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let mut item = Item::new(ItemType::Attachment);
+        let mut item = AttachmentItem::new();
         item.set_payload(ContentType::Text, "hello");
         let quantities = item.quantities();
         let (attachment, mut handle) = Managed::for_test(StoreAttachment {
@@ -1516,7 +1513,7 @@ mod tests {
     }
 
     fn test_event() -> (Managed<Box<StoreEvent>>, ManagedTestHandle) {
-        let mut attachment = Item::new(ItemType::Attachment);
+        let mut attachment = AttachmentItem::new();
         attachment.set_payload(ContentType::Text, "hello");
 
         Managed::for_test(Box::new(StoreEvent {
