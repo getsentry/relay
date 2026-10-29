@@ -1,15 +1,16 @@
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_dynamic_config::Feature;
+use relay_event_schema::protocol::EventId;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, RecordKeeper, Rejected};
 use crate::processing::errors::{Error, Result, utils};
 use crate::processing::{self, Context, Intermediates, Nothing, Output};
 use crate::services::processor::ProcessingError;
-use crate::utils::{ProcessedUnrealReport, UnrealExpansion};
+use crate::utils::{ProcessedUnrealReport, UnrealExpansion, gpu};
 
 /// A processor for Unreal items created by Relay's Unreal endpoint.
 #[derive(Debug)]
@@ -101,19 +102,33 @@ fn convert(
     )
     .map_err(ProcessingError::InvalidUnrealReport)?;
 
+    let mut intermediates = Intermediates::default();
+
     let mut envelope = Envelope::from_request(Some(event_id), unreal.headers.meta().clone());
 
     // It's possible that there still is no event and a later pass through the error processor must
     // create a dummy/placeholder event for the contained crash.
-    if !event.is_empty() {
-        envelope.add_item({
+    let event = match event.is_empty() {
+        true => None,
+        false => {
             let mut item = Item::new(ItemType::Event);
             item.set_payload(
                 ContentType::Json,
                 event.to_json().map_err(ProcessingError::SerializeFailed)?,
             );
-            item
-        });
+            Some(item)
+        }
+    };
+
+    if ctx.project_info.has_feature(Feature::NvGpuCrashSplit)
+        && let Some(gpu) = take_gpu_crash(&unreal.headers, event.as_ref(), &mut attachments)
+    {
+        records.add(&gpu);
+        intermediates.add_envelope(gpu);
+    }
+
+    if let Some(event) = event {
+        envelope.add_item(event);
     }
 
     for attachment in attachments {
@@ -132,6 +147,39 @@ fn convert(
     if !envelope.items().any(|item| item.creates_event()) {
         return Err(ProcessingError::NoEventPayload.into());
     }
+    intermediates.add_envelope(envelope);
 
-    Ok(Intermediates::from_envelope(envelope))
+    Ok(intermediates)
+}
+
+fn take_gpu_crash(
+    headers: &EnvelopeHeaders,
+    event: Option<&Item>,
+    items: &mut Vec<Item>,
+) -> Option<Box<Envelope>> {
+    // No need to fork off an envelope if there is no GPU crash at all.
+    if !items.iter().any(is_cpu_dump_item) {
+        return None;
+    }
+
+    if !items.iter().any(gpu::is_gpu_dump_item) {
+        return None;
+    }
+
+    let mut envelope = Envelope::from_request(Some(EventId::new()), headers.meta().clone());
+    if let Some(event) = event {
+        envelope.add_item(event.clone());
+    }
+    for item in items.extract_if(.., |item| gpu::is_gpu_crash_item(item)) {
+        envelope.add_item(item);
+    }
+
+    Some(envelope)
+}
+
+fn is_cpu_dump_item(item: &Item) -> bool {
+    matches!(
+        item.attachment_type(),
+        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
+    )
 }

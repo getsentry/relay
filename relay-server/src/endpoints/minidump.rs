@@ -16,7 +16,7 @@ use tokio::io::BufReader;
 use tokio_util::io::{ReaderStream, StreamReader};
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
+use crate::constants;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
@@ -35,11 +35,6 @@ use crate::utils::{
 ///
 /// Sentry requires
 const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
-
-/// The field name of a view hierarchy file in the multipart form-data upload.
-/// It matches the expected file name of the view hierarchy, as outlined in RFC#33
-/// <https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md>
-const VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
 
 /// File name for a standalone minidump upload.
 ///
@@ -324,16 +319,21 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
         match field.file_name() {
-            Some(name) if name.ends_with(".nv-gpudmp") => return AttachmentType::NvGpuDump,
-            Some(name) if name.ends_with(".nvdbg") => return AttachmentType::NvShaderDebug,
+            Some(name) if name.ends_with(constants::ATTACHMENT_NV_GPUDUMP_SUFFIX) => {
+                return AttachmentType::NvGpuDump;
+            }
+            Some(name) if name.ends_with(constants::ATTACHMENT_NV_DBG_SUFFIX) => {
+                return AttachmentType::NvShaderDebug;
+            }
             _ => {}
         }
+
         match field.name().unwrap_or("") {
             MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
-            ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
-            ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
-            ITEM_NAME_EVENT => AttachmentType::EventPayload,
-            VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
+            constants::ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+            constants::ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+            constants::ITEM_NAME_EVENT => AttachmentType::EventPayload,
+            constants::ATTACHMENT_VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
             _ => AttachmentType::Attachment,
         }
     }
