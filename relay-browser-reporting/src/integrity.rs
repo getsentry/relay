@@ -8,15 +8,16 @@ use serde::{Deserialize, Serialize};
 ///
 /// See <https://w3c.github.io/webappsec-subresource-integrity/#report-violations>.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Body {
     /// The URL of the request client's
     /// document or `WorkerGlobalScope`.
     ///
     /// See <https://w3c.github.io/webappsec-subresource-integrity/#report-violations>,
     /// points 6 and 7.
+    #[serde(rename = "documentURL")]
     pub document_url: String,
     /// The request's URL.
+    #[serde(rename = "blockedURL")]
     pub blocked_url: String,
     /// The request's destination.
     ///
@@ -24,5 +25,6 @@ pub struct Body {
     pub destination: String,
     /// Whether the integrity policy is configured to
     /// only report violations instead of blocking the request.
+    #[serde(rename = "reportOnly")]
     pub report_only: bool,
 }

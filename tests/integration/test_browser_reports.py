@@ -126,8 +126,8 @@ def test_integrity_browser_report_converted_to_logs(mini_sentry, relay):
                 "url": "https://example.com/index.html",
                 "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
                 "body": {
-                    "documentUrl": "https://example.com/index.html",
-                    "blockedUrl": "https://cdn.example.com/app.js",
+                    "documentURL": "https://example.com/index.html",
+                    "blockedURL": "https://cdn.example.com/app.js",
                     "destination": "script",
                     "reportOnly": True,
                 },

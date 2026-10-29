@@ -97,6 +97,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_integrity() {
+        let json = r#"{
+            "age": 31042,
+            "body": {
+                "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "blockedURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "reportOnly": false,
+                "destination": "image"
+            },
+            "type": "integrity-violation",
+            "url": "http://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        }"#;
+
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 31042,
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "type": "integrity-violation",
+          "body": {
+            "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "blockedURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "destination": "image",
+            "reportOnly": false
+          }
+        }
+        "#);
+    }
+
+    #[test]
     fn parse_missing_report_type() {
         let json = r#"{
                 "age": 31042,
