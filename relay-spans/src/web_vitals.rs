@@ -216,7 +216,6 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
             attributes,
         ));
 
-        // The score is only present when a performance score profile matched the span.
         let Some(score) = attrs
             .get_value(web_vital.score_ratio_attribute)
             .and_then(|v| v.as_f64())
@@ -386,44 +385,71 @@ mod tests {
         .into_value()
         .unwrap();
 
-        let metrics = extract_web_vital_metrics(&span).unwrap();
-        assert_eq!(metrics.len(), 2);
+        let mut metrics = extract_web_vital_metrics(&span).unwrap().into_iter();
 
-        let value_metric = &metrics[0];
-        assert_eq!(value_metric.name.as_str(), Some("browser.web_vital.lcp"));
-        assert_eq!(
-            value_metric
-                .attributes
-                .value()
-                .unwrap()
-                .get_value("score.ratio.lcp")
-                .and_then(|v| v.as_f64()),
-            Some(0.75)
-        );
-
-        let score_metric = &metrics[1];
-        assert_eq!(
-            score_metric.name.as_str(),
-            Some("browser.web_vital.lcp.score")
-        );
-        assert_eq!(
-            score_metric.unit.value(),
-            Some(&MetricUnit::Fraction(FractionUnit::Ratio))
-        );
-        assert_eq!(score_metric.value.value(), Some(&Value::F64(0.75)));
-
-        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric.attributes), @r#"
+        let value_metric = Annotated::new(metrics.next().unwrap());
+        insta::assert_json_snapshot!(SerializableAnnotated(&value_metric), @r#"
         {
-          "browser.name": {
-            "type": "string",
-            "value": "Chrome"
-          },
-          "sentry.metric.source": {
-            "type": "string",
-            "value": "span"
+          "timestamp": 1742921669.25,
+          "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+          "span_id": "968cff94913ebb07",
+          "name": "browser.web_vital.lcp",
+          "type": "distribution",
+          "unit": "millisecond",
+          "value": 400.0,
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome"
+            },
+            "browser.web_vital.lcp.element": {
+              "type": "string",
+              "value": "body > img"
+            },
+            "score.lcp": {
+              "type": "double",
+              "value": 0.225
+            },
+            "score.ratio.lcp": {
+              "type": "double",
+              "value": 0.75
+            },
+            "score.weight.lcp": {
+              "type": "double",
+              "value": 0.3
+            },
+            "sentry.metric.source": {
+              "type": "string",
+              "value": "span"
+            }
           }
         }
         "#);
+
+        let score_metric = Annotated::new(metrics.next().unwrap());
+        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric), @r#"
+        {
+          "timestamp": 1742921669.25,
+          "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+          "span_id": "968cff94913ebb07",
+          "name": "browser.web_vital.lcp.score",
+          "type": "distribution",
+          "unit": "ratio",
+          "value": 0.75,
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome"
+            },
+            "sentry.metric.source": {
+              "type": "string",
+              "value": "span"
+            }
+          }
+        }
+        "#);
+
+        assert!(metrics.next().is_none());
     }
 
     #[test]
@@ -448,13 +474,12 @@ mod tests {
 
         let metrics = extract_web_vital_metrics(&span).unwrap();
         let names: Vec<_> = metrics.iter().filter_map(|m| m.name.as_str()).collect();
-        assert_eq!(
-            names,
-            [
-                "browser.web_vital.lcp",
-                "browser.web_vital.ttfb",
-                "browser.web_vital.ttfb.score",
-            ]
-        );
+        insta::assert_debug_snapshot!(names, @r#"
+        [
+            "browser.web_vital.lcp",
+            "browser.web_vital.ttfb",
+            "browser.web_vital.ttfb.score",
+        ]
+        "#);
     }
 }
