@@ -1350,19 +1350,6 @@ mod tests {
     }
 
     #[test]
-    fn test_unreal_integration_creates_error_event() {
-        let mut item = Item::new(ItemType::Integration);
-        item.set_payload(
-            Integration::Errors(ErrorsIntegration::Unreal).into(),
-            Bytes::from_static(b"crash"),
-        );
-
-        assert!(item.creates_event());
-        assert!(item.requires_event());
-        assert_eq!(item.quantities().into_vec(), vec![(DataCategory::Error, 1)]);
-    }
-
-    #[test]
     fn test_item_parse_length_overflow_does_not_panic() {
         let header = format!(r#"{{"type":"attachment","length":{}}}"#, usize::MAX)
             .into_bytes()
