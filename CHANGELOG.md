@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Retain client-provided exceptions in PlayStation crash events, like minidump and Apple crash report events already do. ([#6594](https://github.com/getsentry/relay/pull/6594))
+- Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 
 ## 26.10.1
 
