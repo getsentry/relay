@@ -360,7 +360,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 ///
 /// Lines look like `Module!Function(...) [File:Line]`, where everything after the module is
 /// optional. Unsymbolicated frames are written as `Module!UnknownFunction(0xOffset)`, and symbols
-/// without debug information carry their offset, like `Module!Function(+0x8a)`.
+/// without debug information carry their offset, like `Module!Function(+0x8a)`. The module can
+/// also be omitted, like in `UnknownFunction []`.
 ///
 /// Returns the frame and the module offset of an unsymbolicated frame.
 fn parse_legacy_frame(line: &str) -> Option<(Frame, Option<u64>)> {
@@ -375,10 +376,17 @@ fn parse_legacy_frame(line: &str) -> Option<(Frame, Option<u64>)> {
         return None;
     }
 
-    let (package, mut function) = line.split_once('!').unwrap_or((line, ""));
+    let (package, mut function) = match line.split_once('!') {
+        Some((package, function)) => (Some(package), function),
+        // Without a module, the function is followed by its arguments or file.
+        None if line.contains('(') || line.ends_with(']') || line == "UnknownFunction" => {
+            (None, line)
+        }
+        None => (Some(line), ""),
+    };
 
     let mut frame = Frame {
-        package: Annotated::from(package.to_owned()),
+        package: Annotated::from(package.map(str::to_owned)),
         ..Frame::default()
     };
 
@@ -428,23 +436,27 @@ struct PortableFrame<'a> {
 
 /// Parses the portable `PCallStack`.
 ///
-/// Each frame is written as `Module 0xImageBase + Offset`, older versions omit the module.
+/// Each frame is written as `Module 0xImageBase + Offset`, older versions omit the module. Module
+/// names can contain whitespace, so a frame ends with the offset after the `+`.
 /// Returns `None` if the call stack cannot be fully parsed or contains placeholder addresses.
 fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>> {
-    // A frame has at most four tokens, so this is enough for `MAX_NUM_UNREAL_FRAMES` frames.
-    let tokens: Vec<&str> = call_stack
-        .split_whitespace()
-        .take(MAX_NUM_UNREAL_FRAMES * 4)
-        .collect();
     let mut frames = Vec::new();
-    let mut tokens = tokens.as_slice();
+    let mut rest = call_stack.trim_start();
 
-    while !tokens.is_empty() && frames.len() < MAX_NUM_UNREAL_FRAMES {
-        let (module, base, offset, rest) = match tokens {
-            [base, "+", offset, rest @ ..] => (None, base, offset, rest),
-            [module, base, "+", offset, rest @ ..] => (Some(*module), base, offset, rest),
-            _ => return None,
+    while !rest.is_empty() && frames.len() < MAX_NUM_UNREAL_FRAMES {
+        // The `+` between image base and offset, not one in a module name like `libstdc++.so`.
+        let (plus, _) = rest.match_indices('+').find(|&(index, _)| {
+            rest[..index].ends_with(char::is_whitespace)
+                && rest[index + 1..].starts_with(char::is_whitespace)
+        })?;
+        let head = rest[..plus].trim_end();
+        let tail = rest[plus + 1..].trim_start();
+
+        let (module, base) = match head.rsplit_once(char::is_whitespace) {
+            Some((module, base)) => (Some(module.trim_end()), base),
+            None => (None, head),
         };
+        let (offset, tail) = tail.split_once(char::is_whitespace).unwrap_or((tail, ""));
 
         let base = u64::from_str_radix(base.strip_prefix("0x")?, 16).ok()?;
         let offset = u64::from_str_radix(offset, 16).ok()?;
@@ -457,7 +469,7 @@ fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>>
             offset,
             address: base.checked_add(offset)?,
         });
-        tokens = rest;
+        rest = tail.trim_start();
     }
 
     Some(frames)
@@ -516,18 +528,29 @@ fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<E
         .and_then(parse_portable_call_stack)
         .unwrap_or_default();
 
-    // Unknown functions are written with the offset of their return address minus one.
+    // Unknown functions are written with the offset of their return address minus one, to point
+    // into the call instruction. The engine does not do this for the crashing frame, which is the
+    // first frame unless the frames of the crash handler were skipped.
     let stacks_match = legacy.len() <= portable.len()
         && legacy
             .iter()
             .zip(&portable)
-            .all(|((frame, offset), portable)| {
+            .enumerate()
+            .all(|(index, ((frame, offset), portable))| {
                 let same_module = match (frame.package.as_str(), portable.module) {
                     (Some(legacy), Some(portable)) => is_same_module(legacy, portable),
-                    _ => false,
+                    // Without a module, only the offset can confirm the frame. Frames without
+                    // an offset are only kept in place if they have nothing to misattribute.
+                    (None, _) => {
+                        offset.is_some() || (frame.function.is_empty() && frame.filename.is_empty())
+                    }
+                    (Some(_), None) => false,
                 };
-                same_module
-                    && offset.is_none_or(|offset| offset.checked_add(1) == Some(portable.offset))
+                let same_offset = offset.is_none_or(|offset| {
+                    offset.checked_add(1) == Some(portable.offset)
+                        || (index == 0 && offset == portable.offset)
+                });
+                same_module && same_offset
             });
 
     let mut frames: Vec<Frame> = legacy.into_iter().map(|(frame, _)| frame).collect();
@@ -535,6 +558,9 @@ fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<E
     if stacks_match {
         for (frame, portable) in frames.iter_mut().zip(&portable) {
             frame.instruction_addr = Annotated::new(Addr(portable.address));
+            if frame.package.is_empty() {
+                frame.package = Annotated::from(portable.module.map(str::to_owned));
+            }
         }
 
         // The legacy call stack can be shorter, for example it may omit system libraries.
@@ -1104,6 +1130,30 @@ Game-Linux-Test!UnknownFunction(0x4871028)
                 "Game!UnknownFunction(0x48",
                 (Some("Game"), None, None, None, None),
             ),
+            (
+                "My Game!Foo() [Foo.cpp:3]",
+                (
+                    Some("My Game"),
+                    Some("Foo()"),
+                    Some("Foo.cpp"),
+                    Some(3),
+                    None,
+                ),
+            ),
+            // The module may be omitted.
+            (
+                "0x00000000 UnknownFunction []",
+                (None, None, None, None, None),
+            ),
+            ("0x00000000 UnknownFunction", (None, None, None, None, None)),
+            (
+                "0x0002a3b4 UnknownFunction(0x10)",
+                (None, None, None, None, Some(0x10)),
+            ),
+            (
+                "Foo() [Foo.cpp:3]",
+                (None, Some("Foo()"), Some("Foo.cpp"), Some(3), None),
+            ),
         ];
 
         for (line, expected) in cases {
@@ -1142,6 +1192,24 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         assert_eq!(
             addresses("0x0000000000200000 + 10"),
             Some(vec![(None, 0x200010)])
+        );
+        // Module names can contain whitespace, and offsets are padded.
+        assert_eq!(
+            addresses(
+                "My Game 0x0000000000200000 + 10       libc.so 0x00007f0000000000 + 20      "
+            ),
+            Some(vec![
+                (Some("My Game"), 0x200010),
+                (Some("libc.so"), 0x7f0000000020)
+            ])
+        );
+        assert_eq!(
+            addresses("0x200000 + 10 My Game 0x300000 + 20"),
+            Some(vec![(None, 0x200010), (Some("My Game"), 0x300020)])
+        );
+        assert_eq!(
+            addresses("libstdc++.so 0x1000 + 10 Game 0x2000\t+  20"),
+            Some(vec![(Some("libstdc++.so"), 0x1010), (Some("Game"), 0x2020)])
         );
 
         // Placeholder addresses written by older engine versions.
@@ -1372,6 +1440,54 @@ Game-Linux-Test!UnknownFunction(0x4871028)
                 "Game 0x1000 + 201 Game 0x1000 + 301",
                 "",
                 vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // The crashing frame is not moved back to the call site when it is written first.
+            (
+                "Game!UnknownFunction(0x10)\nGame!UnknownFunction(0x1f)",
+                "Game 0x1000 + 10 Game 0x1000 + 20",
+                "",
+                vec![(Some("Game"), Some(0x1020)), (Some("Game"), Some(0x1010))],
+            ),
+            // All other frames are moved back to the call site.
+            (
+                "Game!UnknownFunction(0xf)\nGame!UnknownFunction(0x20)",
+                "Game 0x1000 + 10 Game 0x1000 + 20",
+                "",
+                vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // Frames without a module take it from the portable call stack.
+            (
+                "Game!UnknownFunction(0xf)\n0x00000000 UnknownFunction []",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(Some("Other"), Some(0x2020)), (Some("Game"), Some(0x1010))],
+            ),
+            // Frames without a module are confirmed by their offset.
+            (
+                "Game!UnknownFunction(0xf)\nUnknownFunction(0x1f) [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(Some("Other"), Some(0x2020)), (Some("Game"), Some(0x1010))],
+            ),
+            (
+                "Game!UnknownFunction(0xf)\nUnknownFunction(0x20) [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(None, None), (Some("Game"), None)],
+            ),
+            // A function without a module or offset cannot be placed.
+            (
+                "Game!UnknownFunction(0xf)\nFoo() [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(None, None), (Some("Game"), None)],
+            ),
+            // Module names can contain whitespace.
+            (
+                "My Game!UnknownFunction(0xf)",
+                "My Game 0x1000 + 10",
+                "",
+                vec![(Some("My Game"), Some(0x1010))],
             ),
             // Image bases are truncated by old engine versions.
             (
