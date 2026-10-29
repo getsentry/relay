@@ -55,8 +55,10 @@ impl NetworkReportPhase {
 /// The NEL report's type (either `"ok"` or an error string).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReportType {
+    /// The request completed successfully.
     #[serde(rename = "ok")]
     Ok,
+    /// The request encountered an error.
     #[serde(untagged)]
     Error(String),
 }
