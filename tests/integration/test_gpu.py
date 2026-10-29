@@ -10,9 +10,9 @@ scope plus the `.nv-gpudmp` / `.nvdbg` / `.cso` attachments. Gated on the
 import json
 import struct
 import zlib
-from uuid import UUID
 
 import msgpack
+import pytest
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -61,7 +61,7 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
         project_id=project_id,
         files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG, SHADER_CSO],
     )
-    cpu_event_id = UUID(response.text.strip())
+    cpu_event_id = response.text.strip().replace("-", "")
 
     # Both envelopes are forwarded; classify them by their attachments.
     envelopes = [mini_sentry.get_captured_envelope() for _ in range(2)]
@@ -91,7 +91,7 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
     assert "event.minidump" not in gpu_types
 
     # The GPU event is its own (billed) event with a distinct id.
-    assert UUID(cpu.headers["event_id"]) == cpu_event_id
+    assert cpu.headers["event_id"] == cpu_event_id
     assert cpu.headers["event_id"] == SCOPE_EVENT_ID
     assert cpu.headers["event_id"] != gpu.headers["event_id"]
 
@@ -189,17 +189,23 @@ def test_gpu_crash_split_with_processing(
     assert "minidump.dmp" not in gpu_names
 
 
-def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
+@pytest.mark.parametrize("has_trace_context", [False, True])
+def test_gpu_crash_splits_into_two_events_from_unreal(
+    mini_sentry, relay_with_processing, attachments_consumer, has_trace_context
+):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
     config["config"]["features"] = [GPU_FEATURE]
-    relay = relay(mini_sentry)
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
 
-    scope = json.dumps(msgpack.unpackb(scope_attachment()[2]))
+    scope = msgpack.unpackb(scope_attachment()[2])
+    if not has_trace_context:
+        del scope["contexts"]["trace"]
     context = (
         "<FGenericCrashContext>"
         "<RuntimeProperties><CrashType>GPUCrash</CrashType></RuntimeProperties>"
-        f"<GameData><__sentry>{scope}</__sentry></GameData>"
+        f"<GameData><__sentry>{json.dumps(scope)}</__sentry></GameData>"
         "</FGenericCrashContext>"
     ).encode()
     files = [
@@ -226,25 +232,30 @@ def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
     header += struct.pack("<ii", len(header) + 8 + len(payload), len(files))
 
     response = relay.send_unreal_request(project_id, zlib.compress(header + payload))
-    cpu_event_id = UUID(response.text.strip())
+    cpu_event_id = response.text.strip().replace("-", "")
 
-    envelopes = [mini_sentry.get_captured_envelope() for _ in range(2)]
-    assert mini_sentry.captured_envelopes.empty()
-    cpu, gpu = None, None
-    for envelope in envelopes:
-        if "event.nv_gpudmp" in attachment_types(envelope):
-            gpu = envelope
-        else:
-            cpu = envelope
-    assert cpu is not None and gpu is not None
+    events = {}
+    for _ in range(2):
+        message, event = attachments_consumer.get_event_only()
+        names = {attachment["name"] for attachment in message["attachments"]}
+        kind = "gpu" if "crash.nv-gpudmp" in names else "cpu"
+        events[kind] = (event, message)
+    assert set(events) == {"cpu", "gpu"}
 
-    cpu_types = attachment_types(cpu)
+    cpu_event, cpu_message = events["cpu"]
+    gpu_event, gpu_message = events["gpu"]
+
+    cpu_types = {
+        attachment["attachment_type"] for attachment in cpu_message["attachments"]
+    }
     assert "event.minidump" in cpu_types
     assert "event.nv_gpudmp" not in cpu_types
     assert "event.nv_shader_debug" not in cpu_types
     assert "event.compiled_shader" not in cpu_types
 
-    gpu_types = attachment_types(gpu)
+    gpu_types = {
+        attachment["attachment_type"] for attachment in gpu_message["attachments"]
+    }
     assert {
         "event.nv_gpudmp",
         "event.nv_shader_debug",
@@ -252,13 +263,18 @@ def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
     } <= gpu_types
     assert "event.minidump" not in gpu_types
 
-    assert UUID(cpu.headers["event_id"]) == cpu_event_id
-    assert cpu.headers["event_id"] != gpu.headers["event_id"]
+    assert cpu_event["event_id"] == cpu_event_id
+    assert cpu_event["event_id"] != gpu_event["event_id"]
 
-    cpu_event = cpu.get_event()
-    gpu_event = gpu.get_event()
     assert gpu_event["release"] == "game@1.0.0"
     assert gpu_event["environment"] == "prod"
-    assert gpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
     assert gpu_event["tags"] == cpu_event["tags"]
-    assert cpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
+
+    cpu_trace = cpu_event["contexts"]["trace"]
+    gpu_trace = gpu_event["contexts"]["trace"]
+    assert cpu_trace["trace_id"]
+    assert cpu_trace["span_id"]
+    assert gpu_trace["trace_id"] == cpu_trace["trace_id"]
+    if has_trace_context:
+        assert cpu_trace["trace_id"] == SCOPE_TRACE_ID
+        assert cpu_trace["span_id"] == "cccccccccccccccc"

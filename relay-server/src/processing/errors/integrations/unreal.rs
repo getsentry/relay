@@ -1,8 +1,9 @@
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_dynamic_config::Feature;
-use relay_event_schema::protocol::EventId;
+use relay_event_schema::protocol::{EventId, TraceContext, TraceId};
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
+use relay_sampling::DynamicSamplingContext;
 
 use crate::Envelope;
 use crate::envelope::{AttachmentType, ContentType, EnvelopeHeaders, Item, ItemType};
@@ -96,6 +97,10 @@ fn convert(
 
     let mut envelope = Envelope::from_request(Some(event_id), unreal.headers.meta().clone());
 
+    let has_trace_context = event
+        .value()
+        .is_some_and(|e| e.context::<TraceContext>().is_some());
+
     // It's possible that there still is no event and a later pass through the error processor must
     // create a dummy/placeholder event for the contained crash.
     let event = match event.is_empty() {
@@ -111,8 +116,14 @@ fn convert(
     };
 
     if ctx.project_info.has_feature(Feature::NvGpuCrashSplit)
-        && let Some(gpu) = take_gpu_crash(&unreal.headers, event.as_ref(), &mut attachments)
+        && let Some(mut gpu) = take_gpu_crash(&unreal.headers, event.as_ref(), &mut attachments)
     {
+        if !has_trace_context {
+            let trace_id = TraceId::random();
+            add_dsc(&mut envelope, trace_id, ctx);
+            add_dsc(&mut gpu, trace_id, ctx);
+        }
+
         records.add(&gpu);
         intermediates.add_envelope(gpu);
     }
@@ -172,4 +183,31 @@ fn is_cpu_dump_item(item: &Item) -> bool {
         item.attachment_type(),
         Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
     )
+}
+
+/// Adds a [`DynamicSamplingContext`] to `envelope`.
+///
+/// The dynamic sampling context is used to connect a CPU crash to the same GPU crash,
+/// as it is later used in event normalization to create a trace context in each event.
+fn add_dsc(envelope: &mut Envelope, trace_id: TraceId, ctx: Context<'_>) {
+    // This is a dead check, a valid project config must always contain a public key.
+    let Some(public_key) = ctx.project_info.get_public_key_config() else {
+        return;
+    };
+
+    let dsc = DynamicSamplingContext {
+        trace_id,
+        public_key: public_key.public_key,
+        project_id: Default::default(),
+        release: Default::default(),
+        environment: Default::default(),
+        transaction: Default::default(),
+        sample_rate: Default::default(),
+        user: Default::default(),
+        replay_id: Default::default(),
+        sampled: Default::default(),
+        other: Default::default(),
+    };
+
+    envelope.set_dsc(dsc);
 }
