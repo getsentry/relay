@@ -5,6 +5,7 @@
 **Features**:
 
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
+- Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
 
 **Internal**:
 
