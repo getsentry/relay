@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+
 ## 26.10.1
 
 **Features**:
