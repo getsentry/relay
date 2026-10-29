@@ -128,7 +128,7 @@
 <a href=#128 id=128 data-nosnippet>128</a>                <span class="comment">// If the original prosperodump is already rate limited, so will be the minidump.
 <a href=#129 id=129 data-nosnippet>129</a>                </span>item.set_rate_limited(prosperodump.rate_limited());
 <a href=#130 id=130 data-nosnippet>130</a>
-<a href=#131 id=131 data-nosnippet>131</a>                <span class="kw">crate</span>::utils::process_minidump(event.get_or_insert_with(Event::default), <span class="kw-2">&amp;</span>item, <span class="kw">crate</span>::utils::AdditionalExceptions::Delete);
+<a href=#131 id=131 data-nosnippet>131</a>                <span class="kw">crate</span>::utils::process_minidump(event.get_or_insert_with(Event::default), <span class="kw-2">&amp;</span>item);
 <a href=#132 id=132 data-nosnippet>132</a>
 <a href=#133 id=133 data-nosnippet>133</a>                item
 <a href=#134 id=134 data-nosnippet>134</a>            };
