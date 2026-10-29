@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
+
 ## 26.10.1
 
 **Features**:
