@@ -21,19 +21,18 @@ struct UnrealQuery {
 async fn handle(
     state: ServiceState,
     Query(query): Query<UnrealQuery>,
-    mut builder: IntegrationBuilder,
+    builder: IntegrationBuilder,
 ) -> axum::response::Result<impl IntoResponse> {
     if builder.is_empty() {
         return Err(BadStoreRequest::EmptyBody.into());
     }
 
     let id = EventId::new();
-    builder = builder.with_event_id(id);
-    if let Some(user_id) = query.user_id {
-        builder = builder.with_header(UNREAL_USER_HEADER, user_id);
-    }
-
-    let envelope = builder.with_type(ErrorsIntegration::Unreal).build();
+    let envelope = builder
+        .with_event_id(id)
+        .with_header_opt(UNREAL_USER_HEADER, query.user_id)
+        .with_type(ErrorsIntegration::Unreal)
+        .build();
 
     // Never respond with a 429 since clients often retry these
     common::handle_envelope(&state, envelope)

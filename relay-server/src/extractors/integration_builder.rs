@@ -63,9 +63,15 @@ impl<T> IntegrationBuilder<T> {
         self
     }
 
-    /// Sets a custom envelope header.
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
-        self.envelope.set_header(name, value);
+    /// Sets a custom envelope header, if the value is not `None`.
+    pub fn with_header_opt(
+        mut self,
+        name: impl Into<String>,
+        value: Option<impl Into<Value>>,
+    ) -> Self {
+        if let Some(value) = value {
+            self.envelope.set_header(name, value);
+        }
         self
     }
 
