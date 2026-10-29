@@ -238,7 +238,8 @@ impl UploadContext<'_> {
             Some(
                 AttachmentType::Minidump
                 | AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug,
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
             ) => &self.upload_minidumps,
             _ => &UploadDecision::Inline,
         }
@@ -324,6 +325,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             }
             Some(name) if name.ends_with(constants::ATTACHMENT_NV_DBG_SUFFIX) => {
                 return AttachmentType::NvShaderDebug;
+            }
+            Some(name) if name.ends_with(constants::ATTACHMENT_CSO_SUFFIX) => {
+                return AttachmentType::CompiledShader;
             }
             _ => {}
         }

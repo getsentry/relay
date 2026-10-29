@@ -698,7 +698,9 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
             AttachmentType::Flamegraph => Self::Flamegraph,
-            AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug => Self::Attachment,
+            AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => Self::Attachment,
         }
     }
 }

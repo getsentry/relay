@@ -3,7 +3,7 @@
 Relay splits a minidump or Unreal upload carrying an NVIDIA Aftermath GPU crash dump
 (`.nv-gpudmp`) into two events: the CPU crash (minidump) keeps the original event,
 and the GPU crash becomes a second, trace-connected event that carries a copy of the
-scope plus the `.nv-gpudmp` / `.nvdbg` attachments. Gated on the
+scope plus the `.nv-gpudmp` / `.nvdbg` / `.cso` attachments. Gated on the
 `organizations:gpu-crash-symbolication` feature.
 """
 
@@ -23,6 +23,7 @@ GPU_FEATURE = "organizations:gpu-crash-symbolication"
 MINIDUMP = (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")
 GPU_DUMP = ("gpudump", "crash.nv-gpudmp", b"NVGPU dummy dump")
 SHADER_DBG = ("shaderdbg", "shader-abc.nvdbg", b"nvdbg dummy")
+SHADER_CSO = ("shadercso", "shader-abc.cso", b"DXBC dummy")
 
 SCOPE_EVENT_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 SCOPE_TRACE_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -58,7 +59,7 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
 
     response = relay.send_minidump(
         project_id=project_id,
-        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG],
+        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG, SHADER_CSO],
     )
     cpu_event_id = UUID(response.text.strip())
 
@@ -78,10 +79,15 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
     assert "event.minidump" in cpu_types
     assert "event.nv_gpudmp" not in cpu_types
     assert "event.nv_shader_debug" not in cpu_types
+    assert "event.compiled_shader" not in cpu_types
 
     # The GPU event carries the dump and shader debug, but not the minidump.
     gpu_types = attachment_types(gpu)
-    assert {"event.nv_gpudmp", "event.nv_shader_debug"} <= gpu_types
+    assert {
+        "event.nv_gpudmp",
+        "event.nv_shader_debug",
+        "event.compiled_shader",
+    } <= gpu_types
     assert "event.minidump" not in gpu_types
 
     # The GPU event is its own (billed) event with a distinct id.
@@ -107,7 +113,7 @@ def test_gpu_crash_not_split_without_feature(mini_sentry, relay):
 
     relay.send_minidump(
         project_id=project_id,
-        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG],
+        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG, SHADER_CSO],
     )
 
     # No split: the GPU dump rides along on the single CPU event.
@@ -157,7 +163,7 @@ def test_gpu_crash_split_with_processing(
 
     relay.send_minidump(
         project_id=project_id,
-        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG],
+        files=[MINIDUMP, scope_attachment(), GPU_DUMP, SHADER_DBG, SHADER_CSO],
     )
 
     # Both events reach processing with references to their stored attachments.
@@ -179,7 +185,7 @@ def test_gpu_crash_split_with_processing(
     assert gpu_event["event_id"] != cpu_event["event_id"]
     assert gpu_event["release"] == "game@1.0.0"
     gpu_names = {att["name"] for att in gpu_message.get("attachments", [])}
-    assert {"crash.nv-gpudmp", "shader-abc.nvdbg"} <= gpu_names
+    assert {"crash.nv-gpudmp", "shader-abc.nvdbg", "shader-abc.cso"} <= gpu_names
     assert "minidump.dmp" not in gpu_names
 
 
@@ -201,6 +207,7 @@ def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
         ("CrashContext.runtime-xml", context),
         (GPU_DUMP[1], GPU_DUMP[2]),
         (SHADER_DBG[1], SHADER_DBG[2]),
+        (SHADER_CSO[1], SHADER_CSO[2]),
     ]
 
     def unreal_string(value):
@@ -235,9 +242,14 @@ def test_gpu_crash_splits_into_two_events_from_unreal(mini_sentry, relay):
     assert "event.minidump" in cpu_types
     assert "event.nv_gpudmp" not in cpu_types
     assert "event.nv_shader_debug" not in cpu_types
+    assert "event.compiled_shader" not in cpu_types
 
     gpu_types = attachment_types(gpu)
-    assert {"event.nv_gpudmp", "event.nv_shader_debug"} <= gpu_types
+    assert {
+        "event.nv_gpudmp",
+        "event.nv_shader_debug",
+        "event.compiled_shader",
+    } <= gpu_types
     assert "event.minidump" not in gpu_types
 
     assert UUID(cpu.headers["event_id"]) == cpu_event_id

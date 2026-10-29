@@ -636,7 +636,8 @@ impl Item {
                         | AttachmentType::UnrealLogs
                         | AttachmentType::ViewHierarchy
                         | AttachmentType::Flamegraph
-                        | AttachmentType::NvShaderDebug,
+                        | AttachmentType::NvShaderDebug
+                        | AttachmentType::CompiledShader,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
