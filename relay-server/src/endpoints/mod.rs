@@ -119,6 +119,7 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
         .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
         .route("/api/{project_id}/integration/browser-report", integrations::browser_reports::route(config))
+        .route("/api/{project_id}/integration/browser-report/", integrations::browser_reports::route(config))
         .route_layer(middlewares::cors());
 
     // NOTE: If you add a new (non-experimental) route here, please also list it in
