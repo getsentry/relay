@@ -22,6 +22,7 @@ macro_rules! add_string_attribute {
     }};
 }
 
+mod integrity;
 mod nel;
 
 /// Extracts the domain or IP address from a server address string.
@@ -75,6 +76,9 @@ fn create_log_with_trace_id(
 
     let log = match body {
         BrowserReportBody::NetworkError(body) => nel::create_log_from_nel_body(body, attributes),
+        BrowserReportBody::IntegrityViolation(body) => {
+            integrity::create_log_from_integrity_body(body, attributes)
+        }
     };
 
     OurLog {
@@ -91,8 +95,7 @@ mod tests {
     use relay_protocol::{Annotated, assert_annotated_snapshot};
 
     #[test]
-    fn test_create_log_basic() {
-        // Use a fixed timestamp for deterministic testing
+    fn test_nel_application() {
         let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
             .unwrap()
             .with_timezone(&Utc);
@@ -198,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_log_dns_error() {
+    fn test_nel_dns() {
         let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
             .unwrap()
             .with_timezone(&Utc);
@@ -270,5 +273,153 @@ mod tests {
         }
         "#
         );
+    }
+
+    #[test]
+    fn test_integrity_block() {
+        let received_at = DateTime::parse_from_rfc3339("2026-10-06T12:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(
+            r#"{
+                "age": 5000,
+                "type": "integrity-violation",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0",
+                "body": {
+                    "documentUrl": "https://example.com/index.html",
+                    "blockedUrl": "https://cdn.example.com/app.js",
+                    "destination": "script",
+                    "reportOnly": false
+                }
+        }"#,
+        )
+        .unwrap();
+
+        let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log = create_log_with_trace_id(report, received_at, Some(trace_id));
+
+        assert_annotated_snapshot!(
+            &Annotated::new(log), @r#"
+        {
+          "timestamp": 1791288000.0,
+          "trace_id": "de4e189601a342c6bee991645300852e",
+          "level": "warn",
+          "body": "Integrity policy blocked script from 'https://cdn.example.com/app.js'",
+          "attributes": {
+            "browser.report.type": {
+              "type": "string",
+              "value": "integrity-violation"
+            },
+            "integrity.blocked_url": {
+              "type": "string",
+              "value": "https://cdn.example.com/app.js"
+            },
+            "integrity.destination": {
+              "type": "string",
+              "value": "script"
+            },
+            "integrity.document_url": {
+              "type": "string",
+              "value": "https://example.com/index.html"
+            },
+            "integrity.report_only": {
+              "type": "boolean",
+              "value": false
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http.browser_report"
+            },
+            "url.domain": {
+              "type": "string",
+              "value": "example.com"
+            },
+            "url.full": {
+              "type": "string",
+              "value": "https://example.com/index.html"
+            },
+            "user_agent.original": {
+              "type": "string",
+              "value": "Mozilla/5.0"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_integrity_report_only() {
+        let received_at = DateTime::parse_from_rfc3339("2026-10-06T12:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(
+            r#"{
+                "age": 5000,
+                "type": "integrity-violation",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0",
+                "body": {
+                    "documentUrl": "https://example.com/index.html",
+                    "blockedUrl": "https://cdn.example.com/app.js",
+                    "destination": "script",
+                    "reportOnly": true
+                }
+        }"#,
+        )
+        .unwrap();
+
+        let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log = create_log_with_trace_id(report, received_at, Some(trace_id));
+
+        assert_annotated_snapshot!(
+            &Annotated::new(log), @r#"
+        {
+          "timestamp": 1791288000.0,
+          "trace_id": "de4e189601a342c6bee991645300852e",
+          "level": "warn",
+          "body": "Integrity policy would block script from 'https://cdn.example.com/app.js', but does not due to report only configuration",
+          "attributes": {
+            "browser.report.type": {
+              "type": "string",
+              "value": "integrity-violation"
+            },
+            "integrity.blocked_url": {
+              "type": "string",
+              "value": "https://cdn.example.com/app.js"
+            },
+            "integrity.destination": {
+              "type": "string",
+              "value": "script"
+            },
+            "integrity.document_url": {
+              "type": "string",
+              "value": "https://example.com/index.html"
+            },
+            "integrity.report_only": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http.browser_report"
+            },
+            "url.domain": {
+              "type": "string",
+              "value": "example.com"
+            },
+            "url.full": {
+              "type": "string",
+              "value": "https://example.com/index.html"
+            },
+            "user_agent.original": {
+              "type": "string",
+              "value": "Mozilla/5.0"
+            }
+          }
+        }
+        "#);
     }
 }
