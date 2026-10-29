@@ -71,12 +71,12 @@ fn is_scope_item(item: &Item) -> bool {
 }
 
 /// The GPU crash dump whose presence triggers the split.
-fn is_gpu_dump_item(item: &Item) -> bool {
+pub fn is_gpu_dump_item(item: &Item) -> bool {
     item.attachment_type() == Some(AttachmentType::NvGpuDump)
 }
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
-fn is_gpu_crash_item(item: &Item) -> bool {
+pub fn is_gpu_crash_item(item: &Item) -> bool {
     matches!(
         item.attachment_type(),
         Some(AttachmentType::NvGpuDump) | Some(AttachmentType::NvShaderDebug)
