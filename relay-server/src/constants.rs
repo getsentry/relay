@@ -29,6 +29,21 @@ pub const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumb1";
 /// truncated to the maxmimum number of allowed attachments.
 pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumb2";
 
+/// The field name of a view hierarchy file in the multipart form-data uploads and unreal crashes.
+///
+/// It matches the expected file name of the view hierarchy, as outlined in RFC#33
+/// <https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md>
+pub const ATTACHMENT_VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
+
+/// Suffix identifying Nvidia GPU dumps in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_NV_GPUDUMP_SUFFIX: &str = ".nv-gpudmp";
+/// Suffix identifying Nvidia GPU shader debug information companions in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_NV_DBG_SUFFIX: &str = ".nvdbg";
+
 /// Envelope header used to store the UE4 user id.
 pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 
