@@ -2,7 +2,7 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use relay_config::ConfigSnapshot;
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
@@ -10,6 +10,7 @@ use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::integrations::{ErrorsIntegration, Integration};
 use crate::middlewares;
 use crate::service::ServiceState;
 
@@ -29,7 +30,7 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelope(self, mode: RelayMode) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
@@ -42,8 +43,18 @@ impl UnrealParams {
             envelope.set_header(UNREAL_USER_HEADER, user_id);
         }
 
-        let mut item = Item::new(ItemType::UnrealReport);
-        item.set_payload(ContentType::OctetStream, data);
+        let (ty, content_type) = match mode {
+            // Proxy Relays forward envelopes without processing them, so they must not create
+            // internal integration items.
+            RelayMode::Proxy => (ItemType::UnrealReport, ContentType::OctetStream),
+            RelayMode::Managed => (
+                ItemType::Integration,
+                Integration::Errors(ErrorsIntegration::Unreal).into(),
+            ),
+        };
+
+        let mut item = Item::new(ty);
+        item.set_payload(content_type, data);
         envelope.add_item(item);
 
         Ok(envelope)
@@ -54,7 +65,7 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> axum::response::Result<impl IntoResponse> {
-    let envelope = params.extract_envelope()?;
+    let envelope = params.extract_envelope(state.config().relay_mode())?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these

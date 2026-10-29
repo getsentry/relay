@@ -139,7 +139,10 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::TraceMetric => None,
         ItemType::Span => None,
         ItemType::ProfileChunk => None,
-        ItemType::Integration => None,
+        ItemType::Integration => match item.integration() {
+            Some(Integration::Errors(_)) => Some(DataCategory::Error),
+            Some(Integration::Logs(_) | Integration::Spans(_)) | None => None,
+        },
         ItemType::Unknown(_) => None,
     }
 }
@@ -746,6 +749,8 @@ impl Enforcement {
             },
             ItemType::TraceMetric => !(self.trace_metrics.is_active() || self.trace_metrics_bytes.is_active()),
             ItemType::Integration => match item.integration() {
+                // Error integrations are dropped with the event, see `requires_event` above.
+                Some(Integration::Errors(_)) => true,
                 Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
                 Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
                 None => true,
