@@ -6,6 +6,10 @@
 
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 
+**Bug Fixes**:
+
+- Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
+
 **Internal**:
 
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
@@ -22,7 +26,6 @@
 
 **Bug Fixes**:
 
-- Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
 - Preserve consistent quota and outcome quantities for empty attachments after expansion, preventing debug accounting panics. ([#6569](https://github.com/getsentry/relay/pull/6569))
 - Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
