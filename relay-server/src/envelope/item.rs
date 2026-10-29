@@ -29,7 +29,7 @@ pub trait ItemPayload: TryFrom<Item, Error = Item> {
     }
 }
 
-/// Payload types that support the `item_count` header.
+/// Payload types that can be written as item containers.
 pub trait ContainerPayload: ItemPayload + std::ops::DerefMut<Target = ItemData> {
     /// Sets the payload, its content type, and its declared container count.
     fn set_payload_with_item_count(
@@ -658,7 +658,8 @@ pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 /// An envelope item with an unparsed payload.
 ///
 /// `TypedItems` generates the payload structs and wire tags.
-/// `#[item(container)]` enables reading and setting the `item_count` header.
+/// `#[item(item_count)]` enables reading the `item_count` header.
+/// `#[item(container)]` additionally enables writing item containers.
 #[derive(Clone, relay_server_macros::TypedItems)]
 pub enum Item {
     /// Event payload encoded in JSON.
@@ -678,19 +679,19 @@ pub enum Item {
     /// User feedback encoded as JSON.
     UserReport(UserReportItem),
     /// Session update data.
-    #[item(container)]
+    #[item(item_count)]
     Session(SessionItem),
     /// Aggregated session data.
-    #[item(container)]
+    #[item(item_count)]
     Sessions(SessionsItem),
     /// Buckets of preaggregated metrics encoded as JSON.
-    #[item(container)]
+    #[item(item_count)]
     MetricBuckets(MetricBucketsItem),
     /// Client internal report (eg: outcomes).
-    #[item(container)]
+    #[item(item_count)]
     ClientReport(ClientReportItem),
     /// Profile event payload encoded as JSON.
-    #[item(container)]
+    #[item(item_count)]
     Profile(ProfileItem),
     /// Replay metadata and breadcrumb payload.
     ReplayEvent(ReplayEventItem),
@@ -699,7 +700,7 @@ pub enum Item {
     /// Replay Video data.
     ReplayVideo(ReplayVideoItem),
     /// Monitor check-in encoded as JSON.
-    #[item(container)]
+    #[item(item_count)]
     CheckIn(CheckInItem),
     /// A log for the log product, not internal logs.
     #[item(container)]
@@ -713,7 +714,7 @@ pub enum Item {
     /// UserReport as an Event
     UserReportV2(UserReportV2Item),
     /// ProfileChunk is a chunk of a profiling session.
-    #[item(container)]
+    #[item(item_count)]
     ProfileChunk(ProfileChunkItem),
     /// Integrations are a vendor specific set of endpoints providing integrations with external
     /// systems, standards and vendors.
@@ -728,7 +729,7 @@ pub enum Item {
     /// By default, items of this type are forwarded without modification. Processing Relays and
     /// Relays explicitly configured to do so will instead drop those items. This allows
     /// forward-compatibility with new item types where we expect outdated Relays.
-    #[item(container)]
+    #[item(item_count)]
     Unknown(UnknownItem),
     // Keep `Unknown` last in the list. Add new items above `Unknown`.
 }
@@ -1301,9 +1302,13 @@ mod tests {
 
     #[test]
     fn concrete_accounting_preserves_container_counts() {
-        let mut profile = ProfileItem::new();
-        profile.set_platform("python".into());
-        profile.set_payload_with_item_count(ContentType::Json, "{}", 3);
+        let (profile, _) = Item::parse(Bytes::from_static(
+            b"{\"type\":\"profile\",\"platform\":\"python\",\"item_count\":3}\n{}\n",
+        ))
+        .unwrap();
+        let Item::Profile(profile) = profile else {
+            panic!("expected a profile");
+        };
         assert_eq!(
             profile.quantities().as_slice(),
             [

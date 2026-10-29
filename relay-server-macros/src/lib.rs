@@ -29,6 +29,7 @@ fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
     let mut tags = Vec::new();
     let mut counts = Vec::new();
     for variant in input.variants {
+        let mut supports_item_count = false;
         let mut container = false;
         for attr in variant
             .attrs
@@ -36,10 +37,14 @@ fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
             .filter(|attr| attr.path().is_ident("item"))
         {
             attr.parse_nested_meta(|meta| {
-                if !meta.path.is_ident("container") {
-                    return Err(meta.error("expected container"));
+                if meta.path.is_ident("item_count") {
+                    supports_item_count = true;
+                } else if meta.path.is_ident("container") {
+                    supports_item_count = true;
+                    container = true;
+                } else {
+                    return Err(meta.error("expected item_count or container"));
                 }
-                container = true;
                 Ok(())
             })?;
         }
@@ -88,7 +93,7 @@ fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
                 }
             }
         });
-        let item_count = container.then(|| {
+        let item_count = supports_item_count.then(|| {
             quote! {
                 fn item_count(&self) -> Option<u32> {
                     self.data.headers.get(ItemHeaderKey::ItemCount)
@@ -196,6 +201,8 @@ mod tests {
         let generated = expand_typed_items(syn::parse_quote! {
             pub enum Item {
                 Transaction(TransactionItem),
+                #[item(item_count)]
+                Profile(ProfileItem),
                 #[item(container)]
                 Log(LogItem),
             }
