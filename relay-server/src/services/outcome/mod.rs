@@ -12,7 +12,8 @@ use relay_sampling::evaluation::MatchedRuleIds;
 pub mod metric;
 mod service;
 
-use crate::envelope::{AttachmentType, ItemType};
+use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::integrations::Integration;
 
 pub use self::service::*;
 
@@ -643,6 +644,20 @@ impl From<ItemType> for DiscardItemType {
     }
 }
 
+impl From<&Item> for DiscardItemType {
+    fn from(item: &Item) -> Self {
+        if let Some(attachment_type) = item.attachment_type() {
+            return attachment_type.into();
+        }
+
+        match item.integration() {
+            Some(Integration::Logs(_)) => Self::Log,
+            Some(Integration::Spans(_)) => Self::Span,
+            None => item.ty().into(),
+        }
+    }
+}
+
 impl From<&AttachmentType> for DiscardItemType {
     fn from(value: &AttachmentType) -> Self {
         Self::Attachment(value.into())
@@ -770,5 +785,40 @@ mod tests {
             )))
             .to_reason()
         );
+    }
+
+    #[test]
+    fn test_discard_item_type_from_item() {
+        use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration};
+
+        let mut otel_logs = Item::new(ItemType::Integration);
+        otel_logs.set_payload(
+            Integration::Logs(LogsIntegration::OtelV1 {
+                format: OtelFormat::Json,
+            })
+            .into(),
+            &b"{}"[..],
+        );
+        assert_eq!(DiscardItemType::from(&otel_logs), DiscardItemType::Log);
+
+        let mut otel_spans = Item::new(ItemType::Integration);
+        otel_spans.set_payload(
+            Integration::Spans(SpansIntegration::OtelV1 {
+                format: OtelFormat::Json,
+            })
+            .into(),
+            &b"{}"[..],
+        );
+        assert_eq!(DiscardItemType::from(&otel_spans), DiscardItemType::Span);
+
+        let mut attachment = Item::new(ItemType::Attachment);
+        attachment.set_attachment_type(AttachmentType::Breadcrumbs);
+        assert_eq!(
+            DiscardItemType::from(&attachment),
+            DiscardItemType::Attachment(DiscardAttachmentType::Breadcrumbs)
+        );
+
+        let event = Item::new(ItemType::Event);
+        assert_eq!(DiscardItemType::from(&event), DiscardItemType::Event);
     }
 }
