@@ -15,8 +15,8 @@ use crate::utils::{ProcessedUnrealReport, UnrealExpansion, gpu};
 
 /// A processor for Unreal items created by Relay's Unreal endpoint.
 ///
-/// Also accepts legacy [`ItemType::UnrealReport`] items, which are still forwarded by older Relays
-/// and Relays in proxy mode.
+/// Also accepts legacy [`ItemType::UnrealReport`] items, which are still forwarded by older
+/// Relays.
 #[derive(Debug)]
 pub struct UnrealErrorIntegrationProcessor;
 

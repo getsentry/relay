@@ -295,5 +295,8 @@ def test_unreal_proxy_mode(mini_sentry, relay):
     assert envelope
     assert len(envelope.items) == 1
     item = envelope.items[0]
-    assert item.headers.get("type") == "unreal_report"
-    assert item.headers.get("content_type") == "application/octet-stream"
+    assert item.headers.get("type") == "integration"
+    assert (
+        item.headers.get("content_type")
+        == "application/vnd.sentry.integration.unreal.crash-report"
+    )

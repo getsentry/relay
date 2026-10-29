@@ -780,7 +780,7 @@ pub enum ItemType {
     ///
     /// Relay's Unreal endpoint creates an [`ItemType::Integration`] item with
     /// [`ErrorsIntegration::Unreal`] instead. This item type is still accepted for compatibility
-    /// with envelopes forwarded by older Relays and Relays in proxy mode.
+    /// with envelopes forwarded by older Relays.
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,

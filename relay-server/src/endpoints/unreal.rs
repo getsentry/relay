@@ -1,16 +1,14 @@
-use axum::extract::{DefaultBodyLimit, FromRequest, Query};
+use axum::extract::{DefaultBodyLimit, Query};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use bytes::Bytes;
-use relay_config::{ConfigSnapshot, RelayMode};
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
-use crate::integrations::{ErrorsIntegration, Integration};
+use crate::extractors::IntegrationBuilder;
+use crate::integrations::ErrorsIntegration;
 use crate::middlewares;
 use crate::service::ServiceState;
 
@@ -20,53 +18,22 @@ struct UnrealQuery {
     user_id: Option<String>,
 }
 
-#[derive(Debug, FromRequest)]
-#[from_request(state(ServiceState))]
-struct UnrealParams {
-    meta: RequestMeta,
-    #[from_request(via(Query))]
-    query: UnrealQuery,
-    data: Bytes,
-}
-
-impl UnrealParams {
-    fn extract_envelope(self, mode: RelayMode) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { meta, query, data } = self;
-
-        if data.is_empty() {
-            return Err(BadStoreRequest::EmptyBody);
-        }
-
-        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-
-        if let Some(user_id) = query.user_id {
-            envelope.set_header(UNREAL_USER_HEADER, user_id);
-        }
-
-        let (ty, content_type) = match mode {
-            // Proxy Relays forward envelopes without processing them, so they must not create
-            // internal integration items.
-            RelayMode::Proxy => (ItemType::UnrealReport, ContentType::OctetStream),
-            RelayMode::Managed => (
-                ItemType::Integration,
-                Integration::Errors(ErrorsIntegration::Unreal).into(),
-            ),
-        };
-
-        let mut item = Item::new(ty);
-        item.set_payload(content_type, data);
-        envelope.add_item(item);
-
-        Ok(envelope)
-    }
-}
-
 async fn handle(
     state: ServiceState,
-    params: UnrealParams,
+    Query(query): Query<UnrealQuery>,
+    mut builder: IntegrationBuilder,
 ) -> axum::response::Result<impl IntoResponse> {
-    let envelope = params.extract_envelope(state.config().relay_mode())?;
-    let id = envelope.event_id();
+    if builder.is_empty() {
+        return Err(BadStoreRequest::EmptyBody.into());
+    }
+
+    let id = EventId::new();
+    builder = builder.with_event_id(id);
+    if let Some(user_id) = query.user_id {
+        builder = builder.with_header(UNREAL_USER_HEADER, user_id);
+    }
+
+    let envelope = builder.with_type(ErrorsIntegration::Unreal).build();
 
     // Never respond with a 429 since clients often retry these
     common::handle_envelope(&state, envelope)
@@ -75,7 +42,7 @@ async fn handle(
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
-    Ok(TextResponse(id))
+    Ok(TextResponse(Some(id)))
 }
 
 pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
