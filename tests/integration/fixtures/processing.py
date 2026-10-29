@@ -11,6 +11,7 @@ import msgpack
 from objectstore_client import Client, Usecase
 import pytest
 import confluent_kafka as kafka
+from confluent_kafka.admin import AdminClient
 
 from sentry_relay.consts import DataCategory
 from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
@@ -23,13 +24,45 @@ TRANSIENT_CONSUMER_ERROR_CODES = {
 }
 
 
+@pytest.fixture(scope="session")
+def kafka_topics():
+    """Collect this worker's test topics and delete them when its session ends."""
+    topics = set()
+    yield topics
+
+    if not topics:
+        return
+
+    admin = AdminClient(
+        {
+            "bootstrap.servers": os.environ.get(
+                "KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092"
+            )
+        }
+    )
+    futures = admin.delete_topics(
+        sorted(topics), operation_timeout=10, request_timeout=10
+    )
+    for future in futures.values():
+        try:
+            future.result()
+        except kafka.KafkaException as error:
+            # Configuring a topic does not necessarily create it on the broker.
+            if error.args[0].code() != kafka.KafkaError.UNKNOWN_TOPIC_OR_PART:
+                raise
+
+
 @pytest.fixture
-def get_topic_name():
-    """
-    Generate a unique topic name for each test
-    """
+def get_topic_name(kafka_topics):
+    """Generate unique topic names for each test and register them for cleanup."""
     random = uuid.uuid4().hex
-    return lambda topic: f"relay-test-{topic}-{random}"
+
+    def inner(topic):
+        name = f"relay-test-{topic}-{random}"
+        kafka_topics.add(name)
+        return name
+
+    return inner
 
 
 @pytest.fixture

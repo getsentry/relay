@@ -26,6 +26,7 @@ from .fixtures.pii import (  # noqa
     non_destructive,
 )
 from .fixtures.processing import (  # noqa
+    kafka_topics,
     kafka_consumer,
     get_topic_name,
     processing_config,
@@ -94,7 +95,13 @@ def random_port():
 def background_process(request):
     def inner(*args, **kwargs):
         p = subprocess.Popen(*args, **kwargs)
-        request.addfinalizer(p.kill)
+
+        def stop():
+            p.kill()
+            # Producers must exit before session teardown deletes their topics.
+            p.wait()
+
+        request.addfinalizer(stop)
         return p
 
     return inner
