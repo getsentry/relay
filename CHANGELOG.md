@@ -12,6 +12,10 @@
 
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 
+**Bug Fixes**:
+
+- Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
+
 ## 26.10.1
 
 **Features**:
