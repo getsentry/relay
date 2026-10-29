@@ -12,7 +12,7 @@ use relay_conventions::attributes::{
 };
 use relay_conventions::interpolate::browser__web_vital__cls__source__key;
 use relay_event_schema::protocol::{Attributes, SpanV2, TraceMetric};
-use relay_metrics::MetricUnit;
+use relay_metrics::{FractionUnit, MetricUnit};
 use relay_protocol::Value;
 use std::collections::BTreeMap;
 
@@ -54,6 +54,9 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__LCP__VALUE,
         name: "browser.web_vital.lcp",
+        score_name: "browser.web_vital.lcp.score",
+        score_ratio_attribute: "score.ratio.lcp",
+        score_weight_attribute: "score.weight.lcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__LCP__ELEMENT,
@@ -70,12 +73,18 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__CLS__VALUE,
         name: "browser.web_vital.cls",
+        score_name: "browser.web_vital.cls.score",
+        score_ratio_attribute: "score.ratio.cls",
+        score_weight_attribute: "score.weight.cls",
         unit: MetricUnit::None,
         attribute_keys: &["score.cls", "score.weight.cls", "score.ratio.cls"],
     },
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__INP__VALUE,
         name: "browser.web_vital.inp",
+        score_name: "browser.web_vital.inp.score",
+        score_ratio_attribute: "score.ratio.inp",
+        score_weight_attribute: "score.weight.inp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__INP__TARGET,
@@ -88,12 +97,18 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__FCP__VALUE,
         name: "browser.web_vital.fcp",
+        score_name: "browser.web_vital.fcp.score",
+        score_ratio_attribute: "score.ratio.fcp",
+        score_weight_attribute: "score.weight.fcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &["score.fcp", "score.weight.fcp", "score.ratio.fcp"],
     },
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__TTFB__VALUE,
         name: "browser.web_vital.ttfb",
+        score_name: "browser.web_vital.ttfb.score",
+        score_ratio_attribute: "score.ratio.ttfb",
+        score_weight_attribute: "score.weight.ttfb",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__TTFB__REQUEST_TIME,
@@ -109,6 +124,55 @@ struct WebVital {
     attribute_value: &'static str,
     unit: MetricUnit,
     attribute_keys: &'static [&'static str],
+    /// Name of the metric carrying the vital's performance score.
+    ///
+    /// The score is the `score.ratio.*` attribute Relay computes during performance score
+    /// normalization, a `0..=1` ratio of how good the vital is. Emitting it as its own metric
+    /// lets the score be queried with plain aggregates like `avg`, instead of needing a
+    /// dedicated function that reaches into the attributes of the value metric.
+    score_name: &'static str,
+    /// Span attribute holding the `0..=1` score of the vital.
+    score_ratio_attribute: &'static str,
+    /// Span attribute holding the weight of the vital in the total performance score.
+    score_weight_attribute: &'static str,
+}
+
+/// Copies the attributes shared by all web vital metrics from the span.
+fn insert_common_attributes(span_attrs: &Attributes, attributes: &mut Attributes) {
+    for attr_key in COMMON_ATTRIBUTES {
+        if let Some(v) = span_attrs.get_attribute(attr_key) {
+            attributes.insert(attr_key, v.value.clone());
+        }
+    }
+
+    if !attributes.contains_key(BROWSER__NAME)
+        && let Some(v) = span_attrs.get_attribute(LEGACY_BROWSER_NAME)
+    {
+        attributes.insert(BROWSER__NAME, v.value.clone());
+    }
+
+    // This is for attribution: we'll be able to tell on a metric if it came from relay.
+    attributes.insert(SENTRY__METRIC__SOURCE, "span");
+}
+
+fn make_metric(
+    span: &SpanV2,
+    name: &'static str,
+    unit: MetricUnit,
+    value: f64,
+    attributes: Attributes,
+) -> TraceMetric {
+    TraceMetric {
+        timestamp: span.start_timestamp.clone(),
+        trace_id: span.trace_id.clone(),
+        span_id: span.span_id.clone(),
+        name: name.to_owned().into(),
+        ty: relay_event_schema::protocol::MetricType::Distribution.into(),
+        unit: unit.into(),
+        value: Value::F64(value).into(),
+        attributes: attributes.into(),
+        other: BTreeMap::default(),
+    }
 }
 
 /// Extract any web vitals metrics for the supplied v2 span.  Bad or missing metrics will be
@@ -154,34 +218,39 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
             }
         }
 
-        for attr_key in COMMON_ATTRIBUTES {
-            if let Some(v) = attrs.get_attribute(attr_key) {
-                attributes.insert(attr_key, v.value.clone());
-            }
-        }
+        insert_common_attributes(attrs, &mut attributes);
 
-        if !attributes.contains_key(BROWSER__NAME)
-            && let Some(v) = attrs.get_attribute(LEGACY_BROWSER_NAME)
-        {
-            attributes.insert(BROWSER__NAME, v.value.clone());
-        }
+        results.push(make_metric(
+            span,
+            web_vital.name,
+            web_vital.unit,
+            value,
+            attributes,
+        ));
 
-        // This is for attribution: we'll be able to tell on a metric if it came from relay.
-        attributes.insert(SENTRY__METRIC__SOURCE, "span");
-
-        let trace_metric = TraceMetric {
-            timestamp: span.start_timestamp.clone(),
-            trace_id: span.trace_id.clone(),
-            span_id: span.span_id.clone(),
-            name: web_vital.name.to_owned().into(),
-            ty: relay_event_schema::protocol::MetricType::Distribution.into(),
-            unit: web_vital.unit.into(),
-            value: Value::F64(value).into(),
-            attributes: attributes.into(),
-            other: BTreeMap::default(),
+        // The score is only present when a performance score profile matched the span.
+        let Some(score) = attrs
+            .get_value(web_vital.score_ratio_attribute)
+            .and_then(|v| v.as_f64())
+        else {
+            continue;
         };
 
-        results.push(trace_metric);
+        let mut attributes = Attributes::new();
+
+        if let Some(v) = attrs.get_attribute(web_vital.score_weight_attribute) {
+            attributes.insert(web_vital.score_weight_attribute, v.value.clone());
+        }
+
+        insert_common_attributes(attrs, &mut attributes);
+
+        results.push(make_metric(
+            span,
+            web_vital.score_name,
+            MetricUnit::Fraction(FractionUnit::Ratio),
+            score,
+            attributes,
+        ));
     }
 
     if results.is_empty() {
@@ -309,5 +378,104 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_score_metric() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
+                    "browser.web_vital.lcp.element": {"type": "string", "value": "body > img"},
+                    "browser.name": {"type": "string", "value": "Chrome"},
+                    "score.lcp": {"type": "double", "value": 0.225},
+                    "score.weight.lcp": {"type": "double", "value": 0.3},
+                    "score.ratio.lcp": {"type": "double", "value": 0.75}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 2);
+
+        let value_metric = &metrics[0];
+        assert_eq!(value_metric.name.as_str(), Some("browser.web_vital.lcp"));
+        assert_eq!(
+            value_metric
+                .attributes
+                .value()
+                .unwrap()
+                .get_value("score.ratio.lcp")
+                .and_then(|v| v.as_f64()),
+            Some(0.75)
+        );
+
+        let score_metric = &metrics[1];
+        assert_eq!(
+            score_metric.name.as_str(),
+            Some("browser.web_vital.lcp.score")
+        );
+        assert_eq!(
+            score_metric.unit.value(),
+            Some(&MetricUnit::Fraction(FractionUnit::Ratio))
+        );
+        assert_eq!(score_metric.value.value(), Some(&Value::F64(0.75)));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric.attributes), @r#"
+        {
+          "browser.name": {
+            "type": "string",
+            "value": "Chrome"
+          },
+          "score.weight.lcp": {
+            "type": "double",
+            "value": 0.3
+          },
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_no_score_metric_without_ratio() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "pageload"},
+                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
+                    "browser.web_vital.ttfb.value": {"type": "double", "value": 100.0},
+                    "score.ratio.ttfb": {"type": "double", "value": 1.0}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        let names: Vec<_> = metrics.iter().filter_map(|m| m.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "browser.web_vital.lcp",
+                "browser.web_vital.ttfb",
+                "browser.web_vital.ttfb.score",
+            ]
+        );
     }
 }
