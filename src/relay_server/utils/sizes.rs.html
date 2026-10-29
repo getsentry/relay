@@ -148,79 +148,75 @@
 <a href=#148 id=148 data-nosnippet>148</a>                }
 <a href=#149 id=149 data-nosnippet>149</a>            );
 <a href=#150 id=150 data-nosnippet>150</a>
-<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span>discard_item: DiscardItemType = item
-<a href=#152 id=152 data-nosnippet>152</a>                .attachment_type()
-<a href=#153 id=153 data-nosnippet>153</a>                .map(|t| t.into())
-<a href=#154 id=154 data-nosnippet>154</a>                .unwrap_or_else(|| item.ty().into());
-<a href=#155 id=155 data-nosnippet>155</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(discard_item);
-<a href=#156 id=156 data-nosnippet>156</a>        }
-<a href=#157 id=157 data-nosnippet>157</a>    }
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="prelude-val">Ok</span>(())
-<a href=#160 id=160 data-nosnippet>160</a>}
-<a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a><span class="kw">enum </span>Rejected {
-<a href=#163 id=163 data-nosnippet>163</a>    ItemSize,
-<a href=#164 id=164 data-nosnippet>164</a>    TotalCount,
-<a href=#165 id=165 data-nosnippet>165</a>    TotalSize,
-<a href=#166 id=166 data-nosnippet>166</a>}
-<a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a><span class="kw">struct </span>Limit {
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="doccomment">/// The maximum size of a single item.
-<a href=#170 id=170 data-nosnippet>170</a>    </span>item_size: usize,
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="doccomment">/// The remaining total count of this item type allowed in an envelope.
-<a href=#172 id=172 data-nosnippet>172</a>    </span>total_count: usize,
-<a href=#173 id=173 data-nosnippet>173</a>    <span class="doccomment">/// The remaining total count of this item type in an envelope.
-<a href=#174 id=174 data-nosnippet>174</a>    </span>total_size: usize,
-<a href=#175 id=175 data-nosnippet>175</a>}
-<a href=#176 id=176 data-nosnippet>176</a>
-<a href=#177 id=177 data-nosnippet>177</a><span class="kw">impl </span>Limit {
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">fn </span>apply(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&gt; {
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>size = <span class="kw">match </span>item.is_container() {
-<a href=#180 id=180 data-nosnippet>180</a>            <span class="comment">// For container items, check that the contained items obey the size limit on average.
-<a href=#181 id=181 data-nosnippet>181</a>            //
-<a href=#182 id=182 data-nosnippet>182</a>            // Individual size validation must then be done again after parsing.
-<a href=#183 id=183 data-nosnippet>183</a>            </span><span class="bool-val">true </span>=&gt; item.len() / item.item_count().unwrap_or(<span class="number">1</span>).max(<span class="number">1</span>) <span class="kw">as </span>usize,
-<a href=#184 id=184 data-nosnippet>184</a>            <span class="bool-val">false </span>=&gt; item.len(),
-<a href=#185 id=185 data-nosnippet>185</a>        };
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="kw">if </span>size &gt; <span class="self">self</span>.item_size {
-<a href=#187 id=187 data-nosnippet>187</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Rejected::ItemSize);
-<a href=#188 id=188 data-nosnippet>188</a>        }
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>        <span class="self">self</span>.total_count = <span class="self">self
-<a href=#191 id=191 data-nosnippet>191</a>            </span>.total_count
-<a href=#192 id=192 data-nosnippet>192</a>            .checked_sub(<span class="number">1</span>)
-<a href=#193 id=193 data-nosnippet>193</a>            .ok_or(Rejected::TotalCount)<span class="question-mark">?</span>;
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="self">self</span>.total_size = <span class="self">self
-<a href=#196 id=196 data-nosnippet>196</a>            </span>.total_size
-<a href=#197 id=197 data-nosnippet>197</a>            .checked_sub(item.len())
-<a href=#198 id=198 data-nosnippet>198</a>            .ok_or(Rejected::TotalSize)<span class="question-mark">?</span>;
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(item.into());
+<a href=#152 id=152 data-nosnippet>152</a>        }
+<a href=#153 id=153 data-nosnippet>153</a>    }
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="prelude-val">Ok</span>(())
+<a href=#156 id=156 data-nosnippet>156</a>}
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a><span class="kw">enum </span>Rejected {
+<a href=#159 id=159 data-nosnippet>159</a>    ItemSize,
+<a href=#160 id=160 data-nosnippet>160</a>    TotalCount,
+<a href=#161 id=161 data-nosnippet>161</a>    TotalSize,
+<a href=#162 id=162 data-nosnippet>162</a>}
+<a href=#163 id=163 data-nosnippet>163</a>
+<a href=#164 id=164 data-nosnippet>164</a><span class="kw">struct </span>Limit {
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// The maximum size of a single item.
+<a href=#166 id=166 data-nosnippet>166</a>    </span>item_size: usize,
+<a href=#167 id=167 data-nosnippet>167</a>    <span class="doccomment">/// The remaining total count of this item type allowed in an envelope.
+<a href=#168 id=168 data-nosnippet>168</a>    </span>total_count: usize,
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="doccomment">/// The remaining total count of this item type in an envelope.
+<a href=#170 id=170 data-nosnippet>170</a>    </span>total_size: usize,
+<a href=#171 id=171 data-nosnippet>171</a>}
+<a href=#172 id=172 data-nosnippet>172</a>
+<a href=#173 id=173 data-nosnippet>173</a><span class="kw">impl </span>Limit {
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">fn </span>apply(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&gt; {
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span>size = <span class="kw">match </span>item.is_container() {
+<a href=#176 id=176 data-nosnippet>176</a>            <span class="comment">// For container items, check that the contained items obey the size limit on average.
+<a href=#177 id=177 data-nosnippet>177</a>            //
+<a href=#178 id=178 data-nosnippet>178</a>            // Individual size validation must then be done again after parsing.
+<a href=#179 id=179 data-nosnippet>179</a>            </span><span class="bool-val">true </span>=&gt; item.len() / item.item_count().unwrap_or(<span class="number">1</span>).max(<span class="number">1</span>) <span class="kw">as </span>usize,
+<a href=#180 id=180 data-nosnippet>180</a>            <span class="bool-val">false </span>=&gt; item.len(),
+<a href=#181 id=181 data-nosnippet>181</a>        };
+<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">if </span>size &gt; <span class="self">self</span>.item_size {
+<a href=#183 id=183 data-nosnippet>183</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Rejected::ItemSize);
+<a href=#184 id=184 data-nosnippet>184</a>        }
+<a href=#185 id=185 data-nosnippet>185</a>
+<a href=#186 id=186 data-nosnippet>186</a>        <span class="self">self</span>.total_count = <span class="self">self
+<a href=#187 id=187 data-nosnippet>187</a>            </span>.total_count
+<a href=#188 id=188 data-nosnippet>188</a>            .checked_sub(<span class="number">1</span>)
+<a href=#189 id=189 data-nosnippet>189</a>            .ok_or(Rejected::TotalCount)<span class="question-mark">?</span>;
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="self">self</span>.total_size = <span class="self">self
+<a href=#192 id=192 data-nosnippet>192</a>            </span>.total_size
+<a href=#193 id=193 data-nosnippet>193</a>            .checked_sub(item.len())
+<a href=#194 id=194 data-nosnippet>194</a>            .ok_or(Rejected::TotalSize)<span class="question-mark">?</span>;
+<a href=#195 id=195 data-nosnippet>195</a>
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="prelude-val">Ok</span>(())
+<a href=#197 id=197 data-nosnippet>197</a>    }
+<a href=#198 id=198 data-nosnippet>198</a>}
 <a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="prelude-val">Ok</span>(())
-<a href=#201 id=201 data-nosnippet>201</a>    }
-<a href=#202 id=202 data-nosnippet>202</a>}
-<a href=#203 id=203 data-nosnippet>203</a>
-<a href=#204 id=204 data-nosnippet>204</a><span class="doccomment">/// Checks for valid envelope items.
-<a href=#205 id=205 data-nosnippet>205</a>///
-<a href=#206 id=206 data-nosnippet>206</a>/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
-<a href=#207 id=207 data-nosnippet>207</a>/// known items will be retained.
-<a href=#208 id=208 data-nosnippet>208</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>ConfigSnapshot, envelope: <span class="kw-2">&amp;mut </span>Managed&lt;Box&lt;Envelope&gt;&gt;) {
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">if </span>config.accept_unknown_items() {
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">return</span>;
-<a href=#211 id=211 data-nosnippet>211</a>    }
-<a href=#212 id=212 data-nosnippet>212</a>
-<a href=#213 id=213 data-nosnippet>213</a>    envelope.modify(|envelope, records| {
-<a href=#214 id=214 data-nosnippet>214</a>        envelope.retain_items(|item| {
-<a href=#215 id=215 data-nosnippet>215</a>            <span class="kw">if </span>item.is_unknown() {
-<a href=#216 id=216 data-nosnippet>216</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item"</span>);
-<a href=#217 id=217 data-nosnippet>217</a>                <span class="comment">// Reject items silently, without outcomes.
-<a href=#218 id=218 data-nosnippet>218</a>                </span>records.reject_err(<span class="prelude-val">None</span>, <span class="kw-2">&amp;*</span>item);
-<a href=#219 id=219 data-nosnippet>219</a>                <span class="bool-val">false
-<a href=#220 id=220 data-nosnippet>220</a>            </span>} <span class="kw">else </span>{
-<a href=#221 id=221 data-nosnippet>221</a>                <span class="bool-val">true
-<a href=#222 id=222 data-nosnippet>222</a>            </span>}
-<a href=#223 id=223 data-nosnippet>223</a>        });
-<a href=#224 id=224 data-nosnippet>224</a>    });
-<a href=#225 id=225 data-nosnippet>225</a>}
+<a href=#200 id=200 data-nosnippet>200</a><span class="doccomment">/// Checks for valid envelope items.
+<a href=#201 id=201 data-nosnippet>201</a>///
+<a href=#202 id=202 data-nosnippet>202</a>/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
+<a href=#203 id=203 data-nosnippet>203</a>/// known items will be retained.
+<a href=#204 id=204 data-nosnippet>204</a></span><span class="kw">pub fn </span>remove_unknown_items(config: <span class="kw-2">&amp;</span>ConfigSnapshot, envelope: <span class="kw-2">&amp;mut </span>Managed&lt;Box&lt;Envelope&gt;&gt;) {
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">if </span>config.accept_unknown_items() {
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="kw">return</span>;
+<a href=#207 id=207 data-nosnippet>207</a>    }
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>    envelope.modify(|envelope, records| {
+<a href=#210 id=210 data-nosnippet>210</a>        envelope.retain_items(|item| {
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">if </span>item.is_unknown() {
+<a href=#212 id=212 data-nosnippet>212</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping unknown item"</span>);
+<a href=#213 id=213 data-nosnippet>213</a>                <span class="comment">// Reject items silently, without outcomes.
+<a href=#214 id=214 data-nosnippet>214</a>                </span>records.reject_err(<span class="prelude-val">None</span>, <span class="kw-2">&amp;*</span>item);
+<a href=#215 id=215 data-nosnippet>215</a>                <span class="bool-val">false
+<a href=#216 id=216 data-nosnippet>216</a>            </span>} <span class="kw">else </span>{
+<a href=#217 id=217 data-nosnippet>217</a>                <span class="bool-val">true
+<a href=#218 id=218 data-nosnippet>218</a>            </span>}
+<a href=#219 id=219 data-nosnippet>219</a>        });
+<a href=#220 id=220 data-nosnippet>220</a>    });
+<a href=#221 id=221 data-nosnippet>221</a>}
 </code></pre></div></section></main></body></html>
