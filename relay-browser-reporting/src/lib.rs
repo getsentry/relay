@@ -3,7 +3,7 @@
 //! The browser reporting API is defined in
 //! <https://www.w3.org/TR/reporting-1/>.
 
-mod nel;
+pub mod nel;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +15,18 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
     NetworkError(nel::Body),
+}
+
+impl BrowserReportBody {
+    /// The type of the browser report.
+    ///
+    /// This corresponds to the value of the `"type"`
+    /// field in the serialized report.
+    pub fn report_type(&self) -> &'static str {
+        match self {
+            BrowserReportBody::NetworkError(_) => "network-error",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

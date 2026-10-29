@@ -2,6 +2,7 @@
 //!
 //! See <https://www.w3.org/TR/network-error-logging/>.
 
+use std::fmt;
 use std::net::IpAddr;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
@@ -33,8 +34,22 @@ pub enum NetworkReportPhase {
         #[serde(deserialize_with = "deserialize_ip_opt")]
         server_ip: Option<IpAddr>,
         /// HTTP status code.
-        status_code: u64,
+        status_code: u16,
     },
+}
+
+impl NetworkReportPhase {
+    /// The name of the phase.
+    ///
+    /// This corresponds to the value of the `"phase"`
+    /// field in the serialized report body.
+    pub fn name(&self) -> &'static str {
+        match self {
+            NetworkReportPhase::Dns => "dns",
+            NetworkReportPhase::Connection { .. } => "connection",
+            NetworkReportPhase::Application { .. } => "application",
+        }
+    }
 }
 
 /// The NEL report's type (either `"ok"` or an error string).
@@ -44,6 +59,15 @@ pub enum ReportType {
     Ok,
     #[serde(untagged)]
     Error(String),
+}
+
+impl fmt::Display for ReportType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ReportType::Ok => f.write_str("ok"),
+            ReportType::Error(error) => f.write_str(error),
+        }
+    }
 }
 
 /// The body of a Network Error report, as defined in
