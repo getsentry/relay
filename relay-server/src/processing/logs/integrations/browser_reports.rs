@@ -71,9 +71,8 @@ fn expand(
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
-        .map(|report| {
-            let log = relay_ourlogs::browser_report_to_sentry_log(report, received_at);
-
+        .filter_map(|report| relay_ourlogs::browser_report_to_sentry_log(report, received_at))
+        .map(|log| {
             // INGEST-1333: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
