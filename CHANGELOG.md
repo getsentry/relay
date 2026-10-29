@@ -16,7 +16,6 @@
 **Bug Fixes**:
 
 - Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
-- Ignore the `fully_normalized` item header on error events unless the request comes from a trusted Relay, as transactions already do. ([#6591](https://github.com/getsentry/relay/pull/6591))
 
 ## 26.10.1
 
