@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["calculate_size","otel_to_sentry_log","vercel_log_to_sentry_log"],"mod":["otel_logs"],"struct":["VercelLog"]};
+window.SIDEBAR_ITEMS = {"fn":["browser_report_to_sentry_log","calculate_size","otel_to_sentry_log","vercel_log_to_sentry_log"],"mod":["otel_logs"],"struct":["VercelLog"]};
