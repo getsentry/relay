@@ -95,6 +95,7 @@ relay-replays = { workspace = true }
 relay-conventions = { workspace = true }
 relay-sampling = { workspace = true }
 relay-serialization = { workspace = true }
+relay-server-macros = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
