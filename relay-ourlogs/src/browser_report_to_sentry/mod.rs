@@ -43,7 +43,10 @@ fn extract_server_address(server_address: &str) -> String {
 }
 
 /// Creates a [`OurLog`] from the provided [`BrowserReport`].
-pub fn browser_report_to_sentry_log(report: BrowserReport, received_at: DateTime<Utc>) -> OurLog {
+pub fn browser_report_to_sentry_log(
+    report: BrowserReport,
+    received_at: DateTime<Utc>,
+) -> Option<OurLog> {
     create_log_with_trace_id(report, received_at, None)
 }
 
@@ -53,7 +56,7 @@ fn create_log_with_trace_id(
     report: BrowserReport,
     received_at: DateTime<Utc>,
     trace_id: Option<TraceId>,
-) -> OurLog {
+) -> Option<OurLog> {
     let BrowserReport {
         age,
         url,
@@ -75,13 +78,14 @@ fn create_log_with_trace_id(
 
     let log = match body {
         BrowserReportBody::NetworkError(body) => nel::create_log_from_nel_body(body, attributes),
+        BrowserReportBody::Unsupported => return None,
     };
 
-    OurLog {
+    Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
         trace_id: Annotated::new(trace_id.unwrap_or_else(TraceId::random)),
         ..log
-    }
+    })
 }
 
 #[cfg(test)]
@@ -119,7 +123,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id));
+        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(&Annotated::new(log), @r#"
         {
@@ -220,7 +224,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "825d2fca3bcd40d390a0b39fe7102e90".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id));
+        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
         assert_annotated_snapshot!(
             &Annotated::new(log),
             @r#"
@@ -270,5 +274,29 @@ mod tests {
         }
         "#
         );
+    }
+
+    #[test]
+    fn test_create_log_unsupported_report() {
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(
+            r#"{
+                "age": 1000,
+                "type": "future-magic",
+                "url": "https://api.example.com/v1/users",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+                "body": {
+                    "frobnicated": true,
+                    "mana_used": 477
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let trace_id: TraceId = "825d2fca3bcd40d390a0b39fe7102e90".parse().unwrap();
+        assert!(create_log_with_trace_id(report, received_at, Some(trace_id)).is_none());
     }
 }

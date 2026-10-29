@@ -5,16 +5,20 @@
 
 pub mod nel;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
 
 /// The contents of the `body` field of a [`BrowserReport`].
 ///
-/// This contains a variant for each supported report type.
+/// This contains a variant for each supported report type,
+/// plus an `Unsupported` variant into which all reports with
+/// unknown `"type"` fields get deserialized.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "body")]
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
     NetworkError(nel::Body),
+    #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
+    Unsupported,
 }
 
 impl BrowserReportBody {
@@ -25,6 +29,7 @@ impl BrowserReportBody {
     pub fn report_type(&self) -> &'static str {
         match self {
             BrowserReportBody::NetworkError(_) => "network-error",
+            BrowserReportBody::Unsupported => "unsupported",
         }
     }
 }
@@ -42,6 +47,15 @@ pub struct BrowserReport {
     /// The body of the report.
     #[serde(flatten)]
     pub body: BrowserReportBody,
+}
+
+/// See <https://github.com/serde-rs/serde/issues/1714>.
+fn deserialize_unknown_report_body<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(IgnoredAny)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -128,6 +142,15 @@ mod tests {
                 "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
             }"#;
 
-        assert!(serde_json::from_str::<BrowserReport>(json).is_err());
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 31042,
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "type": "unsupported"
+        }
+        "#);
     }
 }
