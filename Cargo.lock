@@ -5084,6 +5084,7 @@ dependencies = [
  "relay-replays",
  "relay-sampling",
  "relay-serialization",
+ "relay-server-macros",
  "relay-spans",
  "relay-statsd",
  "relay-system",
@@ -5116,6 +5117,15 @@ dependencies = [
  "url",
  "uuid",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "relay-server-macros"
+version = "26.10.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

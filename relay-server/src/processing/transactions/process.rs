@@ -1,3 +1,4 @@
+use crate::envelope::ProfileItem;
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Event;
@@ -8,6 +9,7 @@ use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
+#[cfg(test)]
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
@@ -76,7 +78,7 @@ pub fn expand(
 }
 
 fn expand_profile(
-    profiles: Vec<Item>,
+    profiles: Vec<ProfileItem>,
     record_keeper: &mut RecordKeeper<'_>,
 ) -> Option<ExpandedProfile> {
     let mut profiles = profiles.into_iter();
@@ -499,7 +501,9 @@ mod tests {
             "{{\"type\":\"transaction\",\"length\":{}{span_count}}}\n{payload}\n",
             payload.len()
         );
-        let (event, _) = Item::parse(bytes.into()).unwrap();
+        let (Item::Transaction(event), _) = Item::parse(bytes.into()).unwrap() else {
+            unreachable!()
+        };
 
         Managed::for_test(SerializedTransaction {
             headers: envelope.headers().clone(),

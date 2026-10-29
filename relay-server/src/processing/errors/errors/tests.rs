@@ -1,12 +1,12 @@
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 
 use super::*;
-use crate::envelope::{AttachmentType, ContentType, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType};
 use crate::managed::Managed;
 use crate::services::outcome::Outcome;
 
-pub(super) fn attachment(ty: AttachmentType, payload: &'static str) -> Item {
-    let mut item = Item::new(ItemType::Attachment);
+pub(super) fn attachment(ty: AttachmentType, payload: &'static str) -> AttachmentItem {
+    let mut item = AttachmentItem::new();
     item.set_attachment_type(ty);
     item.set_payload(ContentType::OctetStream, payload);
     item

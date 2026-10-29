@@ -12,8 +12,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
-use crate::envelope::Envelope;
-use crate::envelope::Item;
+use crate::envelope::{Envelope, Item};
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -734,6 +733,7 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::TransactionItem;
     use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
     use relay_config::Config;
@@ -744,7 +744,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::SqliteEnvelopeStore;
-    use crate::envelope::{Item, ItemType};
+
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
@@ -782,7 +782,7 @@ mod tests {
                 sampled: None,
                 other: Default::default(),
             });
-            envelope.add_item(Item::new(ItemType::Transaction));
+            envelope.add_item(TransactionItem::new());
         }
         if let Some(event_id) = event_id {
             envelope.set_event_id(event_id);

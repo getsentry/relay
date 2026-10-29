@@ -5,7 +5,9 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{
+    ContainerItems, ContainerParseError, EnvelopeHeaders, ItemContainer, LogItem,
+};
 use crate::extractors::RequestTrust;
 use crate::managed::Rejected;
 use crate::processing::logs::{
@@ -90,7 +92,7 @@ pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
 }
 
 fn expand_log_container(
-    item: &Item,
+    item: &LogItem,
     trust: RequestTrust,
     max_ops: usize,
 ) -> Result<(Settings, ContainerItems<OurLog>)> {
@@ -241,6 +243,7 @@ fn normalize_log_derived(log: &mut Annotated<OurLog>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::ContainerPayload;
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
@@ -252,7 +255,7 @@ mod tests {
     fn test_expand_log_container_operations_limit() {
         let payload = r#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"foobar","attributes":{}}]}"#;
 
-        let mut item = Item::new(crate::envelope::ItemType::Log);
+        let mut item = LogItem::new();
         item.set_payload_with_item_count(crate::envelope::ContentType::LogContainer, payload, 1);
 
         // With a sufficient budget the container parses.

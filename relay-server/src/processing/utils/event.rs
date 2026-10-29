@@ -31,8 +31,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::envelope::AttachmentType;
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::envelope::{AttachmentItem, AttachmentType, EnvelopeHeaders};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
 use crate::services::projects::project::ProjectInfo;
@@ -60,7 +59,7 @@ pub fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 pub fn finalize<'a>(
     headers: &EnvelopeHeaders,
     event: &mut Annotated<Event>,
-    attachments: impl Iterator<Item = &'a Item>,
+    attachments: impl Iterator<Item = &'a AttachmentItem>,
     metrics: &mut Metrics,
     config: &ConfigSnapshot,
 ) -> Result<(), ProcessingError> {

@@ -4,28 +4,54 @@ use std::fmt;
 use std::ops::AddAssign;
 use uuid::Uuid;
 
+#[cfg(test)]
+use crate::managed::Counted;
 use bytes::Bytes;
 use relay_event_schema::protocol::{EventType, SpanId};
+#[cfg(test)]
 use relay_quotas::DataCategory;
 use serde::{Deserialize, Serialize};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
-use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::integrations::Integration;
 use crate::utils::DebugBytes;
 
+/// A payload type that can be selected from an [`Item`].
+///
+/// Borrowed extraction and `TryFrom<Item>` must accept the same variant.
+pub trait ItemPayload: TryFrom<Item, Error = Item> {
+    fn from_item_ref(item: &Item) -> Option<&Self>;
+
+    /// Returns the declared `item_count` header when supported by this payload type.
+    fn item_count(&self) -> Option<u32> {
+        None
+    }
+}
+
+/// Payload types that can be written as item containers.
+pub trait ContainerPayload: ItemPayload + std::ops::DerefMut<Target = ItemData> {
+    /// Sets the payload, its content type, and its declared container count.
+    fn set_payload_with_item_count(
+        &mut self,
+        content_type: ContentType,
+        payload: impl Into<Bytes>,
+        item_count: u32,
+    );
+}
+
+/// Raw headers and payload shared by all item types.
 #[derive(Clone)]
-pub struct Item {
-    pub(super) headers: ItemHeaders,
+pub struct ItemData {
+    pub(super) headers: CommonItemHeaders,
     pub(super) payload: Bytes,
 }
 
-impl Item {
-    /// Creates a new item with the given type.
-    pub fn new(ty: ItemType) -> Self {
+impl ItemData {
+    /// Creates empty storage for a serialized item.
+    fn new() -> Self {
         Self {
-            headers: ItemHeaders {
-                ty,
+            headers: CommonItemHeaders {
                 stored_key: None,
                 rate_limited: false,
                 source_quantities: None,
@@ -36,16 +62,13 @@ impl Item {
         }
     }
 
-    /// Returns the `ItemType` of this item.
-    pub fn ty(&self) -> &ItemType {
-        &self.headers.ty
-    }
-
     /// Returns the length of this item's payload.
     pub fn len(&self) -> usize {
         self.payload.len()
     }
+}
 
+impl Item {
     /// Parses an [`Item`] from raw bytes.
     pub fn parse(bytes: Bytes) -> Result<(Item, usize), EnvelopeError> {
         let slice = bytes.as_ref();
@@ -90,153 +113,51 @@ impl Item {
         };
 
         let payload = bytes.slice(payload_start..payload_end);
-        let item = Item { headers, payload };
+        let ItemHeaders { ty, data: headers } = headers;
+        let item = Item::from_parts(ty, ItemData { headers, payload });
 
         Ok((item, payload_end + 1))
     }
+}
 
-    /// Returns the number used for counting towards rate limits and producing outcomes.
-    ///
-    /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 2]> {
-        let item_count = self.item_count().unwrap_or(1) as usize;
-
-        match self.ty() {
-            ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => {
-                smallvec![
-                    (DataCategory::Transaction, item_count),
-                    (DataCategory::TransactionIndexed, item_count),
-                    (
-                        DataCategory::Span,
-                        item_count + self.span_count().unwrap_or(0) as usize,
-                    ),
-                    (
-                        DataCategory::SpanIndexed,
-                        item_count + self.span_count().unwrap_or(0) as usize,
-                    ),
-                ]
-            }
-            ItemType::Security | ItemType::RawSecurity => {
-                smallvec![(DataCategory::Security, item_count)]
-            }
-            ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Attachment => match self.rate_limited() {
-                true => smallvec![],
-                false => smallvec![
-                    (DataCategory::Attachment, self.attachment_body_size()),
-                    (DataCategory::AttachmentItem, item_count),
-                ],
-            },
-            ItemType::Session | ItemType::Sessions => {
-                smallvec![(DataCategory::Session, item_count)]
-            }
-            ItemType::MetricBuckets => smallvec![],
-            ItemType::Log => smallvec![
-                (DataCategory::LogByte, self.len().max(1)),
-                (DataCategory::LogItem, item_count)
-            ],
-            ItemType::TraceMetric => smallvec![
-                (DataCategory::TraceMetricByte, self.len().max(1)),
-                (DataCategory::TraceMetric, item_count)
-            ],
-            ItemType::FormData => smallvec![],
-            ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
-            ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
-            ItemType::Profile => match self.profile_type() {
-                Some(ProfileType::Backend) => smallvec![
-                    (DataCategory::Profile, item_count),
-                    (DataCategory::ProfileIndexed, item_count),
-                    (DataCategory::ProfileBackend, item_count),
-                ],
-                Some(ProfileType::Ui) => smallvec![
-                    (DataCategory::Profile, item_count),
-                    (DataCategory::ProfileIndexed, item_count),
-                    (DataCategory::ProfileUi, item_count)
-                ],
-                // Note: parsing the profile type (and validity) requires parsing the payload,
-                // which makes this semantically wrong but it is too expensive here to parse the
-                // payload.
-                None => smallvec![
-                    (DataCategory::Profile, item_count),
-                    (DataCategory::ProfileIndexed, item_count),
-                ],
-            },
-            ItemType::ProfileChunk => match self.profile_type() {
-                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
-                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
-                // Note: parsing the profile type (and validity) requires parsing the payload,
-                // which makes this semantically wrong but it is too expensive here to parse the
-                // payload.
-                None => smallvec![],
-            },
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                smallvec![(DataCategory::Replay, item_count)]
-            }
-            ItemType::ClientReport => smallvec![],
-            ItemType::CheckIn => smallvec![(DataCategory::Monitor, item_count)],
-            ItemType::Span => smallvec![
-                (DataCategory::Span, item_count),
-                (DataCategory::SpanIndexed, item_count),
-            ],
-            ItemType::Integration => match self.integration() {
-                Some(Integration::Logs(
-                    LogsIntegration::Nel
-                    | LogsIntegration::Integrity
-                    | LogsIntegration::OtelV1 { .. }
-                    | LogsIntegration::VercelDrainLog { .. },
-                )) => smallvec![
-                    (DataCategory::LogByte, self.len().max(1)),
-                    (DataCategory::LogItem, item_count),
-                ],
-                Some(Integration::Spans(SpansIntegration::OtelV1 { .. })) => {
-                    smallvec![
-                        (DataCategory::Span, item_count),
-                        (DataCategory::SpanIndexed, item_count),
-                    ]
-                }
-                None => smallvec![],
-            },
-            ItemType::Unknown(_) => smallvec![],
-        }
-    }
-
+impl ItemData {
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
     }
+}
 
-    /// Returns the amount of items contained in the item body.
-    ///
-    /// An envelope item can hold multiple items of the same type by using an [`super::ItemContainer`].
-    /// In that case the single envelope item represents multiple items of type [`Self::ty`].
-    ///
-    /// This method can be safely used to generate outcomes.
-    pub fn item_count(&self) -> Option<u32> {
-        match self.ty().can_support_container() {
-            true => self.headers.get(ItemHeaderKey::ItemCount),
-            false => None,
-        }
-    }
-
-    /// Returns the number of spans in the `event.spans` array.
-    ///
-    /// Only transaction items are expected to carry this header. Returns `None` if the header is
-    /// absent or invalid.
-    ///
-    /// When a transaction is dropped before spans were extracted from a transaction,
-    /// this number is used to emit correct outcomes for the spans category.
-    ///
-    /// This number does *not* count the transaction itself.
+impl TransactionItem {
+    /// Returns the declared number of embedded spans, or `None` for an absent or invalid header.
     pub fn span_count(&self) -> Option<u32> {
         self.headers.get(ItemHeaderKey::SpanCount)
     }
 
-    /// Sets the number of spans in the transaction payload.
-    pub fn set_span_count(&mut self, value: Option<usize>) {
-        self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
+    /// Counts embedded spans using the header, falling back to scanning the `spans` payload array.
+    /// Invalid payloads count as zero.
+    pub fn count_embedded_spans(&self) -> usize {
+        #[derive(serde::Deserialize)]
+        struct PartialEvent {
+            spans: crate::utils::SeqCount,
+        }
+
+        self.span_count()
+            .map(|count| count as usize)
+            .unwrap_or_else(|| {
+                relay_statsd::metric!(timer(crate::statsd::RelayTimers::CheckNestedSpans), {
+                    serde_json::from_slice::<PartialEvent>(&self.payload())
+                        .map_or(0, |event| event.spans.0)
+                })
+            })
     }
 
+    /// Sets the number of spans in the transaction payload.
+    pub fn set_span_count(&mut self, value: Option<u32>) {
+        self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
+    }
+}
+
+impl ItemData {
     /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<ContentType> {
         self.headers.get(ItemHeaderKey::ContentType)
@@ -262,34 +183,38 @@ impl Item {
             self.headers.set(ItemHeaderKey::ContentType, content_type);
         }
     }
+}
 
-    /// Returns the [`Integration`] the item belongs.
-    pub fn integration(&self) -> Option<Integration> {
-        if !matches!(self.ty(), ItemType::Integration) {
-            return None;
-        }
-
+impl IntegrationItem {
+    /// Returns the integration named by the content-type header, if present and valid.
+    pub fn integration_header(&self) -> Option<Integration> {
         match self.content_type() {
             Some(ContentType::Integration(integration)) => Some(integration),
-            _ => {
-                // This is a bug which should never happen.
-                debug_assert!(false, "integration item, but no integration content type");
-                None
-            }
+            _ => None,
         }
     }
 
-    /// Returns the attachment type if this item is an attachment.
+    /// Returns the integration, asserting that internally constructed items are valid.
+    pub fn integration(&self) -> Option<Integration> {
+        let integration = self.integration_header();
+        debug_assert!(
+            integration.is_some(),
+            "integration item, but no integration content type"
+        );
+        integration
+    }
+}
+
+impl AttachmentItem {
+    /// Returns the attachment type.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
-        // TODO: consider to replace this with an ItemType?
         if let Some(ty) = self.headers.get(ItemHeaderKey::AttachmentType) {
             return Some(ty);
         }
 
         // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
         // attachment type, that's why we have to infer it here from the filename and contents.
-        if self.ty() == &ItemType::Attachment
-            && self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
+        if self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
             && self
                 .payload
                 .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
@@ -305,7 +230,9 @@ impl Item {
         self.headers
             .set(ItemHeaderKey::AttachmentType, attachment_type);
     }
+}
 
+impl ItemData {
     /// Returns the payload of this item.
     ///
     /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
@@ -340,7 +267,7 @@ impl Item {
     }
 
     /// Sets the payload, content-type and item count of this envelope item.
-    pub fn set_payload_with_item_count<B>(
+    fn set_payload_with_item_count<B>(
         &mut self,
         content_type: ContentType,
         payload: B,
@@ -353,8 +280,10 @@ impl Item {
             .set(ItemHeaderKey::ItemCount, item_count);
         self.set_payload_without_content_type(payload);
     }
+}
 
-    /// Returns the file name of this item, if it is an attachment.
+impl AttachmentItem {
+    /// Returns the attachment file name.
     pub fn filename(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::Filename)
     }
@@ -367,7 +296,7 @@ impl Item {
         self.headers.set(ItemHeaderKey::Filename, filename.into());
     }
 
-    /// Returns the objectstore key, if it is an attachment stored in objectstore.
+    /// Returns the objectstore key for a stored attachment.
     pub fn stored_key(&self) -> Option<&str> {
         self.headers.stored_key.as_deref()
     }
@@ -376,7 +305,9 @@ impl Item {
     pub fn set_stored_key(&mut self, stored_key: String) {
         self.headers.stored_key = Some(stored_key);
     }
+}
 
+impl ItemData {
     /// Returns the routing_hint of this item.
     pub fn routing_hint(&self) -> Option<Uuid> {
         self.headers.routing_hint
@@ -419,29 +350,25 @@ impl Item {
         self.headers
             .set(ItemHeaderKey::FullyNormalized, fully_normalized);
     }
+}
 
+impl ProfileItem {
     /// Returns the associated platform.
-    ///
-    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
     pub fn platform(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
-    ///
-    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
     pub fn set_platform(&mut self, platform: String) {
         self.headers.set(ItemHeaderKey::Platform, platform);
     }
 
-    /// Returns the associated profile type of a profile chunk.
-    ///
     /// Infers the [`ProfileType`] from [`Self::platform`].
     pub fn profile_type(&self) -> Option<ProfileType> {
         self.platform().map(ProfileType::from_platform)
     }
 
-    /// Gets the `sampled` flag.
+    /// Gets the profile sampling flag.
     pub fn sampled(&self) -> bool {
         self.headers.get(ItemHeaderKey::Sampled).unwrap_or(true)
     }
@@ -450,28 +377,50 @@ impl Item {
     pub fn set_sampled(&mut self, sampled: bool) {
         self.headers.set(ItemHeaderKey::Sampled, sampled);
     }
+}
 
-    /// Returns the length of the item.
+impl ProfileChunkItem {
+    /// Returns the associated platform.
+    pub fn platform(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::Platform)
+    }
+
+    /// Set the associated platform.
+    pub fn set_platform(&mut self, platform: String) {
+        self.headers.set(ItemHeaderKey::Platform, platform);
+    }
+
+    /// Infers the [`ProfileType`] from [`Self::platform`].
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.platform().map(ProfileType::from_platform)
+    }
+
+    /// Returns the length of the metadata segment for a Perfetto profile chunk.
+    pub fn meta_length(&self) -> Option<u32> {
+        self.headers.get(ItemHeaderKey::MetaLength)
+    }
+}
+
+impl AttachmentItem {
+    /// Returns the length of the optional attachment metadata segment.
     pub fn meta_length(&self) -> Option<u32> {
         self.headers.get(ItemHeaderKey::MetaLength)
     }
 
     /// Sets the length of the optional meta segment.
-    ///
-    /// Only applicable if the item is an attachment.
     pub fn set_meta_length(&mut self, meta_length: u32) {
         self.headers.set(ItemHeaderKey::MetaLength, meta_length);
     }
 
-    /// Sets the length of the attachment referenced by this item.
-    ///
-    /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
+    /// Sets the original payload length for an attachment with [`ContentType::AttachmentRef`].
     pub fn set_attachment_length(&mut self, original_length: usize) {
         debug_assert!(self.is_attachment_ref());
         self.headers
             .set(ItemHeaderKey::AttachmentLength, original_length);
     }
+}
 
+impl ItemData {
     /// Retrieves the sentry release from an item header.
     pub fn sentry_release(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::SentryRelease)
@@ -492,10 +441,10 @@ impl Item {
         self.headers
             .set(ItemHeaderKey::SentryEnvironment, environment);
     }
+}
 
-    /// Returns the parent entity that this item is associated with, if any.
-    ///
-    /// Only applicable if the item is an attachment.
+impl AttachmentItem {
+    /// Returns the parent entity associated with this attachment, if any.
     pub fn parent_id(&self) -> Option<ParentId> {
         // Currently only `span_id` supported in `ParentId`.
         let span_id = self.headers.get(ItemHeaderKey::SpanId)?;
@@ -512,8 +461,7 @@ impl Item {
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
     fn is_attachment_v2(&self) -> bool {
-        self.ty() == &ItemType::Attachment
-            && self.content_type() == Some(ContentType::TraceAttachment)
+        self.content_type() == Some(ContentType::TraceAttachment)
     }
 
     /// Returns `true` if this item is a V2 attachment owned by spans.
@@ -528,19 +476,13 @@ impl Item {
 
     /// Returns `true` if this item is an attachment placeholder.
     pub fn is_attachment_ref(&self) -> bool {
-        self.ty() == &ItemType::Attachment
-            && self.content_type() == Some(ContentType::AttachmentRef)
+        self.content_type() == Some(ContentType::AttachmentRef)
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
     pub fn attachment_parent_type(&self) -> AttachmentParentType {
-        let is_attachment = self.ty() == &ItemType::Attachment;
-        debug_assert!(
-            is_attachment,
-            "function should only be called on attachments"
-        );
         let is_trace_attachment = self.content_type() == Some(ContentType::TraceAttachment);
 
         if is_trace_attachment {
@@ -575,146 +517,135 @@ impl Item {
         .max(1)
     }
 
+    /// Whether this attachment contains data used to build an event.
+    pub fn carries_event_payload(&self) -> bool {
+        match self.attachment_type() {
+            Some(
+                AttachmentType::Minidump
+                | AttachmentType::AppleCrashReport
+                | AttachmentType::EventPayload
+                | AttachmentType::Prosperodump
+                | AttachmentType::Breadcrumbs
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NintendoSwitchDyingMessage,
+            ) => true,
+            Some(
+                AttachmentType::Attachment
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs
+                | AttachmentType::ViewHierarchy
+                | AttachmentType::Flamegraph
+                | AttachmentType::NvShaderDebug,
+            )
+            | None => false,
+        }
+    }
+}
+
+impl Item {
     /// Returns `true` if this item contains a payload which is unknown to this version of Relay.
     pub fn is_unknown(&self) -> bool {
-        if matches!(self.ty(), ItemType::Unknown(_)) {
-            return true;
-        }
-        if self
-            .headers
-            .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
-            .is_err()
-        {
-            return true;
-        }
-        false
-    }
-
-    /// Determines whether the given item creates an event.
-    ///
-    /// This is only true for literal events and crash report attachments.
-    pub fn creates_event(&self) -> bool {
-        match self.ty() {
-            // These items are direct event types.
-            ItemType::Event
-            | ItemType::Transaction
-            | ItemType::Security
-            | ItemType::RawSecurity
-            | ItemType::UnrealReport
-            | ItemType::UserReportV2 => true,
-
-            // Attachments are only event items if they are crash reports or if they carry partial
-            // event payloads. Plain attachments never create event payloads.
-            ItemType::Attachment => {
-                match self.attachment_type() {
-                    Some(
-                        AttachmentType::AppleCrashReport
-                        | AttachmentType::Minidump
-                        | AttachmentType::EventPayload
-                        | AttachmentType::Prosperodump
-                        | AttachmentType::Breadcrumbs
-                        | AttachmentType::NintendoSwitchDyingMessage
-                        | AttachmentType::NvGpuDump,
-                    ) => true,
-                    Some(
-                        AttachmentType::Attachment
-                        | AttachmentType::UnrealContext
-                        | AttachmentType::UnrealLogs
-                        | AttachmentType::ViewHierarchy
-                        | AttachmentType::Flamegraph
-                        | AttachmentType::NvShaderDebug,
-                    ) => false,
-                    // When an outdated Relay instance forwards an unknown attachment type for compatibility,
-                    // we assume that the attachment does not create a new event. This will make it hard
-                    // to introduce new attachment types which _do_ create a new event.
-                    None => false,
-                }
-            }
-
-            // Form data items may contain partial event payloads, but those are only ever valid if
-            // they occur together with an explicit event item, such as a minidump or apple crash
-            // report. For this reason, FormData alone does not constitute an event item.
-            ItemType::FormData => false,
-
-            // The remaining item types cannot carry event payloads.
-            ItemType::UserReport
-            | ItemType::Session
-            | ItemType::Sessions
-            | ItemType::MetricBuckets
-            | ItemType::ClientReport
-            | ItemType::ReplayEvent
-            | ItemType::ReplayRecording
-            | ItemType::ReplayVideo
-            | ItemType::Profile
-            | ItemType::CheckIn
-            | ItemType::Span
-            | ItemType::Log
-            | ItemType::TraceMetric
-            | ItemType::ProfileChunk => false,
-
-            // For now integrations can not create events, we may need to revisit this in the
-            // future and break down different types of integrations here, similar to attachments.
-            ItemType::Integration => false,
-
-            // The unknown item type can observe any behavior, most likely there are going to be no
-            // item types added that create events.
-            ItemType::Unknown(_) => false,
+        match self {
+            Self::Unknown(_) => true,
+            Self::Attachment(item) => item
+                .headers
+                .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
+                .is_err(),
+            _ => false,
         }
     }
 
-    /// Determines whether the given item requires an event with identifier.
-    pub fn requires_event(&self) -> bool {
-        match self.ty() {
-            ItemType::Event => true,
-            ItemType::Transaction => true,
-            ItemType::Security => true,
-            ItemType::Attachment => true,
-            ItemType::FormData => true,
-            ItemType::RawSecurity => true,
-            ItemType::UnrealReport => true,
-            ItemType::UserReport => true,
-            ItemType::UserReportV2 => true,
-            ItemType::ReplayEvent => true,
-            ItemType::Session => false,
-            ItemType::Sessions => false,
-            ItemType::MetricBuckets => false,
-            ItemType::ClientReport => false,
-            ItemType::ReplayRecording => false,
-            ItemType::ReplayVideo => false,
-            ItemType::Profile => true,
-            ItemType::CheckIn => false,
-            ItemType::Span => false,
-            ItemType::Log => false,
-            ItemType::TraceMetric => false,
-            ItemType::ProfileChunk => false,
-            ItemType::Integration => false,
-
-            // Since this Relay cannot interpret the semantics of this item, it does not know
-            // whether it requires an event or not. Depending on the strategy, this can cause two
-            // wrong actions here:
-            //  1. return false, but the item requires an event. It is split off by Relay and
-            //     handled separately. If the event is rate limited or filtered, the item still gets
-            //     ingested and needs to be pruned at a later point in the pipeline. This also
-            //     happens with standalone attachments.
-            //  2. return true, but the item does not require an event. It is kept in the same
-            //     envelope and dropped along with the event, even though it should be ingested.
-            // Realistically, most new item types should be ingested largely independent of events,
-            // and the ingest pipeline needs to assume split submission from clients. This makes
-            // returning `false` the safer option.
-            ItemType::Unknown(_) => false,
+    /// Whether this item contains data used to build an event.
+    pub fn carries_event_payload(&self) -> bool {
+        match self {
+            Self::Event(_)
+            | Self::Transaction(_)
+            | Self::Security(_)
+            | Self::RawSecurity(_)
+            | Self::UnrealReport(_)
+            | Self::UserReportV2(_) => true,
+            Self::Attachment(item) => item.carries_event_payload(),
+            Self::FormData(_)
+            | Self::UserReport(_)
+            | Self::Session(_)
+            | Self::Sessions(_)
+            | Self::MetricBuckets(_)
+            | Self::ClientReport(_)
+            | Self::Profile(_)
+            | Self::ReplayEvent(_)
+            | Self::ReplayRecording(_)
+            | Self::ReplayVideo(_)
+            | Self::CheckIn(_)
+            | Self::Log(_)
+            | Self::TraceMetric(_)
+            | Self::Span(_)
+            | Self::ProfileChunk(_)
+            | Self::Integration(_)
+            | Self::Unknown(_) => false,
         }
     }
 
-    /// Determines if this item is an `ItemContainer` based on its content type.
+    /// Whether error processing receives this item if earlier processors leave it behind.
+    pub fn routes_with_event(&self) -> bool {
+        match self {
+            Self::Event(_)
+            | Self::Transaction(_)
+            | Self::Security(_)
+            | Self::Attachment(_)
+            | Self::RawSecurity(_)
+            | Self::UnrealReport(_)
+            | Self::UserReportV2(_)
+            | Self::FormData(_)
+            | Self::UserReport(_)
+            | Self::Profile(_)
+            | Self::ReplayEvent(_) => true,
+            Self::Session(_)
+            | Self::Sessions(_)
+            | Self::MetricBuckets(_)
+            | Self::ClientReport(_)
+            | Self::ReplayRecording(_)
+            | Self::ReplayVideo(_)
+            | Self::CheckIn(_)
+            | Self::Log(_)
+            | Self::TraceMetric(_)
+            | Self::Span(_)
+            | Self::ProfileChunk(_)
+            | Self::Integration(_)
+            | Self::Unknown(_) => false,
+        }
+    }
+}
+
+impl ItemData {
+    /// Whether the content-type header names a container format.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
+    }
+
+    /// Sets arbitrary headers for tests, including invalid and misplaced values.
+    #[cfg(test)]
+    pub(crate) fn set_test_header<T: Serialize>(&mut self, key: ItemHeaderKey, value: Option<T>) {
+        self.headers.set_or_remove(key, value);
+    }
+
+    fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: &ItemType) -> fmt::Result {
+        f.debug_struct("Item")
+            .field(
+                "headers",
+                &ItemHeadersRef {
+                    ty,
+                    data: &self.headers,
+                },
+            )
+            .field("payload", &DebugBytes(&self.payload))
+            .finish()
     }
 }
 
 impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Item")
-            .field("headers", &self.headers)
+            .field("headers", &self.wire_headers())
             .field("payload", &DebugBytes(&self.payload))
             .finish()
     }
@@ -724,67 +655,82 @@ pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
-/// The type of an envelope item.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum ItemType {
+/// An envelope item with an unparsed payload.
+///
+/// `TypedItems` generates the payload structs and wire tags.
+/// `#[item(item_count)]` enables reading the `item_count` header.
+/// `#[item(container)]` additionally enables writing item containers.
+#[derive(Clone, relay_server_macros::TypedItems)]
+pub enum Item {
     /// Event payload encoded in JSON.
-    Event,
+    Event(EventItem),
     /// Transaction event payload encoded in JSON.
-    Transaction,
+    Transaction(TransactionItem),
     /// Security report event payload encoded in JSON.
-    Security,
+    Security(SecurityItem),
     /// Raw payload of an arbitrary attachment.
-    Attachment,
+    Attachment(AttachmentItem),
     /// Multipart form data collected into a stream of JSON tuples.
-    FormData,
+    FormData(FormDataItem),
     /// Security report as sent by the browser in JSON.
-    RawSecurity,
+    RawSecurity(RawSecurityItem),
     /// Raw compressed UE4 crash report.
-    UnrealReport,
+    UnrealReport(UnrealReportItem),
     /// User feedback encoded as JSON.
-    UserReport,
+    UserReport(UserReportItem),
     /// Session update data.
-    Session,
+    #[item(item_count)]
+    Session(SessionItem),
     /// Aggregated session data.
-    Sessions,
+    #[item(item_count)]
+    Sessions(SessionsItem),
     /// Buckets of preaggregated metrics encoded as JSON.
-    MetricBuckets,
+    #[item(item_count)]
+    MetricBuckets(MetricBucketsItem),
     /// Client internal report (eg: outcomes).
-    ClientReport,
+    #[item(item_count)]
+    ClientReport(ClientReportItem),
     /// Profile event payload encoded as JSON.
-    Profile,
+    #[item(item_count)]
+    Profile(ProfileItem),
     /// Replay metadata and breadcrumb payload.
-    ReplayEvent,
+    ReplayEvent(ReplayEventItem),
     /// Replay Recording data.
-    ReplayRecording,
+    ReplayRecording(ReplayRecordingItem),
     /// Replay Video data.
-    ReplayVideo,
+    ReplayVideo(ReplayVideoItem),
     /// Monitor check-in encoded as JSON.
-    CheckIn,
+    #[item(item_count)]
+    CheckIn(CheckInItem),
     /// A log for the log product, not internal logs.
-    Log,
+    #[item(container)]
+    Log(LogItem),
     /// A trace metric item.
-    TraceMetric,
+    #[item(container)]
+    TraceMetric(TraceMetricItem),
     /// A standalone span.
-    Span,
+    #[item(container)]
+    Span(SpanItem),
     /// UserReport as an Event
-    UserReportV2,
+    UserReportV2(UserReportV2Item),
     /// ProfileChunk is a chunk of a profiling session.
-    ProfileChunk,
+    #[item(item_count)]
+    ProfileChunk(ProfileChunkItem),
     /// Integrations are a vendor specific set of endpoints providing integrations with external
     /// systems, standards and vendors.
     ///
     /// Relay stores payloads received from integration endpoints in envelope items of this type.
     ///
-    /// This is an [internal item type](`Self::is_internal`) and must be converted within the same
+    /// This is an [internal item type](`ItemType::is_internal`) and must be converted within the same
     /// instance of Relay.
-    Integration,
+    Integration(IntegrationItem),
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
     /// Relays explicitly configured to do so will instead drop those items. This allows
     /// forward-compatibility with new item types where we expect outdated Relays.
-    Unknown(String),
+    #[item(item_count)]
+    Unknown(UnknownItem),
     // Keep `Unknown` last in the list. Add new items above `Unknown`.
 }
 
@@ -850,43 +796,6 @@ impl ItemType {
     /// other Relays. Internal items must be converted to Sentry native items before forwarded.
     pub fn is_internal(&self) -> bool {
         matches!(self, ItemType::Integration)
-    }
-
-    /// Returns `true` if the specified [`ItemType`] can occur in an [`super::ItemContainer`].
-    ///
-    /// Note: this will return `true` even if Relay does not currently support item containers
-    /// for this item type to guarantee forward compatibility.
-    ///
-    /// Every item which will eventually be turned into an event, cannot support containers,
-    /// due to envelope limits.
-    /// Attachments and other binary items will also never support the container format.
-    fn can_support_container(&self) -> bool {
-        match self {
-            ItemType::Event => false,
-            ItemType::Transaction => false,
-            ItemType::Security => false,
-            ItemType::Attachment => false,
-            ItemType::FormData => false,
-            ItemType::RawSecurity => false,
-            ItemType::UnrealReport => false,
-            ItemType::UserReport => false,
-            ItemType::Session => true,
-            ItemType::Sessions => true,
-            ItemType::MetricBuckets => true,
-            ItemType::ClientReport => true,
-            ItemType::Profile => true,
-            ItemType::ReplayEvent => false,
-            ItemType::ReplayRecording => false,
-            ItemType::ReplayVideo => false,
-            ItemType::CheckIn => true,
-            ItemType::Log => true,
-            ItemType::TraceMetric => true,
-            ItemType::Span => true,
-            ItemType::UserReportV2 => false,
-            ItemType::ProfileChunk => true,
-            ItemType::Integration => false,
-            ItemType::Unknown(_) => true,
-        }
     }
 }
 
@@ -958,7 +867,7 @@ pub enum ItemHeaderKey {
     Filename,
     /// The platform this item was produced for.
     ///
-    /// Currently only used for [`ItemType::ProfileChunk`].
+    /// Used for [`ItemType::Profile`] and [`ItemType::ProfileChunk`].
     /// It contains the same platform as specified in the profile chunk payload,
     /// hoisted into the header to be able to determine the correct data category.
     ///
@@ -1012,11 +921,7 @@ pub enum ItemHeaderKey {
 pub struct ItemHeaderValue(serde_json::Value);
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct ItemHeaders {
-    /// The type of the item.
-    #[serde(rename = "type")]
-    ty: ItemType,
-
+pub struct CommonItemHeaders {
     /// If this is an attachment item, this may contain the storage key in case it is uploaded to objectstore.
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
@@ -1053,7 +958,47 @@ pub struct ItemHeaders {
     inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
 }
 
-impl ItemHeaders {
+/// Wire headers used while parsing, before the tag selects an owning variant.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct ItemHeaders {
+    #[serde(rename = "type")]
+    ty: ItemType,
+    #[serde(flatten)]
+    data: CommonItemHeaders,
+}
+impl std::ops::Deref for ItemHeaders {
+    type Target = CommonItemHeaders;
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+impl std::ops::DerefMut for ItemHeaders {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+#[derive(Serialize)]
+pub(super) struct ItemHeadersRef<'a> {
+    #[serde(rename = "type")]
+    ty: &'a ItemType,
+    #[serde(flatten)]
+    data: &'a CommonItemHeaders,
+}
+impl fmt::Debug for ItemHeadersRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.data.debug_with_type(f, Some(self.ty))
+    }
+}
+impl Item {
+    pub(super) fn wire_headers(&self) -> ItemHeadersRef<'_> {
+        ItemHeadersRef {
+            ty: self.ty(),
+            data: &self.headers,
+        }
+    }
+}
+
+impl CommonItemHeaders {
     fn contains(&self, key: ItemHeaderKey) -> bool {
         self.inner.contains_key(&MaybeKnown::Known(key))
     }
@@ -1100,10 +1045,14 @@ impl ItemHeaders {
     }
 }
 
-impl fmt::Debug for ItemHeaders {
+impl fmt::Debug for CommonItemHeaders {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.debug_with_type(f, None)
+    }
+}
+impl CommonItemHeaders {
+    fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: Option<&ItemType>) -> fmt::Result {
         let Self {
-            ty,
             stored_key,
             routing_hint,
             rate_limited,
@@ -1113,7 +1062,9 @@ impl fmt::Debug for ItemHeaders {
 
         let mut map = f.debug_map();
 
-        map.entry(&"type", &ty);
+        if let Some(ty) = ty {
+            map.entry(&"type", ty);
+        }
         if let Some(stored_key) = stored_key {
             map.entry(&"stored_key", stored_key);
         }
@@ -1219,7 +1170,7 @@ impl ParentId {
 /// depending on the parent the limiting logic is different. E.g. if the attachment has
 /// [`AttachmentParentType::Span`] than it should be dropped if there are span limits.
 ///
-/// See [`Item::attachment_parent_type`] for how this is determined from an item.
+/// See [`AttachmentItem::attachment_parent_type`] for how this is determined from an attachment.
 #[derive(Debug)]
 pub enum AttachmentParentType {
     /// The parent type for all V1 attachments (e.g. minidumps)
@@ -1232,13 +1183,242 @@ pub enum AttachmentParentType {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn misplaced_attachment_headers_do_not_change_item_classification() {
+        use super::*;
+        for ty in ["event", "user_report", "profile"] {
+            for attachment_type in ["event.minidump", "future_attachment"] {
+                let header = serde_json::json!({
+                    "type": ty, "attachment_type": attachment_type,
+                    "filename": "preserved.bin", "length": 2,
+                });
+                let (item, _) = Item::parse(Bytes::from(format!("{header}\n{{}}\n"))).unwrap();
+                assert!(!matches!(item, Item::Attachment(_)));
+                assert!(!item.is_unknown());
+                assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+            }
+        }
+        let (attachment, _) = Item::parse(Bytes::from_static(
+            b"{\"type\":\"attachment\",\"attachment_type\":\"future_attachment\"}\nbody\n",
+        ))
+        .unwrap();
+        assert!(attachment.is_unknown());
+    }
+
+    use crate::integrations::LogsIntegration;
     use crate::integrations::OtelFormat;
 
     use super::*;
 
     #[test]
+    fn payload_classification_and_routing_are_separate_facts() {
+        // These are the pre-refactor routing/classification contracts. ReplayEvent's
+        // routing is intentionally preserved even though its quota is independent.
+        for (ty, payload, routed) in [
+            (ItemType::Event, true, true),
+            (ItemType::Transaction, true, true),
+            (ItemType::Security, true, true),
+            (ItemType::RawSecurity, true, true),
+            (ItemType::UnrealReport, true, true),
+            (ItemType::UserReportV2, true, true),
+            (ItemType::Attachment, false, true),
+            (ItemType::FormData, false, true),
+            (ItemType::UserReport, false, true),
+            (ItemType::Profile, false, true),
+            (ItemType::ReplayEvent, false, true),
+            (ItemType::ReplayRecording, false, false),
+            (ItemType::ReplayVideo, false, false),
+            (ItemType::ProfileChunk, false, false),
+            (ItemType::Span, false, false),
+            (ItemType::Session, false, false),
+            (ItemType::Sessions, false, false),
+            (ItemType::MetricBuckets, false, false),
+            (ItemType::ClientReport, false, false),
+            (ItemType::CheckIn, false, false),
+            (ItemType::Log, false, false),
+            (ItemType::TraceMetric, false, false),
+            (ItemType::Integration, false, false),
+            (ItemType::Unknown("future".into()), false, false),
+        ] {
+            let item = Item::new(ty);
+            assert_eq!(item.carries_event_payload(), payload, "{:?}", item.ty());
+            assert_eq!(item.routes_with_event(), routed, "{:?}", item.ty());
+        }
+        for parent in [
+            AttachmentParentType::Event,
+            AttachmentParentType::Span,
+            AttachmentParentType::Trace,
+        ] {
+            let mut dump = AttachmentItem::new();
+            dump.set_attachment_type(AttachmentType::Minidump);
+            if !matches!(parent, AttachmentParentType::Event) {
+                dump.set_payload(ContentType::TraceAttachment, "{}");
+                if matches!(parent, AttachmentParentType::Span) {
+                    dump.set_parent_id(Some(ParentId::SpanId(None)));
+                }
+            }
+            assert!(dump.carries_event_payload());
+        }
+    }
+
+    #[test]
+    fn typed_items_preserve_wire_headers_and_variant_identity() {
+        // Preserve unknown tags and misplaced or invalid headers for forwarding.
+        for tag in ["transaction", "profile", "attachment", "future_item"] {
+            let header = serde_json::json!({
+                "type": tag, "length": 2, "span_count": "invalid", "future_header": [1, 2],
+            });
+            let wire = format!("{header}\n{{}}\n");
+            let (item, consumed) = Item::parse(Bytes::from(wire.clone())).unwrap();
+            assert_eq!(consumed, wire.len());
+            assert_eq!(item.ty().as_str(), tag);
+            assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+            assert_eq!(item.payload(), "{}");
+            match item {
+                Item::Transaction(transaction) => assert_eq!(transaction.span_count(), None),
+                Item::Profile(profile) => assert_eq!(profile.profile_type(), None),
+                Item::Attachment(attachment) => assert_eq!(attachment.attachment_body_size(), 2),
+                Item::Unknown(_) => {}
+                _ => unreachable!(),
+            }
+        }
+        // Swapping common storage cannot turn a ProfileItem into a TransactionItem.
+        let mut transaction = TransactionItem::new();
+        transaction.set_span_count(Some(3));
+        let mut profile = ProfileItem::new();
+        std::mem::swap(&mut *transaction, &mut *profile);
+        assert_eq!(transaction.span_count(), None);
+        let transaction = Item::from(transaction);
+        assert_eq!(
+            serde_json::to_value(transaction.wire_headers()).unwrap()["type"],
+            "transaction"
+        );
+        let profile = Item::from(profile);
+        assert_eq!(
+            serde_json::to_value(profile.wire_headers()).unwrap()["type"],
+            "profile"
+        );
+    }
+
+    #[test]
+    fn concrete_accounting_preserves_container_counts() {
+        let (profile, _) = Item::parse(Bytes::from_static(
+            b"{\"type\":\"profile\",\"platform\":\"python\",\"item_count\":3}\n{}\n",
+        ))
+        .unwrap();
+        let Item::Profile(profile) = profile else {
+            panic!("expected a profile");
+        };
+        assert_eq!(
+            profile.quantities().as_slice(),
+            [
+                (DataCategory::Profile, 3),
+                (DataCategory::ProfileIndexed, 3),
+                (DataCategory::ProfileBackend, 3),
+            ]
+        );
+        let mut transaction = TransactionItem::new();
+        // Transactions never support containers: `1` still means one transaction.
+        transaction.set_payload(ContentType::Json, "{}");
+        transaction.set_test_header(ItemHeaderKey::ItemCount, Some(99u32));
+        transaction.set_span_count(Some(2));
+        assert_eq!(
+            transaction.quantities().as_slice(),
+            [
+                (DataCategory::Transaction, 1),
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Span, 3),
+                (DataCategory::SpanIndexed, 3),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_item_quantities_preserve_order_and_zero_counts() {
+        let mut span = SpanItem::new();
+        span.set_payload(ContentType::Json, "{}");
+        span.set_test_header(ItemHeaderKey::ItemCount, Some(3u32));
+        let mut log = LogItem::new();
+        log.set_payload(ContentType::Json, "");
+        log.set_test_header(ItemHeaderKey::ItemCount, Some(0u32));
+        let mut profile = ProfileItem::new();
+        profile.set_platform("python".into());
+        let mut transaction = TransactionItem::new();
+        transaction.set_span_count(Some(2));
+        let mut attachment = AttachmentItem::new();
+        attachment.set_rate_limited(true);
+        let mut minidump = AttachmentItem::new();
+        minidump.set_attachment_type(AttachmentType::Minidump);
+        minidump.set_payload(ContentType::OctetStream, "MDMP");
+        let mut trace_attachment = AttachmentItem::new();
+        trace_attachment.set_payload(ContentType::TraceAttachment, "{}body");
+        trace_attachment.set_meta_length(2);
+        let mut nintendo = AttachmentItem::new();
+        nintendo.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+        nintendo.set_payload(ContentType::OctetStream, "dying message");
+        let mut misplaced = UserReportItem::new();
+        misplaced.set_test_header(
+            crate::envelope::ItemHeaderKey::AttachmentType,
+            Some(AttachmentType::NintendoSwitchDyingMessage),
+        );
+        let cases: [(Item, Vec<_>); 11] = [
+            (nintendo.into(), vec![]),
+            (misplaced.into(), vec![(DataCategory::UserReportV2, 1)]),
+            (UnknownItem::new("future".into()).into(), vec![]),
+            (attachment.into(), vec![]),
+            // Implicit events belong to envelope accounting, not each crash attachment.
+            (
+                minidump.into(),
+                vec![
+                    (DataCategory::Attachment, 4),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            ),
+            (
+                trace_attachment.into(),
+                vec![
+                    (DataCategory::Attachment, 4),
+                    (DataCategory::AttachmentItem, 1),
+                ],
+            ),
+            (
+                UserReportItem::new().into(),
+                vec![(DataCategory::UserReportV2, 1)],
+            ),
+            (
+                span.into(),
+                vec![(DataCategory::Span, 3), (DataCategory::SpanIndexed, 3)],
+            ),
+            (
+                log.into(),
+                vec![(DataCategory::LogItem, 0), (DataCategory::LogByte, 1)],
+            ),
+            (
+                profile.into(),
+                vec![
+                    (DataCategory::Profile, 1),
+                    (DataCategory::ProfileIndexed, 1),
+                    (DataCategory::ProfileBackend, 1),
+                ],
+            ),
+            (
+                transaction.into(),
+                vec![
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 3),
+                    (DataCategory::SpanIndexed, 3),
+                ],
+            ),
+        ];
+        for (item, expected) in cases {
+            assert_eq!(item.quantities().as_slice(), expected.as_slice());
+        }
+    }
+
+    #[test]
     fn test_item_empty() {
-        let item = Item::new(ItemType::Attachment);
+        let item = Item::Attachment(AttachmentItem::new());
 
         assert_eq!(item.payload(), Bytes::new());
         assert_eq!(item.len(), 0);
@@ -1249,7 +1429,7 @@ mod tests {
 
     #[test]
     fn test_item_set_payload() {
-        let mut item = Item::new(ItemType::Event);
+        let mut item = EventItem::new();
 
         let payload = Bytes::from(&br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#[..]);
         item.set_payload(ContentType::Json, payload.clone());
@@ -1268,7 +1448,7 @@ mod tests {
     fn test_item_set_routing_hint() {
         let uuid = Uuid::parse_str("8a4ab00f-fba2-4f7b-a164-b58199d55c95").unwrap();
 
-        let mut item = Item::new(ItemType::Event);
+        let mut item = EventItem::new();
         item.set_routing_hint(uuid);
 
         assert_eq!(item.routing_hint(), Some(uuid));
@@ -1276,7 +1456,7 @@ mod tests {
 
     #[test]
     fn test_item_source_quantities() {
-        let mut item = Item::new(ItemType::MetricBuckets);
+        let mut item = MetricBucketsItem::new();
         assert!(item.source_quantities().is_none());
 
         let source_quantities = SourceQuantities {
@@ -1305,7 +1485,7 @@ mod tests {
                 }
             )))
         );
-        assert_eq!(item.integration(), None);
+        assert!(!matches!(item, Item::Integration(_)));
     }
 
     #[test]
@@ -1371,7 +1551,7 @@ mod tests {
         ))
         .unwrap();
 
-        insta::assert_debug_snapshot!(&item.headers, @r#"
+        insta::assert_debug_snapshot!(&item.wire_headers(), @r#"
         {
             "type": Attachment,
             Length: 5,
@@ -1381,7 +1561,7 @@ mod tests {
         "#);
 
         // Round trip -> serializes the headers again.
-        let s = serde_json::to_string(&item.headers).unwrap();
+        let s = serde_json::to_string(&item.wire_headers()).unwrap();
         insta::assert_snapshot!(s, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
     }
 }

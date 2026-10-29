@@ -32,7 +32,9 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use zstd::stream::Encoder as ZstdEncoder;
 
-use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::envelope::{
+    self, ClientReportItem, ContentType, Envelope, EnvelopeError, Item, ItemType, MetricBucketsItem,
+};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
@@ -940,7 +942,7 @@ impl EnvelopeProcessorService {
         for client_report in client_reports {
             match client_report.serialize() {
                 Ok(payload) => {
-                    let mut item = Item::new(ItemType::ClientReport);
+                    let mut item = ClientReportItem::new();
                     item.set_payload(ContentType::Json, payload);
                     envelope.add_item(item);
                 }
@@ -1236,7 +1238,7 @@ impl EnvelopeProcessorService {
             for buckets in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
-                let mut item = Item::new(ItemType::MetricBuckets);
+                let mut item = MetricBucketsItem::new();
                 item.set_source_quantities(crate::metrics::extract_quantities(buckets));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
@@ -1825,6 +1827,7 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::EventItem;
     use insta::assert_debug_snapshot;
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
@@ -2036,7 +2039,7 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
         envelope.add_item({
-                let mut item = Item::new(ItemType::Event);
+                let mut item = EventItem::new();
                 item.set_payload(
                     ContentType::Json,
                     r#"
@@ -2127,7 +2130,7 @@ mod tests {
         }"#;
         envelope.set_dsc(serde_json::from_str(dsc).unwrap());
 
-        let mut item = Item::new(ItemType::Event);
+        let mut item = EventItem::new();
         item.set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
@@ -2303,7 +2306,7 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::MetricBuckets);
+        let mut item = MetricBucketsItem::new();
         item.set_payload(
             ContentType::Json,
             serde_json::json!([{
@@ -2323,7 +2326,7 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessMetrics {
-                data: MetricData::Raw(vec![item.clone()]),
+                data: MetricData::Raw(vec![item.clone().into()]),
                 project_key,
                 source,
                 received_at,

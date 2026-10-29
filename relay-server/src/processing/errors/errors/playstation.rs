@@ -1,12 +1,14 @@
+use super::ErrorPayload;
+#[cfg(all(sentry, feature = "processing"))]
+use crate::envelope::{EventItem, SessionItem};
 #[cfg(all(sentry, feature = "processing"))]
 use relay_event_schema::protocol::Event;
 #[cfg(all(sentry, feature = "processing"))]
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::Item;
+use crate::envelope::{AttachmentItem, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result};
 #[cfg(all(sentry, feature = "processing"))]
@@ -16,8 +18,8 @@ use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub struct Playstation {
-    prosperodump: Item,
-    minidump: Option<Item>,
+    prosperodump: AttachmentItem,
+    minidump: Option<AttachmentItem>,
 }
 
 impl SentryError for Playstation {
@@ -32,7 +34,7 @@ impl SentryError for Playstation {
 
     #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        use crate::envelope::{AttachmentType, ItemType};
+        use crate::envelope::{AttachmentType, UserReportItem};
         use crate::processing::errors::errors::utils;
         use relay_dynamic_config::Feature;
         use relay_event_schema::protocol::Metrics;
@@ -43,15 +45,15 @@ impl SentryError for Playstation {
 
         let mut metrics = Metrics::default();
 
-        let Some(prosperodump) = utils::take_item_by(items, |item| {
+        let Some(prosperodump) = utils::take_payload_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::Prosperodump)
         }) else {
             return Ok(None);
         };
 
-        let user_reports = utils::take_items_of_type(items, ItemType::UserReport);
+        let user_reports = utils::take_payloads::<UserReportItem>(items).collect();
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
+        let mut attachments: Vec<_> = utils::take_payloads::<AttachmentItem>(items).collect();
 
         let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
             let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
@@ -74,7 +76,7 @@ impl SentryError for Playstation {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
             })?;
 
-            let event = utils::take_item_of_type(items, ItemType::Event);
+            let event = utils::take_payload::<EventItem>(items);
             let prospero_event = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY);
 
             let mut event = match (event, prospero_event) {
@@ -83,7 +85,7 @@ impl SentryError for Playstation {
                         ((event.len() + prospero.len()) as u64).into();
                     merge_events(&event, prospero.as_bytes(), ctx)?
                 }
-                (Some(event), None) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
+                (Some(event), None) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?,
                 (None, Some(prospero)) => {
                     utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
                 }
@@ -109,19 +111,19 @@ impl SentryError for Playstation {
                 .userdata
                 .get(SENTRY_SESSION_PAYLOAD_KEY)
                 .map(|session| {
-                    let mut item = Item::new(ItemType::Session);
+                    let mut item = SessionItem::new();
                     item.set_payload(
                         crate::envelope::ContentType::Json,
                         session.as_bytes().to_owned(),
                     );
-                    item
+                    Item::from(item)
                 })
                 .into_iter()
                 .collect();
 
             let minidump = {
                 metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
-                let mut item = Item::new(ItemType::Attachment);
+                let mut item = AttachmentItem::new();
                 item.set_filename("generated_minidump.dmp");
                 item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
                 item.set_attachment_type(AttachmentType::Minidump);
@@ -134,7 +136,7 @@ impl SentryError for Playstation {
             };
 
             attachments.extend(prospero_dump.files.iter().map(|file| {
-                let mut item = Item::new(ItemType::Attachment);
+                let mut item = AttachmentItem::new();
                 item.set_filename(file.name);
                 item.set_attachment_type(AttachmentType::Attachment);
                 item.set_payload(
@@ -151,7 +153,7 @@ impl SentryError for Playstation {
             };
             if !console_log.is_empty() {
                 attachments.push({
-                    let mut item = Item::new(ItemType::Attachment);
+                    let mut item = AttachmentItem::new();
                     item.set_filename("console.log");
                     item.set_payload(crate::envelope::ContentType::Text, console_log.into_bytes());
                     item.set_attachment_type(AttachmentType::Attachment);
@@ -197,13 +199,13 @@ impl SentryError for Playstation {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.prosperodump);
-        items.extend(self.minidump);
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        let mut attachments = smallvec::smallvec![self.prosperodump];
+        attachments.extend(self.minidump);
+        ErrorPayload::Attachments(attachments)
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         self.minidump.as_mut()
     }
 }
@@ -231,7 +233,7 @@ impl Counted for Playstation {
 
 #[cfg(all(sentry, feature = "processing"))]
 fn merge_events(
-    from_envelope: &Item,
+    from_envelope: &EventItem,
     from_prospero: &[u8],
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
@@ -246,7 +248,7 @@ fn merge_events(
 
 #[cfg(all(sentry, feature = "processing"))]
 fn merge_events_inner(
-    from_envelope: &Item,
+    from_envelope: &EventItem,
     from_prospero: &[u8],
 ) -> Result<Annotated<Event>, serde_json::Error> {
     let from_envelope = serde_json::from_slice(&from_envelope.payload())?;
