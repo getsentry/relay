@@ -5,8 +5,6 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result, utils};
-#[cfg(feature = "processing")]
-use crate::utils::AdditionalExceptions;
 
 #[derive(Debug)]
 pub struct Minidump(pub Item);
@@ -28,11 +26,7 @@ impl SentryError for Minidump {
         let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
 
         utils::if_processing!(ctx, {
-            crate::utils::process_minidump(
-                event.get_or_insert_with(Default::default),
-                &minidump,
-                AdditionalExceptions::Retain,
-            );
+            crate::utils::process_minidump(event.get_or_insert_with(Default::default), &minidump);
             metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
         });
 

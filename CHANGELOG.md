@@ -9,6 +9,10 @@
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
 
+**Bug Fixes**:
+
+- Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
+
 **Internal**:
 
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
