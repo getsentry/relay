@@ -285,6 +285,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "processing")]
     fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
         super::validate(item, config, &mut |_| {})
     }
