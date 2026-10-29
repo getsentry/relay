@@ -149,11 +149,7 @@ pub fn check_envelope_size_limits(
                 }
             );
 
-            let discard_item: DiscardItemType = item
-                .attachment_type()
-                .map(|t| t.into())
-                .unwrap_or_else(|| item.ty().into());
-            return Err(discard_item);
+            return Err(item.into());
         }
     }
 
