@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from .test_store import make_transaction
 from .test_unreal import load_dump_file
 import os
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -74,6 +75,13 @@ def test_processing_with_full_normalization(
     input, expected = get_test_data("extended-event")
     input["type"] = event_type
 
+    # Only trusted requests may skip normalization and keep the declared event type.
+    skip_normalization = request_from_internal and fully_normalized
+    keeps_transaction = event_type == "transaction" and skip_normalization
+    if keeps_transaction:
+        # Full normalization still validates the kept transaction, so it must be valid.
+        make_transaction(input)
+
     events_consumer = events_consumer()
     transactions_consumer = transactions_consumer()
     project_id = 42
@@ -113,10 +121,7 @@ def test_processing_with_full_normalization(
         ),
     )
 
-    # Only trusted requests may skip normalization and keep the declared event type.
-    skip_normalization = request_from_internal and fully_normalized
-
-    if event_type == "transaction" and skip_normalization:
+    if keeps_transaction:
         ingested, _ = transactions_consumer.get_event(timeout=10)
         assert ingested["type"] == "transaction"
         return
