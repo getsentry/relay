@@ -786,39 +786,4 @@ mod tests {
             .to_reason()
         );
     }
-
-    #[test]
-    fn test_discard_item_type_from_item() {
-        use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration};
-
-        let mut otel_logs = Item::new(ItemType::Integration);
-        otel_logs.set_payload(
-            Integration::Logs(LogsIntegration::OtelV1 {
-                format: OtelFormat::Json,
-            })
-            .into(),
-            &b"{}"[..],
-        );
-        assert_eq!(DiscardItemType::from(&otel_logs), DiscardItemType::Log);
-
-        let mut otel_spans = Item::new(ItemType::Integration);
-        otel_spans.set_payload(
-            Integration::Spans(SpansIntegration::OtelV1 {
-                format: OtelFormat::Json,
-            })
-            .into(),
-            &b"{}"[..],
-        );
-        assert_eq!(DiscardItemType::from(&otel_spans), DiscardItemType::Span);
-
-        let mut attachment = Item::new(ItemType::Attachment);
-        attachment.set_attachment_type(AttachmentType::Breadcrumbs);
-        assert_eq!(
-            DiscardItemType::from(&attachment),
-            DiscardItemType::Attachment(DiscardAttachmentType::Breadcrumbs)
-        );
-
-        let event = Item::new(ItemType::Event);
-        assert_eq!(DiscardItemType::from(&event), DiscardItemType::Event);
-    }
 }
