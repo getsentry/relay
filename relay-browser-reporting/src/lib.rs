@@ -34,6 +34,18 @@ impl BrowserReportBody {
     }
 }
 
+impl BrowserReportBody {
+    /// The type of the browser report.
+    ///
+    /// This corresponds to the value of the `"type"`
+    /// field in the serialized report.
+    pub fn report_type(&self) -> &'static str {
+        match self {
+            BrowserReportBody::NetworkError(_) => "network-error",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserReport {
     /// The time between the generation and sending of the report, in milliseconds.

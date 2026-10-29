@@ -12,7 +12,8 @@ use symbolic_unreal::{
 };
 
 use crate::constants::{
-    ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
+    ATTACHMENT_NV_DBG_SUFFIX, ATTACHMENT_NV_GPUDUMP_SUFFIX, ITEM_NAME_BREADCRUMBS1,
+    ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
 };
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::services::processor::ProcessingError;
@@ -41,6 +42,12 @@ fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, Proce
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
+                name if name.ends_with(self::ATTACHMENT_NV_GPUDUMP_SUFFIX) => {
+                    (ContentType::OctetStream, AttachmentType::NvGpuDump)
+                }
+                name if name.ends_with(self::ATTACHMENT_NV_DBG_SUFFIX) => {
+                    (ContentType::OctetStream, AttachmentType::NvShaderDebug)
+                }
                 _ => (ContentType::OctetStream, AttachmentType::Attachment),
             },
         };
