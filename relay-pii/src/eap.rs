@@ -47,8 +47,7 @@ mod tests {
     fn test_scrub_ai_attributes_with_default_rules() {
         // AI attributes are marked as `manual` in `sentry-conventions` and are important to the
         // product, so default rules only apply the replace-only rules from `REPLACE_ONLY_SELECTOR`.
-        // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept alongside
-        // the backfilled `gen_ai.system_instructions`.
+        // `gen_ai.system_instructions` contains a match for every replace-only rule.
         let json = r#"{
               "mcp.tool.result.content": {
                   "type": "string",
@@ -60,7 +59,7 @@ mod tests {
               },
               "gen_ai.system_instructions": {
                   "type": "string",
-                  "value": "[{\"type\":\"text\",\"content\":\"Escalate to user@example.com\"}]"
+                  "value": "[{\"type\":\"text\",\"content\":\"Auth with Bearer sk-1234567890abcdef and charge 4111-1111-1111-1111 or IBAN DE89370400440532013000, SSN 078-05-1120, escalate to user@example.com\"}]"
               },
               "ai.preamble": {
                   "type": "string",
@@ -98,7 +97,7 @@ mod tests {
           },
           "gen_ai.system_instructions": {
             "type": "string",
-            "value": "[{\"type\":\"text\",\"content\":\"Escalate to [email]\"}]"
+            "value": "[{\"type\":\"text\",\"content\":\"Auth with Bearer [token] and charge [creditcard] or IBAN [iban], SSN [us-ssn], escalate to [email]\"}]"
           },
           "gen_ai.tool.call.result": {
             "type": "string",
@@ -144,13 +143,37 @@ mod tests {
                 "": {
                   "rem": [
                     [
+                      "@bearer:replace",
+                      "s",
+                      37,
+                      51
+                    ],
+                    [
+                      "@creditcard:replace",
+                      "s",
+                      63,
+                      75
+                    ],
+                    [
+                      "@iban:replace",
+                      "s",
+                      84,
+                      90
+                    ],
+                    [
+                      "@usssn:replace",
+                      "s",
+                      96,
+                      104
+                    ],
+                    [
                       "@email:replace",
                       "s",
-                      39,
-                      46
+                      118,
+                      125
                     ]
                   ],
-                  "len": 58
+                  "len": 175
                 }
               }
             },
