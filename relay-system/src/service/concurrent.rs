@@ -3,7 +3,7 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 
 use crate::Service;
-use crate::service::simple::SimpleService;
+use crate::service::simple::MessageHandler;
 use crate::statsd::SystemGauges;
 
 /// A service that handles messages concurrently.
@@ -38,7 +38,7 @@ use crate::statsd::SystemGauges;
 /// ```
 pub struct ConcurrentService<S>
 where
-    S: SimpleService + Clone + Send + Sync,
+    S: MessageHandler + Clone + Send + Sync,
 {
     inner: S,
     max_concurrency: usize,
@@ -48,7 +48,7 @@ where
 
 impl<S> ConcurrentService<S>
 where
-    S: SimpleService + Clone + Send + Sync,
+    S: MessageHandler + Clone + Send + Sync,
 {
     /// Creates a new concurrent service from a [`SimpleService`].
     ///
@@ -82,7 +82,7 @@ where
 
 impl<S> Service for ConcurrentService<S>
 where
-    S: SimpleService + LoadShed<S::Interface> + Clone + Send + Sync + 'static,
+    S: MessageHandler + LoadShed<S::Interface> + Clone + Send + Sync + 'static,
 {
     type Interface = S::Interface;
 
@@ -150,7 +150,7 @@ mod tests {
             Self
         }
     }
-    impl SimpleService for CountingService {
+    impl MessageHandler for CountingService {
         type Interface = Incr;
 
         async fn handle_message(&self, _message: Incr) {

@@ -23,7 +23,7 @@ mod status;
 pub use self::concurrent::{ConcurrentService, LoadShed};
 pub(crate) use self::registry::Registry as ServiceRegistry;
 pub use self::registry::{ServiceId, ServiceMetrics, ServicesMetrics};
-pub use self::simple::SimpleService;
+pub use self::simple::{MessageHandler, SimpleService};
 pub use self::status::{
     ServiceError, ServiceJoinHandle, ServiceStatusError, ServiceStatusJoinHandle,
 };
