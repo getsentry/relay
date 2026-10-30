@@ -15,9 +15,7 @@ use crate::services::global_config::{
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 #[cfg(feature = "processing")]
-use crate::services::objectstore::Objectstore;
-#[cfg(feature = "processing")]
-use crate::services::objectstore::ObjectstoreService;
+use crate::services::objectstore::{self, Objectstore};
 use crate::services::outcome::{
     ClientReportOutcomeProducerService, NullOutcomeProducerService, OutcomeProducerService,
     TrackOutcome,
@@ -50,8 +48,6 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
-#[cfg(feature = "processing")]
-use relay_system::ConcurrentService;
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 
 /// Indicates the type of failure of the server.
@@ -269,13 +265,8 @@ impl ServiceState {
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let objectstore = ObjectstoreService::new(current_config.objectstore(), store.clone())?
-            .map(|s| {
-                let concurrent = ConcurrentService::new(s)
-                    .with_backlog_limit(current_config.objectstore().max_backlog)
-                    .with_concurrency_limit(current_config.objectstore().max_concurrent_requests);
-                services.start(concurrent)
-            });
+        let objectstore = objectstore::create_service(current_config.objectstore(), store.clone())?
+            .map(|s| services.start(s));
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             current_config.spool_partitions(),
