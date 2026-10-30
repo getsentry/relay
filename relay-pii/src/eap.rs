@@ -45,72 +45,148 @@ mod tests {
 
     #[test]
     fn test_scrub_ai_attributes_with_default_rules() {
-        let groups: &[&[(&str, &str, &str)]] = &[
-            &[
-                // Legacy SDKs capture the content block's text directly.
-                (
-                    "mcp.tool.result.content",
-                    "Contact user@example.com",
-                    "Contact [email]",
-                ),
-                (
-                    "gen_ai.tool.call.result",
-                    r#"{"content":[{"type":"text","text":"Contact user@example.com"}]}"#,
-                    r#"{"content":[{"type":"text","text":"Contact [email]"}]}"#,
-                ),
-            ],
-            // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept
-            // alongside the backfilled `gen_ai.system_instructions`.
-            &[
-                (
-                    "gen_ai.system_instructions",
-                    r#"[{"type":"text","content":"Escalate to user@example.com"}]"#,
-                    r#"[{"type":"text","content":"Escalate to [email]"}]"#,
-                ),
-                (
-                    "ai.preamble",
-                    "Escalate to user@example.com",
-                    "Escalate to [email]",
-                ),
-                (
-                    "gen_ai.system.message",
-                    "Escalate to user@example.com",
-                    "Escalate to [email]",
-                ),
-            ],
-        ];
-        let settings = DataScrubbingConfig {
+        // AI attributes are marked as `manual` in `sentry-conventions` and are important to the
+        // product, so default rules only apply the replace-only rules from `REPLACE_ONLY_SELECTOR`.
+        // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept alongside
+        // the backfilled `gen_ai.system_instructions`.
+        let json = r#"{
+              "mcp.tool.result.content": {
+                  "type": "string",
+                  "value": "Contact user@example.com"
+              },
+              "gen_ai.tool.call.result": {
+                  "type": "string",
+                  "value": "{\"content\":[{\"type\":\"text\",\"text\":\"Contact user@example.com\"}]}"
+              },
+              "gen_ai.system_instructions": {
+                  "type": "string",
+                  "value": "[{\"type\":\"text\",\"content\":\"Escalate to user@example.com\"}]"
+              },
+              "ai.preamble": {
+                  "type": "string",
+                  "value": "Escalate to user@example.com"
+              },
+              "gen_ai.system.message": {
+                  "type": "string",
+                  "value": "Escalate to user@example.com"
+              }
+        }"#;
+
+        let mut span = Annotated::new(SpanV2 {
+            attributes: Annotated::<Attributes>::from_json(json).unwrap(),
+            ..Default::default()
+        });
+
+        let data_scrubbing_config = DataScrubbingConfig {
             scrub_data: true,
             scrub_defaults: true,
             ..Default::default()
         };
-        let config = settings.pii_config();
+        let scrubbing_config = data_scrubbing_config.pii_config();
 
-        // Old and new SDKs can emit each format alone or all together.
-        for group in groups {
-            let combinations = group.iter().map(std::slice::from_ref).chain([*group]);
-            for cases in combinations {
-                let mut attributes = Attributes::new();
-                for (key, content, _) in cases {
-                    attributes.insert(*key, *content);
+        eap::scrub(ValueType::Span, &mut span, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @r###"
+        {
+          "ai.preamble": {
+            "type": "string",
+            "value": "Escalate to [email]"
+          },
+          "gen_ai.system.message": {
+            "type": "string",
+            "value": "Escalate to [email]"
+          },
+          "gen_ai.system_instructions": {
+            "type": "string",
+            "value": "[{\"type\":\"text\",\"content\":\"Escalate to [email]\"}]"
+          },
+          "gen_ai.tool.call.result": {
+            "type": "string",
+            "value": "{\"content\":[{\"type\":\"text\",\"text\":\"Contact [email]\"}]}"
+          },
+          "mcp.tool.result.content": {
+            "type": "string",
+            "value": "Contact [email]"
+          },
+          "_meta": {
+            "ai.preamble": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      12,
+                      19
+                    ]
+                  ],
+                  "len": 28
                 }
-                let mut span = Annotated::new(SpanV2 {
-                    attributes: Annotated::new(attributes),
-                    ..Default::default()
-                });
-
-                eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
-
-                let attributes = span.value().unwrap().attributes.value().unwrap();
-                for (key, _, expected) in cases {
-                    assert_eq!(
-                        attributes.get_value(*key).and_then(|value| value.as_str()),
-                        Some(*expected),
-                        "{key}"
-                    );
+              }
+            },
+            "gen_ai.system.message": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      12,
+                      19
+                    ]
+                  ],
+                  "len": 28
                 }
+              }
+            },
+            "gen_ai.system_instructions": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      39,
+                      46
+                    ]
+                  ],
+                  "len": 58
+                }
+              }
+            },
+            "gen_ai.tool.call.result": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      43,
+                      50
+                    ]
+                  ],
+                  "len": 63
+                }
+              }
+            },
+            "mcp.tool.result.content": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      8,
+                      15
+                    ]
+                  ],
+                  "len": 24
+                }
+              }
             }
+          }
         }
+        "###);
     }
 
     #[test]
