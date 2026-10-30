@@ -125,6 +125,37 @@ struct WebVital {
     score_ratio_attribute: &'static str,
 }
 
+/// Copies web vital attributes from the span.
+/// `score.*` attributes are only copied when `include_scores` is set.
+fn insert_vital_attributes(
+    web_vital: &WebVital,
+    span_attrs: &Attributes,
+    attributes: &mut Attributes,
+    include_scores: bool,
+) {
+    // CLS webvitals are a little weird, in that they can have an arbitrary number of
+    // "source" attributes (with a .N postfix, 1-based, monotonically increasing), so we
+    // exhaustively look for them here.
+    if web_vital.attribute_value == BROWSER__WEB_VITAL__CLS__VALUE {
+        for i in 1..MAX_CLS_SOURCES {
+            let attr_key = browser__web_vital__cls__source__key(i.to_string());
+            match span_attrs.get_attribute(&attr_key) {
+                Some(v) => attributes.insert(attr_key, v.value.clone()),
+                None => break,
+            }
+        }
+    }
+
+    for attr_key in web_vital.attribute_keys {
+        if !include_scores && attr_key.starts_with("score.") {
+            continue;
+        }
+        if let Some(v) = span_attrs.get_attribute(*attr_key) {
+            attributes.insert(*attr_key, v.value.clone());
+        }
+    }
+}
+
 /// Copies the attributes shared by all web vital metrics from the span.
 fn insert_common_attributes(span_attrs: &Attributes, attributes: &mut Attributes) {
     for attr_key in COMMON_ATTRIBUTES {
@@ -186,26 +217,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         };
 
         let mut attributes = Attributes::new();
-
-        // CLS webvitals are a little weird, in that they can have an arbitrary number of
-        // "source" attributes (with a .N postfix, 1-based, monotonically increasing), so we
-        // exhaustively look for them here.
-        if web_vital.attribute_value == BROWSER__WEB_VITAL__CLS__VALUE {
-            for i in 1..MAX_CLS_SOURCES {
-                let attr_key = browser__web_vital__cls__source__key(i.to_string());
-                match attrs.get_attribute(&attr_key) {
-                    Some(v) => attributes.insert(attr_key, v.value.clone()),
-                    None => break,
-                }
-            }
-        }
-
-        for attr_key in web_vital.attribute_keys {
-            if let Some(v) = attrs.get_attribute(*attr_key) {
-                attributes.insert(*attr_key, v.value.clone());
-            }
-        }
-
+        insert_vital_attributes(web_vital, attrs, &mut attributes, true);
         insert_common_attributes(attrs, &mut attributes);
 
         results.push(make_metric(
@@ -224,6 +236,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         };
 
         let mut attributes = Attributes::new();
+        insert_vital_attributes(web_vital, attrs, &mut attributes, false);
         insert_common_attributes(attrs, &mut attributes);
 
         results.push(make_metric(
@@ -427,7 +440,7 @@ mod tests {
         "#);
 
         let score_metric = Annotated::new(metrics.next().unwrap());
-        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric), @r###"
         {
           "timestamp": 1742921669.25,
           "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -441,13 +454,17 @@ mod tests {
               "type": "string",
               "value": "Chrome"
             },
+            "browser.web_vital.lcp.element": {
+              "type": "string",
+              "value": "body > img"
+            },
             "sentry.metric.source": {
               "type": "string",
               "value": "span"
             }
           }
         }
-        "#);
+        "###);
 
         assert!(metrics.next().is_none());
     }
