@@ -1346,9 +1346,8 @@ impl UpstreamRequest for UploadRequest {
 }
 
 fn encode_body(stream: PassthroughBoundedMeteredStream, encoding: HttpEncoding) -> OutgoingStream {
-    let compression = match HttpCompression::from_encoding(encoding) {
-        None => return Either::Right(stream),
-        Some(compression) => compression,
+    let Some(compression) = HttpCompression::from_encoding(encoding) else {
+        return Either::Right(stream);
     };
     let reader = BufReader::new(StreamReader::new(stream));
     Either::Left(match compression {
