@@ -12,6 +12,7 @@
 **Bug Fixes**:
 
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511))
+- Apply default replacement-only PII scrubbing to `gen_ai.system_instructions`. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
 
 **Internal**:
 

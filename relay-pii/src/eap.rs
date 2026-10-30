@@ -90,6 +90,42 @@ mod tests {
     }
 
     #[test]
+    fn test_scrub_system_instructions_with_default_rules() {
+        // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept
+        // alongside the backfilled `gen_ai.system_instructions`.
+        for key in [
+            "gen_ai.system_instructions",
+            "ai.preamble",
+            "gen_ai.system.message",
+        ] {
+            let mut attributes = Attributes::new();
+            attributes.insert(
+                key,
+                r#"[{"type":"text","content":"Escalate to user@example.com"}]"#,
+            );
+            let mut span = Annotated::new(SpanV2 {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            });
+            let settings = DataScrubbingConfig {
+                scrub_data: true,
+                scrub_defaults: true,
+                ..Default::default()
+            };
+            let config = settings.pii_config();
+
+            eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+
+            let attributes = span.value().unwrap().attributes.value().unwrap();
+            assert_eq!(
+                attributes.get_value(key).and_then(|value| value.as_str()),
+                Some(r#"[{"type":"text","content":"Escalate to [email]"}]"#),
+                "{key}",
+            );
+        }
+    }
+
+    #[test]
     fn test_scrub_mcp_results_with_only_advanced_rules() {
         let mut attributes = Attributes::new();
         attributes.insert("gen_ai.tool.call.result", "user@example.com");
