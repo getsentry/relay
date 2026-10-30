@@ -12,7 +12,6 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
-use crate::statsd::RelayTimers;
 use crate::utils::DebugBytes;
 
 #[derive(Clone)]
@@ -108,10 +107,13 @@ impl Item {
                 smallvec![
                     (DataCategory::Transaction, item_count),
                     (DataCategory::TransactionIndexed, item_count),
-                    (DataCategory::Span, item_count + self.span_count() as usize),
+                    (
+                        DataCategory::Span,
+                        item_count + self.span_count().unwrap_or(0) as usize,
+                    ),
                     (
                         DataCategory::SpanIndexed,
-                        item_count + self.span_count() as usize,
+                        item_count + self.span_count().unwrap_or(0) as usize,
                     ),
                 ]
             }
@@ -219,36 +221,20 @@ impl Item {
 
     /// Returns the number of spans in the `event.spans` array.
     ///
-    /// Should always be 0 except for transaction items.
+    /// Only transaction items are expected to carry this header. Returns `None` if the header is
+    /// absent or invalid.
     ///
     /// When a transaction is dropped before spans were extracted from a transaction,
     /// this number is used to emit correct outcomes for the spans category.
     ///
     /// This number does *not* count the transaction itself.
-    pub fn span_count(&self) -> u32 {
-        self.headers.get(ItemHeaderKey::SpanCount).unwrap_or(0)
+    pub fn span_count(&self) -> Option<u32> {
+        self.headers.get(ItemHeaderKey::SpanCount)
     }
 
     /// Sets the number of spans in the transaction payload.
     pub fn set_span_count(&mut self, value: Option<usize>) {
         self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
-    }
-
-    /// Sets the `span_count` item header by shallow parsing the event.
-    ///
-    /// Returns the recomputed count.
-    fn refresh_span_count(&mut self) -> usize {
-        let count = self.parse_span_count();
-        self.set_span_count(count);
-        count.unwrap_or(0)
-    }
-
-    /// Returns the `span_count`` header, and computes it if it has not yet been set.
-    pub fn ensure_span_count(&mut self) -> usize {
-        match self.headers.get(ItemHeaderKey::SpanCount) {
-            Some(count) => count,
-            None => self.refresh_span_count(),
-        }
     }
 
     /// Returns the content type of this item's payload.
@@ -723,23 +709,6 @@ impl Item {
     /// Determines if this item is an `ItemContainer` based on its content type.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)
-    }
-
-    fn parse_span_count(&self) -> Option<usize> {
-        #[derive(Debug, serde::Deserialize)]
-        struct PartialEvent {
-            spans: crate::utils::SeqCount,
-        }
-
-        if self.headers.ty != ItemType::Transaction {
-            return None;
-        }
-
-        let event = relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
-            serde_json::from_slice::<PartialEvent>(&self.payload()).ok()?
-        });
-
-        Some(event.spans.0)
     }
 }
 

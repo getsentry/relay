@@ -558,6 +558,11 @@ impl Envelope {
         self.items.drain_filter(|item| cond(item)).collect()
     }
 
+    /// Replaces the item buffer, returning the previous buffer without copying its contents.
+    pub fn replace_items(&mut self, items: Items) -> Items {
+        std::mem::replace(&mut self.items, items)
+    }
+
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)

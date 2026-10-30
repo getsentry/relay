@@ -90,7 +90,7 @@ impl Counted for EnvelopeSummary {
     fn quantities(&self) -> Quantities {
         let mut quantities = Quantities::new();
 
-        if let Some(category) = self.event_category {
+        if let Some(category) = self.event.category() {
             quantities.push((category, 1));
             if let Some(category) = category.index_category() {
                 quantities.push((category, 1));
@@ -98,11 +98,8 @@ impl Counted for EnvelopeSummary {
         }
 
         let data = [
-            (DataCategory::Attachment, self.attachment_quantities.bytes()),
-            (
-                DataCategory::AttachmentItem,
-                self.attachment_quantities.count(),
-            ),
+            (DataCategory::Attachment, self.attachment_bytes),
+            (DataCategory::AttachmentItem, self.attachment_count),
             (DataCategory::Profile, self.profile_quantity.total),
             (DataCategory::ProfileBackend, self.profile_quantity.backend),
             (DataCategory::ProfileUi, self.profile_quantity.ui),
