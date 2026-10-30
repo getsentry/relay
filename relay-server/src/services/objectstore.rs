@@ -21,7 +21,8 @@ use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
 use relay_quotas::Scoping;
 use relay_system::{
-    Addr, AsyncResponse, FromMessage, Interface, LoadShed, MessageHandler, NoResponse, Sender,
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, MessageHandler,
+    NoResponse, Sender,
 };
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 
@@ -461,6 +462,18 @@ impl fmt::Display for ObjectstoreKey {
     }
 }
 
+/// Creates a new concurrent objectstore service.
+pub fn create_service(
+    config: &ObjectstoreServiceConfig,
+    store: Option<Addr<Store>>,
+) -> anyhow::Result<Option<ConcurrentService<ObjectstoreService>>> {
+    let service = ObjectstoreService::new(config, store)?;
+    Ok(service.map(|s| {
+        ConcurrentService::new(s)
+            .with_backlog_limit(config.max_backlog)
+            .with_concurrency_limit(config.max_concurrent_requests)
+    }))
+}
 /// The objectstore service that uploads attachments.
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
@@ -470,7 +483,7 @@ pub struct ObjectstoreService {
 }
 
 impl ObjectstoreService {
-    pub fn new(
+    fn new(
         config: &ObjectstoreServiceConfig,
         store: Option<Addr<Store>>,
     ) -> anyhow::Result<Option<Self>> {
