@@ -104,7 +104,6 @@ def test_span_extraction(
     user_id = str(uuid.uuid4())
     event["user"] = {
         "id": user_id,
-        # "email": "john@example.com",
         "ip_address": "192.168.0.1",
         "geo": {
             "country_code": "AT",
