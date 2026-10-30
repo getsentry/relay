@@ -143,10 +143,26 @@ pub fn normalize(
     error: &mut Managed<ExpandedError>,
     geoip_lookup: &GeoIpLookup,
     ctx: Context<'_>,
+    culprit: Option<super::flamegraph::Culprit>,
 ) -> Result<(), Rejected<Error>> {
     let scoping = error.scoping();
 
     error.try_modify(|error, _| {
+        if let Some(event) = error.event.value_mut().as_mut()
+            && super::flamegraph::enrich(event, || {
+                if ctx.is_processing() {
+                    culprit
+                } else {
+                    super::flamegraph::extract_attachments(
+                        &error.attachments,
+                        ctx.config.max_event_size(),
+                    )
+                }
+            })
+        {
+            // Derived frames need the same normalization and trimming as SDK-supplied frames.
+            error.fully_normalized = EventFullyNormalized(false);
+        }
         error.fully_normalized = processing::utils::event::normalize(
             &error.headers,
             &mut error.event,

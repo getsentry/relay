@@ -279,7 +279,12 @@ impl Processor for TrimmingProcessor {
         }
 
         processor::apply(&mut stacktrace.frames, |frames, meta| {
-            enforce_frame_hard_limit(frames, meta, 200, 50);
+            enforce_frame_hard_limit(
+                frames,
+                meta,
+                RawStacktrace::MAX_NEWEST_FRAMES,
+                RawStacktrace::MAX_OLDEST_FRAMES,
+            );
             Ok(())
         })?;
 

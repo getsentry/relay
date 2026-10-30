@@ -381,6 +381,15 @@ pub struct RawStacktrace {
     pub other: Object<Value>,
 }
 
+impl RawStacktrace {
+    /// Number of oldest frames retained when a stack exceeds the frame limit.
+    pub const MAX_OLDEST_FRAMES: usize = 50;
+    /// Number of newest frames retained when a stack exceeds the frame limit.
+    pub const MAX_NEWEST_FRAMES: usize = 200;
+    /// Maximum number of frames retained during normalization.
+    pub const MAX_FRAMES: usize = Self::MAX_OLDEST_FRAMES + Self::MAX_NEWEST_FRAMES;
+}
+
 /// Controls the mechanism by which the `instruction_addr` of a [`Stacktrace`] [`Frame`] is adjusted.
 ///
 /// The adjustment tries to transform *return addresses* to *call addresses* for symbolication.

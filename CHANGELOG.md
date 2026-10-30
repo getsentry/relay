@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Derive representative exception stack traces from flame graph attachments on the first Relay in the chain, weighting sampled call paths by frequency, depth, and application frames. ([#6520](https://github.com/getsentry/relay/pull/6520))
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
