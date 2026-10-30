@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
+use async_compression::tokio::bufread::{BrotliEncoder, GzipEncoder, ZlibEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -1349,7 +1349,7 @@ fn encode_body(stream: PassthroughBoundedMeteredStream, encoding: HttpEncoding) 
     };
     let reader = BufReader::new(StreamReader::new(stream));
     Either::Left(match compression {
-        HttpCompression::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
+        HttpCompression::Deflate => ReaderStream::new(ZlibEncoder::new(reader)).boxed(),
         HttpCompression::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
         HttpCompression::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
         HttpCompression::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
@@ -1491,6 +1491,26 @@ mod tests {
         assert!(!upload.retry());
         let mut decoded = Vec::new();
         flate2::read::GzDecoder::new(bytes.as_ref())
+            .read_to_end(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded, data);
+    }
+
+    #[tokio::test]
+    async fn deflate_upload_uses_zlib_wrapper() {
+        use futures::TryStreamExt;
+        use std::io::Read;
+
+        let data = Bytes::from_static(b"hello world");
+        let stream: ByteStream = futures::stream::iter([Ok(data.clone())]).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 11, 11);
+        let chunks: Vec<Bytes> = encode_body(stream, HttpEncoding::Deflate)
+            .try_collect()
+            .await
+            .unwrap();
+        let encoded = chunks.concat();
+        let mut decoded = Vec::new();
+        flate2::read::ZlibDecoder::new(encoded.as_slice())
             .read_to_end(&mut decoded)
             .unwrap();
         assert_eq!(decoded, data);
