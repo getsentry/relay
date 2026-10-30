@@ -46,6 +46,7 @@ define_integrations!(
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
     "application/vnd.sentry.integration.vercel.logs+ndjson" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::NdJson }),
+    "application/vnd.sentry.integration.unreal.crash-report" => Integration::Errors(ErrorsIntegration::Unreal),
 );
 
 /// An exhaustive list of all integrations supported by Relay.
@@ -53,10 +54,18 @@ define_integrations!(
 /// While the list is currently exhaustive more integrations may be added at any time.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Integration {
+    /// All error integrations.
+    Errors(ErrorsIntegration),
     /// All logging integrations.
     Logs(LogsIntegration),
     /// All tracing/spans integrations.
     Spans(SpansIntegration),
+}
+
+impl From<ErrorsIntegration> for Integration {
+    fn from(value: ErrorsIntegration) -> Self {
+        Self::Errors(value)
+    }
 }
 
 impl From<LogsIntegration> for Integration {
@@ -69,6 +78,15 @@ impl From<SpansIntegration> for Integration {
     fn from(value: SpansIntegration) -> Self {
         Self::Spans(value)
     }
+}
+
+/// All error integrations supported by Relay.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ErrorsIntegration {
+    /// Unreal Engine crash reports.
+    ///
+    /// Supports the raw, compressed UE4 crash report format sent by the Unreal crash reporter.
+    Unreal,
 }
 
 /// All logging integrations supported by Relay.
