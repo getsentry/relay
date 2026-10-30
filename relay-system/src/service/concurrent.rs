@@ -12,7 +12,7 @@ use crate::statsd::SystemGauges;
 /// or keeps them in the input queue.
 ///
 /// ```
-/// use relay_system::{Interface, SimpleService, LoadShed, ConcurrentService};
+/// use relay_system::{Interface, MessageHandler, LoadShed, ConcurrentService};
 ///
 /// #[derive(Clone)]
 /// struct MyService;
@@ -20,7 +20,7 @@ use crate::statsd::SystemGauges;
 /// struct MyMessage;
 /// impl Interface for MyMessage {}
 ///
-/// impl SimpleService for MyService {
+/// impl MessageHandler for MyService {
 ///     type Interface = MyMessage;
 ///     async fn handle_message(&self, message: MyMessage) {
 ///         // do your thing
