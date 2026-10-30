@@ -617,14 +617,17 @@ impl Service {
             Backend::Upstream { addr } => {
                 let config = self.config.current();
                 let uri = location.try_to_uri()?;
+                // Compressed bytes can exceed the declared decoded length.
                 let stream = BoundedStream::new(
                     MeteredStream::new(stream, referrer),
                     0,
                     config.max_upload_size(),
                 );
                 let (stream, encoding) = match compression {
+                    // Forward precompressed bytes unchanged.
                     Some(codec) => (Either::Right(stream), codec.encoding()),
                     None => {
+                        // Encode uncompressed bytes using the configured encoding.
                         let encoding = config.http_encoding();
                         (encode_body(stream, encoding), encoding)
                     }
