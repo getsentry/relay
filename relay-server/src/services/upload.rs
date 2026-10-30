@@ -44,6 +44,8 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::RelayCounters;
+#[cfg(feature = "processing")]
+use crate::utils::DecompressionMetrics;
 use crate::utils::MeteredStream;
 use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 
@@ -639,7 +641,7 @@ impl Service {
 
                 let config = self.config.current();
                 let stream = BoundedStream::new(stream, 0, config.max_upload_size());
-                let stream = decode_body(stream, compression, source).await;
+                let stream = decode_body(stream, compression, source);
                 let (lower_bound, upper_bound) = match mode {
                     UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
                     UploadMode::Oneshot {
@@ -1355,7 +1357,7 @@ fn encode_body(stream: PassthroughBoundedMeteredStream, encoding: HttpEncoding) 
 }
 
 #[cfg(feature = "processing")]
-async fn decode_body(
+fn decode_body(
     stream: impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin + 'static,
     compression: Option<HttpCompression>,
     source: StreamSource,
@@ -1363,25 +1365,32 @@ async fn decode_body(
     if matches!(source, StreamSource::Multipart(_)) {
         return stream.boxed();
     }
-    use http_body_util::BodyExt;
+    use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
 
-    let body =
-        http_body_util::StreamBody::new(stream.map(|result| result.map(hyper::body::Frame::data)));
-    let mut request = http::Request::new(body);
-    if let Some(codec) = compression {
-        request.headers_mut().insert(
-            http::header::CONTENT_ENCODING,
-            HeaderValue::from_static(codec.encoding().name().unwrap()),
-        );
-    }
-    let request = crate::middlewares::decompress_request(request, UPLOAD_PATCH_PATH.into())
-        .await
-        .expect("the upload encoding has already been validated");
-    request
-        .into_body()
-        .into_data_stream()
-        .map(|result| result.map_err(std::io::Error::other))
-        .boxed()
+    let content_encoding = compression
+        .and_then(|codec| codec.encoding().name())
+        .unwrap_or("other");
+    let mut metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
+    let stream = metrics.count_encoded(stream);
+    let decoded = match compression {
+        None => stream.boxed(),
+        Some(compression) => {
+            let reader = BufReader::new(StreamReader::new(stream));
+            match compression {
+                // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
+                HttpCompression::Deflate => ReaderStream::new(ZlibDecoder::new(reader)).boxed(),
+                HttpCompression::Gzip => ReaderStream::new(GzipDecoder::new(reader)).boxed(),
+                HttpCompression::Br => ReaderStream::new(BrotliDecoder::new(reader)).boxed(),
+                HttpCompression::Zstd => {
+                    let mut decoder = ZstdDecoder::new(reader);
+                    // Match Tower's support for concatenated zstd frames.
+                    decoder.multiple_members(true);
+                    ReaderStream::new(decoder).boxed()
+                }
+            }
+        }
+    };
+    metrics.count_decoded(decoded).boxed()
 }
 
 #[cfg(test)]
@@ -1421,7 +1430,6 @@ mod tests {
                 runtime.block_on(async {
                     let stream = futures::stream::iter([Ok(input)]);
                     let chunks: Vec<Bytes> = decode_body(stream, compression, source)
-                        .await
                         .try_collect()
                         .await
                         .unwrap();
