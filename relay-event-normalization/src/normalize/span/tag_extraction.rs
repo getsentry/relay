@@ -819,7 +819,8 @@ pub fn extract_tags(
     let system = span
         .data
         .value()
-        .and_then(|data| data.get_str(DB__SYSTEM__NAME));
+        .and_then(|data| data.get_value_with_deprecations(DB__SYSTEM__NAME))
+        .and_then(Value::as_str);
     if let Some(sys) = system {
         span_tags.system = sys.to_lowercase().into();
     }
@@ -855,7 +856,8 @@ pub fn extract_tags(
                 let action_from_data = span
                     .data
                     .value()
-                    .and_then(|data| data.get_str(DB__OPERATION__NAME))
+                    .and_then(|data| data.get_value_with_deprecations(DB__OPERATION__NAME))
+                    .and_then(Value::as_str)
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
                     span.description
@@ -905,14 +907,11 @@ pub fn extract_tags(
                 .and_then(|s| s.strip_suffix(')'))
                 .map(String::from)
         } else if span_op.starts_with("db") {
-            let system = span
-                .data
-                .value()
-                .and_then(|data| data.get_str(DB__SYSTEM__NAME));
             if system == Some("mongodb") {
                 span.data
                     .value()
-                    .and_then(|data| data.get_str(DB__COLLECTION__NAME))
+                    .and_then(|data| data.get_value_with_deprecations(DB__COLLECTION__NAME))
+                    .and_then(Value::as_str)
                     .map(|db_collection| {
                         if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(db_collection, "{%s}") {
                             s
@@ -2922,6 +2921,139 @@ LIMIT 1
 
         assert_eq!(tags.description.value(), None);
         assert_eq!(tags.domain.value(), None);
+    }
+
+    #[test]
+    fn db_tags_and_groups_match_for_deprecated_attributes_without_renaming() {
+        for (system, op, query, operation_key, operation, collection) in [
+            (
+                "mysql",
+                "db",
+                "SELECT \"not an identifier\"",
+                "cloudflare.d1.query_type",
+                "select",
+                None,
+            ),
+            (
+                "mysql",
+                "db.sql.activerecord",
+                "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+                "db.operation",
+                "select",
+                None,
+            ),
+            (
+                "redis",
+                "db",
+                "del private-key:123",
+                "redis.command",
+                "del",
+                None,
+            ),
+            (
+                "mongodb",
+                "db",
+                r#"{"find":"documents_a1b2c3d4","foo":"bar"}"#,
+                "db.operation",
+                "find",
+                Some("documents_a1b2c3d4"),
+            ),
+        ] {
+            let deprecated_json = serde_json::json!({
+                "op": op,
+                "description": query,
+                "data": {
+                    "db.system": system,
+                    operation_key: operation,
+                    "db.mongodb.collection": collection,
+                },
+            });
+            let current_json = serde_json::json!({
+                "op": op,
+                "description": query,
+                "data": {
+                    "db.system.name": system,
+                    "db.operation.name": operation,
+                    "db.collection.name": collection,
+                },
+            });
+            let deprecated = Annotated::<Span>::from_json(&deprecated_json.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            let current = Annotated::<Span>::from_json(&current_json.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            let original = deprecated.clone();
+            let extract = |span: &Span| {
+                extract_tags(
+                    span,
+                    200,
+                    None,
+                    None,
+                    false,
+                    None,
+                    &[],
+                    &GeoIpLookup::empty(),
+                )
+            };
+            let tags = extract(&deprecated);
+            assert_eq!(tags, extract(&current), "{system}: {op}");
+            assert_eq!(tags.system.as_str(), Some(system));
+            assert_eq!(
+                tags.action.as_str(),
+                Some(operation.to_uppercase().as_str())
+            );
+            let description = tags.description.as_str().unwrap();
+            let hash = format!("{:x}", md5::compute(description));
+            assert_eq!(tags.group.as_str(), Some(&hash[..16]));
+            if collection.is_some() {
+                assert_eq!(tags.domain.as_str(), Some("documents_{%s}"));
+            }
+            assert_eq!(deprecated, original);
+        }
+    }
+
+    #[test]
+    fn db_tags_prefer_current_names_over_conflicting_aliases() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+            "op": "db",
+            "description": "{\"find\":\"documents\",\"foo\":\"bar\"}",
+            "data": {
+                "db.system.name": "mongodb",
+                "db.operation.name": "find",
+                "db.collection.name": "documents",
+                "db.system": "redis",
+                "db.operation": "delete",
+                "db.mongodb.collection": "wrong_collection"
+            }
+        }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        let original = span.clone();
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
+        assert_eq!(tags.system.as_str(), Some("mongodb"));
+        assert_eq!(tags.action.as_str(), Some("FIND"));
+        assert_eq!(tags.domain.as_str(), Some("documents"));
+        assert_eq!(
+            tags.description.as_str(),
+            Some(r#"{"find":"documents","foo":"?"}"#)
+        );
+        assert_eq!(tags.group.as_str(), Some("aedc5c7e8cec726b"));
+        assert_eq!(span, original);
     }
 
     #[test]
