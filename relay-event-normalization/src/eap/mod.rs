@@ -173,7 +173,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     }
 
     // Try to derive category from sentry.op.
-    if let Some(op_value) = attributes_val.get_value(SENTRY__OP)
+    if let Some(op_value) = attributes_val.get_value_with_deprecations(SENTRY__OP)
         && let Some(op_str) = op_value.as_str()
     {
         let op_lowercase = op_str.to_lowercase();
@@ -194,7 +194,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     } else if attribute_is_nonempty_string(attributes_val, RESOURCE__RENDER_BLOCKING_STATUS) {
         Some("resource")
     } else if attributes_val
-        .get_value(SENTRY__ORIGIN)
+        .get_value_with_deprecations(SENTRY__ORIGIN)
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
@@ -212,7 +212,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
 
 fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
     attributes
-        .get_value(key)
+        .get_value_with_deprecations(key)
         .and_then(|v| v.as_str())
         .is_some_and(|s| !s.is_empty())
 }
@@ -2540,6 +2540,54 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn span_category_from_deprecated_attributes_without_renaming() {
+        for (key, value, category) in [
+            ("db.system", "postgresql", "db"),
+            ("method", "GET", "http"),
+            ("http.method", "GET", "http"),
+            ("http.request_method", "GET", "http"),
+        ] {
+            let mut attributes = Annotated::new(Attributes::from([(
+                key.to_owned(),
+                Annotated::new(Attribute::from(value)),
+            )]));
+            let original = attributes.value().unwrap().get_attribute(key).cloned();
+            normalize_span_category(&mut attributes);
+            let attributes = attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__CATEGORY)
+                    .and_then(Value::as_str),
+                Some(category)
+            );
+            assert_eq!(attributes.get_attribute(key), original.as_ref());
+            assert_eq!(attributes.0.len(), 2);
+        }
+    }
+
+    #[test]
+    fn span_category_does_not_fall_back_past_a_present_current_value() {
+        let mut attributes = Annotated::new(Attributes::from([
+            (
+                "db.system".to_owned(),
+                Annotated::new(Attribute::from("postgresql")),
+            ),
+            (
+                DB__SYSTEM__NAME.to_owned(),
+                Annotated::new(Attribute::from("")),
+            ),
+        ]));
+        normalize_span_category(&mut attributes);
+        assert!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value(SENTRY__CATEGORY)
+                .is_none()
+        );
     }
 
     #[test]

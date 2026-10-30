@@ -1484,8 +1484,7 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
     if let Some(Value::String(category)) = span
         .data
         .value()
-        .and_then(|v| v.other.get("sentry.category"))
-        .and_then(|c| c.value())
+        .and_then(|v| v.get_value_with_deprecations(SENTRY__CATEGORY))
     {
         return Some(category.to_owned().into());
     }
@@ -1501,37 +1500,32 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
     // Derive the category from the span's attributes.
     let span_data = span.data.value()?;
 
-    fn value_is_set(value: &Annotated<Value>) -> bool {
-        value.value().is_some_and(|v| !v.is_empty())
+    fn value_is_set(value: &Value) -> bool {
+        !value.is_empty()
     }
 
     if span_data
-        .other
-        .get(DB__SYSTEM__NAME)
+        .get_value_with_deprecations(DB__SYSTEM__NAME)
         .is_some_and(value_is_set)
     {
         Some("db".into())
     } else if span_data
-        .other
-        .get(HTTP__REQUEST__METHOD)
+        .get_value_with_deprecations(HTTP__REQUEST__METHOD)
         .is_some_and(value_is_set)
     {
         Some("http".into())
     } else if span_data
-        .other
-        .get(UI__COMPONENT_NAME)
+        .get_value_with_deprecations(UI__COMPONENT_NAME)
         .is_some_and(value_is_set)
     {
         Some("ui".into())
     } else if span_data
-        .other
-        .get(RESOURCE__RENDER_BLOCKING_STATUS)
+        .get_value_with_deprecations(RESOURCE__RENDER_BLOCKING_STATUS)
         .is_some_and(value_is_set)
     {
         Some("resource".into())
     } else if span_data
-        .other
-        .get("sentry.origin")
+        .get_value_with_deprecations(SENTRY__ORIGIN)
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
@@ -3276,6 +3270,44 @@ LIMIT 1
             ..Default::default()
         };
         assert_eq!(category_for_span(&span), Some("app".into()));
+    }
+
+    #[test]
+    fn infers_category_from_deprecated_attributes_without_renaming() {
+        for (key, value, category) in [
+            ("db.system", "postgresql", "db"),
+            ("method", "POST", "http"),
+            ("http.method", "POST", "http"),
+            ("http.request_method", "POST", "http"),
+        ] {
+            let span = Span {
+                data: SpanData::from([(key.to_owned(), Value::String(value.to_owned()).into())])
+                    .into(),
+                ..Default::default()
+            };
+            let original = span.data.clone();
+            assert_eq!(category_for_span(&span), Some(category.into()));
+            assert_eq!(span.data, original);
+        }
+    }
+
+    #[test]
+    fn category_does_not_fall_back_past_a_present_current_value() {
+        let span = Span {
+            data: SpanData::from([
+                (
+                    "db.system".to_owned(),
+                    Value::String("postgresql".to_owned()).into(),
+                ),
+                (
+                    DB__SYSTEM__NAME.to_owned(),
+                    Value::String(String::new()).into(),
+                ),
+            ])
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), None);
     }
 
     #[test]
