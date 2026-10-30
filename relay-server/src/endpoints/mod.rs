@@ -31,7 +31,7 @@ mod upload;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{Router, any, get, post};
-use relay_config::ConfigSnapshot;
+use relay_config::{ConfigSnapshot, RelayMode};
 
 use crate::middlewares;
 use crate::service::ServiceState;
@@ -97,7 +97,6 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .route("/api/{project_id}/envelope/", envelope::route(config))
         .route("/api/{project_id}/security/", security_report::route(config))
         .route("/api/{project_id}/csp-report/", security_report::route(config))
-        .route("/api/{project_id}/nel/", nel::route(config))
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
@@ -115,10 +114,15 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
     //
     // For integrations we want to be lenient on trailing `/`, as they are often manually
     // configured by users or protocols may force a specific variant.
-    let integration_routes = Router::new()
-        .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
-        .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
-        .route_layer(middlewares::cors());
+    let integration_routes = match config.relay_mode() {
+        RelayMode::Managed => Router::new()
+            .route("/api/{project_id}/nel/", nel::route(config))
+            .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
+            .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
+            .route_layer(middlewares::cors()),
+        // In proxy mode integrations are not directly available as they require processing.
+        RelayMode::Proxy => Router::new(),
+    };
 
     // NOTE: If you add a new (non-experimental) route here, please also list it in
     // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
