@@ -17,7 +17,7 @@ pub async fn decompress(mut request: Request, next: Next) -> Response {
     let matched_path = request.extract_parts::<MatchedPath>().await;
     let route = matched_path.as_ref().map_or("unknown", |m| m.as_str());
     let content_encoding = metrics::content_encoding_tag(&request);
-    let mut metrics = DecompressionMetrics::new(route.to_owned().into(), content_encoding);
+    let metrics = DecompressionMetrics::new(route.to_owned().into(), content_encoding);
     let request = request.map(|body| metrics.count_encoded(body));
     let decompression =
         RequestDecompression::new(next.map_request(|request: Request<DecompressionBody<_>>| {

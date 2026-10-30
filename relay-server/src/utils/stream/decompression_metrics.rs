@@ -11,46 +11,36 @@ use hyper::body::{Frame, SizeHint};
 
 use crate::statsd::RelayDistributions;
 
-/// Counts bytes on both sides of a decoder and transfers reporting to its output.
-pub(crate) struct DecompressionMetrics {
-    encoded_size: Arc<AtomicU64>,
-    decoded_size: Arc<AtomicU64>,
-    ratio: Option<DecompressionRatio>,
-}
+/// Counts bytes on both sides of a decoder and reports when all output owners drop.
+#[derive(Clone)]
+pub(crate) struct DecompressionMetrics(Arc<DecompressionRatio>);
 
 impl DecompressionMetrics {
     /// Creates counters and a report for a single decoded body or stream.
     pub fn new(route: Cow<'static, str>, content_encoding: &'static str) -> Self {
-        let encoded_size = Arc::new(AtomicU64::new(0));
-        let decoded_size = Arc::new(AtomicU64::new(0));
-        let ratio = Some(DecompressionRatio {
-            encoded_size: Arc::clone(&encoded_size),
-            decoded_size: Arc::clone(&decoded_size),
+        Self(Arc::new(DecompressionRatio {
+            encoded_size: Arc::new(AtomicU64::new(0)),
+            decoded_size: Arc::new(AtomicU64::new(0)),
             route,
             content_encoding,
-        });
-        Self {
-            encoded_size,
-            decoded_size,
-            ratio,
-        }
+        }))
     }
 
     /// Counts input bytes without owning the metric's lifetime.
     pub fn count_encoded<T>(&self, inner: T) -> CountingBody<T> {
         CountingBody {
             inner,
-            count: Arc::clone(&self.encoded_size),
-            metrics: None,
+            count: Arc::clone(&self.0.encoded_size),
+            _metrics: (),
         }
     }
 
-    /// Counts output bytes and transfers reporting on completion, error, or drop.
-    pub fn count_decoded<T>(&mut self, inner: T) -> CountingBody<T> {
+    /// Counts output bytes and keeps the report alive until this output is dropped.
+    pub fn count_decoded<T>(&self, inner: T) -> CountingBody<T, Self> {
         CountingBody {
             inner,
-            count: Arc::clone(&self.decoded_size),
-            metrics: self.ratio.take(),
+            count: Arc::clone(&self.0.decoded_size),
+            _metrics: self.clone(),
         }
     }
 }
@@ -76,13 +66,13 @@ impl Drop for DecompressionRatio {
 }
 
 /// A body or byte stream that counts bytes and holds an optional reporting guard.
-pub(crate) struct CountingBody<T> {
+pub(crate) struct CountingBody<T, M = ()> {
     inner: T,
     count: Arc<AtomicU64>,
-    metrics: Option<DecompressionRatio>,
+    _metrics: M,
 }
 
-impl<B: HttpBody + Unpin> HttpBody for CountingBody<B> {
+impl<B: HttpBody + Unpin, M: Unpin> HttpBody for CountingBody<B, M> {
     type Data = B::Data;
     type Error = B::Error;
 
@@ -98,9 +88,6 @@ impl<B: HttpBody + Unpin> HttpBody for CountingBody<B> {
             this.count
                 .fetch_add(data.remaining() as u64, Ordering::Relaxed);
         }
-        if matches!(poll, Poll::Ready(None | Some(Err(_)))) {
-            this.metrics.take();
-        }
         poll
     }
 
@@ -113,9 +100,10 @@ impl<B: HttpBody + Unpin> HttpBody for CountingBody<B> {
     }
 }
 
-impl<S, E> Stream for CountingBody<S>
+impl<S, E, M> Stream for CountingBody<S, M>
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin,
+    M: Unpin,
 {
     type Item = S::Item;
 
@@ -124,9 +112,6 @@ where
         let poll = Pin::new(&mut this.inner).poll_next(cx);
         if let Poll::Ready(Some(Ok(bytes))) = &poll {
             this.count.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-        }
-        if matches!(poll, Poll::Ready(None | Some(Err(_)))) {
-            this.metrics.take();
         }
         poll
     }
@@ -177,7 +162,7 @@ mod tests {
         let mut stream = CountingBody {
             inner: source,
             count: Arc::clone(&count),
-            metrics: None,
+            _metrics: (),
         };
         let wakes = Arc::new(WakeCount::default());
         let waker = std::task::Waker::from(Arc::clone(&wakes));
@@ -244,7 +229,7 @@ mod tests {
                         Ok(Bytes::from_static(b" world"))
                     };
                     let source = futures::stream::iter([Ok(Bytes::from_static(b"hello")), last]);
-                    let mut metrics = DecompressionMetrics::new("/test".into(), "other");
+                    let metrics = DecompressionMetrics::new("/test".into(), "other");
                     let mut stream = if as_body {
                         let body = metrics.count_encoded(Body::from_stream(source));
                         metrics.count_decoded(body).into_data_stream().boxed()
@@ -268,14 +253,16 @@ mod tests {
                                 assert!(stream.next().await.is_none());
                                 assert!(stream.next().await.is_none());
                             }
-                            retained = Some(stream);
                         }
                         "partial" => assert_eq!(stream.next().await.unwrap().unwrap(), "hello"),
                         "unread" => {}
                         _ => unreachable!(),
                     }
+                    retained = Some(stream);
                 });
             });
+            assert!(captures.is_empty(), "{case} recorded before drop");
+            let captures = relay_statsd::with_capturing_test_client(|| drop(retained));
             let ratio = if case == "unread" { 0 } else { 1 };
             assert_eq!(
                 captures,
@@ -284,8 +271,6 @@ mod tests {
                 )],
                 "{case}"
             );
-            let captures = relay_statsd::with_capturing_test_client(|| drop(retained));
-            assert!(captures.is_empty(), "{case} recorded twice");
         }
     }
 }

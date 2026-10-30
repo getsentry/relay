@@ -1370,7 +1370,7 @@ fn decode_body(
     let content_encoding = compression
         .and_then(|codec| codec.encoding().name())
         .unwrap_or("other");
-    let mut metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
+    let metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
     let stream = metrics.count_encoded(stream);
     let decoded = match compression {
         None => stream.boxed(),
