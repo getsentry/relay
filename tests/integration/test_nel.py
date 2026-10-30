@@ -2,14 +2,18 @@ import json
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
+import pytest
+
 from .asserts import matches_any, time_within_delta
 
 
-def test_nel_converted_to_logs(mini_sentry, relay):
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
+def test_nel_converted_to_logs(mini_sentry, relay, relay_mode):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
-    relay = relay(mini_sentry)
+    upstream = relay(mini_sentry)
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     relay.send_nel_event(project_id)
 
