@@ -44,19 +44,40 @@ mod tests {
     use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
-    fn test_scrub_mcp_results_with_default_rules() {
-        let cases = [
-            // Legacy SDKs capture the content block's text directly.
-            (
-                "mcp.tool.result.content",
-                "Contact user@example.com",
-                "Contact [email]",
-            ),
-            (
-                "gen_ai.tool.call.result",
-                r#"{"content":[{"type":"text","text":"Contact user@example.com"}]}"#,
-                r#"{"content":[{"type":"text","text":"Contact [email]"}]}"#,
-            ),
+    fn test_scrub_ai_attributes_with_default_rules() {
+        let groups: &[&[(&str, &str, &str)]] = &[
+            &[
+                // Legacy SDKs capture the content block's text directly.
+                (
+                    "mcp.tool.result.content",
+                    "Contact user@example.com",
+                    "Contact [email]",
+                ),
+                (
+                    "gen_ai.tool.call.result",
+                    r#"{"content":[{"type":"text","text":"Contact user@example.com"}]}"#,
+                    r#"{"content":[{"type":"text","text":"Contact [email]"}]}"#,
+                ),
+            ],
+            // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept
+            // alongside the backfilled `gen_ai.system_instructions`.
+            &[
+                (
+                    "gen_ai.system_instructions",
+                    r#"[{"type":"text","content":"Escalate to user@example.com"}]"#,
+                    r#"[{"type":"text","content":"Escalate to [email]"}]"#,
+                ),
+                (
+                    "ai.preamble",
+                    "Escalate to user@example.com",
+                    "Escalate to [email]",
+                ),
+                (
+                    "gen_ai.system.message",
+                    "Escalate to user@example.com",
+                    "Escalate to [email]",
+                ),
+            ],
         ];
         let settings = DataScrubbingConfig {
             scrub_data: true,
@@ -65,63 +86,30 @@ mod tests {
         };
         let config = settings.pii_config();
 
-        // Old and new SDKs can emit each format alone or both together.
-        for cases in [&cases[..1], &cases[1..], &cases[..]] {
-            let mut attributes = Attributes::new();
-            for (key, content, _) in cases {
-                attributes.insert(*key, *content);
+        // Old and new SDKs can emit each format alone or all together.
+        for group in groups {
+            let combinations = group.iter().map(std::slice::from_ref).chain([*group]);
+            for cases in combinations {
+                let mut attributes = Attributes::new();
+                for (key, content, _) in cases {
+                    attributes.insert(*key, *content);
+                }
+                let mut span = Annotated::new(SpanV2 {
+                    attributes: Annotated::new(attributes),
+                    ..Default::default()
+                });
+
+                eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+
+                let attributes = span.value().unwrap().attributes.value().unwrap();
+                for (key, _, expected) in cases {
+                    assert_eq!(
+                        attributes.get_value(*key).and_then(|value| value.as_str()),
+                        Some(*expected),
+                        "{key}"
+                    );
+                }
             }
-            let mut span = Annotated::new(SpanV2 {
-                attributes: Annotated::new(attributes),
-                ..Default::default()
-            });
-
-            eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
-
-            let attributes = span.value().unwrap().attributes.value().unwrap();
-            for (key, _, expected) in cases {
-                assert_eq!(
-                    attributes.get_value(*key).and_then(|value| value.as_str()),
-                    Some(*expected),
-                    "{key}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_scrub_system_instructions_with_default_rules() {
-        // `ai.preamble` and `gen_ai.system.message` are deprecated aliases that are kept
-        // alongside the backfilled `gen_ai.system_instructions`.
-        for key in [
-            "gen_ai.system_instructions",
-            "ai.preamble",
-            "gen_ai.system.message",
-        ] {
-            let mut attributes = Attributes::new();
-            attributes.insert(
-                key,
-                r#"[{"type":"text","content":"Escalate to user@example.com"}]"#,
-            );
-            let mut span = Annotated::new(SpanV2 {
-                attributes: Annotated::new(attributes),
-                ..Default::default()
-            });
-            let settings = DataScrubbingConfig {
-                scrub_data: true,
-                scrub_defaults: true,
-                ..Default::default()
-            };
-            let config = settings.pii_config();
-
-            eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
-
-            let attributes = span.value().unwrap().attributes.value().unwrap();
-            assert_eq!(
-                attributes.get_value(key).and_then(|value| value.as_str()),
-                Some(r#"[{"type":"text","content":"Escalate to [email]"}]"#),
-                "{key}",
-            );
         }
     }
 
