@@ -50,7 +50,7 @@ impl<S> ConcurrentService<S>
 where
     S: MessageHandler + Clone + Send + Sync,
 {
-    /// Creates a new concurrent service from a [`SimpleService`].
+    /// Creates a new concurrent service from a [`MessageHandler`].
     ///
     /// The default strategy for congestion control is to keep messages in the input queue.
     pub fn new(inner: S) -> Self {
