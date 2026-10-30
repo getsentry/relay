@@ -64,14 +64,6 @@ pub struct User {
     #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
     pub name: Annotated<String>,
 
-    /// The user string representation as handled in Sentry.
-    ///
-    /// This field is computed by concatenating the name of specific fields of the `User`
-    /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
-    /// `"id:id-of-the-user".
-    #[metastructure(pii = "true", skip_serialization = "empty")]
-    pub sentry_user: Annotated<String>,
-
     /// Approximate geographical location of the end user or device.
     #[metastructure(skip_serialization = "empty")]
     pub geo: Annotated<Geo>,
@@ -178,7 +170,6 @@ mod tests {
                 );
                 map
             },
-            ..Default::default()
         });
 
         assert_eq!(user, Annotated::from_json(json).unwrap());

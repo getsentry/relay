@@ -37,7 +37,7 @@ use uuid::Uuid;
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
+use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
     ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
@@ -536,11 +536,6 @@ fn normalize_user(event: &mut Event) {
         let data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(&mut user.other));
     }
-
-    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
-    // pipeline.
-    let event_user_tag = get_event_user_tag(user);
-    user.sentry_user.set_value(event_user_tag);
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
@@ -5866,7 +5861,6 @@ mod tests {
         });
         assert_eq!(user.other, Object::new());
         assert_eq!(user.username, Annotated::new("john".to_owned().into()));
-        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_owned()));
     }
 
     #[test]

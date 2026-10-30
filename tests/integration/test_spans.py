@@ -106,7 +106,6 @@ def test_span_extraction(
         "id": user_id,
         # "email": "john@example.com",
         "ip_address": "192.168.0.1",
-        "sentry_user": f"id:{user_id}",
         "geo": {
             "country_code": "AT",
             "city": "Vienna",
