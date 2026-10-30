@@ -617,7 +617,8 @@ impl Service {
             Backend::Upstream { addr } => {
                 let config = self.config.current();
                 let uri = location.try_to_uri()?;
-                // Compressed bytes can exceed the declared decoded length.
+                // Compressing already-compressed or encrypted data can exceed the declared
+                // decoded length, so use max_upload_size as the wire-byte cap.
                 let stream = BoundedStream::new(
                     MeteredStream::new(stream, referrer),
                     0,
