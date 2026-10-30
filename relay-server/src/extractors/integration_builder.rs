@@ -6,6 +6,8 @@ use axum::extract::{FromRequest, Request};
 use axum::response::IntoResponse;
 use bytes::Bytes;
 use relay_dynamic_config::Feature;
+use relay_event_schema::protocol::EventId;
+use relay_protocol::Value;
 
 use crate::Envelope;
 use crate::envelope::{Item, ItemType};
@@ -48,6 +50,31 @@ impl IntegrationBuilder<()> {
 }
 
 impl<T> IntegrationBuilder<T> {
+    /// Returns `true` if the request body is empty.
+    pub fn is_empty(&self) -> bool {
+        self.payload.is_empty()
+    }
+
+    /// Sets the event id of the envelope.
+    ///
+    /// This is required for integrations which create events.
+    pub fn with_event_id(mut self, event_id: EventId) -> Self {
+        self.envelope.set_event_id(event_id);
+        self
+    }
+
+    /// Sets a custom envelope header, if the value is not `None`.
+    pub fn with_header_opt(
+        mut self,
+        name: impl Into<String>,
+        value: Option<impl Into<Value>>,
+    ) -> Self {
+        if let Some(value) = value {
+            self.envelope.set_header(name, value);
+        }
+        self
+    }
+
     /// Optionally adds a required feature to the envelope.
     ///
     /// This can be used for integrations which are still feature flagged.
