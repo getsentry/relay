@@ -12,6 +12,7 @@ use symbolic_unreal::{
 };
 
 use crate::constants::{
+    ATTACHMENT_CSO_SUFFIX, ATTACHMENT_NV_DBG_SUFFIX, ATTACHMENT_NV_GPUDUMP_SUFFIX,
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
 };
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -41,6 +42,15 @@ fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, Proce
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
+                name if name.ends_with(self::ATTACHMENT_NV_GPUDUMP_SUFFIX) => {
+                    (ContentType::OctetStream, AttachmentType::NvGpuDump)
+                }
+                name if name.ends_with(self::ATTACHMENT_NV_DBG_SUFFIX) => {
+                    (ContentType::OctetStream, AttachmentType::NvShaderDebug)
+                }
+                name if name.ends_with(self::ATTACHMENT_CSO_SUFFIX) => {
+                    (ContentType::OctetStream, AttachmentType::CompiledShader)
+                }
                 _ => (ContentType::OctetStream, AttachmentType::Attachment),
             },
         };
@@ -383,6 +393,13 @@ pub fn process_unreal<'a>(
 
         merge_unreal_context(event, context);
     }
+
+    // This matches the native processing, minidumps and other crash reports which do not have a
+    // dedicated level set are assumed to be fatal.
+    //
+    // We update this at the very end where we can be sure all event data has already been merged into
+    // the event (e.g. the unreal context which may set the level).
+    event.level.get_or_insert_with(|| Level::Fatal);
 
     Ok(Some(ProcessedUnrealReport { user_reports }))
 }

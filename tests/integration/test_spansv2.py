@@ -1461,6 +1461,7 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": "f79af0ba3d26284c",
             },
+            "sentry.group": {"type": "string", "value": "f79af0ba3d26284c"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),

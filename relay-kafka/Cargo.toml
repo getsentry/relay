@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Kafka related functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.10.0"
+version = "26.10.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -17,6 +17,7 @@ rdkafka = { workspace = true, optional = true, features = [
   "tracing",
   "ssl",
   "libz-static",
+  "zstd",
 ] }
 rdkafka-sys = { workspace = true, optional = true }
 relay-log = { workspace = true, optional = true }

@@ -534,6 +534,22 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Removes and returns the first item for which `cond` returns `Some`.
+    ///
+    /// The data returned by `cond` is returned along with the item.
+    pub fn take_item_by_map<F, R>(&mut self, mut cond: F) -> Option<(Item, R)>
+    where
+        F: FnMut(&Item) -> Option<R>,
+    {
+        let (index, result) = self
+            .items
+            .iter()
+            .enumerate()
+            .find_map(|(idx, item)| Some((idx, cond(item)?)))?;
+        let item = self.items.swap_remove(index);
+        Some((item, result))
+    }
+
     /// Removes and returns the all items that match the given condition.
     pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
     where

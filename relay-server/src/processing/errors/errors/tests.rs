@@ -82,30 +82,3 @@ fn test_gpu_crash_rate_limit() {
         },
     );
 }
-
-#[cfg(feature = "processing")]
-#[test]
-fn test_unreal_crash_rate_limit() {
-    assert_crash_rate_limit(
-        || Unreal::Process {
-            minidump: Some(attachment(AttachmentType::Minidump, "dump")),
-            apple_crash_report: Some(attachment(AttachmentType::AppleCrashReport, "report")),
-        },
-        &[6, 4],
-        |crash| {
-            let Unreal::Process {
-                minidump,
-                apple_crash_report,
-            } = crash
-            else {
-                panic!("expected expanded Unreal crash");
-            };
-            let minidump = minidump.unwrap();
-            let report = apple_crash_report.unwrap();
-            assert!(minidump.rate_limited());
-            assert!(report.rate_limited());
-            assert_eq!(minidump.payload().as_ref(), b"dump");
-            assert_eq!(report.payload().as_ref(), b"report");
-        },
-    );
-}

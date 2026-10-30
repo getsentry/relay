@@ -12,7 +12,8 @@ use relay_sampling::evaluation::MatchedRuleIds;
 pub mod metric;
 mod service;
 
-use crate::envelope::{AttachmentType, ItemType};
+use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::integrations::Integration;
 
 pub use self::service::*;
 
@@ -643,6 +644,20 @@ impl From<ItemType> for DiscardItemType {
     }
 }
 
+impl From<&Item> for DiscardItemType {
+    fn from(item: &Item) -> Self {
+        if let Some(attachment_type) = item.attachment_type() {
+            return attachment_type.into();
+        }
+
+        match item.integration() {
+            Some(Integration::Logs(_)) => Self::Log,
+            Some(Integration::Spans(_)) => Self::Span,
+            None => item.ty().into(),
+        }
+    }
+}
+
 impl From<&AttachmentType> for DiscardItemType {
     fn from(value: &AttachmentType) -> Self {
         Self::Attachment(value.into())
@@ -698,7 +713,9 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
             AttachmentType::Flamegraph => Self::Flamegraph,
-            AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug => Self::Attachment,
+            AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => Self::Attachment,
         }
     }
 }
