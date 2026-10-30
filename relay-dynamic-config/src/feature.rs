@@ -66,6 +66,11 @@ pub enum Feature {
     /// Serialized as `organizations:tracemetrics-ingestion`.
     #[serde(rename = "organizations:tracemetrics-ingestion")]
     TraceMetricsIngestion,
+    /// Enable browser report ingestion.
+    ///
+    /// Serialized as `organizations:browser-report-ingestion`.
+    #[serde(rename = "organizations:browser-report-ingestion")]
+    BrowserReportIngestion,
     /// Project-level opt-in for JSON attribute expansion, set via project settings.
     ///
     /// Serialized as `projects:relay-automatic-json-expansion`.
