@@ -17,6 +17,7 @@
 
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Remove, no longer used, `user.sentry_user` field from normalized events. ([#6609](https://github.com/getsentry/relay/pull/6609))
 
 **Bug Fixes**:
 

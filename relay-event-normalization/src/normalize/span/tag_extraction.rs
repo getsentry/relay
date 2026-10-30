@@ -28,7 +28,8 @@ use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
 use crate::utils::{
-    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, http_status_code_from_span,
+    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, get_event_user_tag,
+    http_status_code_from_span,
 };
 
 /// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
@@ -329,8 +330,8 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
     }
 
     if let Some(user) = event.user.value() {
-        if let Some(sentry_user) = user.sentry_user.value() {
-            tags.user = sentry_user.clone().into();
+        if let Some(user) = get_event_user_tag(user) {
+            tags.user = user.into();
         }
         if let Some(user_id) = user.id.value() {
             tags.user_id = user_id.as_str().to_owned().into();
