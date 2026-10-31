@@ -1727,53 +1727,53 @@ def test_compressed_upload_size_limits(
 @dataclass(frozen=True, kw_only=True)
 class UploadCase:
     id: str
+    encoding: str
     upload_features: list[str]
     creation_headers: dict[str, str]
     chunks: list[tuple[bytes, int]]
+    concatenated: bool = False
 
 
 # Cover every codec with resumable uploads; vary modes only for zstd.
 @pytest.mark.parametrize(
-    "case,encoding,concatenated",
+    "case",
     [
-        pytest.param(
-            case,
-            encoding,
-            concatenated,
-            id=f"{case.id}-{encoding}{'-concatenated' if concatenated else ''}",
-        )
-        for case in [
+        *[
             UploadCase(
-                id="resumable",
+                id=f"resumable-{encoding}{'-concatenated' if concatenated else ''}",
+                encoding=encoding,
+                concatenated=concatenated,
                 upload_features=["projects:resumable-uploads"],
                 creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
                 chunks=[
                     (FIRST_CHUNK, len(FIRST_CHUNK)),
                     (SECOND_CHUNK, len(RESUMABLE_DATA)),
                 ],
-            ),
-            UploadCase(
-                id="oneshot",
-                upload_features=[],
-                creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
-                chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
-            ),
-            UploadCase(
-                id="deferred",
-                upload_features=["projects:resumable-uploads"],
-                creation_headers={"Upload-Defer-Length": "1"},
-                chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
-            ),
-        ]
-        for encoding, concatenated in [
-            ("zstd", False),
-            ("gzip", False),
-            ("deflate", False),
-            ("br", False),
-            ("zstd", True),
-        ]
-        if case.id == "resumable" or (encoding == "zstd" and not concatenated)
+            )
+            for encoding, concatenated in [
+                ("zstd", False),
+                ("gzip", False),
+                ("deflate", False),
+                ("br", False),
+                ("zstd", True),
+            ]
+        ],
+        UploadCase(
+            id="oneshot-zstd",
+            encoding="zstd",
+            upload_features=[],
+            creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
+            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+        ),
+        UploadCase(
+            id="deferred-zstd",
+            encoding="zstd",
+            upload_features=["projects:resumable-uploads"],
+            creation_headers={"Upload-Defer-Length": "1"},
+            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+        ),
     ],
+    ids=lambda case: case.id,
 )
 def test_compressed_upload_processing_chain(
     mini_sentry,
@@ -1784,8 +1784,6 @@ def test_compressed_upload_processing_chain(
     attachments_consumer,
     outcomes_consumer,
     objectstore,
-    encoding,
-    concatenated,
     case: UploadCase,
 ):
     project_key = mini_sentry.get_dsn_public_key(42)
@@ -1817,13 +1815,13 @@ def test_compressed_upload_processing_chain(
     location = create.headers["Location"]
     offset = 0
     for chunk, expected_offset in case.chunks:
-        if concatenated:
+        if case.concatenated:
             midpoint = len(chunk) // 2
-            compressed = compress_upload(chunk[:midpoint], encoding) + compress_upload(
-                chunk[midpoint:], encoding
-            )
+            compressed = compress_upload(
+                chunk[:midpoint], case.encoding
+            ) + compress_upload(chunk[midpoint:], case.encoding)
         else:
-            compressed = compress_upload(chunk, encoding)
+            compressed = compress_upload(chunk, case.encoding)
         response = patch_chunk(
             edge,
             location,
@@ -1831,7 +1829,7 @@ def test_compressed_upload_processing_chain(
             compressed,
             offset,
             headers={
-                "Content-Encoding": encoding,
+                "Content-Encoding": case.encoding,
                 "X-Decoded-Content-Length": str(len(chunk)),
             },
         )
