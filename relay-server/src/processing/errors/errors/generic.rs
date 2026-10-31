@@ -24,7 +24,9 @@ impl SentryError for Generic {
 
         let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx.processing)?;
 
-        let skip_normalization = ctx.processing.is_processing() && fully_normalized;
+        let skip_normalization = ctx.processing.is_processing()
+            && ctx.envelope.meta().request_trust().is_trusted()
+            && fully_normalized;
         if !skip_normalization && let Some(event) = event.value_mut() {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
