@@ -7,16 +7,18 @@
 
 use std::io;
 
+use axum::Extension;
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, Path, Query};
+use axum::extract::{DefaultBodyLimit, Path, Query, Request};
 use axum::http::{HeaderMap, StatusCode};
+use axum::middleware::Next;
 use axum::response::{IntoResponse, NoContent, Response};
 use axum::routing::{MethodRouter, head as axum_head, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{ConfigSnapshot, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -33,14 +35,13 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, CreateResult, HeadResult, LocationKind, LocationQueryParams, ProjectContext,
-    Provisional, SignedLocation, StreamResult, UPLOAD_CHUNK_GRANULARITY, UploadMode,
+    self, CreateResult, HeadResult, HttpCompression, LocationKind, LocationQueryParams,
+    ProjectContext, Provisional, SignedLocation, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
 use crate::utils::tus::PatchHeaders;
-use crate::utils::{ApiErrorResponse, MeteredStream};
-use crate::utils::{BoundedStream, find_error_source, tus};
+use crate::utils::{ApiErrorResponse, find_error_source, tus};
 
 /// Header advertising the minimum chunk size to clients.
 ///
@@ -59,17 +60,35 @@ pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         .route_layer(tus::resumable_header_layer())
 }
 
-pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+    let head = axum_head(handle_head)
+        .route_layer(tus::resumable_header_layer())
+        .route_layer(tus::no_store_layer())
+        .route_layer(crate::middlewares::cors())
+        .layer(axum::middleware::from_fn(crate::middlewares::decompress));
+
+    // Axum keeps the right-hand default method fallback. Preserve its decompression so
+    // unsupported methods with unsupported encodings still return 415 before 405.
+    route_patch(config).merge(head)
+}
+
+fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     patch(handle_patch)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
         .route_layer(tus::resumable_header_layer())
+        .route_layer(crate::middlewares::cors())
+        // Reject unsupported encodings before limits, auth, CORS, and TUS.
+        .layer(axum::middleware::from_fn(validate_upload_encoding))
 }
 
-pub fn route_head() -> MethodRouter<ServiceState> {
-    axum_head(handle_head)
-        .route_layer(tus::resumable_header_layer())
-        .route_layer(tus::no_store_layer())
+async fn validate_upload_encoding(
+    mut request: Request,
+    next: Next,
+) -> Result<Response, UnsupportedUploadEncoding> {
+    let compression = upload_compression(request.headers())?;
+    request.extensions_mut().insert(compression);
+    Ok(next.run(request).await)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -235,11 +254,11 @@ async fn handle_post(
     let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
-    let project_context = validate_and_limit(&state, meta, &headers, project).await?;
+    let project = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+    let result = create(&state, project, &headers).await;
     let CreateResult {
         location,
         granularity,
@@ -271,6 +290,33 @@ async fn handle_post(
     Ok(response)
 }
 
+/// Matches the decompression middleware's unsupported-encoding response.
+struct UnsupportedUploadEncoding;
+
+impl IntoResponse for UnsupportedUploadEncoding {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            [(header::ACCEPT_ENCODING, "zstd,gzip,deflate,br")],
+        )
+            .into_response()
+    }
+}
+
+fn upload_compression(
+    headers: &HeaderMap,
+) -> Result<Option<HttpCompression>, UnsupportedUploadEncoding> {
+    let Some(value) = headers.get(header::CONTENT_ENCODING) else {
+        return Ok(None);
+    };
+    let encoding = value
+        .to_str()
+        .ok()
+        .and_then(HttpEncoding::parse_strict)
+        .ok_or(UnsupportedUploadEncoding)?;
+    Ok(HttpCompression::from_encoding(encoding))
+}
+
 /// Handles TUS PATCH requests that upload data to an existing location.
 ///
 /// See <https://tus.io/protocols/resumable-upload#patch>.
@@ -280,8 +326,9 @@ async fn handle_patch(
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(location_params): Query<LocationQueryParams>,
+    Extension(compression): Extension<Option<HttpCompression>>,
     body: Body,
-) -> axum::response::Result<impl IntoResponse> {
+) -> axum::response::Result<Response> {
     let LocationQueryParams {
         upload_length,
         upload_id,
@@ -301,29 +348,30 @@ async fn handle_patch(
     let upload_mode = upload_mode(&kind, upload_offset, decoded_content_length)?;
     let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
-    let config = state.config();
     let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
-    let project_context = validate(&state, meta, project).await?;
+    let project = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = MeteredStream::new(stream, "upload");
-
-    let (lower_bound, upper_bound) = match upload_mode {
-        UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
-        // If the client provided the length at creation use it to enforce the size.
-        UploadMode::Oneshot { length: Some(l) } => (l, l),
-        UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
-    };
-    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, upload_mode, stream).await;
-    let result = result.inspect_err(|e| {
+    let result = upload(
+        &state,
+        upload::Stream {
+            received: Utc::now(),
+            project,
+            location,
+            stream,
+            source: upload::StreamSource::Tus,
+            compression,
+            mode: upload_mode,
+        },
+    )
+    .await
+    .inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
@@ -450,23 +498,9 @@ async fn create(
 
 async fn upload(
     state: &ServiceState,
-    project: ProjectContext,
-    location: SignedLocation<Provisional>,
-    mode: UploadMode,
-    stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<StreamResult, Error> {
-    let location = state
-        .upload()
-        .send(upload::Stream {
-            received: Utc::now(),
-            project,
-            location,
-            stream,
-            mode,
-        })
-        .await??;
-
-    Ok(location)
+    request: upload::Stream,
+) -> Result<upload::StreamResult, Error> {
+    Ok(state.upload().send(request).await??)
 }
 
 async fn head(
@@ -636,4 +670,74 @@ fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
             io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::convert::Infallible;
+
+    use axum::body::to_bytes;
+    use axum::http::HeaderValue;
+    use tower::{ServiceExt, service_fn};
+    use tower_http::decompression::RequestDecompression;
+
+    use super::*;
+
+    #[test]
+    fn classify_upload_compression() {
+        for (value, expected) in [
+            (None, Ok(None)),
+            (Some("identity"), Ok(None)),
+            (Some("zstd"), Ok(Some(HttpCompression::Zstd))),
+            (Some("gzip"), Ok(Some(HttpCompression::Gzip))),
+            (Some("deflate"), Ok(Some(HttpCompression::Deflate))),
+            (Some("br"), Ok(Some(HttpCompression::Br))),
+            (Some("unknown"), Err(())),
+            (Some("x-gzip"), Err(())),
+            (Some("GZIP"), Err(())),
+            (Some(" gzip "), Err(())),
+            (Some("zstd, gzip"), Err(())),
+        ] {
+            let mut headers = HeaderMap::new();
+            if let Some(value) = value {
+                headers.insert(header::CONTENT_ENCODING, value.parse().unwrap());
+            }
+            assert_eq!(
+                upload_compression(&headers).map_err(|_| ()),
+                expected,
+                "{value:?}"
+            );
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_bytes(b"\xff").unwrap(),
+        );
+        assert!(upload_compression(&headers).is_err());
+    }
+
+    #[tokio::test]
+    async fn unsupported_encoding_response_matches_tower() {
+        let request = Request::builder()
+            .header(header::CONTENT_ENCODING, "unknown")
+            .body(Body::empty())
+            .unwrap();
+        let reference = RequestDecompression::new(service_fn(|_: Request<_>| async {
+            Ok::<_, Infallible>(StatusCode::OK.into_response())
+        }))
+        .oneshot(request)
+        .await
+        .unwrap();
+        let response = UnsupportedUploadEncoding.into_response();
+
+        assert_eq!(response.status(), reference.status());
+        assert_eq!(response.headers(), reference.headers());
+        assert_eq!(
+            to_bytes(response.into_body(), 1024).await.unwrap(),
+            to_bytes(Body::new(reference.into_body()), 1024)
+                .await
+                .unwrap(),
+        );
+    }
 }

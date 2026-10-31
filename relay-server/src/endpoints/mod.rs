@@ -57,6 +57,7 @@ pub fn internal_routes(_: &ConfigSnapshot) -> Router<ServiceState>{
         .route("/api/relay/autoscaling/", get(autoscaling::handle))
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/{*not_found}", any(statics::not_found))
+        .layer(axum::middleware::from_fn(middlewares::decompress))
 }
 
 /// Relay's public routes.
@@ -64,7 +65,10 @@ pub fn internal_routes(_: &ConfigSnapshot) -> Router<ServiceState>{
 /// Routes which are public API and must be exposed.
 pub fn public_routes(config: &ConfigSnapshot) -> Router<ServiceState> {
     // Exclude internal routes, they must be configured separately.
-    public_routes_raw(config).route("/api/relay/{*not_found}", any(statics::not_found))
+    public_routes_raw(config).route(
+        "/api/relay/{*not_found}",
+        any(statics::not_found).layer(axum::middleware::from_fn(middlewares::decompress)),
+    )
 }
 
 #[rustfmt::skip]
@@ -103,9 +107,7 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .route("/api/{project_id}/minidump/", minidump::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", attachments::route(config))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        .route("/api/{project_id}/upload/", upload::route_post(config))
-        .route(UPLOAD_PATCH_PATH, upload::route_patch(config))
-        .route(UPLOAD_PATCH_PATH, upload::route_head());
+        .route("/api/{project_id}/upload/", upload::route_post(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
@@ -130,4 +132,6 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .merge(integration_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)
+        .layer(axum::middleware::from_fn(middlewares::decompress))
+        .route(UPLOAD_PATCH_PATH, upload::route(config))
 }

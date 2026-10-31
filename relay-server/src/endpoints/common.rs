@@ -25,12 +25,12 @@ use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{
-    Create, CreateResult, ProjectContext, Stream, StreamResult, Upload, UploadMode,
+    Create, CreateResult, ProjectContext, Stream, StreamResult, StreamSource, Upload, UploadMode,
 };
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
-    self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
-    is_length_limit_error, rmp,
+    self, ApiErrorResponse, BoundedStream, FormDataIter, find_error_source, is_length_limit_error,
+    rmp,
 };
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -599,7 +599,6 @@ where
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
 {
     let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(stream.map_err(io::Error::other));
-    let stream = MeteredStream::new(stream, referrer);
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());
     let byte_counter = stream.byte_counter();
 
@@ -623,7 +622,9 @@ where
             received: Utc::now(),
             project,
             location,
-            stream,
+            stream: Box::pin(stream),
+            source: StreamSource::Multipart(referrer),
+            compression: None,
             mode: UploadMode::Oneshot { length: None },
         })
         .await

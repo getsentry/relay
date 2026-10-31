@@ -6,11 +6,12 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
+use async_compression::tokio::bufread::{BrotliEncoder, GzipEncoder, ZlibEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use futures::StreamExt;
+use futures::future::Either;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
 use relay_auth::Signature;
@@ -18,7 +19,9 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::{Config, ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
+#[cfg(feature = "processing")]
+use relay_config::ConfigSnapshot;
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, MessageHandler,
@@ -41,6 +44,8 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::RelayCounters;
+#[cfg(feature = "processing")]
+use crate::utils::DecompressionMetrics;
 use crate::utils::MeteredStream;
 use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 
@@ -218,8 +223,70 @@ pub struct Create {
     pub attachment_type: Option<AttachmentType>,
 }
 
+/// A non-identity HTTP compression codec.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpCompression {
+    /// Zlib-wrapped DEFLATE compression.
+    Deflate,
+    /// Gzip compression.
+    Gzip,
+    /// Brotli compression.
+    Br,
+    /// Zstandard compression.
+    Zstd,
+}
+
+impl HttpCompression {
+    /// Returns `None` for identity encoding.
+    pub fn from_encoding(encoding: HttpEncoding) -> Option<Self> {
+        match encoding {
+            HttpEncoding::Identity => None,
+            HttpEncoding::Deflate => Some(Self::Deflate),
+            HttpEncoding::Gzip => Some(Self::Gzip),
+            HttpEncoding::Br => Some(Self::Br),
+            HttpEncoding::Zstd => Some(Self::Zstd),
+        }
+    }
+
+    /// Returns the corresponding HTTP content encoding.
+    pub fn encoding(self) -> HttpEncoding {
+        match self {
+            Self::Deflate => HttpEncoding::Deflate,
+            Self::Gzip => HttpEncoding::Gzip,
+            Self::Br => HttpEncoding::Br,
+            Self::Zstd => HttpEncoding::Zstd,
+        }
+    }
+}
+
 /// The type used to stream a request body.
 pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
+
+/// An upload stream with byte-count bounds and latency metrics.
+pub type PassthroughBoundedMeteredStream = BoundedStream<MeteredStream<ByteStream>>;
+
+type EncodedByteStream = ByteStream;
+
+// Keep the passthrough stream inline; only the existing encoder path needs a boxed stream.
+type OutgoingStream = Either<EncodedByteStream, PassthroughBoundedMeteredStream>;
+
+/// Where an upload stream originated, including whether HTTP already metered decoding.
+#[derive(Clone, Copy)]
+pub enum StreamSource {
+    /// A TUS request body, with its original content encoding.
+    Tus,
+    /// A decoded multipart field, with its latency metric label.
+    Multipart(&'static str),
+}
+
+impl StreamSource {
+    fn referrer(self) -> &'static str {
+        match self {
+            Self::Tus => "upload",
+            Self::Multipart(referrer) => referrer,
+        }
+    }
+}
 
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
@@ -229,8 +296,12 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
-    /// The body to be uploaded to objectstore, with length validation.
-    pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    /// Incoming upload bytes; TUS bodies retain their content encoding.
+    pub stream: ByteStream,
+    /// The source of the stream, used for latency labels and decompression accounting.
+    pub source: StreamSource,
+    /// The incoming compression codec, or `None` for uncompressed bytes.
+    pub compression: Option<HttpCompression>,
     /// The upload mode to use, either Oneshot or Resumable.
     pub mode: UploadMode,
 }
@@ -372,12 +443,12 @@ pub fn create_service(
 ) -> ConcurrentService<Service> {
     let current_config = config.current();
     let backend = create_backend(
-        config,
         upstream,
         #[cfg(feature = "processing")]
         objectstore,
     );
     let service = Service {
+        config: Arc::clone(config),
         timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
     };
@@ -387,16 +458,12 @@ pub fn create_service(
 }
 
 fn create_backend(
-    #[allow(unused)] config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> Backend {
     #[cfg(feature = "processing")]
     if let Some(addr) = objectstore.as_ref() {
-        return Backend::Objectstore {
-            addr: addr.clone(),
-            config: config.clone(),
-        };
+        return Backend::Objectstore { addr: addr.clone() };
     }
     Backend::Upstream {
         addr: upstream.clone(),
@@ -408,6 +475,7 @@ fn create_backend(
 /// Uploads go to either the upstream relay or objectstore.
 #[derive(Debug, Clone)]
 pub struct Service {
+    config: Arc<Config>,
     timeout: Duration,
     backend: Backend,
 }
@@ -437,7 +505,6 @@ enum Backend {
     #[cfg(feature = "processing")]
     Objectstore {
         addr: Addr<Objectstore>,
-        config: Arc<Config>,
     },
 }
 
@@ -458,9 +525,9 @@ impl Service {
                 CreateResult::try_from_response(&response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::UploadRef;
-                let config = config.current();
+                let config = self.config.current();
 
                 // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
@@ -541,22 +608,56 @@ impl Service {
             project,
             location,
             stream,
+            source,
+            compression,
             mode,
         } = stream;
+        let referrer = source.referrer();
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) =
-                    UploadRequest::upload(project, location.try_to_uri()?, mode, stream);
+                let config = self.config.current();
+                let uri = location.try_to_uri()?;
+                // Compressing already-compressed or encrypted data can exceed the declared
+                // decoded length, so use max_upload_size as the wire-byte cap.
+                let stream = BoundedStream::new(
+                    MeteredStream::new(stream, referrer),
+                    0,
+                    config.max_upload_size(),
+                );
+                let (stream, encoding) = match compression {
+                    // Forward precompressed bytes unchanged.
+                    Some(codec) => (Either::Right(stream), codec.encoding()),
+                    None => {
+                        // Encode uncompressed bytes using the configured encoding.
+                        let encoding = config.http_encoding();
+                        (encode_body(stream, encoding), encoding)
+                    }
+                };
+                let (request, rx) = UploadRequest::upload(project, uri, mode, stream, encoding);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 StreamResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::{StreamContext, UploadRef};
                 use objectstore_client::SessionToken;
 
-                let config = config.current();
+                let config = self.config.current();
+                let stream = BoundedStream::new(stream, 0, config.max_upload_size());
+                let stream = decode_body(stream, compression, source);
+                let (lower_bound, upper_bound) = match mode {
+                    UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+                    UploadMode::Oneshot {
+                        length: Some(length),
+                    } => (length, length),
+                    UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
+                };
+                let stream = BoundedStream::new(
+                    MeteredStream::new(stream, referrer),
+                    lower_bound,
+                    upper_bound.min(config.max_upload_size()),
+                );
 
                 let Location {
                     project_id,
@@ -592,11 +693,7 @@ impl Service {
                     }
                 };
 
-                let UploadRef {
-                    key,
-                    session_token,
-                    offset,
-                } = addr
+                let result = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
@@ -604,8 +701,13 @@ impl Service {
                         retention: project.retention,
                         stream,
                     })
-                    .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                    .await;
+
+                let UploadRef {
+                    key,
+                    session_token,
+                    offset,
+                } = result.map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 // If the location contains a length, communicate that back as is. If it doesn't
                 // (because it is a oneshot upload) derive the length based on the offset (progress).
@@ -657,11 +759,11 @@ impl Service {
                 HeadResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
+            Backend::Objectstore { addr } => {
                 use crate::services::objectstore::HeadKind;
                 use objectstore_client::SessionToken;
 
-                let config = config.current();
+                let config = self.config.current();
 
                 // Note: Side effect of this is that only locations in the last hour can be used
                 // in the head request.
@@ -1061,7 +1163,7 @@ enum RequestKind {
     Upload {
         uri: String,
         mode: UploadMode,
-        stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        stream: TakeOnce<OutgoingStream>,
         encoding: HttpEncoding,
     },
     Head {
@@ -1104,7 +1206,8 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         mode: UploadMode,
-        stream: BoundedStream<MeteredStream<ByteStream>>,
+        stream: OutgoingStream,
+        encoding: HttpEncoding,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
@@ -1117,7 +1220,7 @@ impl UploadRequest {
                     uri,
                     mode,
                     stream: TakeOnce::new(stream),
-                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
+                    encoding,
                 },
                 sender,
             },
@@ -1229,9 +1332,7 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder, mode);
 
-                let body = encode_body(body, *encoding);
                 builder.content_encoding(*encoding);
-
                 builder.body(reqwest::Body::wrap_stream(body));
             }
             RequestKind::Head { .. } => tus::add_head_headers(builder),
@@ -1243,31 +1344,255 @@ impl UpstreamRequest for UploadRequest {
 
         Ok(())
     }
-
-    fn configure(&mut self, config: &ConfigSnapshot) {
-        if let RequestKind::Upload { encoding, .. } = &mut self.kind {
-            *encoding = config.http_encoding();
-        }
-    }
 }
 
-fn encode_body<S>(stream: S, encoding: HttpEncoding) -> ByteStream
-where
-    S: futures::Stream<Item = std::io::Result<Bytes>> + Send + 'static,
-{
+fn encode_body(stream: PassthroughBoundedMeteredStream, encoding: HttpEncoding) -> OutgoingStream {
+    let Some(compression) = HttpCompression::from_encoding(encoding) else {
+        return Either::Right(stream);
+    };
     let reader = BufReader::new(StreamReader::new(stream));
-    match encoding {
-        HttpEncoding::Identity => ReaderStream::new(reader).boxed(),
-        HttpEncoding::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
-        HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
-        HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
-        HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
+    Either::Left(match compression {
+        HttpCompression::Deflate => ReaderStream::new(ZlibEncoder::new(reader)).boxed(),
+        HttpCompression::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
+        HttpCompression::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
+        HttpCompression::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
+    })
+}
+
+#[cfg(feature = "processing")]
+fn decode_body(
+    stream: impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin + 'static,
+    compression: Option<HttpCompression>,
+    source: StreamSource,
+) -> ByteStream {
+    if matches!(source, StreamSource::Multipart(_)) {
+        return stream.boxed();
     }
+    use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
+
+    let content_encoding = compression
+        .and_then(|codec| codec.encoding().name())
+        .unwrap_or("other");
+    let metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
+    let stream = metrics.count_encoded(stream);
+    let decoded = match compression {
+        None => stream.boxed(),
+        Some(compression) => {
+            let reader = BufReader::new(StreamReader::new(stream));
+            match compression {
+                // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
+                HttpCompression::Deflate => ReaderStream::new(ZlibDecoder::new(reader)).boxed(),
+                HttpCompression::Gzip => ReaderStream::new(GzipDecoder::new(reader)).boxed(),
+                HttpCompression::Br => ReaderStream::new(BrotliDecoder::new(reader)).boxed(),
+                HttpCompression::Zstd => {
+                    let mut decoder = ZstdDecoder::new(reader);
+                    // Match Tower's support for concatenated zstd frames.
+                    decoder.multiple_members(true);
+                    ReaderStream::new(decoder).boxed()
+                }
+            }
+        }
+    };
+    metrics.count_decoded(decoded).boxed()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn decode_body_metrics_by_source() {
+        use futures::TryStreamExt;
+        use std::io::Write;
+
+        let data = Bytes::from_static(b"hello world");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&data).unwrap();
+        let compressed = Bytes::from(encoder.finish().unwrap());
+        let expected_ratio = data.len() as f64 / compressed.len() as f64;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        for (source, compression, input, ratio) in [
+            (
+                StreamSource::Tus,
+                Some(HttpCompression::Gzip),
+                compressed,
+                Some(expected_ratio),
+            ),
+            (StreamSource::Tus, None, data.clone(), Some(1.0)),
+            (
+                StreamSource::Multipart("attachment"),
+                None,
+                data.clone(),
+                None,
+            ),
+        ] {
+            let captures = relay_statsd::with_capturing_test_client(|| {
+                runtime.block_on(async {
+                    let stream = futures::stream::iter([Ok(input)]);
+                    let chunks: Vec<Bytes> = decode_body(stream, compression, source)
+                        .try_collect()
+                        .await
+                        .unwrap();
+                    assert_eq!(chunks.concat(), data);
+                });
+            });
+            let encoding = compression
+                .and_then(|codec| codec.encoding().name())
+                .unwrap_or("other");
+            let expected: Vec<_> = ratio.into_iter().map(|ratio| {
+                format!("requests.decompression_ratio:{ratio}|d|#route:{UPLOAD_PATCH_PATH},content_encoding:{encoding}")
+            }).collect();
+            assert_eq!(captures, expected);
+        }
+    }
+
+    fn project() -> ProjectContext {
+        ProjectContext {
+            scoping: Scoping {
+                organization_id: relay_base_schema::organization::OrganizationId::new(1),
+                project_id: relay_base_schema::project::ProjectId::new(42),
+                project_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap(),
+                key_id: None,
+            },
+            upstream: None,
+            retention: 90,
+            resumable: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn gzip_upload_encodes_body() {
+        use axum::body::{Body, to_bytes};
+        use std::io::Read;
+
+        let data = Bytes::from_static(b"hello world");
+        let length = data.len();
+        let stream: ByteStream = futures::stream::iter([Ok(data.clone())]).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), length, length);
+        let (mut upload, _rx) = UploadRequest::upload(
+            project(),
+            "/api/42/upload/key/".into(),
+            UploadMode::Oneshot {
+                length: Some(length),
+            },
+            encode_body(stream, HttpEncoding::Gzip),
+            HttpEncoding::Gzip,
+        );
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let mut builder =
+            RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
+        upload.build(&mut builder).unwrap();
+        let mut request = builder.finish().unwrap().0;
+        assert!(upload.retry());
+        assert_eq!(request.headers()[http::header::CONTENT_ENCODING], "gzip");
+        let bytes = to_bytes(Body::new(request.body_mut().take().unwrap()), 1024)
+            .await
+            .unwrap();
+        assert!(!upload.retry());
+        let mut decoded = Vec::new();
+        flate2::read::GzDecoder::new(bytes.as_ref())
+            .read_to_end(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded, data);
+    }
+
+    #[tokio::test]
+    async fn deflate_upload_uses_zlib_wrapper() {
+        use futures::TryStreamExt;
+        use std::io::Read;
+
+        let data = Bytes::from_static(b"hello world");
+        let stream: ByteStream = futures::stream::iter([Ok(data.clone())]).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 11, 11);
+        let chunks: Vec<Bytes> = encode_body(stream, HttpEncoding::Deflate)
+            .try_collect()
+            .await
+            .unwrap();
+        let encoded = chunks.concat();
+        let mut decoded = Vec::new();
+        flate2::read::ZlibDecoder::new(encoded.as_slice())
+            .read_to_end(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded, data);
+    }
+
+    #[tokio::test]
+    async fn identity_upload_preserves_chunks() {
+        use http_body_util::BodyExt;
+
+        let chunks = [Bytes::from_static(b"hello "), Bytes::from_static(b"world")];
+        let stream: ByteStream = futures::stream::iter(chunks.clone().map(Ok)).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 11, 11);
+        let (mut upload, _rx) = UploadRequest::upload(
+            project(),
+            "/api/42/upload/key/".into(),
+            UploadMode::Oneshot { length: Some(11) },
+            encode_body(stream, HttpEncoding::Identity),
+            HttpEncoding::Identity,
+        );
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let mut builder =
+            RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
+        upload.build(&mut builder).unwrap();
+        let mut request = builder.finish().unwrap().0;
+        assert!(
+            !request
+                .headers()
+                .contains_key(http::header::CONTENT_ENCODING)
+        );
+        assert!(upload.retry());
+        let mut body = request.body_mut().take().unwrap().into_data_stream();
+        for expected in chunks {
+            let actual = body.next().await.unwrap().unwrap();
+            assert_eq!(actual, expected);
+            // Preserve the original buffers as well as their chunk boundaries.
+            assert_eq!(actual.as_ptr(), expected.as_ptr());
+        }
+        assert!(body.next().await.is_none());
+        assert!(!upload.retry());
+    }
+
+    #[tokio::test]
+    async fn compressed_upload_preserves_body() {
+        use axum::body::{Body, to_bytes};
+
+        let data = b"hello world";
+        let compressed = Bytes::from(zstd::encode_all(data.as_slice(), 0).unwrap());
+        let stream: ByteStream = futures::stream::iter([Ok(compressed.clone())]).boxed();
+        let stream = BoundedStream::new(MeteredStream::new(stream, "upload"), 0, 1024);
+        let (mut upload, _rx) = UploadRequest::upload(
+            project(),
+            "/api/42/upload/key/".into(),
+            UploadMode::Resumable {
+                offset: 123,
+                chunk_length: data.len(),
+            },
+            Either::Right(stream),
+            HttpEncoding::Zstd,
+        );
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let mut builder =
+            RequestBuilder::reqwest(client.patch("http://localhost/api/42/upload/key/"));
+        upload.build(&mut builder).unwrap();
+        let mut request = builder.finish().unwrap().0;
+        assert_eq!(request.headers()[http::header::CONTENT_ENCODING], "zstd");
+        assert_eq!(
+            request.headers()[crate::constants::X_DECODED_CONTENT_LENGTH],
+            "11"
+        );
+        assert_eq!(request.headers()[tus::UPLOAD_OFFSET], "123");
+        assert!(!request.headers().contains_key(http::header::CONTENT_LENGTH));
+
+        assert!(upload.retry());
+        let bytes = to_bytes(Body::new(request.body_mut().take().unwrap()), 1024)
+            .await
+            .unwrap();
+        assert_eq!(bytes, compressed);
+        assert!(!upload.retry());
+    }
 
     #[cfg(feature = "processing")]
     mod with_processing {
