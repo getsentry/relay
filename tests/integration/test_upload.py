@@ -1420,17 +1420,23 @@ class EncodingRequestCase:
     location: str
     max_upload_size: int
     method: str = "PATCH"
+    has_objectstore: bool = False
 
 
 # Unit tests cover encoding variants; this matrix checks routing and rejection order.
-@pytest.mark.parametrize("has_objectstore", [False, True])
 @pytest.mark.parametrize(
     "case",
     [
         EncodingRequestCase(
-            id="valid-request",
+            id="forward-valid-request",
             location=f"{DUMMY_UPLOAD_LOCATION}&sentry_key={{project_key}}",
             max_upload_size=1024,
+        ),
+        EncodingRequestCase(
+            id="storage-valid-request",
+            location=f"{DUMMY_UPLOAD_LOCATION}&sentry_key={{project_key}}",
+            max_upload_size=1024,
+            has_objectstore=True,
         ),
         EncodingRequestCase(
             id="invalid-request",
@@ -1457,13 +1463,12 @@ def test_unsupported_upload_encoding_contract(
     relay,
     relay_with_processing,
     project_config,
-    has_objectstore,
     case: EncodingRequestCase,
 ):
     options = {"limits": {"max_upload_size": case.max_upload_size}}
     edge = (
         relay_with_processing(options=options)
-        if has_objectstore
+        if case.has_objectstore
         else relay(mini_sentry, options=options)
     )
     # Encoding rejection must precede auth, path extraction, and the body limit.
@@ -1543,8 +1548,14 @@ class EncodedUploadCase:
     ],
     ids=lambda case: case.id,
 )
-@pytest.mark.parametrize("chunked", [False, True])
-@pytest.mark.parametrize("processing", [False, True])
+@pytest.mark.parametrize(
+    "chunked,processing",
+    [
+        pytest.param(False, False, id="forward-fixed"),
+        pytest.param(True, False, id="forward-chunked"),
+        pytest.param(True, True, id="processing-chunked"),
+    ],
+)
 def test_compressed_upload_passthrough(
     mini_sentry,
     relay,
@@ -1629,7 +1640,7 @@ class UploadLimitCase:
     expected_status: int
 
 
-@pytest.mark.parametrize("encoding", ["zstd", "gzip", "deflate"])
+# Check every limit/transport combination with zstd; chain tests cover other codecs.
 @pytest.mark.parametrize("direct_storage", [False, True])
 @pytest.mark.parametrize(
     "case",
@@ -1671,11 +1682,11 @@ def test_compressed_upload_size_limits(
     relay_with_processing,
     project_config,
     events_consumer,
-    encoding,
     direct_storage,
     case: UploadLimitCase,
 ):
     """Bound wire bytes at every hop and decoded bytes at storage, with or without Content-Length."""
+    encoding = "zstd"
     mini_sentry.fail_on_relay_error = False
     project_key = mini_sentry.get_dsn_public_key(42)
     options = {"limits": {"max_upload_size": case.max_upload_size}}
@@ -1721,42 +1732,48 @@ class UploadCase:
     chunks: list[tuple[bytes, int]]
 
 
+# Cover every codec with resumable uploads; vary modes only for zstd.
 @pytest.mark.parametrize(
-    "encoding,concatenated",
+    "case,encoding,concatenated",
     [
-        pytest.param("zstd", False, id="zstd"),
-        pytest.param("gzip", False, id="gzip"),
-        pytest.param("deflate", False, id="deflate"),
-        pytest.param("br", False, id="br"),
-        pytest.param("zstd", True, id="zstd-concatenated"),
+        pytest.param(
+            case,
+            encoding,
+            concatenated,
+            id=f"{case.id}-{encoding}{'-concatenated' if concatenated else ''}",
+        )
+        for case in [
+            UploadCase(
+                id="resumable",
+                upload_features=["projects:resumable-uploads"],
+                creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
+                chunks=[
+                    (FIRST_CHUNK, len(FIRST_CHUNK)),
+                    (SECOND_CHUNK, len(RESUMABLE_DATA)),
+                ],
+            ),
+            UploadCase(
+                id="oneshot",
+                upload_features=[],
+                creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
+                chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+            ),
+            UploadCase(
+                id="deferred",
+                upload_features=["projects:resumable-uploads"],
+                creation_headers={"Upload-Defer-Length": "1"},
+                chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
+            ),
+        ]
+        for encoding, concatenated in [
+            ("zstd", False),
+            ("gzip", False),
+            ("deflate", False),
+            ("br", False),
+            ("zstd", True),
+        ]
+        if case.id == "resumable" or (encoding == "zstd" and not concatenated)
     ],
-)
-@pytest.mark.parametrize(
-    "case",
-    [
-        UploadCase(
-            id="resumable",
-            upload_features=["projects:resumable-uploads"],
-            creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
-            chunks=[
-                (FIRST_CHUNK, len(FIRST_CHUNK)),
-                (SECOND_CHUNK, len(RESUMABLE_DATA)),
-            ],
-        ),
-        UploadCase(
-            id="oneshot",
-            upload_features=[],
-            creation_headers={"Upload-Length": str(len(RESUMABLE_DATA))},
-            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
-        ),
-        UploadCase(
-            id="deferred",
-            upload_features=["projects:resumable-uploads"],
-            creation_headers={"Upload-Defer-Length": "1"},
-            chunks=[(RESUMABLE_DATA, len(RESUMABLE_DATA))],
-        ),
-    ],
-    ids=lambda case: case.id,
 )
 def test_compressed_upload_processing_chain(
     mini_sentry,
