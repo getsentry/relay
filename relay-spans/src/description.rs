@@ -28,5 +28,5 @@ pub fn derive_description_for_v2_span(
 
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
 
-    description_for_op_and_attributes(op, |name| attributes.get_value(name))
+    description_for_op_and_attributes(op, |name| attributes.get_value_with_deprecations(name))
 }

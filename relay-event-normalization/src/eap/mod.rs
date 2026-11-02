@@ -1049,6 +1049,67 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn alias_based_name_and_description_inference_preserves_explicit_values() {
+        for explicit in [false, true] {
+            let mut attributes = Attributes::new();
+            attributes.insert(SENTRY__OP, "function");
+            attributes.insert("django.function_name", "inferred handler");
+            if explicit {
+                attributes.insert(SENTRY__DESCRIPTION, "explicit description");
+            }
+            let mut span = SpanV2 {
+                name: if explicit {
+                    Annotated::new("explicit name".to_owned())
+                } else {
+                    Annotated::empty()
+                },
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            };
+            normalize_span_name(&mut span);
+            normalize_sentry_description(&mut span.attributes, &span.name);
+            assert_eq!(
+                span.name.as_str(),
+                Some(if explicit {
+                    "explicit name"
+                } else {
+                    "inferred handler"
+                })
+            );
+            let attributes = span.attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__DESCRIPTION)
+                    .and_then(Value::as_str),
+                Some(if explicit {
+                    "explicit description"
+                } else {
+                    "inferred handler"
+                })
+            );
+            assert!(!attributes.contains_key("code.function.name"));
+            let normalized = span.clone();
+            normalize_span_name(&mut span);
+            normalize_sentry_description(&mut span.attributes, &span.name);
+            assert_eq!(span, normalized);
+        }
+        let mut attributes = enrichment_attributes(&[
+            (SENTRY__OP, "function"),
+            (SENTRY__ORIGIN, "manual"),
+            ("django.function_name", "inferred handler"),
+        ]);
+        normalize_sentry_description(&mut attributes, &Annotated::new("manual name".to_owned()));
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value(SENTRY__DESCRIPTION)
+                .and_then(Value::as_str),
+            Some("manual name")
+        );
+    }
+
     fn mock_dsc(transaction: Option<&str>) -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),

@@ -655,19 +655,23 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
         && let Some(data) = trace_context.data.value()
     {
         tags.messaging_destination_name = data
-            .get_str(MESSAGING__DESTINATION__NAME)
+            .get_value_with_deprecations(MESSAGING__DESTINATION__NAME)
+            .and_then(Value::as_str)
             .map(str::to_owned)
             .into();
         tags.messaging_message_id = data
-            .get_str(MESSAGING__MESSAGE__ID)
+            .get_value_with_deprecations(MESSAGING__MESSAGE__ID)
+            .and_then(Value::as_str)
             .map(str::to_owned)
             .into();
         tags.messaging_operation_name = data
-            .get_str(MESSAGING__OPERATION__NAME)
+            .get_value_with_deprecations(MESSAGING__OPERATION__NAME)
+            .and_then(Value::as_str)
             .map(str::to_owned)
             .into();
         tags.messaging_operation_type = data
-            .get_str(MESSAGING__OPERATION__TYPE)
+            .get_value_with_deprecations(MESSAGING__OPERATION__TYPE)
+            .and_then(Value::as_str)
             .map(str::to_owned)
             .into();
     }
@@ -963,28 +967,32 @@ pub fn extract_tags(
             if let Some(destination) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(MESSAGING__DESTINATION__NAME))
+                .and_then(|data| data.get_value_with_deprecations(MESSAGING__DESTINATION__NAME))
+                .and_then(Value::as_str)
             {
                 span_tags.messaging_destination_name = destination.to_owned().into();
             }
             if let Some(message_id) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(MESSAGING__MESSAGE__ID))
+                .and_then(|data| data.get_value_with_deprecations(MESSAGING__MESSAGE__ID))
+                .and_then(Value::as_str)
             {
                 span_tags.messaging_message_id = message_id.to_owned().into();
             }
             if let Some(operation_name) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(MESSAGING__OPERATION__NAME))
+                .and_then(|data| data.get_value_with_deprecations(MESSAGING__OPERATION__NAME))
+                .and_then(Value::as_str)
             {
                 span_tags.messaging_operation_name = operation_name.to_owned().into();
             }
             if let Some(operation_type) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(MESSAGING__OPERATION__TYPE))
+                .and_then(|data| data.get_value_with_deprecations(MESSAGING__OPERATION__TYPE))
+                .and_then(Value::as_str)
             {
                 span_tags.messaging_operation_type = operation_type.to_owned().into();
             }
@@ -2603,6 +2611,88 @@ LIMIT 1
                     extract_measurements(&mut span, true);
                     assert_eq!(span, normalized);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn queue_tags_resolve_aliases_in_span_data_and_trace_context() {
+        for op in ["queue.publish", "queue.process", "http.client"] {
+            for current in [false, true] {
+                let mut data = serde_json::json!({
+                    "messaging.destination": "alias queue",
+                    "messaging.message_id": "alias id",
+                    "messaging.operation": "alias operation",
+                    "messaging.operation.type": "send"
+                });
+                if current {
+                    data[MESSAGING__DESTINATION__NAME] = serde_json::json!("current queue");
+                    data[MESSAGING__MESSAGE__ID] = serde_json::json!("current id");
+                    data[MESSAGING__OPERATION__NAME] = serde_json::json!("current operation");
+                }
+                let span = Annotated::<Span>::from_json(
+                    &serde_json::json!({"op": op, "data": data}).to_string(),
+                )
+                .unwrap()
+                .into_value()
+                .unwrap();
+                let event = Annotated::<Event>::from_json(
+                    &serde_json::json!({"contexts": {"trace": {"op": op, "data": data}}})
+                        .to_string(),
+                )
+                .unwrap()
+                .into_value()
+                .unwrap();
+                let original_span = span.clone();
+                let original_event = event.clone();
+                let tags = extract_tags(
+                    &span,
+                    200,
+                    None,
+                    None,
+                    false,
+                    None,
+                    &[],
+                    &GeoIpLookup::empty(),
+                );
+                let segment_tags = extract_segment_tags(&event);
+                let expected = if op == "http.client" {
+                    [None; 4]
+                } else if current {
+                    [
+                        Some("current queue"),
+                        Some("current id"),
+                        Some("current operation"),
+                        Some("send"),
+                    ]
+                } else {
+                    [
+                        Some("alias queue"),
+                        Some("alias id"),
+                        Some("alias operation"),
+                        Some("send"),
+                    ]
+                };
+                assert_eq!(
+                    [
+                        tags.messaging_destination_name.as_str(),
+                        tags.messaging_message_id.as_str(),
+                        tags.messaging_operation_name.as_str(),
+                        tags.messaging_operation_type.as_str(),
+                    ],
+                    expected
+                );
+                assert_eq!(
+                    [
+                        segment_tags.messaging_destination_name.as_str(),
+                        segment_tags.messaging_message_id.as_str(),
+                        segment_tags.messaging_operation_name.as_str(),
+                        segment_tags.messaging_operation_type.as_str(),
+                    ],
+                    expected
+                );
+                assert_eq!(span, original_span);
+                assert_eq!(event, original_event);
             }
         }
     }
