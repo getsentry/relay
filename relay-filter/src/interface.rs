@@ -171,19 +171,32 @@ impl Filterable for Replay {
 
 impl Filterable for Span {
     fn ip_addr(&self) -> Option<&str> {
-        self.data.value()?.get_str(CLIENT__ADDRESS)
+        self.data
+            .value()?
+            .get_value_with_deprecations(CLIENT__ADDRESS)?
+            .as_str()
     }
 
     fn release(&self) -> Option<&str> {
-        self.data.value()?.get_str(SENTRY__RELEASE)
+        self.data
+            .value()?
+            .get_value_with_deprecations(SENTRY__RELEASE)?
+            .as_str()
     }
 
     fn transaction(&self) -> Option<&str> {
-        self.data.value()?.get_str(SENTRY__SEGMENT__NAME)
+        self.data
+            .value()?
+            .get_value_with_deprecations(SENTRY__SEGMENT__NAME)?
+            .as_str()
     }
 
     fn url(&self) -> Option<Url> {
-        let url_str = self.data.value()?.get_str(URL__FULL)?;
+        let url_str = self
+            .data
+            .value()?
+            .get_value_with_deprecations(URL__FULL)?
+            .as_str()?;
         Url::parse(url_str).ok()
     }
 
@@ -191,7 +204,8 @@ impl Filterable for Span {
         let raw = self
             .data
             .value()
-            .and_then(|data| data.get_str(USER_AGENT__ORIGINAL));
+            .and_then(|data| data.get_value_with_deprecations(USER_AGENT__ORIGINAL))
+            .and_then(|value| value.as_str());
         UserAgent { raw, parsed: None }
     }
 }
