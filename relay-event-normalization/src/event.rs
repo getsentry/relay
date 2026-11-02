@@ -903,12 +903,12 @@ impl MeasurementsLike for Measurements {
 
 impl MeasurementsLike for Attributes {
     fn contains_measurement(&self, key: &str) -> bool {
-        self.0
-            .contains_key(relay_conventions::canonical(key).unwrap_or(key))
+        self.contains_key_with_deprecations(relay_conventions::canonical(key).unwrap_or(key))
     }
 
     fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
-        let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
+        let value =
+            self.get_value_with_deprecations(relay_conventions::canonical(key).unwrap_or(key))?;
         match value {
             Value::F64(v) => FiniteF64::new(*v),
             Value::U64(v) => FiniteF64::new(*v as f64),
@@ -1075,14 +1075,16 @@ fn normalize_trace_context_tags(event: &mut Event) {
         && let Some(trace_context) = contexts.get::<TraceContext>()
         && let Some(data) = trace_context.data.value()
     {
-        if let Some(lcp_element) = data.get_str(BROWSER__WEB_VITAL__LCP__ELEMENT)
+        if let Some(lcp_element) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__ELEMENT)
+            .and_then(Value::as_str)
             && !tags.contains("lcp.element")
         {
             let tag_name = "lcp.element".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_element.to_owned()));
         }
         if let Some(lcp_size) = data
-            .get_value(BROWSER__WEB_VITAL__LCP__SIZE)
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__SIZE)
             .and_then(|value| match value {
                 Value::U64(value) => Some(*value),
                 Value::I64(value) => u64::try_from(*value).ok(),
@@ -1093,13 +1095,19 @@ fn normalize_trace_context_tags(event: &mut Event) {
             let tag_name = "lcp.size".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
         }
-        if let Some(lcp_id) = data.get_str(BROWSER__WEB_VITAL__LCP__ID) {
+        if let Some(lcp_id) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__ID)
+            .and_then(Value::as_str)
+        {
             let tag_name = "lcp.id".to_owned();
             if !tags.contains("lcp.id") {
                 tags.insert(tag_name, Annotated::new(lcp_id.to_owned()));
             }
         }
-        if let Some(lcp_url) = data.get_str(BROWSER__WEB_VITAL__LCP__URL) {
+        if let Some(lcp_url) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__URL)
+            .and_then(Value::as_str)
+        {
             let tag_name = "lcp.url".to_owned();
             if !tags.contains("lcp.url") {
                 tags.insert(tag_name, Annotated::new(lcp_url.to_owned()));
@@ -3759,6 +3767,114 @@ mod tests {
         "###);
     }
 
+    #[test]
+    fn performance_scores_resolve_required_and_optional_vital_aliases() {
+        for canonical_config in [false, true] {
+            let fcp = if canonical_config {
+                "browser.web_vital.fcp.value"
+            } else {
+                "fcp"
+            };
+            let lcp = if canonical_config {
+                "browser.web_vital.lcp.value"
+            } else {
+                "lcp"
+            };
+            let config: PerformanceScoreConfig = serde_json::from_value(json!({
+                "profiles": [{
+                    "name": "test",
+                    "version": "test-version",
+                    "condition": {"op": "and", "inner": []},
+                    "scoreComponents": [
+                        {"measurement": fcp, "weight": 1.0, "p10": 900, "p50": 1600},
+                        {"measurement": lcp, "weight": 1.0, "p10": 1200, "p50": 2400, "optional": true},
+                        {"measurement": "cls", "weight": 1.0, "p10": 0.1, "p50": 0.25, "optional": true}
+                    ]
+                }]
+            })).unwrap();
+            let mut canonical_attributes = Attributes::new();
+            canonical_attributes.insert("browser.web_vital.fcp.value", 1237.0);
+            canonical_attributes.insert("browser.web_vital.lcp.value", 6596.0);
+            let mut expected = SpanV2 {
+                attributes: Annotated::new(canonical_attributes),
+                ..Default::default()
+            };
+            assert_eq!(
+                normalize_performance_score(&mut expected, Some(&config)).as_deref(),
+                Some("test-version")
+            );
+            for mixed in [false, true] {
+                let mut attributes = Attributes::new();
+                for (current, alias, value) in [
+                    ("browser.web_vital.fcp.value", "fcp", 1237.0),
+                    ("browser.web_vital.lcp.value", "lcp", 6596.0),
+                ] {
+                    attributes.insert(alias, if mixed { 1.0 } else { value });
+                    if mixed {
+                        attributes.insert(current, value);
+                    }
+                }
+                let original = attributes.clone();
+                let mut span = SpanV2 {
+                    attributes: Annotated::new(attributes),
+                    ..Default::default()
+                };
+                assert_eq!(
+                    normalize_performance_score(&mut span, Some(&config)).as_deref(),
+                    Some("test-version")
+                );
+                let result = span.attributes.value().unwrap();
+                for (key, value) in &expected.attributes.value().unwrap().0 {
+                    if key.starts_with("score.") {
+                        assert_eq!(result.0.get(key), Some(value), "{key}");
+                    }
+                }
+                for (key, value) in &original.0 {
+                    assert_eq!(result.0.get(key), Some(value));
+                }
+                assert_eq!(result.contains_key("browser.web_vital.lcp.value"), mixed);
+                assert_eq!(
+                    result
+                        .get_value(&format!("score.weight.{lcp}"))
+                        .and_then(Value::as_f64),
+                    Some(0.5)
+                );
+                assert_eq!(
+                    result.get_value("score.weight.cls").and_then(Value::as_f64),
+                    Some(0.0)
+                );
+                let normalized = span.clone();
+                normalize_performance_score(&mut span, Some(&config));
+                assert_eq!(span, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn performance_measurement_access_resolves_all_vital_aliases() {
+        for alias in ["lcp", "cls", "inp", "fcp", "ttfb"] {
+            let current = format!("browser.web_vital.{alias}.value");
+            let mut attributes = Attributes::new();
+            attributes.insert(alias, 100_i64);
+            for key in [alias, current.as_str()] {
+                assert!(attributes.contains_measurement(key));
+                assert_eq!(
+                    attributes.get_measurement_value(key).map(FiniteF64::to_f64),
+                    Some(100.0)
+                );
+            }
+            attributes.insert(current.as_str(), 200.0);
+            assert_eq!(
+                attributes
+                    .get_measurement_value(alias)
+                    .map(FiniteF64::to_f64),
+                Some(200.0)
+            );
+            attributes.insert(current.as_str(), "invalid current value");
+            assert_eq!(attributes.get_measurement_value(alias), None);
+        }
+    }
+
     /// A version of `test_computed_performance_score_transaction` for
     /// V2 spans. Results are _mutatis mutandis_ the same.
     ///
@@ -6112,6 +6228,62 @@ mod tests {
             },
         );
         assert!(get_value!(event.spans[0].exclusive_time).is_some());
+    }
+
+    #[test]
+    fn trace_context_lcp_tags_resolve_aliases_without_overwriting_existing_tags() {
+        for current in [false, true] {
+            for existing_tags in [false, true] {
+                let mut data = json!({
+                    "lcp.element": "alias element",
+                    "lcp.size": 123,
+                    "lcp.id": "alias id",
+                    "lcp.url": "https://example.com/alias.png"
+                });
+                if current {
+                    data["browser.web_vital.lcp.element"] = json!("current element");
+                    data["browser.web_vital.lcp.size"] = json!(456);
+                    data["browser.web_vital.lcp.id"] = json!("current id");
+                    data["browser.web_vital.lcp.url"] = json!("https://example.com/current.png");
+                }
+                let mut json = json!({"contexts": {"trace": {"data": data}}});
+                if existing_tags {
+                    json["tags"] = json!({"lcp.element": "existing", "lcp.size": "existing", "lcp.id": "existing", "lcp.url": "existing"});
+                }
+                let mut event = Annotated::<Event>::from_json(&json.to_string())
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                let original_contexts = event.contexts.clone();
+                normalize_trace_context_tags(&mut event);
+                let tags = event.tags.value().unwrap();
+                for (key, alias_value, current_value) in [
+                    ("lcp.element", "alias element", "current element"),
+                    ("lcp.size", "123", "456"),
+                    ("lcp.id", "alias id", "current id"),
+                    (
+                        "lcp.url",
+                        "https://example.com/alias.png",
+                        "https://example.com/current.png",
+                    ),
+                ] {
+                    assert_eq!(
+                        tags.get(key),
+                        Some(if existing_tags {
+                            "existing"
+                        } else if current {
+                            current_value
+                        } else {
+                            alias_value
+                        })
+                    );
+                }
+                assert_eq!(event.contexts, original_contexts);
+                let normalized = event.clone();
+                normalize_trace_context_tags(&mut event);
+                assert_eq!(event, normalized);
+            }
+        }
     }
 
     #[test]

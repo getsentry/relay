@@ -18,12 +18,6 @@ use std::collections::BTreeMap;
 
 const MAX_CLS_SOURCES: u32 = 128;
 
-#[allow(
-    deprecated,
-    reason = "Spans converted from a transaction carry the browser name as a legacy span tag."
-)]
-const LEGACY_BROWSER_NAME: &str = relay_conventions::attributes::SENTRY__BROWSER__NAME;
-
 const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "pageload",
     "ui.webvital.lcp",
@@ -125,7 +119,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
     let mut results = vec![];
 
     for web_vital in &WEB_VITAL_LOOKUPS {
-        let Some(value) = attrs.get_value(web_vital.attribute_value) else {
+        let Some(value) = attrs.get_value_with_deprecations(web_vital.attribute_value) else {
             continue;
         };
 
@@ -141,7 +135,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         if web_vital.attribute_value == BROWSER__WEB_VITAL__CLS__VALUE {
             for i in 1..MAX_CLS_SOURCES {
                 let attr_key = browser__web_vital__cls__source__key(i.to_string());
-                match attrs.get_attribute(&attr_key) {
+                match attrs.get_attribute_with_deprecations(&attr_key) {
                     Some(v) => attributes.insert(attr_key, v.value.clone()),
                     None => break,
                 }
@@ -149,21 +143,15 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         }
 
         for attr_key in web_vital.attribute_keys {
-            if let Some(v) = attrs.get_attribute(*attr_key) {
+            if let Some(v) = attrs.get_attribute_with_deprecations(attr_key) {
                 attributes.insert(*attr_key, v.value.clone());
             }
         }
 
         for attr_key in COMMON_ATTRIBUTES {
-            if let Some(v) = attrs.get_attribute(attr_key) {
+            if let Some(v) = attrs.get_attribute_with_deprecations(attr_key) {
                 attributes.insert(attr_key, v.value.clone());
             }
-        }
-
-        if !attributes.contains_key(BROWSER__NAME)
-            && let Some(v) = attrs.get_attribute(LEGACY_BROWSER_NAME)
-        {
-            attributes.insert(BROWSER__NAME, v.value.clone());
         }
 
         // This is for attribution: we'll be able to tell on a metric if it came from relay.
@@ -193,10 +181,174 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Span as SpanV1;
-    use relay_protocol::{Annotated, SerializableAnnotated};
+    use relay_event_schema::protocol::{Attribute, Span as SpanV1};
+    use relay_protocol::{Annotated, Remark, RemarkType, SerializableAnnotated};
 
     use super::*;
+
+    fn vital_span(mut attributes: Attributes) -> SpanV2 {
+        attributes.insert("sentry.op", "pageload");
+        SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn vital_values_resolve_aliases_with_current_name_precedence() {
+        for (vital, alias) in WEB_VITAL_LOOKUPS
+            .iter()
+            .zip(["lcp", "cls", "inp", "fcp", "ttfb"])
+        {
+            for current in [None, Some(200.0)] {
+                let mut attributes = Attributes::new();
+                attributes.insert(alias, 100.0);
+                if let Some(current) = current {
+                    attributes.insert(vital.attribute_value, current);
+                }
+                let span = vital_span(attributes);
+                let original = span.clone();
+                let metrics = extract_web_vital_metrics(&span).unwrap();
+                assert_eq!(metrics.len(), 1);
+                assert_eq!(metrics[0].name.as_str(), Some(vital.name));
+                assert_eq!(metrics[0].unit.value(), Some(&vital.unit));
+                assert_eq!(
+                    metrics[0].value.value().and_then(Value::as_f64),
+                    Some(current.unwrap_or(100.0))
+                );
+                assert_eq!(span, original);
+            }
+            let mut attributes = Attributes::new();
+            attributes.insert(alias, 100.0);
+            attributes.insert(vital.attribute_value, "invalid current value");
+            assert!(extract_web_vital_metrics(&vital_span(attributes)).is_none());
+        }
+    }
+
+    #[test]
+    fn vital_dimensions_resolve_aliases_and_preserve_value_metadata() {
+        let dimensions: [(&str, &str, Attribute); 15] = [
+            (
+                BROWSER__WEB_VITAL__LCP__ELEMENT,
+                "lcp.element",
+                "body > img".into(),
+            ),
+            (BROWSER__WEB_VITAL__LCP__ID, "lcp.id", "hero".into()),
+            (
+                BROWSER__WEB_VITAL__LCP__URL,
+                "lcp.url",
+                "https://example.com/hero.png".into(),
+            ),
+            (BROWSER__WEB_VITAL__LCP__SIZE, "lcp.size", 123_i64.into()),
+            (
+                BROWSER__WEB_VITAL__LCP__LOAD_TIME,
+                "lcp.loadTime",
+                100.0.into(),
+            ),
+            (
+                BROWSER__WEB_VITAL__LCP__RENDER_TIME,
+                "lcp.renderTime",
+                200.0.into(),
+            ),
+            (
+                BROWSER__WEB_VITAL__TTFB__REQUEST_TIME,
+                "ttfb.requestTime",
+                50.0.into(),
+            ),
+            (SENTRY__RELEASE, "release", "1.0".into()),
+            (SENTRY__ENVIRONMENT, "environment", "production".into()),
+            (SENTRY__SEGMENT__NAME, "transaction", "/home".into()),
+            (SENTRY__SEGMENT__NAME, "sentry.transaction", "/home".into()),
+            (USER_AGENT__ORIGINAL, "http.user_agent", "user agent".into()),
+            (BROWSER__NAME, "sentry.browser.name", "Safari".into()),
+            (BROWSER__VERSION, "sentry.browser.version", "18.0".into()),
+            (
+                "browser.web_vital.cls.source.1",
+                "cls.source.1",
+                "body > div".into(),
+            ),
+        ];
+        for (current, alias, value) in dimensions {
+            for with_current in [false, true] {
+                let mut attributes = Attributes::new();
+                for vital in &WEB_VITAL_LOOKUPS {
+                    attributes.insert(vital.attribute_value, 100.0);
+                }
+                attributes
+                    .0
+                    .insert(alias.to_owned(), Annotated::new(value.clone()));
+                attributes
+                    .get_annotated_value_mut(alias)
+                    .unwrap()
+                    .meta_mut()
+                    .add_remark(Remark::new(RemarkType::Substituted, "test"));
+                if with_current {
+                    attributes.insert(current, "current value");
+                }
+                let expected = attributes
+                    .get_attribute(if with_current { current } else { alias })
+                    .unwrap()
+                    .value
+                    .clone();
+                let span = vital_span(attributes);
+                let original = span.clone();
+                let metrics = extract_web_vital_metrics(&span).unwrap();
+                let metric = if current.starts_with("browser.web_vital.") {
+                    metrics
+                        .iter()
+                        .find(|metric| current.starts_with(metric.name.as_str().unwrap()))
+                        .unwrap()
+                } else {
+                    &metrics[0]
+                };
+                let attributes = metric.attributes.value().unwrap();
+                assert_eq!(
+                    attributes
+                        .get_attribute(current)
+                        .map(|attribute| &attribute.value),
+                    Some(&expected),
+                    "{alias}"
+                );
+                assert!(!attributes.contains_key(alias));
+                assert_eq!(span, original);
+            }
+        }
+    }
+
+    #[test]
+    fn cls_sources_resolve_mixed_names_and_stop_at_first_gap() {
+        let mut attributes = Attributes::new();
+        attributes.insert("cls", 0.1);
+        attributes.insert("cls.source.1", "first");
+        attributes.insert("browser.web_vital.cls.source.2", "second");
+        attributes.insert("cls.source.2", "ignored");
+        attributes.insert("cls.source.3", "third");
+        attributes.insert("cls.source.5", "after gap");
+        let metrics = extract_web_vital_metrics(&vital_span(attributes)).unwrap();
+        let attributes = metrics[0].attributes.value().unwrap();
+        for (i, value) in [(1, "first"), (2, "second"), (3, "third")] {
+            let key = browser__web_vital__cls__source__key(i.to_string());
+            assert_eq!(
+                attributes.get_value(&key).and_then(Value::as_str),
+                Some(value)
+            );
+        }
+        assert!(!attributes.contains_key("browser.web_vital.cls.source.5"));
+        assert!(!attributes.contains_key("cls.source.1"));
+    }
+
+    #[test]
+    fn cls_alias_sources_keep_existing_limit() {
+        let mut attributes = Attributes::new();
+        attributes.insert("cls", 0.1);
+        for i in 1..=MAX_CLS_SOURCES {
+            attributes.insert(format!("cls.source.{i}"), "source");
+        }
+        let metrics = extract_web_vital_metrics(&vital_span(attributes)).unwrap();
+        let attributes = metrics[0].attributes.value().unwrap();
+        assert!(attributes.contains_key("browser.web_vital.cls.source.127"));
+        assert!(!attributes.contains_key("browser.web_vital.cls.source.128"));
+    }
 
     #[test]
     fn test_browser_name_legacy_span() {
