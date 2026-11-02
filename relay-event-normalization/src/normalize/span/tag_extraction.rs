@@ -1118,7 +1118,8 @@ pub fn extract_tags(
         if let Some(span_data_start_type) = span
             .data
             .value()
-            .and_then(|data| data.get_str(APP__VITALS__START__TYPE))
+            .and_then(|data| data.get_value_with_deprecations(APP__VITALS__START__TYPE))
+            .and_then(Value::as_str)
         {
             span_tags.app_start_type = span_data_start_type.to_owned().into();
         } else if let Some(start_type) = start_type {
@@ -1265,16 +1266,28 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if is_mobile && let Some(data) = span.data.value() {
         for (attribute, key, unit) in [
-            ("sentry.frames.frozen", "frames.frozen", MetricUnit::None),
-            ("sentry.frames.slow", "frames.slow", MetricUnit::None),
-            ("sentry.frames.total", "frames.total", MetricUnit::None),
+            (
+                APP__VITALS__FRAMES__FROZEN__COUNT,
+                "frames.frozen",
+                MetricUnit::None,
+            ),
+            (
+                APP__VITALS__FRAMES__SLOW__COUNT,
+                "frames.slow",
+                MetricUnit::None,
+            ),
+            (
+                APP__VITALS__FRAMES__TOTAL__COUNT,
+                "frames.total",
+                MetricUnit::None,
+            ),
             (
                 APP__VITALS__FRAMES__DELAY__VALUE,
                 "frames.delay",
                 MetricUnit::Duration(DurationUnit::Second),
             ),
         ] {
-            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
+            if let Some(value) = value_to_finite_f64(data.get_value_with_deprecations(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -2483,6 +2496,114 @@ LIMIT 1
             Some("GET http://*.application.co.uk")
         );
         assert_eq!(tags_3.domain.as_str(), Some("*.application.co.uk"));
+    }
+
+    #[test]
+    fn mobile_app_start_type_alias_precedes_event_fallback() {
+        for current in [None, Some("current type")] {
+            let mut data = SpanData::default();
+            data.insert_value("app_start_type", "alias type".to_owned());
+            if let Some(current) = current {
+                data.insert_value(APP__VITALS__START__TYPE, current.to_owned());
+            }
+            let span = Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            };
+            let original = span.clone();
+            let tags = extract_tags(
+                &span,
+                200,
+                None,
+                None,
+                true,
+                Some("event type"),
+                &[],
+                &GeoIpLookup::empty(),
+            );
+            assert_eq!(
+                tags.app_start_type.as_str(),
+                Some(current.unwrap_or("alias type"))
+            );
+            let tags = extract_tags(
+                &span,
+                200,
+                None,
+                None,
+                false,
+                Some("event type"),
+                &[],
+                &GeoIpLookup::empty(),
+            );
+            assert_eq!(tags.app_start_type.as_str(), None);
+            assert_eq!(span, original);
+        }
+    }
+
+    #[test]
+    fn mobile_frame_measurements_resolve_aliases_with_current_name_precedence() {
+        for (current, aliases, measurement, unit) in [
+            (
+                APP__VITALS__FRAMES__TOTAL__COUNT,
+                &["frames.total", "sentry.frames.total"][..],
+                "frames.total",
+                MetricUnit::None,
+            ),
+            (
+                APP__VITALS__FRAMES__SLOW__COUNT,
+                &["frames.slow", "sentry.frames.slow"][..],
+                "frames.slow",
+                MetricUnit::None,
+            ),
+            (
+                APP__VITALS__FRAMES__FROZEN__COUNT,
+                &["frames.frozen", "sentry.frames.frozen"][..],
+                "frames.frozen",
+                MetricUnit::None,
+            ),
+            (
+                APP__VITALS__FRAMES__DELAY__VALUE,
+                &["frames.delay"][..],
+                "frames.delay",
+                MetricUnit::Duration(DurationUnit::Second),
+            ),
+        ] {
+            for alias in aliases {
+                for with_current in [false, true] {
+                    let mut data = SpanData::default();
+                    data.insert_value(*alias, 10.0);
+                    if with_current {
+                        data.insert_value(current, 20.0);
+                    }
+                    let mut span = Span {
+                        op: "ui.load".to_owned().into(),
+                        data: Annotated::new(data),
+                        ..Default::default()
+                    };
+                    let original_data = span.data.clone();
+                    extract_measurements(&mut span, false);
+                    assert!(span.measurements.value().is_none());
+                    extract_measurements(&mut span, true);
+                    let result = span
+                        .measurements
+                        .value()
+                        .unwrap()
+                        .get(measurement)
+                        .unwrap()
+                        .value()
+                        .unwrap();
+                    assert_eq!(
+                        result.value.value().map(|value| value.to_f64()),
+                        Some(if with_current { 20.0 } else { 10.0 })
+                    );
+                    assert_eq!(result.unit.value(), Some(&unit));
+                    assert_eq!(span.data, original_data);
+                    let normalized = span.clone();
+                    extract_measurements(&mut span, true);
+                    assert_eq!(span, normalized);
+                }
+            }
+        }
     }
 
     #[test]

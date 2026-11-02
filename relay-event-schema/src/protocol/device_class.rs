@@ -29,7 +29,9 @@ impl DeviceClass {
             let freq = attributes
                 .get_value(DEVICE__PROCESSOR_FREQUENCY)?
                 .as_f64()? as u64;
-            let proc = attributes.get_value(DEVICE__PROCESSOR_COUNT)?.as_f64()? as u64;
+            let proc = attributes
+                .get_value_with_deprecations(DEVICE__PROCESSOR_COUNT)?
+                .as_f64()? as u64;
             let mem = attributes.get_value(DEVICE__MEMORY_SIZE)?.as_f64()? as u64;
             classify_by_hardware(freq, proc, mem)
         }
