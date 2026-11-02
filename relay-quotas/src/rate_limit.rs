@@ -3,13 +3,14 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
+use web_time::Instant;
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::{Dimension, DimensionMap, REJECT_ALL_SECS};

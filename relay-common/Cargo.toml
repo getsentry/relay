@@ -17,6 +17,7 @@ chrono = { workspace = true }
 regex-lite = { workspace = true }
 sentry-types = { workspace = true }
 serde = { workspace = true }
+web-time = { workspace = true }
 
 [dev-dependencies]
 serde_test = { workspace = true }

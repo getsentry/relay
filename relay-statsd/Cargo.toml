@@ -18,6 +18,7 @@ relay-log = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-dogstatsd = { workspace = true }
 metrics-util = { workspace = true, features = ["layer-router"] }
+web-time = { workspace = true }
 
 [features]
 default = []

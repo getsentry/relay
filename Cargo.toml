@@ -249,4 +249,5 @@ url = "2"
 utf16string = "0.2"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 walkdir = "2"
+web-time = "1"
 zstd = { version = "0.13", features = ["experimental"] }

@@ -3,11 +3,11 @@ mod parser;
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
-use std::time::Instant;
 
 use crate::statsd::Timers;
 use parser::normalize_parsed_queries;
 use regex::Regex;
+use web_time::Instant;
 
 /// Removes SQL comments starting with "--" or "#".
 static COMMENTS: LazyLock<Regex> =
