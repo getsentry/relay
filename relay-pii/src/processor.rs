@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 use relay_event_schema::processor::{
     self, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType, enum_set, process_value,
+    ProcessingState, Processor, ValueType, process_value,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
@@ -90,21 +90,23 @@ impl Processor for PiiProcessor<'_> {
             // Also apply pii scrubbing to the original value (set by normalization or other processors),
             // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
             // value is returned.
-            if let Some(parent) = state.iter().next() {
-                let path = state.path();
-                let new_state = parent.enter_borrowed(
-                    path.key().unwrap_or(""),
-                    Some(Cow::Borrowed(state.attrs())),
-                    enum_set!(ValueType::String),
-                );
+            let parent = state
+                .iter()
+                .find(|parent| parent.depth() < state.depth())
+                .unwrap_or(state);
+            let path = state.path();
+            let attrs = Some(Cow::Borrowed(state.attrs()));
+            let new_state = match path.index() {
+                Some(index) => parent.enter_index(index, attrs, [ValueType::String]),
+                None => parent.enter_borrowed(path.key().unwrap_or(""), attrs, [ValueType::String]),
+            };
 
-                if self
-                    .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
-                    .is_err()
-                {
-                    // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
-                    meta.set_original_value(Option::<String>::None);
-                }
+            if self
+                .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
+                .is_err()
+            {
+                // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
+                meta.set_original_value(Option::<String>::None);
             }
         }
 
@@ -647,6 +649,203 @@ mod tests {
             assert_eq!(&roundtrip, config);
         }
         rv
+    }
+
+    fn scrub_original_value_fixture<T: ProcessValue>(
+        json: serde_json::Value,
+        root: ValueType,
+        selector: &str,
+        method: &str,
+    ) -> serde_json::Value {
+        let redaction = if method == "replace" {
+            json!({"method": "replace", "text": "[scrubbed]"})
+        } else {
+            json!({"method": "remove"})
+        };
+        let rule = if method == "replace" {
+            json!({"type": "pattern", "pattern": "secret", "redaction": redaction})
+        } else {
+            json!({"type": "anything", "redaction": redaction})
+        };
+        let config: PiiConfig = serde_json::from_value(json!({
+            "rules": {"scrub": rule},
+            "applications": {selector: ["scrub"]}
+        }))
+        .unwrap();
+        let mut value = Annotated::<T>::from_json(&json.to_string()).unwrap();
+        crate::eap::scrub(root, &mut value, Some(&config), None).unwrap();
+        serde_json::from_str(&value.to_json().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn original_value_scrubbing_uses_the_exact_field_path() {
+        for visible in [json!("visible secret"), json!(42), json!(null)] {
+            for method in ["replace", "remove"] {
+                let value = scrub_original_value_fixture::<Event>(
+                    json!({
+                        "extra": {"target": visible, "other": "untouched secret"},
+                        "_meta": {"extra": {
+                            "target": {"": {"val": "original secret"}},
+                            "other": {"": {"val": "untouched original secret"}}
+                        }}
+                    }),
+                    ValueType::Event,
+                    "extra.target",
+                    method,
+                );
+                let expected_original = if method == "replace" {
+                    json!("original [scrubbed]")
+                } else {
+                    json!(null)
+                };
+                let expected_visible = if method == "remove" {
+                    json!(null)
+                } else if visible.is_string() {
+                    json!("visible [scrubbed]")
+                } else {
+                    visible.clone()
+                };
+                assert_eq!(value["extra"]["target"], expected_visible);
+                assert_eq!(
+                    value["_meta"]["extra"]["target"][""]["val"],
+                    expected_original
+                );
+                assert_eq!(value["extra"]["other"], "untouched secret");
+                assert_eq!(
+                    value["_meta"]["extra"]["other"][""]["val"],
+                    "untouched original secret"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_value_scrubbing_preserves_array_indices() {
+        for method in ["replace", "remove"] {
+            let value = scrub_original_value_fixture::<Event>(
+                json!({
+                    "extra": {"items": ["visible secret", "untouched secret"]},
+                    "_meta": {"extra": {"items": {
+                        "0": {"": {"val": "original secret"}},
+                        "1": {"": {"val": "untouched original secret"}}
+                    }}}
+                }),
+                ValueType::Event,
+                "extra.items.0",
+                method,
+            );
+            assert_eq!(
+                value["extra"]["items"][0],
+                if method == "replace" {
+                    json!("visible [scrubbed]")
+                } else {
+                    json!(null)
+                }
+            );
+            assert_eq!(
+                value["_meta"]["extra"]["items"]["0"][""]["val"],
+                if method == "replace" {
+                    json!("original [scrubbed]")
+                } else {
+                    json!(null)
+                }
+            );
+            assert_eq!(value["extra"]["items"][1], "untouched secret");
+            assert_eq!(
+                value["_meta"]["extra"]["items"]["1"][""]["val"],
+                "untouched original secret"
+            );
+        }
+    }
+
+    #[test]
+    fn original_value_scrubbing_preserves_attribute_value_paths_and_policies() {
+        for method in ["replace", "remove"] {
+            let value = scrub_original_value_fixture::<relay_event_schema::protocol::SpanV2>(
+                json!({
+                    "attributes": {
+                        "gen_ai.request.model": {"type": "string", "value": "visible secret"},
+                        "sentry.release": {"type": "string", "value": "release secret"}
+                    },
+                    "_meta": {"attributes": {
+                        "gen_ai.request.model": {"value": {"": {"val": "original secret"}}},
+                        "sentry.release": {"value": {"": {"val": "original release secret"}}}
+                    }}
+                }),
+                ValueType::Span,
+                "$span.attributes.*.value",
+                method,
+            );
+            assert_eq!(
+                value["attributes"]["gen_ai.request.model"]["value"],
+                if method == "replace" {
+                    json!("visible [scrubbed]")
+                } else {
+                    json!(null)
+                }
+            );
+            assert_eq!(
+                value["_meta"]["attributes"]["gen_ai.request.model"]["value"][""]["val"],
+                if method == "replace" {
+                    json!("original [scrubbed]")
+                } else {
+                    json!(null)
+                }
+            );
+            assert_eq!(
+                value["attributes"]["sentry.release"]["value"],
+                "release secret"
+            );
+            assert_eq!(
+                value["_meta"]["attributes"]["sentry.release"]["value"][""]["val"],
+                "original release secret"
+            );
+        }
+        let original = json!({
+            "attributes": {"gen_ai.request.model": {"type": "string", "value": "visible secret"}},
+            "_meta": {"attributes": {"gen_ai.request.model": {"value": {"": {"val": "original secret"}}}}}
+        });
+        let value = scrub_original_value_fixture::<relay_event_schema::protocol::SpanV2>(
+            original,
+            ValueType::Span,
+            "$string",
+            "replace",
+        );
+        assert_eq!(
+            value["attributes"]["gen_ai.request.model"]["value"],
+            "visible secret"
+        );
+        assert_eq!(
+            value["_meta"]["attributes"]["gen_ai.request.model"]["value"][""]["val"],
+            "original secret"
+        );
+    }
+
+    #[test]
+    fn original_value_scrubbing_keeps_existing_root_behavior() {
+        let config: PiiConfig = serde_json::from_value(json!({
+            "rules": {"scrub": {"type": "pattern", "pattern": "secret", "redaction": {"method": "replace", "text": "[scrubbed]"}}},
+            "applications": {"$string": ["scrub"]}
+        })).unwrap();
+        let mut value = Annotated::new("visible secret".to_owned());
+        value
+            .meta_mut()
+            .set_original_value(Some("original secret".to_owned()));
+        let state = ProcessingState::root_builder()
+            .pii(Pii::True)
+            .value_type([ValueType::String].into_iter().collect())
+            .build();
+        process_value(
+            &mut value,
+            &mut PiiProcessor::new(config.compiled()),
+            &state,
+        )
+        .unwrap();
+        assert_eq!(value.as_str(), Some("visible secret"));
+        assert_eq!(
+            value.meta().original_value().and_then(Value::as_str),
+            Some("original [scrubbed]")
+        );
     }
 
     #[test]
