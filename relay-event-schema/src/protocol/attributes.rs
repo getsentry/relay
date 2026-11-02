@@ -330,6 +330,10 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
+    pub fn contains_key_with_deprecations(&self, key: &str) -> bool {
+        relay_conventions::attribute_names(key).any(|name| self.contains_key(name.as_ref()))
+    }
+
     /// Removes an attribute from this collection.
     pub fn remove<Q>(&mut self, key: &Q) -> Option<Annotated<Attribute>>
     where
@@ -402,6 +406,29 @@ mod deprecation_tests {
     use super::*;
     use crate::protocol::{OurLog, Span, SpanData, SpanV2, TraceMetric};
     use relay_protocol::{Getter, RuleCondition, Val};
+
+    #[test]
+    fn contains_key_with_deprecations_preserves_presence_semantics() {
+        for key in ["client.address", "http.client_ip"] {
+            let mut attributes = Attributes::new();
+            assert!(!attributes.contains_key_with_deprecations("client.address"));
+            attributes.0.insert(key.to_owned(), Annotated::empty());
+            assert!(attributes.contains_key_with_deprecations("client.address"));
+            assert!(attributes.contains_key_with_deprecations("http.client_ip"));
+            attributes.0.insert(
+                key.to_owned(),
+                Annotated::new(Attribute::from(Annotated::<String>::empty())),
+            );
+            assert!(attributes.contains_key_with_deprecations("client.address"));
+            assert_eq!(
+                attributes.get_value_with_deprecations("client.address"),
+                None
+            );
+            attributes.insert(key, "192.168.1.1");
+            assert!(attributes.contains_key_with_deprecations("client.address"));
+            assert!(!attributes.contains_key_with_deprecations("user_agent.original"));
+        }
+    }
 
     fn assert_lookup(pairs: &[(&str, &str)], key: &str, expected: Option<&str>) {
         let attributes = Attributes::from_iter(

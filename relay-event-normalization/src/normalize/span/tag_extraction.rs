@@ -1084,7 +1084,8 @@ pub fn extract_tags(
             if let Some(client_address) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(CLIENT__ADDRESS))
+                .and_then(|data| data.get_value_with_deprecations(CLIENT__ADDRESS))
+                .and_then(Value::as_str)
                 .and_then(|ip| ip.parse().ok())
                 && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
@@ -3692,9 +3693,33 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
-        assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
-        assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
+        for pairs in [
+            vec![(CLIENT__ADDRESS, "2.125.160.216")],
+            vec![("http.client_ip", "2.125.160.216")],
+            vec![
+                (CLIENT__ADDRESS, "2.125.160.216"),
+                ("http.client_ip", "127.0.0.1"),
+            ],
+        ] {
+            let mut span = span.clone();
+            span.data = SpanData {
+                other: pairs
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            (*key).to_owned(),
+                            Annotated::new(Value::String((*value).to_owned())),
+                        )
+                    })
+                    .collect(),
+            }
+            .into();
+            let original = span.clone();
+            let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
+            assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
+            assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
+            assert_eq!(span, original);
+        }
     }
 
     #[test]

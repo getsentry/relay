@@ -356,17 +356,21 @@ pub fn normalize_user_agent(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
+    if attributes.contains_key_with_deprecations(BROWSER__NAME)
+        || attributes.contains_key_with_deprecations(BROWSER__VERSION)
+    {
         return;
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
-    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
-        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
+    if !attributes.contains_key_with_deprecations(USER_AGENT__ORIGINAL)
+        && let Some(ua) = client_info.and_then(|ci| ci.user_agent)
+    {
+        attributes.insert(USER_AGENT__ORIGINAL, ua.to_owned());
     }
 
     let user_agent = attributes
-        .get_value(USER_AGENT__ORIGINAL)
+        .get_value_with_deprecations(USER_AGENT__ORIGINAL)
         .and_then(|v| v.as_str());
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
@@ -392,14 +396,19 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
         return;
     };
 
-    let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
-        .and_then(|v| v.as_str());
+    let key = relay_conventions::attribute_names(CLIENT__ADDRESS)
+        .find(|name| attributes.get_value(name.as_ref()).is_some());
 
-    if client_address == Some("{{auto}}") {
-        match client_ip {
-            Some(client_ip) => attributes.insert(CLIENT__ADDRESS, client_ip.to_string()),
-            None => drop(attributes.remove(CLIENT__ADDRESS)),
+    if let Some(key) = key
+        && attributes.get_value(key.as_ref()).and_then(Value::as_str) == Some("{{auto}}")
+    {
+        for name in relay_conventions::attribute_names(CLIENT__ADDRESS) {
+            if attributes.get_value(name.as_ref()).and_then(Value::as_str) == Some("{{auto}}") {
+                match client_ip {
+                    Some(client_ip) => attributes.insert(name, client_ip.to_string()),
+                    None => drop(attributes.remove(name.as_ref())),
+                }
+            }
         }
     }
 }
@@ -416,7 +425,9 @@ pub fn normalize_inject_client_address(
     };
 
     let attributes = attributes.get_or_insert_with(Default::default);
-    attributes.insert_if_missing(CLIENT__ADDRESS, || client_ip.to_string());
+    if !attributes.contains_key_with_deprecations(CLIENT__ADDRESS) {
+        attributes.insert(CLIENT__ADDRESS, client_ip.to_string());
+    }
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
@@ -441,13 +452,13 @@ pub fn normalize_user_geo(
         USER__GEO__REGION,
     ]
     .into_iter()
-    .any(|a| attributes.contains_key(a))
+    .any(|a| attributes.contains_key_with_deprecations(a))
     {
         return;
     }
 
     let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
+        .get_value_with_deprecations(CLIENT__ADDRESS)
         .and_then(|v| v.as_str())
         .and_then(|v| v.parse().ok());
 
@@ -1496,6 +1507,237 @@ mod tests {
           }
         }
         "#);
+    }
+
+    fn enrichment_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(pairs.iter().map(|(key, value)| {
+            ((*key).to_owned(), Annotated::new((*value).into()))
+        })))
+    }
+
+    const ENRICHMENT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+    #[test]
+    fn user_agent_alias_is_preferred_over_transport_without_renaming() {
+        for transport in [None, Some("invalid transport user agent")] {
+            let mut attributes =
+                enrichment_attributes(&[("http.user_agent", ENRICHMENT_USER_AGENT)]);
+            let original = attributes
+                .value()
+                .unwrap()
+                .get_attribute("http.user_agent")
+                .cloned();
+            normalize_user_agent(
+                &mut attributes,
+                transport.map(|user_agent| ClientUserAgentInfo {
+                    user_agent: Some(user_agent),
+                    ..Default::default()
+                }),
+            );
+            let result = attributes.value().unwrap();
+            assert_eq!(result.get_attribute("http.user_agent"), original.as_ref());
+            assert!(!result.contains_key(USER_AGENT__ORIGINAL));
+            assert_eq!(
+                result.get_value(BROWSER__NAME).and_then(Value::as_str),
+                Some("Chrome")
+            );
+            assert_eq!(
+                result.get_value(BROWSER__VERSION).and_then(Value::as_str),
+                Some("131.0.0")
+            );
+            let normalized = attributes.clone();
+            normalize_user_agent(&mut attributes, None);
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn user_agent_current_name_takes_precedence_over_alias() {
+        let mut attributes = enrichment_attributes(&[
+            (USER_AGENT__ORIGINAL, ENRICHMENT_USER_AGENT),
+            ("http.user_agent", "invalid alias user agent"),
+        ]);
+        normalize_user_agent(&mut attributes, None);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_value(BROWSER__NAME).and_then(Value::as_str),
+            Some("Chrome")
+        );
+        assert_eq!(
+            result.get_value("http.user_agent").and_then(Value::as_str),
+            Some("invalid alias user agent")
+        );
+    }
+
+    #[test]
+    fn browser_aliases_prevent_inference() {
+        for key in ["sentry.browser.name", "sentry.browser.version"] {
+            let mut attributes = enrichment_attributes(&[(key, "SDK supplied")]);
+            let original = attributes.clone();
+            normalize_user_agent(
+                &mut attributes,
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(ENRICHMENT_USER_AGENT),
+                    ..Default::default()
+                }),
+            );
+            assert_eq!(attributes, original);
+        }
+    }
+
+    #[test]
+    fn geo_aliases_prevent_enrichment() {
+        for key in [
+            "sentry.user.geo.city",
+            "sentry.user.geo.country_code",
+            "sentry.user.geo.region",
+            "sentry.user.geo.subdivision",
+        ] {
+            let mut attributes =
+                enrichment_attributes(&[(CLIENT__ADDRESS, "192.168.2.1"), (key, "SDK supplied")]);
+            let original = attributes.clone();
+            normalize_user_geo(&mut attributes, |_| unreachable!());
+            assert_eq!(attributes, original);
+        }
+    }
+
+    #[test]
+    fn geo_enrichment_reads_client_address_alias_with_current_name_precedence() {
+        for pairs in [
+            vec![("http.client_ip", "192.168.2.1")],
+            vec![
+                (CLIENT__ADDRESS, "192.168.2.1"),
+                ("http.client_ip", "192.168.3.1"),
+            ],
+        ] {
+            let mut attributes = enrichment_attributes(&pairs);
+            normalize_user_geo(&mut attributes, |addr| {
+                assert_eq!(addr, "192.168.2.1".parse::<IpAddr>().unwrap());
+                Some(Geo {
+                    country_code: "XY".to_owned().into(),
+                    ..Default::default()
+                })
+            });
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result
+                    .get_value(USER__GEO__COUNTRY_CODE)
+                    .and_then(Value::as_str),
+                Some("XY")
+            );
+            for (key, value) in &pairs {
+                assert_eq!(result.get_value(*key).and_then(Value::as_str), Some(*value));
+            }
+            assert_eq!(result.contains_key(CLIENT__ADDRESS), pairs.len() == 2);
+            let normalized = attributes.clone();
+            normalize_user_geo(&mut attributes, |_| unreachable!());
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn client_address_alias_auto_is_resolved_in_place() {
+        for ip in [None, Some("192.168.1.1"), Some("2001:db8::1")] {
+            let mut attributes = enrichment_attributes(&[("http.client_ip", "{{auto}}")]);
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result.get_value("http.client_ip").and_then(Value::as_str),
+                ip
+            );
+            assert!(!result.contains_key(CLIENT__ADDRESS));
+            let normalized = attributes.clone();
+            normalize_client_address(&mut attributes, Some("192.168.2.1".parse().unwrap()));
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn client_address_auto_resolves_backfilled_aliases() {
+        for ip in [None, Some("192.168.1.1"), Some("2001:db8::1")] {
+            let mut attributes = enrichment_attributes(&[("http.client_ip", "{{auto}}")]);
+            normalize_attribute_types(&mut attributes);
+            normalize_attribute_names(&mut attributes);
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                Some("{{auto}}")
+            );
+
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+
+            let result = attributes.value().unwrap();
+            for key in [CLIENT__ADDRESS, "http.client_ip"] {
+                assert_eq!(result.contains_key(key), ip.is_some());
+                assert_eq!(result.get_value(key).and_then(Value::as_str), ip);
+            }
+            assert_eq!(
+                result
+                    .get_value_with_deprecations(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                ip
+            );
+
+            let normalized = attributes.clone();
+            normalize_attribute_names(&mut attributes);
+            normalize_client_address(&mut attributes, Some("192.168.2.1".parse().unwrap()));
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn client_address_auto_preserves_explicit_alias() {
+        for ip in [None, Some("192.168.2.1")] {
+            let mut attributes = enrichment_attributes(&[
+                (CLIENT__ADDRESS, "{{auto}}"),
+                ("http.client_ip", "192.168.1.1"),
+            ]);
+            normalize_attribute_types(&mut attributes);
+            normalize_attribute_names(&mut attributes);
+
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+
+            let result = attributes.value().unwrap();
+            assert_eq!(result.contains_key(CLIENT__ADDRESS), ip.is_some());
+            assert_eq!(
+                result.get_value(CLIENT__ADDRESS).and_then(Value::as_str),
+                ip
+            );
+            assert_eq!(
+                result.get_value("http.client_ip").and_then(Value::as_str),
+                Some("192.168.1.1")
+            );
+            assert_eq!(
+                result
+                    .get_value_with_deprecations(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                Some(ip.unwrap_or("192.168.1.1"))
+            );
+        }
+    }
+
+    #[test]
+    fn client_address_alias_prevents_transport_injection() {
+        for pairs in [
+            vec![("http.client_ip", "192.168.2.1")],
+            vec![("http.client_ip", "{{auto}}")],
+            vec![
+                (CLIENT__ADDRESS, "192.168.2.1"),
+                ("http.client_ip", "{{auto}}"),
+            ],
+        ] {
+            let mut attributes = enrichment_attributes(&pairs);
+            let original = attributes.clone();
+            normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+            assert_eq!(attributes, original);
+            if pairs.len() == 2 || pairs[0].1 != "{{auto}}" {
+                normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+                assert_eq!(attributes, original);
+            }
+        }
     }
 
     #[test]
