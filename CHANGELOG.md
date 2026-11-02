@@ -12,6 +12,7 @@
 
 **Bug Fixes**:
 
+- Fix path-specific PII scrubbing rules leaving sensitive original values in event metadata after scrubbing the visible values. ([#6615](https://github.com/getsentry/relay/pull/6615))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
 **Internal**:
 
