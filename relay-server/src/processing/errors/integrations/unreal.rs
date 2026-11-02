@@ -7,6 +7,7 @@ use relay_sampling::DynamicSamplingContext;
 
 use crate::Envelope;
 use crate::envelope::{AttachmentType, ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::integrations::{ErrorsIntegration, Integration};
 use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, RecordKeeper, Rejected};
 use crate::processing::errors::{Error, Result, utils};
 use crate::processing::{self, Context, Intermediates, Nothing, Output};
@@ -14,6 +15,9 @@ use crate::services::processor::ProcessingError;
 use crate::utils::{ProcessedUnrealReport, UnrealExpansion, gpu};
 
 /// A processor for Unreal items created by Relay's Unreal endpoint.
+///
+/// Also accepts legacy [`ItemType::UnrealReport`] items, which are still forwarded by older
+/// Relays.
 #[derive(Debug)]
 pub struct UnrealErrorIntegrationProcessor;
 
@@ -27,9 +31,12 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let report = envelope
-            .envelope_mut()
-            .take_item_by(|item| *item.ty() == ItemType::UnrealReport)?;
+        let report = envelope.envelope_mut().take_item_by(|item| {
+            matches!(
+                item.integration(),
+                Some(Integration::Errors(ErrorsIntegration::Unreal))
+            ) || *item.ty() == ItemType::UnrealReport
+        })?;
 
         let headers = envelope.envelope().headers().clone();
 
@@ -60,7 +67,7 @@ impl Counted for SerializedUnrealReport {
     }
 }
 
-/// Converts a [`ItemType::UnrealReport`] into the envelope protocol.
+/// Converts an Unreal crash report into the envelope protocol.
 fn convert(
     unreal: SerializedUnrealReport,
     records: &mut RecordKeeper<'_>,
