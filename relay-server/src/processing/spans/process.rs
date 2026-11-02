@@ -399,7 +399,7 @@ fn validate_segment_id(attributes: &Annotated<Attributes>) -> Result<()> {
     let Some(attributes) = attributes.value() else {
         return Ok(());
     };
-    let Some(value) = attributes.get_value(SENTRY__SEGMENT__ID) else {
+    let Some(value) = attributes.get_value_with_deprecations(SENTRY__SEGMENT__ID) else {
         return Ok(());
     };
     let Some(value) = value.as_str() else {
@@ -479,6 +479,55 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn segment_id_validation_resolves_aliases_with_current_name_precedence() {
+        assert!(validate_segment_id(&Annotated::empty()).is_ok());
+        assert!(validate_segment_id(&Annotated::new(Attributes::new())).is_ok());
+        for key in [SENTRY__SEGMENT__ID, "sentry.segment_id"] {
+            for (value, valid) in [
+                ("0123456789abcdef", true),
+                ("not-a-span-id", false),
+                ("0000000000000000", false),
+                ("", false),
+            ] {
+                let mut attributes = Attributes::new();
+                attributes
+                    .0
+                    .insert(key.to_owned(), Annotated::new(value.into()));
+                let attributes = Annotated::new(attributes);
+                let original = attributes.clone();
+                let result = validate_segment_id(&attributes);
+                if valid {
+                    assert!(result.is_ok());
+                } else {
+                    assert!(
+                        matches!(result, Err(Error::Invalid(DiscardReason::InvalidSpan))),
+                        "{key}: {value:?} returned {result:?}"
+                    );
+                }
+                assert_eq!(attributes, original);
+            }
+            let mut attributes = Attributes::new();
+            attributes.insert(key, 42_i64);
+            assert!(matches!(
+                validate_segment_id(&Annotated::new(attributes)),
+                Err(Error::Invalid(DiscardReason::InvalidSpan))
+            ));
+        }
+        for (current, alias, valid) in [
+            ("0123456789abcdef", "invalid", true),
+            ("invalid", "0123456789abcdef", false),
+        ] {
+            let mut attributes = Attributes::new();
+            attributes.insert(SENTRY__SEGMENT__ID, current);
+            attributes.insert("sentry.segment_id", alias);
+            assert_eq!(
+                validate_segment_id(&Annotated::new(attributes)).is_ok(),
+                valid
+            );
+        }
+    }
 
     #[test]
     fn test_expand_span_container_operations_limit() {

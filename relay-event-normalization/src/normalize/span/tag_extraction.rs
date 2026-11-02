@@ -451,7 +451,7 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         .and_then(|trace_context| trace_context.data.value())
     {
         if let Some(thread_id) = data
-            .get_value(THREAD__ID)
+            .get_value_with_deprecations(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
             tags.thread_id = thread_id.into();
@@ -1061,7 +1061,8 @@ pub fn extract_tags(
             if let Some(replay_id) = span
                 .data
                 .value()
-                .and_then(|data| data.get_str(SENTRY__REPLAY_ID))
+                .and_then(|data| data.get_value_with_deprecations(SENTRY__REPLAY_ID))
+                .and_then(Value::as_str)
             {
                 span_tags.replay_id = replay_id.to_owned().into();
             }
@@ -1150,7 +1151,7 @@ pub fn extract_tags(
 
     if let Some(data) = span.data.value() {
         if let Some(thread_id) = data
-            .get_value(THREAD__ID)
+            .get_value_with_deprecations(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
             span_tags.thread_id = thread_id.into();
@@ -3563,6 +3564,96 @@ LIMIT 1
         assert_eq!(get_value!(span.sentry_tags.user_region!), "Austria");
         assert_eq!(get_value!(span.sentry_tags.user_subdivision!), "Vienna");
         assert_eq!(get_value!(span.sentry_tags.user_subregion!), "155");
+    }
+
+    #[test]
+    fn thread_id_alias_is_read_from_span_data_and_trace_context() {
+        for alias_value in [serde_json::json!(42), serde_json::json!("42")] {
+            for current in [false, true] {
+                let mut data = serde_json::json!({"sentry.thread.id": alias_value});
+                if current {
+                    data[THREAD__ID] = serde_json::json!(43);
+                }
+                let span =
+                    Annotated::<Span>::from_json(&serde_json::json!({"data": data}).to_string())
+                        .unwrap()
+                        .into_value()
+                        .unwrap();
+                let event = Annotated::<Event>::from_json(
+                    &serde_json::json!({"contexts": {"trace": {"data": data}}}).to_string(),
+                )
+                .unwrap()
+                .into_value()
+                .unwrap();
+                let original_span = span.clone();
+                let original_event = event.clone();
+                let tags = extract_tags(
+                    &span,
+                    200,
+                    None,
+                    None,
+                    false,
+                    None,
+                    &[],
+                    &GeoIpLookup::empty(),
+                );
+                let shared_tags = extract_shared_tags(&event);
+                let expected = Some(if current { "43" } else { "42" });
+                assert_eq!(tags.thread_id.as_str(), expected);
+                assert_eq!(shared_tags.thread_id.as_str(), expected);
+                assert_eq!(span, original_span);
+                assert_eq!(event, original_event);
+            }
+        }
+    }
+
+    #[test]
+    fn standalone_vital_replay_id_tag_resolves_aliases() {
+        for alias in ["replay_id", "replayId"] {
+            for current in [false, true] {
+                for op in ["ui.webvital.lcp", "ui.interaction.click", "http.client"] {
+                    let mut data = serde_json::json!({alias: "alias replay id"});
+                    if current {
+                        data[SENTRY__REPLAY_ID] = serde_json::json!("current replay id");
+                    }
+                    let span = Annotated::<Span>::from_json(
+                        &serde_json::json!({
+                            "op": op,
+                            "measurements": {"inp": {"value": 1.0}},
+                            "data": data
+                        })
+                        .to_string(),
+                    )
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                    let original = span.clone();
+                    let tags = extract_tags(
+                        &span,
+                        200,
+                        None,
+                        None,
+                        false,
+                        None,
+                        &[],
+                        &GeoIpLookup::empty(),
+                    );
+                    assert_eq!(
+                        tags.replay_id.as_str(),
+                        if op == "http.client" {
+                            None
+                        } else {
+                            Some(if current {
+                                "current replay id"
+                            } else {
+                                "alias replay id"
+                            })
+                        }
+                    );
+                    assert_eq!(span, original);
+                }
+            }
+        }
     }
 
     #[test]

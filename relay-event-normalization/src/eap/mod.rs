@@ -947,7 +947,9 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
     {
         span.is_segment = None.into();
         span.parent_span_id = None.into();
-        attributes.remove(SENTRY__SEGMENT__ID);
+        for key in relay_conventions::attribute_names(SENTRY__SEGMENT__ID) {
+            attributes.remove(key.as_ref());
+        }
     }
 }
 
@@ -963,7 +965,12 @@ pub fn normalize_segment_name(
         return;
     };
 
-    let Some(attr_value) = attributes.get_annotated_value_mut(SENTRY__SEGMENT__NAME) else {
+    let Some(key) = relay_conventions::attribute_names(SENTRY__SEGMENT__NAME)
+        .find(|key| attributes.get_value(key.as_ref()).is_some())
+    else {
+        return;
+    };
+    let Some(attr_value) = attributes.get_annotated_value_mut(key.as_ref()) else {
         return;
     };
 
@@ -1036,6 +1043,7 @@ mod tests {
     use std::time::Duration;
 
     use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::SpanId;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
     use relay_sampling::DynamicSamplingContext;
 
@@ -1507,6 +1515,146 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn web_vital_segment_cleanup_removes_all_segment_id_names() {
+        for op in ["ui.interaction.click", "ui.webvital.lcp", "http.client"] {
+            for keys in [
+                vec![SENTRY__SEGMENT__ID],
+                vec!["sentry.segment_id"],
+                vec![SENTRY__SEGMENT__ID, "sentry.segment_id"],
+            ] {
+                let mut attributes = Attributes::new();
+                attributes.insert(SENTRY__OP, op);
+                for key in &keys {
+                    attributes.insert(*key, "0123456789abcdef");
+                }
+                let mut span = SpanV2 {
+                    attributes: Annotated::new(attributes),
+                    is_segment: true.into(),
+                    parent_span_id: "fedcba9876543210".parse::<SpanId>().unwrap().into(),
+                    ..Default::default()
+                };
+                let original = span.clone();
+                normalize_web_vital_span_segment(&mut span);
+                if op == "http.client" {
+                    assert_eq!(span, original);
+                } else {
+                    assert!(span.is_segment.value().is_none());
+                    assert!(span.parent_span_id.value().is_none());
+                    let attributes = span.attributes.value().unwrap();
+                    for key in keys {
+                        assert!(!attributes.contains_key(key));
+                    }
+                    assert_eq!(
+                        attributes.get_value(SENTRY__OP).and_then(Value::as_str),
+                        Some(op)
+                    );
+                }
+                let normalized = span.clone();
+                normalize_web_vital_span_segment(&mut span);
+                assert_eq!(span, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn segment_name_aliases_normalize_in_place_with_metadata() {
+        let rule: TransactionNameRule = serde_json::from_value(serde_json::json!({
+            "pattern": "/projects/*/**",
+            "expiry": "2099-01-01T00:00:00Z",
+            "redaction": {"method": "replace", "substitution": "*"}
+        }))
+        .unwrap();
+        for rules in [vec![], vec![rule]] {
+            let mut expected =
+                enrichment_attributes(&[(SENTRY__SEGMENT__NAME, "/projects/alice/1234")]);
+            expected
+                .value_mut()
+                .as_mut()
+                .unwrap()
+                .get_annotated_value_mut(SENTRY__SEGMENT__NAME)
+                .unwrap()
+                .meta_mut()
+                .add_remark(Remark::new(RemarkType::Substituted, "test"));
+            normalize_segment_name(&mut expected, &rules);
+            let expected = expected
+                .value()
+                .unwrap()
+                .get_annotated_value(SENTRY__SEGMENT__NAME)
+                .unwrap();
+            assert_ne!(
+                expected.value().and_then(Value::as_str),
+                Some("/projects/alice/1234")
+            );
+            for key in [SENTRY__SEGMENT__NAME, "transaction", "sentry.transaction"] {
+                let mut attributes = enrichment_attributes(&[(key, "/projects/alice/1234")]);
+                attributes
+                    .value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .get_annotated_value_mut(key)
+                    .unwrap()
+                    .meta_mut()
+                    .add_remark(Remark::new(RemarkType::Substituted, "test"));
+                normalize_segment_name(&mut attributes, &rules);
+                let result = attributes.value().unwrap();
+                assert_eq!(result.get_annotated_value(key), Some(expected));
+                assert_eq!(result.0.len(), 1);
+                let normalized = attributes.clone();
+                normalize_segment_name(&mut attributes, &rules);
+                assert_eq!(attributes, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn segment_name_normalization_prefers_current_name_then_ordered_aliases() {
+        for current in [false, true] {
+            let mut attributes = enrichment_attributes(&[
+                ("transaction", "/ignored/1234"),
+                ("sentry.transaction", "/selected/1234"),
+            ]);
+            if current {
+                attributes
+                    .value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .insert(SENTRY__SEGMENT__NAME, "/current/1234");
+            }
+            normalize_segment_name(&mut attributes, &[]);
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result.get_value("transaction").and_then(Value::as_str),
+                Some("/ignored/1234")
+            );
+            assert_eq!(
+                result
+                    .get_value("sentry.transaction")
+                    .and_then(Value::as_str),
+                Some(if current {
+                    "/selected/1234"
+                } else {
+                    "/selected/*"
+                })
+            );
+            assert_eq!(
+                result
+                    .get_value(SENTRY__SEGMENT__NAME)
+                    .and_then(Value::as_str),
+                current.then_some("/current/*")
+            );
+        }
+        let mut attributes = enrichment_attributes(&[("transaction", "/ignored/1234")]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .insert(SENTRY__SEGMENT__NAME, 42_i64);
+        let original = attributes.clone();
+        normalize_segment_name(&mut attributes, &[]);
+        assert_eq!(attributes, original);
     }
 
     fn enrichment_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
