@@ -399,7 +399,7 @@ fn validate_segment_id(attributes: &Annotated<Attributes>) -> Result<()> {
     let Some(attributes) = attributes.value() else {
         return Ok(());
     };
-    let Some(value) = attributes.get_value(SENTRY__SEGMENT__ID) else {
+    let Some(value) = attributes.get_value_with_deprecations(SENTRY__SEGMENT__ID) else {
         return Ok(());
     };
     let Some(value) = value.as_str() else {
@@ -479,6 +479,16 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn segment_id_validation_reads_alias() {
+        let mut attributes = Attributes::new();
+        attributes.insert("sentry.segment_id", "not-a-span-id");
+        assert!(matches!(
+            validate_segment_id(&Annotated::new(attributes)),
+            Err(Error::Invalid(DiscardReason::InvalidSpan))
+        ));
+    }
 
     #[test]
     fn test_expand_span_container_operations_limit() {

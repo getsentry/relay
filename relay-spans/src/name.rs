@@ -27,14 +27,36 @@ pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     }
 
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
-    Some(name_for_op_and_attributes(op, |name| attributes.get_value(name)).unwrap_or(op.to_owned()))
+    Some(
+        name_for_op_and_attributes(op, |name| attributes.get_value_with_deprecations(name))
+            .unwrap_or(op.to_owned()),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
 
+    use crate::derive_description_for_v2_span;
+
     use super::*;
+
+    fn assert_template_output(attributes: &Attributes, name: &str, description: Option<&str>) {
+        assert_eq!(name_for_attributes(attributes).as_deref(), Some(name));
+        assert_eq!(
+            derive_description_for_v2_span(attributes, &Annotated::empty()).as_deref(),
+            description
+        );
+    }
+
+    #[test]
+    fn generated_templates_resolve_deprecated_inputs() {
+        let mut attributes = Attributes::new();
+        attributes.insert(SENTRY__OP, "http.client");
+        attributes.insert("http.method", "GET");
+        attributes.insert("http.url", "https://example.com/users");
+        assert_template_output(&attributes, "GET", Some("GET https://example.com/users"));
+    }
 
     #[test]
     fn test_attributes_falls_back_to_op_when_no_templates_defined() {

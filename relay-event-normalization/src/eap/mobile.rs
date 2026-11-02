@@ -39,10 +39,12 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
         APP__VITALS__TTID__VALUE,
         APP__VITALS__TTFD__VALUE,
     ] {
-        if let Some(value) = attrs.get_value(key).and_then(|v| v.as_f64())
-            && value > MAX_DURATION_MOBILE_MS
-        {
-            attrs.remove(key);
+        for name in relay_conventions::attribute_names(key) {
+            if let Some(value) = attrs.get_value(name.as_ref()).and_then(|v| v.as_f64())
+                && value > MAX_DURATION_MOBILE_MS
+            {
+                attrs.remove(name.as_ref());
+            }
         }
     }
 
@@ -52,19 +54,23 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     // after v1→v2 conversion. V2 spans will at some point send `app.vitals.start.value` + `app.vitals.start.type` directly.
     if !attrs.contains_key(APP__VITALS__START__VALUE) {
         if let Some(value) = attrs
-            .get_value(APP__VITALS__START__COLD__VALUE)
+            .get_value_with_deprecations(APP__VITALS__START__COLD__VALUE)
             .and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
             attrs.insert(APP__VITALS__START__VALUE, value);
-            attrs.insert_if_missing(APP__VITALS__START__TYPE, || "cold".to_owned());
+            if !attrs.contains_key_with_deprecations(APP__VITALS__START__TYPE) {
+                attrs.insert(APP__VITALS__START__TYPE, "cold");
+            }
         } else if let Some(value) = attrs
-            .get_value(APP__VITALS__START__WARM__VALUE)
+            .get_value_with_deprecations(APP__VITALS__START__WARM__VALUE)
             .and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
             attrs.insert(APP__VITALS__START__VALUE, value);
-            attrs.insert_if_missing(APP__VITALS__START__TYPE, || "warm".to_owned());
+            if !attrs.contains_key_with_deprecations(APP__VITALS__START__TYPE) {
+                attrs.insert(APP__VITALS__START__TYPE, "warm");
+            }
         }
     }
 
@@ -92,12 +98,12 @@ pub fn normalize_mobile_measurements(
     };
 
     if let Some(frames_total) = attributes
-        .get_value(APP__VITALS__FRAMES__TOTAL__COUNT)
+        .get_value_with_deprecations(APP__VITALS__FRAMES__TOTAL__COUNT)
         .and_then(|v| v.as_f64())
         && frames_total > 0.0
     {
         if let Some(frames_frozen) = attributes
-            .get_value(APP__VITALS__FRAMES__FROZEN__COUNT)
+            .get_value_with_deprecations(APP__VITALS__FRAMES__FROZEN__COUNT)
             .and_then(|v| v.as_f64())
         {
             let frames_frozen_rate = frames_frozen / frames_total;
@@ -108,7 +114,7 @@ pub fn normalize_mobile_measurements(
         }
 
         if let Some(frames_slow) = attributes
-            .get_value(APP__VITALS__FRAMES__SLOW__COUNT)
+            .get_value_with_deprecations(APP__VITALS__FRAMES__SLOW__COUNT)
             .and_then(|v| v.as_f64())
         {
             let frames_slow_rate = frames_slow / frames_total;
@@ -120,7 +126,7 @@ pub fn normalize_mobile_measurements(
     if let Some(span_duration) = span_duration
         && !span_duration.is_zero()
         && let Some(stall_total_time_ms) = attributes
-            .get_value(APP__VITALS__STALL__DURATION)
+            .get_value_with_deprecations(APP__VITALS__STALL__DURATION)
             .and_then(|v| v.as_f64())
     {
         let stall_percentage = stall_total_time_ms / (span_duration.as_millis() as f64);
@@ -130,7 +136,7 @@ pub fn normalize_mobile_measurements(
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::assert_annotated_snapshot;
+    use relay_protocol::{Remark, RemarkType, Value, assert_annotated_snapshot};
 
     use super::*;
 
@@ -318,6 +324,133 @@ mod tests {
     );
     outlier_test!(test_outlier_keeps_ttid, APP__VITALS__TTID__VALUE, 5000.0);
     outlier_test!(test_outlier_keeps_ttfd, APP__VITALS__TTFD__VALUE, 5000.0);
+
+    #[test]
+    fn app_start_aliases_normalize_without_renaming_or_overwriting_explicit_type() {
+        for (current, alias, inferred_type) in [
+            (APP__VITALS__START__COLD__VALUE, "app_start_cold", "cold"),
+            (APP__VITALS__START__WARM__VALUE, "app_start_warm", "warm"),
+        ] {
+            for explicit_type in [false, true] {
+                let mut attributes = attributes! { alias => 1234.0 };
+                attributes
+                    .get_annotated_value_mut(alias)
+                    .unwrap()
+                    .meta_mut()
+                    .add_remark(Remark::new(RemarkType::Substituted, "test"));
+                if explicit_type {
+                    attributes.insert("app_start_type", "explicit type");
+                }
+                let original = attributes.clone();
+                let mut attributes = Annotated::new(attributes);
+                normalize_mobile_attributes(&mut attributes);
+                let result = attributes.value().unwrap();
+                assert_eq!(
+                    result
+                        .get_value(APP__VITALS__START__VALUE)
+                        .and_then(Value::as_f64),
+                    Some(1234.0)
+                );
+                assert!(!result.contains_key(current));
+                assert_eq!(
+                    result
+                        .get_value(APP__VITALS__START__TYPE)
+                        .and_then(Value::as_str),
+                    if explicit_type {
+                        None
+                    } else {
+                        Some(inferred_type)
+                    }
+                );
+                for (key, value) in &original.0 {
+                    assert_eq!(result.0.get(key), Some(value));
+                }
+                let normalized = attributes.clone();
+                normalize_mobile_attributes(&mut attributes);
+                assert_eq!(attributes, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn mobile_timing_outliers_are_removed_under_every_name() {
+        for (current, alias) in [
+            (APP__VITALS__START__COLD__VALUE, "app_start_cold"),
+            (APP__VITALS__START__WARM__VALUE, "app_start_warm"),
+            (APP__VITALS__TTID__VALUE, "time_to_initial_display"),
+            (APP__VITALS__TTFD__VALUE, "time_to_full_display"),
+        ] {
+            for (current_value, alias_value) in [
+                (None, 180_000.0),
+                (None, 180_001.0),
+                (Some(1000.0), 200_000.0),
+                (Some(200_000.0), 1000.0),
+                (Some(200_000.0), 200_000.0),
+            ] {
+                let mut attributes = attributes! { alias => alias_value };
+                if let Some(value) = current_value {
+                    attributes.insert(current, value);
+                }
+                let mut attributes = Annotated::new(attributes);
+                normalize_mobile_attributes(&mut attributes);
+                let result = attributes.value().unwrap();
+                assert_eq!(
+                    result.get_value(current).and_then(Value::as_f64),
+                    current_value.filter(|value| *value <= MAX_DURATION_MOBILE_MS)
+                );
+                assert_eq!(
+                    result.get_value(alias).and_then(Value::as_f64),
+                    (alias_value <= MAX_DURATION_MOBILE_MS).then_some(alias_value)
+                );
+                if let Some(value) = result
+                    .get_value(APP__VITALS__START__VALUE)
+                    .and_then(Value::as_f64)
+                {
+                    assert!(value <= MAX_DURATION_MOBILE_MS);
+                }
+                let normalized = attributes.clone();
+                normalize_mobile_attributes(&mut attributes);
+                assert_eq!(attributes, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn mobile_rates_resolve_frame_and_stall_aliases() {
+        let mut attributes = Annotated::new(attributes! {
+            "frames.total" => 100.0,
+            "frames.slow" => 20.0,
+            "frames.frozen" => 10.0,
+            "stall_total_time" => 250.0,
+        });
+        normalize_mobile_measurements(&mut attributes, Some(Duration::from_secs(1)));
+        let result = attributes.value().unwrap();
+        for (key, expected) in [
+            (APP__VITALS__FRAMES__SLOW__RATE, 0.2),
+            (APP__VITALS__FRAMES__FROZEN__RATE, 0.1),
+            (APP__VITALS__STALL__PERCENTAGE, 0.25),
+        ] {
+            assert_eq!(
+                result.get_value(key).and_then(Value::as_f64),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn mobile_aliases_keep_zero_denominator_guards() {
+        let mut attributes = Annotated::new(attributes! {
+            "frames.total" => 0.0,
+            "frames.slow" => 10.0,
+            "frames.frozen" => 5.0,
+            "stall_total_time" => 250.0,
+        });
+        let original = attributes.clone();
+        for duration in [None, Some(Duration::ZERO)] {
+            normalize_mobile_measurements(&mut attributes, duration);
+            assert_eq!(attributes, original);
+        }
+    }
 
     #[test]
     fn test_app_start_cold_normalized() {

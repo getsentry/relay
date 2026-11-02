@@ -686,7 +686,7 @@ impl StoreService {
                 .item
                 .attributes
                 .value()
-                .and_then(|a| a.get_value(SENTRY__SEGMENT__ID))
+                .and_then(|a| a.get_value_with_deprecations(SENTRY__SEGMENT__ID))
                 .and_then(|v| v.as_str())
                 && let Err(e) = segment_id.parse::<SpanId>()
             {
