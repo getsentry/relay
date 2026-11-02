@@ -72,6 +72,16 @@ pub enum KafkaCounters {
     /// - `producer_name`: The configured producer name/deployment identifier.
     ProcessingMessageProduced,
 
+    /// Uncompressed bytes of messages successfully produced to Kafka brokers.
+    ///
+    /// Counts the key, payload, and header keys and values of each message, before librdkafka
+    /// compresses it. Excludes Kafka record framing.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ProducedBytes,
+
     /// Number of failed message produce operations.
     ///
     /// This metric is tagged with:
@@ -108,6 +118,7 @@ impl CounterMetric for KafkaCounters {
             Self::ProducerPartitionKeyRateLimit => "producer.partition_key.rate_limit",
             Self::ProduceStatusSuccess => "producer.produce_status.success",
             Self::ProcessingMessageProduced => "processing.event.produced",
+            Self::ProducedBytes => "producer.produced_bytes",
             Self::ProduceStatusError => "producer.produce_status.error",
             Self::ConfigReloadPushed => "producer.config_reload.pushed",
             Self::ConfigReloadRejected => "producer.config_reload.rejected",

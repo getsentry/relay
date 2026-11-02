@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use rdkafka::message::{Header, OwnedHeaders, ToBytes};
+use rdkafka::message::{Header, Headers as _, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
@@ -128,6 +128,11 @@ impl ProducerContext for Context {
                     topic = message.topic(),
                     producer_name = self.producer_name.as_str(),
                 );
+                metric!(
+                    counter(KafkaCounters::ProducedBytes) += message_size(message),
+                    topic = message.topic(),
+                    producer_name = self.producer_name.as_str(),
+                );
             }
             Err((error, message)) => {
                 relay_log::error!(
@@ -147,13 +152,32 @@ impl ProducerContext for Context {
     }
 }
 
+/// Uncompressed size of a message: key, payload, and header keys and values.
+fn message_size(message: &impl Message) -> u64 {
+    let headers_size: usize = message
+        .headers()
+        .map(|headers| {
+            headers
+                .iter()
+                .map(|header| header.key.len() + header.value.map_or(0, <[u8]>::len))
+                .sum()
+        })
+        .unwrap_or(0);
+    let key_size = message.key().map_or(0, <[u8]>::len);
+    let payload_size = message.payload().map_or(0, <[u8]>::len);
+    (key_size + payload_size + headers_size) as u64
+}
+
 #[cfg(test)]
 mod tests {
     use rdkafka::ClientContext;
     use rdkafka::statistics::{Broker, Statistics};
     use relay_statsd::with_capturing_test_client;
 
-    use super::Context;
+    use rdkafka::Timestamp;
+    use rdkafka::message::{Header, OwnedHeaders, OwnedMessage};
+
+    use super::{Context, message_size};
 
     #[test]
     fn test_statistics_backend() {
@@ -182,5 +206,41 @@ mod tests {
         )));
         assert!(metrics.contains(&format!("{prefix}{broker_metric}:7|g|#")));
         assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
+    }
+
+    #[test]
+    fn test_message_size() {
+        let headers = OwnedHeaders::new()
+            .insert(Header {
+                key: "version",
+                value: Some("1"),
+            })
+            .insert(Header {
+                key: "empty",
+                value: None::<&str>,
+            });
+        let message = OwnedMessage::new(
+            Some(b"payload".to_vec()),
+            Some(42_u128.to_be_bytes().to_vec()),
+            "test".to_owned(),
+            Timestamp::NotAvailable,
+            0,
+            0,
+            Some(headers),
+        );
+
+        // key 16 + payload 7 + headers (7 + 1) + (5 + 0)
+        assert_eq!(message_size(&message), 36);
+
+        let empty = OwnedMessage::new(
+            None,
+            None,
+            "test".to_owned(),
+            Timestamp::NotAvailable,
+            0,
+            0,
+            None,
+        );
+        assert_eq!(message_size(&empty), 0);
     }
 }
