@@ -4848,6 +4848,7 @@ dependencies = [
  "pretty-hex",
  "regex",
  "relay-common",
+ "relay-conventions",
  "relay-event-schema",
  "relay-log",
  "relay-protocol",

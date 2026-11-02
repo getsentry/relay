@@ -36,6 +36,9 @@ pub fn scrub<T: ProcessValue>(
 }
 
 #[cfg(test)]
+mod aliases;
+
+#[cfg(test)]
 mod tests {
     use relay_event_schema::processor::ValueType;
     use relay_event_schema::protocol::{Attributes, OurLog, SpanV2, TraceMetric};

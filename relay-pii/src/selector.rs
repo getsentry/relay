@@ -92,7 +92,13 @@ impl SelectorPathItem {
     ///
     /// `pii` is not the same as `state.attrs().pii`, but rather the PII flag of the state we're
     /// actually trying to match against. `i` is the position of the path item within the path.
-    pub(super) fn matches_state(&self, pii: Pii, i: usize, state: &ProcessingState<'_>) -> bool {
+    pub(super) fn matches_state(
+        &self,
+        pii: Pii,
+        i: usize,
+        state: &ProcessingState<'_>,
+        attribute_key_depth: Option<usize>,
+    ) -> bool {
         match (self, pii) {
             (_, Pii::False) => false,
 
@@ -148,7 +154,11 @@ impl SelectorPathItem {
             (SelectorPathItem::Key(key), _) => state
                 .path()
                 .key()
-                .map(|k| k.eq_ignore_ascii_case(key))
+                .map(|k| {
+                    k.eq_ignore_ascii_case(key)
+                        || (attribute_key_depth == Some(state.depth())
+                            && relay_conventions::attribute_keys_eq_ignore_ascii_case(k, key))
+                })
                 .unwrap_or(false),
         }
     }
@@ -198,6 +208,14 @@ impl SelectorSpec {
     /// This walks both the selector and the path starting at the end and towards the root
     /// to determine if the selector matches the current path.
     pub fn matches_path(&self, path: &Path) -> bool {
+        self.matches_path_with_attribute_key_depth(path, None)
+    }
+
+    pub(crate) fn matches_path_with_attribute_key_depth(
+        &self,
+        path: &Path,
+        attribute_key_depth: Option<usize>,
+    ) -> bool {
         let pii = path.pii();
         if pii == Pii::False {
             return false;
@@ -217,7 +235,7 @@ impl SelectorSpec {
                 for state in &mut state_iter {
                     match selector_iter.next() {
                         Some((i, path_item)) => {
-                            if !path_item.matches_state(pii, i, state) {
+                            if !path_item.matches_state(pii, i, state, attribute_key_depth) {
                                 return false;
                             }
 
@@ -243,7 +261,12 @@ impl SelectorSpec {
                     None => return !remaining_states.is_empty(),
                 };
                 let mut path_match_iterator = remaining_states.iter().rev().skip_while(|state| {
-                    !first_selector_path.matches_state(pii, first_selector_i, state)
+                    !first_selector_path.matches_state(
+                        pii,
+                        first_selector_i,
+                        state,
+                        attribute_key_depth,
+                    )
                 });
                 if path_match_iterator.next().is_none() {
                     return false;
@@ -252,12 +275,20 @@ impl SelectorSpec {
                 // then we check all remaining items and that nothing is left of the selector
                 path_match_iterator
                     .zip(&mut selector_iter)
-                    .all(|(state, (i, selector_path))| selector_path.matches_state(pii, i, state))
+                    .all(|(state, (i, selector_path))| {
+                        selector_path.matches_state(pii, i, state, attribute_key_depth)
+                    })
                     && selector_iter.next().is_none()
             }
-            SelectorSpec::And(ref xs) => xs.iter().all(|x| x.matches_path(path)),
-            SelectorSpec::Or(ref xs) => xs.iter().any(|x| x.matches_path(path)),
-            SelectorSpec::Not(ref x) => !x.matches_path(path),
+            SelectorSpec::And(ref xs) => xs
+                .iter()
+                .all(|x| x.matches_path_with_attribute_key_depth(path, attribute_key_depth)),
+            SelectorSpec::Or(ref xs) => xs
+                .iter()
+                .any(|x| x.matches_path_with_attribute_key_depth(path, attribute_key_depth)),
+            SelectorSpec::Not(ref x) => {
+                !x.matches_path_with_attribute_key_depth(path, attribute_key_depth)
+            }
         }
     }
 }

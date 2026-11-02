@@ -40,11 +40,7 @@ Event {
                 },
             ],
             original_length: None,
-            original_value: Some(
-                String(
-                    "is this an ip address? [ip]",
-                ),
-            ),
+            original_value: None,
         },
         username: Annotated(
             LenientString(
