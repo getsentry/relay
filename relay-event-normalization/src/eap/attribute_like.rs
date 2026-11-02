@@ -25,6 +25,11 @@ pub trait AttributesLike {
             .and_then(AttributeLike::as_value)
     }
 
+    /// Returns an attribute value, preferring its current name over deprecated names.
+    fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
+        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+    }
+
     /// Checks whether this collection contains an attribute with the given `key`.
     fn contains_key(&self, key: &str) -> bool {
         self.as_object().contains_key(key)
