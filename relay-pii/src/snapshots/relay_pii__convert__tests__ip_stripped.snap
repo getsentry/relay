@@ -83,8 +83,7 @@ expression: data
                 "reason": "expected an ip address"
               }
             ]
-          ],
-          "val": "should also be stripped"
+          ]
         }
       }
     },
@@ -121,8 +120,7 @@ expression: data
                 "reason": "expected an ip address"
               }
             ]
-          ],
-          "val": "should be stripped despite lacking ip address"
+          ]
         }
       },
       "username": {

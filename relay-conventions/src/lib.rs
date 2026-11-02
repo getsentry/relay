@@ -175,10 +175,25 @@ pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
 }
 
 pub fn attribute_names(key: &str) -> impl Iterator<Item = Cow<'_, str>> {
-    let (names, fragment) = ATTRIBUTE_READ_NAMES
-        .find(key)
-        .map(|(names, fragment)| (*names, fragment))
-        .unwrap_or((&[], None));
+    attribute_names_inner(key, false)
+}
+
+pub fn attribute_keys_eq_ignore_ascii_case(left: &str, right: &str) -> bool {
+    left.eq_ignore_ascii_case(right)
+        || attribute_names_inner(left, true)
+            .next()
+            .zip(attribute_names_inner(right, true).next())
+            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(&right))
+}
+
+fn attribute_names_inner(key: &str, ignore_ascii_case: bool) -> impl Iterator<Item = Cow<'_, str>> {
+    let (names, fragment) = (if ignore_ascii_case {
+        ATTRIBUTE_READ_NAMES.find_ignore_ascii_case(key)
+    } else {
+        ATTRIBUTE_READ_NAMES.find(key)
+    })
+    .map(|(names, fragment)| (*names, fragment))
+    .unwrap_or((&[], None));
     names
         .iter()
         .map(move |name| match fragment {
@@ -197,6 +212,30 @@ struct Node<T: 'static> {
 }
 
 impl<T> Node<T> {
+    fn find_ignore_ascii_case<'a>(&self, key: &'a str) -> Option<(&T, Option<&'a str>)> {
+        if key.is_empty() {
+            return self.info.as_ref().map(|info| (info, None));
+        }
+        let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
+        if !prefix.eq_ignore_ascii_case(PLACEHOLDER_SEGMENT)
+            && let Some(info) = self
+                .children
+                .get(prefix)
+                .or_else(|| {
+                    self.children.entries().find_map(|(name, child)| {
+                        name.eq_ignore_ascii_case(prefix).then_some(child)
+                    })
+                })
+                .and_then(|child| child.find_ignore_ascii_case(suffix))
+        {
+            return Some(info);
+        }
+        self.children
+            .get(PLACEHOLDER_SEGMENT)
+            .and_then(|child| child.find_ignore_ascii_case(suffix))
+            .map(|(info, _)| (info, Some(prefix)))
+    }
+
     fn find<'a>(&self, key: &'a str) -> Option<(&T, Option<&'a str>)> {
         if key.is_empty() {
             return self.info.as_ref().map(|info| (info, None));
@@ -236,6 +275,108 @@ mod tests {
     use relay_protocol::{Annotated, Value};
 
     use super::*;
+
+    #[test]
+    fn attribute_key_equivalence_is_bidirectional_and_case_insensitive() {
+        for names in [
+            vec![
+                "http.request.method",
+                "http.method",
+                "http.request_method",
+                "method",
+            ],
+            vec!["browser.web_vital.lcp.load_time", "lcp.loadTime"],
+            vec!["sentry.replay_id", "replayId", "replay_id"],
+            vec!["browser.web_vital.cls.source.Main", "cls.source.Main"],
+            vec!["url.path.parameter.UserId", "url.path.params.UserId"],
+        ] {
+            for left in &names {
+                for right in &names {
+                    for left in [
+                        left.to_string(),
+                        left.to_ascii_uppercase(),
+                        left.to_ascii_lowercase(),
+                    ] {
+                        for right in [
+                            right.to_string(),
+                            right.to_ascii_uppercase(),
+                            right.to_ascii_lowercase(),
+                        ] {
+                            assert!(
+                                attribute_keys_eq_ignore_ascii_case(&left, &right),
+                                "{left}: {right}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(attribute_keys_eq_ignore_ascii_case(
+            "CUSTOM.Unknown",
+            "custom.unknown"
+        ));
+        assert!(!attribute_keys_eq_ignore_ascii_case(
+            "custom.one",
+            "custom.two"
+        ));
+        assert!(!attribute_keys_eq_ignore_ascii_case(
+            "cls.source.1",
+            "browser.web_vital.cls.source.2"
+        ));
+    }
+
+    #[test]
+    fn attribute_key_equivalence_covers_every_generated_read_group() {
+        fn visit(node: &Node<&'static [&'static str]>, prefix: &str) {
+            if node.info.is_some() {
+                let key = prefix.replace(PLACEHOLDER_SEGMENT, "MiXeD");
+                for equivalent in attribute_names(&key) {
+                    assert!(attribute_keys_eq_ignore_ascii_case(&key, &equivalent));
+                    assert!(attribute_keys_eq_ignore_ascii_case(
+                        &key.to_ascii_uppercase(),
+                        &equivalent.to_ascii_lowercase()
+                    ));
+                    assert!(attribute_keys_eq_ignore_ascii_case(
+                        &equivalent.to_ascii_lowercase(),
+                        &key.to_ascii_uppercase()
+                    ));
+                }
+            }
+            let mut names = std::collections::HashSet::new();
+            for (part, child) in node.children.entries() {
+                assert!(
+                    names.insert(part.to_ascii_lowercase()),
+                    "case-insensitive key collision under {prefix}: {part}"
+                );
+                let prefix = if prefix.is_empty() {
+                    (*part).to_owned()
+                } else {
+                    format!("{prefix}.{part}")
+                };
+                visit(child, &prefix);
+            }
+        }
+        visit(&ATTRIBUTE_READ_NAMES, "");
+    }
+
+    #[test]
+    fn attribute_key_equivalence_excludes_transforms_incompatible_types_and_unrelated_aliases() {
+        for (left, right) in [
+            ("gen_ai.request.messages", "gen_ai.input.messages"),
+            ("gen_ai.response.text", "gen_ai.output.messages"),
+            ("gen_ai.response.tool_calls", "gen_ai.output.messages"),
+            ("hardwareConcurrency", "device.processor_count"),
+            ("db.sql.bindings", "db.query.parameter.id"),
+            ("service.version", "sentry.release"),
+        ] {
+            assert!(!attribute_keys_eq_ignore_ascii_case(left, right));
+            assert!(!attribute_keys_eq_ignore_ascii_case(right, left));
+            assert!(!attribute_keys_eq_ignore_ascii_case(
+                &left.to_ascii_uppercase(),
+                &right.to_ascii_uppercase()
+            ));
+        }
+    }
 
     #[test]
     fn attribute_names_prefers_current_then_alphabetical_predecessors() {
