@@ -4,6 +4,7 @@ use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use relay_common::impl_str_serde;
 use sentry::integrations::tracing::EventFilter;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, prelude::*};
 
-use crate::crash;
+use crate::{crash, resource};
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -359,6 +360,15 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
                 event.tags.extend(previous_event_tags);
                 Some(event)
             });
+        }
+
+        // Attach Kubernetes and cloud metadata from `OTEL_RESOURCE_ATTRIBUTES` to all
+        // transactions and spans, so they can be attributed to the pod they ran in.
+        let resource_attributes = resource::from_env();
+        if !resource_attributes.is_empty() {
+            options.transport = Some(Arc::new(resource::ResourceTransportFactory::new(
+                resource_attributes,
+            )));
         }
 
         // The crash reporter process runs inside `sentry::init` and never
