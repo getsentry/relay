@@ -14,9 +14,8 @@ use crate::processing::errors::{ErrorsProcessor, UnrealErrorIntegrationProcessor
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
 use crate::processing::logs::{
-    BrowserReportLogsIntegrationProcessor, HerokuLogsIntegrationProcessor,
-    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
-    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
+    BrowserReportLogsIntegrationProcessor, HerokuLogsIntegrationProcessor, LogsProcessor,
+    NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
 };
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
@@ -47,7 +46,6 @@ pub struct RelayProcessor {
     logs: LogsProcessor,
     logs_integration_heroku: HerokuLogsIntegrationProcessor,
     logs_integration_browser: BrowserReportLogsIntegrationProcessor,
-    logs_integration_integrity: IntegrityLogsIntegrationProcessor,
     logs_integration_nel: NelLogsIntegrationProcessor,
     logs_integration_otel: OtelLogsIntegrationProcessor,
     logs_integration_vercel: VercelLogsIntegrationProcessor,
@@ -87,7 +85,6 @@ impl RelayProcessor {
             logs_integration_heroku: HerokuLogsIntegrationProcessor,
             logs_integration_browser: BrowserReportLogsIntegrationProcessor,
             logs_integration_nel: NelLogsIntegrationProcessor,
-            logs_integration_integrity: IntegrityLogsIntegrationProcessor,
             logs_integration_otel: OtelLogsIntegrationProcessor,
             logs_integration_vercel: VercelLogsIntegrationProcessor,
             profile_chunks: ProfileChunksProcessor::new(ql()),
@@ -140,7 +137,6 @@ impl RelayProcessor {
         run!(self.logs);
         run!(self.logs_integration_browser);
         run!(self.logs_integration_heroku);
-        run!(self.logs_integration_integrity);
         run!(self.logs_integration_nel);
         run!(self.logs_integration_otel);
         run!(self.logs_integration_vercel);

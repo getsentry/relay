@@ -78,7 +78,7 @@ pub fn expand(
 
     let mut logs = Vec::new();
     let mut produce = |log| {
-        // INGEST-1333: This is only used to keep records in case serializing
+        // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
         // the logs back into an envelope fails. Consider removing it.
         let byte_size = relay_ourlogs::calculate_size(&log);
 

@@ -29,8 +29,7 @@ mod validate;
 
 pub use self::integrations::{
     BrowserReportLogsIntegrationProcessor, HerokuLogsIntegrationProcessor,
-    IntegrityLogsIntegrationProcessor, NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor,
-    VercelLogsIntegrationProcessor,
+    NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
 };
 pub use self::utils::get_calculated_byte_size;
 

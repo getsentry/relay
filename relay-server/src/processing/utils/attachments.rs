@@ -374,7 +374,7 @@ mod tests {
         item.set_filename("other.json");
         assert!(validate(&mut item, &config.current()).is_err());
         let mut item = flamegraph_item(flamegraph_payload());
-        item.set_payload(ContentType::Text, item.payload());
+        item.set_content_type(ContentType::Text);
         assert!(validate(&mut item, &config.current()).is_err());
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         for headers in [

@@ -5179,6 +5179,7 @@ dependencies = [
  "flume",
  "futures",
  "pin-project-lite",
+ "relay-log",
  "relay-system",
  "tokio",
 ]
