@@ -28,8 +28,8 @@ mod utils;
 mod validate;
 
 pub use self::integrations::{
-    BrowserReportLogsIntegrationProcessor, IntegrityLogsIntegrationProcessor,
-    NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
+    BrowserReportLogsIntegrationProcessor, NelLogsIntegrationProcessor,
+    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
 };
 pub use self::utils::get_calculated_byte_size;
 
