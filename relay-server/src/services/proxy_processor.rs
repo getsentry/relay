@@ -19,8 +19,8 @@ use crate::statsd::RelayTimers;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
-/// Analog to [`crate::services::processor::EnvelopeProcessorService`] this service handles messages when Relay is run in
-/// proxy mode.
+/// Like the [managed envelope processor](crate::services::processor::envelope::create_service),
+/// this service handles messages when Relay runs in proxy mode.
 pub struct ProxyProcessorService {
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
@@ -127,8 +127,7 @@ impl ProxyProcessorService {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
                 EnvelopeProcessor::ProcessBatchedMetrics(_)
-                | EnvelopeProcessor::ProcessProjectMetrics(_)
-                | EnvelopeProcessor::FlushBuckets(_) => {
+                | EnvelopeProcessor::ProcessProjectMetrics(_) => {
                     relay_log::error!("internal error: Metrics not supported in Proxy mode");
                 }
             }

@@ -20,9 +20,7 @@ use crate::services::outcome::{
     ClientReportOutcomeProducerService, NullOutcomeProducerService, OutcomeProducerService,
     TrackOutcome,
 };
-use crate::services::processor::{
-    self, BucketProcessorService, EnvelopeProcessor, EnvelopeProcessorService,
-};
+use crate::services::processor::{self, EnvelopeProcessor};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
@@ -49,7 +47,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
-use relay_threading::{AsyncPoolService, ServicePool};
+use relay_threading::ServicePool;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]
@@ -196,7 +194,7 @@ impl ServiceState {
         // other services.
         let (envelope_processor, envelope_processor_rx) = match current_config.relay_mode() {
             RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            RelayMode::Managed => channel(AsyncPoolService::<EnvelopeProcessorService>::name()),
+            RelayMode::Managed => processor::envelope::create_channel(),
         };
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
@@ -297,30 +295,48 @@ impl ServiceState {
             }
             RelayMode::Managed => {
                 let processor_pool = create_processor_pool(&current_config)?;
+                // Share the quota cache between envelope and bucket processing.
+                #[cfg(feature = "processing")]
+                let rate_limiter =
+                    processor::create_rate_limiter(&current_config, redis_clients.clone());
 
-                let bucket_processor =
-                    services.start(BucketProcessorService::new_service(processor_pool.clone()));
+                let bucket_processor = services.start(processor::bucket::create_service(
+                    processor_pool.clone(),
+                    config.clone(),
+                    global_config_handle.clone(),
+                    project_cache_handle.clone(),
+                    cogs.clone(),
+                    #[cfg(feature = "processing")]
+                    rate_limiter.clone(),
+                    processor::bucket::Addrs {
+                        outcome_aggregator: outcome_aggregator.clone(),
+                        upstream_relay: upstream_relay.clone(),
+                        #[cfg(feature = "processing")]
+                        store_forwarder: store.clone(),
+                    },
+                    metric_outcomes.clone(),
+                ));
 
                 let router = RouterService::new(
                     handle.clone(),
                     current_config.default_aggregator_config().clone(),
                     current_config.secondary_aggregator_configs().clone(),
-                    Some(bucket_processor.clone().recipient()),
+                    Some(bucket_processor.recipient()),
                     project_cache_handle.clone(),
                 );
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
                 services.start_with(
-                    EnvelopeProcessorService::new_service(
+                    processor::envelope::create_service(
                         processor_pool.clone(),
                         config.clone(),
                         global_config_handle.clone(),
                         project_cache_handle.clone(),
                         cogs.clone(),
                         #[cfg(feature = "processing")]
-                        redis_clients.clone(),
-                        processor::Addrs {
+                        rate_limiter,
+                        processor::envelope::Addrs {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
