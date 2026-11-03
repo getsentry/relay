@@ -16,6 +16,7 @@
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
+- Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 
 **Internal**:
 
