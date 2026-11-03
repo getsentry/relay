@@ -24,8 +24,8 @@ use relay_config::ConfigSnapshot;
 use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
-    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
-    SimpleService,
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, MessageHandler,
+    SendError, Sender,
 };
 use serde::{Deserialize, Serialize};
 use tokio::io::BufReader;
@@ -804,7 +804,7 @@ impl Service {
     }
 }
 
-impl SimpleService for Service {
+impl MessageHandler for Service {
     type Interface = Upload;
 
     async fn handle_message(&self, message: Upload) {
