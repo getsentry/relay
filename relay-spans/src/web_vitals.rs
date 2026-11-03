@@ -523,24 +523,49 @@ mod tests {
         .into_value()
         .unwrap();
 
-        let metrics = extract_web_vital_metrics(&span).unwrap();
-        assert_eq!(metrics.len(), 2);
+        let mut metrics = extract_web_vital_metrics(&span).unwrap().into_iter();
 
         // Both the vital and its score metric carry the ids.
-        for metric in &metrics {
-            let attributes = metric.attributes.value().unwrap();
-            assert_eq!(
-                attributes
-                    .get_value(SENTRY__REPLAY_ID)
-                    .and_then(|v| v.as_str()),
-                Some("6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3")
-            );
-            assert_eq!(
-                attributes
-                    .get_value(SENTRY__PROFILE_ID)
-                    .and_then(|v| v.as_str()),
-                Some("4c79f60c11214eb38604f4ae0781bfb0")
-            );
+        let vital_metric = metrics.next().unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&vital_metric.attributes), @r#"
+        {
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          },
+          "sentry.profile_id": {
+            "type": "string",
+            "value": "4c79f60c11214eb38604f4ae0781bfb0"
+          },
+          "sentry.replay_id": {
+            "type": "string",
+            "value": "6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3"
+          }
         }
+        "#);
+
+        let score_metric = metrics.next().unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric.attributes), @r#"
+        {
+          "score.ratio.lcp": {
+            "type": "double",
+            "value": 0.75
+          },
+          "sentry.metric.source": {
+            "type": "string",
+            "value": "span"
+          },
+          "sentry.profile_id": {
+            "type": "string",
+            "value": "4c79f60c11214eb38604f4ae0781bfb0"
+          },
+          "sentry.replay_id": {
+            "type": "string",
+            "value": "6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3"
+          }
+        }
+        "#);
+
+        assert!(metrics.next().is_none());
     }
 }
