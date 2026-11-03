@@ -13,7 +13,7 @@ pub mod metric;
 mod service;
 
 use crate::envelope::{AttachmentType, Item, ItemType};
-use crate::integrations::Integration;
+use crate::integrations::{ErrorsIntegration, Integration};
 
 pub use self::service::*;
 
@@ -651,6 +651,7 @@ impl From<&Item> for DiscardItemType {
         }
 
         match item.integration() {
+            Some(Integration::Errors(ErrorsIntegration::Unreal)) => Self::UnrealReport,
             Some(Integration::Logs(_)) => Self::Log,
             Some(Integration::Spans(_)) => Self::Span,
             None => item.ty().into(),
@@ -713,7 +714,9 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,
             AttachmentType::Flamegraph => Self::Flamegraph,
-            AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug => Self::Attachment,
+            AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => Self::Attachment,
         }
     }
 }

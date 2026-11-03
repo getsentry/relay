@@ -5178,6 +5178,7 @@ dependencies = [
  "flume",
  "futures",
  "pin-project-lite",
+ "relay-log",
  "relay-system",
  "tokio",
 ]
@@ -6320,8 +6321,8 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symbolic-common"
-version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
+version = "14.0.0-alpha.4"
+source = "git+https://github.com/getsentry/symbolic?rev=14336dce13a8300e9787ad9046bb0317ddc0cc99#14336dce13a8300e9787ad9046bb0317ddc0cc99"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6331,8 +6332,8 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "14.0.0-alpha.3"
-source = "git+https://github.com/getsentry/symbolic?rev=73735c14ff41787595d9d36b9a7c43755c8ef367#73735c14ff41787595d9d36b9a7c43755c8ef367"
+version = "14.0.0-alpha.4"
+source = "git+https://github.com/getsentry/symbolic?rev=14336dce13a8300e9787ad9046bb0317ddc0cc99#14336dce13a8300e9787ad9046bb0317ddc0cc99"
 dependencies = [
  "anylog",
  "bytes",
