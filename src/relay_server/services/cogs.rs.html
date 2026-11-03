@@ -88,7 +88,7 @@
 <a href=#88 id=88 data-nosnippet>88</a>        // an error in the service should not have a visible impact in production.
 <a href=#89 id=89 data-nosnippet>89</a>        </span><span class="kw">if </span><span class="self">self</span>.addr.len() &gt;= <span class="self">self</span>.max_size {
 <a href=#90 id=90 data-nosnippet>90</a>            <span class="kw">if </span>!<span class="self">self</span>.has_errored.swap(<span class="bool-val">true</span>, Ordering::Relaxed) {
-<a href=#91 id=91 data-nosnippet>91</a>                <span class="macro">relay_log::error!</span>(<span class="string">"COGS measurements backlogged"</span>);
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="macro">relay_log::warn!</span>(<span class="string">"COGS measurements backlogged"</span>);
 <a href=#92 id=92 data-nosnippet>92</a>            }
 <a href=#93 id=93 data-nosnippet>93</a>
 <a href=#94 id=94 data-nosnippet>94</a>            <span class="kw">return</span>;
