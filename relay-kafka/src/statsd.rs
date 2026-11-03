@@ -32,7 +32,7 @@
 //! # Results in: producer_name="unknown"
 //! ```
 
-use relay_statsd::CounterMetric;
+use relay_statsd::{CounterMetric, DistributionMetric};
 
 pub enum KafkaCounters {
     /// Number of messages that were written to the wrong partition because of configured rate limits.
@@ -60,6 +60,24 @@ impl CounterMetric for KafkaCounters {
         match self {
             Self::ProducerPartitionKeyRateLimit => "producer.partition_key.rate_limit",
             Self::ProcessingMessageProduced => "processing.event.produced",
+        }
+    }
+}
+
+pub enum KafkaDistributions {
+    /// Size of emitted kafka message in bytes.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    KafkaMessageSize,
+}
+
+impl DistributionMetric for KafkaDistributions {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::KafkaMessageSize => "kafka.message_size",
         }
     }
 }

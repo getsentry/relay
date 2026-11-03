@@ -22,7 +22,7 @@ use crate::KafkaTopicConfig;
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::limits::KafkaRateLimits;
 use crate::producer::utils::KafkaHeaders;
-use crate::statsd::KafkaCounters;
+use crate::statsd::{KafkaCounters, KafkaDistributions};
 
 mod utils;
 use utils::Context;
@@ -233,6 +233,13 @@ impl Producer {
         relay_log::configure_scope(|s| s.set_tag("topic", topic_name));
 
         let producer_name = producer.context().producer_name();
+
+        metric!(
+            distribution(KafkaDistributions::KafkaMessageSize) = payload.len() as u64,
+            variant = variant,
+            topic = topic_name,
+            producer_name = producer_name
+        );
 
         let mut headers = headers
             .unwrap_or(&BTreeMap::new())
