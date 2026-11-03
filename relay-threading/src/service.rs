@@ -7,7 +7,7 @@ use crate::AsyncPool;
 /// An async thread pool used for scheduling processing tasks in a service.
 pub type ServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
-/// A service that delagates its work to an [`AsyncPool`].
+/// A service that delegates its work to an [`ServicePool`].
 pub struct AsyncPoolService<T> {
     handler: T,
     pool: ServicePool,

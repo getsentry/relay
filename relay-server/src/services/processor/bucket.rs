@@ -59,30 +59,12 @@ impl FromMessage<FlushBuckets> for BucketProcessor {
     }
 }
 
-/// Service implementing the [`BucketProcessor`] interface.
-///
-/// This service handles messages in a worker pool with configurable concurrency.
-type BucketProcessorService = AsyncPoolService<Arc<InnerProcessor>>;
-
 /// Contains the addresses of services that the bucket processor publishes to.
 pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
-}
-
-/// The message handler for [`BucketProcessorService`].
-struct InnerProcessor {
-    config: Arc<Config>,
-    #[cfg(feature = "processing")]
-    global_config: GlobalConfigHandle,
-    project_cache: ProjectCacheHandle,
-    cogs: Cogs,
-    addrs: Addrs,
-    #[cfg(feature = "processing")]
-    rate_limiter: Option<RedisRateLimiter>,
-    metric_outcomes: MetricOutcomes,
 }
 
 /// Creates a multi-threaded bucket processor.
@@ -97,7 +79,7 @@ pub fn create_service(
     addrs: Addrs,
     metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = BucketProcessor> {
-    BucketProcessorService::new(
+    AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
             config,
             global_config,
@@ -110,6 +92,18 @@ pub fn create_service(
         )),
         pool,
     )
+}
+
+struct InnerProcessor {
+    config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    global_config: GlobalConfigHandle,
+    project_cache: ProjectCacheHandle,
+    cogs: Cogs,
+    addrs: Addrs,
+    #[cfg(feature = "processing")]
+    rate_limiter: Option<RedisRateLimiter>,
+    metric_outcomes: MetricOutcomes,
 }
 
 impl InnerProcessor {

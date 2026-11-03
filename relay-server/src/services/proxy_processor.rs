@@ -19,7 +19,7 @@ use crate::statsd::RelayTimers;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
-/// Like the [managed envelope processor](crate::services::processor::envelope::create_service),
+/// Like the [envelope processor](crate::services::processor::envelope),
 /// this service handles messages when Relay runs in proxy mode.
 pub struct ProxyProcessorService {
     config: Arc<Config>,

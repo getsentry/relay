@@ -17,7 +17,7 @@ use relay_metrics::{Bucket, BucketMetadata};
 use relay_quotas::RateLimits;
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, MessageHandler, NoResponse, Receiver, Service};
+use relay_system::{Addr, FromMessage, MessageHandler, NoResponse, Service};
 use relay_threading::{AsyncPoolService, ServicePool};
 use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 
@@ -408,16 +408,6 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
-/// Service implementing the [`EnvelopeProcessor`] interface.
-///
-/// This service handles messages in a worker pool with configurable concurrency.
-type EnvelopeProcessorService = AsyncPoolService<Arc<InnerProcessor>>;
-
-/// Creates the channel for an envelope processor before the service is started.
-pub fn create_channel() -> (Addr<EnvelopeProcessor>, Receiver<EnvelopeProcessor>) {
-    relay_system::channel(EnvelopeProcessorService::name())
-}
-
 /// Creates a multi-threaded envelope processor.
 #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
@@ -430,7 +420,7 @@ pub fn create_service(
     addrs: Addrs,
     metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = EnvelopeProcessor> {
-    EnvelopeProcessorService::new(
+    AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
             config,
             global_config,

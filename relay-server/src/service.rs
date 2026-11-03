@@ -194,7 +194,7 @@ impl ServiceState {
         // other services.
         let (envelope_processor, envelope_processor_rx) = match current_config.relay_mode() {
             RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            RelayMode::Managed => processor::envelope::create_channel(),
+            RelayMode::Managed => channel("envelope_processor"),
         };
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
