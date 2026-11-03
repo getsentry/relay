@@ -1,5 +1,8 @@
 //! Utilities for uploading large files.
 
+#[cfg(feature = "processing")]
+mod decode;
+
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -246,6 +249,16 @@ impl HttpCompression {
             HttpEncoding::Br => Some(Self::Br),
             HttpEncoding::Zstd => Some(Self::Zstd),
         }
+    }
+
+    /// Decompresses a stream and validates that no encoded input is left over.
+    #[cfg(feature = "processing")]
+    fn decode(
+        self,
+        stream: impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin,
+    ) -> impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin {
+        let reader = BufReader::new(StreamReader::new(stream));
+        ReaderStream::new(decode::Decoder::new(self, reader))
     }
 
     /// Returns the corresponding HTTP content encoding.
@@ -1368,30 +1381,14 @@ fn decode_body(
     if matches!(source, StreamSource::Multipart(_)) {
         return stream.boxed();
     }
-    use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
-
     let content_encoding = compression
         .and_then(|codec| codec.encoding().name())
         .unwrap_or("other");
     let metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
     let stream = metrics.count_encoded(stream);
     let decoded = match compression {
-        None => stream.boxed(),
-        Some(compression) => {
-            let reader = BufReader::new(StreamReader::new(stream));
-            match compression {
-                // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
-                HttpCompression::Deflate => ReaderStream::new(ZlibDecoder::new(reader)).boxed(),
-                HttpCompression::Gzip => ReaderStream::new(GzipDecoder::new(reader)).boxed(),
-                HttpCompression::Br => ReaderStream::new(BrotliDecoder::new(reader)).boxed(),
-                HttpCompression::Zstd => {
-                    let mut decoder = ZstdDecoder::new(reader);
-                    // Match Tower's support for concatenated zstd frames.
-                    decoder.multiple_members(true);
-                    ReaderStream::new(decoder).boxed()
-                }
-            }
-        }
+        None => Either::Left(stream),
+        Some(compression) => Either::Right(compression.decode(stream)),
     };
     metrics.count_decoded(decoded).boxed()
 }
