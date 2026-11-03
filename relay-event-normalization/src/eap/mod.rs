@@ -1147,48 +1147,9 @@ mod tests {
     fn test_normalize_dsc_segment_values_too_long() {
         let mut attributes = Annotated::empty();
         let dsc = &DynamicSamplingContext {
-            release: Some("r".repeat(201)),
-            environment: Some("e".repeat(201)),
-            ..mock_dsc(Some(&"t".repeat(201)))
-        };
-        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc), 200);
-        assert_annotated_snapshot!(attributes, @r#"
-        {
-          "sentry.dsc.environment": {
-            "type": "string",
-            "value": ""
-          },
-          "sentry.dsc.project_id": {
-            "type": "string",
-            "value": "42"
-          },
-          "sentry.dsc.public_key": {
-            "type": "string",
-            "value": "12345678901234567890123456789012"
-          },
-          "sentry.dsc.release": {
-            "type": "string",
-            "value": ""
-          },
-          "sentry.dsc.trace_id": {
-            "type": "string",
-            "value": "67e5504410b1426f9247bb680e5fe0c8"
-          },
-          "sentry.dsc.transaction": {
-            "type": "string",
-            "value": ""
-          }
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_normalize_dsc_segment_values_at_limit() {
-        let mut attributes = Annotated::empty();
-        let dsc = &DynamicSamplingContext {
-            release: Some("r".repeat(10)),
+            release: Some("r".repeat(9)),
             environment: Some("e".repeat(10)),
-            ..mock_dsc(Some(&"t".repeat(10)))
+            ..mock_dsc(Some(&"t".repeat(11)))
         };
         normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc), 10);
         assert_annotated_snapshot!(attributes, @r#"
@@ -1207,7 +1168,7 @@ mod tests {
           },
           "sentry.dsc.release": {
             "type": "string",
-            "value": "rrrrrrrrrr"
+            "value": "rrrrrrrrr"
           },
           "sentry.dsc.trace_id": {
             "type": "string",
@@ -1215,7 +1176,7 @@ mod tests {
           },
           "sentry.dsc.transaction": {
             "type": "string",
-            "value": "tttttttttt"
+            "value": ""
           }
         }
         "#);
