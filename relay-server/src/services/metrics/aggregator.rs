@@ -10,9 +10,11 @@ use relay_config::AggregatorServiceConfig;
 use relay_metrics::Bucket;
 use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, Partition};
 use relay_quotas::{RateLimits, Scoping};
-use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, NoResponse, Recipient, Service};
 use tokio::time::{Instant, Sleep};
 
+use crate::metrics::MetricOutcomes;
+use crate::services::outcome::TrackOutcome;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -63,8 +65,8 @@ pub struct FlushBuckets {
     pub partition_key: u32,
     /// The buckets to be flushed.
     pub buckets: HashMap<ProjectKey, ProjectBuckets>,
-    // /// Tracker for outcomes generated from metrics.
-    // pub metric_outcomes: MetricOutcomes,
+    /// Handle for producing outcomes.
+    pub outcome_aggregator: Addr<TrackOutcome>,
 }
 
 /// Metric buckets with additional project.
@@ -229,7 +231,7 @@ impl AggregatorService {
             receiver.send(FlushBuckets {
                 partition_key,
                 buckets: buckets_by_project,
-                // metric_outcomes,
+                outcome_aggregator: todo!(),
             });
         }
     }

@@ -61,7 +61,6 @@ impl FromMessage<FlushBuckets> for BucketProcessor {
 
 /// Contains the addresses of services that the bucket processor publishes to.
 pub struct Addrs {
-    pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
@@ -77,7 +76,6 @@ pub fn create_service(
     cogs: Cogs,
     #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
     addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = BucketProcessor> {
     AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
@@ -88,7 +86,6 @@ pub fn create_service(
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            metric_outcomes,
         )),
         pool,
     )
@@ -103,7 +100,6 @@ struct InnerProcessor {
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
-    metric_outcomes: MetricOutcomes,
 }
 
 impl InnerProcessor {
@@ -114,7 +110,6 @@ impl InnerProcessor {
         cogs: Cogs,
         #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
         addrs: Addrs,
-        metric_outcomes: MetricOutcomes,
     ) -> Self {
         #[cfg(not(feature = "processing"))]
         let _ = global_config;
@@ -128,7 +123,6 @@ impl InnerProcessor {
             addrs,
             #[cfg(feature = "processing")]
             rate_limiter,
-            metric_outcomes,
         }
     }
 
@@ -138,6 +132,7 @@ impl InnerProcessor {
         scoping: Scoping,
         project_info: &ProjectInfo,
         mut buckets: Vec<Bucket>,
+        metric_outcomes: &MetricOutcomes,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = &self.rate_limiter else {
             return buckets;
@@ -178,8 +173,7 @@ impl InnerProcessor {
                 });
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                self.metric_outcomes
-                    .track(scoping, &rejected, Outcome::RateLimited(reason_code));
+                metric_outcomes.track(scoping, &rejected, Outcome::RateLimited(reason_code));
 
                 self.project_cache
                     .get(item_scoping.scoping.project_key)
@@ -248,8 +242,7 @@ impl InnerProcessor {
             );
 
             if rate_limits.is_limited() {
-                let was_enforced =
-                    bucket_limiter.enforce_limits(&rate_limits, &self.metric_outcomes);
+                let was_enforced = bucket_limiter.enforce_limits(&rate_limits, metric_outcomes);
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
@@ -279,15 +272,22 @@ impl InnerProcessor {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
+        let FlushBuckets {
+            partition_key,
+            buckets,
+            outcome_aggregator,
+        } = message;
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
+
         for ProjectBuckets {
             buckets,
             scoping,
             project_info,
             ..
-        } in message.buckets.into_values()
+        } in buckets.into_values()
         {
             let mut buckets = self
-                .rate_limit_buckets(scoping, &project_info, buckets)
+                .rate_limit_buckets(scoping, &project_info, buckets, &metric_outcomes)
                 .await;
 
             if buckets.is_empty() {
@@ -295,8 +295,7 @@ impl InnerProcessor {
             }
 
             // Emit metric billing outcomes.
-            self.metric_outcomes
-                .track_accepted_outcome(scoping, &mut buckets);
+            metric_outcomes.track_accepted_outcome(scoping, &mut buckets);
 
             let retention = project_info
                 .config
@@ -309,7 +308,7 @@ impl InnerProcessor {
                 buckets,
                 scoping,
                 retention,
-                metric_outcomes: self.metric_outcomes.clone(),
+                metric_outcomes: metric_outcomes.clone(),
             });
         }
     }
@@ -327,6 +326,7 @@ impl InnerProcessor {
         let FlushBuckets {
             partition_key,
             buckets,
+            outcome_aggregator,
         } = message;
 
         let config = self.config.current();
@@ -355,8 +355,7 @@ impl InnerProcessor {
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
-                let mut envelope =
-                    ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
+                let mut envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
                 envelope
                     .set_partition_key(Some(partition_key))
                     .scope(*scoping);
@@ -410,7 +409,7 @@ impl InnerProcessor {
             encoded,
             project_info,
             http_encoding,
-            metric_outcomes: self.metric_outcomes.clone(),
+            metric_outcomes: metric_outcomes.clone(),
         };
 
         self.addrs.upstream_relay.send(SendRequest(request));
@@ -430,6 +429,7 @@ impl InnerProcessor {
         let FlushBuckets {
             partition_key,
             buckets,
+            outcome_aggregator,
         } = message;
 
         let batch_size = self.config.current().metrics_max_batch_size_bytes();
@@ -482,10 +482,15 @@ impl InnerProcessor {
     /// Removes all outcome metrics from `message` and sends them as client reports.
     ///
     /// Returns a new [`FlushBuckets`] message, without any outcome metrics remaining.
-    fn encode_metrics_client_reports(&self, mut message: FlushBuckets) -> FlushBuckets {
+    fn encode_metrics_client_reports(&self, message: FlushBuckets) -> FlushBuckets {
+        let FlushBuckets {
+            partition_key,
+            mut buckets,
+            outcome_aggregator,
+        } = message;
         for ProjectBuckets {
             buckets, scoping, ..
-        } in message.buckets.values_mut()
+        } in buckets.values_mut()
         {
             let client_reports = outcome::metric::extract_client_reports(buckets).collect();
 
@@ -493,7 +498,7 @@ impl InnerProcessor {
                 SubmitClientReports {
                     client_reports,
                     scoping: *scoping,
-                    outcome_aggregator: self.addrs.outcome_aggregator.clone(),
+                    outcome_aggregator: outcome_aggregator.clone(),
                 },
                 &self.config.current(),
                 &self.addrs.upstream_relay,
@@ -501,18 +506,24 @@ impl InnerProcessor {
             );
         }
 
-        message
+        FlushBuckets {
+            partition_key,
+            buckets,
+            outcome_aggregator,
+        }
     }
 
     async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
-        for (project_key, pb) in message.buckets.iter_mut() {
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
+        for (project_key, pb) in buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
+
             pb.buckets = common::check_buckets(
                 *project_key,
                 &pb.project_info,
                 &pb.rate_limits,
                 buckets,
-                &self.metric_outcomes,
+                &metric_outcomes,
             );
         }
 
@@ -826,7 +837,6 @@ mod tests {
 
     #[cfg(feature = "processing")]
     async fn create_test_processor(config: Config) -> InnerProcessor {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
 
         let redis_clients = config
@@ -837,8 +847,6 @@ mod tests {
             .unwrap();
         let rate_limiter = common::create_rate_limiter(&config.current(), redis_clients);
 
-        let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
-
         let config = Arc::new(config);
         InnerProcessor::new(
             Arc::clone(&config),
@@ -847,11 +855,9 @@ mod tests {
             Cogs::noop(),
             rate_limiter,
             Addrs {
-                outcome_aggregator,
                 upstream_relay,
                 store_forwarder: None,
             },
-            metric_outcomes,
         )
     }
 
@@ -959,6 +965,7 @@ mod tests {
             FlushBuckets {
                 partition_key: 0,
                 buckets,
+                outcome_aggregator,
             }
         };
 
@@ -1029,12 +1036,10 @@ mod tests {
                 #[cfg(feature = "processing")]
                 None,
                 Addrs {
-                    outcome_aggregator,
                     upstream_relay,
                     #[cfg(feature = "processing")]
                     store_forwarder: None,
                 },
-                metric_outcomes,
             )
             .start_detached();
 

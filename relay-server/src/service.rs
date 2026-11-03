@@ -313,12 +313,10 @@ impl ServiceState {
                     #[cfg(feature = "processing")]
                     rate_limiter.clone(),
                     processor::bucket::Addrs {
-                        outcome_aggregator: outcome_aggregator.clone(),
                         upstream_relay: upstream_relay.clone(),
                         #[cfg(feature = "processing")]
                         store_forwarder: store.clone(),
                     },
-                    metric_outcomes.clone(),
                 ));
 
                 let router = RouterService::new(
