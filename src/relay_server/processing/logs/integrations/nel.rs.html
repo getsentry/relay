@@ -75,7 +75,7 @@
 <a href=#75 id=75 data-nosnippet>75</a>        </span>.into_iter()
 <a href=#76 id=76 data-nosnippet>76</a>        .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
 <a href=#77 id=77 data-nosnippet>77</a>        .map(|log| {
-<a href=#78 id=78 data-nosnippet>78</a>            <span class="comment">// INGEST-1333: This is only used to keep records in case serializing
+<a href=#78 id=78 data-nosnippet>78</a>            <span class="comment">// &lt;https://github.com/getsentry/relay/issues/6605&gt;: This is only used to keep records in case serializing
 <a href=#79 id=79 data-nosnippet>79</a>            // the logs back into an envelope fails. Consider removing it.
 <a href=#80 id=80 data-nosnippet>80</a>            </span><span class="kw">let </span>byte_size = relay_ourlogs::calculate_size(<span class="kw-2">&amp;</span>log);
 <a href=#81 id=81 data-nosnippet>81</a>

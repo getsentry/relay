@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>            <span class="kw">let </span>scope = scope_logs.scope.as_ref();
 <a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">for </span>log_record <span class="kw">in </span>scope_logs.log_records {
 <a href=#89 id=89 data-nosnippet>89</a>                <span class="kw">let </span>log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
-<a href=#90 id=90 data-nosnippet>90</a>                <span class="comment">// INGEST-1333: This is only used to keep records in case serializing
+<a href=#90 id=90 data-nosnippet>90</a>                <span class="comment">// https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
 <a href=#91 id=91 data-nosnippet>91</a>                // the logs back into an envelope fails. Consider removing it.
 <a href=#92 id=92 data-nosnippet>92</a>                </span><span class="kw">let </span>byte_size = relay_ourlogs::calculate_size(<span class="kw-2">&amp;</span>log);
 <a href=#93 id=93 data-nosnippet>93</a>

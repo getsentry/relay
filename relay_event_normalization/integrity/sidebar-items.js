@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_log","create_log_with_trace_id"]};
