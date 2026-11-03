@@ -344,7 +344,6 @@ impl ServiceState {
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
                         },
-                        metric_outcomes.clone(),
                     ),
                     envelope_processor_rx,
                 );

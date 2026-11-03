@@ -262,6 +262,8 @@ pub struct ProcessMetrics {
     /// The value of the Envelope's [`sent_at`](crate::envelope::Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
+    /// Tracker for metric outcomes.
+    pub metric_outcomes: MetricOutcomes,
 }
 
 /// Raw unparsed metric data.
@@ -325,6 +327,8 @@ pub struct ProcessBatchedMetrics {
     pub received_at: DateTime<Utc>,
     /// The wall clock time at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
+    /// Tracker for metric outcomes.
+    pub metric_outcomes: MetricOutcomes,
 }
 
 /// Source information where a metric bucket originates from.
@@ -409,7 +413,6 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
 }
 
 /// Creates a multi-threaded envelope processor.
-#[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
     pool: ServicePool,
     config: Arc<Config>,
@@ -418,7 +421,6 @@ pub fn create_service(
     cogs: Cogs,
     #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
     addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = EnvelopeProcessor> {
     AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
@@ -429,7 +431,6 @@ pub fn create_service(
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            metric_outcomes,
         )),
         pool,
     )
@@ -467,7 +468,6 @@ struct InnerProcessor {
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
     processor: RelayProcessor,
 }
 
@@ -479,7 +479,6 @@ impl InnerProcessor {
         cogs: Cogs,
         #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
         addrs: Addrs,
-        metric_outcomes: MetricOutcomes,
     ) -> Self {
         let c = config.current();
 
@@ -512,7 +511,6 @@ impl InnerProcessor {
             processor: RelayProcessor::new(cogs.clone(), &quota_limiter, &geoip_lookup),
             cogs,
             addrs,
-            metric_outcomes,
             config,
         }
     }
@@ -671,6 +669,7 @@ impl InnerProcessor {
             received_at,
             sent_at,
             source,
+            metric_outcomes,
         } = message;
 
         let received_timestamp =
@@ -717,7 +716,7 @@ impl InnerProcessor {
                     project_info,
                     &rate_limits,
                     buckets,
-                    &self.metric_outcomes,
+                    &metric_outcomes,
                 )
             }
             _ => buckets,
@@ -735,6 +734,7 @@ impl InnerProcessor {
             source,
             received_at,
             sent_at,
+            metric_outcomes,
         } = message;
 
         #[derive(serde::Deserialize)]
@@ -763,6 +763,7 @@ impl InnerProcessor {
                     source,
                     received_at,
                     sent_at,
+                    metric_outcomes: metric_outcomes.clone(),
                 },
             )
         }
@@ -881,8 +882,6 @@ mod tests {
             .transpose()
             .unwrap();
 
-        let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
-
         let config = Arc::new(config);
         InnerProcessor::new(
             Arc::clone(&config),
@@ -900,7 +899,6 @@ mod tests {
                 objectstore: None,
                 aggregator,
             },
-            metric_outcomes,
         )
     }
 
@@ -912,7 +910,6 @@ mod tests {
             .map(|c| create_redis_clients(c))
             .transpose()
             .unwrap();
-        let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
 
         let config = Arc::new(config);
         InnerProcessor::new(
@@ -923,7 +920,6 @@ mod tests {
             #[cfg(feature = "processing")]
             common::create_rate_limiter(&config.current(), redis_clients),
             addrs,
-            metric_outcomes,
         )
     }
 
@@ -1257,6 +1253,7 @@ mod tests {
                 source,
                 received_at,
                 sent_at: Some(Utc::now()),
+                metric_outcomes: MetricOutcomes::new(Addr::dummy()),
             };
             processor.handle_process_metrics(&mut token, message);
 
@@ -1318,6 +1315,7 @@ mod tests {
             source: BucketSource::Internal,
             received_at,
             sent_at: Some(Utc::now()),
+            metric_outcomes: MetricOutcomes::new(Addr::dummy()),
         };
         processor.handle_process_batched_metrics(&mut token, message);
 

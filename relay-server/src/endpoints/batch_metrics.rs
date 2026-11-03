@@ -3,6 +3,7 @@ use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
 use crate::extractors::{ReceivedAt, SignedBytes};
+use crate::metrics::MetricOutcomes;
 use crate::service::ServiceState;
 use crate::services::processor::{BucketSource, ProcessBatchedMetrics};
 
@@ -23,6 +24,7 @@ pub async fn handle(
         source: BucketSource::Internal,
         received_at,
         sent_at: None,
+        metric_outcomes: MetricOutcomes::new(state.outcome_aggregator().clone()),
     });
 
     (StatusCode::ACCEPTED, axum::Json(SendMetricsResponse {})).into_response()
