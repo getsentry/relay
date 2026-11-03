@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import json
 
+import pytest
+
 from .asserts import matches_any, time_within_delta
 
 from sentry_relay.consts import DataCategory
@@ -167,8 +169,14 @@ EXPECTED_ITEMS = [
 ]
 
 
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_vercel_logs_json_array(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_mode,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
 ):
     """Test Vercel logs ingestion with JSON array format."""
     items_consumer = items_consumer()
@@ -177,7 +185,8 @@ def test_vercel_logs_json_array(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
-    relay = relay(relay_with_processing())
+    upstream = relay(relay_with_processing())
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     vercel_logs_payload = [
         VERCEL_LOG_1,
@@ -194,8 +203,14 @@ def test_vercel_logs_json_array(
     assert items == EXPECTED_ITEMS
 
 
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_vercel_logs_ndjson(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_mode,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
 ):
     """Test Vercel logs ingestion with NDJSON format."""
     items_consumer = items_consumer()
@@ -204,7 +219,8 @@ def test_vercel_logs_ndjson(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
-    relay = relay(relay_with_processing())
+    upstream = relay(relay_with_processing())
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     # Format as NDJSON
     ndjson_payload = json.dumps(VERCEL_LOG_1) + "\n" + json.dumps(VERCEL_LOG_2) + "\n"
