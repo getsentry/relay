@@ -35,7 +35,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{
     ProfileAttachment, Store, StoreAttachment, StoreEvent, StoreProfileChunk, StoreTraceItem,
 };
-use crate::services::upload::PassthroughBoundedMeteredStream;
+use crate::services::upload::{DecodeError, PassthroughBoundedMeteredStream};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
     ByteCounter, RetryableStream, TakeOnce, find_error_source, withhold_last_chunk,
@@ -1192,16 +1192,43 @@ impl ObjectstoreServiceInner {
                 // containing getsentry/objectstore#754.
                 // The HTTP client may stop polling after Content-Length bytes. Validate the
                 // stream's trailer before releasing the bytes that complete this request.
-                let mut body = withhold_last_chunk(body).boxed();
-                if chunk_length == 0 {
-                    // An empty HTTP body may never be polled; validate it before sending.
-                    while body.try_next().await?.is_some() {}
-                }
+                let result = async {
+                    let mut body = withhold_last_chunk(body).boxed();
+                    if chunk_length == 0 {
+                        // An empty HTTP body may never be polled; validate it before sending.
+                        while body.try_next().await?.is_some() {}
+                    }
 
-                let progress = resumable_upload
-                    .put_stream(offset as u64, chunk_length as u64, body)
-                    .send()
-                    .await?;
+                    resumable_upload
+                        .put_stream(offset as u64, chunk_length as u64, body)
+                        .send()
+                        .await
+                }
+                .await;
+                if match &result {
+                    Err(objectstore_client::Error::Io(error)) => error
+                        .get_ref()
+                        .is_some_and(|error| error.is::<DecodeError>()),
+                    Err(objectstore_client::Error::Reqwest(error)) => {
+                        find_error_source(error, |error| {
+                            error
+                                .downcast_ref::<std::io::Error>()
+                                .and_then(std::io::Error::get_ref)
+                                .is_some_and(|error| error.is::<DecodeError>())
+                        })
+                        .is_some()
+                    }
+                    _ => false,
+                } {
+                    // Persisted bytes may be corrupt. Transport failures alone remain resumable.
+                    if let Err(error) = resumable_upload.cancel().send().await {
+                        relay_log::warn!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to cancel corrupt upload"
+                        );
+                    }
+                }
+                let progress = result?;
 
                 let (session_token, offset) = match progress {
                     UploadProgress::Incomplete { offset } => (Some(session_token), offset as usize),

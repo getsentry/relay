@@ -3,6 +3,7 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
 import gzip
+import http.client
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1926,8 +1927,19 @@ def test_invalid_compressed_upload_processing_chain(
     assert response.status_code == 400, response.text
 
 
-def test_resumable_upload_rejects_invalid_gzip_checksum(
-    mini_sentry, relay, relay_with_processing, project_config, events_consumer
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"hello world", b"hello world" * 60_000],
+    ids=["empty", "small", "large"],
+)
+def test_resumable_upload_cancels_invalid_gzip_checksum(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    objectstore,
+    data,
 ):
     mini_sentry.fail_on_relay_error = False
     edge = relay(relay_with_processing())
@@ -1935,24 +1947,30 @@ def test_resumable_upload_rejects_invalid_gzip_checksum(
     edge.send_event(42)
     consumer.get_event()
     project_key = mini_sentry.get_dsn_public_key(42)
-    data = b"hello world"
-    # Stored DEFLATE blocks let us change the payload without updating the gzip checksum.
-    compressed = gzip.compress(data, compresslevel=0).replace(data, b"jello world")
+    compressed = bytearray(gzip.compress(data, compresslevel=0))
+    compressed[-8] ^= 1  # Corrupt the CRC, including for an empty decoded payload.
     with pytest.raises(gzip.BadGzipFile, match="CRC check failed"):
         gzip.decompress(compressed)
 
     create = edge.post(
         f"/api/42/upload/?sentry_key={project_key}",
-        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(len(data))},
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(FIRST_CHUNK) + max(1, len(data))),
+        },
     )
     assert create.status_code == 201, create.text
     location = create.headers["Location"]
+    prefix = patch_chunk(edge, location, project_key, FIRST_CHUNK, 0)
+    assert prefix.status_code == 204, prefix.text
+    assert prefix.headers["Upload-Offset"] == str(len(FIRST_CHUNK))
+
     response = patch_chunk(
         edge,
         location,
         project_key,
         compressed,
-        0,
+        len(FIRST_CHUNK),
         headers={
             "Content-Encoding": "gzip",
             "X-Decoded-Content-Length": str(len(data)),
@@ -1960,5 +1978,57 @@ def test_resumable_upload_rejects_invalid_gzip_checksum(
     )
     assert response.status_code == 400, response.text
     progress = head_upload(edge, location, project_key)
+    assert progress.status_code == 404, progress.text
+    path, _ = location_parts(location)
+    key = path.rstrip("/").split("/")[-1]
+    assert objectstore("attachments", 42).head(key) is None
+
+
+def test_resumable_upload_preserves_session_on_body_error(
+    mini_sentry, relay_with_processing, project_config, objectstore
+):
+    mini_sentry.fail_on_relay_error = False
+    edge = relay_with_processing()
+    project_key = mini_sentry.get_dsn_public_key(42)
+    create = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(len(RESUMABLE_DATA))},
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    prefix = patch_chunk(edge, location, project_key, FIRST_CHUNK, 0)
+    assert prefix.status_code == 204, prefix.text
+
+    # Break HTTP framing midway through valid gzip data. This is an incoming body error,
+    # not a decoder verdict that the persisted bytes are corrupt.
+    encoded = gzip.compress(SECOND_CHUNK)
+    partial = encoded[: len(encoded) // 2]
+    connection = http.client.HTTPConnection(*edge.server_address, timeout=5)
+    try:
+        connection.putrequest("PATCH", f"{location}&sentry_key={project_key}")
+        for name, value in {
+            "Tus-Resumable": "1.0.0",
+            "Content-Type": "application/offset+octet-stream",
+            "Content-Encoding": "gzip",
+            "X-Decoded-Content-Length": str(len(SECOND_CHUNK)),
+            "Upload-Offset": str(len(FIRST_CHUNK)),
+            "Transfer-Encoding": "chunked",
+        }.items():
+            connection.putheader(name, value)
+        connection.endheaders()
+        connection.send(f"{len(partial):x}\r\n".encode() + partial + b"\r\ninvalid\r\n")
+        response = connection.getresponse()
+        assert response.status == 400, response.read()
+        response.read()
+    finally:
+        connection.close()
+
+    progress = head_upload(edge, location, project_key)
     assert progress.status_code == 204, progress.text
-    assert progress.headers["Upload-Offset"] == "0"
+    offset = int(progress.headers["Upload-Offset"])
+    assert len(FIRST_CHUNK) <= offset < len(RESUMABLE_DATA)
+    retry = patch_chunk(edge, location, project_key, RESUMABLE_DATA[offset:], offset)
+    assert retry.status_code == 204, retry.text
+    path, _ = location_parts(location)
+    key = path.rstrip("/").split("/")[-1]
+    assert objectstore("attachments", 42).get(key).payload.read() == RESUMABLE_DATA

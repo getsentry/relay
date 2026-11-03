@@ -3,6 +3,9 @@
 #[cfg(feature = "processing")]
 mod decode;
 
+#[cfg(feature = "processing")]
+pub(super) use decode::DecodeError;
+
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -1370,6 +1373,7 @@ fn decode_body(
 ) -> ByteStream {
     use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
     use decode::Decoder;
+    use futures::TryStreamExt;
 
     if matches!(source, StreamSource::Multipart(_)) {
         return stream.boxed();
@@ -1383,7 +1387,7 @@ fn decode_body(
         return metrics.count_decoded(stream).boxed();
     };
 
-    let reader = BufReader::new(StreamReader::new(stream));
+    let reader = BufReader::new(StreamReader::new(stream.map_err(decode::InputError::wrap)));
     let decoded = match compression {
         // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
         HttpCompression::Deflate => {
@@ -1398,7 +1402,9 @@ fn decode_body(
             ReaderStream::new(Decoder::new(decoder)).boxed()
         }
     };
-    metrics.count_decoded(decoded).boxed()
+    metrics
+        .count_decoded(decoded.map_err(DecodeError::wrap))
+        .boxed()
 }
 
 #[cfg(test)]
@@ -1703,6 +1709,14 @@ mod tests {
                         .try_collect::<Vec<_>>()
                         .await
                         .map(|chunks| chunks.concat());
+                    if let Err(error) = &result {
+                        assert!(
+                            error
+                                .get_ref()
+                                .is_some_and(|error| error.is::<DecodeError>()),
+                            "{compression:?}: {name}: {error}"
+                        );
+                    }
                     assert_eq!(
                         result.as_deref().map_err(|_| ()),
                         expected,
@@ -1729,6 +1743,10 @@ mod tests {
                     (
                         vec![Err(Error::new(ErrorKind::BrokenPipe, "source failed"))],
                         Err(ErrorKind::BrokenPipe),
+                    ),
+                    (
+                        vec![Err(Error::new(ErrorKind::InvalidData, "source failed"))],
+                        Err(ErrorKind::InvalidData),
                     ),
                 ];
                 for (ending, expected) in cases {
@@ -1757,12 +1775,54 @@ mod tests {
                         sender.unbounded_send(item).unwrap();
                     }
                     drop(sender);
-                    let result = decoded
+                    let result =
+                        decoded
+                            .try_collect::<Vec<_>>()
+                            .await
+                            .map(|_| ())
+                            .map_err(|error| {
+                                assert!(
+                                    !error
+                                        .get_ref()
+                                        .is_some_and(|error| error.is::<DecodeError>()),
+                                    "{compression:?}: {error}"
+                                );
+                                error.kind()
+                            });
+                    assert_eq!(result, expected, "{compression:?}");
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn decode_body_preserves_input_errors() {
+            use futures::TryStreamExt;
+            use std::io::{Error, ErrorKind};
+
+            for compression in [
+                HttpCompression::Gzip,
+                HttpCompression::Deflate,
+                HttpCompression::Br,
+                HttpCompression::Zstd,
+            ] {
+                let encoded = compressed_test_body(b"hello", compression).await;
+                for prefix in [Bytes::new(), encoded.slice(..encoded.len() / 2)] {
+                    // Even InvalidData from the input is not a verdict from our decoder.
+                    let input = futures::stream::iter([
+                        Ok(prefix),
+                        Err(Error::new(ErrorKind::InvalidData, "source failed")),
+                    ]);
+                    let error = decode_body(input, Some(compression), StreamSource::Tus)
                         .try_collect::<Vec<_>>()
                         .await
-                        .map(|_| ())
-                        .map_err(|error| error.kind());
-                    assert_eq!(result, expected, "{compression:?}");
+                        .unwrap_err();
+                    assert_eq!(error.kind(), ErrorKind::InvalidData);
+                    assert!(
+                        !error
+                            .get_ref()
+                            .is_some_and(|error| error.is::<DecodeError>()),
+                        "{compression:?}: {error}"
+                    );
                 }
             }
         }

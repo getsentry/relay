@@ -5,6 +5,34 @@ use std::task::{Context, Poll, ready};
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
 use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 
+/// Marks failures of the encoded input so they are not mistaken for decoder corruption.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub(super) struct InputError(io::Error);
+
+impl InputError {
+    pub(super) fn wrap(error: io::Error) -> io::Error {
+        io::Error::new(error.kind(), Self(error))
+    }
+}
+
+/// Invalid compressed data, including checksum failures and trailing bytes.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid compressed upload: {0}")]
+pub struct DecodeError(#[source] io::Error);
+
+impl DecodeError {
+    pub(super) fn wrap(error: io::Error) -> io::Error {
+        if error
+            .get_ref()
+            .is_some_and(|error| error.is::<InputError>())
+        {
+            return error;
+        }
+        io::Error::new(error.kind(), Self(error))
+    }
+}
+
 /// Validates that a decoder's encoded input ends without trailing bytes or source errors.
 pub(super) struct Decoder<D>(D);
 
