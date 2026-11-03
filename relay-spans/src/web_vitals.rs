@@ -529,6 +529,10 @@ mod tests {
         let vital_metric = metrics.next().unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&vital_metric.attributes), @r#"
         {
+          "score.ratio.lcp": {
+            "type": "double",
+            "value": 0.75
+          },
           "sentry.metric.source": {
             "type": "string",
             "value": "span"
@@ -547,10 +551,6 @@ mod tests {
         let score_metric = metrics.next().unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&score_metric.attributes), @r#"
         {
-          "score.ratio.lcp": {
-            "type": "double",
-            "value": 0.75
-          },
           "sentry.metric.source": {
             "type": "string",
             "value": "span"
