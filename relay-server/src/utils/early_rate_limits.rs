@@ -141,11 +141,9 @@ fn resolve_limits(
         true,
     );
     let profiles_present = summary.profile_quantity.total > 0;
-    let profiles = match (&event, summary.event) {
-        (Some((_, outcome)), _) => Some(outcome.clone()),
-        (None, EventGroup::Absent) => check(profiles_present, DataCategory::Profile, true)
-            .or_else(|| check(profiles_present, DataCategory::Transaction, true)),
-        _ => check(profiles_present, DataCategory::Profile, true),
+    let profiles = match &event {
+        Some((_, outcome)) => Some(outcome.clone()),
+        None => check(profiles_present, DataCategory::Profile, true),
     };
     let event_attachments = match &event {
         Some((_, outcome)) => Some(outcome.clone()),

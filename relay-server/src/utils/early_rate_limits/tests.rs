@@ -990,22 +990,32 @@ fn test_enforce_transaction_profile_enforced() {
 }
 
 #[test]
-fn test_enforce_transaction_standalone_profile_enforced() {
-    // When the transaction is sampled, the profile survives as standalone.
-    let envelope = envelope![Profile];
+fn test_standalone_profile_ignores_transaction_limit() {
+    for (denied, remaining, client_limit_count, expected_outcomes) in [
+        (
+            vec![DataCategory::Transaction],
+            vec![&ItemType::Profile],
+            0,
+            vec![],
+        ),
+        (
+            vec![DataCategory::Transaction, DataCategory::Profile],
+            vec![],
+            1,
+            vec![
+                (DataCategory::Profile, 1),
+                (DataCategory::ProfileIndexed, 1),
+            ],
+        ),
+    ] {
+        let mut original = envelope![Profile];
+        original.items_mut().next().unwrap().set_sampled(false);
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
 
-    let cached = cached_limits(&[DataCategory::Transaction]);
-    let (envelope, _, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(envelope.is_empty());
-
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([
-            (DataCategory::Profile, 1),
-            (DataCategory::ProfileIndexed, 1),
-        ])
-    );
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(limits.iter().count(), client_limit_count);
+        assert_eq!(outcomes, expected_outcomes.into_iter().collect());
+    }
 }
 
 #[test]
