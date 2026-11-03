@@ -228,8 +228,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "73735c14ff41787595d9d36b9a7c43755c8ef367", default-features = false }
-symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "73735c14ff41787595d9d36b9a7c43755c8ef367", default-features = false }
+symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "14336dce13a8300e9787ad9046bb0317ddc0cc99", default-features = false }
+symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "14336dce13a8300e9787ad9046bb0317ddc0cc99", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"
