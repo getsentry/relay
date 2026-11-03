@@ -47,7 +47,6 @@ def expected_item(body, attributes):
         "attributes": {
             "sentry.origin": {"stringValue": "auto.log_drain.heroku"},
             "sentry.body": {"stringValue": body},
-            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(expect_resolution="ns")

@@ -12,10 +12,13 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
+use relay_ourlogs::{
+    HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN as DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT as MSG_COUNT,
+};
 
 use crate::endpoints::common;
 use crate::envelope::ContentType;
-use crate::extractors::{IntegrationBuilder, LogplexHeaders, RawContentType};
+use crate::extractors::{IntegrationBuilder, RawContentType};
 use crate::integrations::LogsIntegration;
 use crate::service::ServiceState;
 
@@ -34,7 +37,7 @@ mod logs {
 
     async fn handle(
         content_type: RawContentType,
-        logplex: LogplexHeaders,
+        headers: http::HeaderMap,
         state: ServiceState,
         builder: IntegrationBuilder,
     ) -> axum::response::Result<impl IntoResponse> {
@@ -45,10 +48,12 @@ mod logs {
             return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
 
+        let header = |name| headers.get(name).and_then(|h| h.to_str().ok());
+
         let envelope = builder
-            .with_type_and(LogsIntegration::HerokuLogDrain, |item| {
-                item.set_logplex_headers(logplex)
-            })
+            .with_type(LogsIntegration::HerokuLogDrain)
+            .with_header_opt(MSG_COUNT, header(MSG_COUNT))
+            .with_header_opt(DRAIN_TOKEN, header(DRAIN_TOKEN))
             .with_required_feature(Feature::HerokuLogDrainEndpoint)
             .build();
 

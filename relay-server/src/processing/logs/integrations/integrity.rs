@@ -32,16 +32,15 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let meta = envelope.envelope().headers().meta().clone();
-
         let item = envelope.envelope_mut().take_item_by(|item| {
             matches!(
                 item.integration(),
                 Some(Integration::Logs(LogsIntegration::Integrity))
             )
         })?;
+        let headers = envelope.envelope().headers().clone();
 
-        let work = SerializedLogsIntegration { meta, item };
+        let work = SerializedLogsIntegration { headers, item };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -58,17 +57,15 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
 /// Expands an Integrity Report log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
 pub fn expand(
-    work: SerializedLogsIntegration,
+    SerializedLogsIntegration { headers, item }: SerializedLogsIntegration,
     records: &mut RecordKeeper,
 ) -> Result<Intermediates, Error> {
-    let SerializedLogsIntegration { meta, item } = work;
-
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
 
     let payload = item.payload();
-    let received_at = meta.received_at();
+    let received_at = headers.meta().received_at();
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
@@ -90,14 +87,12 @@ pub fn expand(
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
-    for (category, quantity) in item.quantities() {
-        records.modify_by(category, -(quantity as isize));
-    }
+    records.remove(&item);
 
     let settings = IngestSettings {
         infer_user_agent: Some(InferUserAgent::Auto),
         infer_ip: Some(InferIp::Never),
     };
 
-    create_intermediates(meta, logs, settings)
+    create_intermediates(headers, logs, settings)
 }

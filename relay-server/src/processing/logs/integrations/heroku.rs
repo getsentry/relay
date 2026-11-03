@@ -1,191 +1,136 @@
 //! Heroku Logplex log expansion.
 
-use relay_event_schema::protocol::OurLog;
+use relay_cogs::AppFeature;
+use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
+use relay_ourlogs::{HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT};
+use relay_quotas::DataCategory;
 
-use crate::envelope::Item;
-use crate::processing::logs::{Error, Result, Settings};
-use crate::services::outcome::DiscardReason;
+use crate::envelope::WithHeader;
+use crate::integrations::{Integration, LogsIntegration};
+use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
+use crate::processing::logs::integrations::{
+    Error, SerializedLogsIntegration, create_intermediates,
+};
+use crate::processing::{self, Intermediates, Nothing, Output};
+use crate::services::outcome::{DiscardItemType, DiscardReason};
 
 /// The maximum amount of messages accepted in a single Logplex payload.
 ///
 /// Logplex sends batches of around 100KB with at most 1024 buffered messages, payloads with
 /// more messages are not sent by Logplex and are rejected as a whole.
-const MAX_MESSAGES: usize = 10_000;
+const MAX_MESSAGES: u32 = 10_000;
 
-/// Expands Heroku Logplex logs into the [`OurLog`] format.
+/// A processor for Heroku log integrations.
 ///
-/// The `item` carries the Logplex request headers, see [`Item::logplex_headers`].
-pub fn expand<F>(item: &Item, payload: &[u8], mut produce: F) -> Result<Settings>
-where
-    F: FnMut(OurLog),
-{
-    // Count first, without allocating, to reject oversized payloads before producing any logs.
-    if relay_ourlogs::parse_logplex_frames(payload)
-        .take(MAX_MESSAGES + 1)
-        .count()
-        > MAX_MESSAGES
-    {
-        relay_log::debug!("Heroku Logplex payload exceeds the maximum amount of messages");
-        return Err(Error::TooLarge);
+/// Converts Logplex integration items into intermediate log envelopes for further processing.
+#[derive(Debug)]
+pub struct HerokuLogsIntegrationProcessor;
+
+impl processing::Processor for HerokuLogsIntegrationProcessor {
+    type Input = SerializedLogsIntegration;
+    type Output = Nothing;
+    type Error = Error;
+
+    fn cogs() -> relay_cogs::FeatureWeights {
+        AppFeature::Logs.into()
     }
 
-    let logplex = item.logplex_headers().unwrap_or_default();
-    let drain_token = logplex.drain_token.as_deref();
-    let mut count: usize = 0;
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
+        let item = envelope.envelope_mut().take_item_by(|item| {
+            matches!(
+                item.integration(),
+                Some(Integration::Logs(LogsIntegration::HerokuLogDrain))
+            )
+        })?;
+        let headers = envelope.envelope().headers().clone();
 
-    for frame in relay_ourlogs::parse_logplex_frames(payload) {
-        let frame = match frame {
-            Ok(frame) => frame,
-            Err(err) => {
+        let work = SerializedLogsIntegration { headers, item };
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
+    }
+
+    async fn process(
+        &self,
+        work: Managed<Self::Input>,
+        _ctx: processing::Context<'_>,
+    ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let intermediates = work.try_map(expand)?;
+        Ok(Output::intermediates(intermediates))
+    }
+}
+
+/// Expands a Heroku log integration into an envelope of logs that can be
+/// returned to the processing pipeline.
+pub fn expand(
+    SerializedLogsIntegration { headers, item }: SerializedLogsIntegration,
+    records: &mut RecordKeeper,
+) -> Result<Intermediates, Error> {
+    records.lenient(DataCategory::LogByte);
+
+    let payload = item.payload();
+
+    let msg_count = headers
+        .get_header(HEROKU_LOGPLEX_HEADER_MSG_COUNT)
+        .and_then(|h| h.as_str())
+        .map(|h| h.parse::<u32>())
+        .transpose()
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
+    let drain_token = headers
+        .get_header(HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN)
+        .and_then(|h| h.as_str());
+
+    let mut count: u32 = 0;
+    let mut logs = Vec::new();
+
+    for frame in relay_ourlogs::parse_logplex_frames(&payload) {
+        count += 1;
+
+        if count > MAX_MESSAGES {
+            return Err(Error::Invalid(DiscardReason::ItemTooLarge(
+                DiscardItemType::Log,
+            )));
+        }
+
+        let frame = frame
+            .inspect_err(|err| {
                 relay_log::debug!(
-                    error = &err as &dyn std::error::Error,
-                    "Failed to parse Logplex frame, skipping the rest of the payload"
-                );
-                break;
-            }
-        };
+                    error = err as &dyn std::error::Error,
+                    "failed to parse Logplex frame"
+                )
+            })
+            .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
 
         let frame = String::from_utf8_lossy(frame);
-        match relay_ourlogs::parse_logplex_message(&frame) {
-            Ok(message) => {
-                count += 1;
-                produce(relay_ourlogs::logplex_message_to_sentry_log(
-                    message,
-                    drain_token,
-                ));
-            }
-            Err(err) => {
+        let message = relay_ourlogs::parse_logplex_message(&frame)
+            .inspect_err(|err| {
                 relay_log::debug!(
-                    error = &err as &dyn std::error::Error,
-                    "Failed to parse Logplex message, skipping"
-                );
-            }
-        }
+                    error = err as &dyn std::error::Error,
+                    "Failed to parse Logplex message"
+                )
+            })
+            .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
+
+        let log = relay_ourlogs::logplex_message_to_sentry_log(message, drain_token);
+        let byte_size = relay_ourlogs::calculate_size(&log);
+
+        records.modify_by(DataCategory::LogItem, 1);
+        records.modify_by(DataCategory::LogByte, byte_size as isize);
+
+        logs.push(WithHeader::just(log.into()));
     }
 
-    if let Some(expected) = logplex.msg_count
-        && usize::try_from(expected).ok() != Some(count)
-    {
-        relay_log::debug!(
-            expected,
-            count,
-            "Parsed message count differs from Logplex-Msg-Count"
-        );
-    }
-
-    if count == 0 {
-        relay_log::debug!("Failed to parse any logs from Heroku Logplex payload");
+    if msg_count.is_some_and(|expected| expected != count) {
+        relay_log::debug!("Parsed message count differs from Logplex-Msg-Count");
         return Err(Error::Invalid(DiscardReason::InvalidLog));
     }
 
-    Ok(Settings::default())
-}
+    // Undo all the base item quantities, as they will be completely taken over by the parsed
+    // contents, which contains an arbitrary amount of items (even 0).
+    records.remove(&item);
 
-#[cfg(test)]
-mod tests {
-    use relay_protocol::Value;
+    let settings = IngestSettings {
+        infer_user_agent: Some(InferUserAgent::Never),
+        infer_ip: Some(InferIp::Never),
+    };
 
-    use super::*;
-    use crate::envelope::ItemType;
-    use crate::extractors::LogplexHeaders;
-
-    fn expand_payload(item: &Item, payload: &str) -> Result<Vec<OurLog>> {
-        let mut logs = Vec::new();
-        expand(item, payload.as_bytes(), |log| logs.push(log))?;
-        Ok(logs)
-    }
-
-    fn frame(msg: &str) -> String {
-        format!("{} {msg}", msg.len())
-    }
-
-    #[test]
-    fn test_expand() {
-        let mut item = Item::new(ItemType::Integration);
-        item.set_logplex_headers(LogplexHeaders {
-            drain_token: Some("d.123".to_owned()),
-            ..Default::default()
-        });
-
-        let payload = [
-            frame("<190>1 2024-04-26T16:58:32+00:00 host app web.1 - one\n"),
-            frame("not a syslog message\n"),
-            frame("<45>1 2024-04-26T16:58:33+00:00 host heroku web.1 - Error R14 (Memory quota exceeded)\n"),
-        ]
-        .concat();
-
-        let logs = expand_payload(&item, &payload).unwrap();
-        let bodies: Vec<_> = logs.iter().map(|log| log.body.value().unwrap()).collect();
-        assert_eq!(bodies, vec!["one", "Error R14 (Memory quota exceeded)"]);
-
-        let attributes = logs[1].attributes.value().unwrap();
-        assert_eq!(
-            attributes
-                .get_value("heroku.logplex.drain_token")
-                .and_then(Value::as_str),
-            Some("d.123")
-        );
-        assert_eq!(
-            attributes
-                .get_value("heroku.error.code")
-                .and_then(Value::as_str),
-            Some("R14")
-        );
-    }
-
-    #[test]
-    fn test_expand_invalid_utf8() {
-        let item = Item::new(ItemType::Integration);
-        let mut payload = frame("<190>1 - host app web.1 - caf\u{e9}").into_bytes();
-        // Replace the `é` with an invalid continuation sequence of the same length.
-        let len = payload.len();
-        payload[len - 2..].copy_from_slice(b"\xff\xfe");
-
-        let mut logs = Vec::new();
-        expand(&item, &payload, |log| logs.push(log)).unwrap();
-        assert_eq!(logs[0].body.value().unwrap(), "caf\u{fffd}\u{fffd}");
-    }
-
-    #[test]
-    fn test_expand_stops_at_invalid_frame() {
-        let item = Item::new(ItemType::Integration);
-        let payload = frame("<190>1 - host app web.1 - one")
-            + "garbage "
-            + &frame("<190>1 - host app web.1 - two");
-
-        let logs = expand_payload(&item, &payload).unwrap();
-        assert_eq!(logs.len(), 1);
-    }
-
-    #[test]
-    fn test_expand_nothing_valid() {
-        let item = Item::new(ItemType::Integration);
-        assert!(matches!(
-            expand_payload(&item, ""),
-            Err(Error::Invalid(DiscardReason::InvalidLog))
-        ));
-        assert!(matches!(
-            expand_payload(&item, "{\"not\": \"logplex\"}"),
-            Err(Error::Invalid(DiscardReason::InvalidLog))
-        ));
-        assert!(matches!(
-            expand_payload(&item, &frame("hello")),
-            Err(Error::Invalid(DiscardReason::InvalidLog))
-        ));
-    }
-
-    #[test]
-    fn test_expand_too_many_messages() {
-        let item = Item::new(ItemType::Integration);
-        let line = frame("<190>1 - - - - -");
-
-        let payload = line.repeat(MAX_MESSAGES);
-        assert_eq!(expand_payload(&item, &payload).unwrap().len(), MAX_MESSAGES);
-
-        let payload = line.repeat(MAX_MESSAGES + 1);
-        assert!(matches!(
-            expand_payload(&item, &payload),
-            Err(Error::TooLarge)
-        ));
-    }
+    create_intermediates(headers, logs, settings)
 }

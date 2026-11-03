@@ -48,6 +48,13 @@ mod attributes {
 
 use self::attributes::*;
 
+/// The number of messages encoded in the body of the request.
+///
+/// For the example body above, this value is 2. Use this field to ensure that you’ve parsed the body correctly.
+pub const HEROKU_LOGPLEX_HEADER_MSG_COUNT: &str = "Logplex-Msg-Count";
+/// The drain token for the log drain sending the request.
+pub const HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN: &str = "Logplex-Drain-Token";
+
 /// The maximum amount of digits accepted in the octet count of a frame.
 ///
 /// Logplex batches are around 100KB, nine digits leave plenty of room while making sure the

@@ -41,8 +41,6 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let meta = envelope.envelope().headers().meta().clone();
-
         let (item, format) =
             envelope
                 .envelope_mut()
@@ -50,8 +48,10 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
                     Some(Integration::Logs(LogsIntegration::OtelV1 { format })) => Some(format),
                     _ => None,
                 })?;
+        let headers = envelope.envelope().headers().clone();
 
-        let work = SerializedOtelLogsIntegration(SerializedLogsIntegration { meta, item }, format);
+        let work =
+            SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format);
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -68,11 +68,9 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
 /// Expands a OTEL log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
 pub fn expand(
-    work: SerializedOtelLogsIntegration,
+    SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
 ) -> Result<Intermediates, Error> {
-    let SerializedOtelLogsIntegration(SerializedLogsIntegration { meta, item }, format) = work;
-
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
@@ -110,7 +108,7 @@ pub fn expand(
         infer_ip: Some(InferIp::Never),
     };
 
-    create_intermediates(meta, logs, settings)
+    create_intermediates(headers, logs, settings)
 }
 
 fn parse_logs_data(format: OtelFormat, payload: &[u8]) -> Result<LogsData, Error> {
