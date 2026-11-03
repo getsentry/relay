@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import json
 
+import pytest
+
 from .asserts import matches_any, time_within_delta
 
 from sentry_relay.consts import DataCategory
@@ -72,7 +74,6 @@ EXPECTED_ITEMS = [
             "vercel.log_type": {"stringValue": "stdout"},
             "sentry.body": {"stringValue": "Build completed successfully"},
             "vercel.project_name": {"stringValue": "my-app"},
-            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
             "sentry.timestamp_precise": {
@@ -98,7 +99,7 @@ EXPECTED_ITEMS = [
                 },
                 {
                     "dataCategory": DataCategory.LOG_BYTE,
-                    "quantity": "407",
+                    "quantity": "376",
                 },
             ],
             "keyId": "123",
@@ -123,7 +124,6 @@ EXPECTED_ITEMS = [
             "vercel.deployment_id": {"stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"},
             "vercel.proxy.method": {"stringValue": "GET"},
             "vercel.execution_region": {"stringValue": "sfo1"},
-            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
@@ -160,7 +160,7 @@ EXPECTED_ITEMS = [
                 },
                 {
                     "dataCategory": DataCategory.LOG_BYTE,
-                    "quantity": "860",
+                    "quantity": "829",
                 },
             ],
             "keyId": "123",
@@ -169,8 +169,14 @@ EXPECTED_ITEMS = [
 ]
 
 
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_vercel_logs_json_array(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_mode,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
 ):
     """Test Vercel logs ingestion with JSON array format."""
     items_consumer = items_consumer()
@@ -179,7 +185,8 @@ def test_vercel_logs_json_array(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
-    relay = relay(relay_with_processing())
+    upstream = relay(relay_with_processing())
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     vercel_logs_payload = [
         VERCEL_LOG_1,
@@ -196,8 +203,14 @@ def test_vercel_logs_json_array(
     assert items == EXPECTED_ITEMS
 
 
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_vercel_logs_ndjson(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
+    mini_sentry,
+    relay,
+    relay_mode,
+    relay_with_processing,
+    outcomes_consumer,
+    items_consumer,
 ):
     """Test Vercel logs ingestion with NDJSON format."""
     items_consumer = items_consumer()
@@ -206,7 +219,8 @@ def test_vercel_logs_ndjson(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
 
-    relay = relay(relay_with_processing())
+    upstream = relay(relay_with_processing())
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     # Format as NDJSON
     ndjson_payload = json.dumps(VERCEL_LOG_1) + "\n" + json.dumps(VERCEL_LOG_2) + "\n"

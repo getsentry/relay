@@ -10,10 +10,13 @@ use crate::managed::ManagedEnvelope;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
-use crate::processing::errors::ErrorsProcessor;
+use crate::processing::errors::{ErrorsProcessor, UnrealErrorIntegrationProcessor};
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
-use crate::processing::logs::LogsProcessor;
+use crate::processing::logs::{
+    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
+    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
+};
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
@@ -36,10 +39,15 @@ pub struct RelayProcessor {
     attachments: AttachmentProcessor,
     check_ins: CheckInsProcessor,
     client_reports: ClientReportsProcessor,
+    errors_unreal_integration: UnrealErrorIntegrationProcessor,
     errors: ErrorsProcessor,
     forward_unknown: ForwardUnknownProcessor,
     invalid: InvalidUnhandledProcessor,
     logs: LogsProcessor,
+    logs_integration_integrity: IntegrityLogsIntegrationProcessor,
+    logs_integration_nel: NelLogsIntegrationProcessor,
+    logs_integration_otel: OtelLogsIntegrationProcessor,
+    logs_integration_vercel: VercelLogsIntegrationProcessor,
     profile_chunks: ProfileChunksProcessor,
     profiles: ProfilesProcessor,
     replays: ReplaysProcessor,
@@ -68,10 +76,15 @@ impl RelayProcessor {
             attachments: AttachmentProcessor::new(ql()),
             check_ins: CheckInsProcessor::new(ql()),
             client_reports: ClientReportsProcessor::new(outcome_aggregator),
+            errors_unreal_integration: UnrealErrorIntegrationProcessor,
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
             logs: LogsProcessor::new(ql()),
+            logs_integration_nel: NelLogsIntegrationProcessor,
+            logs_integration_integrity: IntegrityLogsIntegrationProcessor,
+            logs_integration_otel: OtelLogsIntegrationProcessor,
+            logs_integration_vercel: VercelLogsIntegrationProcessor,
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
             replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
@@ -120,11 +133,16 @@ impl RelayProcessor {
         run!(self.replays);
         run!(self.spans);
         run!(self.logs);
+        run!(self.logs_integration_integrity);
+        run!(self.logs_integration_nel);
+        run!(self.logs_integration_otel);
+        run!(self.logs_integration_vercel);
         run!(self.trace_metrics);
         run!(self.profile_chunks);
         run!(self.check_ins);
 
         // Event based envelopes.
+        run!(self.errors_unreal_integration);
         run!(self.errors);
         run!(self.transactions);
 

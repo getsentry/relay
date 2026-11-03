@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from .test_store import make_transaction
 from .test_unreal import load_dump_file
 import os
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -59,18 +60,30 @@ def test_relay_with_full_normalization(mini_sentry, relay, config_full_normaliza
 @pytest.mark.parametrize("config_full_normalization", (False, True))
 @pytest.mark.parametrize("request_from_internal", (False, True))
 @pytest.mark.parametrize("fully_normalized", (False, True))
+@pytest.mark.parametrize("event_type", ("default", "transaction"))
 def test_processing_with_full_normalization(
     mini_sentry,
     events_consumer,
+    transactions_consumer,
     relay_with_processing,
     relay_credentials,
     config_full_normalization,
     request_from_internal,
     fully_normalized,
+    event_type,
 ):
     input, expected = get_test_data("extended-event")
+    input["type"] = event_type
+
+    # Only trusted requests may skip normalization and keep the declared event type.
+    skip_normalization = request_from_internal and fully_normalized
+    keeps_transaction = event_type == "transaction" and skip_normalization
+    if keeps_transaction:
+        # Full normalization still validates the kept transaction, so it must be valid.
+        make_transaction(input)
 
     events_consumer = events_consumer()
+    transactions_consumer = transactions_consumer()
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
@@ -108,8 +121,13 @@ def test_processing_with_full_normalization(
         ),
     )
 
+    if keeps_transaction:
+        ingested, _ = transactions_consumer.get_event(timeout=10)
+        assert ingested["type"] == "transaction"
+        return
+
     ingested, _ = events_consumer.get_event(timeout=10)
-    if not config_full_normalization and request_from_internal and fully_normalized:
+    if not config_full_normalization and skip_normalization:
         assert drop_props(expected) != drop_props(ingested)
     else:
         assert drop_props(expected) == drop_props(ingested)
@@ -166,44 +184,6 @@ def test_relay_chain_normalizes_events(
         ]
 
     assert drop_props(expected) == drop_props(ingested)
-
-
-@pytest.mark.parametrize("config_full_normalization", (False, True))
-@pytest.mark.parametrize("dump_file_name", ("unreal_crash", "unreal_crash_apple"))
-def test_relay_doesnt_normalize_unextracted_unreal_event(
-    mini_sentry,
-    relay,
-    dump_file_name,
-    config_full_normalization,
-):
-    """
-    Independently of the configuration, relays forward minidumps, apple crash
-    reports and unreal events without marking them as normalized.
-    """
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay = relay(
-        mini_sentry,
-        options=(
-            {"normalization": {"level": "full"}} if config_full_normalization else {}
-        ),
-    )
-
-    envelope = Envelope(headers={"event_id": "69241adef5744ef19bde5bbd06fe8177"})
-    unreal_content = load_dump_file(dump_file_name)
-    envelope.add_item(
-        item=Item(
-            type="unreal_report",
-            payload=PayloadRef(unreal_content),
-            # fully_normalized == False
-        ),
-    )
-    relay.send_envelope(project_id, envelope)
-
-    envelope = mini_sentry.get_captured_envelope()
-    assert len(envelope.items) == 1
-    assert "fully_normalized" not in envelope.items[0].headers
 
 
 @pytest.mark.parametrize("request_from_internal", (False, True))

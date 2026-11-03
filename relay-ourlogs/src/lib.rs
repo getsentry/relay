@@ -6,11 +6,13 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+mod browser_report_to_sentry;
 mod heroku_to_sentry;
 mod otel_to_sentry;
 mod size;
 mod vercel_to_sentry;
 
+pub use self::browser_report_to_sentry::browser_report_to_sentry_log;
 pub use self::heroku_to_sentry::{
     LogplexError, LogplexFrames, LogplexMessage, logplex_message_to_sentry_log,
     parse_logplex_frames, parse_logplex_message,

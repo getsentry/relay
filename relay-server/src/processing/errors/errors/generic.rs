@@ -3,8 +3,8 @@ use relay_quotas::DataCategory;
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Result, utils};
 
 #[derive(Debug)]
 pub struct Generic;
@@ -22,9 +22,11 @@ impl SentryError for Generic {
         let fully_normalized = ev.fully_normalized();
         let mut metrics = Default::default();
 
-        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx)?;
+        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx.processing)?;
 
-        let skip_normalization = ctx.processing.is_processing() && fully_normalized;
+        let skip_normalization = ctx.processing.is_processing()
+            && ctx.envelope.meta().request_trust().is_trusted()
+            && fully_normalized;
         if !skip_normalization && let Some(event) = event.value_mut() {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.

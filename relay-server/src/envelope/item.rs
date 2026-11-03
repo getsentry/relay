@@ -12,7 +12,7 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::extractors::LogplexHeaders;
-use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::integrations::{ErrorsIntegration, Integration, LogsIntegration, SpansIntegration};
 use crate::statsd::RelayTimers;
 use crate::utils::DebugBytes;
 
@@ -179,6 +179,9 @@ impl Item {
                 (DataCategory::SpanIndexed, item_count),
             ],
             ItemType::Integration => match self.integration() {
+                Some(Integration::Errors(ErrorsIntegration::Unreal)) => {
+                    smallvec![(DataCategory::Error, item_count)]
+                }
                 Some(Integration::Logs(
                     LogsIntegration::Nel
                     | LogsIntegration::Integrity
@@ -648,7 +651,8 @@ impl Item {
                         | AttachmentType::UnrealLogs
                         | AttachmentType::ViewHierarchy
                         | AttachmentType::Flamegraph
-                        | AttachmentType::NvShaderDebug,
+                        | AttachmentType::NvShaderDebug
+                        | AttachmentType::CompiledShader,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
@@ -678,9 +682,10 @@ impl Item {
             | ItemType::TraceMetric
             | ItemType::ProfileChunk => false,
 
-            // For now integrations can not create events, we may need to revisit this in the
-            // future and break down different types of integrations here, similar to attachments.
-            ItemType::Integration => false,
+            // Only error integrations create events.
+            ItemType::Integration => {
+                matches!(self.integration(), Some(Integration::Errors(_)))
+            }
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -713,7 +718,9 @@ impl Item {
             ItemType::Log => false,
             ItemType::TraceMetric => false,
             ItemType::ProfileChunk => false,
-            ItemType::Integration => false,
+            ItemType::Integration => {
+                matches!(self.integration(), Some(Integration::Errors(_)))
+            }
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -783,6 +790,10 @@ pub enum ItemType {
     /// Security report as sent by the browser in JSON.
     RawSecurity,
     /// Raw compressed UE4 crash report.
+    ///
+    /// Relay's Unreal endpoint creates an [`ItemType::Integration`] item with
+    /// [`ErrorsIntegration::Unreal`] instead. This item type is still accepted for compatibility
+    /// with envelopes forwarded by older Relays.
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,
