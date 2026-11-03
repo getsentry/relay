@@ -14,7 +14,7 @@
 use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
-use relay_conventions::attributes::SENTRY__ORIGIN;
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{
     AttributeValue, Attributes, OurLog, OurLogLevel, Timestamp, TraceId,
 };
@@ -30,20 +30,11 @@ mod attributes {
     pub const HEROKU__ERROR__CODE: &str = "heroku.error.code";
     pub const HEROKU__ERROR__DESCRIPTION: &str = "heroku.error.description";
     pub const HEROKU__LOGPLEX__DRAIN_TOKEN: &str = "heroku.logplex.drain_token";
-    pub const HEROKU__ROUTER__AT: &str = "heroku.router.at";
-    pub const HEROKU__ROUTER__METHOD: &str = "heroku.router.method";
-    pub const HEROKU__ROUTER__PATH: &str = "heroku.router.path";
-    pub const HEROKU__ROUTER__HOST: &str = "heroku.router.host";
     pub const HEROKU__ROUTER__REQUEST_ID: &str = "heroku.router.request_id";
-    pub const HEROKU__ROUTER__FWD: &str = "heroku.router.fwd";
     pub const HEROKU__ROUTER__DYNO: &str = "heroku.router.dyno";
     pub const HEROKU__ROUTER__CONNECT: &str = "heroku.router.connect";
     pub const HEROKU__ROUTER__SERVICE: &str = "heroku.router.service";
-    pub const HEROKU__ROUTER__STATUS: &str = "heroku.router.status";
-    pub const HEROKU__ROUTER__BYTES: &str = "heroku.router.bytes";
-    pub const HEROKU__ROUTER__PROTOCOL: &str = "heroku.router.protocol";
-    pub const HEROKU__ROUTER__TLS: &str = "heroku.router.tls";
-    pub const HEROKU__ROUTER__TLS_VERSION: &str = "heroku.router.tls_version";
+    pub const TLS__PROTOCOL__VERSION: &str = "tls.protocol.version";
 }
 
 use self::attributes::*;
@@ -355,7 +346,16 @@ enum RouterValue {
     String,
     Integer,
     Millis,
-    Boolean,
+    /// Path and query string of the request, the query is written to `url.query`.
+    Path,
+    /// The `tls` boolean, converted to the URL scheme.
+    Scheme,
+    /// The router's `http1.1` and `http2.0`, converted to the OTel versions `1.1` and `2`.
+    HttpVersion,
+    /// The router's `tls1.3`, converted to `1.3`. Heroku also reports `unknown`, which is dropped.
+    TlsVersion,
+    /// The `X-Forwarded-For` value, reduced to the original client as in OTel's `client.address`.
+    ClientAddress,
 }
 
 /// Returns the attribute name and value type of a documented router field.
@@ -363,22 +363,23 @@ fn router_field(key: &str) -> Option<(&'static str, RouterValue)> {
     use RouterValue::*;
 
     Some(match key {
-        "at" => (HEROKU__ROUTER__AT, String),
         "code" => (HEROKU__ERROR__CODE, String),
         "desc" => (HEROKU__ERROR__DESCRIPTION, String),
-        "method" => (HEROKU__ROUTER__METHOD, String),
-        "path" => (HEROKU__ROUTER__PATH, String),
-        "host" => (HEROKU__ROUTER__HOST, String),
+        "method" => (HTTP__REQUEST__METHOD, String),
+        "path" => (URL__PATH, Path),
+        "host" => (SERVER__ADDRESS, String),
         "request_id" => (HEROKU__ROUTER__REQUEST_ID, String),
-        "fwd" => (HEROKU__ROUTER__FWD, String),
+        "fwd" => (CLIENT__ADDRESS, ClientAddress),
         "dyno" => (HEROKU__ROUTER__DYNO, String),
         "connect" => (HEROKU__ROUTER__CONNECT, Millis),
         "service" => (HEROKU__ROUTER__SERVICE, Millis),
-        "status" => (HEROKU__ROUTER__STATUS, Integer),
-        "bytes" => (HEROKU__ROUTER__BYTES, Integer),
-        "protocol" => (HEROKU__ROUTER__PROTOCOL, String),
-        "tls" => (HEROKU__ROUTER__TLS, Boolean),
-        "tls_version" => (HEROKU__ROUTER__TLS_VERSION, String),
+        "status" => (HTTP__RESPONSE__STATUS_CODE, Integer),
+        // Heroku documents this as the bytes transferred to the client, without saying if that
+        // includes the headers. `http.response.size` is the closest definition.
+        "bytes" => (HTTP__RESPONSE__SIZE, Integer),
+        "protocol" => (NETWORK__PROTOCOL__VERSION, HttpVersion),
+        "tls" => (URL__SCHEME, Scheme),
+        "tls_version" => (TLS__PROTOCOL__VERSION, TlsVersion),
         _ => return None,
     })
 }
@@ -398,29 +399,35 @@ fn router_field(key: &str) -> Option<(&'static str, RouterValue)> {
 ///
 /// `host` and `request_id`, which are logged between `path` and `fwd`, can still be replaced by
 /// pairs injected through `fwd`.
+///
+/// `at` only determines the log level. `path` is split into `url.path` and `url.query`, and `fwd`
+/// is reduced to its leftmost address for `client.address`. The client controls that address, as
+/// with any `X-Forwarded-For`.
 fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLogLevel> {
     let mut seen_path = false;
     let mut level = None;
 
     for (key, value) in Logfmt(msg) {
-        let Some((name, ty)) = router_field(key) else {
-            continue;
-        };
-
         match key {
             "at" | "code" | "desc" | "method" | "path" if seen_path => continue,
+            "at" => {
+                level = match &*value {
+                    "error" => Some(OurLogLevel::Error),
+                    "warning" => Some(OurLogLevel::Warn),
+                    _ => None,
+                };
+                continue;
+            }
             "path" => seen_path = true,
             _ => {}
         }
 
-        if key == "at" {
-            level = match &*value {
-                "error" => Some(OurLogLevel::Error),
-                "warning" => Some(OurLogLevel::Warn),
-                _ => None,
-            };
-        }
+        let Some((name, ty)) = router_field(key) else {
+            continue;
+        };
 
+        // Fields that cannot be converted produce `None`, like empty ones, so they still replace
+        // injected values below.
         let value: Option<AttributeValue> = match ty {
             _ if value.is_empty() => None,
             RouterValue::String => Some(value.into_owned().into()),
@@ -431,7 +438,35 @@ fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLo
                 .parse::<i64>()
                 .ok()
                 .map(Into::into),
-            RouterValue::Boolean => value.parse::<bool>().ok().map(Into::into),
+            RouterValue::Path => {
+                let (path, query) = value.split_once('?').unwrap_or((&value, ""));
+                // Only the first `path` is accepted, the query does not have to be replaced later.
+                if !query.is_empty() {
+                    attributes.insert(URL__QUERY, query.to_owned());
+                }
+                (!path.is_empty()).then(|| path.to_owned().into())
+            }
+            RouterValue::Scheme => value
+                .parse::<bool>()
+                .ok()
+                .map(|tls| if tls { "https" } else { "http" }.to_owned().into()),
+            RouterValue::HttpVersion => value
+                .strip_prefix("http")
+                .filter(|version| !version.is_empty())
+                .map(|version| match version {
+                    "2.0" => "2".to_owned().into(),
+                    version => version.to_owned().into(),
+                }),
+            RouterValue::TlsVersion => value
+                .strip_prefix("tls")
+                .filter(|version| !version.is_empty())
+                .map(|version| version.to_owned().into()),
+            RouterValue::ClientAddress => value
+                .split(',')
+                .next()
+                .map(str::trim)
+                .filter(|address| !address.is_empty())
+                .map(|address| address.to_owned().into()),
         };
 
         // Later values of a field replace earlier ones, also when they are empty.
@@ -815,17 +850,13 @@ mod tests {
           "level": "info",
           "body": "at=info method=GET path=/ host=my-app.example.com request_id=6903a168-b79b-ec27-03c8-b8f64d8d8792 fwd=\"138.68.186.89\" dyno=web.1 connect=0ms service=0ms status=200 bytes=0 protocol=http2.0 tls=true tls_version=tls1.3",
           "attributes": {
+            "client.address": {
+              "type": "string",
+              "value": "138.68.186.89"
+            },
             "heroku.dyno": {
               "type": "string",
               "value": "router"
-            },
-            "heroku.router.at": {
-              "type": "string",
-              "value": "info"
-            },
-            "heroku.router.bytes": {
-              "type": "integer",
-              "value": 0
             },
             "heroku.router.connect": {
               "type": "integer",
@@ -835,26 +866,6 @@ mod tests {
               "type": "string",
               "value": "web.1"
             },
-            "heroku.router.fwd": {
-              "type": "string",
-              "value": "138.68.186.89"
-            },
-            "heroku.router.host": {
-              "type": "string",
-              "value": "my-app.example.com"
-            },
-            "heroku.router.method": {
-              "type": "string",
-              "value": "GET"
-            },
-            "heroku.router.path": {
-              "type": "string",
-              "value": "/"
-            },
-            "heroku.router.protocol": {
-              "type": "string",
-              "value": "http2.0"
-            },
             "heroku.router.request_id": {
               "type": "string",
               "value": "6903a168-b79b-ec27-03c8-b8f64d8d8792"
@@ -863,25 +874,45 @@ mod tests {
               "type": "integer",
               "value": 0
             },
-            "heroku.router.status": {
-              "type": "integer",
-              "value": 200
-            },
-            "heroku.router.tls": {
-              "type": "boolean",
-              "value": true
-            },
-            "heroku.router.tls_version": {
-              "type": "string",
-              "value": "tls1.3"
-            },
             "heroku.source": {
               "type": "string",
               "value": "heroku"
             },
+            "http.request.method": {
+              "type": "string",
+              "value": "GET"
+            },
+            "http.response.size": {
+              "type": "integer",
+              "value": 0
+            },
+            "http.response.status_code": {
+              "type": "integer",
+              "value": 200
+            },
+            "network.protocol.version": {
+              "type": "string",
+              "value": "2"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
+            },
+            "server.address": {
+              "type": "string",
+              "value": "my-app.example.com"
+            },
+            "tls.protocol.version": {
+              "type": "string",
+              "value": "1.3"
+            },
+            "url.path": {
+              "type": "string",
+              "value": "/"
+            },
+            "url.scheme": {
+              "type": "string",
+              "value": "https"
             }
           }
         }
@@ -901,6 +932,10 @@ mod tests {
           "level": "error",
           "body": "at=error code=H12 desc=\"Request timeout\" method=GET path=\"/\" host=example-app-1234567890ab.herokuapp.com fwd=17.17.17.17 dyno=web.1 connect=6ms service=30001ms status=503 bytes=0",
           "attributes": {
+            "client.address": {
+              "type": "string",
+              "value": "17.17.17.17"
+            },
             "heroku.dyno": {
               "type": "string",
               "value": "router"
@@ -913,14 +948,6 @@ mod tests {
               "type": "string",
               "value": "Request timeout"
             },
-            "heroku.router.at": {
-              "type": "string",
-              "value": "error"
-            },
-            "heroku.router.bytes": {
-              "type": "integer",
-              "value": 0
-            },
             "heroku.router.connect": {
               "type": "integer",
               "value": 6
@@ -929,37 +956,37 @@ mod tests {
               "type": "string",
               "value": "web.1"
             },
-            "heroku.router.fwd": {
-              "type": "string",
-              "value": "17.17.17.17"
-            },
-            "heroku.router.host": {
-              "type": "string",
-              "value": "example-app-1234567890ab.herokuapp.com"
-            },
-            "heroku.router.method": {
-              "type": "string",
-              "value": "GET"
-            },
-            "heroku.router.path": {
-              "type": "string",
-              "value": "/"
-            },
             "heroku.router.service": {
               "type": "integer",
               "value": 30001
-            },
-            "heroku.router.status": {
-              "type": "integer",
-              "value": 503
             },
             "heroku.source": {
               "type": "string",
               "value": "heroku"
             },
+            "http.request.method": {
+              "type": "string",
+              "value": "GET"
+            },
+            "http.response.size": {
+              "type": "integer",
+              "value": 0
+            },
+            "http.response.status_code": {
+              "type": "integer",
+              "value": 503
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
+            },
+            "server.address": {
+              "type": "string",
+              "value": "example-app-1234567890ab.herokuapp.com"
+            },
+            "url.path": {
+              "type": "string",
+              "value": "/"
             }
           }
         }
@@ -985,26 +1012,18 @@ mod tests {
         );
         assert!(!attributes.contains_key(HEROKU__ROUTER__DYNO));
         assert!(!attributes.contains_key(HEROKU__ROUTER__CONNECT));
-        assert!(!attributes.contains_key(HEROKU__ROUTER__BYTES));
+        assert!(!attributes.contains_key(HTTP__RESPONSE__SIZE));
     }
 
     #[test]
     fn test_router_ignores_unknown_and_malformed_fields() {
         let log = to_log(
-            "<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info status=abc connect=fast tls=maybe sample#foo=1 code=",
+            "<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info status=abc connect=fast tls=maybe protocol=spdy tls_version=unknown sample#foo=1 code=",
         );
 
         let attributes = log.value().unwrap().attributes.value().unwrap();
         let keys: Vec<_> = attributes.0.keys().collect();
-        assert_eq!(
-            keys,
-            vec![
-                "heroku.dyno",
-                "heroku.router.at",
-                "heroku.source",
-                "sentry.origin"
-            ]
-        );
+        assert_eq!(keys, vec!["heroku.dyno", "heroku.source", "sentry.origin"]);
     }
 
     fn attribute<'a>(log: &'a Annotated<OurLog>, key: &str) -> Option<&'a Value> {
@@ -1020,11 +1039,11 @@ mod tests {
         assert_eq!(log.value().unwrap().level.value(), Some(&OurLogLevel::Info));
         assert_eq!(attribute(&log, HEROKU__ERROR__CODE), None);
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__PATH).and_then(|v| v.as_str()),
+            attribute(&log, URL__PATH).and_then(|v| v.as_str()),
             Some(r#"/x" at=error code=H99 desc="pwned" status=500"#)
         );
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__STATUS),
+            attribute(&log, HTTP__RESPONSE__STATUS_CODE),
             Some(&Value::I64(200))
         );
     }
@@ -1040,13 +1059,13 @@ mod tests {
         assert_eq!(attribute(&log, HEROKU__ERROR__CODE), None);
         assert_eq!(attribute(&log, HEROKU__ERROR__DESCRIPTION), None);
         let str_attr = |key| attribute(&log, key).and_then(|v| v.as_str());
-        assert_eq!(str_attr(HEROKU__ROUTER__METHOD), Some("GET"));
-        assert_eq!(str_attr(HEROKU__ROUTER__PATH), Some("/x"));
-        assert_eq!(str_attr(HEROKU__ROUTER__HOST), Some("a.example.com"));
-        assert_eq!(str_attr(HEROKU__ROUTER__FWD), Some("1.2.3.4"));
+        assert_eq!(str_attr(HTTP__REQUEST__METHOD), Some("GET"));
+        assert_eq!(str_attr(URL__PATH), Some("/x"));
+        assert_eq!(str_attr(SERVER__ADDRESS), Some("a.example.com"));
+        assert_eq!(str_attr(CLIENT__ADDRESS), Some("1.2.3.4"));
         assert_eq!(str_attr(HEROKU__ROUTER__DYNO), Some("web.1"));
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__STATUS),
+            attribute(&log, HTTP__RESPONSE__STATUS_CODE),
             Some(&Value::I64(200))
         );
     }
@@ -1064,11 +1083,11 @@ mod tests {
         );
         let str_attr = |key| attribute(&log, key).and_then(|v| v.as_str());
         assert_eq!(str_attr(HEROKU__ERROR__CODE), Some("H10"));
-        assert_eq!(str_attr(HEROKU__ROUTER__PATH), Some("/"));
-        assert_eq!(str_attr(HEROKU__ROUTER__FWD), Some("1.2.3.4"));
+        assert_eq!(str_attr(URL__PATH), Some("/"));
+        assert_eq!(str_attr(CLIENT__ADDRESS), Some("1.2.3.4"));
         assert_eq!(attribute(&log, HEROKU__ROUTER__DYNO), None);
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__STATUS),
+            attribute(&log, HTTP__RESPONSE__STATUS_CODE),
             Some(&Value::I64(503))
         );
     }
@@ -1080,13 +1099,69 @@ mod tests {
         );
 
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__FWD).and_then(|v| v.as_str()),
-            Some("203.0.113.7, 10.0.0.1")
+            attribute(&log, CLIENT__ADDRESS).and_then(|v| v.as_str()),
+            Some("203.0.113.7")
         );
         assert_eq!(
-            attribute(&log, HEROKU__ROUTER__STATUS),
+            attribute(&log, HTTP__RESPONSE__STATUS_CODE),
             Some(&Value::I64(200))
         );
+    }
+
+    #[test]
+    fn test_router_path_and_query() {
+        let router_log = |path: &str| {
+            to_log(&format!(
+                r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="{path}" status=200"#
+            ))
+        };
+        let parts = |path: &str| {
+            let log = router_log(path);
+            (
+                attribute(&log, URL__PATH)
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned),
+                attribute(&log, URL__QUERY)
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned),
+            )
+        };
+        let some = |value: &str| Some(value.to_owned());
+
+        assert_eq!(parts("/forecast"), (some("/forecast"), None));
+        assert_eq!(parts("/forecast?"), (some("/forecast"), None));
+        assert_eq!(
+            parts("/forecast?x=1&y=?"),
+            (some("/forecast"), some("x=1&y=?"))
+        );
+        assert_eq!(parts("?x=1"), (None, some("x=1")));
+    }
+
+    #[test]
+    fn test_router_injected_query_cannot_be_kept() {
+        // Only the first `path` counts, a later one does not add or replace the query.
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/x" path="/evil?a=b" status=200"#,
+        );
+
+        assert_eq!(
+            attribute(&log, URL__PATH).and_then(|v| v.as_str()),
+            Some("/x")
+        );
+        assert_eq!(attribute(&log, URL__QUERY), None);
+    }
+
+    #[test]
+    fn test_router_unconvertible_values_replace_injected_ones() {
+        // The genuine values cannot be converted, but must still replace injected ones.
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/" fwd="1.2.3.4" protocol=http1.1 tls=true tls_version=tls1.3 status=200 fwd="" protocol=spdy tls=maybe tls_version=unknown"#,
+        );
+
+        assert_eq!(attribute(&log, CLIENT__ADDRESS), None);
+        assert_eq!(attribute(&log, NETWORK__PROTOCOL__VERSION), None);
+        assert_eq!(attribute(&log, URL__SCHEME), None);
+        assert_eq!(attribute(&log, TLS__PROTOCOL__VERSION), None);
     }
 
     #[test]

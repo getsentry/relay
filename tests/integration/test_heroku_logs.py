@@ -31,7 +31,7 @@ def heroku_messages():
     # https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format
     return [
         f"<190>1 {now} host app web.1 - Completed 200 OK in 12ms",
-        f'<158>1 {now} host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/forecast" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
+        f'<158>1 {now} host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
         f"<45>1 {now} host heroku web.1 - Error R14 (Memory quota exceeded)",
     ]
 
@@ -87,27 +87,27 @@ def expected_items():
             },
         ),
         expected_item(
-            'at=error code=H12 desc="Request timeout" method=GET path="/forecast" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
+            'at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
             {
                 "sentry.severity_text": {"stringValue": "error"},
                 "heroku.source": {"stringValue": "heroku"},
                 "heroku.dyno": {"stringValue": "router"},
                 "heroku.error.code": {"stringValue": "H12"},
                 "heroku.error.description": {"stringValue": "Request timeout"},
-                "heroku.router.at": {"stringValue": "error"},
-                "heroku.router.method": {"stringValue": "GET"},
-                "heroku.router.path": {"stringValue": "/forecast"},
-                "heroku.router.host": {"stringValue": "example.herokuapp.com"},
+                "http.request.method": {"stringValue": "GET"},
+                "url.path": {"stringValue": "/forecast"},
+                "url.query": {"stringValue": "x=1"},
+                "server.address": {"stringValue": "example.herokuapp.com"},
                 "heroku.router.request_id": {
                     "stringValue": "8601b555-6a83-4c12-8269-97c8e32cdb22"
                 },
-                "heroku.router.fwd": {"stringValue": "203.0.113.7"},
+                "client.address": {"stringValue": "203.0.113.7"},
                 "heroku.router.dyno": {"stringValue": "web.1"},
                 "heroku.router.connect": {"intValue": "1"},
                 "heroku.router.service": {"intValue": "30001"},
-                "heroku.router.status": {"intValue": "503"},
-                "heroku.router.bytes": {"intValue": "0"},
-                "heroku.router.protocol": {"stringValue": "http1.1"},
+                "http.response.status_code": {"intValue": "503"},
+                "http.response.size": {"intValue": "0"},
+                "network.protocol.version": {"stringValue": "1.1"},
             },
         ),
         expected_item(
