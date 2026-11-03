@@ -1188,6 +1188,8 @@ impl ObjectstoreServiceInner {
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
 
+                // TODO(INGEST-1348): Remove after upgrading to an objectstore-client release
+                // containing getsentry/objectstore#754.
                 // The HTTP client may stop polling after Content-Length bytes. Validate the
                 // stream's trailer before releasing the bytes that complete this request.
                 let mut body = withhold_last_chunk(body).boxed();

@@ -1,10 +1,13 @@
 use bytes::{Bytes, BytesMut};
-use futures::{Stream, StreamExt, TryStreamExt, future, stream};
+#[cfg(any(feature = "processing", test))]
+use futures::TryStreamExt;
+use futures::{Stream, StreamExt, future, stream};
 
 /// Holds back the last nonempty chunk until the source has successfully reached EOF.
 ///
 /// This makes consumers that stop at a declared content length observe errors in the stream's
 /// trailer. Only one chunk of lookahead is retained, and the source is not polled until needed.
+#[cfg(any(feature = "processing", test))]
 pub fn withhold_last_chunk<S, E>(stream: S) -> impl Stream<Item = Result<Bytes, E>> + Send
 where
     S: Stream<Item = Result<Bytes, E>> + Send + Unpin,
