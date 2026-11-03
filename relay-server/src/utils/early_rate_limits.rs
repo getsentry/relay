@@ -405,6 +405,9 @@ fn filter(
                 ),
             },
             ItemType::Integration => match item.content_type() {
+                Some(ContentType::Integration(Integration::Errors(_))) => {
+                    apply_retention(records, RetentionAction::drop_on_rejection(event), [], item)
+                }
                 Some(ContentType::Integration(Integration::Logs(_))) => apply_retention(
                     records,
                     RetentionAction::drop_on_rejection(enforcement.logs.as_ref()),

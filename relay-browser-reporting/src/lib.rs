@@ -3,20 +3,47 @@
 //! The browser reporting API is defined in
 //! <https://www.w3.org/TR/reporting-1/>.
 
-mod nel;
+#![warn(missing_docs)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
 
-use serde::{Deserialize, Serialize};
+pub mod nel;
+
+use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
 
 /// The contents of the `body` field of a [`BrowserReport`].
 ///
-/// This contains a variant for each supported report type.
+/// This contains a variant for each supported report type,
+/// plus an `Unsupported` variant into which all reports with
+/// unknown `"type"` fields get deserialized.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "body")]
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
+    /// The body of a Networ Error report.
     NetworkError(nel::Body),
+    /// An unsupported report body.
+    #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
+    Unsupported,
 }
 
+impl BrowserReportBody {
+    /// The type of the browser report.
+    ///
+    /// This corresponds to the value of the `"type"`
+    /// field in the serialized report.
+    pub fn report_type(&self) -> &'static str {
+        match self {
+            BrowserReportBody::NetworkError(_) => "network-error",
+            BrowserReportBody::Unsupported => "unsupported",
+        }
+    }
+}
+
+/// A serialized Browser Report sent by the
+/// Browser Reporting API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserReport {
     /// The time between the generation and sending of the report, in milliseconds.
@@ -30,6 +57,15 @@ pub struct BrowserReport {
     /// The body of the report.
     #[serde(flatten)]
     pub body: BrowserReportBody,
+}
+
+/// See <https://github.com/serde-rs/serde/issues/1714>.
+fn deserialize_unknown_report_body<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(IgnoredAny)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -116,6 +152,15 @@ mod tests {
                 "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
             }"#;
 
-        assert!(serde_json::from_str::<BrowserReport>(json).is_err());
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 31042,
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "type": "unsupported"
+        }
+        "#);
     }
 }

@@ -549,7 +549,11 @@ fn test_enforce_limit_minidump() {
 
 #[test]
 fn test_enforce_limit_attachments() {
-    for subtype in [AttachmentType::Attachment, AttachmentType::Flamegraph] {
+    for subtype in [
+        AttachmentType::Attachment,
+        AttachmentType::Flamegraph,
+        AttachmentType::CompiledShader,
+    ] {
         let mut envelope = envelope![Attachment::Minidump, Attachment];
         envelope
             .items_mut()
@@ -1186,20 +1190,30 @@ fn test_container_counts_and_byte_quota_fallback() {
 
 #[test]
 fn test_integration_items_use_native_limits() {
-    use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration};
+    use crate::integrations::{ErrorsIntegration, LogsIntegration, OtelFormat, SpansIntegration};
 
     for (integration, category, expected) in [
         (
+            Integration::Errors(ErrorsIntegration::Unreal),
+            DataCategory::Error,
+            vec![(DataCategory::Error, 1)],
+        ),
+        (
             Integration::Logs(LogsIntegration::Nel),
             DataCategory::LogByte,
-            [(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
+            vec![(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
+        ),
+        (
+            Integration::Logs(LogsIntegration::BrowserReport),
+            DataCategory::LogByte,
+            vec![(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
         ),
         (
             Integration::Spans(SpansIntegration::OtelV1 {
                 format: OtelFormat::Json,
             }),
             DataCategory::Span,
-            [(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
+            vec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
         ),
     ] {
         let mut envelope = envelope![Integration];
@@ -1211,7 +1225,7 @@ fn test_integration_items_use_native_limits() {
         let (envelope, limits, outcomes) = enforce_and_apply(cached_limits(&[category]), envelope);
         assert!(envelope.is_empty());
         assert!(limits.is_limited());
-        assert_eq!(outcomes, BTreeMap::from(expected));
+        assert_eq!(outcomes, expected.into_iter().collect());
     }
 }
 

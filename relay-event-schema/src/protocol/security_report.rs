@@ -572,6 +572,7 @@ pub struct Csp {
     pub column_number: Annotated<u64>,
     /// The first 40 characters of the inline script, event handler, or style that caused the
     /// violation.
+    #[metastructure(pii = "maybe")]
     pub script_sample: Annotated<String>,
     /// Policy disposition (enforce or report).
     pub disposition: Annotated<String>,

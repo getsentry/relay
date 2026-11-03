@@ -1264,11 +1264,8 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
         relay.config_dir.join("config.yml").write(yaml.dump(options))
 
         # The swap is not synchronous: Relay re-reads the file, pushes the config, and Arroyo
-        # probes a broker before installing. Keep producing until the generation gauge reports
-        # a swap, which also proves produce keeps working the whole way through.
-        #
-        # The gauge rides along with produce metrics, which are debounced to once a second, so
-        # this has to keep sending rather than wait on a quiet socket.
+        # probes a broker before installing. Keep producing until Arroyo's generation gauge
+        # reports a swap, which also proves produce keeps working the whole way through.
         statsd.settimeout(2)
         deadline = time.monotonic() + 60
         swapped = False
@@ -1291,7 +1288,7 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
             for metric in datagram.splitlines():
                 name, _, rest = metric.partition(":")
                 if (
-                    name == "relay.kafka.reload_generation"
+                    name == "arroyo.producer.config_reload_generation"
                     and float(rest.partition("|")[0]) >= 1
                 ):
                     swapped = True

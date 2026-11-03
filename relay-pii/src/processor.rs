@@ -1869,6 +1869,33 @@ mod tests {
     }
 
     #[test]
+    fn test_csp_script_sample_pii() {
+        let mut event = Event::from_value(
+            json!({
+                "csp": {
+                    "script_sample": "var user = {\"email\":\"jane@example.com\"",
+                }
+            })
+            .into(),
+        );
+
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "csp.script_sample": ["@anything:filter"]
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        processor::process_value(&mut event, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.csp.script_sample!).as_str(), "[Filtered]");
+    }
+
+    #[test]
     fn test_scrub_breadcrumb_data_http_not_scrubbed() {
         let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
             r#"{

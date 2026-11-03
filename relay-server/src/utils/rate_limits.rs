@@ -132,7 +132,8 @@ impl AttachmentRole {
                 | AttachmentType::UnrealLogs
                 | AttachmentType::ViewHierarchy
                 | AttachmentType::Flamegraph
-                | AttachmentType::NvShaderDebug,
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
             )
             | None => Self::Plain,
         }
@@ -379,6 +380,9 @@ impl EnvelopeSummary {
                     None => {}
                 },
                 ItemType::Integration => match item.content_type() {
+                    Some(ContentType::Integration(Integration::Errors(_))) => summary
+                        .event
+                        .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
                     Some(ContentType::Integration(Integration::Spans(_))) => {
                         summary.span_quantity += count;
                     }
