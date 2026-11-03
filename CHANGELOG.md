@@ -15,6 +15,7 @@
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
+- Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 
 **Internal**:
 
@@ -96,7 +97,6 @@
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
 - Limit the number of deserialization ops on ItemContainer. ([#6429](https://github.com/getsentry/relay/pull/6429))
-- Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 - Don't cache dimensioned rate-limits. ([#6457](https://github.com/getsentry/relay/pull/6457))
 - Slugify monitor slugs the same way as Sentry for check-in routing and rate limit dimensions. ([#6456](https://github.com/getsentry/relay/pull/6456))
 - Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
