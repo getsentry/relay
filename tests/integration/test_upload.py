@@ -1928,11 +1928,14 @@ def test_invalid_compressed_upload_processing_chain(
 
 
 @pytest.mark.parametrize(
-    "data",
-    [b"", b"hello world", b"hello world" * 60_000],
-    ids=["empty", "small", "large"],
+    "data,corruption",
+    [
+        pytest.param(b"", "checksum", id="empty-checksum"),
+        pytest.param(b"hello world" * 60_000, "checksum", id="streamed-checksum"),
+        pytest.param(b"hello world", "truncated", id="truncated-gzip"),
+    ],
 )
-def test_resumable_upload_cancels_invalid_gzip_checksum(
+def test_resumable_upload_restarts_after_corruption(
     mini_sentry,
     relay,
     relay_with_processing,
@@ -1940,6 +1943,7 @@ def test_resumable_upload_cancels_invalid_gzip_checksum(
     events_consumer,
     objectstore,
     data,
+    corruption,
 ):
     mini_sentry.fail_on_relay_error = False
     edge = relay(relay_with_processing())
@@ -1948,9 +1952,15 @@ def test_resumable_upload_cancels_invalid_gzip_checksum(
     consumer.get_event()
     project_key = mini_sentry.get_dsn_public_key(42)
     compressed = bytearray(gzip.compress(data, compresslevel=0))
-    compressed[-8] ^= 1  # Corrupt the CRC, including for an empty decoded payload.
-    with pytest.raises(gzip.BadGzipFile, match="CRC check failed"):
-        gzip.decompress(compressed)
+    if corruption == "checksum":
+        compressed[-8] ^= 1  # Corrupt the CRC, including for an empty decoded payload.
+        with pytest.raises(gzip.BadGzipFile, match="CRC check failed"):
+            gzip.decompress(compressed)
+    else:
+        # HTTP completes successfully, but the gzip trailer is missing.
+        compressed = compressed[:-8]
+        with pytest.raises(EOFError):
+            gzip.decompress(compressed)
 
     create = edge.post(
         f"/api/42/upload/?sentry_key={project_key}",
@@ -1981,7 +1991,42 @@ def test_resumable_upload_cancels_invalid_gzip_checksum(
     assert progress.status_code == 404, progress.text
     path, _ = location_parts(location)
     key = path.rstrip("/").split("/")[-1]
-    assert objectstore("attachments", 42).head(key) is None
+    storage = objectstore("attachments", 42)
+    assert storage.head(key) is None
+
+    # Correct bytes cannot revive the cancelled session or reuse its stored prefix.
+    remaining = data or b"!"
+    retry = patch_chunk(edge, location, project_key, remaining[:1], len(FIRST_CHUNK))
+    assert retry.status_code == 404, retry.text
+    assert storage.head(key) is None
+
+    # The uploader must create a fresh session and resend the entire payload.
+    expected = FIRST_CHUNK + remaining
+    replacement = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(len(expected))},
+    )
+    assert replacement.status_code == 201, replacement.text
+    replacement_location = replacement.headers["Location"]
+    restart = patch_chunk(
+        edge,
+        replacement_location,
+        project_key,
+        gzip.compress(expected),
+        0,
+        headers={
+            "Content-Encoding": "gzip",
+            "X-Decoded-Content-Length": str(len(expected)),
+        },
+    )
+    assert restart.status_code == 204, restart.text
+    assert restart.headers["Upload-Offset"] == str(len(expected))
+    replacement_path, _ = location_parts(replacement_location)
+    replacement_key = replacement_path.rstrip("/").split("/")[-1]
+    assert replacement_key != key
+    assert storage.get(replacement_key).payload.read() == expected
+    assert head_upload(edge, location, project_key).status_code == 404
+    assert storage.head(key) is None
 
 
 def test_resumable_upload_preserves_session_on_body_error(
