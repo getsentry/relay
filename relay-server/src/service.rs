@@ -49,6 +49,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
+use relay_threading::AsyncPoolService;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]
@@ -195,7 +196,7 @@ impl ServiceState {
         // other services.
         let (processor, processor_rx) = match current_config.relay_mode() {
             RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            RelayMode::Managed => channel(EnvelopeProcessorService::name()),
+            RelayMode::Managed => channel(AsyncPoolService::<EnvelopeProcessorService>::name()),
         };
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
@@ -308,7 +309,7 @@ impl ServiceState {
                 services.start_with(router, aggregator_rx);
 
                 services.start_with(
-                    EnvelopeProcessorService::new(
+                    EnvelopeProcessorService::new_service(
                         processor_pool.clone(),
                         config.clone(),
                         global_config_handle.clone(),

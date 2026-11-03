@@ -23,13 +23,12 @@ use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::ClientReport;
 use relay_filter::FilterStatKey;
-use relay_log::sentry::SentryFutureExt;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_quotas::{RateLimits, Scoping};
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, NoResponse, Service};
-use relay_threading::AsyncPool;
+use relay_system::{Addr, FromMessage, MessageHandler, NoResponse};
+use relay_threading::{AsyncPool, AsyncPoolService};
 use reqwest::header;
 use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 use zstd::stream::Encoder as ZstdEncoder;
@@ -64,8 +63,6 @@ use {
     relay_redis::RedisClients,
     std::time::Instant,
 };
-
-mod metrics;
 
 /// The minimum clock drift for correction to apply.
 pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -486,7 +483,6 @@ impl Default for Addrs {
 }
 
 struct InnerProcessor {
-    pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,
@@ -499,10 +495,8 @@ struct InnerProcessor {
 }
 
 impl EnvelopeProcessorService {
-    /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
-    pub fn new(
-        pool: EnvelopeProcessorServicePool,
+    fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
@@ -546,7 +540,6 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         let rate_limiter = rate_limiter.map(Arc::new);
         let inner = InnerProcessor {
-            pool,
             global_config,
             project_cache,
             #[cfg(feature = "processing")]
@@ -566,6 +559,31 @@ impl EnvelopeProcessorService {
         Self {
             inner: Arc::new(inner),
         }
+    }
+
+    /// Creates a multi-threaded envelope processor.
+    pub fn new_service(
+        pool: AsyncPool<Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
+        config: Arc<Config>,
+        global_config: GlobalConfigHandle,
+        project_cache: ProjectCacheHandle,
+        cogs: Cogs,
+        #[cfg(feature = "processing")] redis: Option<RedisClients>,
+        addrs: Addrs,
+        metric_outcomes: MetricOutcomes,
+    ) -> AsyncPoolService<EnvelopeProcessorService> {
+        AsyncPoolService::new(
+            Self::new(
+                config,
+                global_config,
+                project_cache,
+                cogs,
+                redis,
+                addrs,
+                metric_outcomes,
+            ),
+            pool,
+        )
     }
 
     async fn process_envelope(
@@ -742,7 +760,7 @@ impl EnvelopeProcessorService {
                 return false;
             }
 
-            if !self::metrics::is_valid_namespace(bucket, source) {
+            if !super::metrics::is_valid_namespace(bucket, source) {
                 relay_log::debug!("dropping bucket in invalid namespace {bucket:?}");
                 return false;
             }
@@ -969,8 +987,11 @@ impl EnvelopeProcessorService {
             return Vec::new();
         };
 
-        let mut buckets =
-            self::metrics::remove_invalid_namespaces(buckets, &self.inner.metric_outcomes, scoping);
+        let mut buckets = super::metrics::remove_invalid_namespaces(
+            buckets,
+            &self.inner.metric_outcomes,
+            scoping,
+        );
 
         let mut namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
@@ -1412,29 +1433,6 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    async fn handle_message(self, message: EnvelopeProcessor) {
-        let ty = message.variant();
-        let feature_weights = self.feature_weights(&message);
-
-        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
-
-            match message {
-                EnvelopeProcessor::ProcessEnvelope(m) => {
-                    self.handle_process_envelope(&mut cogs, *m).await
-                }
-                EnvelopeProcessor::ProcessProjectMetrics(m) => {
-                    self.handle_process_metrics(&mut cogs, *m)
-                }
-                EnvelopeProcessor::ProcessBatchedMetrics(m) => {
-                    self.handle_process_batched_metrics(&mut cogs, *m)
-                }
-                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m).await,
-                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
-            }
-        });
-    }
-
     fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
         match message {
             // Envelope is split later and tokens are attributed then.
@@ -1459,20 +1457,30 @@ impl EnvelopeProcessorService {
     }
 }
 
-impl Service for EnvelopeProcessorService {
+impl MessageHandler for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        while let Some(message) = rx.recv().await {
-            let service = self.clone();
-            // Create a new hub to prevent sentry scopes from bleeding to other tasks.
-            let hub = relay_log::Hub::new_from_top(relay_log::Hub::current());
+    async fn handle_message(&self, message: Self::Interface) {
+        let ty = message.variant();
+        let feature_weights = self.feature_weights(&message);
 
-            self.inner
-                .pool
-                .spawn_async(Box::pin(service.handle_message(message).bind_hub(hub)))
-                .await;
-        }
+        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
+
+            match message {
+                EnvelopeProcessor::ProcessEnvelope(m) => {
+                    self.handle_process_envelope(&mut cogs, *m).await
+                }
+                EnvelopeProcessor::ProcessProjectMetrics(m) => {
+                    self.handle_process_metrics(&mut cogs, *m)
+                }
+                EnvelopeProcessor::ProcessBatchedMetrics(m) => {
+                    self.handle_process_batched_metrics(&mut cogs, *m)
+                }
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m).await,
+                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
+            }
+        });
     }
 }
 
@@ -1834,7 +1842,8 @@ mod tests {
     use relay_quotas::DataCategory;
     use similar_asserts::assert_eq;
 
-    use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
+    #[cfg(feature = "processing")]
+    use crate::service::create_redis_clients;
 
     #[cfg(feature = "processing")]
     use {
@@ -1844,6 +1853,68 @@ mod tests {
     };
 
     use super::*;
+
+    async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+
+        #[cfg(feature = "processing")]
+        let redis_clients = config
+            .current()
+            .redis()
+            .map(|c| create_redis_clients(c))
+            .transpose()
+            .unwrap();
+
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
+
+        let config = Arc::new(config);
+        EnvelopeProcessorService::new(
+            Arc::clone(&config),
+            GlobalConfigHandle::fixed(Default::default()),
+            ProjectCacheHandle::for_test(),
+            Cogs::noop(),
+            #[cfg(feature = "processing")]
+            redis_clients,
+            Addrs {
+                outcome_aggregator,
+                upstream_relay,
+                #[cfg(feature = "processing")]
+                store_forwarder: None,
+                #[cfg(feature = "processing")]
+                objectstore: None,
+                aggregator,
+            },
+            metric_outcomes,
+        )
+    }
+
+    async fn create_test_processor_with_addrs(
+        config: Config,
+        addrs: Addrs,
+    ) -> EnvelopeProcessorService {
+        #[cfg(feature = "processing")]
+        let redis_clients = config
+            .current()
+            .redis()
+            .map(|c| create_redis_clients(c))
+            .transpose()
+            .unwrap();
+        let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
+
+        let config = Arc::new(config);
+        EnvelopeProcessorService::new(
+            Arc::clone(&config),
+            GlobalConfigHandle::fixed(Default::default()),
+            ProjectCacheHandle::for_test(),
+            Cogs::noop(),
+            #[cfg(feature = "processing")]
+            redis_clients,
+            addrs,
+            metric_outcomes,
+        )
+    }
 
     async fn process_to_single_envelope<'a>(
         processor: &EnvelopeProcessorService,
