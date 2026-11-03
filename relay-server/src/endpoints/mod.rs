@@ -118,6 +118,8 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         RelayMode::Managed => Router::new()
             .route("/api/{project_id}/nel/", nel::route(config))
             .nest("/api/{project_id}/integration/heroku", integrations::heroku::routes(config))
+            .route("/api/{project_id}/integration/browser-report", integrations::browser_reports::route(config))
+            .route("/api/{project_id}/integration/browser-report/", integrations::browser_reports::route(config))
             .nest("/api/{project_id}/integration/otlp", integrations::otlp::routes(config))
             .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
             .route_layer(middlewares::cors()),

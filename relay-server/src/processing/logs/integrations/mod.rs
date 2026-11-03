@@ -7,12 +7,14 @@ use crate::managed::{Counted, OutcomeError, Quantities};
 use crate::processing::Intermediates;
 use crate::services::outcome::{DiscardReason, Outcome};
 
+mod browser_reports;
 mod heroku;
 mod integrity;
 mod nel;
 mod otel;
 mod vercel;
 
+pub use browser_reports::BrowserReportLogsIntegrationProcessor;
 pub use heroku::HerokuLogsIntegrationProcessor;
 pub use integrity::IntegrityLogsIntegrationProcessor;
 pub use nel::NelLogsIntegrationProcessor;

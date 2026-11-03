@@ -14,8 +14,9 @@ use crate::processing::errors::{ErrorsProcessor, UnrealErrorIntegrationProcessor
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
 use crate::processing::logs::{
-    HerokuLogsIntegrationProcessor, IntegrityLogsIntegrationProcessor, LogsProcessor,
-    NelLogsIntegrationProcessor, OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
+    BrowserReportLogsIntegrationProcessor, HerokuLogsIntegrationProcessor,
+    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
+    OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
 };
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
@@ -45,6 +46,7 @@ pub struct RelayProcessor {
     invalid: InvalidUnhandledProcessor,
     logs: LogsProcessor,
     logs_integration_heroku: HerokuLogsIntegrationProcessor,
+    logs_integration_browser: BrowserReportLogsIntegrationProcessor,
     logs_integration_integrity: IntegrityLogsIntegrationProcessor,
     logs_integration_nel: NelLogsIntegrationProcessor,
     logs_integration_otel: OtelLogsIntegrationProcessor,
@@ -83,6 +85,7 @@ impl RelayProcessor {
             invalid: InvalidUnhandledProcessor::new(),
             logs: LogsProcessor::new(ql()),
             logs_integration_heroku: HerokuLogsIntegrationProcessor,
+            logs_integration_browser: BrowserReportLogsIntegrationProcessor,
             logs_integration_nel: NelLogsIntegrationProcessor,
             logs_integration_integrity: IntegrityLogsIntegrationProcessor,
             logs_integration_otel: OtelLogsIntegrationProcessor,
@@ -135,6 +138,7 @@ impl RelayProcessor {
         run!(self.replays);
         run!(self.spans);
         run!(self.logs);
+        run!(self.logs_integration_browser);
         run!(self.logs_integration_heroku);
         run!(self.logs_integration_integrity);
         run!(self.logs_integration_nel);
