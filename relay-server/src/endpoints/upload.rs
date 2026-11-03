@@ -174,9 +174,9 @@ impl IntoResponse for Error {
                             StatusCode::CONFLICT
                         }
                         objectstore_client::Error::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
-                        objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
-                            StatusCode::BAD_REQUEST
-                        }
+                        // Stream reads here originate from the incoming upload body, including
+                        // decoding errors discovered before sending an empty resumable chunk.
+                        objectstore_client::Error::Io(_) => StatusCode::BAD_REQUEST,
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,

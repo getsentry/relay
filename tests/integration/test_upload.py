@@ -2,6 +2,7 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import gzip
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1923,3 +1924,41 @@ def test_invalid_compressed_upload_processing_chain(
         headers={"Content-Encoding": "zstd", "X-Decoded-Content-Length": "11"},
     )
     assert response.status_code == 400, response.text
+
+
+def test_resumable_upload_rejects_invalid_gzip_checksum(
+    mini_sentry, relay, relay_with_processing, project_config, events_consumer
+):
+    mini_sentry.fail_on_relay_error = False
+    edge = relay(relay_with_processing())
+    consumer = events_consumer()
+    edge.send_event(42)
+    consumer.get_event()
+    project_key = mini_sentry.get_dsn_public_key(42)
+    data = b"hello world"
+    # Stored DEFLATE blocks let us change the payload without updating the gzip checksum.
+    compressed = gzip.compress(data, compresslevel=0).replace(data, b"jello world")
+    with pytest.raises(gzip.BadGzipFile, match="CRC check failed"):
+        gzip.decompress(compressed)
+
+    create = edge.post(
+        f"/api/42/upload/?sentry_key={project_key}",
+        headers={"Tus-Resumable": "1.0.0", "Upload-Length": str(len(data))},
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    response = patch_chunk(
+        edge,
+        location,
+        project_key,
+        compressed,
+        0,
+        headers={
+            "Content-Encoding": "gzip",
+            "X-Decoded-Content-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 400, response.text
+    progress = head_upload(edge, location, project_key)
+    assert progress.status_code == 204, progress.text
+    assert progress.headers["Upload-Offset"] == "0"
