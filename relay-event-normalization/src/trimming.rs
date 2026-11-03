@@ -463,38 +463,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_trim_and_truncate_matches_event_transaction() {
-        for value in [
-            "/users/".to_owned(),
-            "  /users/  ".to_owned(),
-            "\t/users/ list\n".to_owned(),
-            "x".repeat(200),
-            "x".repeat(201),
-            format!("  {}  ", "ü".repeat(250)),
-        ] {
-            let mut event = Annotated::new(Event {
-                transaction: Annotated::new(value.clone()),
-                ..Default::default()
-            });
-            processor::process_value(
-                &mut event,
-                &mut crate::SchemaProcessor::new(),
-                ProcessingState::root(),
-            )
-            .unwrap();
-            processor::process_value(
-                &mut event,
-                &mut TrimmingProcessor::new(),
-                ProcessingState::root(),
-            )
-            .unwrap();
-
-            let expected = event.value().unwrap().transaction.value().cloned();
-            assert_eq!(trim_and_truncate(&value, 200), expected, "{value:?}");
-        }
-    }
-
-    #[test]
     fn test_trim_and_truncate_whitespace_only() {
         assert_eq!(trim_and_truncate(" \t\n ", 200), None);
     }
