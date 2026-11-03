@@ -81,14 +81,14 @@ where
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
-    /// Delegate statistics to Arroyo.
-    arroyo_statistics: ArroyoProducerContext,
+    /// Delegate statistics and delivery metrics to Arroyo.
+    arroyo: ArroyoProducerContext,
 }
 
 impl Context {
     pub fn new(producer_name: String) -> Self {
         Self {
-            arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
+            arroyo: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
         }
     }
@@ -103,7 +103,7 @@ impl ClientContext for Context {
     ///
     /// This method is only called if `statistics.interval.ms` is configured.
     fn stats(&self, statistics: rdkafka::Statistics) {
-        self.arroyo_statistics.stats(statistics);
+        self.arroyo.stats(statistics);
     }
 }
 
@@ -116,13 +116,11 @@ impl ProducerContext for Context {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
 
+        // Reports `arroyo.producer.produce_status`.
+        self.arroyo.delivery(result, ());
+
         match result {
             Ok(message) => {
-                metric!(
-                    counter(KafkaCounters::ProduceStatusSuccess) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
-                );
                 metric!(
                     counter(KafkaCounters::ProcessingMessageProduced) += 1,
                     topic = message.topic(),
@@ -135,12 +133,6 @@ impl ProducerContext for Context {
                     payload_len = message.payload_len(),
                     tags.topic = message.topic(),
                     "failed to produce message to Kafka (delivery callback)",
-                );
-
-                metric!(
-                    counter(KafkaCounters::ProduceStatusError) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
                 );
             }
         }
