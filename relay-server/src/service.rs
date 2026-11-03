@@ -254,7 +254,6 @@ impl ServiceState {
                     store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
-                    metric_outcomes.clone(),
                 )
                 .map(|s| {
                     kafka_client = Some(s.kafka_client());

@@ -157,6 +157,7 @@ pub struct StoreMetrics {
     pub buckets: Vec<Bucket>,
     pub scoping: Scoping,
     pub retention: u16,
+    pub metric_outcomes: MetricOutcomes,
 }
 
 /// Publishes a log item to the Sentry core application through Kafka.
@@ -456,7 +457,6 @@ pub struct StoreService {
     pool: StoreServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
-    metric_outcomes: MetricOutcomes,
     producer: Producer,
     last_span_report: Mutex<Instant>, // used to debounce expensive instrumentation.
 }
@@ -466,14 +466,12 @@ impl StoreService {
         pool: StoreServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
-        metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config.current())?;
         Ok(Self {
             pool,
             config,
             global_config,
-            metric_outcomes,
             producer,
             last_span_report: Instant::now().into(),
         })
@@ -602,6 +600,7 @@ impl StoreService {
             buckets,
             scoping,
             retention,
+            metric_outcomes,
         } = message;
 
         let batch_size = self.config.current().metrics_max_batch_size_bytes();
@@ -651,7 +650,7 @@ impl StoreService {
                     }
                 };
 
-                self.metric_outcomes.track(scoping, &[view], outcome);
+                metric_outcomes.track(scoping, &[view], outcome);
             }
 
             if emit_sessions_to_eap

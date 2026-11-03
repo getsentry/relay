@@ -309,6 +309,7 @@ impl InnerProcessor {
                 buckets,
                 scoping,
                 retention,
+                metric_outcomes: self.metric_outcomes.clone(),
             });
         }
     }

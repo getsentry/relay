@@ -63,6 +63,8 @@ pub struct FlushBuckets {
     pub partition_key: u32,
     /// The buckets to be flushed.
     pub buckets: HashMap<ProjectKey, ProjectBuckets>,
+    // /// Tracker for outcomes generated from metrics.
+    // pub metric_outcomes: MetricOutcomes,
 }
 
 /// Metric buckets with additional project.
@@ -227,6 +229,7 @@ impl AggregatorService {
             receiver.send(FlushBuckets {
                 partition_key,
                 buckets: buckets_by_project,
+                // metric_outcomes,
             });
         }
     }
