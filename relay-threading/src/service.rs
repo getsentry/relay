@@ -5,7 +5,7 @@ use relay_system::{MessageHandler, Receiver, Service};
 use crate::AsyncPool;
 
 /// An async thread pool used for scheduling processing tasks in a service.
-type ServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type ServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
 /// A service that delagates its work to an [`AsyncPool`].
 pub struct AsyncPoolService<T> {
