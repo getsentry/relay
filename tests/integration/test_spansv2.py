@@ -2062,7 +2062,7 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
     ("value", "expected"),
     [
         pytest.param("t" * 10, "t" * 10, id="at-limit"),
-        pytest.param("t" * 11, "", id="over-limit"),
+        pytest.param("t" * 11, None, id="over-limit"),
     ],
 )
 def test_spansv2_dsc_value_length(
