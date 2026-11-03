@@ -58,9 +58,11 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
     async fn process(
         &self,
         work: Managed<Self::Input>,
-        _ctx: processing::Context<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let intermediates = work.try_map(expand)?;
+        let intermediates = work.try_map(|work, records| {
+            expand(work, records, ctx.config.max_expanded_log_operations())
+        })?;
         Ok(Output::intermediates(intermediates))
     }
 }
@@ -70,6 +72,7 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
 pub fn expand(
     work: SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
+    max_ops: usize,
 ) -> Result<Intermediates, Error> {
     let SerializedOtelLogsIntegration(SerializedLogsIntegration { meta, item }, format) = work;
 
@@ -79,7 +82,7 @@ pub fn expand(
 
     let payload = item.payload();
     let mut logs = Vec::new();
-    let parsed = parse_logs_data(format, &payload)?;
+    let parsed = parse_logs_data(format, &payload, max_ops)?;
 
     for resource_logs in parsed.resource_logs {
         let resource = resource_logs.resource.as_ref();
