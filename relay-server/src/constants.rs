@@ -4,8 +4,11 @@ use std::time::Duration;
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
 /// Name of the custom tag in the crash user data for Sentry event payloads.
-#[cfg(feature = "processing")]
 pub const SENTRY_CRASH_PAYLOAD_KEY: &str = "__sentry";
+
+/// Name of the custom tag in the crash user data for the session update of the crashed session.
+#[cfg(all(sentry, feature = "processing"))]
+pub const SENTRY_SESSION_PAYLOAD_KEY: &str = "__sentry_session";
 
 /// Name of the event attachment.
 ///
@@ -25,6 +28,25 @@ pub const ITEM_NAME_BREADCRUMBS1: &str = "__sentry-breadcrumb1";
 /// two attachments that the SDK may use as swappable buffers. Both attachments will be merged and
 /// truncated to the maxmimum number of allowed attachments.
 pub const ITEM_NAME_BREADCRUMBS2: &str = "__sentry-breadcrumb2";
+
+/// The field name of a view hierarchy file in the multipart form-data uploads and unreal crashes.
+///
+/// It matches the expected file name of the view hierarchy, as outlined in RFC#33
+/// <https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md>
+pub const ATTACHMENT_VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
+
+/// Suffix identifying Nvidia GPU dumps in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_NV_GPUDUMP_SUFFIX: &str = ".nv-gpudmp";
+/// Suffix identifying Nvidia GPU shader debug information companions in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_NV_DBG_SUFFIX: &str = ".nvdbg";
+/// Suffix identifying compiled shader objects (DXBC/DXIL binaries) in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_CSO_SUFFIX: &str = ".cso";
 
 /// Envelope header used to store the UE4 user id.
 pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
@@ -53,3 +75,9 @@ pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
 
 /// The file name that Nintendo uses to in the events they forward.
 pub const NNSWITCH_DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+
+/// Header for communicating the uncompressed content length.
+///
+/// Sentry-specific extension to the TUS upload protocol, needed since `Content-Length` refers to
+/// the compressed size on the wire.
+pub const X_DECODED_CONTENT_LENGTH: &str = "X-Decoded-Content-Length";

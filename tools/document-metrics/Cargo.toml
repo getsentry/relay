@@ -18,3 +18,5 @@ syn = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
 insta = { workspace = true }
+
+[lints]

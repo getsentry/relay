@@ -18,3 +18,5 @@ relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-event-normalization = { workspace = true }
 serde_json = { workspace = true }
+
+[lints]

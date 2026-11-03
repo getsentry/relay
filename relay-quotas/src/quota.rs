@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use fnv::FnvHasher;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -136,27 +138,128 @@ pub struct ItemScoping {
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
 
-    /// Dimensions this quota will be matched on.
+    /// Dimensions this item can be matched on.
     pub dimensions: DimensionMap,
 }
 
 /// A map of Dimension -> String
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
-pub struct DimensionMap(Arc<BTreeMap<Dimension, String>>);
+#[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct DimensionMap {
+    dimensions: Arc<BTreeMap<Dimension, DimensionMapValue>>,
+    hash: u64,
+}
+
+/// The value stored in the DimensionMap.
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct DimensionMapValue {
+    /// The actual string value of the dimension.
+    pub value: String,
+
+    /// The hash of both the name of the key this value corresponds to, and the value itself.
+    pub key_value_hash: u64,
+}
+
+impl DimensionMapValue {
+    fn new(value: String, key_value_hash: u64) -> Self {
+        Self {
+            value,
+            key_value_hash,
+        }
+    }
+}
 
 impl<const N: usize> From<[(Dimension, String); N]> for DimensionMap {
     fn from(arr: [(Dimension, String); N]) -> Self {
-        Self(Arc::new(BTreeMap::from(arr)))
+        let dimensions = BTreeMap::from(arr);
+        Self::new(dimensions)
+    }
+}
+
+impl<const N: usize> From<[(Dimension, &str); N]> for DimensionMap {
+    fn from(arr: [(Dimension, &str); N]) -> Self {
+        let owned = arr.map(|(k, v)| (k, v.to_owned()));
+        let dimensions = BTreeMap::from(owned);
+        Self::new(dimensions)
     }
 }
 
 impl FromIterator<(Dimension, String)> for DimensionMap {
     fn from_iter<T: IntoIterator<Item = (Dimension, String)>>(iter: T) -> DimensionMap {
-        Self(Arc::new(BTreeMap::from_iter(iter)))
+        let dimensions = BTreeMap::from_iter(iter);
+
+        Self::new(dimensions)
+    }
+}
+
+impl Deref for DimensionMap {
+    type Target = BTreeMap<Dimension, DimensionMapValue>;
+
+    fn deref(&self) -> &Self::Target {
+        self.dimensions.as_ref()
     }
 }
 
 impl DimensionMap {
+    /// The hash of an empty DimensionMap.
+    pub const EMPTY_MAP_HASH: u64 = 0;
+
+    /// Construct a new DimensionMap from the supplied BTreeMap.
+    pub fn new(dimensions: BTreeMap<Dimension, String>) -> DimensionMap {
+        let mut hash = Self::EMPTY_MAP_HASH;
+
+        let dimensions = dimensions
+            .into_iter()
+            .map(|(k, v)| {
+                let mut h = FnvHasher::with_key(0);
+                k.hash(&mut h);
+                v.hash(&mut h);
+
+                // We construct a total hash over all the ordered, individually-hashed (dim,value) pairs
+                // by using an XOR, rather than using a single FnvHasher, because we need to have the
+                // individual element hashes available for projection, and we'd like projection to be
+                // really fast (without having to invoke another FnvHasher pass,) so opting for a simple
+                // XOR here.  This should be safe, because the number of dimensions is likely to remain
+                // small (< 64), and the number of possible dimension combinations will remain small.
+                // If Dimensions gets big _and_ we see large sets of dimensions (> 10), this should
+                // be revisited.
+                hash ^= h.finish();
+
+                (k, DimensionMapValue::new(v, h.finish()))
+            })
+            .collect::<BTreeMap<_, _>>()
+            .into();
+
+        Self { dimensions, hash }
+    }
+
+    /// Returns the hash of this DimensionMap's dimensions and values.
+    pub fn dimension_hashes(&self) -> u64 {
+        self.hash
+    }
+
+    /// Returns true iff this map contains the specified dimension.
+    pub fn has_dimension(&self, dim: &Dimension) -> bool {
+        self.dimensions.contains_key(dim)
+    }
+
+    /// Returns a hashed value, using all and only the dimensions/values present in the supplied
+    /// `set` and their corresponding value in this DimensionMap.  If `set` contains a
+    /// dimension not present in this map, None is returned.
+    pub fn project(&self, set: &BTreeSet<Dimension>) -> Option<u64> {
+        let mut hash = Self::EMPTY_MAP_HASH;
+
+        for dim in set {
+            let val = self.dimensions.get(dim)?;
+            // Doing an XOR here instead of invoking another hasher for speed; see related comment
+            // in DimensionMap's constructor.
+            hash ^= val.key_value_hash;
+        }
+
+        Some(hash)
+    }
+
     /// Converts the dimensions of this item scoping, for the supplied quota, into a string of the
     /// dimension name and hashed value.  This looks like ':key1:hash1:key2:hash2'.
     /// This function assumes that the quota passed to it already matches this ItemScoping.
@@ -169,9 +272,9 @@ impl DimensionMap {
         };
 
         for dim in group_by.dimensions.iter() {
-            if let Some((key, val)) = self.0.get_key_value(dim) {
+            if let Some((key, val)) = self.dimensions.get_key_value(dim) {
                 let mut hasher = fnv::FnvHasher::with_key(1);
-                val.hash(&mut hasher);
+                val.value.hash(&mut hasher);
                 let h = &hasher.finish();
 
                 write!(&mut result, ":{key}:{h}").expect("should be infallible");
@@ -217,13 +320,21 @@ impl ItemScoping {
         categories.is_empty() || categories.contains(&self.category)
     }
 
-    /// Checks wether this item matches all of the supplied quota's dimensions.
+    /// Checks whether this item matches all of the supplied quota's dimensions.
     pub(crate) fn matches_dimensions(&self, group_by: &Option<GroupBy>) -> bool {
         let Some(gb) = group_by else { return true };
 
         gb.dimensions
             .iter()
-            .all(|dim| self.dimensions.0.contains_key(dim))
+            .all(|dim| self.dimensions.has_dimension(dim))
+    }
+
+    /// Checks whether this item has every dimension of the supplied quota_dimensions, with the same
+    /// value.  If quota_dimensions is empty, this returns true.
+    pub(crate) fn satisfies_quota_dimensions(&self, quota_dimensions: &DimensionMap) -> bool {
+        quota_dimensions
+            .iter()
+            .all(|(dim, value)| self.dimensions.get(dim) == Some(value))
     }
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
@@ -251,7 +362,7 @@ impl ItemScoping {
 /// An efficient container for data categories that avoids allocations.
 ///
 /// It is a read only and has set like properties, allowing for fast comparisons.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DataCategories(u64);
 
 impl Serialize for DataCategories {
@@ -1271,7 +1382,7 @@ mod tests {
             None => scoping.item(DataCategory::Monitor),
             Some(mut dims) => scoping.item_with_dimensions(
                 DataCategory::Monitor,
-                DimensionMap(BTreeMap::from_iter(dims.drain(..)).into()),
+                DimensionMap::new(BTreeMap::from_iter(dims.drain(..))),
             ),
         }
     }

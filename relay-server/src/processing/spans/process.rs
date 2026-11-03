@@ -267,6 +267,7 @@ fn normalize_span(
 
         eap::normalize_attribute_types(&mut span.attributes);
         eap::normalize_attribute_names(&mut span.attributes);
+        eap::normalize_release(&mut span.attributes);
         // normalize_sentry_op must be called before normalize_span_category
         // because category derivation depends on having the sentry.op attribute
         // available.
@@ -1111,6 +1112,26 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_span_removes_invalid_release() {
+        let release = "a".repeat(251);
+        let (mut span, headers, geo_lookup, ctx) =
+            prepare_normalize_span_params(&[(SENTRY__RELEASE, &release)], &[]);
+
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
+
+        let attrs = span.value().unwrap().attributes.value().unwrap();
+        assert!(attrs.get_value(SENTRY__RELEASE).is_none());
+    }
+
+    #[test]
     fn test_normalize_trace_status_on_segment_span() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(&[], &[]);
         span.value_mut().as_mut().unwrap().is_segment = Annotated::new(true);
@@ -1427,7 +1448,7 @@ mod tests {
         deprecated,
         reason = "This test deliberately checks deprecated attributes"
     )]
-    fn test_op_from_deprecated_gen_ai_system() {
+    fn test_attributes_from_deprecated_gen_ai_system() {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[(GEN_AI__SYSTEM, "some system")], &[]);
 
@@ -1444,7 +1465,7 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__OP, "gen_ai"),
+                (SENTRY__OP, "default"),
                 (GEN_AI__PROVIDER__NAME, "some system"),
             ],
             &[],

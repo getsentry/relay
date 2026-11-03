@@ -11,10 +11,11 @@ use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Query};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, NoContent, Response};
-use axum::routing::{MethodRouter, patch, post};
+use axum::routing::{MethodRouter, head as axum_head, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
@@ -32,16 +33,24 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    UploadLength,
+    self, ByteStream, CreateResult, HeadResult, LocationKind, LocationQueryParams, ProjectContext,
+    Provisional, SignedLocation, StreamResult, UPLOAD_CHUNK_GRANULARITY, UploadMode,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
+use crate::utils::tus::PatchHeaders;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
-/// Header advertising the maximum/recommended chunk size to clients.
-pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
+/// Header advertising the minimum chunk size to clients.
+///
+/// Sentry-specific extension to the TUS upload protocol.
+pub const UPLOAD_MIN_CHUNK_SIZE: &str = "Upload-Min-Chunk-Size";
+
+/// Header advertising the maximum chunk size to clients.
+///
+/// Sentry-specific extension to the TUS upload protocol.
+pub const UPLOAD_MAX_CHUNK_SIZE: &str = "Upload-Max-Chunk-Size";
 
 pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
@@ -57,10 +66,28 @@ pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         .route_layer(tus::resumable_header_layer())
 }
 
+pub fn route_head() -> MethodRouter<ServiceState> {
+    axum_head(handle_head)
+        .route_layer(tus::resumable_header_layer())
+        .route_layer(tus::no_store_layer())
+}
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
+
+    #[error("Invalid Upload-Offset {offset} for Upload-Length {length}")]
+    InvalidOffset { offset: usize, length: usize },
+
+    #[error("Chunk of {chunk_length} bytes exceeds the remaining {remaining} bytes")]
+    ChunkTooLarge {
+        chunk_length: usize,
+        remaining: usize,
+    },
+
+    #[error("Missing X-Decoded-Content-Length header")]
+    MissingLength,
 
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
@@ -86,6 +113,9 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(error) => return error.into_response(),
+            Error::InvalidOffset { .. } => StatusCode::CONFLICT,
+            Error::MissingLength => StatusCode::BAD_REQUEST,
+            Error::ChunkTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -106,11 +136,12 @@ impl IntoResponse for Error {
                     Some(status) => status,
                     None => StatusCode::INTERNAL_SERVER_ERROR,
                 },
-                upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
+                upload::Error::InvalidLocation(_)
+                | upload::Error::SigningFailed
+                | upload::Error::InvalidFromUpstream { .. } => StatusCode::INTERNAL_SERVER_ERROR,
                 #[cfg(feature = "processing")]
-                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidSessionToken(_) => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidInput(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -120,6 +151,10 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::UploadOffsetMismatch { .. } => {
+                            StatusCode::CONFLICT
+                        }
+                        objectstore_client::Error::ChunkTooSmall { .. } => StatusCode::BAD_REQUEST,
                         objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
                             StatusCode::BAD_REQUEST
                         }
@@ -131,11 +166,15 @@ impl IntoResponse for Error {
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
                         },
+                        objectstore_client::Error::ResumableUploadUnavailable => {
+                            StatusCode::NOT_FOUND
+                        }
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
                     objectstore::ErrorKind::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ResumableUploadDeclined => StatusCode::NOT_IMPLEMENTED,
                 upload::Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             },
         };
@@ -144,7 +183,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl<L: UploadLength> IntoResponse for SignedLocation<L> {
+impl<K: LocationKind> IntoResponse for SignedLocation<K> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -153,6 +192,21 @@ impl<L: UploadLength> IntoResponse for SignedLocation<L> {
         };
 
         (StatusCode::CREATED, headers, ()).into_response()
+    }
+}
+
+impl IntoResponse for HeadResult {
+    fn into_response(self) -> Response {
+        let mut response = NoContent.into_response();
+        let headers = response.headers_mut();
+
+        headers.insert(tus::UPLOAD_OFFSET, self.offset.into());
+        match self.length {
+            Some(length) => headers.insert(tus::UPLOAD_LENGTH, length.into()),
+            None => headers.insert(tus::UPLOAD_DEFER_LENGTH, tus::UPLOAD_DEFER_LENGTH_VALUE),
+        };
+
+        response
     }
 }
 
@@ -168,7 +222,7 @@ async fn handle_post(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    let headers = tus::validate_post_headers(&headers).map_err(Error::from)?;
+    let headers = tus::validate_post_headers(&headers)?;
     let config = state.config();
 
     if headers
@@ -178,17 +232,7 @@ async fn handle_post(
         return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
     }
 
-    // There is no real "fast path" for streaming uploads. Always wait for the project config
-    // to be loaded:
-    relay_log::trace!("Awaiting project config");
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
-        .await
-        .ok_or_else(|| {
-            relay_log::warn!("timeout waiting for project config");
-            StatusCode::SERVICE_UNAVAILABLE
-        })?;
+    let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
@@ -196,7 +240,10 @@ async fn handle_post(
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
     let result = create(&state, project_context, &headers).await;
-    let location = result.inspect_err(|e| {
+    let CreateResult {
+        location,
+        granularity,
+    } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
 
@@ -204,56 +251,58 @@ async fn handle_post(
 
     // Communicate desired chunk size to the client, if set.
     let global_config = state.global_config_handle().current().unwrap_or_default();
-    let upload_chunk_size = global_config.options.upload_chunk_size;
-    if upload_chunk_size > 0 {
+    let upload_max_chunk_size = global_config.options.upload_max_chunk_size;
+    if upload_max_chunk_size > 0 {
         response
             .headers_mut()
-            .insert(UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+            .insert(UPLOAD_MAX_CHUNK_SIZE, upload_max_chunk_size.into());
+    }
+    if let Some(granularity) = granularity {
+        response
+            .headers_mut()
+            .insert(UPLOAD_CHUNK_GRANULARITY, granularity.into());
+        // For now the UPLOAD_MIN_CHUNK_SIZE is the same as the granularity but in the future we
+        // might want to increase that.
+        response
+            .headers_mut()
+            .insert(UPLOAD_MIN_CHUNK_SIZE, granularity.into());
     }
 
     Ok(response)
 }
 
+/// Handles TUS PATCH requests that upload data to an existing location.
+///
+/// See <https://tus.io/protocols/resumable-upload#patch>.
 async fn handle_patch(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(LocationQueryParams {
+    Query(location_params): Query<LocationQueryParams>,
+    body: Body,
+) -> axum::response::Result<impl IntoResponse> {
+    let LocationQueryParams {
         upload_length,
         upload_id,
         upload_signature,
         other,
-    }): Query<LocationQueryParams<Provisional>>,
-    body: Body,
-) -> axum::response::Result<impl IntoResponse> {
+    } = location_params;
+
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let PatchHeaders {
+        upload_offset,
+        decoded_content_length,
+    } = tus::validate_patch_headers(&headers)?;
 
-    let location = SignedLocation::from_parts(
-        project_id,
-        key,
-        upload_length,
-        upload_id,
-        upload_signature,
-        other,
-    );
+    let kind = Provisional::from_params(upload_length, upload_id).map_err(Error::from)?;
+    let upload_mode = upload_mode(&kind, upload_offset, decoded_content_length)?;
+    let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
 
     let config = state.config();
-
-    // There is no real "fast path" for streaming uploads. Always wait for the project config
-    // to be loaded:
-    relay_log::trace!("Awaiting project config");
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
-        .await
-        .ok_or_else(|| {
-            relay_log::warn!("timeout waiting for project config");
-            StatusCode::SERVICE_UNAVAILABLE
-        })?;
+    let project = await_project(&state, meta.public_key()).await?;
 
     relay_log::trace!("Checking request");
     let project_context = validate(&state, meta, project).await?;
@@ -264,35 +313,74 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_length.value() {
-        None => (1, config.max_upload_size()),
-        Some(u) => (u, u),
+    let (lower_bound, upper_bound) = match upload_mode {
+        UploadMode::Oneshot { length: None } => (1, config.max_upload_size()),
+        // If the client provided the length at creation use it to enforce the size.
+        UploadMode::Oneshot { length: Some(l) } => (l, l),
+        UploadMode::Resumable { chunk_length, .. } => (chunk_length, chunk_length),
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-    let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, stream).await;
-    let location = result.inspect_err(|e| {
+    let result = upload(&state, project_context, location, upload_mode, stream).await;
+    let result = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
-    let upload_offset = byte_counter.get();
-
     let mut response = NoContent.into_response();
+
+    response
+        .headers_mut()
+        .insert(tus::UPLOAD_OFFSET, result.offset().into());
 
     // Not required by TUS, but we respond with the location header:
     response.headers_mut().insert(
         header::LOCATION,
-        location
-            .into_header_value()
+        result
+            .location_into_header_value()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
-    response
-        .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_offset.into());
 
     Ok(response)
+}
+
+/// Handles TUS HEAD requests to query the current upload offset.
+///
+/// See <https://tus.io/protocols/resumable-upload#head>.
+async fn handle_head(
+    state: ServiceState,
+    meta: RequestMeta,
+    headers: HeaderMap,
+    Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
+    Query(location_params): Query<LocationQueryParams>,
+) -> axum::response::Result<impl IntoResponse> {
+    let LocationQueryParams {
+        upload_length,
+        upload_id,
+        upload_signature,
+        other,
+    } = location_params;
+
+    relay_log::trace!("Checking project fetching kill switch");
+    check_kill_switch(&state)?;
+
+    relay_log::trace!("Validating headers");
+    tus::validate_head_headers(&headers)?;
+
+    let kind = Provisional::from_params(upload_length, upload_id).map_err(Error::from)?;
+    let location = SignedLocation::from_parts(project_id, key, kind, upload_signature, other);
+    let project = await_project(&state, meta.public_key()).await?;
+
+    relay_log::trace!("Checking request");
+    let project = validate(&state, meta, project).await?;
+
+    relay_log::trace!("Getting upload state");
+    let result = head(&state, project, location).await;
+    let result = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "head failed");
+    })?;
+
+    Ok(result)
 }
 
 fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
@@ -317,12 +405,38 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
     Ok(())
 }
 
+/// Waits until the project config for the given key is available.
+///
+/// Uses the same timeout as `Upstream` requests. There is no fast path for uploads, so the
+/// project config must be loaded before the request can be checked.
+async fn await_project(
+    state: &ServiceState,
+    project_key: ProjectKey,
+) -> Result<Project<'_>, StatusCode> {
+    relay_log::trace!("Awaiting project config");
+    state
+        .project_cache_handle()
+        .ready(project_key, state.config().query_timeout())
+        .await
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })
+}
+
+fn resumable_enabled(project: &Project<'_>) -> bool {
+    match project.state() {
+        ProjectState::Enabled(info) => info.has_feature(Feature::ResumableUpload),
+        _ => false,
+    }
+}
+
 async fn create(
     state: &ServiceState,
     project: ProjectContext,
-    headers: &tus::Headers,
-) -> Result<SignedLocation<Provisional>, Error> {
-    let location = state
+    headers: &tus::PostHeaders,
+) -> Result<CreateResult, Error> {
+    let result = state
         .upload()
         .send(upload::Create {
             project,
@@ -331,15 +445,16 @@ async fn create(
         })
         .await??;
 
-    Ok(location)
+    Ok(result)
 }
 
 async fn upload(
     state: &ServiceState,
     project: ProjectContext,
     location: SignedLocation<Provisional>,
+    mode: UploadMode,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Final>, Error> {
+) -> Result<StreamResult, Error> {
     let location = state
         .upload()
         .send(upload::Stream {
@@ -347,10 +462,28 @@ async fn upload(
             project,
             location,
             stream,
+            mode,
         })
         .await??;
 
     Ok(location)
+}
+
+async fn head(
+    state: &ServiceState,
+    project: ProjectContext,
+    location: SignedLocation<Provisional>,
+) -> Result<HeadResult, Error> {
+    let result = state
+        .upload()
+        .send(upload::Head {
+            received: Utc::now(),
+            project,
+            location,
+        })
+        .await??;
+
+    Ok(result)
 }
 
 /// Check request by converting it into a pseudo-envelope.
@@ -360,7 +493,7 @@ async fn upload(
 async fn validate_and_limit(
     state: &ServiceState,
     meta: RequestMeta,
-    headers: &tus::Headers,
+    headers: &tus::PostHeaders,
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
@@ -379,8 +512,16 @@ async fn validate_and_limit(
     let rate_limits = project
         .check_envelope(&mut envelope)
         .await
-        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
+        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?
+        .propagatable();
+
     if envelope.is_empty() {
+        if rate_limits.is_empty() {
+            // We were rate-limited, but by a dimensioned quota, which doesn't yet exist for
+            // uploads.
+            return Err(BadStoreRequest::UnexpectedRateLimitDimensions);
+        }
+
         return Err(envelope
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into_inner());
@@ -394,6 +535,7 @@ async fn validate_and_limit(
         scoping,
         upstream,
         retention: event_retention(&project),
+        resumable: resumable_enabled(&project),
     })
 }
 
@@ -426,7 +568,37 @@ async fn validate(
         scoping,
         upstream,
         retention: event_retention(&project),
+        resumable: resumable_enabled(&project),
     })
+}
+
+/// Creates the [`UploadMode`] for the Stream based on the Location kind and [`PatchHeaders`].
+fn upload_mode(
+    kind: &Provisional,
+    offset: usize,
+    chunk_length: Option<usize>,
+) -> Result<UploadMode, Error> {
+    match kind {
+        Provisional::Oneshot { length } => Ok(UploadMode::Oneshot { length: *length }),
+        Provisional::Resumable { length, .. } => {
+            let chunk_length = chunk_length.ok_or(Error::MissingLength)?;
+            let remaining = length.checked_sub(offset).ok_or(Error::InvalidOffset {
+                offset,
+                length: *length,
+            })?;
+            if chunk_length > remaining {
+                return Err(Error::ChunkTooLarge {
+                    chunk_length,
+                    remaining,
+                });
+            }
+
+            Ok(UploadMode::Resumable {
+                offset,
+                chunk_length,
+            })
+        }
+    }
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {

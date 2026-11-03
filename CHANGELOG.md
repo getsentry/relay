@@ -2,20 +2,79 @@
 
 ## Unreleased
 
+**Features**:
+
+- Emit `browser.web_vital.*.score` metrics carrying each web vital's performance score as a ratio. ([#6607](https://github.com/getsentry/relay/pull/6607))
+- Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
+- Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
+- Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
+
+**Bug Fixes**:
+
+- Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
+- Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
+- Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
+
+**Internal**:
+
+- Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
+- Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
+
+**Bug Fixes**:
+
+- Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
+
+## 26.10.1
+
+**Features**:
+
+- Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
+- Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
+- Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
+- Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
+- Allow pii scrubbing of the `script_sample` field on Csp. ([#6582](https://github.com/getsentry/relay/pull/6582))
+
+**Bug Fixes**:
+
+- Preserve consistent quota and outcome quantities for empty attachments after expansion, preventing debug accounting panics. ([#6569](https://github.com/getsentry/relay/pull/6569))
+- Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
+- Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
+- Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
+- Populate missing `sentry.group` attributes on streaming spans from their normalized query hashes. ([#6556](https://github.com/getsentry/relay/pull/6556))
+- Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
+- Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Fix PII scrubbing for JSON objects that contain keys with an escape sequence (such as `\n` or `\uXXXX`). ([#6573](https://github.com/getsentry/relay/pull/6573))
+
+**Internal**:
+
+- Fix missing rejection outcomes and debug accounting panics when crash attachments are rate-limited. ([#6568](https://github.com/getsentry/relay/pull/6568))
+- Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
+- Always convert Unreal crash reports instead of only when processing is enabled. ([#6578](https://github.com/getsentry/relay/pull/6578))
+- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549), [#6579](https://github.com/getsentry/relay/pull/6579))
+- Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
+
+## 26.10.0
+
 **Breaking Changes**:
 
 - Stop producing generic metrics (spans/transactions metric buckets) to Kafka and remove the
   `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
   unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
 - Stop accepting metrics in statsd format. ([#6428](https://github.com/getsentry/relay/pull/6428))
+- Stop parsing on-demand metrics extraction config. All extracted metrics are now hard-coded. ([#6439](https://github.com/getsentry/relay/pull/6439))
 
 **Features**:
 
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
 - Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
-- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394))
+- Communicate desired chunk size to clients for tus uploads. ([#6394](https://github.com/getsentry/relay/pull/6394), [#6504](https://github.com/getsentry/relay/pull/6504))
 - Implement support for SDK indicated requests on localhost for inbound filters. ([#6422](https://github.com/getsentry/relay/pull/6422))
 - Add a `cidr` rule condition that matches IP addresses against a list of addresses and CIDR ranges, and expose the envelope's client IP to generic inbound filters as `envelope.client_ip`. ([#6374](https://github.com/getsentry/relay/pull/6374))
+- Add a `release` rule condition that compares the version of a release with `eq`, `gt`, `gte`, `lt`, or `lte`, so generic inbound filters can express version ranges. ([#6430](https://github.com/getsentry/relay/pull/6430))
 - Copy the browser navigation type and id to web vital metrics. ([#6401](https://github.com/getsentry/relay/pull/6401))
 - Disable dynamic sampling and metrics extraction in Managed relays. For users with a dynamic sampling rate < 1, this increases the outgoing request volume of the Managed relay. ([#6413](https://github.com/getsentry/relay/pull/6413), [#6425](https://github.com/getsentry/relay/pull/6425))
 - Copy the INP interaction type to the INP web vital metric. ([#6420](https://github.com/getsentry/relay/pull/6420))
@@ -23,9 +82,16 @@
 - Add `spool.envelopes.max_unspool_envelopes_per_second` to limit unspooling rate. Disabled by default. ([#6433](https://github.com/getsentry/relay/pull/6433))
 - Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 - Add `file_revision` field to the stack frame schema. ([#6451](https://github.com/getsentry/relay/pull/6451))
+- Infer the `memory` AI operation type from `gen_ai` memory operations (`create_memory`, `create_memory_store`, `delete_memory`, `delete_memory_store`, `search_memory`, `update_memory`, `upsert_memory`) and the `gen_ai.memory.client` span op. ([#6480](https://github.com/getsentry/relay/pull/6480))
+- Serialize request, trace context and metadata from transaction events into segment spans. ([#6490](https://github.com/getsentry/relay/pull/6490))
+- Span name and description inference now support array attributes. ([#6482](https://github.com/getsentry/relay/pull/6482))
+- Added support for Integrity policy ingestion, not publicly accessible. ([#6465](https://github.com/getsentry/relay/pull/6465), [#6512](https://github.com/getsentry/relay/pull/6512))
+- Add dimensions to rate limit caches. ([#6479](https://github.com/getsentry/relay/pull/6479))
 
 **Bug Fixes**:
 
+- Default unrecognized AI operations to `other` instead of `ai_client` when neither `gen_ai.request.model` nor `gen_ai.response.model` contains a string value. ([#6507](https://github.com/getsentry/relay/pull/6507))
+- Stop inferring the bare `gen_ai` span operation from `gen_ai.provider.name`. ([#6474](https://github.com/getsentry/relay/pull/6474))
 - Align TUS implementation with spec. ([#6408](https://github.com/getsentry/relay/pull/6408))
 - Drop spans if they have an invalid `sentry.segment_id`. ([#6414](https://github.com/getsentry/relay/pull/6414))
 - Add the browser name and version to web vital metrics. ([#6406](https://github.com/getsentry/relay/pull/6406))
@@ -33,14 +99,23 @@
 - Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 - Don't cache dimensioned rate-limits. ([#6457](https://github.com/getsentry/relay/pull/6457))
 - Slugify monitor slugs the same way as Sentry for check-in routing and rate limit dimensions. ([#6456](https://github.com/getsentry/relay/pull/6456))
+- Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6464](https://github.com/getsentry/relay/pull/6464))
+- Bump symbolic so Unreal crash parsing no longer accepts arbitrarily large custom nodes in RuntimeProperties. ([#6470](https://github.com/getsentry/relay/pull/6470))
+- Fix accidental value duplication for large metrics buckets. ([#6471](https://github.com/getsentry/relay/pull/6471))
+- Delay shutdown until ephemeral disk spool has been drained. ([#6484](https://github.com/getsentry/relay/pull/6484))
+- Add more sensitive session cookie names for PII scrubbing. ([#6499](https://github.com/getsentry/relay/pull/6499))
 
 **Internal**:
 
+- Update sentry-conventions to 0.27.0. Adds Anthropic tool-result, NEL sampling, integrity policy, AWS, MCP, and `gen_ai` memory conventions, along with span op deprecations. ([#6498](https://github.com/getsentry/relay/pull/6498))
 - Accept the `projects:relay-automatic-json-expansion` flag in project configs. ([#6459](https://github.com/getsentry/relay/pull/6459))
+- Remove the `organizations:relay-automatic-json-expansion` flag in favor of the project flag. ([#6518](https://github.com/getsentry/relay/pull/6518))
 - Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
+- Constrain pattern matching for user provided and untrusted patterns. ([#6462](https://github.com/getsentry/relay/pull/6462))
 - Serialize patterns in their normalized forms instead of the original pattern. ([#6442](https://github.com/getsentry/relay/pull/6442))
 - Update the Sentry Rust SDK to 0.49 and use its `sentry-minidump` integration for the crash handler. ([#6405](https://github.com/getsentry/relay/pull/6405))
 - Use the Arroyo Kafka producer backend for processing mode. This changes the names and tags on Kafka stats reported via statsd. ([#6383](https://github.com/getsentry/relay/pull/6383), [#6396](https://github.com/getsentry/relay/pull/6396), [#6397](https://github.com/getsentry/relay/pull/6397), [#6409](https://github.com/getsentry/relay/pull/6409))
+- Support resumable uploads (feature-flagged). ([#6421](https://github.com/getsentry/relay/pull/6421), [#6502](https://github.com/getsentry/relay/pull/6502))
 - Remove unused configuration options `outcomes.batch_size` and `outcomes.batch_interval`. ([#6400](https://github.com/getsentry/relay/pull/6400))
 - Remove long deprecated TLS settings from Relay's configuration. ([#6434](https://github.com/getsentry/relay/pull/6434))
 - Update sentry-conventions to 0.25.0. `server_name` now backfills into `server.address` instead of `device.name`, legacy `gen_ai` cache token attributes backfill into their replacements, and span names and descriptions are now inferred for `ui.*` operations. Also adds the `sentry.link.type` span link attribute and a deprecated `replay_id` search alias for `sentry.replay_id`. ([#6417](https://github.com/getsentry/relay/pull/6417), [#6445](https://github.com/getsentry/relay/pull/6445))

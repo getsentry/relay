@@ -39,7 +39,7 @@ impl<'a> JsonScrubVisitor<'a> {
 }
 
 impl<'de> Transform<'de> for JsonScrubVisitor<'de> {
-    fn push_path(&mut self, key: &'de str) {
+    fn push_path(&mut self, key: &str) {
         self.path.push(key.to_owned());
 
         self.state = std::mem::take(&mut self.state).enter_owned(
@@ -144,6 +144,51 @@ mod test {
         let result = processor.scrub_json(payload).unwrap();
         let parsed: Value = serde_json::from_slice(&result).unwrap();
         assert_eq!("[ip]", parsed["nested"]["stuff"]["ident"].as_str().unwrap());
+    }
+
+    /// Scrubs `payload` with a single path rule and returns the parsed result.
+    fn scrub_with_path_rule(path: &str, payload: &str) -> Value {
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": { path: ["@ip"] }
+        }))
+        .unwrap();
+        let processor = PiiAttachmentsProcessor::new(config.compiled());
+        let result = processor.scrub_json(payload.as_bytes()).unwrap();
+        serde_json::from_slice(&result).unwrap()
+    }
+
+    #[test]
+    pub fn test_path_rule_after_sibling_key_with_escape() {
+        // `"a\nb"` contains an escape, so serde_json hands it to the visitor as a non-borrowed
+        // string. That must not unbalance the path stack for the siblings that follow.
+        let parsed = scrub_with_path_rule(
+            "nested.stuff.ident",
+            r#"{"nested": {"stuff": {"a\nb": "x", "ident": "10.0.0.1"}}}"#,
+        );
+        assert_eq!("[ip]", parsed["nested"]["stuff"]["ident"].as_str().unwrap());
+    }
+
+    #[test]
+    pub fn test_path_rule_with_escaped_path_component() {
+        // The key `n<unicode escape for e>sted` is the same string as `nested`, only spelled
+        // differently. The backslash is spliced in so that no tool normalizes the escape away.
+        let payload = format!(
+            r#"{{"n{bs}u0065sted": {{"stuff": {{"ident": "10.0.0.1"}}}}}}"#,
+            bs = '\\'
+        );
+        let parsed = scrub_with_path_rule("nested.stuff.ident", &payload);
+        assert_eq!("[ip]", parsed["nested"]["stuff"]["ident"].as_str().unwrap());
+    }
+
+    #[test]
+    pub fn test_path_rule_after_escaped_key_with_object_value() {
+        // The escaped key's value is itself an object, so it opens and closes a nesting level
+        // before the sibling. The path stack must still line up for `ident`.
+        let parsed = scrub_with_path_rule(
+            "nested.ident",
+            r#"{"nested": {"a\nb": {"deep": "x"}, "ident": "10.0.0.1"}}"#,
+        );
+        assert_eq!("[ip]", parsed["nested"]["ident"].as_str().unwrap());
     }
 
     #[test]

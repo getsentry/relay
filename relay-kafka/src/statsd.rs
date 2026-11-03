@@ -78,6 +78,27 @@ pub enum KafkaCounters {
     /// - `topic`: The Kafka topic being produced to.
     /// - `producer_name`: The configured producer name/deployment identifier.
     ProduceStatusError,
+
+    /// Number of Kafka config blobs handed to a topic's producer.
+    ///
+    /// Counts pushes that were accepted for rollout, which includes blobs that resolve to the
+    /// config already running. It does not mean the client was replaced; watch
+    /// `arroyo.producer.config_reload_generation` for that.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ConfigReloadPushed,
+
+    /// Number of Kafka config blobs a topic's producer refused.
+    ///
+    /// Rejection leaves the running client in place. Sustained non-zero values mean this topic
+    /// is no longer applying config changes.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ConfigReloadRejected,
 }
 
 impl CounterMetric for KafkaCounters {
@@ -88,6 +109,8 @@ impl CounterMetric for KafkaCounters {
             Self::ProduceStatusSuccess => "producer.produce_status.success",
             Self::ProcessingMessageProduced => "processing.event.produced",
             Self::ProduceStatusError => "producer.produce_status.error",
+            Self::ConfigReloadPushed => "producer.config_reload.pushed",
+            Self::ConfigReloadRejected => "producer.config_reload.rejected",
         }
     }
 }

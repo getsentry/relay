@@ -2,7 +2,6 @@ use relay_common::time::UnixTimestamp;
 use relay_metrics::Bucket;
 
 pub mod event;
-pub mod generic;
 pub mod sessions;
 
 pub trait IntoMetric {

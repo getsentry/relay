@@ -13,6 +13,12 @@ expression: data
         "foo=bar"
       ]
     },
+    "http.request.header.cookie.ASP.NET_SessionId": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.JSESSIONID": {
+      "value": "[Filtered]"
+    },
     "http.request.header.cookie.__session": {
       "value": "[Filtered]"
     },
@@ -23,6 +29,9 @@ expression: data
       "value": "[Filtered]"
     },
     "http.request.header.cookie._xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.connect.sid": {
       "value": "[Filtered]"
     },
     "http.request.header.cookie.csrf": {
@@ -44,6 +53,9 @@ expression: data
       "value": "[Filtered]"
     },
     "http.request.header.cookie.irissessionid": {
+      "value": "[Filtered]"
+    },
+    "http.request.header.cookie.laravel_session": {
       "value": "[Filtered]"
     },
     "http.request.header.cookie.mysession": {
@@ -91,6 +103,12 @@ expression: data
         "foo=bar"
       ]
     },
+    "http.response.header.set-cookie.ASP.NET_SessionId": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.set-cookie.JSESSIONID": {
+      "value": "[Filtered]"
+    },
     "http.response.header.set-cookie.__session": {
       "value": "[Filtered]"
     },
@@ -101,6 +119,9 @@ expression: data
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie._xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.set-cookie.connect.sid": {
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie.csrf": {
@@ -122,6 +143,9 @@ expression: data
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie.irissessionid": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.set-cookie.laravel_session": {
       "value": "[Filtered]"
     },
     "http.response.header.set-cookie.mysession": {
@@ -193,6 +217,36 @@ expression: data
           }
         }
       },
+      "http.request.header.cookie.ASP.NET_SessionId": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.JSESSIONID": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
       "http.request.header.cookie.__session": {
         "value": {
           "": {
@@ -239,6 +293,21 @@ expression: data
         }
       },
       "http.request.header.cookie._xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.connect.sid": {
         "value": {
           "": {
             "rem": [
@@ -329,6 +398,21 @@ expression: data
         }
       },
       "http.request.header.cookie.irissessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.request.header.cookie.laravel_session": {
         "value": {
           "": {
             "rem": [
@@ -553,6 +637,36 @@ expression: data
           }
         }
       },
+      "http.response.header.set-cookie.ASP.NET_SessionId": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.set-cookie.JSESSIONID": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
       "http.response.header.set-cookie.__session": {
         "value": {
           "": {
@@ -599,6 +713,21 @@ expression: data
         }
       },
       "http.response.header.set-cookie._xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.set-cookie.connect.sid": {
         "value": {
           "": {
             "rem": [
@@ -689,6 +818,21 @@ expression: data
         }
       },
       "http.response.header.set-cookie.irissessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.set-cookie.laravel_session": {
         "value": {
           "": {
             "rem": [

@@ -29,6 +29,7 @@ pub mod web_crawlers;
 mod common;
 mod config;
 mod interface;
+mod origin;
 mod releases;
 mod statsd;
 
@@ -37,8 +38,8 @@ mod testutils;
 
 pub use crate::common::*;
 pub use crate::config::*;
-pub use crate::csp::matches_any_origin;
 pub use crate::generic::are_generic_filters_supported;
+pub use crate::origin::matches_any_origin;
 pub use interface::{Filterable, UserAgent};
 
 /// Checks whether an event should be filtered for a particular configuration.

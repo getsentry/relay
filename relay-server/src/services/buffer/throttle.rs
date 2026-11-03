@@ -7,12 +7,12 @@ use tokio::time::Instant;
 /// Paces how quickly something happens.
 #[derive(Debug)]
 pub struct Throttle {
-    rate: f64,
     state: Mutex<ThrottleState>,
 }
 
 #[derive(Debug)]
 struct ThrottleState {
+    rate: Option<f64>,
     budget: f64,
     last_refill: Instant,
 }
@@ -20,15 +20,29 @@ struct ThrottleState {
 impl Throttle {
     /// Creates a new [`Throttle`] with the given rate.
     ///
-    /// `rate` is per second.
-    pub fn new(rate: NonZeroU32) -> Self {
-        let rate = f64::from(rate.get());
+    /// `rate` is per second. A rate of `None` disables the throttle.
+    pub fn new(rate: Option<NonZeroU32>) -> Self {
+        let rate = rate.map(|rate| f64::from(rate.get()));
         Self {
-            rate,
             state: Mutex::new(ThrottleState {
-                budget: rate,
+                rate,
+                budget: rate.unwrap_or_default(),
                 last_refill: Instant::now(),
             }),
+        }
+    }
+
+    /// Updates the rate of the throttle.
+    ///
+    /// A rate of `None` disables the throttle.
+    pub fn set_rate(&self, rate: Option<NonZeroU32>) {
+        let rate = rate.map(|rate| f64::from(rate.get()));
+
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if state.rate != rate {
+            state.rate = rate;
+            state.budget = rate.unwrap_or_default();
+            state.last_refill = Instant::now();
         }
     }
 
@@ -40,15 +54,20 @@ impl Throttle {
         let wait = {
             let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
 
-            let now = Instant::now();
-            let elapsed = now.duration_since(state.last_refill).as_secs_f64();
-            state.last_refill = now;
+            match state.rate {
+                None => None,
+                Some(rate) => {
+                    let now = Instant::now();
+                    let elapsed = now.duration_since(state.last_refill).as_secs_f64();
+                    state.last_refill = now;
 
-            state.budget += elapsed * self.rate;
-            state.budget = state.budget.min(self.rate);
-            state.budget -= units as f64;
+                    state.budget += elapsed * rate;
+                    state.budget = state.budget.min(rate);
+                    state.budget -= units as f64;
 
-            (state.budget < 0.0).then(|| Duration::from_secs_f64(-state.budget / self.rate))
+                    (state.budget < 0.0).then(|| Duration::from_secs_f64(-state.budget / rate))
+                }
+            }
         };
 
         if let Some(wait) = wait {
@@ -62,7 +81,7 @@ mod tests {
     use super::*;
 
     fn throttle(rate: u32) -> Throttle {
-        Throttle::new(NonZeroU32::new(rate).unwrap())
+        Throttle::new(NonZeroU32::new(rate))
     }
 
     #[tokio::test(start_paused = true)]
@@ -117,5 +136,39 @@ mod tests {
         throttle.acquire(200).await;
 
         assert_eq!(start.elapsed(), Duration::from_secs(1));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_disabled_does_not_wait() {
+        let throttle = Throttle::new(None);
+
+        let start = Instant::now();
+        throttle.acquire(1_000_000).await;
+
+        assert_eq!(start.elapsed(), Duration::ZERO);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_set_rate_enables_throttling() {
+        let throttle = Throttle::new(None);
+        throttle.set_rate(NonZeroU32::new(100));
+
+        let start = Instant::now();
+        throttle.acquire(100).await;
+        throttle.acquire(50).await;
+
+        assert_eq!(start.elapsed(), Duration::from_millis(500));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_set_rate_disables_throttling() {
+        let throttle = throttle(10);
+        throttle.acquire(30).await;
+        throttle.set_rate(None);
+
+        let start = Instant::now();
+        throttle.acquire(1_000_000).await;
+
+        assert_eq!(start.elapsed(), Duration::ZERO);
     }
 }

@@ -10,11 +10,11 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::GRADUATED_FEATURE_FLAGS;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
-use crate::metrics::{self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule};
+use crate::metrics::SessionMetricsConfig;
 use crate::trusted_relay::TrustedRelayConfig;
-use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,12 +69,6 @@ pub struct ProjectConfig {
     /// Configuration for extracting metrics from sessions.
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    /// Configuration for generic metrics extraction from all data categories.
-    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
-    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
-    /// Rules for applying metrics tags depending on the event's content.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
@@ -96,9 +90,6 @@ impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
     pub fn sanitize(&mut self, report_errors: bool) {
         self.remove_invalid_quotas(report_errors);
-
-        metrics::convert_conditional_tagging(self);
-        defaults::add_span_metrics(self);
 
         if let Some(ErrorBoundary::Ok(ref mut sampling_config)) = self.sampling {
             sampling_config.normalize();
@@ -160,20 +151,11 @@ impl Default for ProjectConfig {
             breakdowns_v2: None,
             performance_score: Default::default(),
             session_metrics: SessionMetricsConfig::default(),
-            metric_extraction: Default::default(),
-            metric_conditional_tagging: Vec::new(),
             features: Default::default(),
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
         }
-    }
-}
-
-fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> bool {
-    match boundary {
-        ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(config) => !config.is_enabled(),
     }
 }
 
@@ -195,8 +177,6 @@ pub struct LimitedProjectConfig {
     pub trimming: TrimmingConfigs,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -602,7 +602,7 @@ impl Serialize for BucketView<'_> {
             name,
             value: _,
             tags,
-            metadata,
+            metadata: _,
         } = self.inner;
 
         let len = match tags.is_empty() {
@@ -628,8 +628,9 @@ impl Serialize for BucketView<'_> {
         if !tags.is_empty() {
             state.serialize_entry("tags", tags)?;
         }
+        let metadata = self.metadata();
         if !metadata.is_default() {
-            state.serialize_entry("metadata", metadata)?;
+            state.serialize_entry("metadata", &metadata)?;
         }
 
         state.end()

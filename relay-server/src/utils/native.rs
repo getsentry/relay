@@ -38,31 +38,18 @@ struct NativePlaceholder {
     mechanism_type: &'static str,
 }
 
-#[derive(Clone, Copy)]
-/// What to do with additional exceptions in a minidump / apple crash report event.
-pub enum AdditionalExceptions {
-    Retain,
-    Delete,
-}
-
 /// Writes a placeholder to indicate that this event has an associated minidump or an apple
 /// crash report.
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
-fn write_native_placeholder(
-    event: &mut Event,
-    placeholder: NativePlaceholder,
-    additional_exceptions: AdditionalExceptions,
-) {
+fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
 
-    // Assume that this minidump is the result of a crash and assign the fatal
-    // level. Note that the use of `setdefault` here doesn't generally allow the
-    // user to override the minidump's level as processing will overwrite it
-    // later.
+    // Unless the event explicitly specifies a level, assume that this minidump
+    // is the result of a crash and assign the fatal level.
     event.level.get_or_insert_with(|| Level::Fatal);
 
     // Create a placeholder exception. This signals normalization that this is an
@@ -88,20 +75,30 @@ fn write_native_placeholder(
         )
     }
 
-    if matches!(additional_exceptions, AdditionalExceptions::Delete) {
-        exceptions.clear(); // clear previous errors if any
-    }
+    // Copy the last client exception's context into the minidump placeholder.
+    let source = (placeholder.mechanism_type == "minidump")
+        .then(|| exceptions.last().and_then(Annotated::value))
+        .flatten();
+    let thread_id = source.map(|exc| exc.thread_id.clone()).unwrap_or_default();
+    let stacktrace = source.map(|exc| exc.stacktrace.clone()).unwrap_or_default();
+    let handled = source
+        .and_then(|exc| exc.mechanism.value())
+        .and_then(|mechanism| mechanism.handled.value())
+        .copied()
+        .unwrap_or(false);
 
     // The placeholder for the minidump exception has to be the first in the list. This is what
     // sentry expects: https://github.com/getsentry/sentry/blob/f949db3155fcb6b79d3ee5e875b542460ed7c2c4/src/sentry/lang/native/utils.py#L149
     exceptions.insert(
         0,
         Annotated::new(Exception {
+            thread_id,
+            stacktrace,
             ty: Annotated::new(placeholder.exception_type.to_owned()),
             value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
             mechanism: Annotated::new(Mechanism {
                 ty: Annotated::from(placeholder.mechanism_type.to_owned()),
-                handled: Annotated::from(false),
+                handled: Annotated::from(handled),
                 synthetic: Annotated::from(true),
                 ..Mechanism::default()
             }),
@@ -226,18 +223,14 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(
-    event: &mut Event,
-    item: &Item,
-    additional_exceptions: AdditionalExceptions,
-) {
+pub fn process_minidump(event: &mut Event, item: &Item) {
     debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
         mechanism_type: "minidump",
     };
-    write_native_placeholder(event, placeholder, additional_exceptions);
+    write_native_placeholder(event, placeholder);
 
     if item.is_attachment_ref() {
         // We don't have a full minidump, just a placeholder for something that was uploaded
@@ -300,13 +293,13 @@ pub fn process_minidump(
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: AdditionalExceptions) {
+pub fn process_apple_crash_report(event: &mut Event) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder, additional_exceptions);
+    write_native_placeholder(event, placeholder);
 }
 
 /// Reshapes a Switch crash so it renders the same as crashes on other platforms.
@@ -344,4 +337,79 @@ pub fn reshape_switch_crash(event: &mut Event) {
 
     // Events have level `error` by default, so set to `fatal` like for other native crashes.
     event.level.set_value(Some(Level::Fatal));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minidump_preserves_last_thread() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"level":"error","exception":{"values":[
+                {"thread_id":1},
+                {"thread_id":"42","mechanism":{"type":"AppHang","handled":true},
+                 "stacktrace":{"frames":[{"instruction_addr":"0x1000"}]}}
+            ]}}"#,
+        )
+        .unwrap();
+        let source = get_value!(event.exceptions.values[1]!).clone();
+
+        process_minidump(
+            event.value_mut().as_mut().unwrap(),
+            &Item::new(ItemType::Attachment),
+        );
+
+        let placeholder = get_value!(event.exceptions.values[0]!);
+        assert_eq!(placeholder.thread_id, source.thread_id);
+        assert_eq!(placeholder.stacktrace, source.stacktrace);
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.handled),
+            Some(&true)
+        );
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.ty).unwrap(),
+            "minidump"
+        );
+        assert_eq!(get_value!(event.level), Some(&Level::Error));
+        assert_eq!(get_value!(event.exceptions.values!).len(), 3);
+    }
+
+    #[test]
+    fn test_minidump_without_thread() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"exception":{"values":[
+                {"thread_id":1},
+                {"mechanism":{"type":"AppHang","handled":true},
+                 "stacktrace":{"frames":[{"function":"other"}]}}
+            ]}}"#,
+        )
+        .unwrap();
+        let source = get_value!(event.exceptions.values[1]!).clone();
+
+        process_minidump(
+            event.value_mut().as_mut().unwrap(),
+            &Item::new(ItemType::Attachment),
+        );
+
+        let placeholder = get_value!(event.exceptions.values[0]!);
+        assert!(placeholder.thread_id.value().is_none());
+        assert_eq!(placeholder.stacktrace, source.stacktrace);
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.handled),
+            Some(&true)
+        );
+    }
+
+    #[test]
+    fn test_apple_report_does_not_preserve_thread() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"exception":{"values":[{"type":"Other","thread_id":42}]}}"#,
+        )
+        .unwrap();
+
+        process_apple_crash_report(event.value_mut().as_mut().unwrap());
+
+        assert!(get_value!(event.exceptions.values[0].thread_id).is_none());
+    }
 }

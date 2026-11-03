@@ -20,8 +20,8 @@ use relay_auth::{
 };
 use relay_config::{Config, ConfigSnapshot, Credentials, RelayMode, UpstreamDescriptor};
 use relay_quotas::{
-    DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
-    Scoping,
+    DataCategories, DimensionMap, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
+    RetryAfter, Scoping,
 };
 use relay_statsd::metric;
 use relay_system::{
@@ -98,7 +98,7 @@ impl UpstreamRateLimits {
                 reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
                 namespaces: Default::default(),
-                dimensional: false,
+                dimensions: DimensionMap::default(),
             });
         }
         rate_limits
@@ -242,11 +242,7 @@ impl IntoResponse for UpstreamRequestError {
 /// to the incoming request (client-side), not the outgoing upstream request.
 fn treat_as_network_error(e: &reqwest::Error) -> bool {
     // NOTE: there's probably more exceptions but this is the one we know about.
-    if find_error_source(e, is_length_limit_error).is_some() {
-        return false;
-    }
-
-    true
+    find_error_source(e, is_length_limit_error).is_none()
 }
 
 /// Checks the authentication state with the upstream.

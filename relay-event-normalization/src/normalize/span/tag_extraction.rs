@@ -1560,7 +1560,7 @@ pub fn span_op_to_category(op: &str) -> Option<&str> {
         (
             category @ Some(
                 "ai" | "app" | "browser" | "cache" | "console" | "db" | "event" | "file"
-                | "graphql" | "grpc" | "http" | "measure" | "middleware" | "navigation"
+                | "graphql" | "grpc" | "http" | "measure" | "middleware" | "navigation" | "object"
                 | "pageload" | "queue" | "resource" | "rpc" | "serialize" | "subprocess"
                 | "template" | "topic" | "view" | "websocket",
             ),
@@ -3402,5 +3402,14 @@ LIMIT 1
         );
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
+    }
+
+    #[test]
+    fn test_span_op_to_category_object() {
+        assert_eq!(span_op_to_category("object.get"), Some("object"));
+        assert_eq!(
+            span_op_to_category("object.multipart_upload.create"),
+            Some("object")
+        );
     }
 }

@@ -1,7 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU32};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -22,7 +22,6 @@ use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
-use crate::services::buffer::throttle::Throttle;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
@@ -45,6 +44,8 @@ pub use envelope_stack::sqlite::{SqliteEnvelopeStack, SqliteEnvelopeStackConfig}
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks
+pub use throttle::Throttle;
 
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 pub use common::ProjectKeyPair;
@@ -100,10 +101,9 @@ impl PartitionedEnvelopeBuffer {
     ) -> Arc<Self> {
         let partitioning = Partitioning::new(config.current().spool_partitioning());
 
-        let unspool_throttle = config
-            .current()
-            .spool_max_unspool_envelopes_per_second()
-            .map(|limit| Arc::new(Throttle::new(limit)));
+        let unspool_throttle = Arc::new(Throttle::new(
+            config.current().spool_max_unspool_envelopes_per_second(),
+        ));
 
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -166,6 +166,11 @@ impl PartitionedEnvelopeBuffer {
         self.buffers.iter().map(|buffer| buffer.item_count()).sum()
     }
 
+    /// Returns `true` if all buffers are empty, in memory and on disk.
+    pub fn is_empty(&self) -> bool {
+        self.buffers.iter().all(|buffer| buffer.is_empty())
+    }
+
     pub fn total_storage_size(&self) -> u64 {
         self.buffers
             .iter()
@@ -207,6 +212,7 @@ impl Partitioning {
 #[derive(Debug)]
 pub struct EnvelopeBufferMetrics {
     has_capacity: AtomicBool,
+    is_empty: AtomicBool,
     item_count: AtomicU64,
     storage_size: AtomicU64,
 }
@@ -275,6 +281,11 @@ impl ObservableEnvelopeBuffer {
         self.metrics.item_count.load(Ordering::Relaxed)
     }
 
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        self.metrics.is_empty.load(Ordering::Relaxed)
+    }
+
     pub fn storage_size(&self) -> u64 {
         self.metrics.storage_size.load(Ordering::Relaxed)
     }
@@ -297,7 +308,8 @@ pub struct EnvelopeBufferService {
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
-    unspool_throttle: Option<Arc<Throttle>>,
+    unspool_throttle: Arc<Throttle>,
+    unspool_rate: Option<NonZeroU32>,
     services: Services,
     metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
@@ -316,18 +328,21 @@ impl EnvelopeBufferService {
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
-        unspool_throttle: Option<Arc<Throttle>>,
+        unspool_throttle: Arc<Throttle>,
         services: Services,
     ) -> Self {
+        let unspool_rate = config.current().spool_max_unspool_envelopes_per_second();
         Self {
             partition_id,
             config,
             memory_stat,
             global_config_rx,
             unspool_throttle,
+            unspool_rate,
             services,
             metrics: Arc::new(EnvelopeBufferMetrics {
                 has_capacity: AtomicBool::new(true),
+                is_empty: AtomicBool::new(false),
                 item_count: AtomicU64::new(0),
                 storage_size: AtomicU64::new(0),
             }),
@@ -605,6 +620,9 @@ impl EnvelopeBufferService {
         self.metrics
             .item_count
             .store(buffer.item_count(), Ordering::Relaxed);
+        self.metrics
+            .is_empty
+            .store(buffer.is_empty(), Ordering::Relaxed);
     }
 }
 
@@ -712,6 +730,15 @@ impl Service for EnvelopeBufferService {
                     sleep = Duration::ZERO;
                 }
                 else => break,
+            }
+
+            let unspool_rate = self
+                .config
+                .current()
+                .spool_max_unspool_envelopes_per_second();
+            if unspool_rate != self.unspool_rate {
+                self.unspool_rate = unspool_rate;
+                self.unspool_throttle.set_rate(unspool_rate);
             }
 
             self.sleep = sleep;
@@ -876,7 +903,7 @@ mod tests {
             config,
             memory_stat,
             global_rx,
-            None,
+            Arc::new(Throttle::new(None)),
             Services {
                 project_cache_handle: project_cache_handle.clone(),
                 envelope_processor,
@@ -1101,7 +1128,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         );
 
@@ -1110,7 +1137,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx,
-            None,
+            Arc::new(Throttle::new(None)),
             services,
         );
 
@@ -1170,7 +1197,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);
@@ -1179,7 +1206,7 @@ mod tests {
             config.clone(),
             MemoryStat::default(),
             global_rx.clone(),
-            None,
+            Arc::new(Throttle::new(None)),
             services.clone(),
         )
         .start_in(&TokioServiceSpawn);
