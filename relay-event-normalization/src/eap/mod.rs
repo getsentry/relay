@@ -14,6 +14,8 @@ use relay_event_schema::protocol::{
     Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
+
+use crate::trimming::trim_and_truncate;
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
@@ -482,10 +484,10 @@ pub fn normalize_dsc(
 
     match dsc
         .transaction
-        .as_ref()
-        .filter(|t| t.len() <= max_value_length)
+        .as_deref()
+        .and_then(|t| trim_and_truncate(t, max_value_length))
     {
-        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone()),
+        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction),
         None => drop(attributes.remove(SENTRY__DSC__TRANSACTION)),
     }
 
@@ -495,15 +497,19 @@ pub fn normalize_dsc(
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
         attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-        if let Some(release) = dsc.release.as_ref().filter(|r| r.len() <= max_value_length) {
-            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
+        if let Some(release) = dsc
+            .release
+            .as_deref()
+            .and_then(|r| trim_and_truncate(r, max_value_length))
+        {
+            attributes.insert(SENTRY__DSC__RELEASE, release);
         }
         if let Some(environment) = dsc
             .environment
-            .as_ref()
-            .filter(|e| e.len() <= max_value_length)
+            .as_deref()
+            .and_then(|e| trim_and_truncate(e, max_value_length))
         {
-            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
+            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment);
         }
         if let Some(sample_rate) = dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
@@ -1160,6 +1166,10 @@ mod tests {
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": "ttttttt..."
           }
         }
         "#);
