@@ -1,16 +1,23 @@
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_dynamic_config::Feature;
+use relay_event_schema::protocol::{EventId, TraceContext, TraceId};
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
+use relay_sampling::DynamicSamplingContext;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::integrations::{ErrorsIntegration, Integration};
 use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, RecordKeeper, Rejected};
 use crate::processing::errors::{Error, Result, utils};
 use crate::processing::{self, Context, Intermediates, Nothing, Output};
 use crate::services::processor::ProcessingError;
-use crate::utils::{ProcessedUnrealReport, UnrealExpansion};
+use crate::utils::{ProcessedUnrealReport, UnrealExpansion, gpu};
 
 /// A processor for Unreal items created by Relay's Unreal endpoint.
+///
+/// Also accepts legacy [`ItemType::UnrealReport`] items, which are still forwarded by older
+/// Relays.
 #[derive(Debug)]
 pub struct UnrealErrorIntegrationProcessor;
 
@@ -24,9 +31,12 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let report = envelope
-            .envelope_mut()
-            .take_item_by(|item| *item.ty() == ItemType::UnrealReport)?;
+        let report = envelope.envelope_mut().take_item_by(|item| {
+            matches!(
+                item.integration(),
+                Some(Integration::Errors(ErrorsIntegration::Unreal))
+            ) || *item.ty() == ItemType::UnrealReport
+        })?;
 
         let headers = envelope.envelope().headers().clone();
 
@@ -57,7 +67,7 @@ impl Counted for SerializedUnrealReport {
     }
 }
 
-/// Converts a [`ItemType::UnrealReport`] into the envelope protocol.
+/// Converts an Unreal crash report into the envelope protocol.
 fn convert(
     unreal: SerializedUnrealReport,
     records: &mut RecordKeeper<'_>,
@@ -90,19 +100,43 @@ fn convert(
         crate::utils::process_unreal(context, event_id, &mut event, &attachments, user_header)
             .map_err(ProcessingError::InvalidUnrealReport)?;
 
+    let mut intermediates = Intermediates::default();
+
     let mut envelope = Envelope::from_request(Some(event_id), unreal.headers.meta().clone());
+
+    let has_trace_context = event
+        .value()
+        .is_some_and(|e| e.context::<TraceContext>().is_some());
 
     // It's possible that there still is no event and a later pass through the error processor must
     // create a dummy/placeholder event for the contained crash.
-    if !event.is_empty() {
-        envelope.add_item({
+    let event = match event.is_empty() {
+        true => None,
+        false => {
             let mut item = Item::new(ItemType::Event);
             item.set_payload(
                 ContentType::Json,
                 event.to_json().map_err(ProcessingError::SerializeFailed)?,
             );
-            item
-        });
+            Some(item)
+        }
+    };
+
+    if ctx.project_info.has_feature(Feature::NvGpuCrashSplit)
+        && let Some(mut gpu) = take_gpu_crash(&unreal.headers, event.as_ref(), &mut attachments)
+    {
+        if !has_trace_context {
+            let trace_id = TraceId::random();
+            add_dsc(&mut envelope, trace_id, ctx);
+            add_dsc(&mut gpu, trace_id, ctx);
+        }
+
+        records.add(&gpu);
+        intermediates.add_envelope(gpu);
+    }
+
+    if let Some(event) = event {
+        envelope.add_item(event);
     }
 
     for attachment in attachments {
@@ -121,6 +155,66 @@ fn convert(
     if !envelope.items().any(|item| item.creates_event()) {
         return Err(ProcessingError::NoEventPayload.into());
     }
+    intermediates.add_envelope(envelope);
 
-    Ok(Intermediates::from_envelope(envelope))
+    Ok(intermediates)
+}
+
+fn take_gpu_crash(
+    headers: &EnvelopeHeaders,
+    event: Option<&Item>,
+    items: &mut Vec<Item>,
+) -> Option<Box<Envelope>> {
+    // No need to fork off an envelope if there is no GPU crash at all.
+    if !items.iter().any(is_cpu_dump_item) {
+        return None;
+    }
+
+    if !items.iter().any(gpu::is_gpu_dump_item) {
+        return None;
+    }
+
+    let mut envelope = Envelope::from_request(Some(EventId::new()), headers.meta().clone());
+    if let Some(event) = event {
+        envelope.add_item(event.clone());
+    }
+    for item in items.extract_if(.., |item| gpu::is_gpu_crash_item(item)) {
+        envelope.add_item(item);
+    }
+
+    Some(envelope)
+}
+
+fn is_cpu_dump_item(item: &Item) -> bool {
+    matches!(
+        item.attachment_type(),
+        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
+    )
+}
+
+/// Adds a [`DynamicSamplingContext`] to `envelope`.
+///
+/// The dynamic sampling context is used to connect a CPU crash to the same GPU crash,
+/// as it is later used in event normalization to create a trace context in each event.
+fn add_dsc(envelope: &mut Envelope, trace_id: TraceId, ctx: Context<'_>) {
+    // This is a dead check, a valid project config must always contain a public key.
+    let Some(public_key) = ctx.project_info.get_public_key_config() else {
+        return;
+    };
+
+    let dsc = DynamicSamplingContext {
+        trace_id,
+        public_key: public_key.public_key,
+        project_id: Default::default(),
+        release: Default::default(),
+        environment: Default::default(),
+        transaction: Default::default(),
+        sample_rate: Default::default(),
+        user: Default::default(),
+        replay_id: Default::default(),
+        sampled: Default::default(),
+        other: Default::default(),
+    };
+
+    envelope.set_dsc(dsc);
 }

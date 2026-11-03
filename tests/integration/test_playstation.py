@@ -820,9 +820,14 @@ def test_playstation_attachment(
 
     event, payload = attachments_consumer.get_event_only()
 
-    assert payload == playstation_event_json(
+    expected = playstation_event_json(
         {"name": "sentry.native.playstation", "version": "0.1.0"}
     )
+    # Exceptions sent by the client are retained after the minidump placeholder.
+    expected["exception"]["values"].append(
+        {"type": "ValueError", "value": "Should not happen"}
+    )
+    assert payload == expected
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
         155829, 78050, 209385
     )
