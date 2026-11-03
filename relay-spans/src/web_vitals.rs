@@ -7,8 +7,8 @@ use relay_conventions::attributes::{
     BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
     SENTRY__METRIC__SOURCE, SENTRY__ORIGIN, SENTRY__PAGELOAD__SPAN_ID, SENTRY__PLATFORM,
-    SENTRY__RELEASE, SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME,
-    USER_AGENT__ORIGINAL,
+    SENTRY__PROFILE_ID, SENTRY__RELEASE, SENTRY__REPLAY_ID, SENTRY__SDK__NAME,
+    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, USER_AGENT__ORIGINAL,
 };
 use relay_conventions::interpolate::browser__web_vital__cls__source__key;
 use relay_event_schema::protocol::{Attributes, SpanV2, TraceMetric};
@@ -34,7 +34,7 @@ const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "ui.interaction.press",
 ];
 
-const COMMON_ATTRIBUTES: [&str; 13] = [
+const COMMON_ATTRIBUTES: [&str; 15] = [
     BROWSER__NAME,
     BROWSER__VERSION,
     BROWSER__NAVIGATION__TYPE,
@@ -48,6 +48,8 @@ const COMMON_ATTRIBUTES: [&str; 13] = [
     SENTRY__SDK__NAME,
     SENTRY__SDK__VERSION,
     SENTRY__PLATFORM,
+    SENTRY__REPLAY_ID,
+    SENTRY__PROFILE_ID,
 ];
 
 const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
@@ -498,5 +500,47 @@ mod tests {
             "browser.web_vital.ttfb.score",
         ]
         "#);
+    }
+
+    #[test]
+    fn test_replay_and_profile_ids() {
+        let span = Annotated::<SpanV2>::from_json(
+            r#"{
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+                "start_timestamp": 1742921669.25,
+                "end_timestamp": 1742921669.75,
+                "attributes": {
+                    "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
+                    "score.ratio.lcp": {"type": "double", "value": 0.75},
+                    "sentry.replay_id": {"type": "string", "value": "6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3"},
+                    "sentry.profile_id": {"type": "string", "value": "4c79f60c11214eb38604f4ae0781bfb0"}
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let metrics = extract_web_vital_metrics(&span).unwrap();
+        assert_eq!(metrics.len(), 2);
+
+        // Both the vital and its score metric carry the ids.
+        for metric in &metrics {
+            let attributes = metric.attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__REPLAY_ID)
+                    .and_then(|v| v.as_str()),
+                Some("6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3")
+            );
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__PROFILE_ID)
+                    .and_then(|v| v.as_str()),
+                Some("4c79f60c11214eb38604f4ae0781bfb0")
+            );
+        }
     }
 }
