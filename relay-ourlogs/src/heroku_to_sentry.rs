@@ -12,6 +12,7 @@
 //! messages, but Logplex omits the `STRUCTURED-DATA` field instead of sending a `NILVALUE`.
 
 use std::borrow::Cow;
+use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_conventions::attributes::*;
@@ -34,6 +35,7 @@ mod attributes {
     pub const HEROKU__ROUTER__DYNO: &str = "heroku.router.dyno";
     pub const HEROKU__ROUTER__CONNECT: &str = "heroku.router.connect";
     pub const HEROKU__ROUTER__SERVICE: &str = "heroku.router.service";
+    /// The OTel attribute, which is not part of `sentry-conventions` yet.
     pub const TLS__PROTOCOL__VERSION: &str = "tls.protocol.version";
 }
 
@@ -350,11 +352,13 @@ enum RouterValue {
     Path,
     /// The `tls` boolean, converted to the URL scheme.
     Scheme,
-    /// The router's `http1.1` and `http2.0`, converted to the OTel versions `1.1` and `2`.
+    /// The router's `http1.1` and `http2.0`, converted to the OTel versions `1.1` and `2`. Other
+    /// values, like the `http` and `https` of older router logs, are dropped.
     HttpVersion,
     /// The router's `tls1.3`, converted to `1.3`. Heroku also reports `unknown`, which is dropped.
     TlsVersion,
     /// The `X-Forwarded-For` value, reduced to the original client as in OTel's `client.address`.
+    /// Values which are not an IP address are dropped.
     ClientAddress,
 }
 
@@ -400,9 +404,8 @@ fn router_field(key: &str) -> Option<(&'static str, RouterValue)> {
 /// `host` and `request_id`, which are logged between `path` and `fwd`, can still be replaced by
 /// pairs injected through `fwd`.
 ///
-/// `at` only determines the log level. `path` is split into `url.path` and `url.query`, and `fwd`
-/// is reduced to its leftmost address for `client.address`. The client controls that address, as
-/// with any `X-Forwarded-For`.
+/// `client.address` is the leftmost address of `fwd`, which the client controls, as with any
+/// `X-Forwarded-For`.
 fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLogLevel> {
     let mut seen_path = false;
     let mut level = None;
@@ -450,22 +453,21 @@ fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLo
                 .parse::<bool>()
                 .ok()
                 .map(|tls| if tls { "https" } else { "http" }.to_owned().into()),
-            RouterValue::HttpVersion => value
-                .strip_prefix("http")
-                .filter(|version| !version.is_empty())
-                .map(|version| match version {
-                    "2.0" => "2".to_owned().into(),
-                    version => version.to_owned().into(),
-                }),
+            RouterValue::HttpVersion => match &*value {
+                "http1.0" => Some("1.0".to_owned().into()),
+                "http1.1" => Some("1.1".to_owned().into()),
+                "http2.0" => Some("2".to_owned().into()),
+                _ => None,
+            },
             RouterValue::TlsVersion => value
                 .strip_prefix("tls")
-                .filter(|version| !version.is_empty())
+                .filter(|version| version.starts_with(|c: char| c.is_ascii_digit()))
                 .map(|version| version.to_owned().into()),
             RouterValue::ClientAddress => value
                 .split(',')
                 .next()
                 .map(str::trim)
-                .filter(|address| !address.is_empty())
+                .filter(|address| address.parse::<IpAddr>().is_ok())
                 .map(|address| address.to_owned().into()),
         };
 
@@ -1106,6 +1108,64 @@ mod tests {
             attribute(&log, HTTP__RESPONSE__STATUS_CODE),
             Some(&Value::I64(200))
         );
+    }
+
+    #[test]
+    fn test_router_fwd_not_an_ip_address() {
+        let client_address = |fwd: &str| {
+            let log = to_log(&format!(
+                r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info path="/" fwd="{fwd}" status=200"#
+            ));
+            attribute(&log, CLIENT__ADDRESS)
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+        };
+
+        assert_eq!(
+            client_address("2001:db8::1, 1.2.3.4").as_deref(),
+            Some("2001:db8::1")
+        );
+        // `{{auto}}` would be replaced with the address of the Logplex host during normalization.
+        assert_eq!(client_address("{{auto}}, 1.2.3.4"), None);
+        assert_eq!(client_address("not an ip, 1.2.3.4"), None);
+    }
+
+    #[test]
+    fn test_router_protocol_and_tls() {
+        let log_with = |fields: &str| {
+            to_log(&format!(
+                r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info path="/" status=200 {fields}"#
+            ))
+        };
+        let str_attribute = |fields: &str, key: &str| {
+            attribute(&log_with(fields), key)
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+        };
+        let version = |protocol: &str| {
+            str_attribute(&format!("protocol={protocol}"), NETWORK__PROTOCOL__VERSION)
+        };
+
+        assert_eq!(version("http1.1").as_deref(), Some("1.1"));
+        assert_eq!(version("http2.0").as_deref(), Some("2"));
+        // Older router logs have the scheme in this field.
+        assert_eq!(version("http"), None);
+        assert_eq!(version("https"), None);
+
+        assert_eq!(
+            str_attribute("tls=true", URL__SCHEME).as_deref(),
+            Some("https")
+        );
+        assert_eq!(
+            str_attribute("tls=false", URL__SCHEME).as_deref(),
+            Some("http")
+        );
+
+        let tls_version =
+            |value: &str| str_attribute(&format!("tls_version={value}"), TLS__PROTOCOL__VERSION);
+        assert_eq!(tls_version("tls1.2").as_deref(), Some("1.2"));
+        assert_eq!(tls_version("unknown"), None);
+        assert_eq!(tls_version("tlsfoo"), None);
     }
 
     #[test]
