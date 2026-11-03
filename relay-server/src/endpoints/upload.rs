@@ -64,11 +64,11 @@ pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     let head = axum_head(handle_head)
         .route_layer(tus::resumable_header_layer())
         .route_layer(tus::no_store_layer())
-        .route_layer(crate::middlewares::cors())
+        .layer(crate::middlewares::cors())
         .layer(axum::middleware::from_fn(crate::middlewares::decompress));
 
-    // Axum keeps the right-hand default method fallback. Preserve its decompression so
-    // unsupported methods with unsupported encodings still return 415 before 405.
+    // Axum keeps the right-hand default method fallback, including CORS for OPTIONS.
+    // Preserve its decompression so unsupported encodings still return 415 before CORS or 405.
     route_patch(config).merge(head)
 }
 

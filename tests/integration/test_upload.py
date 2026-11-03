@@ -1414,6 +1414,24 @@ def test_head_session_unavailable(mini_sentry, relay_with_processing, project_co
     assert "Upload-Offset" not in response.headers
 
 
+def test_upload_preflight(mini_sentry, relay):
+    edge = relay(mini_sentry)
+    response = edge.request(
+        "OPTIONS",
+        DUMMY_UPLOAD_PATH,
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "PATCH",
+            "Access-Control-Request-Headers": "content-type,content-encoding",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "*"
+    allowed_headers = response.headers["Access-Control-Allow-Headers"].split(",")
+    assert {"content-type", "content-encoding"} <= set(allowed_headers)
+
+
 @dataclass(frozen=True, kw_only=True)
 class EncodingRequestCase:
     id: str
