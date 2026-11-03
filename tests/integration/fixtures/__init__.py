@@ -223,7 +223,7 @@ class SentryLike:
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
 
-        url = f"/api/{project_id}/integration/browser-report?sentry_key={dsn_key}"
+        url = f"/api/{project_id}/integration/browser/reporting/?sentry_key={dsn_key}"
 
         response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
