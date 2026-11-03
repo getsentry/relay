@@ -309,7 +309,13 @@ fn decompress(
 ///
 /// This applies the same decompression and limit as [`RecordingScrubber::process_recording`],
 /// for recordings which are not scrubbed. Uncompressed bodies are not checked.
-pub fn validate_recording(bytes: &[u8], limit: usize) -> Result<(), ParseRecordingError> {
+///
+/// This is only a size check, not a validation of the recording. It returns
+/// [`ParseRecordingError::TooLarge`] for oversized payloads, but it also returns the other
+/// errors it hits on the way, such as a missing body or a broken zlib stream. Callers which
+/// only enforce the size limit can pass such malformed recordings through and leave them to
+/// downstream consumers, as Relay does for recordings which are not scrubbed.
+pub fn check_recording_size(bytes: &[u8], limit: usize) -> Result<(), ParseRecordingError> {
     let (_, body) = split_recording(bytes)?;
     if body.first() == Some(&b'[') {
         return Ok(());
@@ -448,7 +454,7 @@ mod tests {
 
     use crate::recording::scrub_at_path;
 
-    use super::{ParseRecordingError, RecordingScrubber, validate_recording};
+    use super::{ParseRecordingError, RecordingScrubber, check_recording_size};
 
     fn default_pii_config() -> PiiConfig {
         let mut scrubbing_config = DataScrubbingConfig::default();
@@ -727,33 +733,33 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_recording_within_limit() {
+    fn test_check_recording_size_within_limit() {
         let body = b"[{\"type\":4}]";
-        assert!(validate_recording(&compressed_recording(body), body.len()).is_ok());
+        assert!(check_recording_size(&compressed_recording(body), body.len()).is_ok());
     }
 
     #[test]
-    fn test_validate_recording_exceeds_limit() {
+    fn test_check_recording_size_exceeds_limit() {
         let body = b"[{\"type\":4}]";
         assert!(matches!(
-            validate_recording(&compressed_recording(body), body.len() - 1),
+            check_recording_size(&compressed_recording(body), body.len() - 1),
             Err(ParseRecordingError::TooLarge)
         ));
     }
 
     #[test]
-    fn test_validate_recording_high_compression_ratio() {
+    fn test_check_recording_size_high_compression_ratio() {
         let recording = compressed_recording(&vec![b' '; 1024 * 1024]);
         assert!(recording.len() < 2048);
         assert!(matches!(
-            validate_recording(&recording, 1024),
+            check_recording_size(&recording, 1024),
             Err(ParseRecordingError::TooLarge)
         ));
     }
 
     #[test]
-    fn test_validate_recording_uncompressed() {
-        assert!(validate_recording(b"{\"segment_id\":0}\n[{\"type\":4}]", 1).is_ok());
+    fn test_check_recording_size_uncompressed() {
+        assert!(check_recording_size(b"{\"segment_id\":0}\n[{\"type\":4}]", 1).is_ok());
     }
 
     #[test]

@@ -1,7 +1,12 @@
+import json
 import zlib
 
+import pytest
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts import time_within_delta
+from .consts import Outcome
 from .test_replay_events import generate_replay_sdk_event
 
 
@@ -85,6 +90,70 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["relay_snuba_publish_disabled"]
 
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "project_config",
+    [
+        pytest.param(
+            {"features": ["organizations:session-replay"]},
+            id="scrubbing_disabled",
+        ),
+        pytest.param(
+            {
+                "features": [
+                    "organizations:session-replay",
+                    "organizations:session-replay-recording-scrubbing",
+                ],
+                "piiConfig": None,
+            },
+            id="no_pii_config",
+        ),
+    ],
+)
+@pytest.mark.parametrize("too_large", [False, True], ids=["at_limit", "over_limit"])
+def test_replay_recording_max_uncompressed_size(
+    mini_sentry,
+    relay_with_processing,
+    replay_recordings_consumer,
+    outcomes_consumer,
+    project_config,
+    too_large,
+):
+    project_id = 42
+    replay_id = "515539018c9b4260a6f999572f1661ee"
+
+    body = json.dumps([{"type": 4, "data": {"href": "a" * 1000}}]).encode()
+    limit = len(body) - 1 if too_large else len(body)
+
+    mini_sentry.add_basic_project_config(project_id, extra={"config": project_config})
+    relay = relay_with_processing({"limits": {"max_replay_uncompressed_size": limit}})
+    replay_recordings_consumer = replay_recordings_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    envelope = Envelope(headers=[["event_id", replay_id]])
+    payload = recording_payload(body)
+    envelope.add_item(Item(payload=PayloadRef(bytes=payload), type="replay_recording"))
+
+    relay.send_envelope(project_id, envelope)
+
+    if too_large:
+        outcome = outcomes_consumer.get_outcome()
+        assert outcome == {
+            "timestamp": time_within_delta(),
+            "project_id": project_id,
+            "key_id": 123,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:replay_recording",
+            "category": DataCategory.REPLAY,
+            "quantity": 1,
+        }
+        replay_recordings_consumer.assert_empty()
+    else:
+        replay_recording = replay_recordings_consumer.get_not_chunked_replay(timeout=10)
+        assert replay_recording["replay_id"] == replay_id
+        assert replay_recording["payload"] == payload
+        outcomes_consumer.assert_empty()
 
 
 def recording_payload(bits: bytes):

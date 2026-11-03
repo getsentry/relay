@@ -4,7 +4,7 @@ use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
-use relay_replays::recording::{ParseRecordingError, RecordingScrubber, validate_recording};
+use relay_replays::recording::{ParseRecordingError, RecordingScrubber, check_recording_size};
 use relay_statsd::metric;
 use serde::Deserialize;
 
@@ -136,7 +136,8 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
     Ok(())
 }
 
-fn scrub_recordings(
+/// Scrubs a replay recording if configured and enforces its maximum uncompressed size.
+fn process_recordings(
     replay: &mut Managed<ExpandedReplay>,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
@@ -169,7 +170,7 @@ fn scrub_recordings(
             // run the same decompression only to check the size. Other malformed recordings
             // are left to the consumer.
             if ctx.is_processing()
-                && let Err(ParseRecordingError::TooLarge) = validate_recording(payload, limit)
+                && let Err(ParseRecordingError::TooLarge) = check_recording_size(payload, limit)
             {
                 relay_log::debug!("replay recording over maximum uncompressed size");
                 return Err(Error::TooLarge);
@@ -214,5 +215,5 @@ pub fn scrub(
         }
     })?;
 
-    scrub_recordings(replay, ctx)
+    process_recordings(replay, ctx)
 }
