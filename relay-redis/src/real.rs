@@ -76,6 +76,45 @@ pub enum AsyncRedisClient {
     Cluster(pool::CustomClusterPool),
     /// Contains a connection pool to a single Redis instance.
     Single(pool::CustomSinglePool),
+    /// Sends commands to the primary and write commands to the secondary.
+    ///
+    /// Only the primary's result is returned.
+    Dual {
+        /// Client whose results are returned.
+        primary: Box<AsyncRedisClient>,
+        /// Best-effort client, errors are only logged.
+        secondary: Box<AsyncRedisClient>,
+    },
+}
+
+/// Commands which are duplicated to the secondary.
+///
+/// Scripts are treated as writes. Read-only variants like `EVALSHA_RO` are not included.
+const SECONDARY_COMMANDS: &[&str] = &[
+    "EVAL", "EVALSHA", "SCRIPT", "SET", "SETEX", "DEL", "INCR", "INCRBY", "DECR", "DECRBY",
+    "EXPIRE", "EXPIREAT", "HSET", "HDEL", "HINCRBY",
+];
+
+/// Returns `true` if `cmd` should be duplicated to the secondary.
+fn is_secondary_command(cmd: &Cmd) -> bool {
+    let Some(redis::Arg::Simple(name)) = cmd.args_iter().next() else {
+        return false;
+    };
+    SECONDARY_COMMANDS
+        .iter()
+        .any(|c| c.as_bytes().eq_ignore_ascii_case(name))
+}
+
+/// Returns a pipeline with only the secondary commands, `None` if there are none.
+fn secondary_pipeline(pipeline: &Pipeline) -> Option<Pipeline> {
+    let mut filtered = Pipeline::new();
+    if pipeline.is_transaction() {
+        filtered.atomic();
+    }
+    for cmd in pipeline.cmd_iter().filter(|cmd| is_secondary_command(cmd)) {
+        filtered.add_command(cmd.clone());
+    }
+    (!filtered.is_empty()).then_some(filtered)
 }
 
 impl AsyncRedisClient {
@@ -128,16 +167,48 @@ impl AsyncRedisClient {
         Ok(AsyncRedisClient::Single(pool))
     }
 
+    /// Creates a client which sends commands to `primary` and write commands to `secondary`.
+    ///
+    /// Only the primary's result is returned, errors from the secondary are only logged.
+    pub fn dual(primary: AsyncRedisClient, secondary: AsyncRedisClient) -> Self {
+        AsyncRedisClient::Dual {
+            primary: Box::new(primary),
+            secondary: Box::new(secondary),
+        }
+    }
+
     /// Acquires a connection from the pool.
     ///
     /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
     /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
         match self {
-            Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
-            Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
+            Self::Cluster(pool) => pool
+                .get()
+                .await
+                .map(AsyncRedisConnection::Cluster)
+                .map_err(RedisError::Pool),
+            Self::Single(pool) => pool
+                .get()
+                .await
+                .map(AsyncRedisConnection::Single)
+                .map_err(RedisError::Pool),
+            Self::Dual { primary, secondary } => {
+                let primary = Box::new(Box::pin(primary.get_connection()).await?);
+                let secondary = match Box::pin(secondary.get_connection()).await {
+                    Ok(connection) => Some(Box::new(connection)),
+                    Err(error) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to acquire a secondary redis connection",
+                        );
+                        None
+                    }
+                };
+
+                Ok(AsyncRedisConnection::Dual { primary, secondary })
+            }
         }
-        .map_err(RedisError::Pool)
     }
 
     /// Returns statistics about the current state of the connection pool.
@@ -148,6 +219,7 @@ impl AsyncRedisClient {
         let status = match self {
             Self::Cluster(pool) => pool.status(),
             Self::Single(pool) => pool.status(),
+            Self::Dual { primary, .. } => return primary.stats(),
         };
 
         RedisClientStats {
@@ -168,6 +240,10 @@ impl AsyncRedisClient {
             }
             Self::Single(pool) => {
                 pool.retain(|_, metrics| predicate(metrics));
+            }
+            Self::Dual { primary, secondary } => {
+                primary.retain(&mut predicate);
+                secondary.retain(&mut predicate);
             }
         }
     }
@@ -207,6 +283,7 @@ impl std::fmt::Debug for AsyncRedisClient {
         match self {
             AsyncRedisClient::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
             AsyncRedisClient::Single(_) => write!(f, "AsyncRedisPool::Single"),
+            AsyncRedisClient::Dual { .. } => write!(f, "AsyncRedisPool::Dual"),
         }
     }
 }
@@ -222,6 +299,13 @@ pub enum AsyncRedisConnection {
     Cluster(pool::CustomClusterConnection),
     /// A connection to a single Redis instance.
     Single(pool::CustomSingleConnection),
+    /// Sends commands to the primary and write commands to the secondary.
+    Dual {
+        /// Connection whose results are returned.
+        primary: Box<AsyncRedisConnection>,
+        /// Best-effort connection, `None` if it could not be acquired.
+        secondary: Option<Box<AsyncRedisConnection>>,
+    },
 }
 
 impl std::fmt::Debug for AsyncRedisConnection {
@@ -229,8 +313,19 @@ impl std::fmt::Debug for AsyncRedisConnection {
         let name = match self {
             Self::Cluster(_) => "Cluster",
             Self::Single(_) => "Single",
+            Self::Dual { .. } => "Dual",
         };
         f.debug_tuple(name).finish()
+    }
+}
+
+/// Logs a failed command sent to the secondary.
+fn log_secondary_error<T>(result: Option<redis::RedisResult<T>>) {
+    if let Some(Err(error)) = result {
+        relay_log::error!(
+            error = &error as &dyn std::error::Error,
+            "failed to send command to secondary redis",
+        );
     }
 }
 
@@ -239,6 +334,20 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),
             Self::Single(conn) => conn.req_packed_command(cmd),
+            Self::Dual { primary, secondary } => Box::pin(async move {
+                let secondary = async {
+                    match secondary {
+                        Some(secondary) if is_secondary_command(cmd) => {
+                            Some(secondary.req_packed_command(cmd).await)
+                        }
+                        _ => None,
+                    }
+                };
+                let (result, secondary_result) =
+                    futures::future::join(primary.req_packed_command(cmd), secondary).await;
+                log_secondary_error(secondary_result);
+                result
+            }),
         }
     }
 
@@ -251,6 +360,29 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
             Self::Single(conn) => conn.req_packed_commands(cmd, offset, count),
+            Self::Dual { primary, secondary } => Box::pin(async move {
+                let secondary = async {
+                    let secondary = secondary.as_mut()?;
+                    let filtered = secondary_pipeline(cmd)?;
+                    // Mirrors the offset and count of `Pipeline::query_async`.
+                    let (offset, count) = match filtered.is_transaction() {
+                        true => (filtered.len() + 1, 1),
+                        false => (0, filtered.len()),
+                    };
+                    Some(
+                        secondary
+                            .req_packed_commands(&filtered, offset, count)
+                            .await,
+                    )
+                };
+                let (result, secondary_result) = futures::future::join(
+                    primary.req_packed_commands(cmd, offset, count),
+                    secondary,
+                )
+                .await;
+                log_secondary_error(secondary_result);
+                result
+            }),
         }
     }
 
@@ -258,6 +390,52 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.get_db(),
             Self::Single(conn) => conn.get_db(),
+            Self::Dual { primary, .. } => primary.get_db(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_secondary_command() {
+        assert!(is_secondary_command(&redis::cmd("EVALSHA")));
+        assert!(is_secondary_command(&redis::cmd("evalsha")));
+        assert!(is_secondary_command(&redis::cmd("SCRIPT")));
+        assert!(is_secondary_command(&redis::cmd("SET")));
+
+        assert!(!is_secondary_command(&redis::cmd("GET")));
+        assert!(!is_secondary_command(&redis::cmd("MGET")));
+        assert!(!is_secondary_command(&redis::cmd("EVALSHA_RO")));
+    }
+
+    #[test]
+    fn test_secondary_pipeline() {
+        let mut pipeline = redis::pipe();
+        pipeline
+            .atomic()
+            .cmd("GET")
+            .arg("a")
+            .cmd("SET")
+            .arg("b")
+            .arg(1);
+        let filtered = secondary_pipeline(&pipeline).unwrap();
+        assert!(filtered.is_transaction());
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(
+            filtered.get_packed_pipeline(),
+            redis::pipe()
+                .atomic()
+                .cmd("SET")
+                .arg("b")
+                .arg(1)
+                .get_packed_pipeline()
+        );
+
+        let mut reads = redis::pipe();
+        reads.cmd("GET").arg("a").cmd("MGET").arg("b");
+        assert!(secondary_pipeline(&reads).is_none());
     }
 }
