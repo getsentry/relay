@@ -13,7 +13,7 @@
 
 use std::cell::RefCell;
 use std::fmt;
-use std::io::Read;
+use std::io::{self, Read, Write};
 use std::rc::Rc;
 use std::{borrow::Cow, sync::LazyLock};
 
@@ -58,6 +58,8 @@ pub enum ParseRecordingError {
     Parse(serde_json::Error),
     /// Invalid or broken compression.
     Compression(std::io::Error),
+    /// The payload exceeds the size limit after decompression.
+    TooLarge,
     /// Validation of the payload failed.
     ///
     /// The body is empty, is missing the headers, or the body.
@@ -69,6 +71,7 @@ impl fmt::Display for ParseRecordingError {
         match self {
             ParseRecordingError::Parse(serde_error) => write!(f, "{serde_error}"),
             ParseRecordingError::Compression(error) => write!(f, "{error}"),
+            ParseRecordingError::TooLarge => write!(f, "payload too large after decompression"),
             ParseRecordingError::Message(message) => write!(f, "{message}"),
         }
     }
@@ -79,7 +82,7 @@ impl std::error::Error for ParseRecordingError {
         match self {
             ParseRecordingError::Parse(e) => Some(e),
             ParseRecordingError::Compression(e) => Some(e),
-            ParseRecordingError::Message(_) => None,
+            ParseRecordingError::TooLarge | ParseRecordingError::Message(_) => None,
         }
     }
 }
@@ -268,6 +271,58 @@ where
     D::custom(s.to_string())
 }
 
+/// Splits a recording payload into its header line and body.
+fn split_recording(bytes: &[u8]) -> Result<(&[u8], &[u8]), ParseRecordingError> {
+    if bytes.is_empty() {
+        return Err(ParseRecordingError::Message("no data found"));
+    }
+
+    let mut split = bytes.splitn(2, |b| b == &b'\n');
+    let header = split
+        .next()
+        .ok_or(ParseRecordingError::Message("no headers found"))?;
+
+    match split.next() {
+        Some(b"") | None => Err(ParseRecordingError::Message("no body found")),
+        Some(body) => Ok((header, body)),
+    }
+}
+
+/// Inflates a zlib compressed recording body into `output`.
+///
+/// Reads at most one byte past `limit`, so oversized bodies are detected without inflating them
+/// fully.
+fn decompress(
+    body: &[u8],
+    limit: usize,
+    output: &mut impl Write,
+) -> Result<(), ParseRecordingError> {
+    let mut decoder = ZlibDecoder::new(body).take((limit as u64).saturating_add(1));
+    let size = io::copy(&mut decoder, output).map_err(ParseRecordingError::Compression)?;
+    if size > limit as u64 {
+        return Err(ParseRecordingError::TooLarge);
+    }
+    Ok(())
+}
+
+/// Checks that a recording payload does not exceed `limit` bytes after decompression.
+///
+/// This applies the same decompression and limit as [`RecordingScrubber::process_recording`],
+/// for recordings which are not scrubbed. Uncompressed bodies are not checked.
+///
+/// This is only a size check, not a validation of the recording. It returns
+/// [`ParseRecordingError::TooLarge`] for oversized payloads, but it also returns the other
+/// errors it hits on the way, such as a missing body or a broken zlib stream. Callers which
+/// only enforce the size limit can pass such malformed recordings through and leave them to
+/// downstream consumers, as Relay does for recordings which are not scrubbed.
+pub fn check_recording_size(bytes: &[u8], limit: usize) -> Result<(), ParseRecordingError> {
+    let (_, body) = split_recording(bytes)?;
+    if body.first() == Some(&b'[') {
+        return Ok(());
+    }
+    decompress(body, limit, &mut io::sink())
+}
+
 /// A utility that performs data scrubbing on compressed Replay recording payloads.
 ///
 /// ### Example
@@ -349,11 +404,7 @@ impl<'a> RecordingScrubber<'a> {
             self.scrub_replay(body, encoder)
         } else {
             let mut decompressed = Vec::with_capacity(8 * 1024);
-            let mut decoder = ZlibDecoder::new(body).take(self.limit as u64);
-            decoder
-                .read_to_end(&mut decompressed)
-                .map_err(ParseRecordingError::Compression)?;
-
+            decompress(body, self.limit, &mut decompressed)?;
             self.scrub_replay(&decompressed, encoder)
         }
     }
@@ -377,20 +428,7 @@ impl<'a> RecordingScrubber<'a> {
     ///  - The payload size exceeds the configured `limit` of the scrubber after decompression.
     ///  - On errors during decompression or JSON parsing.
     pub fn process_recording(&mut self, bytes: &[u8]) -> Result<Vec<u8>, ParseRecordingError> {
-        // Check for null byte condition.
-        if bytes.is_empty() {
-            return Err(ParseRecordingError::Message("no data found"));
-        }
-
-        let mut split = bytes.splitn(2, |b| b == &b'\n');
-        let header = split
-            .next()
-            .ok_or(ParseRecordingError::Message("no headers found"))?;
-
-        let body = match split.next() {
-            Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
-            Some(body) => body,
-        };
+        let (header, body) = split_recording(bytes)?;
 
         let mut output = header.to_owned();
         output.push(b'\n');
@@ -408,11 +446,15 @@ impl<'a> RecordingScrubber<'a> {
 mod tests {
     // End to end test coverage.
 
+    use std::io::Write;
+
+    use flate2::Compression;
+    use flate2::write::ZlibEncoder;
     use relay_pii::{DataScrubbingConfig, PiiConfig};
 
     use crate::recording::scrub_at_path;
 
-    use super::RecordingScrubber;
+    use super::{ParseRecordingError, RecordingScrubber, check_recording_size};
 
     fn default_pii_config() -> PiiConfig {
         let mut scrubbing_config = DataScrubbingConfig::default();
@@ -680,6 +722,55 @@ mod tests {
             scrubbed[0]["data"]["payload"]["data"]["password"],
             "[Filtered]"
         );
+    }
+
+    fn compressed_recording(body: &[u8]) -> Vec<u8> {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(body).unwrap();
+        let mut recording = b"{\"segment_id\":0}\n".to_vec();
+        recording.extend(encoder.finish().unwrap());
+        recording
+    }
+
+    #[test]
+    fn test_check_recording_size_within_limit() {
+        let body = b"[{\"type\":4}]";
+        assert!(check_recording_size(&compressed_recording(body), body.len()).is_ok());
+    }
+
+    #[test]
+    fn test_check_recording_size_exceeds_limit() {
+        let body = b"[{\"type\":4}]";
+        assert!(matches!(
+            check_recording_size(&compressed_recording(body), body.len() - 1),
+            Err(ParseRecordingError::TooLarge)
+        ));
+    }
+
+    #[test]
+    fn test_check_recording_size_high_compression_ratio() {
+        let recording = compressed_recording(&vec![b' '; 1024 * 1024]);
+        assert!(recording.len() < 2048);
+        assert!(matches!(
+            check_recording_size(&recording, 1024),
+            Err(ParseRecordingError::TooLarge)
+        ));
+    }
+
+    #[test]
+    fn test_check_recording_size_uncompressed() {
+        assert!(check_recording_size(b"{\"segment_id\":0}\n[{\"type\":4}]", 1).is_ok());
+    }
+
+    #[test]
+    fn test_process_recording_exceeds_limit() {
+        let body = b"[{\"type\":4}]";
+        let config = default_pii_config();
+        let mut scrubber = RecordingScrubber::new(body.len() - 1, Some(&config), None);
+        assert!(matches!(
+            scrubber.process_recording(&compressed_recording(body)),
+            Err(ParseRecordingError::TooLarge)
+        ));
     }
 
     #[test]
