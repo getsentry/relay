@@ -189,10 +189,6 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        if ctx.is_processing() {
-            let max_size = ctx.config.max_replay_uncompressed_size();
-            validate::recording_size(replay.payload.recording(), max_size).reject(&replay)?;
-        }
         process::normalize(&mut replay, &self.geoip_lookup, ctx)?;
         filter::filter(&replay, ctx).reject(&replay)?;
 
@@ -314,14 +310,6 @@ impl ReplayPayload {
             ReplayPayload::WebReplay { event, .. } => Some(event),
             ReplayPayload::NativeReplay { event, .. } => Some(event),
             ReplayPayload::StandaloneRecording { .. } => None,
-        }
-    }
-
-    fn recording(&self) -> &Bytes {
-        match self {
-            ReplayPayload::WebReplay { recording, .. } => recording,
-            ReplayPayload::NativeReplay { recording, .. } => recording,
-            ReplayPayload::StandaloneRecording { recording } => recording,
         }
     }
 

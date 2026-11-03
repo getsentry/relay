@@ -12,7 +12,7 @@
 
 **Bug Fixes**:
 
-- Reject replay recordings that decompress past `max_replay_uncompressed_size` in processing Relays, regardless of whether recording scrubbing is enabled. ([#6587](https://github.com/getsentry/relay/pull/6587))
+- Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
 **Internal**:
 
