@@ -18,10 +18,6 @@ impl<T> AsyncPoolService<T> {
     pub fn new(handler: T, pool: ServicePool) -> Self {
         Self { handler, pool }
     }
-
-    pub fn into_handler(self) -> T {
-        self.handler
-    }
 }
 
 impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T> {

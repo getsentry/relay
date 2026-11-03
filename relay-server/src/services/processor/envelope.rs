@@ -460,7 +460,7 @@ impl Default for Addrs {
     }
 }
 
-/// The message handler for [`EnvelopeProcessorService`].
+/// The message handler for [`EnvelopeProcessor`] messages.
 struct InnerProcessor {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
