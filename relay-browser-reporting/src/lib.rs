@@ -3,6 +3,12 @@
 //! The browser reporting API is defined in
 //! <https://www.w3.org/TR/reporting-1/>.
 
+#![warn(missing_docs)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
+
 pub mod nel;
 
 use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
@@ -16,7 +22,9 @@ use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
 #[serde(tag = "type", content = "body")]
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
+    /// The body of a Networ Error report.
     NetworkError(nel::Body),
+    /// An unsupported report body.
     #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
     Unsupported,
 }
@@ -34,6 +42,8 @@ impl BrowserReportBody {
     }
 }
 
+/// A serialized Browser Report sent by the
+/// Browser Reporting API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserReport {
     /// The time between the generation and sending of the report, in milliseconds.

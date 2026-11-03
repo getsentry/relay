@@ -44,6 +44,215 @@ mod tests {
     use crate::{DataScrubbingConfig, PiiConfig, eap};
 
     #[test]
+    fn test_scrub_ai_attributes_with_default_rules() {
+        // AI attributes are marked as `manual` in `sentry-conventions` and are important to the
+        // product, so default rules only apply the replace-only rules from `REPLACE_ONLY_SELECTOR`.
+        // `gen_ai.system_instructions` contains a match for every replace-only rule.
+        let json = r#"{
+              "mcp.tool.result.content": {
+                  "type": "string",
+                  "value": "Contact user@example.com"
+              },
+              "gen_ai.tool.call.result": {
+                  "type": "string",
+                  "value": "{\"content\":[{\"type\":\"text\",\"text\":\"Contact user@example.com\"}]}"
+              },
+              "gen_ai.system_instructions": {
+                  "type": "string",
+                  "value": "[{\"type\":\"text\",\"content\":\"Auth with Bearer sk-1234567890abcdef and charge 4111-1111-1111-1111 or IBAN DE89370400440532013000, SSN 078-05-1120, escalate to user@example.com\"}]"
+              },
+              "ai.preamble": {
+                  "type": "string",
+                  "value": "Escalate to user@example.com"
+              },
+              "gen_ai.system.message": {
+                  "type": "string",
+                  "value": "Escalate to user@example.com"
+              }
+        }"#;
+
+        let mut span = Annotated::new(SpanV2 {
+            attributes: Annotated::<Attributes>::from_json(json).unwrap(),
+            ..Default::default()
+        });
+
+        let data_scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let scrubbing_config = data_scrubbing_config.pii_config();
+
+        eap::scrub(ValueType::Span, &mut span, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @r###"
+        {
+          "ai.preamble": {
+            "type": "string",
+            "value": "Escalate to [email]"
+          },
+          "gen_ai.system.message": {
+            "type": "string",
+            "value": "Escalate to [email]"
+          },
+          "gen_ai.system_instructions": {
+            "type": "string",
+            "value": "[{\"type\":\"text\",\"content\":\"Auth with Bearer [token] and charge [creditcard] or IBAN [iban], SSN [us-ssn], escalate to [email]\"}]"
+          },
+          "gen_ai.tool.call.result": {
+            "type": "string",
+            "value": "{\"content\":[{\"type\":\"text\",\"text\":\"Contact [email]\"}]}"
+          },
+          "mcp.tool.result.content": {
+            "type": "string",
+            "value": "Contact [email]"
+          },
+          "_meta": {
+            "ai.preamble": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      12,
+                      19
+                    ]
+                  ],
+                  "len": 28
+                }
+              }
+            },
+            "gen_ai.system.message": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      12,
+                      19
+                    ]
+                  ],
+                  "len": 28
+                }
+              }
+            },
+            "gen_ai.system_instructions": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@bearer:replace",
+                      "s",
+                      37,
+                      51
+                    ],
+                    [
+                      "@creditcard:replace",
+                      "s",
+                      63,
+                      75
+                    ],
+                    [
+                      "@iban:replace",
+                      "s",
+                      84,
+                      90
+                    ],
+                    [
+                      "@usssn:replace",
+                      "s",
+                      96,
+                      104
+                    ],
+                    [
+                      "@email:replace",
+                      "s",
+                      118,
+                      125
+                    ]
+                  ],
+                  "len": 175
+                }
+              }
+            },
+            "gen_ai.tool.call.result": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      43,
+                      50
+                    ]
+                  ],
+                  "len": 63
+                }
+              }
+            },
+            "mcp.tool.result.content": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      8,
+                      15
+                    ]
+                  ],
+                  "len": 24
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_mcp_results_with_only_advanced_rules() {
+        let mut attributes = Attributes::new();
+        attributes.insert("gen_ai.tool.call.result", "user@example.com");
+        attributes.insert("mcp.tool.result.content", "user@example.com");
+        let mut span = Annotated::new(SpanV2 {
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        });
+        let settings = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+        let config = settings.pii_config();
+        let original = span.clone();
+
+        eap::scrub(ValueType::Span, &mut span, None, config.as_ref()).unwrap();
+        assert_eq!(span, original);
+
+        let advanced = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": {
+                "attributes.'gen_ai.tool.call.result'.value || attributes.'mcp.tool.result.content'.value": [
+                    "@email:replace"
+                ]
+            }
+        }))
+        .unwrap();
+        eap::scrub(ValueType::Span, &mut span, Some(&advanced), config.as_ref()).unwrap();
+
+        let attributes = span.value().unwrap().attributes.value().unwrap();
+        for key in ["gen_ai.tool.call.result", "mcp.tool.result.content"] {
+            assert_eq!(
+                attributes.get_value(key).and_then(|value| value.as_str()),
+                Some("[email]"),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
     fn test_scrub_attributes_pii_default_rules() {
         // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
         // * `sentry.description`: `true`
