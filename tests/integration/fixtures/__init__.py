@@ -202,6 +202,34 @@ class SentryLike:
 
         return
 
+    def send_browser_report(
+        self,
+        project_id,
+        payload,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        if isinstance(payload, list):
+            kwargs = {"json": payload}
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        headers = {
+            "Content-Type": "application/reports+json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/integration/browser-report?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, **kwargs)
+        response.raise_for_status()
+
+        return
+
     def send_otel_span(
         self,
         project_id,

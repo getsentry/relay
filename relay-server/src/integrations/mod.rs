@@ -40,6 +40,7 @@ macro_rules! define_integrations {
 define_integrations!(
     "application/vnd.sentry.integration.browser.nel+json" => Integration::Logs(LogsIntegration::Nel),
     "application/vnd.sentry.integration.browser.integrity+json" => Integration::Logs(LogsIntegration::Integrity),
+    "application/vnd.sentry.integration.browser.report+json" => Integration::Logs(LogsIntegration::BrowserReport),
     "application/vnd.sentry.integration.otel.logs+json" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.logs+protobuf" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.otel.spans+json" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Json }),
@@ -96,6 +97,8 @@ pub enum LogsIntegration {
     Nel,
     /// Browser Integrity Policy
     Integrity,
+    /// Browser reports.
+    BrowserReport,
     /// The OTeL logging integration.
     ///
     /// Supports OTeL's [`LogsData`](opentelemetry_proto::tonic::logs::v1::LogsData).
