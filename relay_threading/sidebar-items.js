@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["AsyncPool","AsyncPoolBuilder","AsyncPoolMetrics","CustomSpawn","DefaultSpawn","Thread"],"trait":["ThreadSpawn"]};
+window.SIDEBAR_ITEMS = {"struct":["AsyncPool","AsyncPoolBuilder","AsyncPoolMetrics","AsyncPoolService","CustomSpawn","DefaultSpawn","Thread"],"trait":["ThreadSpawn"],"type":["ServicePool"]};

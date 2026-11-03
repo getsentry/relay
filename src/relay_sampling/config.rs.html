@@ -182,7 +182,7 @@
 <a href=#182 id=182 data-nosnippet>182</a>    /// Like trace rules, it is evaluated on the [`DynamicSamplingContext`](crate::DynamicSamplingContext).
 <a href=#183 id=183 data-nosnippet>183</a>    </span>Project,
 <a href=#184 id=184 data-nosnippet>184</a>    <span class="comment">// NOTE: If you add a new `RuleType` that is not supposed to sample transactions, you need to
-<a href=#185 id=185 data-nosnippet>185</a>    // edit the `sample_envelope` function in `EnvelopeProcessorService`.
+<a href=#185 id=185 data-nosnippet>185</a>    // edit the dynamic sampling business logic.
 <a href=#186 id=186 data-nosnippet>186</a>    </span><span class="doccomment">/// If the sampling config contains new rule types, do not sample at all.
 <a href=#187 id=187 data-nosnippet>187</a>    </span><span class="attr">#[serde(other)]
 <a href=#188 id=188 data-nosnippet>188</a>    </span>Unsupported,
