@@ -117,7 +117,7 @@ impl ContentType {
             Some(Self::AttachmentRef)
         } else if ct.eq_ignore_ascii_case(Self::PerfettoTrace.as_str()) {
             Some(Self::PerfettoTrace)
-        } else if ct.eq_ignore_ascii_case(Self::BrowserReport.as_str()) {
+        } else if match_content_type_and_charset(ct, Self::BrowserReport.as_str(), "utf-8") {
             Some(Self::BrowserReport)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
