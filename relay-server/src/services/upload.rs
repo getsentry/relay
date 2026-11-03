@@ -251,16 +251,6 @@ impl HttpCompression {
         }
     }
 
-    /// Decompresses a stream and validates that no encoded input is left over.
-    #[cfg(feature = "processing")]
-    fn decode(
-        self,
-        stream: impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin,
-    ) -> impl futures::Stream<Item = std::io::Result<Bytes>> + Send + Unpin {
-        let reader = BufReader::new(StreamReader::new(stream));
-        ReaderStream::new(decode::Decoder::new(self, reader))
-    }
-
     /// Returns the corresponding HTTP content encoding.
     pub fn encoding(self) -> HttpEncoding {
         match self {
@@ -1378,6 +1368,9 @@ fn decode_body(
     compression: Option<HttpCompression>,
     source: StreamSource,
 ) -> ByteStream {
+    use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
+    use decode::Decoder;
+
     if matches!(source, StreamSource::Multipart(_)) {
         return stream.boxed();
     }
@@ -1386,9 +1379,24 @@ fn decode_body(
         .unwrap_or("other");
     let metrics = DecompressionMetrics::new(UPLOAD_PATCH_PATH.into(), content_encoding);
     let stream = metrics.count_encoded(stream);
+    let Some(compression) = compression else {
+        return metrics.count_decoded(stream).boxed();
+    };
+
+    let reader = BufReader::new(StreamReader::new(stream));
     let decoded = match compression {
-        None => Either::Left(stream),
-        Some(compression) => Either::Right(compression.decode(stream)),
+        // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
+        HttpCompression::Deflate => {
+            ReaderStream::new(Decoder::new(ZlibDecoder::new(reader))).boxed()
+        }
+        HttpCompression::Gzip => ReaderStream::new(Decoder::new(GzipDecoder::new(reader))).boxed(),
+        HttpCompression::Br => ReaderStream::new(Decoder::new(BrotliDecoder::new(reader))).boxed(),
+        HttpCompression::Zstd => {
+            let mut decoder = ZstdDecoder::new(reader);
+            // Match Tower's support for concatenated zstd frames.
+            decoder.multiple_members(true);
+            ReaderStream::new(Decoder::new(decoder)).boxed()
+        }
     };
     metrics.count_decoded(decoded).boxed()
 }
