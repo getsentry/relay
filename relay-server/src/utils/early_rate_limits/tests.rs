@@ -1025,6 +1025,34 @@ fn test_enforce_span() {
 }
 
 #[test]
+fn test_transaction_limit_keeps_separate_spans() {
+    for (denied, remaining, rejected_spans) in [
+        (vec![DataCategory::Transaction], vec![&ItemType::Span], 3),
+        (
+            vec![DataCategory::Transaction, DataCategory::Span],
+            vec![],
+            4,
+        ),
+    ] {
+        let mut original = envelope![Transaction, Span];
+        original.items_mut().next().unwrap().set_span_count(Some(2));
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
+
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(limits.iter().count(), denied.len());
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([
+                (DataCategory::Transaction, 1),
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Span, rejected_spans),
+                (DataCategory::SpanIndexed, rejected_spans),
+            ]),
+        );
+    }
+}
+
+#[test]
 fn test_event_rejection_does_not_skip_standalone_span_limits() {
     for (event_type, event_category) in [
         (ItemType::Event, DataCategory::Error),

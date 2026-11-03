@@ -135,14 +135,11 @@ fn resolve_limits(
         .event
         .category()
         .and_then(|category| check(true, category, true).map(|outcome| (category, outcome)));
-    let spans = match &event {
-        Some((DataCategory::Transaction, outcome)) => Some(outcome.clone()),
-        _ => check(
-            summary.span_quantity > 0 || summary.has_span_attachments,
-            DataCategory::Span,
-            true,
-        ),
-    };
+    let spans = check(
+        summary.span_quantity > 0 || summary.has_span_attachments,
+        DataCategory::Span,
+        true,
+    );
     let profiles_present = summary.profile_quantity.total > 0;
     let profiles = match (&event, summary.event) {
         (Some((_, outcome)), _) => Some(outcome.clone()),
