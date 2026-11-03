@@ -41,6 +41,6 @@ fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
 
 pub fn routes(config: &ConfigSnapshot) -> axum::Router<ServiceState> {
     axum::Router::new()
-        .route("/report", route(config))
-        .route("/report/", route(config))
+        .route("/reporting", route(config))
+        .route("/reporting/", route(config))
 }
