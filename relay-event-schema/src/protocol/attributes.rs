@@ -254,6 +254,10 @@ impl Attributes {
         self.get_annotated_value(key)?.value()
     }
 
+    pub fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
+        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+    }
+
     /// Returns the attribute with the given key.
     pub fn get_attribute<Q>(&self, key: &Q) -> Option<&Attribute>
     where
@@ -380,5 +384,140 @@ impl ProcessValue for Attributes {
     {
         let enter_state = state.enter_nothing(Some(Cow::Borrowed(state.attrs())));
         self.0.process_child_values(processor, &enter_state)
+    }
+}
+
+#[cfg(test)]
+mod deprecation_tests {
+    use super::*;
+    use crate::protocol::SpanData;
+
+    fn assert_lookup(pairs: &[(&str, &str)], key: &str, expected: Option<&str>) {
+        let attributes = Attributes::from_iter(
+            pairs
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), Annotated::new(Attribute::from(*value)))),
+        );
+        let data = SpanData::from(Object::from_iter(pairs.iter().map(|(key, value)| {
+            (
+                (*key).to_owned(),
+                Annotated::new(Value::String((*value).to_owned())),
+            )
+        })));
+        let original_attributes = attributes.clone();
+        let original_data = data.clone();
+        assert_eq!(
+            attributes
+                .get_value_with_deprecations(key)
+                .and_then(Value::as_str),
+            expected
+        );
+        assert_eq!(
+            data.get_value_with_deprecations(key)
+                .and_then(Value::as_str),
+            expected
+        );
+        assert_eq!(attributes, original_attributes);
+        assert_eq!(data, original_data);
+    }
+
+    #[test]
+    fn lookup_prefers_current_then_alphabetical_predecessors() {
+        let pairs = [
+            ("http.request.method", "current"),
+            ("http.method", "first"),
+            ("http.request_method", "second"),
+            ("method", "third"),
+        ];
+        for offset in 0..pairs.len() {
+            for (key, _) in pairs {
+                assert_lookup(&pairs[offset..], key, Some(pairs[offset].1));
+            }
+        }
+        assert_lookup(&[], "http.request.method", None);
+    }
+
+    #[test]
+    fn lookup_includes_compatible_no_status_deprecations() {
+        assert_lookup(&[("route", "/users/:id")], "http.route", Some("/users/:id"));
+    }
+
+    #[test]
+    fn lookup_excludes_transforms_and_incompatible_links() {
+        for (old, current) in [
+            ("gen_ai.request.messages", "gen_ai.input.messages"),
+            ("gen_ai.response.text", "gen_ai.output.messages"),
+            ("hardwareConcurrency", "device.processor_count"),
+            ("db.params", "db.query.parameter.id"),
+            ("db.sql.bindings", "db.query.parameter.id"),
+            ("query.id", "url.query"),
+        ] {
+            assert_lookup(&[(old, "old")], current, None);
+            assert_lookup(&[(current, "current")], old, None);
+            assert_lookup(&[(old, "old")], old, Some("old"));
+        }
+    }
+
+    #[test]
+    fn lookup_handles_dynamic_and_unknown_names() {
+        assert_lookup(
+            &[("url.path.params.id", "123")],
+            "url.path.parameter.id",
+            Some("123"),
+        );
+        assert_lookup(
+            &[("custom.attribute", "custom")],
+            "custom.attribute",
+            Some("custom"),
+        );
+        assert_lookup(&[], "custom.attribute", None);
+    }
+
+    #[test]
+    fn lookup_does_not_skip_present_empty_values() {
+        assert_lookup(
+            &[("http.request.method", ""), ("http.method", "POST")],
+            "method",
+            Some(""),
+        );
+    }
+
+    #[test]
+    fn lookup_skips_missing_attributes_and_values() {
+        let mut attributes = Attributes::from([
+            ("http.request.method".to_owned(), Annotated::empty()),
+            (
+                "http.method".to_owned(),
+                Annotated::new(Attribute::from(Annotated::<String>::empty())),
+            ),
+            ("method".to_owned(), Annotated::new(Attribute::from("POST"))),
+        ]);
+        let data = SpanData::from(Object::from([
+            ("http.request.method".to_owned(), Annotated::empty()),
+            ("http.method".to_owned(), Annotated::empty()),
+            (
+                "method".to_owned(),
+                Annotated::new(Value::String("POST".to_owned())),
+            ),
+        ]));
+        assert_eq!(
+            attributes
+                .get_value_with_deprecations("http.request.method")
+                .and_then(Value::as_str),
+            Some("POST")
+        );
+        assert_eq!(
+            data.get_value_with_deprecations("http.request.method")
+                .and_then(Value::as_str),
+            Some("POST")
+        );
+        attributes.0.insert(
+            "http.request.method".to_owned(),
+            Annotated::new(Attribute::from(false)),
+        );
+        assert_eq!(
+            attributes.get_value_with_deprecations("method"),
+            Some(&Value::Bool(false))
+        );
     }
 }
