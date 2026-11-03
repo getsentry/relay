@@ -1422,12 +1422,10 @@ fn test_enforce_transaction_span_attachment() {
         RateLimitTestCase {
             name: "transaction_limit",
             denied_categories: &[DataCategory::Transaction],
-            expect_attachment_limit_active: true,
+            expect_attachment_limit_active: false,
             expected_outcomes: &[
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Attachment, 7),
-                (DataCategory::AttachmentItem, 1),
                 (DataCategory::Span, 1),
                 (DataCategory::SpanIndexed, 1),
             ],
@@ -1475,6 +1473,44 @@ fn test_enforce_transaction_span_attachment() {
                 .collect::<BTreeMap<_, _>>(),
             "{name}: outcome mismatch"
         );
+    }
+}
+
+#[test]
+fn test_event_limit_keeps_separate_span_attachments() {
+    for (denied, remaining, expected_outcomes) in [
+        (
+            vec![DataCategory::Error],
+            vec![&ItemType::Span, &ItemType::Attachment],
+            vec![(DataCategory::Error, 1)],
+        ),
+        (
+            vec![DataCategory::Error, DataCategory::Span],
+            vec![],
+            vec![
+                (DataCategory::Error, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
+                (DataCategory::Attachment, 7),
+                (DataCategory::AttachmentItem, 1),
+            ],
+        ),
+        (
+            vec![DataCategory::Error, DataCategory::Attachment],
+            vec![&ItemType::Span],
+            vec![
+                (DataCategory::Error, 1),
+                (DataCategory::Attachment, 7),
+                (DataCategory::AttachmentItem, 1),
+            ],
+        ),
+    ] {
+        let mut original = envelope![Event, Span];
+        original.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
+        let (kept, _, outcomes) = enforce_and_apply(cached_limits(&denied), original);
+
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(outcomes, expected_outcomes.into_iter().collect());
     }
 }
 

@@ -484,28 +484,27 @@ fn filter(
                 }
             }
             ItemType::Attachment => {
-                let action = if let Some(outcome) = event {
-                    RetentionAction::Drop(Some(outcome))
-                } else {
-                    match (
-                        item.attachment_parent_type(),
-                        AttachmentRole::from_type(item.attachment_type()),
-                    ) {
-                        (AttachmentParentType::Span, _) => RetentionAction::drop_on_rejection(
-                            enforcement.span_attachments.as_ref(),
-                        ),
-                        (AttachmentParentType::Trace, _) => RetentionAction::drop_on_rejection(
-                            enforcement.trace_attachments.as_ref(),
-                        ),
-                        (AttachmentParentType::Event, AttachmentRole::CreatesEvent) => enforcement
+                let action = match (
+                    item.attachment_parent_type(),
+                    AttachmentRole::from_type(item.attachment_type()),
+                    event,
+                ) {
+                    (AttachmentParentType::Span, AttachmentRole::Plain, _)
+                    | (AttachmentParentType::Span, AttachmentRole::CreatesEvent, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.span_attachments.as_ref())
+                    }
+                    (_, _, Some(outcome)) => RetentionAction::Drop(Some(outcome)),
+                    (AttachmentParentType::Trace, _, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_ref())
+                    }
+                    (AttachmentParentType::Event, AttachmentRole::CreatesEvent, None) => {
+                        enforcement
                             .event_attachments
                             .as_ref()
-                            .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
-                        (AttachmentParentType::Event, AttachmentRole::Plain) => {
-                            RetentionAction::drop_on_rejection(
-                                enforcement.event_attachments.as_ref(),
-                            )
-                        }
+                            .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited)
+                    }
+                    (AttachmentParentType::Event, AttachmentRole::Plain, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_ref())
                     }
                 };
                 apply_retention(
