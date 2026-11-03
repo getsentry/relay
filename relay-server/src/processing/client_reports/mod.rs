@@ -1,12 +1,11 @@
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_common::time::UnixTimestamp;
 use relay_quotas::DataCategory;
-use relay_system::Addr;
 
 use crate::envelope::{EnvelopeHeaders, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Nothing, Output};
-use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::services::outcome::Outcome;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -53,16 +52,7 @@ impl OutcomeError for Error {
 ///
 /// Converts client reports into outcomes and emits them to the outcome
 /// aggregator. Does not produce any other output.
-pub struct ClientReportsProcessor {
-    outcome_aggregator: Addr<TrackOutcome>,
-}
-
-impl ClientReportsProcessor {
-    /// Creates a new [`Self`].
-    pub fn new(outcome_aggregator: Addr<TrackOutcome>) -> Self {
-        Self { outcome_aggregator }
-    }
-}
+pub struct ClientReportsProcessor;
 
 impl processing::Processor for ClientReportsProcessor {
     type Input = SerializedClientReports;
@@ -96,7 +86,7 @@ impl processing::Processor for ClientReportsProcessor {
 
         process::normalize(&mut outcomes);
         validate::validate(&mut outcomes, ctx);
-        process::emit(outcomes, &self.outcome_aggregator);
+        process::emit(outcomes);
 
         Ok(Output::empty())
     }

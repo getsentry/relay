@@ -100,13 +100,14 @@ pub fn normalize(outcomes: &mut Managed<ClientOutcomes>) {
 /// Emits outcomes to the outcome aggregator.
 ///
 /// Client report outcomes that cannot be converted to an [`Outcome`] are rejected.
-pub fn emit(outcomes: Managed<ClientOutcomes>, outcome_aggregator: &Addr<TrackOutcome>) {
+pub fn emit(outcomes: Managed<ClientOutcomes>) {
     let scoping = outcomes.scoping();
     let remote_addr = outcomes.headers.meta().remote_addr();
 
+    let outcome_aggregator = outcomes.outcome_aggregator().clone();
     for outcome in outcomes.split(|outcomes| outcomes.outcomes) {
         let _ = outcome
-            .try_accept(|outcome| emit_outcome(outcome, outcome_aggregator, scoping, remote_addr));
+            .try_accept(|outcome| emit_outcome(outcome, &outcome_aggregator, scoping, remote_addr));
     }
 }
 

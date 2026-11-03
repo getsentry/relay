@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use relay_cogs::{Cogs, ResourceId};
 use relay_event_normalization::GeoIpLookup;
-use relay_system::Addr;
 
 use crate::envelope::Item;
 use crate::managed::ManagedEnvelope;
@@ -27,7 +26,7 @@ use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Context, Output, Outputs, Processor, QuotaRateLimiter};
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::statsd::RelayTimers;
 
 /// Implementation of Relays processing pipeline.
@@ -66,7 +65,6 @@ impl RelayProcessor {
         cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
         geoip_lookup: &GeoIpLookup,
-        outcome_aggregator: Addr<TrackOutcome>,
     ) -> Self {
         // Just so everything fits in a single line.
         let ql = || Arc::clone(quota_limiter);
@@ -76,7 +74,7 @@ impl RelayProcessor {
 
             attachments: AttachmentProcessor::new(ql()),
             check_ins: CheckInsProcessor::new(ql()),
-            client_reports: ClientReportsProcessor::new(outcome_aggregator),
+            client_reports: ClientReportsProcessor,
             errors_unreal_integration: UnrealErrorIntegrationProcessor,
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),

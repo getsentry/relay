@@ -509,12 +509,7 @@ impl InnerProcessor {
         Self {
             global_config,
             project_cache,
-            processor: RelayProcessor::new(
-                cogs.clone(),
-                &quota_limiter,
-                &geoip_lookup,
-                addrs.outcome_aggregator.clone(),
-            ),
+            processor: RelayProcessor::new(cogs.clone(), &quota_limiter, &geoip_lookup),
             cogs,
             addrs,
             metric_outcomes,

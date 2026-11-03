@@ -153,6 +153,13 @@ pub struct Managed<T: Counted> {
     done: AtomicBool,
 }
 
+impl<T: Counted> Managed<T> {
+    /// Exposes the handle to generate outcomes.
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.meta.outcome_aggregator
+    }
+}
+
 impl Managed<Box<Envelope>> {
     /// Creates a managed instance from an unmanaged envelope.
     pub fn from_envelope(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
