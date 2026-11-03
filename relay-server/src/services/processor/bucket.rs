@@ -493,9 +493,9 @@ impl InnerProcessor {
                 SubmitClientReports {
                     client_reports,
                     scoping: *scoping,
+                    outcome_aggregator: self.addrs.outcome_aggregator.clone(),
                 },
                 &self.config.current(),
-                &self.addrs.outcome_aggregator,
                 &self.addrs.upstream_relay,
                 &self.project_cache,
             );

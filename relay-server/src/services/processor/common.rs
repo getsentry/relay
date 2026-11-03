@@ -106,19 +106,21 @@ pub struct SubmitClientReports {
     pub client_reports: Vec<ClientReport>,
     /// Scoping information for the client report.
     pub scoping: Scoping,
+    /// Handle for generating outcomes.
+    pub outcome_aggregator: Addr<TrackOutcome>,
 }
 
 /// Serializes client reports and sends them to the upstream.
 pub fn submit_client_reports(
     message: SubmitClientReports,
     config: &ConfigSnapshot,
-    outcome_aggregator: &Addr<TrackOutcome>,
     upstream_relay: &Addr<UpstreamRelay>,
     project_cache: &ProjectCacheHandle,
 ) {
     let SubmitClientReports {
         client_reports,
         scoping,
+        outcome_aggregator,
     } = message;
 
     relay_log::trace!(

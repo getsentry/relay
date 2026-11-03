@@ -33,7 +33,7 @@ use crate::processing::{self, Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::UpstreamRelay;
@@ -438,7 +438,6 @@ pub fn create_service(
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     pub objectstore: Option<Addr<Objectstore>>,
@@ -450,7 +449,6 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             #[cfg(feature = "processing")]
             objectstore: None,
@@ -838,7 +836,6 @@ impl MessageHandler for InnerProcessor {
                 EnvelopeProcessor::SubmitClientReports(m) => common::submit_client_reports(
                     *m,
                     &self.config.current(),
-                    &self.addrs.outcome_aggregator,
                     &self.addrs.upstream_relay,
                     &self.project_cache,
                 ),
@@ -870,7 +867,6 @@ mod tests {
     use super::*;
 
     async fn create_test_processor(config: Config) -> InnerProcessor {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
 
@@ -891,7 +887,6 @@ mod tests {
             #[cfg(feature = "processing")]
             common::create_rate_limiter(&config.current(), redis_clients),
             Addrs {
-                outcome_aggregator,
                 upstream_relay,
                 #[cfg(feature = "processing")]
                 store_forwarder: None,

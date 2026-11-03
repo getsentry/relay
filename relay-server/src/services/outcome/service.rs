@@ -117,6 +117,7 @@ impl Service for OutcomeProducerService {
 #[derive(Debug)]
 pub struct ClientReportOutcomeProducerService {
     processor: Addr<EnvelopeProcessor>,
+    addr: Addr<TrackOutcome>,
     buckets: BTreeMap<BucketKey, ClientReport>,
     bucket_interval: u32,
     flush_interval: u32,
@@ -124,13 +125,18 @@ pub struct ClientReportOutcomeProducerService {
 }
 
 impl ClientReportOutcomeProducerService {
-    pub fn new(config: &ConfigSnapshot, processor: Addr<EnvelopeProcessor>) -> Self {
+    pub fn new(
+        config: &ConfigSnapshot,
+        processor: Addr<EnvelopeProcessor>,
+        addr: Addr<TrackOutcome>,
+    ) -> Self {
         let agg = &config
             .aggregator_config_for(MetricNamespace::Outcomes)
             .aggregator;
 
         Self {
             processor,
+            addr,
             buckets: Default::default(),
             bucket_interval: agg.bucket_interval.max(1),
             flush_interval: agg.initial_delay,
@@ -210,6 +216,7 @@ impl ClientReportOutcomeProducerService {
             self.processor.send(SubmitClientReports {
                 client_reports: vec![client_report],
                 scoping,
+                outcome_aggregator: self.addr.clone(),
             });
         }
     }

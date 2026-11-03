@@ -8,7 +8,7 @@ use relay_system::{Addr, Service};
 use crate::envelope::{ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::managed::ManagedEnvelope;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{
     EnvelopeProcessor, ProcessEnvelope, SendEnvelope, SubmitClientReports, encode_payload,
 };
@@ -24,24 +24,20 @@ use crate::statsd::RelayTimers;
 pub struct ProxyProcessorService {
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
-    addrs: ProxyAddrs,
-}
-
-/// Contains the addresses of services that the proxy-processor publishes to.
-pub struct ProxyAddrs {
-    /// Address of the service used for tracking outcomes.
-    pub outcome_aggregator: Addr<TrackOutcome>,
-    /// Address of the service used for forwarding envelopes to the upstream.
-    pub upstream_relay: Addr<UpstreamRelay>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl ProxyProcessorService {
     /// Creates a proxy processor.
-    pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        project_cache: ProjectCacheHandle,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
-            project_cache,
-            addrs,
             config,
+            project_cache,
+            upstream_relay,
         }
     }
 
@@ -55,6 +51,7 @@ impl ProxyProcessorService {
         let SubmitClientReports {
             client_reports,
             scoping,
+            outcome_aggregator,
         } = message;
 
         let config = self.config.current();
@@ -78,7 +75,7 @@ impl ProxyProcessorService {
             }
         }
 
-        let envelope = ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
         self.submit_upstream(envelope);
     }
 
@@ -97,7 +94,7 @@ impl ProxyProcessorService {
 
         match result {
             Ok(body) => {
-                self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
+                self.upstream_relay.send(SendRequest(SendEnvelope {
                     upstream: None,
                     envelope,
                     body,

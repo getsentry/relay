@@ -23,7 +23,7 @@ use crate::services::outcome::{
 use crate::services::processor::{self, EnvelopeProcessor};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
-use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
+use crate::services::proxy_processor::ProxyProcessorService;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -202,10 +202,18 @@ impl ServiceState {
         let outcome_aggregator = match current_config.emit_outcomes() {
             EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
             _ => match current_config.relay_mode() {
-                RelayMode::Proxy => services.start(ClientReportOutcomeProducerService::new(
-                    &current_config,
-                    envelope_processor.clone(),
-                )),
+                RelayMode::Proxy => {
+                    let (addr, rx) = channel(ClientReportOutcomeProducerService::name());
+                    services.start_with(
+                        ClientReportOutcomeProducerService::new(
+                            &current_config,
+                            envelope_processor.clone(),
+                            addr.clone(),
+                        ),
+                        rx,
+                    );
+                    addr
+                }
                 RelayMode::Managed => services.start(OutcomeProducerService::new(
                     Arc::clone(&config),
                     aggregator.clone(),
@@ -283,10 +291,7 @@ impl ServiceState {
                     ProxyProcessorService::new(
                         config.clone(),
                         project_cache_handle.clone(),
-                        ProxyAddrs {
-                            outcome_aggregator: outcome_aggregator.clone(),
-                            upstream_relay: upstream_relay.clone(),
-                        },
+                        upstream_relay.clone(),
                     ),
                     envelope_processor_rx,
                 );
@@ -336,7 +341,6 @@ impl ServiceState {
                         #[cfg(feature = "processing")]
                         rate_limiter,
                         processor::envelope::Addrs {
-                            outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
                             objectstore: objectstore.clone(),
