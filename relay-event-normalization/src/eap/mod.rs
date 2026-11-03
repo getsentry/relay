@@ -480,12 +480,13 @@ pub fn normalize_dsc(
 
     attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
 
-    match dsc
-        .transaction
-        .as_ref()
-        .filter(|t| t.len() <= max_value_length)
-    {
-        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone()),
+    match &dsc.transaction {
+        Some(transaction) => insert_dsc_value(
+            attributes,
+            SENTRY__DSC__TRANSACTION,
+            transaction,
+            max_value_length,
+        ),
         None => drop(attributes.remove(SENTRY__DSC__TRANSACTION)),
     }
 
@@ -495,15 +496,16 @@ pub fn normalize_dsc(
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
         attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-        if let Some(release) = dsc.release.as_ref().filter(|r| r.len() <= max_value_length) {
-            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
+        if let Some(release) = &dsc.release {
+            insert_dsc_value(attributes, SENTRY__DSC__RELEASE, release, max_value_length);
         }
-        if let Some(environment) = dsc
-            .environment
-            .as_ref()
-            .filter(|e| e.len() <= max_value_length)
-        {
-            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
+        if let Some(environment) = &dsc.environment {
+            insert_dsc_value(
+                attributes,
+                SENTRY__DSC__ENVIRONMENT,
+                environment,
+                max_value_length,
+            );
         }
         if let Some(sample_rate) = dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
@@ -512,6 +514,17 @@ pub fn normalize_dsc(
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
+}
+
+fn insert_dsc_value(attributes: &mut Attributes, key: &str, value: &str, max_value_length: usize) {
+    let value = match value.len() <= max_value_length {
+        true => value.to_owned(),
+        false => String::new(),
+    };
+    attributes.0.insert(
+        key.to_owned(),
+        Annotated::new(Attribute::new(AttributeType::String, Value::String(value))),
+    );
 }
 
 /// Sets the `sentry.trace.status` attribute on segment spans.
@@ -1141,6 +1154,10 @@ mod tests {
         normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc), 200);
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.environment": {
+            "type": "string",
+            "value": ""
+          },
           "sentry.dsc.project_id": {
             "type": "string",
             "value": "42"
@@ -1149,9 +1166,17 @@ mod tests {
             "type": "string",
             "value": "12345678901234567890123456789012"
           },
+          "sentry.dsc.release": {
+            "type": "string",
+            "value": ""
+          },
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": ""
           }
         }
         "#);

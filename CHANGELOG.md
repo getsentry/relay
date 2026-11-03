@@ -12,7 +12,7 @@
 
 **Bug Fixes**:
 
-- Drop dynamic sampling context values from span attributes when they exceed the tag value length limit. ([#6623](https://github.com/getsentry/relay/pull/6623))
+- Replace dynamic sampling context values in span attributes with an empty string when they exceed the tag value length limit. ([#6623](https://github.com/getsentry/relay/pull/6623))
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
