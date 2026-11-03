@@ -454,9 +454,14 @@ impl InnerProcessor {
 
                 while let Some(bucket) = remaining.take() {
                     if let Some(next) = partition.insert(bucket, *scoping) {
+                        // If even an empty partition cannot hold any part of the bucket, drop it.
+                        // Sending the empty partition would make no progress and retry forever.
+                        if partition.is_empty() {
+                            break;
+                        }
+
                         // A part of the bucket could not be inserted. Take the partition and submit
-                        // it immediately. Repeat until the final part was inserted. This should
-                        // always result in a request, otherwise we would enter an endless loop.
+                        // it immediately. Repeat until the final part was inserted.
                         self.send_global_partition(
                             project_info.upstream.clone(),
                             partition_key,
@@ -611,10 +616,9 @@ impl<'a> Partition<'a> {
     /// entirely into the partition given its maximum size, the remaining part of the bucket is
     /// returned from this function call.
     ///
-    /// If this function returns `Some(_)`, the partition is full and should be submitted to the
-    /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
-    /// partition. Afterwards, the caller is responsible to call this function again with the
-    /// remaining bucket until it is fully inserted.
+    /// If this function returns `Some(_)`, submit the partition upstream and retry the remaining
+    /// bucket after calling [`Self::take`]. If the partition is empty, no part of the bucket fits
+    /// within the maximum size, and the caller must drop it instead of retrying.
     pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
@@ -1108,6 +1112,151 @@ mod tests {
                 .body(Vec::<u8>::new())
                 .unwrap();
             request.respond(Ok(http::Response(response.into()))).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_encode_metrics_global_drops_oversized_buckets() {
+        let project_key = ProjectKey::parse("00000000000000000000000000000000").unwrap();
+        let project_info = Arc::new(ProjectInfo {
+            project_id: Some(ProjectId::new(42)),
+            ..Default::default()
+        });
+        let scoping = project_info.scoping(project_key).unwrap();
+        let bucket = Bucket {
+            name: "c:sessions/session@none".into(),
+            value: BucketValue::Counter(1.into()),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+            metadata: BucketMetadata::default(),
+        };
+        let bucket_size = BucketView::new(&bucket).estimated_size();
+        let valid_buckets: Vec<_> = (1..=3)
+            .map(|value| Bucket {
+                value: BucketValue::Counter(value.into()),
+                ..bucket.clone()
+            })
+            .collect();
+        let distribution = Bucket {
+            name: "d:sessions/session@none".into(),
+            value: BucketValue::Distribution(relay_metrics::dist![1, 2, 3]),
+            ..bucket.clone()
+        };
+
+        for (name, value) in [
+            ("c:sessions/oversized@none", BucketValue::Counter(1.into())),
+            (
+                "g:sessions/oversized@none",
+                BucketValue::Gauge(relay_metrics::GaugeValue::single(1.into())),
+            ),
+            (
+                "d:sessions/oversized@none",
+                BucketValue::Distribution(relay_metrics::dist![1, 2, 3]),
+            ),
+            (
+                "s:sessions/oversized@none",
+                BucketValue::Set([1, 2, 3].into()),
+            ),
+        ] {
+            let oversized = Bucket {
+                name: name.into(),
+                value,
+                tags: [("tag".to_owned(), "x".repeat(bucket_size))].into(),
+                ..bucket.clone()
+            };
+
+            for batch_size in [0, bucket_size] {
+                let config = Config::from_json_value(serde_json::json!({
+                    "http": { "global_metrics": true, "encoding": "identity" },
+                    "aggregator": { "max_flush_bytes": batch_size },
+                }))
+                .unwrap();
+                let (upstream_relay, mut upstream_rx) = Addr::custom();
+                let outcome_aggregator = Addr::dummy();
+                let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
+                let processor = InnerProcessor::new(
+                    Arc::new(config),
+                    GlobalConfigHandle::fixed(Default::default()),
+                    ProjectCacheHandle::for_test(),
+                    Cogs::noop(),
+                    #[cfg(feature = "processing")]
+                    None,
+                    Addrs {
+                        outcome_aggregator,
+                        upstream_relay,
+                        #[cfg(feature = "processing")]
+                        store_forwarder: None,
+                    },
+                    metric_outcomes,
+                );
+
+                // Reject oversized buckets both on an empty partition and after valid data.
+                // The first two valid buckets also require flushing and retrying normally.
+                processor.encode_metrics_global(FlushBuckets {
+                    partition_key: 17,
+                    buckets: hashbrown::HashMap::from([(
+                        project_key,
+                        ProjectBuckets {
+                            buckets: vec![
+                                oversized.clone(),
+                                valid_buckets[0].clone(),
+                                valid_buckets[1].clone(),
+                                oversized.clone(),
+                                valid_buckets[2].clone(),
+                                distribution.clone(),
+                            ],
+                            scoping,
+                            project_info: project_info.clone(),
+                            rate_limits: Default::default(),
+                        },
+                    )]),
+                });
+                drop(processor);
+
+                let mut batches = Vec::new();
+                while let Some(message) = upstream_rx.recv().await {
+                    let UpstreamRelay::SendRequest(mut request) = message else {
+                        panic!("expected an upstream metrics request");
+                    };
+                    let client = reqwest::Client::new();
+                    let mut builder =
+                        http::RequestBuilder::reqwest(client.post("http://localhost/"));
+                    request.build(&mut builder).unwrap();
+                    let built_request = builder.finish().unwrap().0;
+                    let body = built_request.body().unwrap().as_bytes().unwrap();
+                    let payload: serde_json::Value = serde_json::from_slice(body).unwrap();
+                    let buckets: Vec<Bucket> =
+                        serde_json::from_value(payload["buckets"][project_key.as_str()].clone())
+                            .unwrap();
+                    batches.push(buckets);
+
+                    let response = ::http::Response::builder()
+                        .status(200)
+                        .body(Vec::<u8>::new())
+                        .unwrap();
+                    request.respond(Ok(http::Response(response.into()))).await;
+                }
+
+                let expected = if batch_size == 0 {
+                    Vec::new()
+                } else {
+                    let mut batches: Vec<_> =
+                        valid_buckets.iter().cloned().map(|b| vec![b]).collect();
+                    batches.extend((1..=3).map(|value| {
+                        vec![Bucket {
+                            value: BucketValue::Distribution(relay_metrics::dist![value]),
+                            metadata: BucketMetadata {
+                                merges: u32::from(value == 1),
+                                ..BucketMetadata::default()
+                            },
+                            ..distribution.clone()
+                        }]
+                    }));
+                    batches
+                };
+                assert_eq!(batches, expected, "bucket {name}, batch size {batch_size}");
+            }
         }
     }
 }

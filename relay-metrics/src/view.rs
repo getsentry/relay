@@ -123,6 +123,8 @@ where
     }
 
     /// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
+    ///
+    /// Buckets that cannot fit into an empty segment, even after splitting, are skipped.
     pub fn by_size(self, size_in_bytes: usize) -> BucketsViewBySizeIter<T> {
         BucketsViewBySizeIter::new(self.inner, self.start, self.end, size_in_bytes)
     }
@@ -278,7 +280,7 @@ where
     type Item = BucketsView<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.current;
+        let mut start = self.current;
 
         let mut remaining_bytes = self.max_size_bytes;
         loop {
@@ -323,7 +325,19 @@ where
                     };
                     continue;
                 }
-                SplitDecision::MoveToNextBatch => break,
+                SplitDecision::MoveToNextBatch => {
+                    if start != self.current {
+                        break;
+                    }
+
+                    // No part of this bucket fits into an empty batch. Skip it and start the
+                    // next view after it so that later buckets can still be included.
+                    self.current = Index {
+                        slice: self.current.slice + 1,
+                        bucket: 0,
+                    };
+                    start = self.current;
+                }
                 SplitDecision::Split(n) => {
                     self.current = Index {
                         slice: self.current.slice,
@@ -335,8 +349,7 @@ where
         }
 
         if start == self.current {
-            // Either no progress could be made (not enough space to fit a bucket),
-            // or we're done.
+            // There are no buckets left that fit into a batch.
             return None;
         }
 
@@ -1164,15 +1177,67 @@ mod tests {
     }
 
     #[test]
+    fn test_buckets_view_by_size_skips_oversized_buckets() {
+        let first = bucket("c:spans/b0@none", BucketValue::Counter(1.into()));
+        let second = bucket("c:spans/b1@none", BucketValue::Counter(12.into()));
+
+        for (name, value) in [
+            ("c:spans/large@none", BucketValue::Counter(1.into())),
+            ("g:spans/large@none", gauge()),
+            (
+                "d:spans/large@none",
+                BucketValue::Distribution(dist![1, 2, 3]),
+            ),
+            ("s:spans/large@none", BucketValue::Set([1, 2, 3].into())),
+        ] {
+            let mut oversized = bucket(name, value);
+            oversized.tags.insert("tag".into(), "x".repeat(100));
+            let buckets = vec![
+                oversized.clone(),
+                first.clone(),
+                second.clone(),
+                oversized.clone(),
+                oversized.clone(),
+                first.clone(),
+                oversized,
+            ];
+
+            for batch_size in [0, 100] {
+                let batches = BucketsView::from(&buckets)
+                    .by_size(batch_size)
+                    .collect::<Vec<_>>();
+                assert!(batches.iter().all(|batch| !batch.is_empty()));
+                assert!(batches.iter().all(|batch| {
+                    batch
+                        .iter()
+                        .map(|bucket| bucket.estimated_size())
+                        .sum::<usize>()
+                        <= batch_size
+                }));
+
+                let expected = if batch_size == 0 {
+                    serde_json::json!([])
+                } else {
+                    serde_json::json!([[first], [second], [first]])
+                };
+                assert_eq!(serde_json::to_value(batches).unwrap(), expected);
+            }
+        }
+    }
+
+    #[test]
     fn test_buckets_view_by_size_do_not_split_gauge() {
-        let buckets: Vec<_> = vec![bucket("g:transactions/foo@none", gauge())];
+        let counter = bucket("c:spans/b0@none", BucketValue::Counter(1.into()));
+        let buckets = vec![bucket("g:transactions/foo@none", gauge()), counter.clone()];
 
         let view = BucketsView::from(&buckets);
-        // 100 is too small to fit the gauge, but it is big enough to fit half a gauage,
-        // make sure the gauge does not actually get split.
-        let partials = view.by_size(100).count();
+        // 100 can fit half the gauge, but gauges cannot be split. Skip it and keep the counter.
+        let partials = view.by_size(100).collect::<Vec<_>>();
 
-        assert_eq!(partials, 0);
+        assert_eq!(
+            serde_json::to_value(partials).unwrap(),
+            serde_json::json!([[counter]])
+        );
     }
 
     #[test]
