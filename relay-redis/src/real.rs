@@ -1,5 +1,6 @@
 use deadpool::Runtime;
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
+use futures::future::BoxFuture;
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
@@ -8,6 +9,9 @@ use crate::config::RedisConfigOptions;
 use crate::pool;
 
 pub use redis;
+
+/// How long a dual client waits for a secondary connection before continuing without it.
+const SECONDARY_CONNECTION_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// An error type that represents various failure modes when interacting with Redis.
 ///
@@ -194,13 +198,40 @@ impl AsyncRedisClient {
                 .map(AsyncRedisConnection::Single)
                 .map_err(RedisError::Pool),
             Self::Dual { primary, secondary } => {
-                let primary = Box::new(Box::pin(primary.get_connection()).await?);
-                let secondary = match Box::pin(secondary.get_connection()).await {
-                    Ok(connection) => Some(Box::new(connection)),
-                    Err(error) => {
+                let secondary_client = AsyncRedisClient::clone(secondary);
+                // Spawned so a timed-out acquisition still finishes and fills the pool.
+                let secondary_task =
+                    relay_system::spawn!(
+                        async move { secondary_client.get_boxed_connection().await }
+                    );
+
+                let primary_connection = primary.get_boxed_connection();
+                let secondary_connection =
+                    tokio::time::timeout(SECONDARY_CONNECTION_TIMEOUT, secondary_task);
+                let (primary_result, secondary_result) =
+                    futures::future::join(primary_connection, secondary_connection).await;
+
+                let primary = Box::new(primary_result?);
+                let secondary = match secondary_result {
+                    Ok(Ok(Ok(connection))) => Some(Box::new(connection)),
+                    Ok(Ok(Err(error))) => {
                         relay_log::error!(
                             error = &error as &dyn std::error::Error,
                             "failed to acquire a secondary redis connection",
+                        );
+                        None
+                    }
+                    Ok(Err(join_error)) => {
+                        relay_log::error!(
+                            error = &join_error as &dyn std::error::Error,
+                            "secondary redis connection task failed",
+                        );
+                        None
+                    }
+                    Err(elapsed) => {
+                        relay_log::error!(
+                            error = &elapsed as &dyn std::error::Error,
+                            "timed out acquiring a secondary redis connection",
                         );
                         None
                     }
@@ -209,6 +240,11 @@ impl AsyncRedisClient {
                 Ok(AsyncRedisConnection::Dual { primary, secondary })
             }
         }
+    }
+
+    /// [`Self::get_connection`] as a boxed `Send` future, so the dual client can recurse into it.
+    fn get_boxed_connection(&self) -> BoxFuture<'_, Result<AsyncRedisConnection, RedisError>> {
+        Box::pin(self.get_connection())
     }
 
     /// Returns statistics about the current state of the connection pool.
@@ -365,9 +401,10 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
                     let secondary = secondary.as_mut()?;
                     let filtered = secondary_pipeline(cmd)?;
                     // Mirrors the offset and count of `Pipeline::query_async`.
-                    let (offset, count) = match filtered.is_transaction() {
-                        true => (filtered.len() + 1, 1),
-                        false => (0, filtered.len()),
+                    let (offset, count) = if filtered.is_transaction() {
+                        (filtered.len() + 1, 1)
+                    } else {
+                        (0, filtered.len())
                     };
                     Some(
                         secondary
@@ -437,5 +474,33 @@ mod tests {
         let mut reads = redis::pipe();
         reads.cmd("GET").arg("a").cmd("MGET").arg("b");
         assert!(secondary_pipeline(&reads).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_dual_does_not_wait_for_exhausted_secondary() {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+        let primary =
+            AsyncRedisClient::single("primary", &url, &RedisConfigOptions::default()).unwrap();
+        let secondary_options = RedisConfigOptions {
+            max_connections: 1,
+            ..RedisConfigOptions::default()
+        };
+        let secondary = AsyncRedisClient::single("secondary", &url, &secondary_options).unwrap();
+        let _held = secondary.get_connection().await.unwrap();
+
+        let dual = AsyncRedisClient::dual(primary, secondary);
+        let connection = tokio::time::timeout(Duration::from_secs(1), dual.get_connection())
+            .await
+            .expect("an exhausted secondary pool must not block the primary")
+            .unwrap();
+
+        assert!(matches!(
+            connection,
+            AsyncRedisConnection::Dual {
+                secondary: None,
+                ..
+            }
+        ));
     }
 }
