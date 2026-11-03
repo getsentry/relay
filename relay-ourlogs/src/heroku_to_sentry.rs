@@ -43,7 +43,7 @@ use self::attributes::*;
 
 /// The number of messages encoded in the body of the request.
 ///
-/// For the example body above, this value is 2. Use this field to ensure that you’ve parsed the body correctly.
+/// For the example body above, this value is 1. Use this field to ensure that you’ve parsed the body correctly.
 pub const HEROKU_LOGPLEX_HEADER_MSG_COUNT: &str = "Logplex-Msg-Count";
 /// The drain token for the log drain sending the request.
 pub const HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN: &str = "Logplex-Drain-Token";
@@ -307,7 +307,7 @@ fn unescape(value: &str) -> Cow<'_, str> {
     let mut chars = value.chars();
     while let Some(c) = chars.next() {
         match c {
-            '\\' => unescaped.extend(chars.next().or(Some(c))),
+            '\\' => unescaped.push(chars.next().unwrap_or('\\')),
             c => unescaped.push(c),
         }
     }
