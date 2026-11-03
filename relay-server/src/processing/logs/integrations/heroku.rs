@@ -20,6 +20,9 @@ use crate::services::outcome::{DiscardItemType, DiscardReason};
 /// more messages are not sent by Logplex and are rejected as a whole.
 const MAX_MESSAGES: u32 = 10_000;
 
+/// Maximum size/length of the drain token which is added to all logs.
+const MAX_DRAIN_TOKEN: usize = 256;
+
 /// A processor for Heroku log integrations.
 ///
 /// Converts Logplex integration items into intermediate log envelopes for further processing.
@@ -76,7 +79,8 @@ pub fn expand(
         .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
     let drain_token = headers
         .get_header(HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN)
-        .and_then(|h| h.as_str());
+        .and_then(|h| h.as_str())
+        .filter(|h| h.len() < MAX_DRAIN_TOKEN);
 
     let mut count: u32 = 0;
     let mut logs = Vec::new();
