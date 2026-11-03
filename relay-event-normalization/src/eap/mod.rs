@@ -1131,7 +1131,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_dsc_segment_values_too_long() {
+    fn test_normalize_dsc_length_limit() {
         let mut attributes = Annotated::empty();
         let dsc = &DynamicSamplingContext {
             release: Some("r".repeat(9)),
