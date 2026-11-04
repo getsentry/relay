@@ -453,7 +453,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{ClientSdkInfo, Contexts};
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, LenientString};
     use relay_protocol::{assert_annotated_snapshot, get_value};
     use serde_json::json;
 
@@ -505,6 +505,63 @@ mod tests {
         let mut dsc = dsc_with_values(&"ü".repeat(201), "1.0", "prod");
         normalize_dsc_values(&mut dsc);
         assert_eq!(dsc.transaction, Some(format!("{}...", "ü".repeat(197))));
+    }
+
+    #[test]
+    fn test_normalize_dsc_values_matches_event_fields() {
+        let inputs = [
+            "x".repeat(63),
+            "x".repeat(64),
+            "x".repeat(65),
+            "x".repeat(199),
+            "x".repeat(200),
+            "x".repeat(201),
+            format!("  {}  ", "x".repeat(250)),
+            "\t/users/ list\n".to_owned(),
+            "ü".repeat(65),
+            "ü".repeat(201),
+        ];
+
+        for input in inputs {
+            let mut event = Annotated::new(Event {
+                transaction: Annotated::new(input.clone()),
+                release: Annotated::new(LenientString(input.clone())),
+                environment: Annotated::new(input.clone()),
+                ..Default::default()
+            });
+            process_value(
+                &mut event,
+                &mut crate::SchemaProcessor::new(),
+                ProcessingState::root(),
+            )
+            .unwrap();
+            process_value(
+                &mut event,
+                &mut crate::TrimmingProcessor::new(),
+                ProcessingState::root(),
+            )
+            .unwrap();
+            let event = event.value().unwrap();
+
+            let mut dsc = dsc_with_values(&input, &input, &input);
+            normalize_dsc_values(&mut dsc);
+
+            assert_eq!(
+                dsc.transaction.as_ref(),
+                event.transaction.value(),
+                "{input:?}"
+            );
+            assert_eq!(
+                dsc.release.as_deref(),
+                event.release.value().map(|r| r.as_str()),
+                "{input:?}"
+            );
+            assert_eq!(
+                dsc.environment.as_ref(),
+                event.environment.value(),
+                "{input:?}"
+            );
+        }
     }
 
     #[test]
