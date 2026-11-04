@@ -4,7 +4,7 @@
 mod decode;
 
 #[cfg(feature = "processing")]
-pub(super) use decode::DecodeError;
+pub use decode::DecodeError;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
