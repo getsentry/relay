@@ -2,7 +2,6 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::metrics::MetricOutcomes;
 use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
@@ -245,8 +244,6 @@ impl ServiceState {
             &current_config,
             services.start(cogs),
         ));
-
-        let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&current_config)?;

@@ -13,7 +13,6 @@ use relay_quotas::{RateLimits, Scoping};
 use relay_system::{Addr, Controller, FromMessage, Interface, NoResponse, Recipient, Service};
 use tokio::time::{Instant, Sleep};
 
-use crate::metrics::MetricOutcomes;
 use crate::services::outcome::TrackOutcome;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};

@@ -24,7 +24,7 @@ use crate::managed::ManagedEnvelope;
 use crate::metrics::{MetricOutcomes, MinimalTrackableBucket};
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{FlushBuckets, ProjectBuckets};
-use crate::services::outcome::{self, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{self, DiscardReason, Outcome};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -184,13 +184,20 @@ impl InnerProcessor {
 
         match MetricsLimiter::create(buckets, project_info.config.quotas.clone(), scoping) {
             Err(buckets) => buckets,
-            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter).await,
+            Ok(bucket_limiter) => {
+                self.apply_other_rate_limits(bucket_limiter, metric_outcomes)
+                    .await
+            }
         }
     }
 
     /// Check and apply rate limits to metrics buckets for transactions and spans.
     #[cfg(feature = "processing")]
-    async fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
+    async fn apply_other_rate_limits(
+        &self,
+        mut bucket_limiter: MetricsLimiter,
+        metric_outcomes: &MetricOutcomes,
+    ) -> Vec<Bucket> {
         relay_log::trace!("handle_rate_limit_buckets");
 
         let scoping = *bucket_limiter.scoping();
@@ -273,7 +280,7 @@ impl InnerProcessor {
         use crate::services::store::StoreMetrics;
 
         let FlushBuckets {
-            partition_key,
+            partition_key: _,
             buckets,
             outcome_aggregator,
         } = message;
@@ -386,6 +393,7 @@ impl InnerProcessor {
         upstream: Option<UpstreamDescriptor>,
         partition_key: u32,
         partition: &mut Partition<'_>,
+        metric_outcomes: &MetricOutcomes,
     ) {
         if partition.is_empty() {
             return;
@@ -431,6 +439,7 @@ impl InnerProcessor {
             buckets,
             outcome_aggregator,
         } = message;
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
 
         let batch_size = self.config.current().metrics_max_batch_size_bytes();
         let mut partitions = BTreeMap::new();
@@ -462,6 +471,7 @@ impl InnerProcessor {
                             project_info.upstream.clone(),
                             partition_key,
                             partition,
+                            &metric_outcomes,
                         );
                         remaining = Some(next);
                         partition_splits += 1;
@@ -475,7 +485,7 @@ impl InnerProcessor {
         }
 
         for (upstream, mut partition) in partitions {
-            self.send_global_partition(upstream, partition_key, &mut partition);
+            self.send_global_partition(upstream, partition_key, &mut partition, &metric_outcomes);
         }
     }
 
@@ -514,8 +524,8 @@ impl InnerProcessor {
     }
 
     async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
-        let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
-        for (project_key, pb) in buckets.iter_mut() {
+        let metric_outcomes = MetricOutcomes::new(message.outcome_aggregator.clone());
+        for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
 
             pb.buckets = common::check_buckets(
@@ -965,7 +975,7 @@ mod tests {
             FlushBuckets {
                 partition_key: 0,
                 buckets,
-                outcome_aggregator,
+                outcome_aggregator: Addr::dummy(),
             }
         };
 
@@ -1023,7 +1033,6 @@ mod tests {
             .unwrap();
             let (upstream_relay, mut upstream_rx) = Addr::custom();
             let outcome_aggregator = Addr::dummy();
-            let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
             let pool = relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
                 .build()
                 .unwrap();
@@ -1072,6 +1081,7 @@ mod tests {
                         rate_limits: Default::default(),
                     },
                 )]),
+                outcome_aggregator,
             };
 
             processor.send(message);
