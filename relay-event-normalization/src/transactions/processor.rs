@@ -68,9 +68,10 @@ pub fn normalize_dsc_values(dsc: &mut DynamicSamplingContext) {
 }
 
 fn normalize_dsc_value(value: &mut Option<String>, max_chars: usize) {
-    let Some(trimmed) = value.as_deref().map(str::trim) else {
+    let Some(original) = value.as_deref() else {
         return;
     };
+    let trimmed = original.trim();
 
     *value = if trimmed.is_empty() {
         None
