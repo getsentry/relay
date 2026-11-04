@@ -13,11 +13,12 @@ mod cost {
     pub const UNIT: usize = 1;
 }
 
-impl Meter {
-    /// Wraps `deserializer`, so that everything it produces is charged to this meter.
-    fn wrap<'de, D: Deserializer<'de>>(&mut self, deserializer: D) -> MeteredDeserializer<'_, D> {
-        MeteredDeserializer::new(self, deserializer)
-    }
+/// Wraps `deserializer`, so that everything it produces is charged to this meter.
+fn wrap<'m, 'de, D: Deserializer<'de>>(
+    meter: &'m mut Meter,
+    deserializer: D,
+) -> MeteredDeserializer<'m, D> {
+    MeteredDeserializer::new(meter, deserializer)
 }
 
 /// An error returned by [`deserialize`].
@@ -90,7 +91,7 @@ where
 {
     let mut meter = Meter::new(max_ops);
 
-    match seed.deserialize(meter.wrap(deserializer)) {
+    match seed.deserialize(wrap(&mut meter, deserializer)) {
         Ok(value) => Ok(value),
         // The budget is checked first, because the deserializer the error travelled through is
         // free to replace it with an error of its own.
@@ -469,7 +470,7 @@ mod tests {
     {
         let mut meter = Meter::new(max_ops);
 
-        let metered_deserializer = meter.wrap(deserializer);
+        let metered_deserializer = wrap(&mut meter, deserializer);
         let t = T::deserialize(metered_deserializer).unwrap();
 
         (t, meter)
