@@ -213,7 +213,6 @@ pub fn extract_server_sample_rate(attributes: &Attributes) -> Option<f64> {
     extract_sample_rate(attributes, SENTRY__SERVER_SAMPLE_RATE)
 }
 
-/// Extracts a sample rate attribute, returning `None` unless it is in `(0, 1]`.
 fn extract_sample_rate(attributes: &Attributes, key: &str) -> Option<f64> {
     attributes
         .get_value(key)

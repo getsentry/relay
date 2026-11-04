@@ -45,25 +45,17 @@ pub struct Context {
     pub scoping: Scoping,
     /// Item retention.
     pub retention: Retention,
-    /// Sample rates inherited from the item this metric was derived from.
-    ///
-    /// Metrics submitted directly are never sampled by Relay, so this is `None` for them.
-    /// Metrics derived from a sampled item, such as web vitals extracted from spans, carry
-    /// the sample rates of that item so they extrapolate the same way the item does.
+    /// For derived metrics, contains the sample rates of the item this metric was derived from.
     pub derived_sample_rates: Option<SampleRates>,
 }
 
-/// Client and server sample rates applied to a trace item.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SampleRates {
-    /// Rate at which the item was sampled in the SDK, if any.
     pub client: Option<f64>,
-    /// Rate at which the item was sampled in Relay, if any.
     pub server: Option<f64>,
 }
 
 impl SampleRates {
-    /// Reads the sample rates recorded on a span's attributes.
     pub fn from_span(span: &SpanV2) -> Self {
         let Some(attrs) = span.attributes.value() else {
             return Self::default();
@@ -99,15 +91,13 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         payload_size_bytes,
     };
 
-    // Directly submitted metrics may carry a client sample rate from the SDK. Derived metrics
-    // inherit the sample rates of their source item instead, which also covers sampling in
-    // Relay that never reaches the metric's own attributes.
-    let derived = ctx.derived_sample_rates.unwrap_or_default();
-    let client_sample_rate = derived
+    // Derived metrics inherit the sample rates of their source span.
+    let derived_sample_rates = ctx.derived_sample_rates.unwrap_or_default();
+    let client_sample_rate = derived_sample_rates
         .client
         .or_else(|| extract_client_sample_rate(&attrs))
         .unwrap_or(1.0);
-    let server_sample_rate = derived.server.unwrap_or(1.0);
+    let server_sample_rate = derived_sample_rates.server.unwrap_or(1.0);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Metric.into(),
@@ -286,8 +276,7 @@ pub fn produce_webvitals_metrics(
                     standard: span.retention_days,
                     downsampled: span.downsampled_retention_days,
                 },
-                // The span was already sampled before these metrics were extracted from it,
-                // so the metrics must carry its sample rates to extrapolate like the span.
+                // Carry sample rates from the origin span so that metrics can be extrapolated.
                 derived_sample_rates: Some(SampleRates::from_span(&span.item)),
             },
         ) {
