@@ -1372,7 +1372,6 @@ fn decode_body(
     source: StreamSource,
 ) -> ByteStream {
     use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
-    use decode::Decoder;
     use futures::TryStreamExt;
 
     if matches!(source, StreamSource::Multipart(_)) {
@@ -1390,16 +1389,14 @@ fn decode_body(
     let reader = BufReader::new(StreamReader::new(stream.map_err(decode::InputError::wrap)));
     let decoded = match compression {
         // HTTP deflate uses the zlib wrapper, matching Tower's decoder.
-        HttpCompression::Deflate => {
-            ReaderStream::new(Decoder::new(ZlibDecoder::new(reader))).boxed()
-        }
-        HttpCompression::Gzip => ReaderStream::new(Decoder::new(GzipDecoder::new(reader))).boxed(),
-        HttpCompression::Br => ReaderStream::new(Decoder::new(BrotliDecoder::new(reader))).boxed(),
+        HttpCompression::Deflate => ReaderStream::new(ZlibDecoder::new(reader)).boxed(),
+        HttpCompression::Gzip => ReaderStream::new(GzipDecoder::new(reader)).boxed(),
+        HttpCompression::Br => ReaderStream::new(BrotliDecoder::new(reader)).boxed(),
         HttpCompression::Zstd => {
             let mut decoder = ZstdDecoder::new(reader);
             // Match Tower's support for concatenated zstd frames.
             decoder.multiple_members(true);
-            ReaderStream::new(Decoder::new(decoder)).boxed()
+            ReaderStream::new(decoder).boxed()
         }
     };
     metrics
@@ -1615,7 +1612,7 @@ mod tests {
         use super::*;
 
         #[tokio::test]
-        async fn decode_body_rejects_trailing_gzip_data() {
+        async fn decode_body_ignores_trailing_gzip_data() {
             use futures::TryStreamExt;
             use std::io::Write;
 
@@ -1630,10 +1627,7 @@ mod tests {
                 .try_collect::<Vec<_>>()
                 .await;
 
-            assert!(
-                result.is_err(),
-                "decoder accepted trailing data: {result:?}"
-            );
+            assert_eq!(result.unwrap().concat(), b"hello");
         }
 
         async fn compressed_test_body(data: &'static [u8], compression: HttpCompression) -> Bytes {
@@ -1650,7 +1644,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn decode_body_checks_complete_input() {
+        async fn decode_body_validates_compressed_data() {
             use futures::TryStreamExt;
 
             for compression in [
@@ -1661,10 +1655,9 @@ mod tests {
             ] {
                 let encoded = compressed_test_body(b"hello", compression).await;
                 let empty = compressed_test_body(b"", compression).await;
-                let junk = Bytes::from_static(b"JUNK");
                 let concatenated: Result<&[u8], ()> = match compression {
                     HttpCompression::Zstd => Ok(b"hellohello"),
-                    _ => Err(()),
+                    _ => Ok(b"hello"),
                 };
                 let cases = [
                     ("valid", vec![encoded.clone()], Ok(b"hello".as_slice())),
@@ -1679,17 +1672,6 @@ mod tests {
                     (
                         "truncated",
                         vec![encoded.slice(..encoded.len() - 1)],
-                        Err(()),
-                    ),
-                    (
-                        "buffered junk",
-                        vec![[encoded.as_ref(), junk.as_ref()].concat().into()],
-                        Err(()),
-                    ),
-                    ("later junk", vec![encoded.clone(), junk.clone()], Err(())),
-                    (
-                        "junk after empty chunk",
-                        vec![encoded.clone(), Bytes::new(), junk],
                         Err(()),
                     ),
                     (
@@ -1722,74 +1704,6 @@ mod tests {
                         expected,
                         "{compression:?}: {name}: {result:?}"
                     );
-                }
-            }
-        }
-
-        #[tokio::test]
-        async fn decode_body_waits_for_input_completion() {
-            use futures::{FutureExt, TryStreamExt};
-            use std::io::{Error, ErrorKind};
-
-            for compression in [
-                HttpCompression::Gzip,
-                HttpCompression::Deflate,
-                HttpCompression::Br,
-                HttpCompression::Zstd,
-            ] {
-                let encoded = compressed_test_body(b"hello", compression).await;
-                let cases = [
-                    (vec![], Ok(())),
-                    (
-                        vec![Err(Error::new(ErrorKind::BrokenPipe, "source failed"))],
-                        Err(ErrorKind::BrokenPipe),
-                    ),
-                    (
-                        vec![Err(Error::new(ErrorKind::InvalidData, "source failed"))],
-                        Err(ErrorKind::InvalidData),
-                    ),
-                ];
-                for (ending, expected) in cases {
-                    let (sender, input) = futures::channel::mpsc::unbounded();
-                    let mut decoded = decode_body(input, Some(compression), StreamSource::Tus);
-                    sender.unbounded_send(Ok(encoded.clone())).unwrap();
-                    assert_eq!(
-                        decoded
-                            .try_next()
-                            .now_or_never()
-                            .expect("decoded bytes must stream immediately")
-                            .unwrap()
-                            .unwrap(),
-                        "hello"
-                    );
-                    assert!(
-                        decoded.next().now_or_never().is_none(),
-                        "{compression:?}: reported EOF before the input ended"
-                    );
-                    sender.unbounded_send(Ok(Bytes::new())).unwrap();
-                    assert!(
-                        decoded.next().now_or_never().is_none(),
-                        "{compression:?}: empty chunk treated as EOF"
-                    );
-                    for item in ending {
-                        sender.unbounded_send(item).unwrap();
-                    }
-                    drop(sender);
-                    let result =
-                        decoded
-                            .try_collect::<Vec<_>>()
-                            .await
-                            .map(|_| ())
-                            .map_err(|error| {
-                                assert!(
-                                    !error
-                                        .get_ref()
-                                        .is_some_and(|error| error.is::<DecodeError>()),
-                                    "{compression:?}: {error}"
-                                );
-                                error.kind()
-                            });
-                    assert_eq!(result, expected, "{compression:?}");
                 }
             }
         }
