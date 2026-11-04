@@ -320,7 +320,7 @@ impl ServiceState {
                     handle.clone(),
                     current_config.default_aggregator_config().clone(),
                     current_config.secondary_aggregator_configs().clone(),
-                    Some(bucket_processor.recipient()),
+                    bucket_processor.recipient(),
                     project_cache_handle.clone(),
                 );
                 let router_handle = router.handle();

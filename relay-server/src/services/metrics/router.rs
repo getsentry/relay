@@ -30,7 +30,7 @@ impl RouterService {
         handle: relay_system::Handle,
         default_config: AggregatorServiceConfig,
         secondary_configs: Vec<ScopedAggregatorConfig>,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        receiver: Recipient<FlushBuckets, NoResponse>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
         let mut secondary = Vec::new();
@@ -132,6 +132,7 @@ impl StartedRouter {
         let MergeBuckets {
             project_key,
             mut buckets,
+            outcome_aggregator,
         } = message;
 
         for (aggregator, namespaces) in &self.secondary {
@@ -145,12 +146,20 @@ impl StartedRouter {
             });
 
             if !matching.is_empty() {
-                aggregator.send(MergeBuckets::new(project_key, matching));
+                aggregator.send(MergeBuckets {
+                    project_key,
+                    buckets: matching,
+                    outcome_aggregator: outcome_aggregator.clone(),
+                });
             }
         }
 
         if !buckets.is_empty() {
-            self.default.send(MergeBuckets::new(project_key, buckets));
+            self.default.send(MergeBuckets {
+                project_key,
+                buckets,
+                outcome_aggregator,
+            });
         }
     }
 }

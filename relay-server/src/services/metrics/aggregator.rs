@@ -90,11 +90,12 @@ impl Extend<Bucket> for ProjectBuckets {
 /// Service implementing the [`Aggregator`] interface.
 pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
-    receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    receiver: Recipient<FlushBuckets, NoResponse>,
     project_cache: ProjectCacheHandle,
     config: AggregatorServiceConfig,
     can_accept_metrics: Arc<AtomicBool>,
     next_flush: Pin<Box<Sleep>>,
+    outcome_aggregator: Option<Addr<TrackOutcome>>,
 }
 
 impl AggregatorService {
@@ -104,7 +105,7 @@ impl AggregatorService {
     /// the given `config`.
     pub fn new(
         config: AggregatorServiceConfig,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        receiver: Recipient<FlushBuckets, NoResponse>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
         Self::named("default".to_owned(), config, receiver, project_cache)
@@ -114,7 +115,7 @@ impl AggregatorService {
     pub(crate) fn named(
         name: String,
         config: AggregatorServiceConfig,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        receiver: Recipient<FlushBuckets, NoResponse>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
         let aggregator = aggregator::Aggregator::named(name, &config.aggregator);
@@ -125,6 +126,7 @@ impl AggregatorService {
             aggregator,
             project_cache,
             next_flush: Box::pin(tokio::time::sleep(Duration::from_secs(0))),
+            outcome_aggregator: None,
         }
     }
 
@@ -152,10 +154,6 @@ impl AggregatorService {
     }
 
     fn flush_partition(&mut self, partition: Partition) {
-        let Some(receiver) = &self.receiver else {
-            return;
-        };
-
         let mut buckets_by_project = hashbrown::HashMap::new();
 
         let partition_key = partition.partition_key;
@@ -227,11 +225,19 @@ impl AggregatorService {
                 buckets_by_project.len()
             );
 
-            receiver.send(FlushBuckets {
+            self.receiver.send(FlushBuckets {
                 partition_key,
                 buckets: buckets_by_project,
-                outcome_aggregator: todo!(),
+                outcome_aggregator: self
+                    .outcome_aggregator
+                    .clone()
+                    .expect("outcome aggregator should exist when there is data"),
             });
+        }
+
+        if self.aggregator.is_empty() {
+            // Release temporary ownership of outcome aggregator to prevent cycles during shutdown.
+            self.outcome_aggregator.take();
         }
     }
 
@@ -239,7 +245,9 @@ impl AggregatorService {
         let MergeBuckets {
             project_key,
             buckets,
+            outcome_aggregator,
         } = msg;
+        self.outcome_aggregator.replace(outcome_aggregator);
 
         for mut bucket in buckets.into_iter() {
             if !validate_bucket(&mut bucket, &self.config) {
@@ -374,14 +382,20 @@ impl Drop for AggregatorService {
 pub struct MergeBuckets {
     pub project_key: ProjectKey,
     pub buckets: Vec<Bucket>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
 }
 
 impl MergeBuckets {
     /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+    pub fn new(
+        project_key: ProjectKey,
+        buckets: Vec<Bucket>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> Self {
         Self {
             project_key,
             buckets,
+            outcome_aggregator,
         }
     }
 }
@@ -529,13 +543,12 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator =
-            AggregatorService::new(config, Some(recipient), project_cache).start_detached();
+        let aggregator = AggregatorService::new(config, recipient, project_cache).start_detached();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets::new(project_key, vec![bucket]));
+        aggregator.send(MergeBuckets::new(project_key, vec![bucket], Addr::dummy()));
 
         // Nothing flushed.
         assert_eq!(receiver.bucket_count(), 0);

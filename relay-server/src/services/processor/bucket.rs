@@ -284,6 +284,7 @@ impl InnerProcessor {
             buckets,
             outcome_aggregator,
         } = message;
+
         let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
 
         for ProjectBuckets {

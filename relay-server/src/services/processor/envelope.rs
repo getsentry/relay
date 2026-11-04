@@ -33,7 +33,7 @@ use crate::processing::{self, Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::UpstreamRelay;
@@ -210,13 +210,19 @@ impl ProcessingExtractedMetrics {
     }
 }
 
-fn send_metrics(metrics: ExtractedMetrics, project_key: ProjectKey, aggregator: &Addr<Aggregator>) {
+fn send_metrics(
+    metrics: ExtractedMetrics,
+    project_key: ProjectKey,
+    aggregator: &Addr<Aggregator>,
+    outcome_aggregator: Addr<TrackOutcome>,
+) {
     let ExtractedMetrics(project_metrics) = metrics;
 
     if !project_metrics.is_empty() {
         aggregator.send(MergeBuckets {
             project_key,
             buckets: project_metrics,
+            outcome_aggregator,
         });
     }
 }
@@ -641,8 +647,9 @@ impl InnerProcessor {
             {
                 if let Some(metrics) = metrics {
                     let agg = &self.addrs.aggregator;
+                    let outcome_aggregator = metrics.outcome_aggregator().clone();
                     metrics.accept(|metrics| {
-                        send_metrics(metrics, project_key, agg);
+                        send_metrics(metrics, project_key, agg, outcome_aggregator);
                     });
                 }
 
@@ -723,7 +730,7 @@ impl InnerProcessor {
         relay_log::trace!("merging metric buckets into the aggregator");
         self.addrs
             .aggregator
-            .send(MergeBuckets::new(project_key, buckets));
+            .send(MergeBuckets::new(project_key, buckets, todo!()));
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {

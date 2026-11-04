@@ -92,6 +92,7 @@ impl OutcomeProducerService {
         self.aggregator.send(MergeBuckets {
             project_key: message.scoping.project_key,
             buckets: vec![outcome::metric::to_metric(&message, &config)],
+            outcome_aggregator: todo!(),
         })
     }
 }
