@@ -214,7 +214,7 @@ pub struct SentryConfig {
     /// environment variable.
     pub server_name: Option<Cow<'static, str>>,
 
-    /// Add defaults tags to the events emitted by Relay
+    /// Adds default tags to the events and Sentry logs emitted by Relay.
     pub default_tags: Option<BTreeMap<String, String>>,
 
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
@@ -352,13 +352,24 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
         // If `default_tags` is set in Sentry configuration install the `before_send` hook
         // in order to inject said tags into each event
         if let Some(default_tags) = sentry.default_tags.clone() {
-            // Install hook
-            options = options.before_send(move |mut event| {
-                // Extend `event.tags` with `default_tags` without replacing tags already present
-                let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
-                event.tags.extend(previous_event_tags);
-                Some(event)
-            });
+            let default_tags_log = default_tags.clone();
+
+            options = options
+                .before_send(move |mut event| {
+                    // Extend `event.tags` with `default_tags` without replacing tags already present
+                    let previous_event_tags =
+                        std::mem::replace(&mut event.tags, default_tags.clone());
+                    event.tags.extend(previous_event_tags);
+                    Some(event)
+                })
+                .before_send_log(move |mut log| {
+                    for (key, value) in &default_tags_log {
+                        log.attributes
+                            .entry(key.clone())
+                            .or_insert_with(|| value.clone().into());
+                    }
+                    Some(log)
+                });
         }
 
         // The crash reporter process runs inside `sentry::init` and never
