@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::trace_metric;
-use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
+use relay_event_schema::protocol::{Attributes, MetricType, SpanId, SpanV2, TraceMetric};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
@@ -15,8 +15,8 @@ use crate::managed::Managed;
 use crate::processing::trace_metrics::{Error, Result};
 use crate::processing::trace_metrics::{store, utils};
 use crate::processing::utils::store::{
-    extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
-    uuid_to_item_id,
+    extract_client_sample_rate, extract_meta_attributes, extract_server_sample_rate,
+    quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
 use crate::processing::{self, Counted, Retention};
 use crate::services::outcome::DiscardReason;
@@ -45,6 +45,35 @@ pub struct Context {
     pub scoping: Scoping,
     /// Item retention.
     pub retention: Retention,
+    /// Sample rates inherited from the item this metric was derived from.
+    ///
+    /// Metrics submitted directly are never sampled by Relay, so this is `None` for them.
+    /// Metrics derived from a sampled item, such as web vitals extracted from spans, carry
+    /// the sample rates of that item so they extrapolate the same way the item does.
+    pub derived_sample_rates: Option<SampleRates>,
+}
+
+/// Client and server sample rates applied to a trace item.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SampleRates {
+    /// Rate at which the item was sampled in the SDK, if any.
+    pub client: Option<f64>,
+    /// Rate at which the item was sampled in Relay, if any.
+    pub server: Option<f64>,
+}
+
+impl SampleRates {
+    /// Reads the sample rates recorded on a span's attributes.
+    pub fn from_span(span: &SpanV2) -> Self {
+        let Some(attrs) = span.attributes.value() else {
+            return Self::default();
+        };
+
+        Self {
+            client: extract_client_sample_rate(attrs),
+            server: extract_server_sample_rate(attrs),
+        }
+    }
 }
 
 pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTraceItem> {
@@ -70,7 +99,15 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         payload_size_bytes,
     };
 
-    let client_sample_rate = extract_client_sample_rate(&attrs).unwrap_or(1.0);
+    // Directly submitted metrics may carry a client sample rate from the SDK. Derived metrics
+    // inherit the sample rates of their source item instead, which also covers sampling in
+    // Relay that never reaches the metric's own attributes.
+    let derived = ctx.derived_sample_rates.unwrap_or_default();
+    let client_sample_rate = derived
+        .client
+        .or_else(|| extract_client_sample_rate(&attrs))
+        .unwrap_or(1.0);
+    let server_sample_rate = derived.server.unwrap_or(1.0);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Metric.into(),
@@ -84,7 +121,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
         attributes: attributes(meta, attrs, fields),
         client_sample_rate,
-        server_sample_rate: 1.0,
+        server_sample_rate,
         outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
 
@@ -249,6 +286,9 @@ pub fn produce_webvitals_metrics(
                     standard: span.retention_days,
                     downsampled: span.downsampled_retention_days,
                 },
+                // The span was already sampled before these metrics were extracted from it,
+                // so the metrics must carry its sample rates to extrapolate like the span.
+                derived_sample_rates: Some(SampleRates::from_span(&span.item)),
             },
         ) {
             // Clear outcomes for these metrics, as we don't want them billed.
@@ -298,7 +338,18 @@ mod tests {
                 standard: 42,
                 downsampled: 43,
             },
+            derived_sample_rates: None,
         }
+    }
+
+    fn sample_rate_attribute(rate: f64) -> Annotated<Attribute> {
+        Annotated::new(Attribute {
+            value: AttributeValue {
+                ty: Annotated::new(AttributeType::Double),
+                value: Annotated::new(Value::F64(rate)),
+            },
+            other: Object::new(),
+        })
     }
 
     #[test]
@@ -334,6 +385,91 @@ mod tests {
         assert!(attributes.contains_key("sentry.value"));
         assert!(attributes.contains_key("http.method"));
         assert!(attributes.contains_key("http.status_code"));
+    }
+
+    #[test]
+    fn test_direct_metric_reads_client_sample_rate_from_attributes() {
+        let metric = trace_metric!({
+            "timestamp": 946684800.0,
+            "trace_id": "5B8EFFF798038103D269B633813FC60C",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "attributes": {
+                "sentry.client_sample_rate": {
+                    "value": 0.25,
+                    "type": "double"
+                },
+                "sentry.server_sample_rate": {
+                    "value": 0.1,
+                    "type": "double"
+                }
+            }
+        });
+
+        let result = convert(metric, &test_context()).unwrap();
+
+        assert_eq!(result.trace_item.client_sample_rate, 0.25);
+        // Relay never samples directly submitted metrics, so a server sample rate attribute
+        // must not influence the item's weight.
+        assert_eq!(result.trace_item.server_sample_rate, 1.0);
+    }
+
+    #[test]
+    fn test_derived_metric_inherits_sample_rates() {
+        let metric = trace_metric!({
+            "timestamp": 946684800.0,
+            "trace_id": "5B8EFFF798038103D269B633813FC60C",
+            "name": "browser.web_vital.lcp",
+            "type": "distribution",
+            "value": 1200.0,
+            "attributes": {
+                "sentry.client_sample_rate": {
+                    "value": 0.9,
+                    "type": "double"
+                }
+            }
+        });
+
+        let ctx = Context {
+            derived_sample_rates: Some(SampleRates {
+                client: Some(0.5),
+                server: Some(0.1),
+            }),
+            ..test_context()
+        };
+
+        let result = convert(metric, &ctx).unwrap();
+
+        // The source item's rates win over anything on the metric itself.
+        assert_eq!(result.trace_item.client_sample_rate, 0.5);
+        assert_eq!(result.trace_item.server_sample_rate, 0.1);
+    }
+
+    #[test]
+    fn test_sample_rates_from_span() {
+        let mut attrs = BTreeMap::new();
+        attrs.insert(
+            "sentry.client_sample_rate".to_owned(),
+            sample_rate_attribute(0.5),
+        );
+        attrs.insert(
+            "sentry.server_sample_rate".to_owned(),
+            sample_rate_attribute(0.01),
+        );
+        let span = SpanV2 {
+            attributes: Annotated::new(Attributes(attrs)),
+            ..Default::default()
+        };
+
+        let rates = SampleRates::from_span(&span);
+        assert_eq!(rates.client, Some(0.5));
+        assert_eq!(rates.server, Some(0.01));
+
+        // Spans without sample rates leave the metric unweighted.
+        let rates = SampleRates::from_span(&SpanV2::default());
+        assert_eq!(rates.client, None);
+        assert_eq!(rates.server, None);
     }
 
     #[test]
