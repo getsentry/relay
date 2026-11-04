@@ -24,7 +24,7 @@ jobs:
   lint:
     needs: build-setup
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     env:
       RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -99,7 +99,7 @@ jobs:
 
   lint_default:
     name: Lint Rust Default Features
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Install libcurl-dev
@@ -123,7 +123,7 @@ jobs:
 
   devservices-files-changed:
     name: detect what files changed
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
@@ -145,7 +145,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-latest]
+        os: [macos-15, windows-11-arm]
 
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -184,8 +184,8 @@ jobs:
   test_all:
     needs: build-setup
     timeout-minutes: 15
-    name: Test All Features (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: Test All Features (ubuntu-24.04-arm)
+    runs-on: ubuntu-24.04-arm
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
@@ -194,7 +194,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
-    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # Linux runners. This `test-all` job is to be seen as complementary to the `test` job. If
     # services become available on other platforms, the jobs should be consolidated. See
     # https://docs.github.com/en/actions/guides/about-service-containers
 
@@ -247,7 +247,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release/')"
 
     name: Test Python
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v7.0.1
@@ -282,7 +282,7 @@ jobs:
 
   build-setup:
     name: Setup build metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
@@ -908,7 +908,7 @@ jobs:
           docker compose logs
 
   validate-devservices-config:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs: devservices-files-changed
     if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
     steps:
