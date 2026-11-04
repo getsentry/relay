@@ -269,7 +269,7 @@ pub struct ProcessMetrics {
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
     /// Tracker for metric outcomes.
-    pub metric_outcomes: MetricOutcomes,
+    pub outcome_aggregator: Addr<TrackOutcome>,
 }
 
 /// Raw unparsed metric data.
@@ -334,7 +334,7 @@ pub struct ProcessBatchedMetrics {
     /// The wall clock time at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
     /// Tracker for metric outcomes.
-    pub metric_outcomes: MetricOutcomes,
+    pub outcome_aggregator: Addr<TrackOutcome>,
 }
 
 /// Source information where a metric bucket originates from.
@@ -674,7 +674,7 @@ impl InnerProcessor {
             received_at,
             sent_at,
             source,
-            metric_outcomes,
+            outcome_aggregator,
         } = message;
 
         let received_timestamp =
@@ -721,7 +721,7 @@ impl InnerProcessor {
                     project_info,
                     &rate_limits,
                     buckets,
-                    &metric_outcomes,
+                    &MetricOutcomes::new(outcome_aggregator.clone()),
                 )
             }
             _ => buckets,
@@ -730,7 +730,7 @@ impl InnerProcessor {
         relay_log::trace!("merging metric buckets into the aggregator");
         self.addrs
             .aggregator
-            .send(MergeBuckets::new(project_key, buckets, todo!()));
+            .send(MergeBuckets::new(project_key, buckets, outcome_aggregator));
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -739,7 +739,7 @@ impl InnerProcessor {
             source,
             received_at,
             sent_at,
-            metric_outcomes,
+            outcome_aggregator,
         } = message;
 
         #[derive(serde::Deserialize)]
@@ -768,7 +768,7 @@ impl InnerProcessor {
                     source,
                     received_at,
                     sent_at,
-                    metric_outcomes: metric_outcomes.clone(),
+                    outcome_aggregator: outcome_aggregator.clone(),
                 },
             )
         }
@@ -1255,7 +1255,7 @@ mod tests {
                 source,
                 received_at,
                 sent_at: Some(Utc::now()),
-                metric_outcomes: MetricOutcomes::new(Addr::dummy()),
+                outcome_aggregator: Addr::dummy(),
             };
             processor.handle_process_metrics(&mut token, message);
 
@@ -1317,7 +1317,7 @@ mod tests {
             source: BucketSource::Internal,
             received_at,
             sent_at: Some(Utc::now()),
-            metric_outcomes: MetricOutcomes::new(Addr::dummy()),
+            outcome_aggregator: Addr::dummy(),
         };
         processor.handle_process_batched_metrics(&mut token, message);
 

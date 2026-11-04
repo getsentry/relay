@@ -20,7 +20,6 @@ use crate::envelope::{
     Items,
 };
 use crate::managed::{Managed, Rejected};
-use crate::metrics::MetricOutcomes;
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
@@ -402,7 +401,7 @@ fn queue_envelope(
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: BucketSource::from_meta(envelope.meta()),
-                metric_outcomes: MetricOutcomes::new(envelope.outcome_aggregator().clone()),
+                outcome_aggregator: envelope.outcome_aggregator().clone(),
             });
         })
     }
