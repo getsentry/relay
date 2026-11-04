@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::TransactionNameRule;
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::trimming::trim_string;
 
 /// Configuration for sanitizing unparameterized transaction names.
 #[derive(Clone, Copy, Debug, Default)]
@@ -75,10 +74,16 @@ fn normalize_dsc_value(value: &mut Option<String>, max_chars: usize) {
 
     *value = if trimmed.is_empty() {
         None
+    } else if trimmed.chars().count() <= max_chars {
+        Some(trimmed.to_owned())
     } else {
-        let mut trimmed = trimmed.to_owned();
-        trim_string(&mut trimmed, &mut Meta::default(), max_chars, 0);
-        Some(trimmed)
+        Some(
+            trimmed
+                .chars()
+                .take(max_chars.saturating_sub(3))
+                .chain("...".chars())
+                .collect(),
+        )
     };
 }
 
