@@ -12,7 +12,7 @@
 
 **Bug Fixes**:
 
-- Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
+- Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
