@@ -1,6 +1,6 @@
-use prost::Message;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
+use relay_otel::descriptors::Decodable;
 use relay_ourlogs::otel_logs::LogsData;
 use relay_quotas::DataCategory;
 
@@ -131,7 +131,7 @@ fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result
                 .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
             result
         }
-        OtelFormat::Protobuf => LogsData::decode(payload).map_err(|e| {
+        OtelFormat::Protobuf => LogsData::decode_bounded(payload, max_ops).map_err(|e| {
             relay_log::debug!(
                 error = &e as &dyn std::error::Error,
                 "Failed to parse logs data as protobuf"
@@ -150,7 +150,24 @@ mod tests {
     use opentelemetry_proto::tonic::resource::v1::Resource;
     use relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
+    use prost::Message;
+
+    use crate::integrations::OtelFormat;
+    use crate::processing::logs::integrations::Error;
     use crate::processing::logs::integrations::otel::parse_logs_data;
+    use crate::services::outcome::DiscardReason;
+
+    fn logs_with_records(n: usize) -> LogsData {
+        LogsData {
+            resource_logs: vec![ResourceLogs {
+                scope_logs: vec![ScopeLogs {
+                    log_records: vec![LogRecord::default(); n],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        }
+    }
 
     #[test]
     fn test_basic_json() {
@@ -162,6 +179,7 @@ mod tests {
                         value: Some(AnyValue {
                             value: Some(Value::StringValue("test-service".to_owned())),
                         }),
+                        key_strindex: 0,
                     }],
                     dropped_attributes_count: 0,
                     entity_refs: vec![],
@@ -187,6 +205,7 @@ mod tests {
                                 value: Some(AnyValue {
                                     value: Some(Value::StringValue("value".to_owned())),
                                 }),
+                                key_strindex: 0,
                             },
                             KeyValue {
                                 key: "nested attribute".to_owned(),
@@ -197,6 +216,7 @@ mod tests {
                                         }],
                                     })),
                                 }),
+                                key_strindex: 0,
                             },
                         ],
                         dropped_attributes_count: 0,
@@ -244,5 +264,78 @@ mod tests {
         assert!(
             parse_logs_data(crate::integrations::OtelFormat::Json, json.as_bytes(), 1000).is_err()
         );
+    }
+
+    #[test]
+    fn test_basic_protobuf() {
+        let log_data = LogsData {
+            resource_logs: vec![ResourceLogs {
+                resource: Some(Resource {
+                    attributes: vec![KeyValue {
+                        key: "service.name".to_owned(),
+                        value: Some(AnyValue {
+                            value: Some(Value::StringValue("test-service".to_owned())),
+                        }),
+                        key_strindex: 0,
+                    }],
+                    dropped_attributes_count: 0,
+                    entity_refs: vec![],
+                }),
+                scope_logs: vec![ScopeLogs {
+                    log_records: vec![LogRecord {
+                        time_unix_nano: 123,
+                        severity_text: "Information".to_owned(),
+                        body: Some(AnyValue {
+                            value: Some(Value::StringValue("a body".to_owned())),
+                        }),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                schema_url: "http://example.com".to_owned(),
+            }],
+        };
+
+        let parsed =
+            parse_logs_data(OtelFormat::Protobuf, &log_data.encode_to_vec(), 1000).unwrap();
+        assert_eq!(parsed, log_data);
+    }
+
+    #[test]
+    fn test_abusive_protobuf() {
+        // resource_logs + scope_logs + one op per record.
+        let payload = logs_with_records(1_001).encode_to_vec();
+
+        assert!(matches!(
+            parse_logs_data(OtelFormat::Protobuf, &payload, 1000),
+            Err(Error::Invalid(DiscardReason::InvalidProtobuf))
+        ));
+        assert!(parse_logs_data(OtelFormat::Protobuf, &payload, 1003).is_ok());
+    }
+
+    #[test]
+    fn test_protobuf_and_json_limits_agree() {
+        // The same logical payload is accepted or rejected regardless of its encoding.
+        let small = logs_with_records(10);
+        let large = logs_with_records(2_000);
+
+        for (logs, ok) in [(small, true), (large, false)] {
+            let proto = parse_logs_data(OtelFormat::Protobuf, &logs.encode_to_vec(), 1000);
+            let json = parse_logs_data(
+                OtelFormat::Json,
+                serde_json::to_string(&logs).unwrap().as_bytes(),
+                1000,
+            );
+            assert_eq!(proto.is_ok(), ok);
+            assert_eq!(json.is_ok(), ok);
+        }
+    }
+
+    #[test]
+    fn test_invalid_protobuf() {
+        assert!(matches!(
+            parse_logs_data(OtelFormat::Protobuf, b"\xff\xff\xff", 1000),
+            Err(Error::Invalid(DiscardReason::InvalidProtobuf))
+        ));
     }
 }

@@ -3570,9 +3570,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.31.0"
+version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84bcd6ae87133e903af7ef497404dda70c60d0ea14895fc8a5e6722754fc2a0"
+checksum = "8c1f1a6ac9c875a4941e4c7c085b61e8f4daa326de03b4701768c3491a6ad9ee"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -3583,9 +3583,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-proto"
-version = "0.31.0"
+version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7175df06de5eaee9909d4805a3d07e28bb752c34cab57fa9cff549da596b30f"
+checksum = "d576f5dddc3299341bcd85a04be17b2564844c0c9563214f02d85f2524d1afae"
 dependencies = [
  "base64 0.22.1",
  "const-hex",
@@ -3593,7 +3593,6 @@ dependencies = [
  "opentelemetry_sdk",
  "prost 0.14.4",
  "serde",
- "serde_json",
  "tonic",
  "tonic-prost",
 ]
@@ -3606,15 +3605,16 @@ checksum = "e62e29dfe041afb8ed2a6c9737ab57db4907285d999ef8ad3a59092a36bdc846"
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.31.0"
+version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e14ae4f5991976fd48df6d843de219ca6d31b01daaab2dad5af2badeded372bd"
+checksum = "372a912db2974d1990207006fd0e3aa0ef3fd4ad3be43c65cfaadf2206866061"
 dependencies = [
  "futures-channel",
  "futures-executor",
  "futures-util",
  "opentelemetry",
  "percent-encoding",
+ "portable-atomic",
  "rand 0.9.5",
  "thiserror 2.0.21",
 ]
@@ -4911,8 +4911,11 @@ dependencies = [
  "insta",
  "opentelemetry-proto",
  "opentelemetry-semantic-conventions",
+ "prost 0.14.4",
+ "proto-descriptors",
  "relay-event-schema",
  "relay-protocol",
+ "relay-serialization",
  "serde_json",
 ]
 
@@ -5198,6 +5201,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-monitors",
+ "relay-otel",
  "relay-ourlogs",
  "relay-pii",
  "relay-profiling",
