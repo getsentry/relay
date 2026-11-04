@@ -1379,7 +1379,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> Annotated<String> {
     }
 
     let mut meta = Meta::default();
-    meta.set_original_length(Some(string.len()));
+    meta.set_original_length(Some(bytecount::num_chars(string.as_bytes())));
 
     if max_bytes == 0 {
         return Annotated(Some(String::new()), meta);
