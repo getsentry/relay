@@ -79,18 +79,18 @@
 <a href=#79 id=79 data-nosnippet>79</a>            // the logs back into an envelope fails. Consider removing it.
 <a href=#80 id=80 data-nosnippet>80</a>            </span><span class="kw">let </span>byte_size = relay_ourlogs::calculate_size(<span class="kw-2">&amp;</span>log);
 <a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>            records.modify_by(DataCategory::LogItem, <span class="number">1</span>);
-<a href=#83 id=83 data-nosnippet>83</a>            records.modify_by(DataCategory::LogByte, byte_size <span class="kw">as </span>isize);
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>            WithHeader::just(log.into())
-<a href=#86 id=86 data-nosnippet>86</a>        })
-<a href=#87 id=87 data-nosnippet>87</a>        .collect();
-<a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="comment">// Undo all the base item quantities, as they will be completely taken over by the parsed
-<a href=#90 id=90 data-nosnippet>90</a>    // contents, which contains an arbitrary amount of items (even 0).
-<a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities() {
-<a href=#92 id=92 data-nosnippet>92</a>        records.modify_by(category, -(quantity <span class="kw">as </span>isize));
-<a href=#93 id=93 data-nosnippet>93</a>    }
+<a href=#82 id=82 data-nosnippet>82</a>            records.add([
+<a href=#83 id=83 data-nosnippet>83</a>                (DataCategory::LogItem, <span class="number">1</span>),
+<a href=#84 id=84 data-nosnippet>84</a>                (DataCategory::LogByte, byte_size <span class="kw">as </span>usize),
+<a href=#85 id=85 data-nosnippet>85</a>            ]);
+<a href=#86 id=86 data-nosnippet>86</a>
+<a href=#87 id=87 data-nosnippet>87</a>            WithHeader::just(log.into())
+<a href=#88 id=88 data-nosnippet>88</a>        })
+<a href=#89 id=89 data-nosnippet>89</a>        .collect();
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="comment">// Undo all the base item quantities, as they will be completely taken over by the parsed
+<a href=#92 id=92 data-nosnippet>92</a>    // contents, which contains an arbitrary amount of items (even 0).
+<a href=#93 id=93 data-nosnippet>93</a>    </span>records.remove(<span class="kw-2">&amp;</span>item);
 <a href=#94 id=94 data-nosnippet>94</a>
 <a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">let </span>settings = IngestSettings {
 <a href=#96 id=96 data-nosnippet>96</a>        infer_user_agent: <span class="prelude-val">Some</span>(InferUserAgent::Auto),
