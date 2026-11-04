@@ -294,15 +294,6 @@ impl Processor for TrimmingProcessor {
     }
 }
 
-pub(crate) fn trim_and_truncate(value: &str, max_chars: usize) -> Option<String> {
-    let mut value = value.trim().to_owned();
-    if value.is_empty() {
-        return None;
-    }
-    trim_string(&mut value, &mut Meta::default(), max_chars, 0);
-    Some(value)
-}
-
 /// Trims the string to the given maximum length and updates meta data.
 pub(crate) fn trim_string(
     value: &mut String,
@@ -461,11 +452,6 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-
-    #[test]
-    fn test_trim_and_truncate_whitespace_only() {
-        assert_eq!(trim_and_truncate(" \t\n ", 200), None);
-    }
 
     #[test]
     fn test_string_trimming() {

@@ -14,8 +14,6 @@ use relay_event_schema::protocol::{
     Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
-
-use crate::trimming::trim_and_truncate;
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
@@ -472,7 +470,6 @@ pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
     dsc: Option<&DynamicSamplingContext>,
-    max_value_length: usize,
 ) {
     let Some(dsc) = dsc else {
         return;
@@ -482,12 +479,8 @@ pub fn normalize_dsc(
 
     attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
 
-    match dsc
-        .transaction
-        .as_deref()
-        .and_then(|t| trim_and_truncate(t, max_value_length))
-    {
-        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction),
+    match &dsc.transaction {
+        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone()),
         None => drop(attributes.remove(SENTRY__DSC__TRANSACTION)),
     }
 
@@ -497,19 +490,11 @@ pub fn normalize_dsc(
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
         attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-        if let Some(release) = dsc
-            .release
-            .as_deref()
-            .and_then(|r| trim_and_truncate(r, max_value_length))
-        {
-            attributes.insert(SENTRY__DSC__RELEASE, release);
+        if let Some(release) = &dsc.release {
+            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = dsc
-            .environment
-            .as_deref()
-            .and_then(|e| trim_and_truncate(e, max_value_length))
-        {
-            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment);
+        if let Some(environment) = &dsc.environment {
+            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
         if let Some(sample_rate) = dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
@@ -1063,7 +1048,7 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        normalize_dsc(&mut attributes, &Annotated::new(false), None, 200);
+        normalize_dsc(&mut attributes, &Annotated::new(false), None);
         assert!(attributes.value().is_none());
     }
 
@@ -1071,7 +1056,7 @@ mod tests {
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(None);
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc), 200);
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -1090,7 +1075,7 @@ mod tests {
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc), 200);
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -1113,7 +1098,7 @@ mod tests {
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc), 200);
+        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -1131,45 +1116,6 @@ mod tests {
           "sentry.dsc.transaction": {
             "type": "string",
             "value": "/some/endpoint"
-          }
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_normalize_dsc_length_limit() {
-        let mut attributes = Annotated::empty();
-        let dsc = &DynamicSamplingContext {
-            release: Some("r".repeat(9)),
-            environment: Some("e".repeat(10)),
-            ..mock_dsc(Some(&"t".repeat(11)))
-        };
-        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc), 10);
-        assert_annotated_snapshot!(attributes, @r#"
-        {
-          "sentry.dsc.environment": {
-            "type": "string",
-            "value": "eeeeeeeeee"
-          },
-          "sentry.dsc.project_id": {
-            "type": "string",
-            "value": "42"
-          },
-          "sentry.dsc.public_key": {
-            "type": "string",
-            "value": "12345678901234567890123456789012"
-          },
-          "sentry.dsc.release": {
-            "type": "string",
-            "value": "rrrrrrrrr"
-          },
-          "sentry.dsc.trace_id": {
-            "type": "string",
-            "value": "67e5504410b1426f9247bb680e5fe0c8"
-          },
-          "sentry.dsc.transaction": {
-            "type": "string",
-            "value": "ttttttt..."
           }
         }
         "#);
