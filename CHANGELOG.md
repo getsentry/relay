@@ -24,6 +24,7 @@
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
+- Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
 
 **Bug Fixes**:
 
