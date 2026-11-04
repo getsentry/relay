@@ -1221,6 +1221,7 @@ impl ObjectstoreServiceInner {
                     _ => false,
                 } {
                     // Persisted bytes may be corrupt. Transport failures alone remain resumable.
+                    relay_log::info!("cancelling resumable upload after decoding failure");
                     if let Err(error) = resumable_upload.cancel().send().await {
                         relay_log::warn!(
                             error = &error as &dyn std::error::Error,
