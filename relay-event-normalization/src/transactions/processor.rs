@@ -509,9 +509,9 @@ mod tests {
 
     #[test]
     fn test_normalize_dsc_values_matches_event_fields() {
-        let transaction = "t".repeat(201);
-        let release = "r".repeat(201);
-        let environment = "e".repeat(65);
+        let transaction = format!("  {}  ", "t".repeat(201));
+        let release = format!("\t{}\n", "r".repeat(201));
+        let environment = format!(" {} ", "e".repeat(65));
 
         let mut event = Annotated::new(Event {
             transaction: Annotated::new(transaction.clone()),
