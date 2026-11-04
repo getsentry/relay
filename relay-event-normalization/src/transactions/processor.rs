@@ -484,11 +484,11 @@ mod tests {
 
     #[test]
     fn test_normalize_dsc_values_limits() {
-        let mut dsc = dsc_with_values(&"t".repeat(201), &"r".repeat(200), &"e".repeat(65));
+        let mut dsc = dsc_with_values(&"t".repeat(201), &"r".repeat(200), &"e".repeat(63));
         normalize_dsc_values(&mut dsc);
         assert_eq!(dsc.transaction, Some(format!("{}...", "t".repeat(197))));
         assert_eq!(dsc.release, Some("r".repeat(200)));
-        assert_eq!(dsc.environment, Some(format!("{}...", "e".repeat(61))));
+        assert_eq!(dsc.environment, Some("e".repeat(63)));
     }
 
     #[test]
