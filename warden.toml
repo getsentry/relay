@@ -26,6 +26,7 @@ actions = ["opened", "synchronize", "reopened"]
 # DoS / resource-exhaustion review, pulled from the shared warden-skills repo.
 [[skills]]
 name = "wrdn-dos-review"
+incremental = true
 remote = "getsentry/warden-skills"
 paths = ["**/*.rs"]
 
