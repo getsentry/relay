@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use relay_event_schema::protocol::{
     Addr, DebugId, DebugImage, DebugMeta, Event, Frame, NativeDebugImage, RawStacktrace, Stacktrace,
 };
-use relay_protocol::{Annotated, Array, DeserializableAnnotated};
+use relay_protocol::{Annotated, Array, DeserializableAnnotated, FromValue, Value};
 
 use crate::envelope::{AttachmentType, Item};
 
@@ -104,9 +104,22 @@ pub(super) fn extract(
     let mut frames = source_frames
         .into_iter()
         .map(|raw| {
-            serde_json::from_str::<DeserializableAnnotated<Frame>>(raw.get()).map(|frame| frame.0)
+            let mut frame = Annotated::<Value>::from_json(raw.get())?;
+            if let Some(Value::Object(fields)) = frame.value_mut() {
+                for (alias, canonical) in [
+                    ("name", "function"),
+                    ("file", "filename"),
+                    ("line", "lineno"),
+                    ("column", "colno"),
+                ] {
+                    if let Some(value) = fields.remove(alias) {
+                        fields.insert(canonical.to_owned(), value);
+                    }
+                }
+            }
+            Ok(Frame::from_value(frame))
         })
-        .collect::<Result<Array<Frame>, _>>()
+        .collect::<Result<Array<Frame>, serde_json::Error>>()
         .ok()?;
     let source_debug_meta = graph
         .debug_meta()
@@ -337,6 +350,48 @@ mod tests {
         }
         "#);
         assert_eq!(attachments[0].payload(), original);
+    }
+
+    #[test]
+    fn test_flamegraph_preserves_profiling_frame_aliases() {
+        let payload = json!({
+            "version": "1", "platform": "javascript",
+            "frames": [{
+                "name": "work", "file": "app.js", "line": 42, "column": 7,
+                "in_app": true, "pre_context": ["before"], "context_line": "work()",
+                "post_context": ["after"], "vars": {"state": "running"}
+            }],
+            "nodes": [{"frame_id": 0, "sample_count": 1}],
+            "trees": [{"roots": [0]}]
+        });
+        let (frames, _) = extract_attachments(&[attachment(payload)], 100_000).unwrap();
+        let stacktrace = Annotated::new(RawStacktrace {
+            frames,
+            ..Default::default()
+        });
+        insta::assert_json_snapshot!(SerializableAnnotated(&stacktrace), @r#"
+        {
+          "frames": [
+            {
+              "function": "work",
+              "filename": "app.js",
+              "lineno": 42,
+              "colno": 7,
+              "pre_context": [
+                "before"
+              ],
+              "context_line": "work()",
+              "post_context": [
+                "after"
+              ],
+              "in_app": true,
+              "vars": {
+                "state": "running"
+              }
+            }
+          ]
+        }
+        "#);
     }
 
     #[test]
