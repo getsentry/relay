@@ -75,6 +75,7 @@ pub trait SentryError: Counted {
         &mut self,
         category: DataCategory,
         limits: RateLimits,
+        event: &mut Annotated<Event>,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()>;
 
@@ -135,10 +136,11 @@ macro_rules! gen_error_kind {
                 &mut self,
                 category: DataCategory,
                 limits: RateLimits,
+                event: &mut Annotated<Event>,
                 records: &mut RecordKeeper<'_>,
             ) -> Result<()> {
                 match self {
-                    $(Self::$name(error) => error.apply_rate_limit(category, limits, records),)*
+                    $(Self::$name(error) => error.apply_rate_limit(category, limits, event, records),)*
                 }
             }
 

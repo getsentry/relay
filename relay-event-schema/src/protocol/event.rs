@@ -467,6 +467,10 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // not part of external schema
     pub scraping_attempts: Annotated<Value>,
 
+    /// Various metadata that we want to attach to an event.
+    #[metastructure(omit_from_schema)]
+    pub metadata: Annotated<Object<Value>>,
+
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.

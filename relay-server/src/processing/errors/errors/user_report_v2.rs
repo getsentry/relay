@@ -1,4 +1,6 @@
 use relay_base_schema::events::EventType;
+use relay_event_schema::protocol::Event;
+use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
@@ -49,6 +51,7 @@ impl SentryError for UserReportV2 {
         &mut self,
         _category: DataCategory,
         _limits: relay_quotas::RateLimits,
+        _event: &mut Annotated<Event>,
         _records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         Ok(())

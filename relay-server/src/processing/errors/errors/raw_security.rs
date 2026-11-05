@@ -46,6 +46,7 @@ impl SentryError for RawSecurity {
         &mut self,
         _category: DataCategory,
         _limits: relay_quotas::RateLimits,
+        _event: &mut Annotated<Event>,
         _records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         Ok(())

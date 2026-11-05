@@ -255,7 +255,8 @@ impl processing::RateLimited for Managed<ExpandedError> {
 
             if !limits.is_empty() {
                 self.try_modify(|this, records| {
-                    this.data.apply_rate_limit(category, limits, records)
+                    this.data
+                        .apply_rate_limit(category, limits, &mut this.event, records)
                 })?;
                 break;
             }

@@ -1,7 +1,5 @@
-#[cfg(all(sentry, feature = "processing"))]
 use relay_event_schema::protocol::Event;
-#[cfg(all(sentry, feature = "processing"))]
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::Item;
@@ -180,11 +178,24 @@ impl SentryError for Playstation {
         &mut self,
         _category: DataCategory,
         limits: RateLimits,
+        event: &mut Annotated<Event>,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.prosperodump.rate_limited() {
+            let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
             self.prosperodump.set_rate_limited(true);
+
+            if let Some(event) = event.value_mut()
+                && let Some(reason_code) = reason_code
+            {
+                let metadata = event.metadata.get_or_insert_with(Default::default);
+                metadata.insert(
+                    "rate_limited_reason".to_owned(),
+                    Annotated::new(Value::from(reason_code.as_str().to_owned())),
+                );
+            }
         }
 
         if let Some(minidump) = self.minidump.as_mut()
