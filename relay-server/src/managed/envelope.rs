@@ -201,6 +201,7 @@ impl ManagedEnvelope {
             remote_addr: self.meta().remote_addr(),
             category,
             quantity: quantity as u64,
+            outcome_aggregator: self.outcome_aggregator.clone(),
         });
     }
 

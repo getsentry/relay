@@ -53,6 +53,7 @@ impl MetricOutcomes {
                         remote_addr: None,
                         category,
                         quantity,
+                        outcome_aggregator: self.outcomes.clone(),
                     });
                 }
             }
@@ -96,6 +97,7 @@ impl MetricOutcomes {
                             remote_addr: None,
                             category: *category,
                             quantity: count as _,
+                            outcome_aggregator: self.outcomes.clone(),
                         });
                     }
                 }

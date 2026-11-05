@@ -45,6 +45,7 @@ pub fn to_metric(outcome: &TrackOutcome, config: &ConfigSnapshot) -> Bucket {
         remote_addr,
         category,
         quantity,
+        outcome_aggregator: _,
     } = outcome;
 
     let name = match outcome {
@@ -203,6 +204,7 @@ mod tests {
     use relay_filter::FilterStatKey;
     use relay_metrics::{MetricNamespace, MetricType};
     use relay_quotas::Scoping;
+    use relay_system::Addr;
 
     use crate::services::outcome::{DiscardReason, RuleCategories};
 
@@ -295,6 +297,7 @@ mod tests {
             remote_addr: Some([192, 168, 2, 1].into()),
             category: DataCategory::Error,
             quantity: 42,
+            outcome_aggregator: Addr::dummy(),
         };
 
         let bucket = to_metric(&outcome, &config());
@@ -325,6 +328,7 @@ mod tests {
             remote_addr: None,
             category: DataCategory::Error,
             quantity: 42,
+            outcome_aggregator: Addr::dummy(),
         };
 
         let bucket = to_metric(&outcome, &config());
@@ -366,6 +370,7 @@ mod tests {
                     remote_addr: None,
                     category: DataCategory::Error,
                     quantity: 42,
+                    outcome_aggregator: Addr::dummy(),
                 },
                 &config(),
             );

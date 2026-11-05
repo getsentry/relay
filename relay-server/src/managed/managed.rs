@@ -794,6 +794,7 @@ impl Meta {
             remote_addr: self.remote_addr,
             category,
             quantity: quantity as _,
+            outcome_aggregator: self.outcome_aggregator.clone(),
         });
     }
 }

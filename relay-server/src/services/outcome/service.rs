@@ -26,7 +26,7 @@ use crate::utils::SleepHandle;
 /// Tracks an [`Outcome`] of an Envelope item.
 ///
 /// See the module level documentation for more information.
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: DateTime<Utc>,
@@ -42,6 +42,11 @@ pub struct TrackOutcome {
     pub category: DataCategory,
     /// The number of events or total attachment size in bytes.
     pub quantity: u64,
+
+    /// A link back to the receiver of the message.
+    ///
+    /// This is required to put the outcome in an envelope.
+    pub outcome_aggregator: Addr<Self>,
 }
 
 impl Interface for TrackOutcome {}
@@ -92,7 +97,7 @@ impl OutcomeProducerService {
         self.aggregator.send(MergeBuckets {
             project_key: message.scoping.project_key,
             buckets: vec![outcome::metric::to_metric(&message, &config)],
-            outcome_aggregator: todo!(),
+            outcome_aggregator: message.outcome_aggregator,
         })
     }
 }

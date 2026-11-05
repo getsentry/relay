@@ -148,6 +148,7 @@ fn emit_outcome(
         remote_addr,
         category,
         quantity,
+        outcome_aggregator: outcome_aggregator.clone(),
     });
     Ok(())
 }
