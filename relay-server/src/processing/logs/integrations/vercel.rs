@@ -108,6 +108,9 @@ pub fn expand(
                         Error::Invalid(DiscardReason::InvalidJson)
                     })?;
 
+            de.end()
+                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+
             for log in logs {
                 count += 1;
                 let ourlog = relay_ourlogs::vercel_log_to_sentry_log(log);
