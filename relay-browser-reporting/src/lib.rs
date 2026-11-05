@@ -9,6 +9,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod integrity;
 pub mod nel;
 
 use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
@@ -22,8 +23,10 @@ use serde::{Deserialize, Deserializer, Serialize, de::IgnoredAny};
 #[serde(tag = "type", content = "body")]
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserReportBody {
-    /// The body of a Networ Error report.
+    /// The body of a Network Error report.
     NetworkError(nel::Body),
+    /// The body of an Integrity Violation report.
+    IntegrityViolation(integrity::Body),
     /// An unsupported report body.
     #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
     Unsupported,
@@ -37,6 +40,7 @@ impl BrowserReportBody {
     pub fn report_type(&self) -> &'static str {
         match self {
             BrowserReportBody::NetworkError(_) => "network-error",
+            BrowserReportBody::IntegrityViolation(_) => "integrity-violation",
             BrowserReportBody::Unsupported => "unsupported",
         }
     }
@@ -112,6 +116,39 @@ mod tests {
             "status_code": 0,
             "sampling_fraction": 1.0,
             "type": "tcp.refused"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_integrity() {
+        let json = r#"{
+            "age": 31042,
+            "body": {
+                "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "blockedURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "reportOnly": false,
+                "destination": "image"
+            },
+            "type": "integrity-violation",
+            "url": "http://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        }"#;
+
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 31042,
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "type": "integrity-violation",
+          "body": {
+            "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "blockedURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "destination": "image",
+            "reportOnly": false
           }
         }
         "#);

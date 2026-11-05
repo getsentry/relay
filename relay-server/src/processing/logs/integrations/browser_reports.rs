@@ -1,7 +1,5 @@
 use relay_cogs::AppFeature;
-use relay_event_normalization::integrity;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
-use relay_protocol::DeserializableAnnotated;
 use relay_quotas::DataCategory;
 
 use crate::envelope::WithHeader;
@@ -13,16 +11,16 @@ use crate::processing::logs::integrations::{
 use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::DiscardReason;
 
-/// A processor for Integrity Report log integrations.
+/// A processor for Browser Report log integrations.
 ///
 /// This processor only produces intermediates (items
 /// that are put back into the processing pipeline) by
 /// converting log integration items into actual logs. It
 /// never passes anything on to the store or another Relay.
 #[derive(Debug)]
-pub struct IntegrityLogsIntegrationProcessor;
+pub struct BrowserReportLogsIntegrationProcessor;
 
-impl processing::Processor for IntegrityLogsIntegrationProcessor {
+impl processing::Processor for BrowserReportLogsIntegrationProcessor {
     type Input = SerializedLogsIntegration;
     type Output = Nothing;
     type Error = Error;
@@ -37,7 +35,7 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
         let item = envelope.envelope_mut().take_item_by(|item| {
             matches!(
                 item.integration(),
-                Some(Integration::Logs(LogsIntegration::Integrity))
+                Some(Integration::Logs(LogsIntegration::BrowserReport))
             )
         })?;
 
@@ -55,9 +53,9 @@ impl processing::Processor for IntegrityLogsIntegrationProcessor {
     }
 }
 
-/// Expands an Integrity Report log integration into an envelope of logs that can be
+/// Expands a Browser report log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
-pub fn expand(
+fn expand(
     work: SerializedLogsIntegration,
     records: &mut RecordKeeper,
 ) -> Result<Intermediates, Error> {
@@ -73,16 +71,16 @@ pub fn expand(
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
-        .filter_map(|DeserializableAnnotated(integrity)| {
-            integrity::create_log(integrity, received_at)
-        })
+        .filter_map(|report| relay_ourlogs::browser_report_to_sentry_log(report, received_at))
         .map(|log| {
-            // INGEST-1333: This is only used to keep records in case serializing
+            // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
 
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
+            records.add([
+                (DataCategory::LogItem, 1),
+                (DataCategory::LogByte, byte_size as usize),
+            ]);
 
             WithHeader::just(log.into())
         })
@@ -90,9 +88,7 @@ pub fn expand(
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
-    for (category, quantity) in item.quantities() {
-        records.modify_by(category, -(quantity as isize));
-    }
+    records.remove(&item);
 
     let settings = IngestSettings {
         infer_user_agent: Some(InferUserAgent::Auto),

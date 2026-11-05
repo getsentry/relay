@@ -75,12 +75,14 @@ pub fn expand(
         .into_iter()
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
         .map(|log| {
-            // INGEST-1333: This is only used to keep records in case serializing
+            // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
 
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
+            records.add([
+                (DataCategory::LogItem, 1),
+                (DataCategory::LogByte, byte_size as usize),
+            ]);
 
             WithHeader::just(log.into())
         })
@@ -88,9 +90,7 @@ pub fn expand(
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
-    for (category, quantity) in item.quantities() {
-        records.modify_by(category, -(quantity as isize));
-    }
+    records.remove(&item);
 
     let settings = IngestSettings {
         infer_user_agent: Some(InferUserAgent::Auto),

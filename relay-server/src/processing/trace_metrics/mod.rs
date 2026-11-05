@@ -201,6 +201,8 @@ impl Forward for TraceMetricOutput {
             scoping: metrics.scoping(),
             received_at: metrics.received_at(),
             retention: ctx.retention(|r| r.trace_metric.as_ref()),
+            // Metrics submitted directly are never sampled by Relay.
+            derived_sample_rates: None,
         };
 
         for metric in metrics.split(|metrics| metrics.metrics) {
