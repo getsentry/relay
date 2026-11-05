@@ -28,6 +28,7 @@
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
 - Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
+- Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 
 **Bug Fixes**:
 

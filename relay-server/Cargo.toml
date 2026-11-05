@@ -98,6 +98,7 @@ relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
 relay-threading = { workspace = true }
+relay-otel = { workspace = true }
 reqwest = { workspace = true, features = [
   "gzip",
   "hickory-dns",
@@ -122,7 +123,9 @@ sqlx = { workspace = true, features = [
   "runtime-tokio",
 ], default-features = false }
 symbolic-common = { workspace = true, optional = true, default-features = false }
-symbolic-unreal = { workspace = true, default-features = false, features = ["serde"] }
+symbolic-unreal = { workspace = true, default-features = false, features = [
+  "serde",
+] }
 sync_wrapper = { workspace = true }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
