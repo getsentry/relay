@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>std::collections::HashMap;
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>chrono::Utc;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_conventions::attributes::SENTRY__CLIENT_SAMPLE_RATE;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_conventions::attributes::{SENTRY__CLIENT_SAMPLE_RATE, SENTRY__SERVER_SAMPLE_RATE};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_schema::protocol::Attributes;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 <a href=#8 id=8 data-nosnippet>8</a>
@@ -205,39 +205,48 @@
 <a href=#205 id=205 data-nosnippet>205</a>
 <a href=#206 id=206 data-nosnippet>206</a><span class="doccomment">/// Extracts the client sample rate from trace attributes.
 <a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">pub fn </span>extract_client_sample_rate(attributes: <span class="kw-2">&amp;</span>Attributes) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
-<a href=#208 id=208 data-nosnippet>208</a>    attributes
-<a href=#209 id=209 data-nosnippet>209</a>        .get_value(SENTRY__CLIENT_SAMPLE_RATE)
-<a href=#210 id=210 data-nosnippet>210</a>        .and_then(|value| value.as_f64())
-<a href=#211 id=211 data-nosnippet>211</a>        .filter(|v| <span class="kw-2">*</span>v &gt; <span class="number">0.0</span>)
-<a href=#212 id=212 data-nosnippet>212</a>        .filter(|v| <span class="kw-2">*</span>v &lt;= <span class="number">1.0</span>)
-<a href=#213 id=213 data-nosnippet>213</a>}
-<a href=#214 id=214 data-nosnippet>214</a>
-<a href=#215 id=215 data-nosnippet>215</a><span class="doccomment">/// Massages a UUID into the format that EAP expects.
-<a href=#216 id=216 data-nosnippet>216</a></span><span class="kw">pub fn </span>uuid_to_item_id(id: Uuid) -&gt; Vec&lt;u8&gt; {
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="comment">// See https://github.com/getsentry/snuba/blob/a319040728d638841612cef117ec414d3e54d70f/rust_snuba/src/processors/eap_items.rs#L257
-<a href=#218 id=218 data-nosnippet>218</a>    </span>id.as_u128().to_le_bytes().to_vec()
-<a href=#219 id=219 data-nosnippet>219</a>}
-<a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a><span class="doccomment">/// Reverse operation of [`uuid_to_item_id`].
-<a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">pub fn </span>item_id_to_uuid(item_id: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Uuid, TryFromSliceError&gt; {
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">let </span>item_id: [u8; <span class="number">16</span>] = item_id.try_into()<span class="question-mark">?</span>;
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span>item_id = u128::from_le_bytes(item_id);
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="prelude-val">Ok</span>(Uuid::from_u128(item_id))
-<a href=#226 id=226 data-nosnippet>226</a>}
-<a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a><span class="doccomment">/// Converts [`Quantities`] and [`Scoping`] into Trace Item [`Outcomes`].
-<a href=#229 id=229 data-nosnippet>229</a></span><span class="kw">pub fn </span>quantities_to_trace_item_outcomes(q: Quantities, scoping: Scoping) -&gt; Outcomes {
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span>category_count = q
-<a href=#231 id=231 data-nosnippet>231</a>        .into_iter()
-<a href=#232 id=232 data-nosnippet>232</a>        .map(|(category, quantity)| CategoryCount {
-<a href=#233 id=233 data-nosnippet>233</a>            data_category: category <span class="kw">as </span>u32,
-<a href=#234 id=234 data-nosnippet>234</a>            quantity: quantity <span class="kw">as </span>u64,
-<a href=#235 id=235 data-nosnippet>235</a>        })
-<a href=#236 id=236 data-nosnippet>236</a>        .collect();
-<a href=#237 id=237 data-nosnippet>237</a>
-<a href=#238 id=238 data-nosnippet>238</a>    Outcomes {
-<a href=#239 id=239 data-nosnippet>239</a>        category_count,
-<a href=#240 id=240 data-nosnippet>240</a>        key_id: scoping.key_id.unwrap_or(<span class="number">0</span>),
-<a href=#241 id=241 data-nosnippet>241</a>    }
-<a href=#242 id=242 data-nosnippet>242</a>}
+<a href=#208 id=208 data-nosnippet>208</a>    extract_sample_rate(attributes, SENTRY__CLIENT_SAMPLE_RATE)
+<a href=#209 id=209 data-nosnippet>209</a>}
+<a href=#210 id=210 data-nosnippet>210</a>
+<a href=#211 id=211 data-nosnippet>211</a><span class="doccomment">/// Extracts the server sample rate from trace attributes.
+<a href=#212 id=212 data-nosnippet>212</a></span><span class="kw">pub fn </span>extract_server_sample_rate(attributes: <span class="kw-2">&amp;</span>Attributes) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+<a href=#213 id=213 data-nosnippet>213</a>    extract_sample_rate(attributes, SENTRY__SERVER_SAMPLE_RATE)
+<a href=#214 id=214 data-nosnippet>214</a>}
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a><span class="kw">fn </span>extract_sample_rate(attributes: <span class="kw-2">&amp;</span>Attributes, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+<a href=#217 id=217 data-nosnippet>217</a>    attributes
+<a href=#218 id=218 data-nosnippet>218</a>        .get_value(key)
+<a href=#219 id=219 data-nosnippet>219</a>        .and_then(|value| value.as_f64())
+<a href=#220 id=220 data-nosnippet>220</a>        .filter(|v| <span class="kw-2">*</span>v &gt; <span class="number">0.0</span>)
+<a href=#221 id=221 data-nosnippet>221</a>        .filter(|v| <span class="kw-2">*</span>v &lt;= <span class="number">1.0</span>)
+<a href=#222 id=222 data-nosnippet>222</a>}
+<a href=#223 id=223 data-nosnippet>223</a>
+<a href=#224 id=224 data-nosnippet>224</a><span class="doccomment">/// Massages a UUID into the format that EAP expects.
+<a href=#225 id=225 data-nosnippet>225</a></span><span class="kw">pub fn </span>uuid_to_item_id(id: Uuid) -&gt; Vec&lt;u8&gt; {
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="comment">// See https://github.com/getsentry/snuba/blob/a319040728d638841612cef117ec414d3e54d70f/rust_snuba/src/processors/eap_items.rs#L257
+<a href=#227 id=227 data-nosnippet>227</a>    </span>id.as_u128().to_le_bytes().to_vec()
+<a href=#228 id=228 data-nosnippet>228</a>}
+<a href=#229 id=229 data-nosnippet>229</a>
+<a href=#230 id=230 data-nosnippet>230</a><span class="doccomment">/// Reverse operation of [`uuid_to_item_id`].
+<a href=#231 id=231 data-nosnippet>231</a></span><span class="kw">pub fn </span>item_id_to_uuid(item_id: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Uuid, TryFromSliceError&gt; {
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">let </span>item_id: [u8; <span class="number">16</span>] = item_id.try_into()<span class="question-mark">?</span>;
+<a href=#233 id=233 data-nosnippet>233</a>    <span class="kw">let </span>item_id = u128::from_le_bytes(item_id);
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="prelude-val">Ok</span>(Uuid::from_u128(item_id))
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// Converts [`Quantities`] and [`Scoping`] into Trace Item [`Outcomes`].
+<a href=#238 id=238 data-nosnippet>238</a></span><span class="kw">pub fn </span>quantities_to_trace_item_outcomes(q: Quantities, scoping: Scoping) -&gt; Outcomes {
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">let </span>category_count = q
+<a href=#240 id=240 data-nosnippet>240</a>        .into_iter()
+<a href=#241 id=241 data-nosnippet>241</a>        .map(|(category, quantity)| CategoryCount {
+<a href=#242 id=242 data-nosnippet>242</a>            data_category: category <span class="kw">as </span>u32,
+<a href=#243 id=243 data-nosnippet>243</a>            quantity: quantity <span class="kw">as </span>u64,
+<a href=#244 id=244 data-nosnippet>244</a>        })
+<a href=#245 id=245 data-nosnippet>245</a>        .collect();
+<a href=#246 id=246 data-nosnippet>246</a>
+<a href=#247 id=247 data-nosnippet>247</a>    Outcomes {
+<a href=#248 id=248 data-nosnippet>248</a>        category_count,
+<a href=#249 id=249 data-nosnippet>249</a>        key_id: scoping.key_id.unwrap_or(<span class="number">0</span>),
+<a href=#250 id=250 data-nosnippet>250</a>    }
+<a href=#251 id=251 data-nosnippet>251</a>}
 </code></pre></div></section></main></body></html>
