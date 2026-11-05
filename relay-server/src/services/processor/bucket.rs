@@ -67,7 +67,6 @@ pub struct Addrs {
 }
 
 /// Creates a multi-threaded bucket processor.
-#[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
     pool: ServicePool,
     config: Arc<Config>,

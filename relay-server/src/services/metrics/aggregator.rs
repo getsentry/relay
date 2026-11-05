@@ -247,6 +247,7 @@ impl AggregatorService {
             buckets,
             outcome_aggregator,
         } = msg;
+        // Cache the outcome address on the state:
         self.outcome_aggregator.replace(outcome_aggregator);
 
         for mut bucket in buckets.into_iter() {
