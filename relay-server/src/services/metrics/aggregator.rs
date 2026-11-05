@@ -320,9 +320,10 @@ impl AggregatorService {
         }
         relay_log::debug!("Force flushed {partitions} partitions");
 
-        // The new aggregator is empty, clear the outcome handle.
-        debug_assert!(self.aggregator.is_empty());
-        self.outcome_aggregator.take();
+        if self.aggregator.is_empty() {
+            // `flush_partition` may already have merged back buckets.
+            self.outcome_aggregator.take();
+        }
 
         // Reset the next flush time, to the time of the new aggregator.
         self.next_flush
