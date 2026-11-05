@@ -150,10 +150,19 @@ impl AggregatorService {
 
         self.flush_partition(partition);
 
+        if self.aggregator.is_empty() {
+            // Release temporary ownership of outcome aggregator to prevent cycles during shutdown.
+            self.outcome_aggregator.take();
+        }
+
         self.aggregator.next_flush_at(SystemTime::now())
     }
 
     fn flush_partition(&mut self, partition: Partition) {
+        let Some(outcome_aggregator) = self.outcome_aggregator.as_ref() else {
+            debug_assert!(self.aggregator.is_empty());
+            return;
+        };
         let mut buckets_by_project = hashbrown::HashMap::new();
 
         let partition_key = partition.partition_key;
@@ -228,16 +237,8 @@ impl AggregatorService {
             self.receiver.send(FlushBuckets {
                 partition_key,
                 buckets: buckets_by_project,
-                outcome_aggregator: self
-                    .outcome_aggregator
-                    .clone()
-                    .expect("outcome aggregator should exist when there is data"),
+                outcome_aggregator: outcome_aggregator.clone(),
             });
-        }
-
-        if self.aggregator.is_empty() {
-            // Release temporary ownership of outcome aggregator to prevent cycles during shutdown.
-            self.outcome_aggregator.take();
         }
     }
 
