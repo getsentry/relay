@@ -89,6 +89,8 @@ pub fn expand(
             WithHeader::just(log.into())
         })
         .collect();
+    de.end()
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
