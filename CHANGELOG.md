@@ -39,6 +39,7 @@
 - Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 - Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
+- Bound all span expansions/deserializations. ([#6651](https://github.com/getsentry/relay/pull/6651))
 
 **Bug Fixes**:
 
