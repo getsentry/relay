@@ -31,7 +31,7 @@ def heroku_messages():
     # https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format
     return [
         f"<190>1 {now} host app web.1 - Completed 200 OK in 12ms",
-        f'<158>1 {now} host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
+        f'<158>1 {now} host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com:443 request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="198.51.100.8, 203.0.113.7" dyno=web.1 connect=1.25ms service=30001.5ms status=503 bytes=0 protocol=http1.1 tls=true tls_version=tls1.3',
         f"<45>1 {now} host heroku web.1 - Error R14 (Memory quota exceeded)",
     ]
 
@@ -45,6 +45,7 @@ def expected_item(body, attributes):
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "timestamp": matches_any(),
         "attributes": {
+            "cloud.provider": {"stringValue": "heroku"},
             "sentry.origin": {"stringValue": "auto.log_drain.heroku"},
             "sentry.body": {"stringValue": body},
             "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
@@ -82,40 +83,40 @@ def expected_items():
             "Completed 200 OK in 12ms",
             {
                 "sentry.severity_text": {"stringValue": "info"},
-                "heroku.source": {"stringValue": "app"},
-                "heroku.dyno": {"stringValue": "web.1"},
+                "heroku.dyno.name": {"stringValue": "web.1"},
             },
         ),
         expected_item(
-            'at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="203.0.113.7" dyno=web.1 connect=1ms service=30001ms status=503 bytes=0 protocol=http1.1',
+            'at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com:443 request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="198.51.100.8, 203.0.113.7" dyno=web.1 connect=1.25ms service=30001.5ms status=503 bytes=0 protocol=http1.1 tls=true tls_version=tls1.3',
             {
                 "sentry.severity_text": {"stringValue": "error"},
-                "heroku.source": {"stringValue": "heroku"},
-                "heroku.dyno": {"stringValue": "router"},
+                "heroku.dyno.name": {"stringValue": "web.1"},
                 "heroku.error.code": {"stringValue": "H12"},
                 "heroku.error.description": {"stringValue": "Request timeout"},
                 "http.request.method": {"stringValue": "GET"},
                 "url.path": {"stringValue": "/forecast"},
                 "url.query": {"stringValue": "x=1"},
                 "server.address": {"stringValue": "example.herokuapp.com"},
+                "server.port": {"intValue": "443"},
                 "heroku.router.request_id": {
                     "stringValue": "8601b555-6a83-4c12-8269-97c8e32cdb22"
                 },
                 "client.address": {"stringValue": "203.0.113.7"},
-                "heroku.router.dyno": {"stringValue": "web.1"},
-                "heroku.router.connect": {"intValue": "1"},
-                "heroku.router.service": {"intValue": "30001"},
+                "heroku.router.connect": {"doubleValue": 1.25},
+                "heroku.router.service": {"doubleValue": 30001.5},
                 "http.response.status_code": {"intValue": "503"},
-                "http.response.size": {"intValue": "0"},
+                "network.protocol.name": {"stringValue": "http"},
                 "network.protocol.version": {"stringValue": "1.1"},
+                "url.scheme": {"stringValue": "https"},
+                "tls.protocol.name": {"stringValue": "tls"},
+                "tls.protocol.version": {"stringValue": "1.3"},
             },
         ),
         expected_item(
             "Error R14 (Memory quota exceeded)",
             {
                 "sentry.severity_text": {"stringValue": "error"},
-                "heroku.source": {"stringValue": "heroku"},
-                "heroku.dyno": {"stringValue": "web.1"},
+                "heroku.dyno.name": {"stringValue": "web.1"},
                 "heroku.error.code": {"stringValue": "R14"},
                 "heroku.error.description": {"stringValue": "Memory quota exceeded"},
             },
