@@ -13,6 +13,8 @@ mod otel;
 pub fn expand(
     records: &mut RecordKeeper<'_>,
     items: &[Item],
+    max_ops: usize,
+    max_spans: usize,
 ) -> (Settings, ContainerItems<SpanV2>) {
     let mut result = Vec::new();
 
@@ -34,7 +36,9 @@ pub fn expand(
         let payload = item.payload();
 
         let result = match integration {
-            SpansIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+            SpansIntegration::OtelV1 { format } => {
+                otel::expand(format, &payload, produce, max_ops, max_spans)
+            }
         };
 
         match result {
