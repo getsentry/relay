@@ -454,9 +454,14 @@ impl InnerProcessor {
 
                 while let Some(bucket) = remaining.take() {
                     if let Some(next) = partition.insert(bucket, *scoping) {
+                        // If even an empty partition cannot hold any part of the bucket, drop it.
+                        // Sending the empty partition would make no progress and retry forever.
+                        if partition.is_empty() {
+                            break;
+                        }
+
                         // A part of the bucket could not be inserted. Take the partition and submit
-                        // it immediately. Repeat until the final part was inserted. This should
-                        // always result in a request, otherwise we would enter an endless loop.
+                        // it immediately. Repeat until the final part was inserted.
                         self.send_global_partition(
                             project_info.upstream.clone(),
                             partition_key,
@@ -611,10 +616,9 @@ impl<'a> Partition<'a> {
     /// entirely into the partition given its maximum size, the remaining part of the bucket is
     /// returned from this function call.
     ///
-    /// If this function returns `Some(_)`, the partition is full and should be submitted to the
-    /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
-    /// partition. Afterwards, the caller is responsible to call this function again with the
-    /// remaining bucket until it is fully inserted.
+    /// If this function returns `Some(_)`, submit the partition upstream and retry the remaining
+    /// bucket after calling [`Self::take`]. If the partition is empty, no part of the bucket fits
+    /// within the maximum size, and the caller must drop it instead of retrying.
     pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
