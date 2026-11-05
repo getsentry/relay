@@ -1,10 +1,11 @@
 //! Utilities to deal with date-time types. (DateTime, Instant, SystemTime, etc)
 
 use std::fmt;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::Duration;
 
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use web_time::{Instant, SystemTime};
 
 /// Converts an `Instant` into a `SystemTime`.
 pub fn instant_to_system_time(instant: Instant) -> SystemTime {

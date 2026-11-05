@@ -16,7 +16,7 @@ workspace = true
 [dependencies]
 relay-serialization = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
-    "gen-tonic",
+    "gen-tonic-messages",
     "with-serde",
     "trace",
     "file-descriptors",

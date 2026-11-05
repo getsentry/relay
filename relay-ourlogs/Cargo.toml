@@ -16,7 +16,7 @@ workspace = true
 chrono = { workspace = true }
 hex = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
-    "gen-tonic",
+    "gen-tonic-messages",
     "with-serde",
     "logs",
 ] }

@@ -23,12 +23,10 @@ relay-common = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-statsd = { workspace = true }
-relay-system = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 criterion = { workspace = true }

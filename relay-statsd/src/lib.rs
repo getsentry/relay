@@ -68,6 +68,11 @@ pub mod _metrics {
     pub use ::metrics::*;
 }
 
+#[doc(hidden)]
+pub mod _web_time {
+    pub use ::web_time::*;
+}
+
 /// Client configuration used for initialization of the metrics sub-system.
 #[derive(Debug)]
 pub struct MetricsConfig {
@@ -410,7 +415,7 @@ macro_rules! metric {
     // timed block
     (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         struct TimerOnDrop {
-            start: std::time::Instant,
+            start: $crate::_web_time::Instant,
             key: $crate::_metrics::Key,
         }
         impl Drop for TimerOnDrop {
@@ -423,7 +428,7 @@ macro_rules! metric {
         }
 
         let _timer = TimerOnDrop {
-            start: std::time::Instant::now(),
+            start: $crate::_web_time::Instant::now(),
             key: $crate::key_var!($crate::TimerMetric::name(&$id) $(, stringify!($($k).*) => $v)*),
         };
         {$block}

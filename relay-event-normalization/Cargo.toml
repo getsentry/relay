@@ -43,6 +43,7 @@ sqlparser = { workspace = true, features = ["visitor"] }
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
+web-time = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

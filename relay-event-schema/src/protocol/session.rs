@@ -1,10 +1,10 @@
 use std::fmt::{self, Display};
-use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use web_time::SystemTime;
 
 use crate::protocol::IpAddr;
 use crate::protocol::utils::null_to_default;

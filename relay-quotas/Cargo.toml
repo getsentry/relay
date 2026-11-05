@@ -31,6 +31,7 @@ serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync"] }
+web-time = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
