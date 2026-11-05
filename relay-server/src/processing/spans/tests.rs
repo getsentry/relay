@@ -100,7 +100,7 @@ async fn test_attachment_accounting_from_wire() {
                 validate::invalid(&serialized).unwrap();
 
                 // Keep Managed's original strict accounting through expansion and enforcement.
-                let expanded = process::expand(serialized, usize::MAX).unwrap();
+                let expanded = process::expand(serialized, usize::MAX, usize::MAX).unwrap();
                 let output = expanded
                     .enforce(AttachmentLimit { category, bytes }, Context::for_test())
                     .await

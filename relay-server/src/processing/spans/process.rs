@@ -24,6 +24,7 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(
     spans: Managed<SerializedSpans>,
     max_ops: usize,
+    max_spans: usize,
 ) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
@@ -48,7 +49,9 @@ pub fn expand(
         let (settings, spans) = match items {
             SpanItems::Container(item) => expand_span_container(&item, max_ops)?,
             SpanItems::Legacy(items) => expand_legacy_spans(items, records),
-            SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
+            SpanItems::Integration(item) => {
+                spans::integrations::expand(records, &[item], max_ops, max_spans)
+            }
             SpanItems::None => (Default::default(), Vec::new()),
         };
 
