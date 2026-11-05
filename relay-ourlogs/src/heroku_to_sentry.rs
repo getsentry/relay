@@ -21,24 +21,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
-/// Attribute names for Heroku logs.
-///
-/// TODO: Replace with the generated constants from `relay_conventions` once the attributes are
-/// available in the pinned `sentry-conventions` version.
-mod attributes {
-    pub const HEROKU__DYNO__NAME: &str = "heroku.dyno.name";
-    pub const HEROKU__ERROR__CODE: &str = "heroku.error.code";
-    pub const HEROKU__ERROR__DESCRIPTION: &str = "heroku.error.description";
-    pub const HEROKU__LOGPLEX__DRAIN_TOKEN: &str = "heroku.logplex.drain_token";
-    pub const HEROKU__ROUTER__REQUEST_ID: &str = "heroku.router.request_id";
-    pub const HEROKU__ROUTER__CONNECT: &str = "heroku.router.connect";
-    pub const HEROKU__ROUTER__SERVICE: &str = "heroku.router.service";
-    pub const TLS__PROTOCOL__NAME: &str = "tls.protocol.name";
-    pub const TLS__PROTOCOL__VERSION: &str = "tls.protocol.version";
-}
-
-use self::attributes::*;
-
 /// The number of messages encoded in the body of the request.
 ///
 /// For the example body above, this value is 1. Use this field to ensure that you’ve parsed the body correctly.
