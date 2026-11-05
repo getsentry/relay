@@ -13,19 +13,11 @@ traces or when the handler receives a request from a different project.</p>
 16-byte array.</p>
 </div><span id="structfield.span_id" class="structfield section-header"><a href="#structfield.span_id" class="anchor field">§</a><code>span_id: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u8.html">u8</a>&gt;</code></span><div class="docblock"><p>A unique identifier for the linked span. The ID is an 8-byte array.</p>
 </div><span id="structfield.trace_state" class="structfield section-header"><a href="#structfield.trace_state" class="anchor field">§</a><code>trace_state: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><div class="docblock"><p>The trace_state associated with the link.</p>
-</div><span id="structfield.attributes" class="structfield section-header"><a href="#structfield.attributes" class="anchor field">§</a><code>attributes: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;KeyValue&gt;</code></span><div class="docblock"><p>attributes is a collection of attribute key/value pairs on the link.
+</div><span id="structfield.attributes" class="structfield section-header"><a href="#structfield.attributes" class="anchor field">§</a><code>attributes: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;KeyValue&gt;</code></span><div class="docblock"><p>A collection of attribute key/value pairs on the link.
 Attribute keys MUST be unique (it is not allowed to have more than one
-attribute with the same key).</p>
-<p>The attribute values SHOULD NOT contain empty values.
-The attribute values SHOULD NOT contain bytes values.
-The attribute values SHOULD NOT contain array values different than array of string values, bool values, int values,
-double values.
-The attribute values SHOULD NOT contain kvlist values.
-The behavior of software that receives attributes containing such values can be unpredictable.
-These restrictions can change in a minor release.
-The restrictions take origin from the OpenTelemetry specification:
-<a href="https://github.com/open-telemetry/opentelemetry-specification/blob/v1.47.0/specification/common/README.md#attribute.">https://github.com/open-telemetry/opentelemetry-specification/blob/v1.47.0/specification/common/README.md#attribute.</a></p>
-</div><span id="structfield.dropped_attributes_count" class="structfield section-header"><a href="#structfield.dropped_attributes_count" class="anchor field">§</a><code>dropped_attributes_count: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a></code></span><div class="docblock"><p>dropped_attributes_count is the number of dropped attributes. If the value is 0,
+attribute with the same key).
+The behavior of software that receives duplicated keys can be unpredictable.</p>
+</div><span id="structfield.dropped_attributes_count" class="structfield section-header"><a href="#structfield.dropped_attributes_count" class="anchor field">§</a><code>dropped_attributes_count: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a></code></span><div class="docblock"><p>The number of dropped attributes. If the value is 0,
 then no attributes were dropped.</p>
 </div><span id="structfield.flags" class="structfield section-header"><a href="#structfield.flags" class="anchor field">§</a><code>flags: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a></code></span><div class="docblock"><p>Flags, a bit field.</p>
 <p>Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
