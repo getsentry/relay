@@ -61,7 +61,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
         ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let intermediates = work.try_map(|work, records| {
-            expand(work, records, ctx.config.max_expanded_log_operations())
+            expand(
+                work,
+                records,
+                ctx.config.max_expanded_log_operations(),
+                ctx.config.max_expanded_log_count(),
+            )
         })?;
         Ok(Output::intermediates(intermediates))
     }
@@ -73,6 +78,7 @@ pub fn expand(
     work: SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
     max_ops: usize,
+    max_logs: usize,
 ) -> Result<Intermediates, Error> {
     let SerializedOtelLogsIntegration(SerializedLogsIntegration { meta, item }, format) = work;
 
@@ -83,12 +89,18 @@ pub fn expand(
     let payload = item.payload();
     let mut logs = Vec::new();
     let parsed = parse_logs_data(format, &payload, max_ops)?;
+    let mut log_count = 0;
 
     for resource_logs in parsed.resource_logs {
         let resource = resource_logs.resource.as_ref();
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
+                if log_count >= max_logs {
+                    return Err(Error::Invalid(DiscardReason::RequestTooLarge));
+                }
+                log_count += 1;
+
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.

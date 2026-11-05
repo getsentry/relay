@@ -60,9 +60,11 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
     async fn process(
         &self,
         work: Managed<Self::Input>,
-        _ctx: processing::Context<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let intermediates = work.try_map(expand)?;
+        let intermediates = work.try_map(|work, records| {
+            expand(work, records, ctx.config.max_expanded_log_operations())
+        })?;
         Ok(Output::intermediates(intermediates))
     }
 }
@@ -72,6 +74,7 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
 pub fn expand(
     work: SerializedVercelLogsIntegration,
     records: &mut RecordKeeper,
+    max_ops: usize,
 ) -> Result<Intermediates, Error> {
     let SerializedVercelLogsIntegration(SerializedLogsIntegration { meta, item }, format) = work;
 
@@ -98,13 +101,17 @@ pub fn expand(
     let payload = item.payload();
     match format {
         VercelLogDrainFormat::Json => {
-            let logs = serde_json::from_slice::<Vec<VercelLog>>(&payload).map_err(|e| {
-                relay_log::debug!(
-                    error = &e as &dyn std::error::Error,
-                    "Failed to parse logs data as JSON"
-                );
-                Error::Invalid(DiscardReason::InvalidJson)
-            })?;
+            let mut de = serde_json::Deserializer::from_slice(&payload);
+
+            let logs =
+                relay_serialization::serde::deserialize::<Vec<VercelLog>, _>(&mut de, max_ops)
+                    .map_err(|e| {
+                        relay_log::debug!(
+                            error = &e as &dyn std::error::Error,
+                            "Failed to parse logs data as JSON"
+                        );
+                        Error::Invalid(DiscardReason::InvalidJson)
+                    })?;
 
             for log in logs {
                 count += 1;

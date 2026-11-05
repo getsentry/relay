@@ -48,9 +48,11 @@ impl processing::Processor for NelLogsIntegrationProcessor {
     async fn process(
         &self,
         work: Managed<Self::Input>,
-        _ctx: processing::Context<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let intermediates = work.try_map(expand)?;
+        let intermediates = work.try_map(|work, records| {
+            expand(work, records, ctx.config.max_expanded_log_operations())
+        })?;
         Ok(Output::intermediates(intermediates))
     }
 }
@@ -60,6 +62,7 @@ impl processing::Processor for NelLogsIntegrationProcessor {
 pub fn expand(
     work: SerializedLogsIntegration,
     records: &mut RecordKeeper,
+    max_ops: usize,
 ) -> Result<Intermediates, Error> {
     let SerializedLogsIntegration { meta, item } = work;
 
@@ -70,7 +73,9 @@ pub fn expand(
     let payload = item.payload();
     let received_at = meta.received_at();
 
-    let logs = serde_json::from_slice::<Vec<_>>(&payload)
+    let mut de = serde_json::Deserializer::from_slice(&payload);
+
+    let logs = relay_serialization::serde::deserialize::<Vec<_>, _>(&mut de, max_ops)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
