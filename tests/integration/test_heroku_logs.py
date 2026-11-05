@@ -1,9 +1,11 @@
+import json
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import pytest
 from requests.exceptions import HTTPError
 
-from .asserts import matches_any, time_within_delta
+from .asserts import matches, matches_any, only_items, time_within_delta
 from .consts import Outcome
 
 from sentry_relay.consts import DataCategory
@@ -43,16 +45,20 @@ def expected_item(body, attributes):
         "traceId": matches_any(),
         "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
-        "timestamp": matches_any(),
+        "timestamp": time_within_delta(),
         "attributes": {
             "cloud.provider": {"stringValue": "heroku"},
             "sentry.origin": {"stringValue": "auto.log_drain.heroku"},
             "sentry.body": {"stringValue": body},
-            "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(expect_resolution="ns")
+            },
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(expect_resolution="ns")
             },
-            "sentry.payload_size_bytes": {"intValue": matches_any()},
+            "sentry.payload_size_bytes": {
+                "intValue": matches(lambda value: int(value) > 0)
+            },
             "sentry._meta.fields.trace_id": {
                 "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
             },
@@ -64,12 +70,15 @@ def expected_item(body, attributes):
         "clientSampleRate": 1.0,
         "serverSampleRate": 1.0,
         "retentionDays": 90,
-        "received": matches_any(),
+        "received": time_within_delta(),
         "downsampledRetentionDays": 90,
         "outcomes": {
             "categoryCount": [
                 {"dataCategory": DataCategory.LOG_ITEM, "quantity": "1"},
-                {"dataCategory": DataCategory.LOG_BYTE, "quantity": matches_any()},
+                {
+                    "dataCategory": DataCategory.LOG_BYTE,
+                    "quantity": matches(lambda value: int(value) > 0),
+                },
             ],
             "keyId": "123",
         },
@@ -158,30 +167,39 @@ def test_heroku_logs(mini_sentry, relay, relay_with_processing, items_consumer):
     assert sorted(items, key=by_body) == sorted(expected_items(), key=by_body)
 
 
-def test_heroku_logs_requires_feature(
-    mini_sentry, relay, relay_with_processing, items_consumer
-):
+def test_heroku_logs_requires_feature(mini_sentry, relay):
     """Without the feature flag, no logs are ingested."""
-    items_consumer = items_consumer()
     project_id = heroku_project(mini_sentry, features=False)
+    payload = logplex_payload(*heroku_messages())
 
-    relay = relay(relay_with_processing())
+    relay = relay(mini_sentry)
     relay.send_heroku_logs(
         project_id,
-        data=logplex_payload(*heroku_messages()),
+        data=payload,
         headers=LOGPLEX_HEADERS,
     )
 
-    items_consumer.assert_empty()
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.INVALID,
+            "reason": "feature_disabled",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.INVALID,
+            "reason": "feature_disabled",
+            "quantity": len(payload),
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()
 
 
-def test_heroku_logs_unsupported_content_type(
-    mini_sentry, relay, relay_with_processing, items_consumer
-):
-    items_consumer = items_consumer()
+def test_heroku_logs_unsupported_content_type(mini_sentry, relay):
     project_id = heroku_project(mini_sentry)
 
-    relay = relay(relay_with_processing())
+    relay = relay(mini_sentry)
     with pytest.raises(HTTPError) as exc:
         relay.send_heroku_logs(
             project_id,
@@ -190,15 +208,12 @@ def test_heroku_logs_unsupported_content_type(
         )
 
     assert exc.value.response.status_code == 415
-    items_consumer.assert_empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("key", ["unknown", "other_project"])
-def test_heroku_logs_wrong_dsn_key(
-    mini_sentry, relay, relay_with_processing, items_consumer, key
-):
+def test_heroku_logs_wrong_dsn_key(mini_sentry, relay, key):
     """Logs sent with a key that does not belong to the project are dropped."""
-    items_consumer = items_consumer()
     project_id = heroku_project(mini_sentry)
     other_project = mini_sentry.add_full_project_config(43)
     dsn_key = {
@@ -206,7 +221,7 @@ def test_heroku_logs_wrong_dsn_key(
         "other_project": other_project["publicKeys"][0]["publicKey"],
     }[key]
 
-    relay = relay(relay_with_processing())
+    relay = relay(mini_sentry)
     try:
         relay.send_heroku_logs(
             project_id,
@@ -224,10 +239,20 @@ def test_heroku_logs_wrong_dsn_key(
         headers=LOGPLEX_HEADERS,
     )
 
-    items = items_consumer.get_items(n=3)
-    assert all(item["projectId"] == "42" for item in items)
-    assert all(item["outcomes"]["keyId"] == "123" for item in items)
-    items_consumer.assert_empty()
+    envelope = mini_sentry.get_captured_envelope()
+    dsn = urlsplit(envelope.headers["dsn"])
+    assert dsn.path == f"/{project_id}"
+    assert dsn.username == relay.get_dsn_public_key(project_id)
+    assert envelope == only_items("log")
+    bodies = [
+        log["body"]
+        for item in envelope.items
+        for log in json.loads(item.payload.bytes)["items"]
+    ]
+    assert sorted(bodies) == sorted(
+        item["attributes"]["sentry.body"]["stringValue"] for item in expected_items()
+    )
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -239,33 +264,30 @@ def test_heroku_logs_wrong_dsn_key(
         pytest.param(b"5 hello", id="not_syslog"),
     ],
 )
-def test_heroku_logs_invalid_payload(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    items_consumer,
-    payload,
-):
+def test_heroku_logs_invalid_payload(mini_sentry, relay, payload):
     """Malformed payloads produce no logs and an invalid outcome."""
-    items_consumer = items_consumer()
-    outcomes_consumer = outcomes_consumer()
     project_id = heroku_project(mini_sentry)
 
-    config = {"http": {"global_metrics": True}}
-    relay = relay(relay_with_processing(options=config), options=config)
+    relay = relay(mini_sentry)
     try:
         relay.send_heroku_logs(project_id, data=payload, headers=LOGPLEX_HEADERS)
     except HTTPError as e:
         # Empty bodies may be rejected by the endpoint directly.
         assert payload == b"", e
 
-    items_consumer.assert_empty()
     if payload:
-        outcomes = outcomes_consumer.get_outcomes(n=2)
-        assert {o["outcome"] for o in outcomes} == {Outcome.INVALID}
-        assert {o["reason"] for o in outcomes} == {"invalid_log"}
-        assert {o["category"] for o in outcomes} == {
-            DataCategory.LOG_ITEM,
-            DataCategory.LOG_BYTE,
-        }
+        assert mini_sentry.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.LOG_ITEM,
+                "outcome": Outcome.INVALID,
+                "reason": "invalid_log",
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.LOG_BYTE,
+                "outcome": Outcome.INVALID,
+                "reason": "invalid_log",
+                "quantity": len(payload),
+            },
+        ]
+    assert mini_sentry.captured_envelopes.empty()
