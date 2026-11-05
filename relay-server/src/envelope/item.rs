@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
-use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
+use crate::integrations::{ErrorsIntegration, Integration, LogsIntegration, SpansIntegration};
 use crate::statsd::RelayTimers;
 use crate::utils::DebugBytes;
 
@@ -178,9 +178,12 @@ impl Item {
                 (DataCategory::SpanIndexed, item_count),
             ],
             ItemType::Integration => match self.integration() {
+                Some(Integration::Errors(ErrorsIntegration::Unreal)) => {
+                    smallvec![(DataCategory::Error, item_count)]
+                }
                 Some(Integration::Logs(
                     LogsIntegration::Nel
-                    | LogsIntegration::Integrity
+                    | LogsIntegration::BrowserReport
                     | LogsIntegration::OtelV1 { .. }
                     | LogsIntegration::VercelDrainLog { .. },
                 )) => smallvec![
@@ -268,6 +271,13 @@ impl Item {
     {
         self.headers
             .set(ItemHeaderKey::ContentType, content_type.into());
+    }
+
+    /// Sets the content type of this item's payload without changing the payload.
+    ///
+    /// Unlike [`Self::set_payload`], this does not update the length header.
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
     }
 
     /// Sets the content type if there isn't already one set.
@@ -636,7 +646,8 @@ impl Item {
                         | AttachmentType::UnrealLogs
                         | AttachmentType::ViewHierarchy
                         | AttachmentType::Flamegraph
-                        | AttachmentType::NvShaderDebug,
+                        | AttachmentType::NvShaderDebug
+                        | AttachmentType::CompiledShader,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
@@ -666,9 +677,10 @@ impl Item {
             | ItemType::TraceMetric
             | ItemType::ProfileChunk => false,
 
-            // For now integrations can not create events, we may need to revisit this in the
-            // future and break down different types of integrations here, similar to attachments.
-            ItemType::Integration => false,
+            // Only error integrations create events.
+            ItemType::Integration => {
+                matches!(self.integration(), Some(Integration::Errors(_)))
+            }
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -701,7 +713,9 @@ impl Item {
             ItemType::Log => false,
             ItemType::TraceMetric => false,
             ItemType::ProfileChunk => false,
-            ItemType::Integration => false,
+            ItemType::Integration => {
+                matches!(self.integration(), Some(Integration::Errors(_)))
+            }
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -771,6 +785,10 @@ pub enum ItemType {
     /// Security report as sent by the browser in JSON.
     RawSecurity,
     /// Raw compressed UE4 crash report.
+    ///
+    /// Relay's Unreal endpoint creates an [`ItemType::Integration`] item with
+    /// [`ErrorsIntegration::Unreal`] instead. This item type is still accepted for compatibility
+    /// with envelopes forwarded by older Relays.
     UnrealReport,
     /// User feedback encoded as JSON.
     UserReport,
@@ -1292,6 +1310,22 @@ mod tests {
 
         // Meta data
         assert_eq!(item.content_type(), Some(ContentType::Json));
+    }
+
+    #[test]
+    fn test_item_set_content_type() {
+        let mut item = Item::new(ItemType::Attachment);
+
+        let payload = Bytes::from_static(b"payload");
+        item.set_payload(ContentType::Json, payload.clone());
+        item.set_content_type(ContentType::OctetStream);
+
+        assert_eq!(item.content_type(), Some(ContentType::OctetStream));
+        assert_eq!(item.payload(), payload);
+        assert_eq!(
+            item.headers.get::<usize>(ItemHeaderKey::Length),
+            Some(payload.len())
+        );
     }
 
     #[test]

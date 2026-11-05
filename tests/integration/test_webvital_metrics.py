@@ -302,6 +302,45 @@ def test_v1_transaction(
     assert expected_metrics == items
 
 
+def expected_score_metric(vital, span_id, ratio, extra_attributes=None):
+    """The `browser.web_vital.<vital>.score` metric Relay emits next to the value metric."""
+    name = f"browser.web_vital.{vital}.score"
+    return {
+        "organizationId": "1",
+        "projectId": "42",
+        "traceId": "ff62a8b040f340bda5d830223def1d81",
+        "itemId": matches_any(),
+        "itemType": "TRACE_ITEM_TYPE_METRIC",
+        "timestamp": time_within_delta(),
+        "attributes": {
+            "sentry.metric_name": {"stringValue": name},
+            f"sentry._internal.cooccuring.name.{name}": {"boolValue": True},
+            "sentry.metric_type": {"stringValue": "distribution"},
+            "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
+            "sentry.metric_unit": {"stringValue": "ratio"},
+            "sentry._internal.cooccuring.unit.ratio": {"boolValue": True},
+            "sentry.value": {"doubleValue": ratio},
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
+            "browser.name": {"stringValue": "Firefox"},
+            "browser.version": {"stringValue": "42.0"},
+            "sentry.metric.source": {"stringValue": "span"},
+            "sentry.span_id": {"stringValue": span_id},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(expect_resolution="ns")
+            },
+            **(extra_attributes or {}),
+        },
+        "clientSampleRate": 1.0,
+        "serverSampleRate": 1.0,
+        "retentionDays": 90,
+        "received": time_within_delta(),
+        "downsampledRetentionDays": 90,
+    }
+
+
 # Test v1 legacy metrics, with all values sent on spans.  Includes performance score
 # generation, as well as legacy metric span generation.
 def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_consumer):
@@ -541,7 +580,11 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "cd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "265"},
+                "sentry.payload_size_bytes": {"intValue": "362"},
+                "sentry.replay_id": {"stringValue": "8477286c8e5148b386b71ade38374d58"},
+                "sentry.profile_id": {
+                    "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                },
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "score.weight.inp": {"doubleValue": 1.0},
@@ -636,7 +679,38 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
             "downsampledRetentionDays": 90,
         },
     ]
+    # Each vital with a score also emits the score as its own `ratio` metric
+    expected_metrics.extend(
+        [
+            expected_score_metric("cls", "bd429c44b67a3eb1", ratio=0.0),
+            expected_score_metric("fcp", "bd429c44b67a3eb1", ratio=0.9999981846359844),
+            expected_score_metric("lcp", "bd429c44b67a3eb1", ratio=0.9995380458572936),
+            expected_score_metric("ttfb", "bd429c44b67a3eb1", ratio=0.0),
+            expected_score_metric(
+                "inp",
+                "cd429c44b67a3eb1",
+                ratio=0.9948129113413748,
+                extra_attributes={
+                    "sentry.replay_id": {
+                        "stringValue": "8477286c8e5148b386b71ade38374d58"
+                    },
+                    "sentry.profile_id": {
+                        "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                    },
+                    "sentry.segment.name": {
+                        "stringValue": "/page/with/click/interaction/*/*"
+                    },
+                    "sentry._meta.fields.attributes.sentry.segment.name": {
+                        "stringValue": '{"meta":{"value":{"":{"rem":[["int","s",34,37],["**/interaction/*/**","s"]],"val":"/page/with/click/interaction/jane/123"}}}}',
+                    },
+                },
+            ),
+        ]
+    )
     expected_metrics = [dict(sorted(item.items())) for item in expected_metrics]
+    expected_metrics.sort(
+        key=lambda item: item["attributes"]["sentry.metric_name"]["stringValue"]
+    )
 
     items = [dict(sorted(item.items())) for item in items_consumer.get_items()]
     items.sort(key=lambda item: item["attributes"]["sentry.metric_name"]["stringValue"])
@@ -863,7 +937,10 @@ def test_v2(
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b176"},
-                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry.payload_size_bytes": {"intValue": "199"},
+                "sentry.profile_id": {
+                    "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                },
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},

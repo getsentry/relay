@@ -43,6 +43,10 @@ pub const ATTACHMENT_NV_GPUDUMP_SUFFIX: &str = ".nv-gpudmp";
 ///
 /// Used in cases where Relay needs to infer the attachment type from a file or field name.
 pub const ATTACHMENT_NV_DBG_SUFFIX: &str = ".nvdbg";
+/// Suffix identifying compiled shader objects (DXBC/DXIL binaries) in crash reports.
+///
+/// Used in cases where Relay needs to infer the attachment type from a file or field name.
+pub const ATTACHMENT_CSO_SUFFIX: &str = ".cso";
 
 /// Envelope header used to store the UE4 user id.
 pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
