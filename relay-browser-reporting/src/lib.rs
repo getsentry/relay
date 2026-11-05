@@ -9,6 +9,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod csp;
 pub mod integrity;
 pub mod nel;
 
@@ -27,6 +28,8 @@ pub enum BrowserReportBody {
     NetworkError(nel::Body),
     /// The body of an Integrity Violation report.
     IntegrityViolation(integrity::Body),
+    /// The body of a CSP Violation report.
+    CspViolation(csp::Body),
     /// An unsupported report body.
     #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
     Unsupported,
@@ -41,6 +44,7 @@ impl BrowserReportBody {
         match self {
             BrowserReportBody::NetworkError(_) => "network-error",
             BrowserReportBody::IntegrityViolation(_) => "integrity-violation",
+            BrowserReportBody::CspViolation(_) => "csp-violation",
             BrowserReportBody::Unsupported => "unsupported",
         }
     }
@@ -149,6 +153,48 @@ mod tests {
             "blockedURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
             "destination": "image",
             "reportOnly": false
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_csp() {
+        let json = r#"{
+          "age":0,
+          "type":"csp-violation",
+          "url":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+          "user_agent":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+          "body": {
+            "blockedURL":"https://example.com/tst/media/7_del.png",
+            "disposition":"enforce",
+            "documentURL":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "effectiveDirective":"img-src",
+            "lineNumber":9,
+            "originalPolicy":"default-src 'none'; report-to endpoint-csp;",
+            "referrer":"https://example.com/test229/",
+            "sourceFile":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "statusCode":0
+            }
+        }"#;
+
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 0,
+          "url": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+          "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+          "type": "csp-violation",
+          "body": {
+            "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "referrer": "https://example.com/test229/",
+            "blockedURL": "https://example.com/tst/media/7_del.png",
+            "effectiveDirective": "img-src",
+            "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+            "sample": null,
+            "disposition": "enforce",
+            "statusCode": 0
           }
         }
         "#);
