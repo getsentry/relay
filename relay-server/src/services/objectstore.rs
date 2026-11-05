@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use http::StatusCode;
 use mime::Mime;
 use objectstore_client::{
@@ -37,9 +37,7 @@ use crate::services::store::{
 };
 use crate::services::upload::{DecodeError, PassthroughBoundedMeteredStream};
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    ByteCounter, RetryableStream, TakeOnce, find_error_source, withhold_last_chunk,
-};
+use crate::utils::{ByteCounter, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -1188,23 +1186,10 @@ impl ObjectstoreServiceInner {
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
 
-                // TODO(INGEST-1348): Remove after upgrading to an objectstore-client release
-                // containing getsentry/objectstore#754.
-                // The HTTP client may stop polling after Content-Length bytes. Validate the
-                // stream's trailer before releasing the bytes that complete this request.
-                let result = async {
-                    let mut body = withhold_last_chunk(body).boxed();
-                    if chunk_length == 0 {
-                        // An empty HTTP body may never be polled; validate it before sending.
-                        while body.try_next().await?.is_some() {}
-                    }
-
-                    resumable_upload
-                        .put_stream(offset as u64, chunk_length as u64, body)
-                        .send()
-                        .await
-                }
-                .await;
+                let result = resumable_upload
+                    .put_stream(offset as u64, chunk_length as u64, body.boxed())
+                    .send()
+                    .await;
                 if match &result {
                     Err(objectstore_client::Error::Io(error)) => error
                         .get_ref()
