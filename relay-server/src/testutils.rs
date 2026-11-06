@@ -1,24 +1,12 @@
-use std::sync::Arc;
-
 use bytes::Bytes;
 use relay_base_schema::project::ProjectId;
-use relay_cogs::Cogs;
-use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 
 use relay_sampling::DynamicSamplingContext;
 use relay_system::Addr;
-use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::managed::ManagedEnvelope;
-use crate::metrics::MetricOutcomes;
-#[cfg(feature = "processing")]
-use crate::service::create_redis_clients;
-use crate::services::global_config::GlobalConfigHandle;
-use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
-use crate::services::projects::cache::ProjectCacheHandle;
-use crate::utils::ThreadPoolBuilder;
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
@@ -80,75 +68,4 @@ pub fn new_managed_envelope<T: Into<String>>(
     transaction_name: T,
 ) -> ManagedEnvelope {
     ManagedEnvelope::new(new_envelope(with_dsc, transaction_name), Addr::dummy())
-}
-
-pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
-    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-    let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-
-    #[cfg(feature = "processing")]
-    let redis_clients = config
-        .current()
-        .redis()
-        .map(|c| create_redis_clients(c))
-        .transpose()
-        .unwrap();
-
-    let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
-
-    let config = Arc::new(config);
-    EnvelopeProcessorService::new(
-        create_processor_pool(),
-        Arc::clone(&config),
-        GlobalConfigHandle::fixed(Default::default()),
-        ProjectCacheHandle::for_test(),
-        Cogs::noop(),
-        #[cfg(feature = "processing")]
-        redis_clients,
-        processor::Addrs {
-            outcome_aggregator,
-            upstream_relay,
-            #[cfg(feature = "processing")]
-            store_forwarder: None,
-            #[cfg(feature = "processing")]
-            objectstore: None,
-            aggregator,
-        },
-        metric_outcomes,
-    )
-}
-
-pub async fn create_test_processor_with_addrs(
-    config: Config,
-    addrs: processor::Addrs,
-) -> EnvelopeProcessorService {
-    #[cfg(feature = "processing")]
-    let redis_clients = config
-        .current()
-        .redis()
-        .map(|c| create_redis_clients(c))
-        .transpose()
-        .unwrap();
-    let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
-
-    let config = Arc::new(config);
-    EnvelopeProcessorService::new(
-        create_processor_pool(),
-        Arc::clone(&config),
-        GlobalConfigHandle::fixed(Default::default()),
-        ProjectCacheHandle::for_test(),
-        Cogs::noop(),
-        #[cfg(feature = "processing")]
-        redis_clients,
-        addrs,
-        metric_outcomes,
-    )
-}
-
-fn create_processor_pool() -> EnvelopeProcessorServicePool {
-    ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
-        .num_threads(1)
-        .build()
-        .unwrap()
 }

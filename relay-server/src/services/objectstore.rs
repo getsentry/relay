@@ -35,11 +35,9 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{
     ProfileAttachment, Store, StoreAttachment, StoreEvent, StoreProfileChunk, StoreTraceItem,
 };
-use crate::services::upload::ByteStream;
+use crate::services::upload::{DecodeError, PassthroughBoundedMeteredStream};
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    BoundedStream, ByteCounter, MeteredStream, RetryableStream, TakeOnce, find_error_source,
-};
+use crate::utils::{ByteCounter, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -232,7 +230,7 @@ pub struct Stream {
     pub project_id: ProjectId,
     pub context: StreamContext,
     pub retention: u16,
-    pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    pub stream: PassthroughBoundedMeteredStream,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -1154,7 +1152,7 @@ impl ObjectstoreServiceInner {
     async fn attempt_upload_stream(
         &self,
         session: &Session,
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     ) -> Result<UploadRef, objectstore_client::Error> {
@@ -1188,10 +1186,35 @@ impl ObjectstoreServiceInner {
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
 
-                let progress = resumable_upload
+                let result = resumable_upload
                     .put_stream(offset as u64, chunk_length as u64, body.boxed())
                     .send()
-                    .await?;
+                    .await;
+                if match &result {
+                    Err(objectstore_client::Error::Io(error)) => error
+                        .get_ref()
+                        .is_some_and(|error| error.is::<DecodeError>()),
+                    Err(objectstore_client::Error::Reqwest(error)) => {
+                        find_error_source(error, |error| {
+                            error
+                                .downcast_ref::<std::io::Error>()
+                                .and_then(std::io::Error::get_ref)
+                                .is_some_and(|error| error.is::<DecodeError>())
+                        })
+                        .is_some()
+                    }
+                    _ => false,
+                } {
+                    // Persisted bytes may be corrupt. Transport failures alone remain resumable.
+                    relay_log::info!("cancelling resumable upload after decoding failure");
+                    if let Err(error) = resumable_upload.cancel().send().await {
+                        relay_log::warn!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to cancel corrupt upload"
+                        );
+                    }
+                }
+                let progress = result?;
 
                 let (session_token, offset) = match progress {
                     UploadProgress::Incomplete { offset } => (Some(session_token), offset as usize),
@@ -1255,7 +1278,7 @@ enum Upload {
         filename: Option<String>,
     },
     Stream {
-        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        body: TakeOnce<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1302,7 +1325,7 @@ enum UploadAttempt {
         filename: Option<String>,
     },
     Stream {
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1389,6 +1412,7 @@ mod tests {
 
     use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
+    use crate::utils::{BoundedStream, MeteredStream};
 
     use super::*;
 

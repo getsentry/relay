@@ -35,6 +35,12 @@ async fn handle(
     Ok(StatusCode::OK)
 }
 
-pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
+fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
+}
+
+pub fn routes(config: &ConfigSnapshot) -> axum::Router<ServiceState> {
+    axum::Router::new()
+        .route("/reporting", route(config))
+        .route("/reporting/", route(config))
 }

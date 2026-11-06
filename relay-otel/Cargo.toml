@@ -8,15 +8,18 @@ version = "26.10.1"
 edition = "2024"
 license-file = "../LICENSE"
 publish = false
+build = "build.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
+relay-serialization = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
     "gen-tonic",
     "with-serde",
     "trace",
+    "file-descriptors",
     "logs",
 ] }
 opentelemetry-semantic-conventions = { workspace = true }
@@ -26,3 +29,14 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+prost = { workspace = true }
+
+[build-dependencies]
+proto-descriptors = { workspace = true }
+opentelemetry-proto = { workspace = true, features = [
+    "gen-tonic",
+    "with-serde",
+    "trace",
+    "logs",
+    "file-descriptors",
+] }

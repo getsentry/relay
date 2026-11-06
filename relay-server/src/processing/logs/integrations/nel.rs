@@ -32,16 +32,15 @@ impl processing::Processor for NelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let meta = envelope.envelope().headers().meta().clone();
-
         let item = envelope.envelope_mut().take_item_by(|item| {
             matches!(
                 item.integration(),
                 Some(Integration::Logs(LogsIntegration::Nel))
             )
         })?;
+        let headers = envelope.envelope().headers().clone();
 
-        let work = SerializedLogsIntegration { meta, item };
+        let work = SerializedLogsIntegration { headers, item };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -58,29 +57,29 @@ impl processing::Processor for NelLogsIntegrationProcessor {
 /// Expands a NEL log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
 pub fn expand(
-    work: SerializedLogsIntegration,
+    SerializedLogsIntegration { headers, item }: SerializedLogsIntegration,
     records: &mut RecordKeeper,
 ) -> Result<Intermediates, Error> {
-    let SerializedLogsIntegration { meta, item } = work;
-
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
 
     let payload = item.payload();
-    let received_at = meta.received_at();
+    let received_at = headers.meta().received_at();
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
         .map(|log| {
-            // INGEST-1333: This is only used to keep records in case serializing
+            // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
 
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
+            records.add([
+                (DataCategory::LogItem, 1),
+                (DataCategory::LogByte, byte_size as usize),
+            ]);
 
             WithHeader::just(log.into())
         })
@@ -88,14 +87,12 @@ pub fn expand(
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
-    for (category, quantity) in item.quantities() {
-        records.modify_by(category, -(quantity as isize));
-    }
+    records.remove(&item);
 
     let settings = IngestSettings {
         infer_user_agent: Some(InferUserAgent::Auto),
         infer_ip: Some(InferIp::Never),
     };
 
-    create_intermediates(meta, logs, settings)
+    create_intermediates(headers, logs, settings)
 }
