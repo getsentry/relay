@@ -35,6 +35,7 @@
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
 - Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
+- Bounds all log expansions/deserializations. ([#6652](https://github.com/getsentry/relay/pull/6652))
 
 **Bug Fixes**:
 
