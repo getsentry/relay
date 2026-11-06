@@ -285,6 +285,10 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr) -> bool {
+    #[allow(
+        clippy::unnecessary_cast,
+        reason = "c_char is u8 on some architectures and i8 on others"
+    )]
     let data = unsafe { slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len) };
     json_forensics::translate_slice(data);
     true

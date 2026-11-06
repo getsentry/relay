@@ -76,8 +76,10 @@ pub fn expand(
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);
 
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
+            records.add([
+                (DataCategory::LogItem, 1),
+                (DataCategory::LogByte, byte_size as usize),
+            ]);
 
             WithHeader::just(log.into())
         })
