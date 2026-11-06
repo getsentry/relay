@@ -27,7 +27,7 @@ use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
-use crate::services::store::{StoreService, StoreServicePool};
+use crate::services::store::{StoreService, StoreServicePool, create_kafka_client};
 use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -46,7 +46,7 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
-use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
+use relay_system::{Addr, AssertEmpty, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 use relay_threading::ServicePool;
 
 /// Indicates the type of failure of the server.
@@ -149,6 +149,7 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
+    _asserter: AssertEmpty<TrackOutcome>,
 }
 
 /// Server state.
@@ -199,6 +200,10 @@ impl ServiceState {
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
 
+        // Use a separate metrics router for outcomes to prevent cycles in the service graph:
+        let (outcome_metrics_router, outcome_metrics_router_rx) = channel("outcome_metrics_router");
+        let (dummy_outcomes, _asserter) = Addr::never(); // outcomes never generate outcomes
+
         let outcome_aggregator = match current_config.emit_outcomes() {
             EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
             _ => match current_config.relay_mode() {
@@ -208,7 +213,7 @@ impl ServiceState {
                 )),
                 RelayMode::Managed => services.start(OutcomeProducerService::new(
                     Arc::clone(&config),
-                    aggregator.clone(),
+                    outcome_metrics_router,
                 )),
             },
         };
@@ -242,24 +247,24 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&current_config)?;
-        // Taken before the service is started, which consumes it. `ConfigReloadService` pushes
-        // a reloaded Kafka config to it.
+
         #[cfg(feature = "processing")]
-        let mut kafka_client = None;
+        let mut maybe_kafka_client = None;
+
         #[cfg(feature = "processing")]
         let store = current_config
             .processing_enabled()
             .then(|| {
+                let kafka_client = create_kafka_client(&current_config)?;
+                maybe_kafka_client = Some(kafka_client.clone());
                 StoreService::create(
                     store_pool.clone(),
+                    kafka_client.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| {
-                    kafka_client = Some(s.kafka_client());
-                    services.start(s)
-                })
+                .map(|s| services.start(s))
             })
             .transpose()?;
 
@@ -314,7 +319,6 @@ impl ServiceState {
                         #[cfg(feature = "processing")]
                         store_forwarder: store.clone(),
                     },
-                    metric_outcomes.clone(),
                 ));
 
                 let router = RouterService::new(
@@ -326,6 +330,57 @@ impl ServiceState {
                 );
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
+
+                // Start the secondary outcome pipeline:
+                {
+                    #[cfg(feature = "processing")]
+                    let outcome_store = {
+                        if current_config.processing_enabled() {
+                            let (addr, rx) = channel("outcome_store");
+                            let service = StoreService::create(
+                                store_pool.clone(),
+                                maybe_kafka_client
+                                    .clone()
+                                    .expect("kafka client created by store"),
+                                config.clone(),
+                                global_config_handle.clone(),
+                                MetricOutcomes::new(dummy_outcomes.clone()),
+                            )?;
+                            services.start_with(service, rx);
+                            Some(addr)
+                        } else {
+                            None
+                        }
+                    };
+
+                    let (outcome_bucket_processor, outcome_bucket_rx) =
+                        channel("outcome_bucket_processor");
+                    let outcome_bucket_service = processor::bucket::create_service(
+                        processor_pool.clone(),
+                        config.clone(),
+                        global_config_handle.clone(),
+                        project_cache_handle.clone(),
+                        cogs.clone(),
+                        #[cfg(feature = "processing")]
+                        rate_limiter.clone(),
+                        processor::bucket::Addrs {
+                            outcome_aggregator: dummy_outcomes,
+                            upstream_relay: upstream_relay.clone(),
+                            #[cfg(feature = "processing")]
+                            store_forwarder: outcome_store,
+                        },
+                    );
+                    services.start_with(outcome_bucket_service, outcome_bucket_rx);
+
+                    let outcome_metrics_router = RouterService::new(
+                        handle.clone(),
+                        current_config.default_aggregator_config().clone(),
+                        current_config.secondary_aggregator_configs().clone(),
+                        Some(outcome_bucket_processor.recipient()),
+                        project_cache_handle.clone(),
+                    );
+                    services.start_with(outcome_metrics_router, outcome_metrics_router_rx);
+                }
 
                 services.start_with(
                     processor::envelope::create_service(
@@ -395,7 +450,7 @@ impl ServiceState {
         let _ = services.start(ConfigReloadService::new(
             config.clone(),
             #[cfg(feature = "processing")]
-            kafka_client,
+            maybe_kafka_client,
         ));
 
         let registry = Registry {
@@ -419,6 +474,7 @@ impl ServiceState {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
+            _asserter,
         };
 
         Ok(ServiceState {
