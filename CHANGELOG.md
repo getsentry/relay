@@ -11,6 +11,7 @@
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
 - Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
 - Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
+- Improve grouping of MetricKit hang reports by selecting representative exception stacks from flamegraph attachments. ([#6520](https://github.com/getsentry/relay/pull/6520))
 
 **Bug Fixes**:
 

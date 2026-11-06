@@ -24,7 +24,7 @@ pub enum Version {
 ///
 /// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
 /// attribute. All values are optional, but recommended.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct Frame {
     /// Absolute path to the source file.
     #[serde(skip_serializing_if = "Option::is_none")]
