@@ -1,4 +1,3 @@
-use relay_protocol::Value;
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 
 use super::*;
@@ -44,9 +43,9 @@ pub(super) fn assert_crash_rate_limit<T: SentryError>(
             event
                 .value()
                 .and_then(|e| e.metadata.value())
-                .and_then(|m| m.get("rate_limited_reason"))
-                .and_then(|v| v.value()),
-            Some(&Value::String("crash_attachment_limit".to_owned()))
+                .and_then(|m| m.rate_limited_reason.value())
+                .map(String::as_str),
+            Some("crash_attachment_limit")
         );
 
         crash.accept(&assert_retained);

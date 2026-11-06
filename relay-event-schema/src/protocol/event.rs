@@ -118,6 +118,22 @@ pub struct GroupingConfig {
     pub enhancements: Annotated<String>,
 }
 
+/// Various metadata that we want to attach to an event.
+///
+/// This is populated by Sentry during processing and is not part of the external schema.
+/// This is not something that we expect any SDK to set.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct EventMetadata {
+    /// The reason code of the rate limit that affected this event, if any.
+    ///
+    /// Used to explain to users why e.g. crash report attachments are missing.
+    pub rate_limited_reason: Annotated<String>,
+
+    /// Additional, unstructured metadata.
+    #[metastructure(additional_properties, pii = "maybe")]
+    pub other: Object<Value>,
+}
+
 /// The sentry v7 event structure.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_event", value_type = "Event")]
@@ -469,7 +485,7 @@ pub struct Event {
 
     /// Various metadata that we want to attach to an event.
     #[metastructure(omit_from_schema)]
-    pub metadata: Annotated<Object<Value>>,
+    pub metadata: Annotated<EventMetadata>,
 
     /// Internal ingestion and processing metrics.
     ///

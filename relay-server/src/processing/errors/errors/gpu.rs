@@ -1,5 +1,5 @@
 use relay_event_schema::protocol::Event;
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{AttachmentType, Item, ItemType};
@@ -58,10 +58,7 @@ impl SentryError for GpuCrash {
                 && let Some(reason_code) = reason_code
             {
                 let metadata = event.metadata.get_or_insert_with(Default::default);
-                metadata.insert(
-                    "rate_limited_reason".to_owned(),
-                    Annotated::new(Value::from(reason_code.as_str().to_owned())),
-                );
+                metadata.rate_limited_reason = Annotated::new(reason_code.as_str().to_owned());
             }
         }
 
