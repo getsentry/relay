@@ -594,6 +594,69 @@ mod tests {
     }
 
     #[test]
+    fn test_culprit_rebuilds_prefixes_between_branching_trees() {
+        let mut graph = culprit_graph();
+        graph["nodes"] = json!([
+            {"frame_id": 0, "sample_count": 100, "children": [1, 3]},
+            {"frame_id": 2, "sample_count": 60, "children": [2]},
+            {"frame_id": 3, "sample_count": 60},
+            {"frame_id": 1, "sample_count": 40},
+            {"frame_id": 0, "sample_count": 200, "children": [5, 6]},
+            {"frame_id": 1, "sample_count": 110},
+            {"frame_id": 2, "sample_count": 90},
+            {"frame_id": 3, "sample_count": 200, "children": [8, 10]},
+            {"frame_id": 1, "sample_count": 100, "children": [9]},
+            {"frame_id": 1, "sample_count": 100},
+            {"frame_id": 2, "sample_count": 100}
+        ]);
+        let roots = [0, 4, 7];
+        // The best paths score 180, 330, and 500 respectively.
+        let expected = [vec![0, 2, 3], vec![0, 1], vec![3, 1, 1]];
+        for order in [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ] {
+            for count in 1..=order.len() {
+                let trees = &order[..count];
+                graph["trees"] = trees
+                    .iter()
+                    .map(|&index| json!({"roots": [roots[index]]}))
+                    .collect();
+                let winner = *trees.iter().max().unwrap();
+                assert_eq!(
+                    identify(graph.clone()).unwrap(),
+                    expected[winner],
+                    "tree order: {trees:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_culprit_revisits_shared_subtree_in_independent_trees() {
+        let mut graph = culprit_graph();
+        graph["nodes"] = json!([
+            {"frame_id": 0, "sample_count": 100, "children": [2, 4]},
+            {"frame_id": 1, "sample_count": 100, "children": [2, 4]},
+            {"frame_id": 2, "sample_count": 60, "children": [3]},
+            {"frame_id": 3, "sample_count": 60},
+            {"frame_id": 0, "sample_count": 40}
+        ]);
+        for roots in [[0, 1], [1, 0]] {
+            graph["trees"] = roots
+                .into_iter()
+                .map(|root| json!({"roots": [root]}))
+                .collect();
+            // The shared subtree scores 180 under root 0, but 240 under the in-app root 1.
+            assert_eq!(identify(graph.clone()).unwrap(), vec![1, 2, 3]);
+        }
+    }
+
+    #[test]
     fn test_culprit_exact_large_sample_counts() {
         let mut graph = culprit_graph();
         graph["frames"][0]["in_app"] = json!(true);
