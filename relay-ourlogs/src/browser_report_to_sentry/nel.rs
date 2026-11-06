@@ -3,10 +3,8 @@ use std::sync::LazyLock;
 
 use relay_browser_reporting::nel::*;
 use relay_conventions::{attributes::*, interpolate};
-use relay_event_schema::protocol::{
-    AttributeType, AttributeValue, Attributes, OurLog, OurLogLevel,
-};
-use relay_protocol::{Annotated, Value};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel};
+use relay_protocol::Annotated;
 
 /// Mapping of NEL error types to their human-readable descriptions.
 ///
@@ -176,18 +174,6 @@ fn create_message(report_type: &ReportType, status_code: Option<u16>) -> String 
     }
 }
 
-fn string_array(values: Vec<String>) -> AttributeValue {
-    let values = values
-        .into_iter()
-        .map(|value| Annotated::new(Value::String(value)))
-        .collect();
-
-    AttributeValue {
-        ty: Annotated::new(AttributeType::Array),
-        value: Annotated::new(Value::Array(values)),
-    }
-}
-
 /// Creates a log from the provided NEL [`Body`].
 pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLog {
     let Body {
@@ -252,22 +238,18 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
 
             if !referrer.is_empty() {
                 let referrer_key = interpolate::http__request__header__key("referer");
-                add_attribute!(
-                    attributes,
-                    referrer_key,
-                    string_array(vec![referrer.clone()])
-                );
+                add_attribute!(attributes, referrer_key, vec![referrer.clone()]);
             }
             add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
             add_attribute!(attributes, NEL__REFERRER, referrer);
 
             for (name, values) in request_headers {
                 let key = interpolate::http__request__header__key(name.to_ascii_lowercase());
-                add_attribute!(attributes, key, string_array(values));
+                add_attribute!(attributes, key, values);
             }
             for (name, values) in response_headers {
                 let key = interpolate::http__response__header__key(name.to_ascii_lowercase());
-                add_attribute!(attributes, key, string_array(values));
+                add_attribute!(attributes, key, values);
             }
         }
     }
