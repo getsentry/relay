@@ -1128,7 +1128,7 @@ impl ServiceObj {
     /// Creates a new bundled type erased [`Service`], that can be started using [`ServiceSpawn`].
     pub fn new<S: Service>(service: S, rx: Receiver<S::Interface>) -> Self {
         Self {
-            name: rx.name,
+            name: S::name(),
             future: service.run(rx).boxed(),
         }
     }
