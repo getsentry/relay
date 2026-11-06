@@ -4,6 +4,7 @@
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
+use relay_filter::FilterStatKey;
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
@@ -271,7 +273,48 @@ fn send_outcome_metric(message: &TrackOutcome) {
     );
     metric!(
         counter(RelayCounters::Outcomes) += 1,
-        reason = message.outcome.to_reason().unwrap_or_default(),
+        reason = metric_reason(&message.outcome),
         outcome = outcome_name,
     );
+}
+
+/// Returns the outcome reason to use as a metric tag.
+///
+/// A generic filter id can carry a per-filter instance id after a colon, such as
+/// `custom-inbound-filter:<id>`. The outcome keeps the full id, but as a metric tag it would
+/// create one time series per filter, so only the part before the colon is used.
+fn metric_reason(outcome: &Outcome) -> Cow<'_, str> {
+    match outcome {
+        Outcome::Filtered(FilterStatKey::GenericFilter(id)) => {
+            Cow::Borrowed(id.split_once(':').map_or(id.as_str(), |(kind, _)| kind))
+        }
+        other => other.to_reason().unwrap_or_default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_reason_strips_generic_filter_instance_id() {
+        let generic = |id: &str| Outcome::Filtered(FilterStatKey::GenericFilter(id.to_owned()));
+
+        assert_eq!(
+            metric_reason(&generic("custom-inbound-filter:25196")),
+            "custom-inbound-filter"
+        );
+        assert_eq!(
+            metric_reason(&generic("chunk-load-error")),
+            "chunk-load-error"
+        );
+        assert_eq!(
+            metric_reason(&Outcome::Filtered(FilterStatKey::WebCrawlers)),
+            "web-crawlers"
+        );
+        assert_eq!(
+            metric_reason(&Outcome::Invalid(DiscardReason::Payload)),
+            "payload"
+        );
+    }
 }
