@@ -27,6 +27,7 @@
 - Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Update sentry-conventions to 0.31.0. Adds Heroku log drain, `faas.document.*`, `faas.instance`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, and deprecates the `gen_ai.handoff` op. ([#6649](https://github.com/getsentry/relay/pull/6649))
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
