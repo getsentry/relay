@@ -3,6 +3,7 @@
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
+use crate::envelope::AttachmentItem;
 use std::collections::BTreeMap;
 use std::error::Error;
 
@@ -15,8 +16,6 @@ use relay_event_schema::protocol::{
     StabilityReportContext, Values,
 };
 use relay_protocol::{Annotated, Value, get_value};
-
-use crate::envelope::{Item, ItemType};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -223,8 +222,7 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, item: &Item) {
-    debug_assert_eq!(item.ty(), &ItemType::Attachment);
+pub fn process_minidump(event: &mut Event, item: &AttachmentItem) {
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
@@ -355,10 +353,7 @@ mod tests {
         .unwrap();
         let source = get_value!(event.exceptions.values[1]!).clone();
 
-        process_minidump(
-            event.value_mut().as_mut().unwrap(),
-            &Item::new(ItemType::Attachment),
-        );
+        process_minidump(event.value_mut().as_mut().unwrap(), &AttachmentItem::new());
 
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert_eq!(placeholder.thread_id, source.thread_id);
@@ -387,10 +382,7 @@ mod tests {
         .unwrap();
         let source = get_value!(event.exceptions.values[1]!).clone();
 
-        process_minidump(
-            event.value_mut().as_mut().unwrap(),
-            &Item::new(ItemType::Attachment),
-        );
+        process_minidump(event.value_mut().as_mut().unwrap(), &AttachmentItem::new());
 
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert!(placeholder.thread_id.value().is_none());

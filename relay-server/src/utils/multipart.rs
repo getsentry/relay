@@ -13,7 +13,7 @@ use tokio::io::AsyncReadExt;
 use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, FormDataItem, Items};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::services::outcome::{
@@ -185,16 +185,16 @@ pub trait AttachmentStrategy {
     fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
+    ) -> impl Future<Output = Result<Option<Managed<AttachmentItem>>, BadStoreRequest>> + Send;
 }
 
 pub fn read_bytes_into_item(
     bytes: Bytes,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     content_type: Option<ContentType>,
-) -> Managed<Item> {
+) -> Managed<AttachmentItem> {
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
             inner.set_payload(content_type, bytes);
@@ -219,9 +219,9 @@ async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>,
 
 pub async fn read_field_into_item(
     field: Field<'static>,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
-) -> Result<Managed<Item>, multer::Error> {
+) -> Result<Managed<AttachmentItem>, multer::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
@@ -266,7 +266,7 @@ pub async fn multipart_items(
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
-            let mut item = Item::new(ItemType::Attachment);
+            let mut item = AttachmentItem::new();
             let attachment_type = attachment_strategy.infer_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
@@ -290,7 +290,7 @@ pub async fn multipart_items(
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
                 attachments_size += item.len();
-                items.merge_with(item, |items, item, _| items.push(item));
+                items.merge_with(item, |items, item, _| items.push(item.into()));
                 if attachments_size > config.max_attachments_size() {
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
                     let _ =
@@ -320,11 +320,11 @@ pub async fn multipart_items(
 
     let form_data = form_data.into_inner();
     if !form_data.is_empty() {
-        let mut item = Item::new(ItemType::FormData);
+        let mut item = FormDataItem::new();
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
         item.set_payload(ContentType::Text, form_data);
-        items.merge_with(items.wrap(item), |items, item, _| items.push(item));
+        items.merge_with(items.wrap(item), |items, item, _| items.push(item.into()));
     }
 
     Ok(items)
@@ -454,9 +454,9 @@ mod tests {
             async fn add_to_item(
                 &self,
                 field: Field<'static>,
-                item: Managed<Item>,
+                item: Managed<AttachmentItem>,
                 config: &ConfigSnapshot,
-            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+            ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
 
@@ -510,9 +510,9 @@ mod tests {
             async fn add_to_item(
                 &self,
                 field: Field<'static>,
-                item: Managed<Item>,
+                item: Managed<AttachmentItem>,
                 config: &ConfigSnapshot,
-            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+            ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
 

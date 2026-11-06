@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
@@ -5,7 +6,7 @@ use relay_dynamic_config::Feature;
 use relay_event_schema::processor::ProcessingAction;
 use relay_quotas::RateLimits;
 
-use crate::envelope::{EnvelopeHeaders, Item, Items};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -105,7 +106,8 @@ impl Processor for TraceAttachmentsProcessor {
         let headers = envelope.envelope().headers().clone();
         let items = envelope
             .envelope_mut()
-            .take_items_by(Item::is_trace_attachment);
+            .drain_items_if(AttachmentItem::is_trace_attachment)
+            .collect::<SmallVec<_>>();
 
         (!items.is_empty()).then(|| {
             let work = SerializedAttachments { headers, items };
@@ -136,7 +138,7 @@ impl Processor for TraceAttachmentsProcessor {
 #[derive(Debug)]
 pub struct SerializedAttachments {
     headers: EnvelopeHeaders,
-    items: Items,
+    items: SmallVec<[AttachmentItem; 3]>,
 }
 
 impl Counted for SerializedAttachments {
@@ -151,7 +153,7 @@ impl Counted for SerializedAttachments {
 pub struct SampledAttachments {
     headers: EnvelopeHeaders,
     server_sample_rate: Option<f64>,
-    items: Items,
+    items: SmallVec<[AttachmentItem; 3]>,
 }
 
 impl Counted for SampledAttachments {

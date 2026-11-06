@@ -17,7 +17,9 @@ use relay_threading::{AsyncPoolService, ServicePool};
 use reqwest::header;
 
 use super::common::{self, SubmitClientReports};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+#[cfg(test)]
+use crate::envelope::ItemType;
+use crate::envelope::{ContentType, Envelope, MetricBucketsItem};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
 use crate::managed::ManagedEnvelope;
@@ -349,7 +351,7 @@ impl InnerProcessor {
             for buckets in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
-                let mut item = Item::new(ItemType::MetricBuckets);
+                let mut item = MetricBucketsItem::new();
                 item.set_source_quantities(crate::metrics::extract_quantities(buckets));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);

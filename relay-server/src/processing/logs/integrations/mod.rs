@@ -2,7 +2,9 @@ use relay_event_schema::protocol::ourlog::container::{ContainerMetadata, IngestS
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemContainer, ItemType, WithHeader};
+use crate::envelope::{
+    EnvelopeHeaders, IntegrationItem, ItemContainer, ItemPayload, LogItem, WithHeader,
+};
 use crate::managed::{Counted, OutcomeError, Quantities};
 use crate::processing::Intermediates;
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -43,7 +45,7 @@ pub struct SerializedLogsIntegration {
     /// Original integration envelope headers.
     headers: EnvelopeHeaders,
     /// The first log integration item in the envelope.
-    item: Item,
+    item: IntegrationItem,
 }
 
 impl SerializedLogsIntegration {
@@ -75,7 +77,7 @@ fn create_intermediates(
         ingest_settings: Some(settings),
     };
 
-    let mut log_container = Item::new(ItemType::Log);
+    let mut log_container = LogItem::new();
     ItemContainer::from_parts(metadata, logs)
         .write_to(&mut log_container)
         .map_err(|_| Error::Invalid(DiscardReason::Internal))?;

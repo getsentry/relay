@@ -1,7 +1,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
-use crate::envelope::{ParentId, SourceQuantities};
+use crate::envelope::{
+    AttachmentItem, ParentId, ProfileChunkItem, ProfileItem, SessionItem, SourceQuantities,
+};
 use relay_base_schema::project::ProjectId;
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 use relay_system::Addr;
@@ -15,14 +17,20 @@ struct RateLimitTestCase {
 }
 
 macro_rules! envelope {
+        (@item Attachment :: $attachment_type:ident) => {{
+            let mut item = AttachmentItem::new();
+            item.set_attachment_type(AttachmentType::$attachment_type);
+            Item::Attachment(item)
+        }};
+        (@item Attachment) => { Item::Attachment(AttachmentItem::new()) };
+        (@item $item_type:ident) => { Item::new(ItemType::$item_type) };
         ($( $item_type:ident $( :: $attachment_type:ident )? ),*) => {{
             let bytes = "{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}";
             #[allow(unused_mut)]
             let mut envelope = Envelope::parse_bytes(bytes.into()).unwrap();
             $(
-                let mut item = Item::new(ItemType::$item_type);
+                let mut item = envelope!(@item $item_type $( :: $attachment_type )?);
                 item.set_payload(ContentType::OctetStream, "0123456789");
-                $( item.set_attachment_type(AttachmentType::$attachment_type); )?
                 envelope.add_item(item);
             )*
 
@@ -41,8 +49,8 @@ fn rate_limit(category: DataCategory) -> RateLimit {
     }
 }
 
-fn trace_attachment_item(bytes: usize, parent_id: Option<ParentId>) -> Item {
-    let mut item = Item::new(ItemType::Attachment);
+fn trace_attachment_item(bytes: usize, parent_id: Option<ParentId>) -> AttachmentItem {
+    let mut item = AttachmentItem::new();
     item.set_payload(ContentType::TraceAttachment, "0".repeat(bytes));
     item.set_parent_id(parent_id);
     item
@@ -106,7 +114,10 @@ fn test_transaction_span_counts_without_header_writes() {
             summary.span_quantity,
             1 + declared_spans.unwrap_or(0) as usize
         );
-        assert_eq!(calc_span_count(&transaction), spans);
+        let Item::Transaction(transaction) = transaction else {
+            panic!("expected a transaction");
+        };
+        assert_eq!(transaction.count_embedded_spans(), spans);
         assert_eq!(transaction.span_count(), declared_spans);
 
         // Count each rejected transaction, including repeated items without count headers.
@@ -228,11 +239,10 @@ fn test_error_and_user_report_outcomes() {
 fn test_user_report_with_nintendo_header() {
     // Attachment headers do not change a feedback item's category or quantity.
     let mut original = envelope![UserReport];
-    original
-        .items_mut()
-        .next()
-        .unwrap()
-        .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+    original.items_mut().next().unwrap().set_test_header(
+        crate::envelope::ItemHeaderKey::AttachmentType,
+        Some(AttachmentType::NintendoSwitchDyingMessage),
+    );
     assert_eq!(EnvelopeSummary::compute(&original).user_report_quantity, 1);
 
     let (kept, limits, outcomes) =
@@ -245,11 +255,10 @@ fn test_user_report_with_nintendo_header() {
 #[test]
 fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
     let mut envelope = envelope![Event, UserReport];
-    envelope
-        .items_mut()
-        .nth(1)
-        .unwrap()
-        .set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+    envelope.items_mut().nth(1).unwrap().set_test_header(
+        crate::envelope::ItemHeaderKey::AttachmentType,
+        Some(AttachmentType::NintendoSwitchDyingMessage),
+    );
 
     let (kept, _, outcomes) = enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
     assert!(kept.is_empty());
@@ -333,7 +342,7 @@ fn test_surviving_event_creator_keeps_associated_items() {
             item.set_attachment_type(AttachmentType::Minidump);
             envelope.add_item(item);
         }
-        envelope.add_item(Item::new(ItemType::Session));
+        envelope.add_item(SessionItem::new());
 
         // The span limit removes only the minidump attached to the span. The minidump
         // attached to the trace still creates an event, so the user report stays in
@@ -348,9 +357,12 @@ fn test_surviving_event_creator_keeps_associated_items() {
                 &ItemType::Session
             ],
         );
+        let Some(Item::Attachment(attachment)) = envelope.items().nth(1) else {
+            panic!("expected an attachment");
+        };
         assert!(matches!(
-            envelope.items().nth(1).unwrap().attachment_parent_type(),
-            AttachmentParentType::Trace,
+            attachment.attachment_parent_type(),
+            AttachmentParentType::Trace
         ));
         assert_eq!(
             outcomes,
@@ -374,7 +386,7 @@ fn test_last_event_contributor_rejects_associated_items() {
         .unwrap()
         .set_payload(ContentType::TraceAttachment, "0123456789");
     for platform in ["python", "cocoa"] {
-        let mut profile = Item::new(ItemType::Profile);
+        let mut profile = ProfileItem::new();
         profile.set_platform(platform.into());
         envelope.add_item(profile);
     }
@@ -423,10 +435,10 @@ fn test_event_category_survives_removable_crash_attachments() {
             trace_crash.set_attachment_type(AttachmentType::Minidump);
             let mut event = Item::new(ty.clone());
             event.set_payload(ContentType::Json, "{}");
-            if ty == ItemType::Transaction {
-                event.set_span_count(Some(0));
+            if let Item::Transaction(transaction) = &mut event {
+                transaction.set_span_count(Some(0));
             }
-            let mut items = vec![span_crash, event, trace_crash];
+            let mut items = vec![span_crash.into(), event, trace_crash.into()];
             if reverse {
                 items.reverse();
             }
@@ -554,12 +566,11 @@ fn test_enforce_limit_attachments() {
         AttachmentType::Flamegraph,
         AttachmentType::CompiledShader,
     ] {
-        let mut envelope = envelope![Attachment::Minidump, Attachment];
-        envelope
-            .items_mut()
-            .last()
-            .unwrap()
-            .set_attachment_type(subtype);
+        let mut envelope = envelope![Attachment::Minidump];
+        let mut attachment = AttachmentItem::new();
+        attachment.set_payload(ContentType::OctetStream, "0123456789");
+        attachment.set_attachment_type(subtype);
+        envelope.add_item(attachment);
 
         let cached = cached_limits(&[DataCategory::Attachment]);
         let (envelope, limits, _) = enforce_and_apply(cached, envelope);
@@ -587,8 +598,11 @@ fn test_enforce_nintendo_dying_message_with_attachment_limit() {
     // it is not itself a billable attachment. Only the ordinary attachment is rejected.
     assert!(limits.is_limited());
     assert_eq!(envelope.len(), 1);
+    let Some(Item::Attachment(attachment)) = envelope.items().next() else {
+        panic!("expected an attachment");
+    };
     assert_eq!(
-        envelope.items().next().unwrap().attachment_type(),
+        attachment.attachment_type(),
         Some(AttachmentType::NintendoSwitchDyingMessage)
     );
     assert_eq!(
@@ -663,10 +677,10 @@ fn test_enforce_limit_profile_chunks_no_profile_type() {
 fn test_enforce_limit_profile_chunks_ui() {
     let mut envelope = envelope![];
 
-    let mut item = Item::new(ItemType::ProfileChunk);
+    let mut item = ProfileChunkItem::new();
     item.set_platform("python".to_owned());
     envelope.add_item(item);
-    let mut item = Item::new(ItemType::ProfileChunk);
+    let mut item = ProfileChunkItem::new();
     item.set_platform("javascript".to_owned());
     envelope.add_item(item);
 
@@ -686,10 +700,10 @@ fn test_enforce_limit_profile_chunks_ui() {
 fn test_enforce_limit_profile_chunks_backend() {
     let mut envelope = envelope![];
 
-    let mut item = Item::new(ItemType::ProfileChunk);
+    let mut item = ProfileChunkItem::new();
     item.set_platform("python".to_owned());
     envelope.add_item(item);
-    let mut item = Item::new(ItemType::ProfileChunk);
+    let mut item = ProfileChunkItem::new();
     item.set_platform("javascript".to_owned());
     envelope.add_item(item);
 
@@ -814,7 +828,7 @@ fn test_enforce_pass_minidump() {
 fn test_enforce_skip_rate_limited() {
     let mut envelope = envelope![];
 
-    let mut item = Item::new(ItemType::Attachment);
+    let mut item = AttachmentItem::new();
     item.set_payload(ContentType::OctetStream, "0123456789");
     item.set_rate_limited(true);
     envelope.add_item(item);
@@ -836,7 +850,9 @@ fn test_enforce_skip_rate_limited_minidump() {
 
     assert!(limits.is_limited());
     assert_eq!(envelope.len(), 1);
-    let minidump = envelope.items().next().unwrap();
+    let Some(Item::Attachment(minidump)) = envelope.items().next() else {
+        panic!("expected an attachment");
+    };
     assert_eq!(minidump.attachment_type(), Some(AttachmentType::Minidump));
     assert!(minidump.rate_limited());
     // A new attachment limit must not emit another outcome for the retained minidump.
@@ -1013,7 +1029,10 @@ fn test_standalone_profile_ignores_transaction_limit() {
         ),
     ] {
         let mut original = envelope![Profile];
-        original.items_mut().next().unwrap().set_sampled(false);
+        let Item::Profile(profile) = original.items_mut().next().unwrap() else {
+            panic!("expected a profile");
+        };
+        profile.set_sampled(false);
         let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
 
         assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
@@ -1049,7 +1068,10 @@ fn test_transaction_limit_keeps_separate_spans() {
         ),
     ] {
         let mut original = envelope![Transaction, Span];
-        original.items_mut().next().unwrap().set_span_count(Some(2));
+        let Item::Transaction(transaction) = original.items_mut().next().unwrap() else {
+            panic!("expected a transaction");
+        };
+        transaction.set_span_count(Some(2));
         let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
 
         assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
@@ -1166,7 +1188,8 @@ fn test_container_counts_and_byte_quota_fallback() {
             for limited_category in [count_category, byte_category] {
                 let mut envelope = envelope![];
                 let mut item = Item::new(ty.clone());
-                item.set_payload_with_item_count(ContentType::Json, "0123456789", count);
+                item.set_payload(ContentType::Json, "0123456789");
+                item.set_test_header(crate::envelope::ItemHeaderKey::ItemCount, Some(count));
                 envelope.add_item(item);
                 let (envelope, limits, outcomes) =
                     enforce_and_apply(cached_limits(&[limited_category]), envelope);
@@ -1226,6 +1249,43 @@ fn test_integration_items_use_native_limits() {
         assert!(envelope.is_empty());
         assert!(limits.is_limited());
         assert_eq!(outcomes, expected.into_iter().collect());
+    }
+}
+
+#[test]
+fn test_unreal_integration_counts_one_logical_error() {
+    use crate::envelope::IntegrationItem;
+    use crate::integrations::ErrorsIntegration;
+    use crate::managed::Counted;
+
+    for with_event in [false, true] {
+        let mut envelope = envelope![];
+        if with_event {
+            envelope.add_item(crate::envelope::EventItem::new());
+        }
+        let mut item = IntegrationItem::new();
+        item.set_payload(
+            ContentType::Integration(Integration::Errors(ErrorsIntegration::Unreal)),
+            "unreal report",
+        );
+        assert_eq!(item.quantities().as_slice(), &[(DataCategory::Error, 1)]);
+        let item = Item::from(item);
+        assert!(item.carries_event_payload());
+        assert!(item.routes_with_event());
+        envelope.add_item(item);
+
+        let summary = EnvelopeSummary::compute_items(envelope.items());
+        assert_eq!(summary.event.category(), Some(DataCategory::Error));
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&[]), envelope);
+        assert_eq!(kept.items().count(), 1 + usize::from(with_event));
+        assert!(!limits.is_limited());
+        assert!(outcomes.is_empty());
+
+        let (dropped, limits, outcomes) =
+            enforce_and_apply(cached_limits(&[DataCategory::Error]), kept);
+        assert!(dropped.is_empty());
+        assert!(limits.is_limited());
+        assert_eq!(outcomes, BTreeMap::from([(DataCategory::Error, 1)]));
     }
 }
 

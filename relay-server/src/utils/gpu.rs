@@ -2,7 +2,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentType, Item};
 use crate::managed::Managed;
 
 /// Splits a GPU crash dump off an error envelope into its own event.
@@ -58,45 +58,45 @@ pub fn split_crash(
     (cpu, Some(gpu))
 }
 
-/// Items an event is assembled from. Narrower than [`Item::creates_event`], which
+/// Items an event is assembled from. Narrower than [`Item::carries_event_payload`], which
 /// also matches crash reports that must stay on the original event.
 fn is_scope_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Event
-        || matches!(
-            item.attachment_type(),
+    match item {
+        Item::Event(_) => true,
+        Item::Attachment(attachment) => matches!(
+            attachment.attachment_type(),
             Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
-        )
+        ),
+        _ => false,
+    }
 }
 
 /// The GPU crash dump whose presence triggers the split.
 pub fn is_gpu_dump_item(item: &Item) -> bool {
-    item.attachment_type() == Some(AttachmentType::NvGpuDump)
+    matches!(item, Item::Attachment(attachment)
+        if attachment.attachment_type() == Some(AttachmentType::NvGpuDump))
 }
 
-/// The dump plus the shader debug info and compiled shaders moved onto the GPU
-/// envelope alongside it.
+/// The dump plus the debug info moved onto the GPU envelope alongside it.
 pub fn is_gpu_crash_item(item: &Item) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(
-            AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader
-        )
-    )
+    matches!(item, Item::Attachment(attachment)
+        if matches!(attachment.attachment_type(),
+            Some(AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug | AttachmentType::CompiledShader)))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::AttachmentItem;
+    use crate::envelope::EventItem;
     use relay_system::Addr;
 
     use super::*;
     use crate::extractors::RequestMeta;
 
     fn attachment(ty: AttachmentType) -> Item {
-        let mut item = Item::new(ItemType::Attachment);
+        let mut item = AttachmentItem::new();
         item.set_attachment_type(ty);
-        item
+        item.into()
     }
 
     fn envelope(items: impl IntoIterator<Item = Item>) -> Managed<Box<Envelope>> {
@@ -115,13 +115,16 @@ mod tests {
     fn attachment_types(envelope: &Envelope) -> Vec<Option<AttachmentType>> {
         envelope
             .items()
-            .map(|item| item.attachment_type())
+            .map(|item| match item {
+                Item::Attachment(attachment) => attachment.attachment_type(),
+                _ => None,
+            })
             .collect()
     }
 
     #[test]
     fn test_is_scope_item() {
-        assert!(is_scope_item(&Item::new(ItemType::Event)));
+        assert!(is_scope_item(&Item::Event(EventItem::new())));
         assert!(is_scope_item(&attachment(AttachmentType::EventPayload)));
         assert!(is_scope_item(&attachment(AttachmentType::Breadcrumbs)));
 
