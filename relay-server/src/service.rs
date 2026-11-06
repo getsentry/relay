@@ -26,9 +26,8 @@ use crate::services::projects::source::ProjectSource;
 use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
-use crate::services::store::create_kafka_client;
 #[cfg(feature = "processing")]
-use crate::services::store::{StoreService, StoreServicePool};
+use crate::services::store::{StoreService, StoreServicePool, create_kafka_client};
 use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
