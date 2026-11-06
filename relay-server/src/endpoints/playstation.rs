@@ -220,9 +220,8 @@ async fn multipart_to_items(
                 _ => None,
             })
             .ok_or(BadStoreRequest::MissingProsperodump)?;
-        let payload = prosperodump.payload();
-        validate_prosperodump(&payload)?;
-        prosperodump.set_payload(ContentType::OctetStream, payload);
+        validate_prosperodump(&prosperodump.payload())?;
+        prosperodump.set_content_type(ContentType::OctetStream);
         Ok(())
     })?;
     Ok(items)

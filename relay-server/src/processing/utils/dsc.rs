@@ -42,6 +42,7 @@ pub fn validate_and_set_dsc(
         && let Some(sp) = ctx.sampling_project_info
     {
         dsc.project_id = sp.project_id;
+        relay_event_normalization::normalize_dsc_values(dsc);
         return;
     }
     if ctx.sampling_project_info.is_none() {
@@ -61,6 +62,7 @@ pub fn validate_and_set_dsc(
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.
         dsc.sample_rate = original_dsc.as_ref().and_then(|dsc| dsc.sample_rate);
+        relay_event_normalization::normalize_dsc_values(&mut dsc);
 
         headers.set_dsc(dsc);
 

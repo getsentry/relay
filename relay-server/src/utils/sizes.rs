@@ -125,6 +125,7 @@ pub fn check_envelope_size_limits(
                 false => &mut span_legacy,
             },
             Item::Integration(item) => match item.integration() {
+                Some(Integration::Errors(_)) => &mut attachment,
                 Some(Integration::Logs(_)) => &mut log_integration,
                 Some(Integration::Spans(_)) => &mut span_integration,
                 None => {
@@ -148,14 +149,7 @@ pub fn check_envelope_size_limits(
                 }
             );
 
-            let discard_item = match item {
-                Item::Attachment(attachment) => attachment
-                    .attachment_type()
-                    .map(DiscardItemType::from)
-                    .unwrap_or_else(|| item.ty().into()),
-                _ => item.ty().into(),
-            };
-            return Err(discard_item);
+            return Err(item.into());
         }
     }
 

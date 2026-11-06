@@ -1,0 +1,247 @@
+use relay_cogs::{AppFeature, FeatureWeights};
+use relay_dynamic_config::Feature;
+use relay_event_schema::protocol::{EventId, TraceContext, TraceId};
+use relay_protocol::Empty;
+use relay_quotas::DataCategory;
+use relay_sampling::DynamicSamplingContext;
+
+use crate::Envelope;
+use crate::envelope::{
+    AttachmentItem, AttachmentType, ContentType, EnvelopeHeaders, EventItem, IntegrationItem, Item,
+    UnrealReportItem,
+};
+use crate::integrations::{ErrorsIntegration, Integration};
+use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, RecordKeeper, Rejected};
+use crate::processing::errors::{Error, Result, utils};
+use crate::processing::{self, Context, Intermediates, Nothing, Output};
+use crate::services::processor::ProcessingError;
+use crate::utils::{ProcessedUnrealReport, UnrealExpansion};
+
+/// A processor for Unreal items created by Relay's Unreal endpoint.
+///
+/// Also accepts legacy [`UnrealReportItem`] items, which are still forwarded by older
+/// Relays.
+#[derive(Debug)]
+pub struct UnrealErrorIntegrationProcessor;
+
+impl processing::Processor for UnrealErrorIntegrationProcessor {
+    type Input = SerializedUnrealReport;
+    type Output = Nothing;
+    type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Errors.into()
+    }
+
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
+        let report = envelope.envelope().items().find(|item| {
+            matches!(item, Item::Integration(integration)
+                if integration.integration() == Some(Integration::Errors(ErrorsIntegration::Unreal)))
+                || matches!(item, Item::UnrealReport(_))
+        })?;
+        let report = match report {
+            Item::Integration(_) => envelope
+                .envelope_mut()
+                .take_item_if::<IntegrationItem>(|item| {
+                    item.integration() == Some(Integration::Errors(ErrorsIntegration::Unreal))
+                })?
+                .payload(),
+            Item::UnrealReport(_) => envelope
+                .envelope_mut()
+                .take_item::<UnrealReportItem>()?
+                .payload(),
+            _ => unreachable!("selected an Unreal report"),
+        };
+
+        let headers = envelope.envelope().headers().clone();
+
+        let work = SerializedUnrealReport { headers, report };
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
+    }
+
+    async fn process(
+        &self,
+        unreal: Managed<Self::Input>,
+        ctx: processing::Context<'_>,
+    ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let unreal = unreal.try_map(|unreal, r| convert(unreal, r, ctx))?;
+        Ok(Output::intermediates(unreal))
+    }
+}
+
+/// A serialized unreal report.
+#[derive(Debug)]
+pub struct SerializedUnrealReport {
+    headers: EnvelopeHeaders,
+    report: bytes::Bytes,
+}
+
+impl Counted for SerializedUnrealReport {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Error, 1)]
+    }
+}
+
+/// Converts an Unreal crash report into the envelope protocol.
+fn convert(
+    unreal: SerializedUnrealReport,
+    records: &mut RecordKeeper<'_>,
+    ctx: Context<'_>,
+) -> Result<Intermediates> {
+    let event_id = unreal.headers.event_id().unwrap_or_default();
+
+    let UnrealExpansion {
+        event,
+        context,
+        attachments,
+    } = crate::utils::expand_unreal(unreal.report, ctx.config)?;
+
+    let mut attachments = attachments.into_vec();
+
+    let mut metrics = Default::default();
+    let mut event = match event {
+        Some(event) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?,
+        None => utils::take_event_from_typed_attachments(&mut attachments, &mut metrics, ctx)?,
+    };
+    // Metrics are not actually required here, they will be calculated again by the error processor.
+    drop(metrics);
+
+    let user_header = unreal
+        .headers
+        .get_header(crate::constants::UNREAL_USER_HEADER)
+        .and_then(|v| v.as_str());
+
+    let report =
+        crate::utils::process_unreal(context, event_id, &mut event, &attachments, user_header)
+            .map_err(ProcessingError::InvalidUnrealReport)?;
+
+    let mut intermediates = Intermediates::default();
+
+    let mut envelope = Envelope::from_request(Some(event_id), unreal.headers.meta().clone());
+
+    let has_trace_context = event
+        .value()
+        .is_some_and(|e| e.context::<TraceContext>().is_some());
+
+    // It's possible that there still is no event and a later pass through the error processor must
+    // create a dummy/placeholder event for the contained crash.
+    let event = match event.is_empty() {
+        true => None,
+        false => {
+            let mut item = EventItem::new();
+            item.set_payload(
+                ContentType::Json,
+                event.to_json().map_err(ProcessingError::SerializeFailed)?,
+            );
+            Some(item)
+        }
+    };
+
+    if ctx.project_info.has_feature(Feature::NvGpuCrashSplit)
+        && let Some(mut gpu) = take_gpu_crash(&unreal.headers, event.as_ref(), &mut attachments)
+    {
+        if !has_trace_context {
+            let trace_id = TraceId::random();
+            add_dsc(&mut envelope, trace_id, ctx);
+            add_dsc(&mut gpu, trace_id, ctx);
+        }
+
+        records.add(&gpu);
+        intermediates.add_envelope(gpu);
+    }
+
+    if let Some(event) = event {
+        envelope.add_item(event);
+    }
+
+    for attachment in attachments {
+        records.add(&attachment);
+        envelope.add_item(attachment);
+    }
+
+    if let Some(ProcessedUnrealReport { user_reports }) = report {
+        for user_report in user_reports {
+            records.add(&user_report);
+            envelope.add_item(user_report);
+        }
+    }
+
+    // There must at least be an `event` item with data or a crash which can create an event.
+    if !envelope.items().any(|item| item.carries_event_payload()) {
+        return Err(ProcessingError::NoEventPayload.into());
+    }
+    intermediates.add_envelope(envelope);
+
+    Ok(intermediates)
+}
+
+fn take_gpu_crash(
+    headers: &EnvelopeHeaders,
+    event: Option<&EventItem>,
+    items: &mut Vec<AttachmentItem>,
+) -> Option<Box<Envelope>> {
+    // No need to fork off an envelope if there is no GPU crash at all.
+    if !items.iter().any(is_cpu_dump_item) {
+        return None;
+    }
+
+    if !items
+        .iter()
+        .any(|item| item.attachment_type() == Some(AttachmentType::NvGpuDump))
+    {
+        return None;
+    }
+
+    let mut envelope = Envelope::from_request(Some(EventId::new()), headers.meta().clone());
+    if let Some(event) = event {
+        envelope.add_item(event.clone());
+    }
+    for item in items.extract_if(.., |item| {
+        matches!(
+            item.attachment_type(),
+            Some(
+                AttachmentType::NvGpuDump
+                    | AttachmentType::NvShaderDebug
+                    | AttachmentType::CompiledShader
+            )
+        )
+    }) {
+        envelope.add_item(item);
+    }
+
+    Some(envelope)
+}
+
+fn is_cpu_dump_item(item: &AttachmentItem) -> bool {
+    matches!(
+        item.attachment_type(),
+        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
+    )
+}
+
+/// Adds a [`DynamicSamplingContext`] to `envelope`.
+///
+/// The dynamic sampling context is used to connect a CPU crash to the same GPU crash,
+/// as it is later used in event normalization to create a trace context in each event.
+fn add_dsc(envelope: &mut Envelope, trace_id: TraceId, ctx: Context<'_>) {
+    // This is a dead check, a valid project config must always contain a public key.
+    let Some(public_key) = ctx.project_info.get_public_key_config() else {
+        return;
+    };
+
+    let dsc = DynamicSamplingContext {
+        trace_id,
+        public_key: public_key.public_key,
+        project_id: Default::default(),
+        release: Default::default(),
+        environment: Default::default(),
+        transaction: Default::default(),
+        sample_rate: Default::default(),
+        user: Default::default(),
+        replay_id: Default::default(),
+        sampled: Default::default(),
+        other: Default::default(),
+    };
+
+    envelope.set_dsc(dsc);
+}

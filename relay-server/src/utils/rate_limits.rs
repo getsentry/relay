@@ -334,6 +334,9 @@ impl EnvelopeSummary {
                     None => {}
                 },
                 Item::Integration(_) => match item.content_type() {
+                    Some(ContentType::Integration(Integration::Errors(_))) => summary
+                        .event
+                        .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
                     Some(ContentType::Integration(Integration::Spans(_))) => {
                         summary.span_quantity += count;
                     }

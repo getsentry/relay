@@ -177,6 +177,13 @@ impl ItemData {
             .set(ItemHeaderKey::ContentType, content_type.into());
     }
 
+    /// Sets the content type of this item's payload without changing the payload.
+    ///
+    /// Unlike [`Self::set_payload`], this does not update the length header.
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
+    }
+
     /// Sets the content type if there isn't already one set.
     pub fn set_default_content_type(&mut self, content_type: ContentType) {
         if !self.headers.contains(ItemHeaderKey::ContentType) {
@@ -535,7 +542,8 @@ impl AttachmentItem {
                 | AttachmentType::UnrealLogs
                 | AttachmentType::ViewHierarchy
                 | AttachmentType::Flamegraph
-                | AttachmentType::NvShaderDebug,
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
             )
             | None => false,
         }
@@ -565,6 +573,9 @@ impl Item {
             | Self::UnrealReport(_)
             | Self::UserReportV2(_) => true,
             Self::Attachment(item) => item.carries_event_payload(),
+            Self::Integration(item) => {
+                matches!(item.integration_header(), Some(Integration::Errors(_)))
+            }
             Self::FormData(_)
             | Self::UserReport(_)
             | Self::Session(_)
@@ -580,7 +591,6 @@ impl Item {
             | Self::TraceMetric(_)
             | Self::Span(_)
             | Self::ProfileChunk(_)
-            | Self::Integration(_)
             | Self::Unknown(_) => false,
         }
     }
@@ -599,6 +609,9 @@ impl Item {
             | Self::UserReport(_)
             | Self::Profile(_)
             | Self::ReplayEvent(_) => true,
+            Self::Integration(item) => {
+                matches!(item.integration_header(), Some(Integration::Errors(_)))
+            }
             Self::Session(_)
             | Self::Sessions(_)
             | Self::MetricBuckets(_)
@@ -610,7 +623,6 @@ impl Item {
             | Self::TraceMetric(_)
             | Self::Span(_)
             | Self::ProfileChunk(_)
-            | Self::Integration(_)
             | Self::Unknown(_) => false,
         }
     }
@@ -675,6 +687,10 @@ pub enum Item {
     /// Security report as sent by the browser in JSON.
     RawSecurity(RawSecurityItem),
     /// Raw compressed UE4 crash report.
+    ///
+    /// Relay's Unreal endpoint creates an [`ItemType::Integration`] item with
+    /// [`crate::integrations::ErrorsIntegration::Unreal`] instead. This item type is still accepted for compatibility
+    /// with envelopes forwarded by older Relays.
     UnrealReport(UnrealReportItem),
     /// User feedback encoded as JSON.
     UserReport(UserReportItem),
@@ -1441,6 +1457,22 @@ mod tests {
 
         // Meta data
         assert_eq!(item.content_type(), Some(ContentType::Json));
+    }
+
+    #[test]
+    fn test_item_set_content_type() {
+        let mut item = Item::new(ItemType::Attachment);
+
+        let payload = Bytes::from_static(b"payload");
+        item.set_payload(ContentType::Json, payload.clone());
+        item.set_content_type(ContentType::OctetStream);
+
+        assert_eq!(item.content_type(), Some(ContentType::OctetStream));
+        assert_eq!(item.payload(), payload);
+        assert_eq!(
+            item.headers.get::<usize>(ItemHeaderKey::Length),
+            Some(payload.len())
+        );
     }
 
     #[test]

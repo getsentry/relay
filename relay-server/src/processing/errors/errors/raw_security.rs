@@ -7,8 +7,8 @@ use relay_quotas::DataCategory;
 use crate::envelope::{AttachmentItem, Item, RawSecurityItem, UserReportItem};
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Result, utils};
 use crate::services::processor::ProcessingError;
 use crate::utils::DebugBytes;
 

@@ -1195,6 +1195,43 @@ fn test_integration_items_use_native_limits() {
 }
 
 #[test]
+fn test_unreal_integration_counts_one_logical_error() {
+    use crate::envelope::IntegrationItem;
+    use crate::integrations::ErrorsIntegration;
+    use crate::managed::Counted;
+
+    for with_event in [false, true] {
+        let mut envelope = envelope![];
+        if with_event {
+            envelope.add_item(crate::envelope::EventItem::new());
+        }
+        let mut item = IntegrationItem::new();
+        item.set_payload(
+            ContentType::Integration(Integration::Errors(ErrorsIntegration::Unreal)),
+            "unreal report",
+        );
+        assert_eq!(item.quantities().as_slice(), &[(DataCategory::Error, 1)]);
+        let item = Item::from(item);
+        assert!(item.carries_event_payload());
+        assert!(item.routes_with_event());
+        envelope.add_item(item);
+
+        let summary = EnvelopeSummary::compute_items(envelope.items());
+        assert_eq!(summary.event.category(), Some(DataCategory::Error));
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&[]), envelope);
+        assert_eq!(kept.items().count(), 1 + usize::from(with_event));
+        assert!(!limits.is_limited());
+        assert!(outcomes.is_empty());
+
+        let (dropped, limits, outcomes) =
+            enforce_and_apply(cached_limits(&[DataCategory::Error]), kept);
+        assert!(dropped.is_empty());
+        assert!(limits.is_limited());
+        assert_eq!(outcomes, BTreeMap::from([(DataCategory::Error, 1)]));
+    }
+}
+
+#[test]
 fn test_rejected_source_quantities_are_total_only() {
     for already_limited in [false, true] {
         let mut envelope = envelope![Span, Span];

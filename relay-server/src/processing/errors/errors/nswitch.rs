@@ -18,8 +18,8 @@ use crate::envelope::{
     AttachmentItem, AttachmentType, EnvelopeError, EventItem, Item, SessionItem, UserReportItem,
 };
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Result, utils};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
@@ -51,7 +51,11 @@ impl SentryError for Nswitch {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
-                event: Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?),
+                event: Box::new(utils::take_parsed_event(
+                    items,
+                    &mut metrics,
+                    ctx.processing,
+                )?),
                 attachments,
                 user_reports,
                 intermediates: vec![],
@@ -77,10 +81,10 @@ impl SentryError for Nswitch {
                 merge_events(event, dying_message, ctx)?
             }
             (Some(event), None) => {
-                utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?
+                utils::event_from_json(&event.payload(), None, &mut metrics, ctx.processing)?
             }
             (None, Some(event)) => {
-                utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?
+                utils::event_from_json(&event.payload(), None, &mut metrics, ctx.processing)?
             }
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };

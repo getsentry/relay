@@ -28,6 +28,8 @@ pub enum ContentType {
     Envelope,
     /// `application/x-protobuf`
     Protobuf,
+    /// [`application/logplex-1`](https://devcenter.heroku.com/articles/log-drains#https-drains)
+    Logplex,
     /// `application/vnd.sentry.items.log+json`
     LogContainer,
     /// `application/vnd.sentry.items.span.v2+json`
@@ -40,6 +42,8 @@ pub enum ContentType {
     AttachmentRef,
     /// `application/x-perfetto-trace`
     PerfettoTrace,
+    /// `application/reports+json`
+    BrowserReport,
     /// All integration content types.
     Integration(Integration),
 }
@@ -57,12 +61,14 @@ impl ContentType {
             Self::Xml => "text/xml",
             Self::Envelope => CONTENT_TYPE,
             Self::Protobuf => "application/x-protobuf",
+            Self::Logplex => "application/logplex-1",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
             Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
             Self::PerfettoTrace => "application/x-perfetto-trace",
+            Self::BrowserReport => "application/reports+json",
             Self::Integration(integration) => integration.as_content_type(),
         }
     }
@@ -98,6 +104,8 @@ impl ContentType {
             Some(Self::Envelope)
         } else if ct.eq_ignore_ascii_case(Self::Protobuf.as_str()) {
             Some(Self::Protobuf)
+        } else if ct.eq_ignore_ascii_case(Self::Logplex.as_str()) {
+            Some(Self::Logplex)
         } else if ct.eq_ignore_ascii_case(Self::LogContainer.as_str()) {
             Some(Self::LogContainer)
         } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {
@@ -114,6 +122,8 @@ impl ContentType {
             Some(Self::AttachmentRef)
         } else if ct.eq_ignore_ascii_case(Self::PerfettoTrace.as_str()) {
             Some(Self::PerfettoTrace)
+        } else if match_content_type_and_charset(ct, Self::BrowserReport.as_str(), "utf-8") {
+            Some(Self::BrowserReport)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }

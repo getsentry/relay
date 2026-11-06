@@ -4,10 +4,50 @@
 
 **Features**:
 
+- Copy `sentry.replay_id` and `sentry.profile_id` onto web vital metrics. ([#6638](https://github.com/getsentry/relay/pull/6638))
+- Emit `browser.web_vital.*.score` metrics carrying each web vital's performance score as a ratio. ([#6607](https://github.com/getsentry/relay/pull/6607))
+- Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
+- Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
+- Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
+- Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
+
+**Bug Fixes**:
+
+- Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
+- Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
+- Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
+- Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
+- Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
+- Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
+- Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
+
+**Internal**:
+
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
+- Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
+- Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Update sentry-conventions to 0.31.0. Adds Heroku log drain, `faas.document.*`, `faas.instance`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, and deprecates the `gen_ai.handoff` op. ([#6649](https://github.com/getsentry/relay/pull/6649))
+- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
+- Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
+- Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
+- Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
+
+**Bug Fixes**:
+
+- Keep OTel logs that have no body instead of dropping them. ([#6577](https://github.com/getsentry/relay/pull/6577))
+
+## 26.10.1
+
+**Features**:
+
 - Add `gen_ai.tool.call.result.size` to AI tool spans, measuring serialized results in UTF-8 bytes before Relay truncation and preserving SDK-provided sizes. ([#6534](https://github.com/getsentry/relay/pull/6534))
 - Derive the `object` span category from `object.*` span operations, such as Cloudflare R2 and Amazon S3 object storage calls. ([#6514](https://github.com/getsentry/relay/pull/6514))
 - Process `event.flamegraph` attachments associated with events. ([#6473](https://github.com/getsentry/relay/pull/6473))
 - Extract the crashed session embedded in PlayStation crash reports by sentry-playstation and process it as a session update for release health. ([#6544](https://github.com/getsentry/relay/pull/6544))
+- Allow pii scrubbing of the `script_sample` field on Csp. ([#6582](https://github.com/getsentry/relay/pull/6582))
 
 **Bug Fixes**:
 
@@ -15,15 +55,18 @@
 - Use the dynamic sampling context to fill missing trace IDs on errors, preserving existing trace and span IDs. ([#6508](https://github.com/getsentry/relay/pull/6508))
 - Fix Perfetto sample timestamps recorded in a clock other than the primary trace clock. ([#6522](https://github.com/getsentry/relay/pull/6522))
 - Remove invalid `sentry.release` attributes from spans instead of forwarding them. ([#6547](https://github.com/getsentry/relay/pull/6547))
+- Populate missing `sentry.group` attributes on streaming spans from their normalized query hashes. ([#6556](https://github.com/getsentry/relay/pull/6556))
 - Match wildcard domain patterns such as `*abc.com` in allowed domains, CSP disallowed sources and span host scrubbing only on a label boundary, so they no longer match `notabc.com` or `bc.com`. ([#6562](https://github.com/getsentry/relay/pull/6562))
 - Limit the number of entities in android trace logs. ([#6548](https://github.com/getsentry/relay/pull/6548))
 - Accept Android 17 trace header keys. ([#6548](https://github.com/getsentry/relay/pull/6548))
+- Fix PII scrubbing for JSON objects that contain keys with an escape sequence (such as `\n` or `\uXXXX`). ([#6573](https://github.com/getsentry/relay/pull/6573))
 
 **Internal**:
 
 - Fix missing rejection outcomes and debug accounting panics when crash attachments are rate-limited. ([#6568](https://github.com/getsentry/relay/pull/6568))
 - Make `spool.envelopes.max_unspool_envelopes_per_second` hot-reloadable. ([#6452](https://github.com/getsentry/relay/pull/6452))
-- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549))
+- Always convert Unreal crash reports instead of only when processing is enabled. ([#6578](https://github.com/getsentry/relay/pull/6578))
+- Kafka producers replace their client when `processing.kafka_config` or `processing.secondary_kafka_configs` changes, instead of requiring a restart. ([#6529](https://github.com/getsentry/relay/pull/6529), [#6549](https://github.com/getsentry/relay/pull/6549), [#6579](https://github.com/getsentry/relay/pull/6579))
 - Update sentry-conventions to 0.29.0. Span names and descriptions are now inferred for `rpc`, `queue.*`, `object.*`, and AWS SDK operations, S3 object keys are scrubbed by default, and scrubbing is consistent across deprecated attributes. Also deprecates `gen_ai.responses`, `view.response.render`, `event.django`, and legacy messaging ops. ([#6555](https://github.com/getsentry/relay/pull/6555))
 
 **Internal**:

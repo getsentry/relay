@@ -621,6 +621,9 @@ pub struct Limits {
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum size for a TUS upload request body.
+    ///
+    /// Applies to incoming request bytes at every hop and also to decoded bytes when writing to
+    /// objectstore.
     pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,
@@ -646,7 +649,7 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
-    /// The maximum number of operations that can occur in a span expansion.
+    /// The maximum number of operations that can occur in a log expansion.
     pub max_expanded_log_operations: usize,
     /// The maximum number of operations that can occur in a span expansion.
     pub max_expanded_span_operations: usize,
@@ -784,7 +787,7 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
@@ -814,6 +817,9 @@ pub enum HttpEncoding {
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
+    ///
+    /// Accepts aliases, whitespace, and mixed case; unknown values fall back to identity.
+    /// Use [`Self::parse_strict`] when validating an incoming request header.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
         if str.eq_ignore_ascii_case("zstd") {
@@ -826,6 +832,18 @@ impl HttpEncoding {
             Self::Deflate
         } else {
             Self::Identity
+        }
+    }
+
+    /// Parses a canonical `Content-Encoding` value, returning `None` for unsupported values.
+    pub fn parse_strict(value: &str) -> Option<Self> {
+        match value {
+            "identity" => Some(Self::Identity),
+            "deflate" => Some(Self::Deflate),
+            "gzip" => Some(Self::Gzip),
+            "br" => Some(Self::Br),
+            "zstd" => Some(Self::Zstd),
+            _ => None,
         }
     }
 
@@ -2617,7 +2635,7 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_log_size.as_bytes()
     }
 
-    /// Returns the maximum number of operations to allow for a span expansion.
+    /// Returns the maximum number of operations to allow for a log expansion.
     pub fn max_expanded_log_operations(&self) -> usize {
         self.inner.values.limits.max_expanded_log_operations
     }
@@ -2898,7 +2916,7 @@ impl ConfigSnapshot {
                 // express yet, so each physical topic is its own entry and maps to itself.
                 //
                 // That also means one topic name cannot point at two clusters.
-                let entry = serde_json::json!({ "physical_topic": { "cluster": cluster_name } });
+                let entry = serde_json::json!({ "physical_topics": [{ "cluster": cluster_name }] });
                 match topics.entry(params.topic_name.clone()) {
                     Entry::Vacant(vacant) => {
                         vacant.insert(entry);
@@ -3089,6 +3107,25 @@ impl fmt::Debug for ConfigSnapshot {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_http_encoding_parse_strict() {
+        for (value, expected) in [
+            ("identity", Some(HttpEncoding::Identity)),
+            ("gzip", Some(HttpEncoding::Gzip)),
+            ("deflate", Some(HttpEncoding::Deflate)),
+            ("br", Some(HttpEncoding::Br)),
+            ("zstd", Some(HttpEncoding::Zstd)),
+            ("", None),
+            ("unknown", None),
+            ("x-gzip", None),
+            ("GZIP", None),
+            (" gzip ", None),
+            ("zstd, gzip", None),
+        ] {
+            assert_eq!(HttpEncoding::parse_strict(value), expected, "{value:?}");
+        }
+    }
+
     #[cfg(feature = "processing")]
     #[test]
     fn test_upload_secret_key_from_file() {
@@ -3188,8 +3225,8 @@ processing:
                 .config
                 .config_map()
                 .iter()
-                // Arroyo adds this itself when building a producer config.
-                .filter(|(key, _)| key.as_str() != "statistics.interval.ms")
+                // Arroyo adds these itself when building a producer config.
+                .filter(|(key, _)| !matches!(key.as_str(), "statistics.interval.ms" | "client.id"))
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect::<BTreeMap<_, _>>()
         };

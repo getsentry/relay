@@ -562,6 +562,23 @@ impl Envelope {
             .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
     }
 
+    /// Takes the first payload of type `T` for which `predicate` returns `Some`.
+    ///
+    /// Returns the payload together with the mapped value. Removal may reorder items.
+    pub fn take_item_by_map<T: ItemPayload, R>(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> Option<R>,
+    ) -> Option<(T, R)> {
+        let (index, result) = self
+            .items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| Some((index, predicate(T::from_item_ref(item)?)?)))?;
+        let item = T::try_from(self.items.swap_remove(index))
+            .unwrap_or_else(|_| unreachable!("selected payload type"));
+        Some((item, result))
+    }
+
     /// Removes and returns all items that match the given condition.
     pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
     where

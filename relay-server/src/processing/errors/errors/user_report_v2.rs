@@ -4,8 +4,8 @@ use relay_quotas::DataCategory;
 
 use crate::envelope::{AttachmentItem, Item, UserReportV2Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Result, utils};
 use crate::statsd::RelayCounters;
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ impl SentryError for UserReportV2 {
                 &ev.payload(),
                 EventType::UserReportV2,
                 &mut metrics,
-                ctx,
+                ctx.processing,
             )?),
             attachments,
             user_reports: Default::default(),

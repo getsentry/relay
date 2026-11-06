@@ -35,7 +35,7 @@ impl SentryError for Playstation {
     #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         use crate::envelope::{AttachmentType, UserReportItem};
-        use crate::processing::errors::errors::utils;
+        use crate::processing::errors::utils;
         use relay_dynamic_config::Feature;
         use relay_event_schema::protocol::Metrics;
 
@@ -56,7 +56,7 @@ impl SentryError for Playstation {
         let mut attachments: Vec<_> = utils::take_payloads::<AttachmentItem>(items).collect();
 
         let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
-            let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx)?);
+            let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx.processing)?);
             (event, None, vec![])
         } else {
             use crate::constants::{SENTRY_CRASH_PAYLOAD_KEY, SENTRY_SESSION_PAYLOAD_KEY};
@@ -85,9 +85,9 @@ impl SentryError for Playstation {
                         ((event.len() + prospero.len()) as u64).into();
                     merge_events(&event, prospero.as_bytes(), ctx)?
                 }
-                (Some(event), None) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?,
+                (Some(event), None) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx.processing)?,
                 (None, Some(prospero)) => {
-                    utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx)?
+                    utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx.processing)?
                 }
                 (None, None) => Annotated::empty(),
             };
@@ -130,7 +130,7 @@ impl SentryError for Playstation {
                 // If the original prosperodump is already rate limited, so will be the minidump.
                 item.set_rate_limited(prosperodump.rate_limited());
 
-                crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item, crate::utils::AdditionalExceptions::Delete);
+                crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item);
 
                 item
             };

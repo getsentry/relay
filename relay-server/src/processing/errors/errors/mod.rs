@@ -2,7 +2,7 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item, UnrealReportItem, UserReportItem};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing;
 use crate::processing::errors::Result;
@@ -16,9 +16,7 @@ mod nswitch;
 mod playstation;
 mod raw_security;
 mod security;
-mod unreal;
 mod user_report_v2;
-mod utils;
 
 pub use self::apple_crash_report::*;
 pub use self::generic::*;
@@ -28,7 +26,6 @@ pub use self::nswitch::*;
 pub use self::playstation::*;
 pub use self::raw_security::*;
 pub use self::security::*;
-pub use self::unreal::*;
 pub use self::user_report_v2::*;
 
 /// Context required to expand a [`SentryError`].
@@ -56,18 +53,15 @@ impl Context<'static> {
     }
 }
 
-/// Serialized native error data. Unreal reports may be forwarded without expansion;
-/// all other remaining native data is already known to consist of attachments.
+/// Serialized native error attachments.
 pub enum ErrorPayload {
     Attachments(smallvec::SmallVec<[AttachmentItem; 2]>),
-    UnrealReport(UnrealReportItem),
 }
 
 impl ErrorPayload {
     pub fn append_to_envelope(self, items: &mut Vec<Item>) {
         match self {
             Self::Attachments(attachments) => items.extend(attachments.into_iter().map(Item::from)),
-            Self::UnrealReport(report) => items.push(report.into()),
         }
     }
 
@@ -77,9 +71,6 @@ impl ErrorPayload {
             Self::Attachments(native) => {
                 attachments.extend(native);
                 Ok(())
-            }
-            Self::UnrealReport(_) => {
-                Err(crate::services::processor::ProcessingError::UnsupportedItem.into())
             }
         }
     }
@@ -209,7 +200,6 @@ macro_rules! gen_error_kind {
 // error.
 gen_error_kind![
     Nswitch,
-    Unreal,
     Minidump,
     GpuCrash,
     AppleCrashReport,
@@ -230,6 +220,9 @@ pub struct Expansion<T> {
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<UserReportItem>,
     /// Additional items extracted from the error that need to be processed in a separate pass.
+    ///
+    /// All items will be added to a single envelope with a new event id and no envelope headers retained
+    /// and all items must make up a valid envelope.
     pub intermediates: Vec<Item>,
     /// The custom error data.
     pub error: T,

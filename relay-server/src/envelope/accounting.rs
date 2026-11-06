@@ -294,6 +294,7 @@ impl Counted for IntegrationItem {
     fn quantities(&self) -> Quantities {
         match self.integration_header() {
             None => Quantities::new(),
+            Some(Integration::Errors(_)) => smallvec![(DataCategory::Error, 1)],
             Some(Integration::Logs(_)) => smallvec![
                 (DataCategory::LogItem, 1),
                 (DataCategory::LogByte, self.len().max(1)),
@@ -305,7 +306,14 @@ impl Counted for IntegrationItem {
     }
 }
 
-impl RejectionQuantities for IntegrationItem {}
+impl RejectionQuantities for IntegrationItem {
+    fn rejected_quantities(&self) -> Quantities {
+        match self.integration_header() {
+            Some(Integration::Errors(_)) => Quantities::new(),
+            _ => self.quantities(),
+        }
+    }
+}
 
 impl Counted for UnknownItem {
     fn quantities(&self) -> Quantities {
