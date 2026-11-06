@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use android_trace_log::chrono::Utc;
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
 use bytes::Bytes;
-use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
@@ -93,14 +92,7 @@ impl Chunk {
         }
 
         if !profile.sampled_profile.is_empty() {
-            let profile_bytes = match BASE64_NOPAD.decode(profile.sampled_profile.as_bytes()) {
-                Ok(profile) => profile,
-                Err(_) => return Err(ProfileError::InvalidBase64Value),
-            };
-            profile.profile = match android_trace_log::parse(&profile_bytes) {
-                Ok(profile) => profile,
-                Err(_) => return Err(ProfileError::InvalidSampledProfile),
-            };
+            profile.profile = super::parse_trace_log(&profile.sampled_profile)?;
         }
 
         if profile.profile.events.is_empty() {

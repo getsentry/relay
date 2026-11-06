@@ -1,25 +1,58 @@
 version: 2
+
 updates:
+
   - package-ecosystem: cargo
-    open-pull-requests-limit: 0 # security updates only
     directory: "/"
     schedule:
-      interval: daily
-    reviewers:
-      - "@getsentry/ingest"
+      interval: weekly
+    versioning-strategy: auto
+    allow:
+      - dependency-type: all
+    ignore:
+      # do not automatically update major versions, unless they are security-relevant
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+    groups: # batch available updates into a single PR
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      versions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: weekly
+    versioning-strategy: increase-if-necessary
+    allow:
+      - dependency-type: all
+    ignore:
+      # do not automatically update major versions, unless they are security-relevant
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+    groups: # batch available updates into a single PR
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      versions:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "daily"
-    reviewers:
-      - "@getsentry/ingest"
     open-pull-requests-limit: 0 # security updates only
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      # Check for updates to GitHub Actions every week
       interval: "weekly"
-    reviewers:
-      - "@getsentry/ingest"

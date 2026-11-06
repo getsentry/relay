@@ -182,7 +182,7 @@ pub enum RuleType {
     /// Like trace rules, it is evaluated on the [`DynamicSamplingContext`](crate::DynamicSamplingContext).
     Project,
     // NOTE: If you add a new `RuleType` that is not supposed to sample transactions, you need to
-    // edit the `sample_envelope` function in `EnvelopeProcessorService`.
+    // edit the dynamic sampling business logic.
     /// If the sampling config contains new rule types, do not sample at all.
     #[serde(other)]
     Unsupported,

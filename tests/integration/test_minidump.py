@@ -538,10 +538,6 @@ def test_minidump_with_processing(
         with open(compressed_dmp_path, "rb") as f:
             compressed_content = f.read()
 
-    if use_objectstore:
-        mini_sentry.global_config["options"][
-            "relay.objectstore-attachments.sample-rate"
-        ] = 1.0
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
@@ -677,7 +673,7 @@ def test_minidump_with_processing(
 
 
 def test_minidump_with_processing_invalid(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
 ):
     content = b"MDMP invalid garbage"
 
@@ -691,16 +687,6 @@ def test_minidump_with_processing_invalid(
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
     relay.send_minidump(project_id=42, files=attachments)
 
-    attachment = b""
-    num_chunks = 0
-    attachment_id = None
-
-    while attachment != content:
-        chunk, message = attachments_consumer.get_attachment_chunk()
-        attachment_id = attachment_id or message["id"]
-        attachment += chunk
-        num_chunks += 1
-
     event, message = attachments_consumer.get_event()
 
     # Check the placeholder payload
@@ -709,20 +695,24 @@ def test_minidump_with_processing_invalid(
 
     assert list(message["attachments"]) == [
         {
-            "id": attachment_id,
+            "id": matches_any(),
             "name": "minidump.dmp",
             "rate_limited": False,
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "size": len(content),
             "retention_days": 90,
-            "chunks": num_chunks,
+            "stored_id": matches_any(),
         }
     ]
 
+    (attachment,) = message["attachments"]
+    objectstore = objectstore("attachments", project_id)
+    assert objectstore.get(attachment["stored_id"]).payload.read() == content
+
 
 def test_minidump_with_event_exception(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
 ):
     """
     An envelope can carry both a minidump attachment and an event item that already
@@ -787,7 +777,6 @@ def test_minidump_with_event_exception(
 
     relay.send_envelope(project_id, envelope)
 
-    _ = attachments_consumer.get_attachment_chunk()
     event, message = attachments_consumer.get_event()
 
     assert event["event_id"] == event_id
@@ -809,7 +798,10 @@ def test_minidump_with_event_exception(
     assert event["threads"]["values"] == [{"id": "36", "crashed": False}]
 
     # The minidump must still be forwarded as an attachment.
-    assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
+    (attachment,) = message["attachments"]
+    assert attachment["name"] == "minidump.dmp"
+    objectstore = objectstore("attachments", project_id)
+    assert objectstore.get(attachment["stored_id"]).payload.read() == content
 
 
 @pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
@@ -852,17 +844,13 @@ def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_co
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
-    # will modify the minidump since it contains user paths in the module list.  This breaks
-    # get_attachment_chunk() below.
+    # Disable scrubbing to preserve the minidump fixture's module paths.
     del project_config["config"]["piiConfig"]
 
     attachments_consumer = attachments_consumer()
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
     relay.send_minidump(project_id=project_id, files=attachments)
 
-    # Only one attachment chunk expected
-    attachments_consumer.get_attachment_chunk()
     event, _ = attachments_consumer.get_event()
 
     # Check the placeholder payload
@@ -887,17 +875,13 @@ def test_chromium_stability_report(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
-    # will modify the minidump since it contains user paths in the module list.  This breaks
-    # get_attachment_chunk() below.
+    # Disable scrubbing to preserve the minidump fixture's module paths.
     del project_config["config"]["piiConfig"]
 
     attachments_consumer = attachments_consumer()
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
     relay.send_minidump(project_id=project_id, files=attachments)
 
-    # Only one attachment chunk expected
-    attachments_consumer.get_attachment_chunk()
     event, _ = attachments_consumer.get_event()
 
     # Check the stability_report context
@@ -941,9 +925,6 @@ def test_minidump_placeholder(
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
 
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
@@ -1219,9 +1200,6 @@ def test_minidump_objectstore_uploads_external_chain(
     attachments_consumer,
 ):
     """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     project_id = 42
@@ -1256,9 +1234,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     relay,
     dummy_upload,
 ):
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     project_id = 42

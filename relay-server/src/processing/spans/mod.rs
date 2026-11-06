@@ -484,12 +484,12 @@ impl<C> ExpandedSpans<C> {
 
         for span in &self.spans {
             for attachment in &span.attachments {
-                attachment_quantity += attachment.body.len();
+                attachment_quantity += attachment.attachment_quantity();
                 attachment_count += 1;
             }
         }
         for attachment in &self.stand_alone_attachments {
-            attachment_quantity += attachment.body.len();
+            attachment_quantity += attachment.attachment_quantity();
             attachment_count += 1;
         }
 
@@ -723,3 +723,6 @@ fn outcome_count(spans: &[Item]) -> u32 {
         .map(|item| item.item_count().unwrap_or(1))
         .sum()
 }
+
+#[cfg(test)]
+mod tests;

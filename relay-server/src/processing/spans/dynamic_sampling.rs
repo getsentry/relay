@@ -110,6 +110,7 @@ pub fn validate_and_set_dsc(
                 dsc.project_id = sampling_project_info.project_id;
             }
         };
+        relay_event_normalization::normalize_dsc_values(dsc);
         Ok(())
     })
 }

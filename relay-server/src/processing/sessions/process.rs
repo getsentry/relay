@@ -3,7 +3,6 @@ use std::net::IpAddr;
 use chrono::{DateTime, Utc};
 use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::protocol::{SessionAggregates, SessionAttributes, SessionUpdate};
-use relay_quotas::DataCategory;
 
 use crate::envelope::Item;
 use crate::managed::{Managed, RecordKeeper};
@@ -227,7 +226,7 @@ pub fn extract_metrics(
         let meta = sessions.headers.meta();
 
         for update in sessions.updates {
-            records.modify_by(DataCategory::Session, -1);
+            records.remove(&update);
             metrics_extraction::sessions::extract_session_metrics(
                 &update.attributes,
                 &update,
@@ -239,7 +238,7 @@ pub fn extract_metrics(
 
         for aggregates in sessions.aggregates {
             for item in aggregates.aggregates {
-                records.modify_by(DataCategory::Session, -1);
+                records.remove(&item);
                 metrics_extraction::sessions::extract_session_metrics(
                     &aggregates.attributes,
                     &item,
@@ -250,8 +249,9 @@ pub fn extract_metrics(
             }
         }
 
-        records.modify_by(DataCategory::MetricBucket, metrics.len() as isize);
+        let metrics = ExtractedMetrics(metrics);
+        records.add(&metrics);
 
-        ExtractedMetrics(metrics)
+        metrics
     })
 }

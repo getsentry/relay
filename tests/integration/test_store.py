@@ -1226,9 +1226,7 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
     Rewriting `kafka_config` must replace the Kafka client underneath a running Relay, without
     interrupting produce.
 
-    This is the whole point of the feature: with a static client the config change is simply
-    ignored until a restart, so the test asserts the swap actually happened rather than just
-    that events still arrive.
+    The test asserts the swap actually happened rather than just that events still arrive.
     """
     events_consumer = events_consumer()
 
@@ -1242,7 +1240,6 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
                 "relay": {"config_reload_interval": 1},
                 "metrics": {"statsd": f"{host}:{port}", "prefix": "relay"},
                 "processing": {
-                    "reloading_producer_topics": ["ingest-events"],
                     # Swap as soon as the config lands, instead of spreading it out.
                     "reloading_producer_jitter_secs": 0,
                 },
@@ -1267,11 +1264,8 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
         relay.config_dir.join("config.yml").write(yaml.dump(options))
 
         # The swap is not synchronous: Relay re-reads the file, pushes the config, and Arroyo
-        # probes a broker before installing. Keep producing until the generation gauge reports
-        # a swap, which also proves produce keeps working the whole way through.
-        #
-        # The gauge rides along with produce metrics, which are debounced to once a second, so
-        # this has to keep sending rather than wait on a quiet socket.
+        # probes a broker before installing. Keep producing until Arroyo's generation gauge
+        # reports a swap, which also proves produce keeps working the whole way through.
         statsd.settimeout(2)
         deadline = time.monotonic() + 60
         swapped = False
@@ -1294,7 +1288,7 @@ def test_reloading_producer_swaps_the_client_on_a_kafka_config_change(
             for metric in datagram.splitlines():
                 name, _, rest = metric.partition(":")
                 if (
-                    name == "relay.kafka.reload_generation"
+                    name == "arroyo.producer.config_reload_generation"
                     and float(rest.partition("|")[0]) >= 1
                 ):
                     swapped = True

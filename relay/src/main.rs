@@ -33,11 +33,12 @@
 //!  - `relay`: Main entry point and command line interface.
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
+//!  - [`relay-browser-reporting`]: Support for the Browser Reporting API in Relay.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
-//!  - `relay-conventions`: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
+//!  - [`relay-conventions`]: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
 //!  - [`relay-event-normalization`]: Event normalization and processing.
@@ -77,9 +78,11 @@
 //! [relay documentation]: https://docs.sentry.io/product/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-base-schema`]: ../relay_base_schema/index.html
+//! [`relay-browser-reporting`]: ../relay_browser_reporting/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
+//! [`relay-conventions`]: ../relay_conventions/index.html
 //! [`relay-cogs`]: ../relay_cogs/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-event-derive`]: ../relay_event_derive/index.html

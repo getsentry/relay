@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceResponse,
@@ -181,9 +183,11 @@ def test_otlp_traces_oversized_body_returns_status(mini_sentry, relay):
     assert response.json()["code"] == GRPC_RESOURCE_EXHAUSTED
 
 
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_span_ingestion(
     mini_sentry,
     relay,
+    relay_mode,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
@@ -193,7 +197,8 @@ def test_span_ingestion(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    relay = relay(relay_with_processing())
+    upstream = relay(relay_with_processing())
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)

@@ -21,7 +21,8 @@ use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
 use relay_quotas::Scoping;
 use relay_system::{
-    Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, MessageHandler,
+    NoResponse, Sender,
 };
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 
@@ -461,6 +462,18 @@ impl fmt::Display for ObjectstoreKey {
     }
 }
 
+/// Creates a new concurrent objectstore service.
+pub fn create_service(
+    config: &ObjectstoreServiceConfig,
+    store: Option<Addr<Store>>,
+) -> anyhow::Result<Option<ConcurrentService<ObjectstoreService>>> {
+    let service = ObjectstoreService::new(config, store)?;
+    Ok(service.map(|s| {
+        ConcurrentService::new(s)
+            .with_backlog_limit(config.max_backlog)
+            .with_concurrency_limit(config.max_concurrent_requests)
+    }))
+}
 /// The objectstore service that uploads attachments.
 ///
 /// Accepts upload requests and maintains a list of concurrent uploads.
@@ -470,7 +483,7 @@ pub struct ObjectstoreService {
 }
 
 impl ObjectstoreService {
-    pub fn new(
+    fn new(
         config: &ObjectstoreServiceConfig,
         store: Option<Addr<Store>>,
     ) -> anyhow::Result<Option<Self>> {
@@ -502,11 +515,11 @@ impl ObjectstoreService {
 
             builder.build()?
         };
-        let event_attachments = Usecase::new("attachments")
+        let event_attachments = Usecase::from_static("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let trace_attachments = Usecase::new("trace_attachments")
+        let trace_attachments = Usecase::from_static("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let profile_attachments = Usecase::new("profile_attachments")
+        let profile_attachments = Usecase::from_static("profile_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
@@ -527,7 +540,7 @@ impl ObjectstoreService {
     }
 }
 
-impl SimpleService for ObjectstoreService {
+impl MessageHandler for ObjectstoreService {
     type Interface = Objectstore;
 
     async fn handle_message(&self, message: Self::Interface) {
@@ -1372,7 +1385,7 @@ fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
 mod tests {
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
-    use relay_system::Service;
+    use relay_system::{Service, SimpleService};
 
     use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
@@ -1384,7 +1397,7 @@ mod tests {
         let service = ObjectstoreService::new(&test_config(), Some(Addr::dummy()))
             .unwrap()
             .unwrap();
-        let addr = service.start_detached();
+        let addr = SimpleService::from_message_handler(service).start_detached();
 
         let stream = BoundedStream::new(
             MeteredStream::new(futures::stream::empty().boxed(), "test"),

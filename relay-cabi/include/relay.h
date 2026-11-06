@@ -25,15 +25,13 @@ enum RelayDataCategory {
   /**
    * Error events and Events with an `event_type` not explicitly listed below.
    *
-   * SDK rate limiting behavior: apply to the entire envelope if it contains an
-   * item type `event`.
+   * SDK rate limiting behavior: apply to the entire envelope if it contains an item type `event`.
    */
   RELAY_DATA_CATEGORY_ERROR = 1,
   /**
    * Transaction events.
    *
-   * SDK rate limiting behavior: apply to the entire envelope if it contains an
-   * item `transaction`.
+   * SDK rate limiting behavior: apply to the entire envelope if it contains an item `transaction`.
    */
   RELAY_DATA_CATEGORY_TRANSACTION = 2,
   /**
@@ -57,8 +55,7 @@ enum RelayDataCategory {
   /**
    * Profile
    *
-   * This is the category for processed profiles (all profiles, whether or not
-   * we store them).
+   * This is the category for processed profiles (all profiles, whether or not we store them).
    *
    * SDK rate limiting behavior: apply to all profiles.
    */
@@ -72,8 +69,8 @@ enum RelayDataCategory {
   /**
    * DEPRECATED: A transaction for which metrics were extracted.
    *
-   * This category is now obsolete because the `Transaction` variant will
-   * represent processed transactions from now on.
+   * This category is now obsolete because the `Transaction` variant will represent
+   * processed transactions from now on.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -81,9 +78,8 @@ enum RelayDataCategory {
   /**
    * Indexed transaction events.
    *
-   * This is the category for transaction payloads that were accepted and stored
-   * in full. In contrast, `transaction` only guarantees that metrics have been
-   * accepted for the transaction.
+   * This is the category for transaction payloads that were accepted and stored in full. In
+   * contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -107,17 +103,15 @@ enum RelayDataCategory {
    *
    * This is the category for spans from which we extracted metrics from.
    *
-   * SDK rate limiting behavior: apply to spans that are not sent in a
-   * transaction.
+   * SDK rate limiting behavior: apply to spans that are not sent in a transaction.
    */
   RELAY_DATA_CATEGORY_SPAN = 12,
   /**
    * Monitor Seat
    *
-   * Represents a monitor job that has scheduled monitor checkins. The seats are
-   * not ingested but we define it here to prevent clashing values since this
-   * data category enumeration is also used outside of Relay via the Python
-   * package.
+   * Represents a monitor job that has scheduled monitor checkins. The seats are not ingested
+   * but we define it here to prevent clashing values since this data category enumeration
+   * is also used outside of Relay via the Python package.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -126,8 +120,7 @@ enum RelayDataCategory {
    * User Feedback
    *
    * Represents a User Feedback processed.
-   * Currently standardized on name UserReportV2 to avoid clashing with the old
-   * UserReport.
+   * Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
    * TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
    *
    * SDK rate limiting behavior: apply to items of type 'feedback'.
@@ -136,7 +129,9 @@ enum RelayDataCategory {
   /**
    * Metric buckets.
    *
-   * SDK rate limiting behavior: apply to `statsd` and `metrics` items.
+   * These are metrics generated and consumed by Relay.
+   *
+   * SDK rate limiting behavior: ignore.
    */
   RELAY_DATA_CATEGORY_METRIC_BUCKET = 15,
   /**
@@ -150,8 +145,8 @@ enum RelayDataCategory {
   /**
    * ProfileDuration
    *
-   * This data category is used to count the number of milliseconds per indexed
-   * profile chunk, excluding UI profile chunks.
+   * This data category is used to count the number of milliseconds per indexed profile chunk,
+   * excluding UI profile chunks.
    *
    * SDK rate limiting behavior: apply to profile chunks.
    */
@@ -159,8 +154,8 @@ enum RelayDataCategory {
   /**
    * ProfileChunk
    *
-   * This is a count of profile chunks received. It will not be used for billing
-   * but will be useful for customers to track what's being dropped.
+   * This is a count of profile chunks received. It will not be used for billing but will be
+   * useful for customers to track what's being dropped.
    *
    * SDK rate limiting behavior: apply to profile chunks.
    */
@@ -178,8 +173,7 @@ enum RelayDataCategory {
   /**
    * Replay Video
    *
-   * This is the data category for Session Replays produced via a video
-   * recording.
+   * This is the data category for Session Replays produced via a video recording.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -191,8 +185,7 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_UPTIME = 21,
   /**
-   * Counts the number of individual attachments, as opposed to the number of
-   * bytes in an attachment.
+   * Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
    *
    * SDK rate limiting behavior: apply to attachments.
    */
@@ -200,9 +193,8 @@ enum RelayDataCategory {
   /**
    * LogItem
    *
-   * This is the category for logs for which we store the count log events for
-   * users for measuring missing breadcrumbs, and count of logs for rate
-   * limiting purposes.
+   * This is the category for logs for which we store the count log events for users for measuring
+   * missing breadcrumbs, and count of logs for rate limiting purposes.
    *
    * SDK rate limiting behavior: apply to logs.
    */
@@ -210,8 +202,7 @@ enum RelayDataCategory {
   /**
    * LogByte
    *
-   * This is the category for logs for which we store log event total bytes for
-   * users.
+   * This is the category for logs for which we store log event total bytes for users.
    *
    * SDK rate limiting behavior: apply to logs.
    */
@@ -219,8 +210,8 @@ enum RelayDataCategory {
   /**
    * Profile duration of a UI profile.
    *
-   * This data category is used to count the number of milliseconds per indexed
-   * UI profile chunk.
+   * This data category is used to count the number of milliseconds per indexed UI profile
+   * chunk.
    *
    * See also: [`Self::ProfileDuration`]
    *
@@ -230,8 +221,8 @@ enum RelayDataCategory {
   /**
    * UI Profile Chunk.
    *
-   * This data category is used to count the number of milliseconds per indexed
-   * UI profile chunk.
+   * This data category is used to count the number of milliseconds per indexed UI profile
+   * chunk.
    *
    * See also: [`Self::ProfileChunk`]
    *
@@ -274,8 +265,7 @@ enum RelayDataCategory {
    * This is the data category to count the number of size analyses performed.
    * 'Size analysis' a static binary analysis of a preprod build artifact
    * (e.g. the .apk of an Android app or MacOS .app).
-   * When enabled there will typically be one such analysis per uploaded
-   * artifact.
+   * When enabled there will typically be one such analysis per uploaded artifact.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -286,8 +276,7 @@ enum RelayDataCategory {
    * This is the data category to count the number of installable builds.
    * It counts the number of artifacts uploaded *not* the number of times the
    * artifacts are downloaded for installation.
-   * When enabled there will typically be one 'InstallableBuild' per uploaded
-   * artifact.
+   * When enabled there will typically be one 'InstallableBuild' per uploaded artifact.
    *
    * SDK rate limiting behavior: ignore.
    */
@@ -309,34 +298,29 @@ enum RelayDataCategory {
   /**
    * Transaction profiles for backend platforms.
    *
-   * This is an extension of [`Self::Profile`], but additionally discriminates
-   * on the profile platform, see also [`Self::ProfileUi`].
+   * This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+   * platform, see also [`Self::ProfileUi`].
    *
-   * Continuous profiling uses [`Self::ProfileChunk`] and
-   * [`Self::ProfileChunkUi`].
+   * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
    *
-   * SDK rate limiting behavior: optional, apply to transaction profiles on
-   * "backend platforms".
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "backend platforms".
    */
   RELAY_DATA_CATEGORY_PROFILE_BACKEND = 35,
   /**
    * Transaction profiles for ui platforms.
    *
-   * This is an extension of [`Self::Profile`], but additionally discriminates
-   * on the profile platform, see also [`Self::ProfileBackend`].
+   * This is an extension of [`Self::Profile`], but additionally discriminates on the profile
+   * platform, see also [`Self::ProfileBackend`].
    *
-   * Continuous profiling uses [`Self::ProfileChunk`] and
-   * [`Self::ProfileChunkUi`].
+   * Continuous profiling uses [`Self::ProfileChunk`] and [`Self::ProfileChunkUi`].
    *
-   * SDK rate limiting behavior: optional, apply to transaction profiles on "ui
-   * platforms".
+   * SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
    */
   RELAY_DATA_CATEGORY_PROFILE_UI = 36,
   /**
    * TraceMetricByte
    *
-   * This is the category for trace metrics for which we store total bytes for
-   * users.
+   * This is the category for trace metrics for which we store total bytes for users.
    */
   RELAY_DATA_CATEGORY_TRACE_METRIC_BYTE = 37,
   /**
@@ -357,8 +341,8 @@ typedef int8_t RelayDataCategory;
 /**
  * The unit in which a data category is measured.
  *
- * This enum specifies how quantities for different data categories are
- * measured, which affects how quota limits are interpreted and enforced.
+ * This enum specifies how quantities for different data categories are measured,
+ * which affects how quota limits are interpreted and enforced.
  *
  * Note: There is no `Unknown` variant. For categories without a defined unit
  * (e.g., `DataCategory::Unknown`), methods return `Option::None`.
@@ -393,6 +377,7 @@ enum RelayErrorCode {
   RELAY_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
   RELAY_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
   RELAY_ERROR_CODE_UNPACK_ERROR_BAD_ENCODING = 1006,
+  RELAY_ERROR_CODE_UNPACK_ERROR_RELAY_ID_MISMATCH = 1007,
   RELAY_ERROR_CODE_PROCESSING_ERROR_INVALID_TRANSACTION = 2001,
   RELAY_ERROR_CODE_PROCESSING_ERROR_INVALID_GEO_IP = 2002,
   RELAY_ERROR_CODE_INVALID_RELEASE_ERROR_TOO_LONG = 3001,
@@ -406,10 +391,8 @@ typedef uint32_t RelayErrorCode;
 /**
  * Trace status.
  *
- * Values from
- * <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status>
- * Mapping to HTTP from
- * <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status>
+ * Values from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status>
+ * Mapping to HTTP from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status>
  */
 enum RelaySpanStatus {
   /**
@@ -431,15 +414,15 @@ enum RelaySpanStatus {
   /**
    * Client specified an invalid argument. 4xx.
    *
-   * Note that this differs from FailedPrecondition. InvalidArgument indicates
-   * arguments that are problematic regardless of the state of the system.
+   * Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that
+   * are problematic regardless of the state of the system.
    */
   RELAY_SPAN_STATUS_INVALID_ARGUMENT = 3,
   /**
    * Deadline expired before operation could complete.
    *
-   * For operations that change the state of the system, this error may be
-   * returned even if the operation has been completed successfully.
+   * For operations that change the state of the system, this error may be returned even if the
+   * operation has been completed successfully.
    *
    * HTTP redirect loops and 504 Gateway Timeout
    */
@@ -463,13 +446,13 @@ enum RelaySpanStatus {
   /**
    * 429 Too Many Requests
    *
-   * Some resource has been exhausted, perhaps a per-user quota or perhaps the
-   * entire file system is out of space.
+   * Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file
+   * system is out of space.
    */
   RELAY_SPAN_STATUS_RESOURCE_EXHAUSTED = 8,
   /**
-   * Operation was rejected because the system is not in a state required for
-   * the operation's execution
+   * Operation was rejected because the system is not in a state required for the operation's
+   * execution
    */
   RELAY_SPAN_STATUS_FAILED_PRECONDITION = 9,
   /**
@@ -535,9 +518,8 @@ typedef struct RelayStoreNormalizer RelayStoreNormalizer;
 /**
  * A length-prefixed UTF-8 string.
  *
- * As opposed to C strings, this string is not null-terminated. If the string is
- * owned, indicated by the `owned` flag, the owner must call the `free` function
- * on this string. The convention is:
+ * As opposed to C strings, this string is not null-terminated. If the string is owned, indicated
+ * by the `owned` flag, the owner must call the `free` function on this string. The convention is:
  *
  *  - When obtained as instance through return values, always free the string.
  *  - When obtained as pointer through field access, never free the string.
@@ -560,8 +542,8 @@ typedef struct RelayStr {
 /**
  * A binary buffer of known length.
  *
- * If the buffer is owned, indicated by the `owned` flag, the owner must call
- * the `free` function on this buffer. The convention is:
+ * If the buffer is owned, indicated by the `owned` flag, the owner must call the `free` function
+ * on this buffer. The convention is:
  *
  *  - When obtained as instance through return values, always free the buffer.
  *  - When obtained as pointer through field access, never free the buffer.
@@ -669,16 +651,18 @@ struct RelayUuid relay_generate_relay_id(void);
 /**
  * Creates a challenge from a register request and returns JSON.
  */
-struct RelayStr relay_create_register_challenge(
-    const struct RelayBuf *data, const struct RelayStr *signature,
-    const struct RelayStr *secret, uint32_t max_age);
+struct RelayStr relay_create_register_challenge(const struct RelayBuf *data,
+                                                const struct RelayStr *signature,
+                                                const struct RelayStr *secret,
+                                                uint32_t max_age);
 
 /**
  * Validates a register response.
  */
-struct RelayStr relay_validate_register_response(
-    const struct RelayBuf *data, const struct RelayStr *signature,
-    const struct RelayStr *secret, uint32_t max_age);
+struct RelayStr relay_validate_register_response(const struct RelayBuf *data,
+                                                 const struct RelayStr *signature,
+                                                 const struct RelayStr *secret,
+                                                 uint32_t max_age);
 
 /**
  * Returns true if the given version is supported by this library.
@@ -698,8 +682,7 @@ RelayDataCategory relay_data_category_parse(const struct RelayStr *name);
 /**
  * Parses a `DataCategory` from an event type.
  */
-RelayDataCategory
-relay_data_category_from_event_type(const struct RelayStr *event_type);
+RelayDataCategory relay_data_category_from_event_type(const struct RelayStr *event_type);
 
 /**
  * Returns the API name of the given `CategoryUnit`.
@@ -709,16 +692,15 @@ struct RelayStr relay_category_unit_name(RelayCategoryUnit unit);
 /**
  * Parses a `CategoryUnit` from its API name.
  *
- * Returns the unit value (0=Count, 1=Bytes, 2=Milliseconds) or `-1` for
- * invalid/unknown names.
+ * Returns the unit value (0=Count, 1=Bytes, 2=Milliseconds) or `-1` for invalid/unknown names.
  */
 int8_t relay_category_unit_parse(const struct RelayStr *name);
 
 /**
  * Returns the `CategoryUnit` for a given `DataCategory`.
  *
- * Returns the unit value (0=Count, 1=Bytes, 2=Milliseconds) or `-1` if the
- * category has no defined unit (e.g., `DataCategory::Unknown`).
+ * Returns the unit value (0=Count, 1=Bytes, 2=Milliseconds) or `-1` if the category
+ * has no defined unit (e.g., `DataCategory::Unknown`).
  */
 int8_t relay_data_category_unit(RelayDataCategory category);
 
@@ -801,10 +783,9 @@ bool relay_pattern_is_match(const struct RelayPattern *pattern,
                             uint64_t gas);
 
 /**
- * Formats the pattern as a string.
+ * Formats the pattern using its `Display` implementation.
  *
- * The returned string is newly allocated and must be freed with
- * `relay_str_free`.
+ * The returned string is newly allocated and must be freed with `relay_str_free`.
  */
 struct RelayStr relay_pattern_to_string(const struct RelayPattern *pattern);
 
@@ -837,9 +818,8 @@ const struct RelayStr *relay_valid_platforms(uintptr_t *size_out);
 /**
  * Creates a new normalization config.
  */
-struct RelayStoreNormalizer *
-relay_store_normalizer_new(const struct RelayStr *config,
-                           const struct RelayGeoIpLookup *_geoip_lookup);
+struct RelayStoreNormalizer *relay_store_normalizer_new(const struct RelayStr *config,
+                                                        const struct RelayGeoIpLookup *_geoip_lookup);
 
 /**
  * Frees a `RelayStoreNormalizer`.
@@ -849,9 +829,8 @@ void relay_store_normalizer_free(struct RelayStoreNormalizer *normalizer);
 /**
  * Normalizes the event given as JSON.
  */
-struct RelayStr
-relay_store_normalizer_normalize_event(struct RelayStoreNormalizer *normalizer,
-                                       const struct RelayStr *event);
+struct RelayStr relay_store_normalizer_normalize_event(struct RelayStoreNormalizer *normalizer,
+                                                       const struct RelayStr *event);
 
 /**
  * Replaces invalid JSON generated by Python.
@@ -871,8 +850,7 @@ struct RelayStr relay_validate_pii_config(const struct RelayStr *value);
 /**
  * Convert an old datascrubbing config to the new PII config format.
  */
-struct RelayStr
-relay_convert_datascrubbing_config(const struct RelayStr *config);
+struct RelayStr relay_convert_datascrubbing_config(const struct RelayStr *config);
 
 /**
  * Scrub an event using new PII stripping config.
@@ -881,12 +859,10 @@ struct RelayStr relay_pii_strip_event(const struct RelayStr *config,
                                       const struct RelayStr *event);
 
 /**
- * Walk through the event and collect selectors that can be applied to it in a
- * PII config. This function is used in the UI to provide auto-completion of
- * selectors.
+ * Walk through the event and collect selectors that can be applied to it in a PII config. This
+ * function is used in the UI to provide auto-completion of selectors.
  */
-struct RelayStr
-relay_pii_selector_suggestions_from_event(const struct RelayStr *event);
+struct RelayStr relay_pii_selector_suggestions_from_event(const struct RelayStr *event);
 
 /**
  * A test function that always panics.
@@ -918,12 +894,11 @@ int32_t relay_compare_versions_semver_precedence(const struct RelayStr *a,
 struct RelayStr relay_validate_rule_condition(const struct RelayStr *value);
 
 /**
- * Validate whole rule ( this will be also implemented in Sentry for better
- * error messages) The implementation in relay is just to make sure that the
- * Sentry implementation doesn't go out of sync.
+ * Validate whole rule ( this will be also implemented in Sentry for better error messages)
+ * The implementation in relay is just to make sure that the Sentry implementation doesn't
+ * go out of sync.
  */
-struct RelayStr
-relay_validate_sampling_configuration(const struct RelayStr *value);
+struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 /**
  * Normalize a project config.
@@ -935,4 +910,4 @@ struct RelayStr relay_normalize_project_config(const struct RelayStr *value);
  */
 struct RelayStr relay_normalize_global_config(const struct RelayStr *value);
 
-#endif /* RELAY_H_INCLUDED */
+#endif  /* RELAY_H_INCLUDED */

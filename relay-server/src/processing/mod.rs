@@ -10,8 +10,10 @@ use relay_cogs::FeatureWeights;
 use relay_config::{ConfigSnapshot, RelayMode};
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
+use smallvec::SmallVec;
 
-use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
+use crate::Envelope;
+use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
@@ -117,7 +119,6 @@ impl<'a> Context<'a> {
     pub fn to_forward(self) -> ForwardContext<'a> {
         ForwardContext {
             config: self.config,
-            global_config: self.global_config,
             project_info: self.project_info,
         }
     }
@@ -152,10 +153,8 @@ pub struct Output<T> {
     pub main: Option<T>,
     /// Metric by products.
     pub metrics: Option<Managed<ExtractedMetrics>>,
-    /// An envelope containing items that the processor
-    /// extracted from an envelope, but couldn't process
-    /// itself.
-    pub intermediates: Option<ManagedEnvelope>,
+    /// Intermediate items produced by a [`Processor`] which need further processing.
+    pub intermediates: Option<Managed<Intermediates>>,
 }
 
 impl<T> Output<T> {
@@ -174,6 +173,15 @@ impl<T> Output<T> {
             main: None,
             metrics: Some(metrics),
             intermediates: None,
+        }
+    }
+
+    /// Creates a new output just containing intermediates.
+    pub fn intermediates(intermediates: Managed<Intermediates>) -> Self {
+        Self {
+            main: None,
+            metrics: None,
+            intermediates: Some(intermediates),
         }
     }
 
@@ -196,5 +204,50 @@ impl<T> Output<T> {
             metrics: self.metrics,
             intermediates: self.intermediates,
         }
+    }
+}
+
+/// A collection of intermediate products of a [`Processor`].
+///
+/// Intermediates can be produced by a processor and need to be further processed by a different
+/// processor before being finalized and sent onwards.
+#[derive(Debug, Default)]
+pub struct Intermediates {
+    envelopes: SmallVec<[Box<Envelope>; 1]>,
+}
+
+impl Intermediates {
+    /// Creates a new [`Self`] from an envelope.
+    pub fn from_envelope(envelope: Box<Envelope>) -> Self {
+        let mut this = Self::default();
+        this.add_envelope(envelope);
+        this
+    }
+
+    /// Adds an envelope as an intermediate product.
+    pub fn add_envelope(&mut self, envelope: Box<Envelope>) {
+        self.envelopes.push(envelope);
+    }
+
+    /// Returns `true` if there are have been no intermediates added to this instance.
+    pub fn is_empty(&self) -> bool {
+        self.envelopes.is_empty()
+    }
+}
+
+impl Counted for Intermediates {
+    fn quantities(&self) -> Quantities {
+        let Self { envelopes } = self;
+        envelopes.quantities()
+    }
+}
+
+impl IntoIterator for Intermediates {
+    type Item = Box<Envelope>;
+    type IntoIter = smallvec::IntoIter<[Self::Item; 1]>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let Self { envelopes } = self;
+        envelopes.into_iter()
     }
 }

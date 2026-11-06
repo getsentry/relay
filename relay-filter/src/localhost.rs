@@ -1,5 +1,6 @@
 //! Implements filtering for events originating from the localhost
 
+use crate::origin::host_matches_or_is_subdomain_of;
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
@@ -43,11 +44,6 @@ fn matches<F: Filterable>(item: &F) -> bool {
     }
 
     false
-}
-
-fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
-    host.strip_suffix(domain)
-        .is_some_and(|s| s.is_empty() || s.ends_with('.'))
 }
 
 /// Filters events originating from the local host.

@@ -51,7 +51,7 @@ use serde::de;
 /// ```
 #[allow(missing_docs)]
 pub trait Transform<'de> {
-    fn push_path(&mut self, _key: &'de str) {}
+    fn push_path(&mut self, _key: &str) {}
 
     fn pop_path(&mut self) {}
 
@@ -740,6 +740,9 @@ where
         E: de::Error,
     {
         if self.is_key {
+            // Keys that contain escape sequences are not borrowed from the input, but they still
+            // need a matching `push_path` for the `pop_path` after their value.
+            self.transformer.push_path(v);
             return self.inner.visit_str(v);
         };
         match self.transformer.transform_str(v) {
@@ -753,6 +756,7 @@ where
         E: de::Error,
     {
         if self.is_key {
+            self.transformer.push_path(&v);
             return self.inner.visit_string(v);
         };
         match self.transformer.transform_string(v) {
@@ -891,6 +895,9 @@ where
         let res = self
             .0
             .deserialize(Deserializer::borrowed(deserializer, self.1));
+        // One pop per value, so every key visited through `Deserializer::key` must push
+        // exactly once. The key string is only available in the string visitor leaves
+        // (`visit_borrowed_str`/`visit_str`/`visit_string`), which is where the push lives.
         self.1.pop_path();
         res
     }

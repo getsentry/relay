@@ -143,9 +143,10 @@ def test_feedback_with_attachment_in_same_envelope(
     feedback_consumer,
     events_consumer,
     attachments_consumer,
+    objectstore,
 ):
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id)
 
     other_consumer = events_consumer(timeout=20)
     feedback_consumer = feedback_consumer(timeout=20)
@@ -182,8 +183,9 @@ def test_feedback_with_attachment_in_same_envelope(
     attachment = attachment_event["attachment"]
     assert attachment["name"] == attachment_headers["filename"]
     assert attachment["content_type"] == attachment_headers["content_type"]
-    assert attachment["data"] == attachment_contents
     assert attachment["size"] == attachment_headers["length"]
+    stored = objectstore("attachments", project_id).get(attachment["stored_id"])
+    assert stored.payload.read() == attachment_contents
 
     # feedback event sent to correct topic
     event, message = feedback_consumer.get_event()

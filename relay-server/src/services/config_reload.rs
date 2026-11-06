@@ -12,8 +12,7 @@ pub struct ConfigReloadService {
     config: Arc<Config>,
     /// The store's Kafka client, when this Relay produces to Kafka.
     ///
-    /// Topics using the reloading producer take their new broker settings from here; see
-    /// `processing.reloading_producer_topics`. Everything else picks them up on restart.
+    /// Every topic's producer takes its new broker settings from here.
     #[cfg(feature = "processing")]
     kafka_client: Option<Arc<KafkaClient>>,
 }

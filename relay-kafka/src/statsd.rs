@@ -79,18 +79,18 @@ pub enum KafkaCounters {
     /// - `producer_name`: The configured producer name/deployment identifier.
     ProduceStatusError,
 
-    /// Number of Kafka config blobs handed to a topic's reloading producer.
+    /// Number of Kafka config blobs handed to a topic's producer.
     ///
     /// Counts pushes that were accepted for rollout, which includes blobs that resolve to the
     /// config already running. It does not mean the client was replaced; watch
-    /// [`KafkaGauges::ReloadGeneration`] for that.
+    /// `arroyo.producer.config_reload_generation` for that.
     ///
     /// This metric is tagged with:
     /// - `topic`: The Kafka topic being produced to.
     /// - `producer_name`: The configured producer name/deployment identifier.
     ConfigReloadPushed,
 
-    /// Number of Kafka config blobs a topic's reloading producer refused.
+    /// Number of Kafka config blobs a topic's producer refused.
     ///
     /// Rejection leaves the running client in place. Sustained non-zero values mean this topic
     /// is no longer applying config changes.
@@ -143,24 +143,12 @@ pub enum KafkaGauges {
     /// - `variant`: The Kafka message variant.
     /// - `producer_name`: The configured producer name/deployment identifier.
     InFlightCount,
-
-    /// The number of times this topic's Kafka client has been replaced by a config reload.
-    ///
-    /// Always `0` for topics not using the reloading producer. Arroyo reports the same number
-    /// under `arroyo.producer.config_reload_generation`; this one is tagged the way Relay tags
-    /// the rest of its produce metrics, so it lines up with them.
-    ///
-    /// This metric is tagged with:
-    /// - `topic`: The Kafka topic being produced to.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    ReloadGeneration,
 }
 
 impl GaugeMetric for KafkaGauges {
     fn name(&self) -> &'static str {
         match self {
             KafkaGauges::InFlightCount => "kafka.in_flight_count",
-            KafkaGauges::ReloadGeneration => "kafka.reload_generation",
         }
     }
 }

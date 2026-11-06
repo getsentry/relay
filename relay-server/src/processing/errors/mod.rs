@@ -1,5 +1,11 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
+use relay_event_normalization::GeoIpLookup;
+use relay_event_schema::protocol::{Event, Metrics};
+use relay_protocol::Annotated;
+use relay_quotas::RateLimits;
+
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{
@@ -21,14 +27,12 @@ mod dynamic_sampling;
 )]
 mod errors;
 mod filter;
+mod integrations;
 mod process;
+mod utils;
 
 pub use errors::SwitchProcessingError;
-use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics};
-use relay_protocol::Annotated;
-use relay_quotas::RateLimits;
+pub use integrations::UnrealErrorIntegrationProcessor;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 

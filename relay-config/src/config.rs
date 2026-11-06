@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
@@ -643,7 +644,7 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
-    /// The maximum number of operations that can occur in a span expansion.
+    /// The maximum number of operations that can occur in a log expansion.
     pub max_expanded_log_operations: usize,
     /// The maximum number of operations that can occur in a span expansion.
     pub max_expanded_span_operations: usize,
@@ -1172,20 +1173,8 @@ pub struct Processing {
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
     pub kafka_validate_topics: bool,
-    /// Logical topics whose Kafka client is replaced when the config changes, instead of being
-    /// fixed for the lifetime of the process.
-    ///
-    /// Named by logical topic, for example `ingest-events`. Note that `topics` additionally
-    /// accepts a short form (`events`), which this option does not: only the logical name
-    /// selects a topic here. Anything else is ignored.
-    ///
-    /// Empty by default, which is the behaviour of every topic before this option existed.
-    ///
-    /// This exists to roll the reloading producer out one topic at a time and is meant to be
-    /// removed once every topic uses it.
-    pub reloading_producer_topics: BTreeSet<String>,
-    /// Upper bound, in seconds, on the random delay before a reloading producer swaps its
-    /// client.
+    /// Upper bound, in seconds, on the random delay before a Kafka producer swaps its client
+    /// after the Kafka config changed.
     ///
     /// Spreads swaps out so that a config change does not have every pod in the fleet reconnect
     /// at once. Keep it well below how often the Kafka config is expected to change. Tests set
@@ -1234,7 +1223,6 @@ impl Default for Processing {
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
-            reloading_producer_topics: BTreeSet::new(),
             reloading_producer_jitter_secs: 60,
             redis: None,
             attachment_chunk_size: ByteSize::mebibytes(1),
@@ -1909,8 +1897,7 @@ impl ConfigInner {
         // live, so a renamed topic would be keyed by its new name while the producer still
         // selects the old one.
         //
-        // This only reaches a running Kafka client for topics using the reloading producer;
-        // see `Processing::reloading_producer_topics`. Everything else picks it up on restart.
+        // Running Kafka clients pick this up via `ConfigReloadService`.
         if self.values.processing.kafka_config != other.values.processing.kafka_config
             || self.values.processing.secondary_kafka_configs
                 != other.values.processing.secondary_kafka_configs
@@ -2618,7 +2605,7 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_log_size.as_bytes()
     }
 
-    /// Returns the maximum number of operations to allow for a span expansion.
+    /// Returns the maximum number of operations to allow for a log expansion.
     pub fn max_expanded_log_operations(&self) -> usize {
         self.inner.values.limits.max_expanded_log_operations
     }
@@ -2847,28 +2834,9 @@ impl ConfigSnapshot {
         self.inner.values.processing.kafka_validate_topics
     }
 
-    /// Whether this topic's Kafka client is replaced when the config changes.
-    pub fn is_reloading_producer_topic(&self, topic: KafkaTopic) -> bool {
-        self.inner
-            .values
-            .processing
-            .reloading_producer_topics
-            .contains(topic.logical_topic_name())
-    }
-
-    /// Upper bound on the random delay before a reloading producer swaps its client.
+    /// Upper bound on the random delay before a Kafka producer swaps its client.
     pub fn reloading_producer_jitter(&self) -> Duration {
         Duration::from_secs(self.inner.values.processing.reloading_producer_jitter_secs)
-    }
-
-    /// Whether any topic at all uses the reloading producer.
-    pub fn has_reloading_producer_topics(&self) -> bool {
-        !self
-            .inner
-            .values
-            .processing
-            .reloading_producer_topics
-            .is_empty()
     }
 
     /// Builds the Kafka config blob describing every configured topic.
@@ -2910,10 +2878,18 @@ impl ConfigSnapshot {
                 // Arroyo keys the blob by logical topic and maps it to one physical topic. Relay's
                 // sharded topics are one logical topic to many physical ones, which Arroyo cannot
                 // express yet, so each physical topic is its own entry and maps to itself.
-                topics.insert(
-                    params.topic_name.clone(),
-                    serde_json::json!({ "physical_topic": { "cluster": cluster_name } }),
-                );
+                //
+                // That also means one topic name cannot point at two clusters.
+                let entry = serde_json::json!({ "physical_topics": [{ "cluster": cluster_name }] });
+                match topics.entry(params.topic_name.clone()) {
+                    Entry::Vacant(vacant) => {
+                        vacant.insert(entry);
+                    }
+                    Entry::Occupied(occupied) if *occupied.get() != entry => {
+                        return Err(KafkaConfigError::AmbiguousTopic(params.topic_name.clone()));
+                    }
+                    Entry::Occupied(_) => {}
+                }
             }
         }
 
@@ -3194,8 +3170,8 @@ processing:
                 .config
                 .config_map()
                 .iter()
-                // Arroyo adds this itself when building a producer config.
-                .filter(|(key, _)| key.as_str() != "statistics.interval.ms")
+                // Arroyo adds these itself when building a producer config.
+                .filter(|(key, _)| !matches!(key.as_str(), "statistics.interval.ms" | "client.id"))
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect::<BTreeMap<_, _>>()
         };
@@ -3284,6 +3260,34 @@ processing:
 
         assert_eq!(before, "primary:9092");
         assert_eq!(after, "other:9092");
+    }
+
+    /// The blob is keyed by topic name, so one name on two clusters cannot be expressed. That
+    /// must fail loudly instead of sending one of the two to the wrong cluster.
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_kafka_config_blob_rejects_topic_on_two_clusters() {
+        let config = processing_config(
+            r#"
+processing:
+  enabled: true
+  kafka_config:
+    - {name: "bootstrap.servers", value: "primary:9092"}
+  secondary_kafka_configs:
+    other:
+      - {name: "bootstrap.servers", value: "other:9092"}
+  topics:
+    outcomes:
+      name: "outcomes-topic"
+      config: "other"
+    outcomes-billing: "outcomes-topic"
+"#,
+        );
+
+        assert!(matches!(
+            config.current().kafka_config_blob(),
+            Err(KafkaConfigError::AmbiguousTopic(topic)) if topic == "outcomes-topic"
+        ));
     }
 
     /// Broker settings reload; topic assignments do not, since producers hold theirs from

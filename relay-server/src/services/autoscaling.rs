@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
-use crate::services::processor::EnvelopeProcessorServicePool;
 use relay_system::{
     AsyncResponse, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };
+use relay_threading::ServicePool;
 use tokio::time::Instant;
 
 /// Service that tracks internal relay metrics so that they can be exposed.
@@ -21,7 +21,7 @@ pub struct AutoscalingMetricService {
     /// The last time the runtime utilization was checked.
     last_runtime_check: Instant,
     /// Gives access to AsyncPool metrics.
-    async_pool: EnvelopeProcessorServicePool,
+    async_pool: ServicePool,
 }
 
 impl AutoscalingMetricService {
@@ -29,7 +29,7 @@ impl AutoscalingMetricService {
         memory_stat: MemoryStat,
         envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
         handle: Handle,
-        async_pool: EnvelopeProcessorServicePool,
+        async_pool: ServicePool,
     ) -> Self {
         let runtime_metrics = handle.metrics();
         Self {

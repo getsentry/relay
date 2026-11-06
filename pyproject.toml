@@ -37,7 +37,7 @@ dev = [
     "redis",
     "requests",
     "sentry-protos",
-    "sentry-sdk",
+    "sentry-sdk<3",        # pinned to fix problem with SENTRY_FORK_ISOLATION_SCOPE_KEY
     "types-protobuf",
     "types-pyyaml",
     "types-redis",

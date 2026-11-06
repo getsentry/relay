@@ -5,10 +5,9 @@ use relay_config::{Config, RelayMode};
 use relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
-use relay_threading::AsyncPool;
+use relay_threading::{AsyncPool, ServicePool};
 use tokio::time::interval;
 
-use crate::services::processor::EnvelopeProcessorServicePool;
 #[cfg(feature = "processing")]
 use crate::services::store::StoreServicePool;
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
@@ -24,7 +23,7 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_clients: Option<RedisClients>,
-    processor_pool: Option<EnvelopeProcessorServicePool>,
+    processor_pool: Option<ServicePool>,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
 }
@@ -35,7 +34,7 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
-        processor_pool: Option<EnvelopeProcessorServicePool>,
+        processor_pool: Option<ServicePool>,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
         Self {

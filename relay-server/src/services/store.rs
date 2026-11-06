@@ -27,7 +27,7 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{
-    ClientError, KafkaClient, KafkaTopic, Message, ReloadingTopic, SerializationOutput,
+    ClientError, KafkaClient, KafkaConfigSource, KafkaTopic, Message, SerializationOutput,
 };
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -93,46 +93,31 @@ impl OutcomeError for StoreError {
 /// Selects Relay's overrides in the Kafka config blob.
 const KAFKA_CONFIG_APP: &str = "relay";
 
-struct Producer {
-    client: Arc<KafkaClient>,
-}
+/// Creates a shared kafka client from the given config.
+pub fn create_kafka_client(config: &ConfigSnapshot) -> anyhow::Result<Arc<KafkaClient>> {
+    let mut client_builder = KafkaClient::builder();
 
-impl Producer {
-    pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder();
+    let blob = config.kafka_config_blob()?;
+    let source = KafkaConfigSource {
+        blob: &blob,
+        app: KAFKA_CONFIG_APP,
+        jitter: config.reloading_producer_jitter(),
+    };
 
-        // Only needed by topics on the reloading producer, and building it walks every topic,
-        // so skip it entirely when no topic asked for one.
-        let blob = config
-            .has_reloading_producer_topics()
-            .then(|| config.kafka_config_blob())
-            .transpose()?;
+    for topic in KafkaTopic::iter() {
+        let kafka_configs = config.kafka_configs(*topic)?;
 
-        for topic in KafkaTopic::iter() {
-            let kafka_configs = config.kafka_configs(*topic)?;
-            let reloading = blob
-                .as_ref()
-                .filter(|_| config.is_reloading_producer_topic(*topic))
-                .map(|blob| ReloadingTopic {
-                    blob,
-                    app: KAFKA_CONFIG_APP,
-                    jitter: config.reloading_producer_jitter(),
-                });
-
-            client_builder = client_builder
-                .add_kafka_topic_config(
-                    *topic,
-                    &kafka_configs,
-                    config.kafka_validate_topics(),
-                    reloading.as_ref(),
-                )
-                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
-        }
-
-        Ok(Self {
-            client: Arc::new(client_builder.build()),
-        })
+        client_builder = client_builder
+            .add_kafka_topic_config(
+                *topic,
+                &kafka_configs,
+                config.kafka_validate_topics(),
+                &source,
+            )
+            .map_err(|e| ServiceError::Kafka(e.to_string()))?;
     }
+
+    Ok(Arc::new(client_builder.build()))
 }
 
 /// Publishes an [`Event`] and its attachments to Kafka.
@@ -465,34 +450,26 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
-    producer: Producer,
+    kafka_client: Arc<KafkaClient>,
     last_span_report: Mutex<Instant>, // used to debounce expensive instrumentation.
 }
 
 impl StoreService {
     pub fn create(
         pool: StoreServicePool,
+        kafka_client: Arc<KafkaClient>,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
-        let producer = Producer::create(&config.current())?;
         Ok(Self {
             pool,
             config,
             global_config,
             metric_outcomes,
-            producer,
+            kafka_client,
             last_span_report: Instant::now().into(),
         })
-    }
-
-    /// The Kafka client this service produces through.
-    ///
-    /// Handed to [`ConfigReloadService`](crate::services::config_reload::ConfigReloadService)
-    /// so a reloaded config can reach topics whose client can be replaced.
-    pub fn kafka_client(&self) -> Arc<KafkaClient> {
-        Arc::clone(&self.producer.client)
     }
 
     fn handle_message(&self, message: Store) {
@@ -972,7 +949,7 @@ impl StoreService {
             message.variant()
         );
 
-        let topic_name = self.producer.client.send_message(topic, &message)?;
+        let topic_name = self.kafka_client.send_message(topic, &message)?;
 
         match &message {
             KafkaMessage::Metric {
