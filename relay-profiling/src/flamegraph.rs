@@ -303,8 +303,9 @@ impl<'payload> Graph<'payload> {
             .trees
             .iter()
             .any(|tree| tree.thread_attributed == Some(true));
-        // Shared nodes and repeated edges can expand exponentially when materialized as paths.
-        // Bound total visits across all trees by the size of the serialized graph structure.
+        // Budget queued root and child references, not distinct nodes: shared nodes can
+        // occur under multiple call prefixes. Keep this allowance linear in the input
+        // structure so expanding shared paths cannot cause exponential work.
         let mut remaining_visits = graph.nodes.len()
             + graph
                 .nodes
