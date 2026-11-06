@@ -1,3 +1,5 @@
+use relay_event_schema::protocol::Event;
+use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
@@ -48,6 +50,7 @@ impl SentryError for Generic {
         &mut self,
         _category: DataCategory,
         _limits: relay_quotas::RateLimits,
+        _event: &mut Annotated<Event>,
         _records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         Ok(())
@@ -59,6 +62,10 @@ impl SentryError for Generic {
 
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         None
+    }
+
+    fn is_rate_limited(&self) -> bool {
+        false
     }
 }
 

@@ -28,15 +28,26 @@ pub(super) fn assert_crash_rate_limit<T: SentryError>(
             namespaces: Default::default(),
             dimensions: DimensionMap::default(),
         });
+        let mut event = Annotated::new(Event::default());
         // Recording after setting rate_limited loses the original quantities and panics here.
         // Applying the limit again must not produce duplicate outcomes.
         for _ in 0..2 {
             crash.modify(|crash, records| {
                 crash
-                    .apply_rate_limit(category, limits.clone(), records)
+                    .apply_rate_limit(category, limits.clone(), &mut event, records)
                     .unwrap();
             });
         }
+
+        assert_eq!(
+            event
+                .value()
+                .and_then(|e| e.metadata.value())
+                .and_then(|m| m.rate_limited_reason.value())
+                .map(String::as_str),
+            Some("crash_attachment_limit")
+        );
+
         crash.accept(&assert_retained);
         let outcome = Outcome::RateLimited(Some(ReasonCode::new("crash_attachment_limit")));
         for &bytes in expected_bytes {

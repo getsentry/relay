@@ -48,10 +48,7 @@ impl QuotaRateLimiter {
         T: Counted,
         Managed<T>: RateLimited,
     {
-        let quotas = CombinedQuotas {
-            global_quotas: &ctx.global_config.quotas,
-            project_quotas: ctx.project_info.get_quotas(),
-        };
+        let quotas = CombinedQuotas::from_context(ctx);
 
         let limiter = CachedRateLimiter {
             cached: ctx.rate_limits,
@@ -93,6 +90,16 @@ impl fmt::Debug for QuotaRateLimiter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QuotaRateLimiter").finish()
     }
+}
+
+/// Returns the cached rate limits and static quotas which currently apply to `scope`.
+///
+/// This is useful to recover the rate limits which were applied
+/// to items in an earlier stage, for example by the envelope
+/// level rate limit check.
+pub fn check_cached_limits(ctx: Context<'_>, scope: &ItemScoping) -> RateLimits {
+    ctx.rate_limits
+        .check_with_quotas(CombinedQuotas::from_context(ctx), scope)
 }
 
 /// A rate limiter which can attempt to consume quota.
@@ -268,6 +275,15 @@ mod redis {
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
+}
+
+impl<'a> CombinedQuotas<'a> {
+    fn from_context(ctx: Context<'a>) -> Self {
+        Self {
+            global_quotas: &ctx.global_config.quotas,
+            project_quotas: ctx.project_info.get_quotas(),
+        }
+    }
 }
 
 impl<'a> IntoIterator for CombinedQuotas<'a> {

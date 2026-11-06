@@ -75,6 +75,7 @@ pub trait SentryError: Counted {
         &mut self,
         category: DataCategory,
         limits: RateLimits,
+        event: &mut Annotated<Event>,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()>;
 
@@ -85,6 +86,10 @@ pub trait SentryError: Counted {
 
     /// Returns a minidump item if this error holds a minidump.
     fn minidump_mut(&mut self) -> Option<&mut Item>;
+
+    /// Returns `true` if the crash attachment, from which the event is created, is marked as rate
+    /// limited.
+    fn is_rate_limited(&self) -> bool;
 }
 
 macro_rules! gen_error_kind {
@@ -135,10 +140,11 @@ macro_rules! gen_error_kind {
                 &mut self,
                 category: DataCategory,
                 limits: RateLimits,
+                event: &mut Annotated<Event>,
                 records: &mut RecordKeeper<'_>,
             ) -> Result<()> {
                 match self {
-                    $(Self::$name(error) => error.apply_rate_limit(category, limits, records),)*
+                    $(Self::$name(error) => error.apply_rate_limit(category, limits, event, records),)*
                 }
             }
 
@@ -151,6 +157,12 @@ macro_rules! gen_error_kind {
             fn minidump_mut(&mut self) -> Option<&mut Item> {
                 match self {
                     $(Self::$name(error) => error.minidump_mut(),)*
+                }
+            }
+
+            fn is_rate_limited(&self) -> bool {
+                match self {
+                    $(Self::$name(error) => error.is_rate_limited(),)*
                 }
             }
         }

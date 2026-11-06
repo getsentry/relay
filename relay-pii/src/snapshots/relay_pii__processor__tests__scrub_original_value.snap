@@ -117,6 +117,7 @@ Event {
     measurements: ~,
     breakdowns: ~,
     scraping_attempts: ~,
+    metadata: ~,
     _metrics: ~,
     _dsc: ~,
     performance_issues_spans: ~,

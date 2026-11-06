@@ -4,7 +4,7 @@ use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
-use relay_quotas::RateLimits;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -233,7 +233,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
     async fn enforce<R>(
         mut self,
         mut rate_limiter: R,
-        _ctx: processing::Context<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Self::Output, Rejected<Self::Error>>
     where
         R: processing::RateLimiter,
@@ -248,6 +248,29 @@ impl processing::RateLimited for Managed<ExpandedError> {
             return Err(self.reject_err(Error::RateLimited(limits)));
         }
 
+        // Recover the rate limit reason from the cached limits and static quotas
+        // if this attachment was already rate limited. This ensures that the rate limit
+        // reason still makes its way onto the event.
+        if self.data.is_rate_limited() {
+            let reason_code = [DataCategory::Attachment, DataCategory::AttachmentItem]
+                .into_iter()
+                .find_map(|category| {
+                    processing::check_cached_limits(ctx, &scoping.item(category))
+                        .longest()
+                        .and_then(|limit| limit.reason_code.clone())
+                });
+
+            if let Some(reason_code) = reason_code {
+                self.modify(|this, _| {
+                    if let Some(event) = this.event.value_mut() {
+                        let metadata = event.metadata.get_or_insert_with(Default::default);
+                        metadata.rate_limited_reason =
+                            Annotated::new(reason_code.as_str().to_owned());
+                    }
+                });
+            }
+        }
+
         for (category, quantity) in self.data.quantities() {
             let limits = rate_limiter
                 .try_consume(&scoping.item(category), quantity)
@@ -255,7 +278,8 @@ impl processing::RateLimited for Managed<ExpandedError> {
 
             if !limits.is_empty() {
                 self.try_modify(|this, records| {
-                    this.data.apply_rate_limit(category, limits, records)
+                    this.data
+                        .apply_rate_limit(category, limits, &mut this.event, records)
                 })?;
                 break;
             }

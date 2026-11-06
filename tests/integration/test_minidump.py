@@ -8,7 +8,7 @@ import queue
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from urllib3.filepost import encode_multipart_formdata
 
@@ -650,6 +650,13 @@ def test_minidump_with_processing(
     assert "errors" not in event
 
     if rate_limit == "attachment":
+        # The static quota marks the minidump as rate limited before the errors processor, the
+        # reason is recovered from the static quota.
+        assert event["metadata"] == {"rate_limited_reason": "static_disabled_quota"}
+    else:
+        assert "metadata" not in event
+
+    if rate_limit == "attachment":
         assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
             {
                 "category": DataCategory.ATTACHMENT,
@@ -668,6 +675,69 @@ def test_minidump_with_processing(
                 "project_id": 42,
                 "quantity": 1,
                 "reason": "static_disabled_quota",
+            },
+        ]
+
+
+def test_minidump_rate_limited_reason_in_metadata(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    # Non-zero limit so the quota is not applied statically before the processor.
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid4().hex}",
+            "categories": ["attachment"],
+            "window": 3600,
+            "limit": 1,
+            "reasonCode": "attachments_exceeded",
+        }
+    ]
+
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+
+    # The first minidump is rate limited by Redis in the processor. This caches the rate limit,
+    # the second minidump is then marked as rate limited by the cached limit before it reaches
+    # the processor, which has to recover the reason from the cached limits.
+    for _ in range(2):
+        response = relay.send_minidump(project_id=project_id, files=attachments)
+
+        message, event = attachments_consumer.get_event_only()
+
+        assert UUID(event["event_id"]) == UUID(response.text)
+        assert event["metadata"] == {"rate_limited_reason": "attachments_exceeded"}
+
+        (attachment,) = message["attachments"]
+        assert attachment["attachment_type"] == "event.minidump"
+        assert attachment["rate_limited"] is True
+
+        assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.ATTACHMENT,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.RATE_LIMITED,
+                "project_id": project_id,
+                "quantity": len(content),
+                "reason": "attachments_exceeded",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.RATE_LIMITED,
+                "project_id": project_id,
+                "quantity": 1,
+                "reason": "attachments_exceeded",
             },
         ]
 
