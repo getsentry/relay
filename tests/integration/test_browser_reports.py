@@ -28,6 +28,8 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
                     "server_ip": "123.123.123.123",
                     "status_code": 500,
                     "type": "http.error",
+                    "request_headers": {"Accept-Language": ["de-DE"]},
+                    "response_headers": {"X-Served-By": ["cache-fra-1", "cache-fra-2"]},
                 },
                 "type": "network-error",
                 "url": "https://example.com/index.html",
@@ -77,8 +79,16 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
                     "network.protocol.version": {"type": "string", "value": "1.1"},
                     "server.address": {"type": "string", "value": "123.123.123.123"},
                     "http.request.header.referer": {
-                        "type": "string",
-                        "value": "https://example.com/nel/",
+                        "type": "array",
+                        "value": ["https://example.com/nel/"],
+                    },
+                    "http.request.header.accept-language": {
+                        "type": "array",
+                        "value": ["de-DE"],
+                    },
+                    "http.response.header.x-served-by": {
+                        "type": "array",
+                        "value": ["cache-fra-1", "cache-fra-2"],
                     },
                     "nel.referrer": {
                         "type": "string",
@@ -118,6 +128,69 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
         ],
     }
     assert mini_sentry.captured_envelopes.empty()
+
+
+def test_nel_browser_report_headers_scrubbed(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:browser-report-ingestion",
+    ]
+    project_config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+        "scrubDefaults": True,
+    }
+    relay = relay(mini_sentry)
+
+    relay.send_browser_report(
+        project_id,
+        payload=[
+            {
+                "age": 0,
+                "body": {
+                    "elapsed_time": 37,
+                    "method": "GET",
+                    "phase": "application",
+                    "protocol": "http/1.1",
+                    "referrer": "",
+                    "sampling_fraction": 1,
+                    "server_ip": "123.123.123.123",
+                    "status_code": 500,
+                    "type": "http.error",
+                    "request_headers": {"Authorization": ["Bearer abc123"]},
+                    "response_headers": {"Set-Cookie": ["session=abc123"]},
+                },
+                "type": "network-error",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0",
+            },
+        ],
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+    log = json.loads(envelope.items[0].payload.bytes)["items"][0]
+
+    assert log["attributes"]["http.request.header.authorization"] == {
+        "type": "array",
+        "value": None,
+    }
+    assert log["attributes"]["http.response.header.set-cookie"] == {
+        "type": "array",
+        "value": ["session=[Filtered]"],
+    }
+    assert log["_meta"] == {
+        "attributes": {
+            "http.request.header.authorization": {
+                "value": {"": {"rem": [["@password:filter", "x"]]}}
+            },
+            "http.response.header.set-cookie": {
+                "value": {
+                    "0": {"": {"rem": [["@cookies:filter", "s", 8, 18]], "len": 14}}
+                }
+            },
+        }
+    }
 
 
 def test_integrity_browser_report_converted_to_logs(mini_sentry, relay):

@@ -2,6 +2,7 @@
 //!
 //! See <https://www.w3.org/TR/network-error-logging/>.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::net::IpAddr;
 
@@ -35,6 +36,12 @@ pub enum NetworkReportPhase {
         server_ip: Option<IpAddr>,
         /// HTTP status code.
         status_code: u16,
+        /// Request headers listed in the NEL policy, mapped to their values.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        request_headers: BTreeMap<String, Vec<String>>,
+        /// Response headers listed in the NEL policy, mapped to their values.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        response_headers: BTreeMap<String, Vec<String>>,
     },
 }
 
