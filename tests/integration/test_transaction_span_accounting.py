@@ -36,12 +36,12 @@ class Case:
         Case(
             id="transaction-blocked",
             category="transaction",
-            expected_items=[],
+            expected_items=["span"],
             expected_outcomes={
                 DataCategory.TRANSACTION: 1,
                 DataCategory.TRANSACTION_INDEXED: 1,
-                DataCategory.SPAN: 3,
-                DataCategory.SPAN_INDEXED: 3,
+                DataCategory.SPAN: 2,
+                DataCategory.SPAN_INDEXED: 2,
             },
         ),
         Case(

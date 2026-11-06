@@ -561,7 +561,11 @@ fn test_enforce_limit_minidump() {
 
 #[test]
 fn test_enforce_limit_attachments() {
-    for subtype in [AttachmentType::Attachment, AttachmentType::Flamegraph] {
+    for subtype in [
+        AttachmentType::Attachment,
+        AttachmentType::Flamegraph,
+        AttachmentType::CompiledShader,
+    ] {
         let mut envelope = envelope![Attachment::Minidump];
         let mut attachment = AttachmentItem::new();
         attachment.set_payload(ContentType::OctetStream, "0123456789");
@@ -1006,22 +1010,35 @@ fn test_enforce_transaction_profile_enforced() {
 }
 
 #[test]
-fn test_enforce_transaction_standalone_profile_enforced() {
-    // When the transaction is sampled, the profile survives as standalone.
-    let envelope = envelope![Profile];
+fn test_standalone_profile_ignores_transaction_limit() {
+    for (denied, remaining, client_limit_count, expected_outcomes) in [
+        (
+            vec![DataCategory::Transaction],
+            vec![&ItemType::Profile],
+            0,
+            vec![],
+        ),
+        (
+            vec![DataCategory::Transaction, DataCategory::Profile],
+            vec![],
+            1,
+            vec![
+                (DataCategory::Profile, 1),
+                (DataCategory::ProfileIndexed, 1),
+            ],
+        ),
+    ] {
+        let mut original = envelope![Profile];
+        let Item::Profile(profile) = original.items_mut().next().unwrap() else {
+            panic!("expected a profile");
+        };
+        profile.set_sampled(false);
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
 
-    let cached = cached_limits(&[DataCategory::Transaction]);
-    let (envelope, _, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(envelope.is_empty());
-
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([
-            (DataCategory::Profile, 1),
-            (DataCategory::ProfileIndexed, 1),
-        ])
-    );
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(limits.iter().count(), client_limit_count);
+        assert_eq!(outcomes, expected_outcomes.into_iter().collect());
+    }
 }
 
 #[test]
@@ -1038,6 +1055,37 @@ fn test_enforce_span() {
         outcomes,
         BTreeMap::from([(DataCategory::Span, 2), (DataCategory::SpanIndexed, 2)])
     );
+}
+
+#[test]
+fn test_transaction_limit_keeps_separate_spans() {
+    for (denied, remaining, rejected_spans) in [
+        (vec![DataCategory::Transaction], vec![&ItemType::Span], 3),
+        (
+            vec![DataCategory::Transaction, DataCategory::Span],
+            vec![],
+            4,
+        ),
+    ] {
+        let mut original = envelope![Transaction, Span];
+        let Item::Transaction(transaction) = original.items_mut().next().unwrap() else {
+            panic!("expected a transaction");
+        };
+        transaction.set_span_count(Some(2));
+        let (kept, limits, outcomes) = enforce_and_apply(cached_limits(&denied), original);
+
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(limits.iter().count(), denied.len());
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([
+                (DataCategory::Transaction, 1),
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Span, rejected_spans),
+                (DataCategory::SpanIndexed, rejected_spans),
+            ]),
+        );
+    }
 }
 
 #[test]
@@ -1165,20 +1213,30 @@ fn test_container_counts_and_byte_quota_fallback() {
 
 #[test]
 fn test_integration_items_use_native_limits() {
-    use crate::integrations::{LogsIntegration, OtelFormat, SpansIntegration};
+    use crate::integrations::{ErrorsIntegration, LogsIntegration, OtelFormat, SpansIntegration};
 
     for (integration, category, expected) in [
         (
+            Integration::Errors(ErrorsIntegration::Unreal),
+            DataCategory::Error,
+            vec![(DataCategory::Error, 1)],
+        ),
+        (
             Integration::Logs(LogsIntegration::Nel),
             DataCategory::LogByte,
-            [(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
+            vec![(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
+        ),
+        (
+            Integration::Logs(LogsIntegration::BrowserReport),
+            DataCategory::LogByte,
+            vec![(DataCategory::LogItem, 1), (DataCategory::LogByte, 10)],
         ),
         (
             Integration::Spans(SpansIntegration::OtelV1 {
                 format: OtelFormat::Json,
             }),
             DataCategory::Span,
-            [(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
+            vec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
         ),
     ] {
         let mut envelope = envelope![Integration];
@@ -1190,7 +1248,7 @@ fn test_integration_items_use_native_limits() {
         let (envelope, limits, outcomes) = enforce_and_apply(cached_limits(&[category]), envelope);
         assert!(envelope.is_empty());
         assert!(limits.is_limited());
-        assert_eq!(outcomes, BTreeMap::from(expected));
+        assert_eq!(outcomes, expected.into_iter().collect());
     }
 }
 
@@ -1448,12 +1506,10 @@ fn test_enforce_transaction_span_attachment() {
         RateLimitTestCase {
             name: "transaction_limit",
             denied_categories: &[DataCategory::Transaction],
-            expect_attachment_limit_active: true,
+            expect_attachment_limit_active: false,
             expected_outcomes: &[
                 (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Attachment, 7),
-                (DataCategory::AttachmentItem, 1),
                 (DataCategory::Span, 1),
                 (DataCategory::SpanIndexed, 1),
             ],
@@ -1501,6 +1557,44 @@ fn test_enforce_transaction_span_attachment() {
                 .collect::<BTreeMap<_, _>>(),
             "{name}: outcome mismatch"
         );
+    }
+}
+
+#[test]
+fn test_event_limit_keeps_separate_span_attachments() {
+    for (denied, remaining, expected_outcomes) in [
+        (
+            vec![DataCategory::Error],
+            vec![&ItemType::Span, &ItemType::Attachment],
+            vec![(DataCategory::Error, 1)],
+        ),
+        (
+            vec![DataCategory::Error, DataCategory::Span],
+            vec![],
+            vec![
+                (DataCategory::Error, 1),
+                (DataCategory::Span, 1),
+                (DataCategory::SpanIndexed, 1),
+                (DataCategory::Attachment, 7),
+                (DataCategory::AttachmentItem, 1),
+            ],
+        ),
+        (
+            vec![DataCategory::Error, DataCategory::Attachment],
+            vec![&ItemType::Span],
+            vec![
+                (DataCategory::Error, 1),
+                (DataCategory::Attachment, 7),
+                (DataCategory::AttachmentItem, 1),
+            ],
+        ),
+    ] {
+        let mut original = envelope![Event, Span];
+        original.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
+        let (kept, _, outcomes) = enforce_and_apply(cached_limits(&denied), original);
+
+        assert_eq!(kept.items().map(Item::ty).collect::<Vec<_>>(), remaining);
+        assert_eq!(outcomes, expected_outcomes.into_iter().collect());
     }
 }
 

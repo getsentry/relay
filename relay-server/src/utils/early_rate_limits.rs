@@ -136,20 +136,18 @@ fn resolve_limits(
         .event
         .category()
         .and_then(|category| check(true, category, true).map(|outcome| (category, outcome)));
-    let spans = match &event {
-        Some((DataCategory::Transaction, outcome)) => Some(outcome.clone()),
-        _ => check(
-            summary.span_quantity > 0 || summary.has_span_attachments,
-            DataCategory::Span,
+    let spans = check(
+        summary.span_quantity > 0 || summary.has_span_attachments,
+        DataCategory::Span,
+        true,
+    );
+    let profiles = match &event {
+        Some((_, outcome)) => Some(outcome.clone()),
+        None => check(
+            summary.profile_quantity.total > 0,
+            DataCategory::Profile,
             true,
         ),
-    };
-    let profiles_present = summary.profile_quantity.total > 0;
-    let profiles = match (&event, summary.event) {
-        (Some((_, outcome)), _) => Some(outcome.clone()),
-        (None, EventGroup::Absent) => check(profiles_present, DataCategory::Profile, true)
-            .or_else(|| check(profiles_present, DataCategory::Transaction, true)),
-        _ => check(profiles_present, DataCategory::Profile, true),
     };
     let event_attachments = match &event {
         Some((_, outcome)) => Some(outcome.clone()),
@@ -194,56 +192,6 @@ fn resolve_limits(
             false,
         )
     });
-    let backend_profiles = profiles.clone().or_else(|| {
-        check(
-            summary.profile_quantity.backend > 0,
-            DataCategory::ProfileBackend,
-            true,
-        )
-    });
-    let ui_profiles = profiles.clone().or_else(|| {
-        check(
-            summary.profile_quantity.ui > 0,
-            DataCategory::ProfileUi,
-            true,
-        )
-    });
-    let sessions = check(summary.session_quantity > 0, DataCategory::Session, true);
-    let feedback = check(summary.has_user_reports, DataCategory::UserReportV2, true);
-    let replays = check(summary.replay_quantity > 0, DataCategory::Replay, true);
-    let monitors = check(summary.monitor_quantity > 0, DataCategory::Monitor, true);
-    let backend_chunks = check(
-        summary.profile_chunk_quantity > 0,
-        DataCategory::ProfileChunk,
-        true,
-    );
-    let ui_chunks = check(
-        summary.profile_chunk_ui_quantity > 0,
-        DataCategory::ProfileChunkUi,
-        true,
-    );
-    let logs = check(summary.log_item_quantity > 0, DataCategory::LogItem, true)
-        .or_else(|| check(summary.log_byte_quantity > 0, DataCategory::LogByte, true));
-    let trace_metrics = check(
-        summary.trace_metric_quantity > 0,
-        DataCategory::TraceMetric,
-        true,
-    )
-    .or_else(|| {
-        check(
-            summary.trace_metric_byte_quantity > 0,
-            DataCategory::TraceMetricByte,
-            true,
-        )
-    });
-    // Metrics stay in the envelope; advertise client rate limits across namespaces without parsing them.
-    if summary.has_metrics {
-        let scope = ItemScoping {
-            namespace: MetricNamespaceScoping::Any,
-            ..scoping.item(DataCategory::MetricBucket)
-        };
-        client_rate_limits.merge(cached.check_with_quotas(quotas, &scope));
-    }
     // Resolve the logical event rejection and use its reason for dependent items.
     let event = match (event, summary.event, &span_attachments, &trace_attachments) {
         (Some(event), _, _, _) => Some(event),
@@ -269,23 +217,65 @@ fn resolve_limits(
     let enforcement = Enforcement {
         // Attachment limits may have just removed the last event-creating item. Apply
         // that event rejection to profiles before retention.
+        backend_profiles: event_outcome.cloned().or(profiles.clone().or_else(|| {
+            check(
+                summary.profile_quantity.backend > 0,
+                DataCategory::ProfileBackend,
+                true,
+            )
+        })),
+        ui_profiles: event_outcome.cloned().or(profiles.clone().or_else(|| {
+            check(
+                summary.profile_quantity.ui > 0,
+                DataCategory::ProfileUi,
+                true,
+            )
+        })),
         profiles: event_outcome.cloned().or(profiles),
-        backend_profiles: event_outcome.cloned().or(backend_profiles),
-        ui_profiles: event_outcome.cloned().or(ui_profiles),
         event,
         spans,
         event_attachments,
         span_attachments,
         trace_attachments,
-        sessions,
-        feedback,
-        replays,
-        monitors,
-        backend_chunks,
-        ui_chunks,
-        logs,
-        trace_metrics,
+        sessions: check(summary.session_quantity > 0, DataCategory::Session, true),
+        feedback: check(summary.has_user_reports, DataCategory::UserReportV2, true),
+        replays: check(summary.replay_quantity > 0, DataCategory::Replay, true),
+        monitors: check(summary.monitor_quantity > 0, DataCategory::Monitor, true),
+        backend_chunks: check(
+            summary.profile_chunk_quantity > 0,
+            DataCategory::ProfileChunk,
+            true,
+        ),
+        ui_chunks: check(
+            summary.profile_chunk_ui_quantity > 0,
+            DataCategory::ProfileChunkUi,
+            true,
+        ),
+        logs: check(summary.log_item_quantity > 0, DataCategory::LogItem, true)
+            .or_else(|| check(summary.log_byte_quantity > 0, DataCategory::LogByte, true)),
+        trace_metrics: check(
+            summary.trace_metric_quantity > 0,
+            DataCategory::TraceMetric,
+            true,
+        )
+        .or_else(|| {
+            check(
+                summary.trace_metric_byte_quantity > 0,
+                DataCategory::TraceMetricByte,
+                true,
+            )
+        }),
     };
+    // Metrics stay in the envelope; advertise client rate limits across namespaces without parsing them.
+    if summary.has_metrics {
+        client_rate_limits.merge(cached.check_with_quotas(
+            quotas,
+            &ItemScoping {
+                namespace: MetricNamespaceScoping::Any,
+                ..scoping.item(DataCategory::MetricBucket)
+            },
+        ));
+    }
     (enforcement, client_rate_limits)
 }
 
@@ -422,23 +412,25 @@ fn filter(
                 apply_retention(records, RetentionAction::drop_on_rejection(outcome), item)
             }
             Item::Attachment(item) => {
-                let action = if let Some(outcome) = event {
-                    RetentionAction::Drop(Some(outcome))
-                } else {
-                    match item.attachment_parent_type() {
-                        AttachmentParentType::Span => RetentionAction::drop_on_rejection(
-                            enforcement.span_attachments.as_ref(),
-                        ),
-                        AttachmentParentType::Trace => RetentionAction::drop_on_rejection(
-                            enforcement.trace_attachments.as_ref(),
-                        ),
-                        AttachmentParentType::Event if item.carries_event_payload() => enforcement
-                            .event_attachments
-                            .as_ref()
-                            .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
-                        AttachmentParentType::Event => RetentionAction::drop_on_rejection(
-                            enforcement.event_attachments.as_ref(),
-                        ),
+                let action = match (
+                    item.attachment_parent_type(),
+                    item.carries_event_payload(),
+                    event,
+                ) {
+                    (AttachmentParentType::Span, false, _)
+                    | (AttachmentParentType::Span, true, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.span_attachments.as_ref())
+                    }
+                    (_, _, Some(outcome)) => RetentionAction::Drop(Some(outcome)),
+                    (AttachmentParentType::Trace, _, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_ref())
+                    }
+                    (AttachmentParentType::Event, true, None) => enforcement
+                        .event_attachments
+                        .as_ref()
+                        .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
+                    (AttachmentParentType::Event, false, None) => {
+                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_ref())
                     }
                 };
                 apply_retention(records, action, item)
