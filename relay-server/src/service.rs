@@ -46,7 +46,7 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
-use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
+use relay_system::{Addr, AssertEmpty, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 use relay_threading::ServicePool;
 
 /// Indicates the type of failure of the server.
@@ -149,6 +149,7 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
+    _asserter: AssertEmpty<TrackOutcome>,
 }
 
 /// Server state.
@@ -201,6 +202,7 @@ impl ServiceState {
 
         // Use a separate metrics router for outcomes to prevent cycles in the service graph:
         let (outcome_metrics_router, outcome_metrics_router_rx) = channel("outcome_metrics_router");
+        let (dummy_outcomes, _asserter) = Addr::never(); // outcomes never generate outcomes
 
         let outcome_aggregator = match current_config.emit_outcomes() {
             EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
@@ -331,7 +333,6 @@ impl ServiceState {
 
                 // Start the secondary outcome pipeline:
                 {
-                    let dummy_outcomes = Addr::dummy(); // outcomes never generate outcomes
                     #[cfg(feature = "processing")]
                     let outcome_store = {
                         if current_config.processing_enabled() {
@@ -473,6 +474,7 @@ impl ServiceState {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
+            _asserter,
         };
 
         Ok(ServiceState {
