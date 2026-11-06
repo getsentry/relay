@@ -10,6 +10,7 @@
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
 - Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
 
 **Bug Fixes**:
@@ -20,11 +21,15 @@
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
 - Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
+- Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
 
 **Internal**:
 
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Update sentry-conventions to 0.31.0. Adds Heroku log drain, `faas.document.*`, `faas.instance`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, and deprecates the `gen_ai.handoff` op. ([#6649](https://github.com/getsentry/relay/pull/6649))
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
