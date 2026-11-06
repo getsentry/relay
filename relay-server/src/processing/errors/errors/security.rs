@@ -69,7 +69,7 @@ impl SentryError for Security {
         None
     }
 
-    fn crash_attachment_rate_limited(&self) -> bool {
+    fn is_rate_limited(&self) -> bool {
         false
     }
 }

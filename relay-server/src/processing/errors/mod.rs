@@ -251,7 +251,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
         // Recover the rate limit reason from the cached limits and static quotas
         // if this attachment was already rate limited. This ensures that the rate limit
         // reason still makes its way onto the event.
-        if self.data.crash_attachment_rate_limited() {
+        if self.data.is_rate_limited() {
             let reason_code = [DataCategory::Attachment, DataCategory::AttachmentItem]
                 .into_iter()
                 .find_map(|category| {

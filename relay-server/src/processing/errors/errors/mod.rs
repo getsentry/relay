@@ -89,7 +89,7 @@ pub trait SentryError: Counted {
 
     /// Returns `true` if the crash attachment, from which the event is created, is marked as rate
     /// limited.
-    fn crash_attachment_rate_limited(&self) -> bool;
+    fn is_rate_limited(&self) -> bool;
 }
 
 macro_rules! gen_error_kind {
@@ -160,9 +160,9 @@ macro_rules! gen_error_kind {
                 }
             }
 
-            fn crash_attachment_rate_limited(&self) -> bool {
+            fn is_rate_limited(&self) -> bool {
                 match self {
-                    $(Self::$name(error) => error.crash_attachment_rate_limited(),)*
+                    $(Self::$name(error) => error.is_rate_limited(),)*
                 }
             }
         }
