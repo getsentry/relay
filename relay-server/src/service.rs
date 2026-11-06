@@ -334,38 +334,42 @@ impl ServiceState {
                 {
                     let dummy_outcomes = Addr::dummy(); // outcomes never generate outcomes
                     #[cfg(feature = "processing")]
-                    let outcome_store = current_config
-                        .processing_enabled()
-                        .then(|| {
-                            StoreService::create(
+                    let outcome_store = {
+                        if current_config.processing_enabled() {
+                            let (addr, rx) = channel("outcome_store");
+                            let service = StoreService::create(
                                 store_pool.clone(),
                                 config.clone(),
                                 global_config_handle.clone(),
                                 MetricOutcomes::new(dummy_outcomes.clone()),
-                            )
-                            .map(|s| {
-                                kafka_client = Some(s.kafka_client());
-                                services.start(s)
-                            })
-                        })
-                        .transpose()?;
-                    let outcome_bucket_processor =
-                        services.start(processor::bucket::create_service(
-                            processor_pool.clone(),
-                            config.clone(),
-                            global_config_handle.clone(),
-                            project_cache_handle.clone(),
-                            cogs.clone(),
+                            )?;
+                            kafka_client = Some(service.kafka_client()); // TODO: share kafka client
+                            services.start_with(service, rx);
+                            Some(addr)
+                        } else {
+                            None
+                        }
+                    };
+
+                    let (outcome_bucket_processor, outcome_bucket_rx) =
+                        channel("outcome_bucket_processor");
+                    let outcome_bucket_service = processor::bucket::create_service(
+                        processor_pool.clone(),
+                        config.clone(),
+                        global_config_handle.clone(),
+                        project_cache_handle.clone(),
+                        cogs.clone(),
+                        #[cfg(feature = "processing")]
+                        rate_limiter.clone(),
+                        processor::bucket::Addrs {
+                            outcome_aggregator: dummy_outcomes,
+                            upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
-                            rate_limiter.clone(),
-                            processor::bucket::Addrs {
-                                outcome_aggregator: dummy_outcomes,
-                                upstream_relay: upstream_relay.clone(),
-                                #[cfg(feature = "processing")]
-                                store_forwarder: outcome_store,
-                            },
-                            metric_outcomes.clone(),
-                        ));
+                            store_forwarder: outcome_store,
+                        },
+                        metric_outcomes.clone(),
+                    );
+                    services.start_with(outcome_bucket_service, outcome_bucket_rx);
 
                     let outcome_metrics_router = RouterService::new(
                         handle.clone(),
