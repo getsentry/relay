@@ -199,6 +199,9 @@ impl ServiceState {
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
 
+        // Use a separate metrics router for outcomes to prevent cycles in the service graph:
+        let (outcome_metrics_router, outcome_metrics_router_rx) = channel("outcome_metrics_router");
+
         let outcome_aggregator = match current_config.emit_outcomes() {
             EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
             _ => match current_config.relay_mode() {
@@ -208,7 +211,7 @@ impl ServiceState {
                 )),
                 RelayMode::Managed => services.start(OutcomeProducerService::new(
                     Arc::clone(&config),
-                    aggregator.clone(),
+                    outcome_metrics_router,
                 )),
             },
         };
@@ -326,6 +329,53 @@ impl ServiceState {
                 );
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
+
+                // Start the secondary outcome pipeline:
+                {
+                    let dummy_outcomes = Addr::dummy(); // outcomes never generate outcomes
+                    #[cfg(feature = "processing")]
+                    let outcome_store = current_config
+                        .processing_enabled()
+                        .then(|| {
+                            StoreService::create(
+                                store_pool.clone(),
+                                config.clone(),
+                                global_config_handle.clone(),
+                                MetricOutcomes::new(dummy_outcomes.clone()),
+                            )
+                            .map(|s| {
+                                kafka_client = Some(s.kafka_client());
+                                services.start(s)
+                            })
+                        })
+                        .transpose()?;
+                    let outcome_bucket_processor =
+                        services.start(processor::bucket::create_service(
+                            processor_pool.clone(),
+                            config.clone(),
+                            global_config_handle.clone(),
+                            project_cache_handle.clone(),
+                            cogs.clone(),
+                            #[cfg(feature = "processing")]
+                            rate_limiter.clone(),
+                            processor::bucket::Addrs {
+                                outcome_aggregator: dummy_outcomes,
+                                upstream_relay: upstream_relay.clone(),
+                                #[cfg(feature = "processing")]
+                                store_forwarder: outcome_store,
+                            },
+                            metric_outcomes.clone(),
+                        ));
+
+                    let outcome_metrics_router = RouterService::new(
+                        handle.clone(),
+                        current_config.default_aggregator_config().clone(),
+                        current_config.secondary_aggregator_configs().clone(),
+                        Some(outcome_bucket_processor.recipient()),
+                        project_cache_handle.clone(),
+                    );
+                    services.start_with(outcome_metrics_router, outcome_metrics_router_rx);
+                }
 
                 services.start_with(
                     processor::envelope::create_service(
