@@ -203,8 +203,6 @@ pub struct GlobalConfigService {
     last_fetched: Instant,
     /// Interval of upstream fetching failures before reporting such errors.
     upstream_failure_interval: Duration,
-    /// Disables the upstream fetch loop.
-    shutdown: bool,
 }
 
 impl GlobalConfigService {
@@ -226,7 +224,6 @@ impl GlobalConfigService {
                 fetch_handle: SleepHandle::idle(),
                 last_fetched: Instant::now(),
                 upstream_failure_interval: Duration::from_secs(35),
-                shutdown: false,
             },
             rx,
         )
@@ -251,7 +248,7 @@ impl GlobalConfigService {
 
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
-        if !self.shutdown && self.fetch_handle.is_idle() {
+        if !self.fetch_handle.is_idle() {
             self.fetch_handle
                 .set(self.config.current().global_config_fetch_interval());
         }
@@ -331,11 +328,6 @@ impl GlobalConfigService {
         // Enable upstream requests timer for global configs.
         self.schedule_fetch();
     }
-
-    fn handle_shutdown(&mut self) {
-        self.shutdown = true;
-        self.fetch_handle.reset();
-    }
 }
 
 impl Service for GlobalConfigService {
@@ -377,8 +369,10 @@ impl Service for GlobalConfigService {
 
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                message = rx.recv() => {match message { Some(message) => self.handle_message(message), None => self.handle_shutdown() }},
-                else => break
+                message = rx.recv() => match message {
+                    Some(message) => self.handle_message(message),
+                    None => break
+                }
             }
         }
         relay_log::info!("global config service stopped");

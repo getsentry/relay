@@ -329,7 +329,8 @@ impl Service for AggregatorService {
             }};
         }
 
-        loop {
+        let mut expects_input = true;
+        while expects_input || !self.aggregator.is_empty() {
             tokio::select! {
                 biased;
 
@@ -339,10 +340,13 @@ impl Service for AggregatorService {
                         self.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
-                Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),
-                // FIXME
-                // _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
-
+                signal = rx.recv() => match signal {
+                    Some(message) => timed!(message.variant(), self.handle_message(message)),
+                    None => {
+                        expects_input = false;
+                        timed!("shutdown", self.handle_shutdown())
+                    }
+                },
                 else => break,
             }
         }
