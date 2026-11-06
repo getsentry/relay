@@ -1,0 +1,29 @@
+priority_value = @{ ASCII_DIGIT{1,3} }
+priority = { SOI ~ "<" ~ priority_value ~ ">" }
+header_value = @{ (!" " ~ ANY)* }
+version = { SOI ~ header_value ~ " " }
+message = @{ ANY* }
+header = _{
+    SOI
+    ~ header_value ~ " "
+    ~ header_value ~ " "
+    ~ header_value ~ " "
+    ~ header_value ~ " "
+    ~ header_value ~ " "? ~ message
+    ~ EOI
+}
+
+logfmt_key = @{ (!("=" | " ") ~ ANY)* }
+logfmt_unquoted_value = @{ (!" " ~ ANY)* }
+logfmt_quoted_text = @{ ("\\" ~ ANY | !"\"" ~ ANY)* }
+logfmt_quoted_value = _{ "\"" ~ logfmt_quoted_text ~ "\""? }
+logfmt_pair = { logfmt_key ~ "=" ~ (logfmt_quoted_value | logfmt_unquoted_value) }
+logfmt_word = _{ (!("=" | " ") ~ ANY)+ }
+logfmt = _{ SOI ~ (" " | logfmt_pair | logfmt_word)* ~ EOI }
+
+error_code = @{ ("H" | "L" | "R") ~ ASCII_DIGIT{2} }
+error_description = @{ (!")" ~ ANY)+ }
+error = _{
+    SOI ~ "Error " ~ error_code ~ !ASCII_ALPHANUMERIC
+    ~ (" (" ~ error_description ~ ")")?
+}

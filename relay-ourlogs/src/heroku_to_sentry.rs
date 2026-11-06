@@ -15,11 +15,21 @@ use std::borrow::Cow;
 use std::net::{IpAddr, Ipv6Addr};
 
 use chrono::{DateTime, Utc};
+use pest::Parser;
+use pest::iterators::Pairs;
 use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{
     AttributeValue, Attributes, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
+
+mod parser {
+    #[derive(pest_derive::Parser)]
+    #[grammar = "heroku.pest"]
+    pub struct HerokuParser;
+}
+
+use self::parser::{HerokuParser, Rule};
 
 /// The number of messages encoded in the body of the request.
 ///
@@ -150,25 +160,39 @@ pub fn parse_logplex_message(frame: &str) -> Result<LogplexMessage<'_>, LogplexE
     let rest = frame.strip_suffix('\n').unwrap_or(frame);
     let rest = rest.strip_suffix('\r').unwrap_or(rest);
 
-    let (priority, rest) = rest
-        .strip_prefix('<')
-        .and_then(|rest| rest.split_once('>'))
-        .ok_or(LogplexError::InvalidPriority)?;
-    let severity = parse_priority(priority)? & 0x07;
+    let priority = HerokuParser::parse(Rule::priority, rest)
+        .map_err(|_| LogplexError::InvalidPriority)?
+        .next()
+        .unwrap();
+    let rest = &rest[priority.as_span().end()..];
+    let severity = priority
+        .into_inner()
+        .next()
+        .unwrap()
+        .as_str()
+        .parse::<u8>()
+        .ok()
+        .filter(|&priority| priority <= 191)
+        .ok_or(LogplexError::InvalidPriority)?
+        & 0x07;
 
-    let (version, rest) = rest.split_once(' ').ok_or(LogplexError::IncompleteHeader)?;
-    if version != "1" {
+    let version = HerokuParser::parse(Rule::version, rest)
+        .map_err(|_| LogplexError::IncompleteHeader)?
+        .next()
+        .unwrap();
+    let rest = &rest[version.as_span().end()..];
+    if version.into_inner().next().unwrap().as_str() != "1" {
         return Err(LogplexError::UnsupportedVersion);
     }
 
-    let mut parts = rest.splitn(6, ' ');
-    let mut next_part = || parts.next().ok_or(LogplexError::IncompleteHeader);
-    let timestamp = next_part()?;
-    let _hostname = next_part()?;
-    let source = next_part()?;
-    let dyno = next_part()?;
-    let _msg_id = next_part()?;
-    let msg = parts.next().unwrap_or_default();
+    let mut parts =
+        HerokuParser::parse(Rule::header, rest).map_err(|_| LogplexError::IncompleteHeader)?;
+    let timestamp = parts.next().unwrap().as_str();
+    let _hostname = parts.next().unwrap();
+    let source = parts.next().unwrap().as_str();
+    let dyno = parts.next().unwrap().as_str();
+    let _msg_id = parts.next().unwrap();
+    let msg = parts.next().unwrap().as_str();
 
     Ok(LogplexMessage {
         severity,
@@ -179,19 +203,6 @@ pub fn parse_logplex_message(frame: &str) -> Result<LogplexMessage<'_>, LogplexE
         dyno: nil(dyno),
         msg,
     })
-}
-
-/// Parses the numeric `PRI` value, which must be within `0..=191`.
-fn parse_priority(priority: &str) -> Result<u8, LogplexError> {
-    if priority.is_empty() || priority.len() > 3 || !priority.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(LogplexError::InvalidPriority);
-    }
-
-    priority
-        .parse::<u8>()
-        .ok()
-        .filter(|&priority| priority <= 191)
-        .ok_or(LogplexError::InvalidPriority)
 }
 
 /// Returns `None` for the syslog `NILVALUE` (`-`) and empty header values.
@@ -220,61 +231,37 @@ fn map_syslog_severity_to_level(severity: u8) -> OurLogLevel {
 ///
 /// Values may be wrapped in double quotes to contain spaces, a backslash escapes the following
 /// character within quotes. Words without a `=` are skipped.
-struct Logfmt<'a>(&'a str);
+struct Logfmt<'a>(Pairs<'a, Rule>);
+
+impl<'a> Logfmt<'a> {
+    fn new(input: &'a str) -> Self {
+        Self(HerokuParser::parse(Rule::logfmt, input).expect("logfmt accepts any input"))
+    }
+}
 
 impl<'a> Iterator for Logfmt<'a> {
     type Item = (&'a str, Cow<'a, str>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let input = self.0.trim_start_matches(' ');
-            if input.is_empty() {
+        self.0.find_map(|pair| {
+            if pair.as_rule() != Rule::logfmt_pair {
                 return None;
             }
 
-            let key_end = input.find(['=', ' ']).unwrap_or(input.len());
-            let (key, rest) = input.split_at(key_end);
-
-            let Some(rest) = rest.strip_prefix('=') else {
-                // A word without a value.
-                self.0 = rest;
-                continue;
-            };
-
-            let (value, rest) = match rest.strip_prefix('"') {
-                Some(quoted) => split_quoted(quoted),
-                None => {
-                    let (value, rest) = rest.split_at(rest.find(' ').unwrap_or(rest.len()));
-                    (Cow::Borrowed(value), rest)
-                }
-            };
-            self.0 = rest;
-
-            if !key.is_empty() {
-                return Some((key, value));
+            let mut parts = pair.into_inner();
+            let key = parts.next().unwrap().as_str();
+            if key.is_empty() {
+                return None;
             }
-        }
-    }
-}
 
-/// Splits a quoted logfmt value at its closing quote, the opening quote is already removed.
-///
-/// Without a closing quote, the value extends to the end of the input.
-fn split_quoted(input: &str) -> (Cow<'_, str>, &str) {
-    let mut escaped = false;
-    for (index, c) in input.char_indices() {
-        match c {
-            _ if escaped => escaped = false,
-            '\\' => escaped = true,
-            '"' => {
-                let (value, rest) = input.split_at(index);
-                return (unescape(value), rest.get(1..).unwrap_or_default());
-            }
-            _ => {}
-        }
+            let value = parts.next().unwrap();
+            let value = match value.as_rule() {
+                Rule::logfmt_quoted_text => unescape(value.as_str()),
+                _ => Cow::Borrowed(value.as_str()),
+            };
+            Some((key, value))
+        })
     }
-
-    (unescape(input), "")
 }
 
 /// Removes the backslashes of escape sequences in a quoted logfmt value.
@@ -300,25 +287,9 @@ fn unescape(value: &str) -> Cow<'_, str> {
 /// Returns the code and the description in parentheses, if any. See
 /// <https://devcenter.heroku.com/articles/error-codes>.
 fn parse_error_code(msg: &str) -> Option<(&str, Option<&str>)> {
-    let rest = msg.strip_prefix("Error ")?;
-
-    let code = rest.get(..3)?;
-    let mut bytes = code.bytes();
-    if !matches!(bytes.next(), Some(b'H' | b'L' | b'R')) || !bytes.all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-
-    let rest = rest.get(3..)?;
-    if rest.starts_with(|c: char| c.is_ascii_alphanumeric()) {
-        return None;
-    }
-
-    let description = rest
-        .strip_prefix(" (")
-        .and_then(|rest| rest.split_once(')'))
-        .map(|(description, _)| description)
-        .filter(|description| !description.is_empty());
-
+    let mut parts = HerokuParser::parse(Rule::error, msg).ok()?;
+    let code = parts.next()?.as_str();
+    let description = parts.next().map(|part| part.as_str());
     Some((code, description))
 }
 
@@ -439,7 +410,7 @@ fn add_router_attributes(attributes: &mut Attributes, msg: &str) -> Option<OurLo
     let mut seen_path = false;
     let mut level = None;
 
-    for (key, value) in Logfmt(msg) {
+    for (key, value) in Logfmt::new(msg) {
         match key {
             "at" | "code" | "desc" | "method" | "path" if seen_path => continue,
             "at" => {
@@ -781,6 +752,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_message_empty_headers() {
+        assert_eq!(
+            parse_logplex_message("<007>1     ").unwrap(),
+            LogplexMessage {
+                severity: 7,
+                timestamp: None,
+                source: None,
+                dyno: None,
+                msg: "",
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_message_preserves_body() {
+        let msg = parse_logplex_message("<007>1 - host app web.1 -  héllo\n\tworld\r\n").unwrap();
+        assert_eq!(msg.severity, 7);
+        assert_eq!(msg.msg, " héllo\n\tworld");
+    }
+
+    #[test]
     fn test_parse_message_invalid() {
         let parse = |s| parse_logplex_message(s).unwrap_err();
 
@@ -792,17 +784,21 @@ mod tests {
         assert_eq!(parse("<0190>1 - - - - - hi"), LogplexError::InvalidPriority);
         assert_eq!(parse("<+19>1 - - - - - hi"), LogplexError::InvalidPriority);
         assert_eq!(parse("<190"), LogplexError::InvalidPriority);
+        assert_eq!(parse("<256>2"), LogplexError::InvalidPriority);
         assert_eq!(
             parse("<190>2 - - - - - hi"),
             LogplexError::UnsupportedVersion
         );
+        assert_eq!(parse("<190>2 "), LogplexError::UnsupportedVersion);
+        assert_eq!(parse("<190> "), LogplexError::UnsupportedVersion);
+        assert_eq!(parse("<190>2"), LogplexError::IncompleteHeader);
         assert_eq!(parse("<190>1"), LogplexError::IncompleteHeader);
         assert_eq!(parse("<190>1 - - -"), LogplexError::IncompleteHeader);
         assert_eq!(parse("<190>1 - - - -"), LogplexError::IncompleteHeader);
     }
 
     fn logfmt(msg: &str) -> Vec<String> {
-        Logfmt(msg)
+        Logfmt::new(msg)
             .map(|(key, value)| format!("{key}={value}"))
             .collect()
     }
@@ -841,6 +837,19 @@ mod tests {
     }
 
     #[test]
+    fn test_logfmt_adjacent_and_multiline_fields() {
+        assert_eq!(
+            logfmt(r#"a="b"c=d word ="ignored value" = a=b=c"#),
+            vec!["a=b", "c=d", "a=b=c"]
+        );
+        assert_eq!(
+            logfmt("a=\"ü\nö\"\tb=c\td \"key=value"),
+            vec!["a=ü\nö", "\tb=c\td", "\"key=value"]
+        );
+        assert_eq!(logfmt(r#"a="unterminated b=c"#), vec!["a=unterminated b=c"]);
+    }
+
+    #[test]
     fn test_parse_error_code() {
         assert_eq!(
             parse_error_code("Error R14 (Memory quota exceeded)"),
@@ -859,8 +868,16 @@ mod tests {
             Some(("L10", Some("output buffer overflow")))
         );
         assert_eq!(parse_error_code("Error H99"), Some(("H99", None)));
+        assert_eq!(parse_error_code("Error H99 ()"), Some(("H99", None)));
+        assert_eq!(
+            parse_error_code("Error H99 (unfinished"),
+            Some(("H99", None))
+        );
+        assert_eq!(parse_error_code("Error H99! details"), Some(("H99", None)));
+        assert_eq!(parse_error_code("Error H99é"), Some(("H99", None)));
         assert_eq!(parse_error_code("Error R1"), None);
         assert_eq!(parse_error_code("Error R144 (x)"), None);
+        assert_eq!(parse_error_code("Error R14x (x)"), None);
         assert_eq!(parse_error_code("Error X14 (x)"), None);
         assert_eq!(parse_error_code("Error Rü4"), None);
         assert_eq!(parse_error_code("error R14"), None);

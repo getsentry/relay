@@ -20,6 +20,8 @@ opentelemetry-proto = { workspace = true, features = [
     "with-serde",
     "logs",
 ] }
+pest = { workspace = true }
+pest_derive = { workspace = true }
 relay-browser-reporting = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }

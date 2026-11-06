@@ -4918,6 +4918,8 @@ dependencies = [
  "hex",
  "insta",
  "opentelemetry-proto",
+ "pest",
+ "pest_derive",
  "relay-browser-reporting",
  "relay-common",
  "relay-conventions",
