@@ -38,8 +38,8 @@ def heroku_messages():
     ]
 
 
-def expected_item(body, attributes):
-    return {
+def expected_item(body, attributes, trace_id=None):
+    item = {
         "organizationId": "1",
         "projectId": "42",
         "traceId": matches_any(),
@@ -83,6 +83,10 @@ def expected_item(body, attributes):
             "keyId": "123",
         },
     }
+    if trace_id is not None:
+        item["traceId"] = trace_id
+        del item["attributes"]["sentry._meta.fields.trace_id"]
+    return item
 
 
 def expected_items():
@@ -120,6 +124,7 @@ def expected_items():
                 "tls.protocol.name": {"stringValue": "tls"},
                 "tls.protocol.version": {"stringValue": "1.3"},
             },
+            trace_id="8601b5556a834c12826997c8e32cdb22",
         ),
         expected_item(
             "Error R14 (Memory quota exceeded)",

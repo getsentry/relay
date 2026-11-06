@@ -596,6 +596,13 @@ pub fn logplex_message_to_sentry_log(
         }
     }
 
+    let trace_id = TraceId::try_from_str_or_random(
+        attributes
+            .get_value(HEROKU__ROUTER__REQUEST_ID)
+            .and_then(|value| value.as_str())
+            .unwrap_or_default(),
+    );
+
     let timestamp = match timestamp {
         Some(timestamp) => Annotated::new(Timestamp(timestamp)),
         None => {
@@ -607,8 +614,7 @@ pub fn logplex_message_to_sentry_log(
 
     OurLog {
         timestamp,
-        // Logplex messages carry no trace context.
-        trace_id: TraceId::try_from_str_or_random(""),
+        trace_id,
         level: Annotated::new(level),
         body: Annotated::new(msg.to_owned()),
         attributes: Annotated::new(attributes),
@@ -630,13 +636,12 @@ mod tests {
             .collect()
     }
 
-    /// Converts a message to a log, removing the random trace id to keep snapshots stable.
+    /// Converts a message to a log, removing the trace id to keep snapshots stable.
     fn to_log_with_drain_token(line: &str, drain_token: Option<&str>) -> Annotated<OurLog> {
         let message = parse_logplex_message(line).unwrap();
         let mut log = logplex_message_to_sentry_log(message, drain_token);
 
         assert!(log.trace_id.value().is_some());
-        assert!(!log.trace_id.meta().is_empty());
         log.trace_id = Annotated::empty();
 
         Annotated::new(log)
@@ -905,6 +910,41 @@ mod tests {
         let attributes = log.value().unwrap().attributes.value().unwrap();
         assert!(!attributes.contains_key(HEROKU__ERROR__CODE));
         assert_eq!(log.value().unwrap().level.value(), Some(&OurLogLevel::Info));
+    }
+
+    #[test]
+    fn test_router_trace_id_from_request_id() {
+        for (request_id, trace_id) in [
+            (
+                "6903a168-b79b-ec27-03c8-b8f64d8d8792",
+                "6903a168b79bec2703c8b8f64d8d8792",
+            ),
+            (
+                "f9ed4675f1c53513c61a3b3b4e25b4c0",
+                "f9ed4675f1c53513c61a3b3b4e25b4c0",
+            ),
+        ] {
+            let line = format!(
+                "<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info path=/ request_id={request_id}"
+            );
+            let log = logplex_message_to_sentry_log(parse_logplex_message(&line).unwrap(), None);
+
+            assert_eq!(log.trace_id.value().unwrap().to_string(), trace_id);
+            assert!(log.trace_id.meta().is_empty());
+        }
+    }
+
+    #[test]
+    fn test_router_trace_id_fallback() {
+        for request_id in ["", "custom-request-id-1234567890"] {
+            let line = format!(
+                "<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info path=/ request_id={request_id}"
+            );
+            let log = logplex_message_to_sentry_log(parse_logplex_message(&line).unwrap(), None);
+
+            assert_ne!(log.trace_id.value().unwrap().as_u128(), 0);
+            assert!(!log.trace_id.meta().is_empty());
+        }
     }
 
     #[test]
