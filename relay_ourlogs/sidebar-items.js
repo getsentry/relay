@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["browser_report_to_sentry_log","calculate_size","otel_to_sentry_log","vercel_log_to_sentry_log"],"mod":["otel_logs"],"struct":["VercelLog"]};
+window.SIDEBAR_ITEMS = {"constant":["HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN","HEROKU_LOGPLEX_HEADER_MSG_COUNT"],"enum":["LogplexError"],"fn":["browser_report_to_sentry_log","calculate_size","logplex_message_to_sentry_log","otel_to_sentry_log","parse_logplex_frames","parse_logplex_message","vercel_log_to_sentry_log"],"mod":["otel_logs"],"struct":["LogplexFrames","LogplexMessage","VercelLog"]};
