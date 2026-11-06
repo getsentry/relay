@@ -73,6 +73,10 @@ impl SentryError for GpuCrash {
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         None
     }
+
+    fn crash_attachment_rate_limited(&self) -> bool {
+        self.0.rate_limited()
+    }
 }
 
 impl Counted for GpuCrash {

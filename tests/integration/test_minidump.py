@@ -650,6 +650,13 @@ def test_minidump_with_processing(
     assert "errors" not in event
 
     if rate_limit == "attachment":
+        # The static quota marks the minidump as rate limited before the errors processor, the
+        # reason is recovered from the static quota.
+        assert event["metadata"] == {"rate_limited_reason": "static_disabled_quota"}
+    else:
+        assert "metadata" not in event
+
+    if rate_limit == "attachment":
         assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
             {
                 "category": DataCategory.ATTACHMENT,
@@ -697,37 +704,42 @@ def test_minidump_rate_limited_reason_in_metadata(
     outcomes_consumer = outcomes_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    response = relay.send_minidump(project_id=project_id, files=attachments)
 
-    message, event = attachments_consumer.get_event_only()
+    # The first minidump is rate limited by Redis in the processor. This caches the rate limit,
+    # the second minidump is then marked as rate limited by the cached limit before it reaches
+    # the processor, which has to recover the reason from the cached limits.
+    for _ in range(2):
+        response = relay.send_minidump(project_id=project_id, files=attachments)
 
-    assert UUID(event["event_id"]) == UUID(response.text)
-    assert event["metadata"] == {"rate_limited_reason": "attachments_exceeded"}
+        message, event = attachments_consumer.get_event_only()
 
-    (attachment,) = message["attachments"]
-    assert attachment["attachment_type"] == "event.minidump"
-    assert attachment["rate_limited"] is True
+        assert UUID(event["event_id"]) == UUID(response.text)
+        assert event["metadata"] == {"rate_limited_reason": "attachments_exceeded"}
 
-    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
-        {
-            "category": DataCategory.ATTACHMENT,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": Outcome.RATE_LIMITED,
-            "project_id": project_id,
-            "quantity": len(content),
-            "reason": "attachments_exceeded",
-        },
-        {
-            "category": DataCategory.ATTACHMENT_ITEM,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": Outcome.RATE_LIMITED,
-            "project_id": project_id,
-            "quantity": 1,
-            "reason": "attachments_exceeded",
-        },
-    ]
+        (attachment,) = message["attachments"]
+        assert attachment["attachment_type"] == "event.minidump"
+        assert attachment["rate_limited"] is True
+
+        assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+            {
+                "category": DataCategory.ATTACHMENT,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.RATE_LIMITED,
+                "project_id": project_id,
+                "quantity": len(content),
+                "reason": "attachments_exceeded",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": Outcome.RATE_LIMITED,
+                "project_id": project_id,
+                "quantity": 1,
+                "reason": "attachments_exceeded",
+            },
+        ]
 
 
 def test_minidump_with_processing_invalid(

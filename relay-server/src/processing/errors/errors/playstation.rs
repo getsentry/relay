@@ -214,6 +214,10 @@ impl SentryError for Playstation {
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         self.minidump.as_mut()
     }
+
+    fn crash_attachment_rate_limited(&self) -> bool {
+        self.prosperodump.rate_limited()
+    }
 }
 
 impl Counted for Playstation {

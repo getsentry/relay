@@ -68,6 +68,10 @@ impl SentryError for Security {
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         None
     }
+
+    fn crash_attachment_rate_limited(&self) -> bool {
+        false
+    }
 }
 
 impl Counted for Security {

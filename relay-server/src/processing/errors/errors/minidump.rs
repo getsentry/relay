@@ -75,6 +75,10 @@ impl SentryError for Minidump {
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         Some(&mut self.0)
     }
+
+    fn crash_attachment_rate_limited(&self) -> bool {
+        self.0.rate_limited()
+    }
 }
 
 impl Counted for Minidump {
