@@ -13,8 +13,10 @@ mod otel;
 pub fn expand(
     records: &mut RecordKeeper<'_>,
     items: &[Item],
+    max_ops: usize,
+    max_spans: usize,
 ) -> (Settings, ContainerItems<SpanV2>) {
-    let mut result = Vec::new();
+    let mut results = Vec::new();
 
     for item in items {
         let integration = match item.integration() {
@@ -25,21 +27,27 @@ pub fn expand(
             }
         };
 
+        let mut cur_results = Vec::new();
         let produce = |span: SpanV2| {
-            let span = WithHeader::new(span.into());
-            records.add(&span);
-            result.push(span);
+            cur_results.push(WithHeader::new(span.into()));
         };
 
         let payload = item.payload();
 
         let result = match integration {
-            SpansIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+            SpansIntegration::OtelV1 { format } => {
+                otel::expand(format, &payload, produce, max_ops, max_spans)
+            }
         };
 
         match result {
             Err(err) => drop(records.reject_err(err, item)),
             Ok(()) => {
+                results.reserve(cur_results.len());
+                for result in cur_results {
+                    records.add(&result);
+                    results.push(result);
+                }
                 // Undo all the base item quantities, as they will be completely taken over by the parsed
                 // contents, which contains an arbitrary amount of items (even 0).
                 records.remove(item);
@@ -47,7 +55,7 @@ pub fn expand(
         }
     }
 
-    (Settings::default(), result)
+    (Settings::default(), results)
 }
 
 #[derive(Debug, thiserror::Error)]
