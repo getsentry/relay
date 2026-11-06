@@ -621,6 +621,9 @@ pub struct Limits {
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum size for a TUS upload request body.
+    ///
+    /// Applies to incoming request bytes at every hop and also to decoded bytes when writing to
+    /// objectstore.
     pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,
@@ -784,7 +787,7 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
@@ -814,6 +817,9 @@ pub enum HttpEncoding {
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
+    ///
+    /// Accepts aliases, whitespace, and mixed case; unknown values fall back to identity.
+    /// Use [`Self::parse_strict`] when validating an incoming request header.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
         if str.eq_ignore_ascii_case("zstd") {
@@ -826,6 +832,18 @@ impl HttpEncoding {
             Self::Deflate
         } else {
             Self::Identity
+        }
+    }
+
+    /// Parses a canonical `Content-Encoding` value, returning `None` for unsupported values.
+    pub fn parse_strict(value: &str) -> Option<Self> {
+        match value {
+            "identity" => Some(Self::Identity),
+            "deflate" => Some(Self::Deflate),
+            "gzip" => Some(Self::Gzip),
+            "br" => Some(Self::Br),
+            "zstd" => Some(Self::Zstd),
+            _ => None,
         }
     }
 
@@ -3088,6 +3106,25 @@ impl fmt::Debug for ConfigSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_http_encoding_parse_strict() {
+        for (value, expected) in [
+            ("identity", Some(HttpEncoding::Identity)),
+            ("gzip", Some(HttpEncoding::Gzip)),
+            ("deflate", Some(HttpEncoding::Deflate)),
+            ("br", Some(HttpEncoding::Br)),
+            ("zstd", Some(HttpEncoding::Zstd)),
+            ("", None),
+            ("unknown", None),
+            ("x-gzip", None),
+            ("GZIP", None),
+            (" gzip ", None),
+            ("zstd, gzip", None),
+        ] {
+            assert_eq!(HttpEncoding::parse_strict(value), expected, "{value:?}");
+        }
+    }
 
     #[cfg(feature = "processing")]
     #[test]
