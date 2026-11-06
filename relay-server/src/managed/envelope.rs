@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item};
+use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::managed::Counted as _;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -40,17 +40,6 @@ impl Handling {
             Handling::Failure => "failure",
         }
     }
-}
-
-/// Represents the decision on whether or not to keep an envelope item.
-#[derive(Debug, Clone)]
-pub enum ItemAction {
-    /// Keep the item.
-    Keep,
-    /// Drop the item and log an outcome for it.
-    Drop(Outcome),
-    /// Drop the item without logging an outcome.
-    DropSilently,
 }
 
 #[derive(Debug)]
@@ -143,49 +132,10 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Retains or drops items based on the [`ItemAction`].
-    ///
-    ///
-    /// This method operates in place and preserves the order of the retained items.
-    pub fn retain_items<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Item) -> ItemAction,
-    {
-        let mut outcomes = Vec::new();
-        self.envelope.retain_items(|item| match f(item) {
-            ItemAction::Keep => true,
-            ItemAction::DropSilently => false,
-            ItemAction::Drop(outcome) => {
-                for (category, quantity) in item.quantities() {
-                    outcomes.push((outcome.clone(), category, quantity));
-                }
-
-                false
-            }
-        });
-        for (outcome, category, quantity) in outcomes {
-            self.track_outcome(outcome, category, quantity);
-        }
-        // TODO: once `update` is private, it should be called here.
-    }
-
     /// Re-scopes this context to the given scoping.
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.context.scoping = scoping;
         self
-    }
-
-    /// Removes event item(s) and logs an outcome.
-    ///
-    /// Note: This function relies on the envelope summary being correct.
-    pub fn reject_event(&mut self, outcome: Outcome) {
-        if let Some(event_category) = self.event_category() {
-            self.envelope.retain_items(|item| !item.creates_event());
-            if let Some(indexed) = event_category.index_category() {
-                self.track_outcome(outcome.clone(), indexed, 1);
-            }
-            self.track_outcome(outcome, event_category, 1);
-        }
     }
 
     /// Records an outcome scoped to this envelope's context.
@@ -215,11 +165,6 @@ impl ManagedEnvelope {
         }
     }
 
-    /// Returns the data category of the event item in the envelope.
-    fn event_category(&self) -> Option<DataCategory> {
-        self.context.summary.event_category
-    }
-
     /// Records rejection outcomes for all items stored in this context.
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
@@ -238,7 +183,7 @@ impl ManagedEnvelope {
 
                 relay_log::error!(
                     tags.project_key = self.scoping().project_key.to_string(),
-                    tags.has_attachments = summary.attachment_quantities.bytes() > 0,
+                    tags.has_attachments = summary.attachment_bytes > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity.total > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
@@ -247,7 +192,7 @@ impl ManagedEnvelope {
                     tags.has_user_reports = summary.user_report_quantity > 0,
                     tags.has_trace_metrics = summary.trace_metric_quantity > 0,
                     tags.has_checkins = summary.monitor_quantity > 0,
-                    tags.event_category = ?summary.event_category,
+                    tags.event_category = ?summary.event.category(),
                     cached_summary = ?summary,
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
                     "dropped envelope: {outcome}"

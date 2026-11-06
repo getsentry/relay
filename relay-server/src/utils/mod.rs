@@ -1,6 +1,7 @@
 mod api;
 mod debug;
 mod dynamic_sampling;
+mod early_rate_limits;
 mod error;
 pub mod gpu;
 mod multipart;
@@ -30,6 +31,7 @@ mod unreal;
 pub use self::api::*;
 pub use self::debug::*;
 pub use self::dynamic_sampling::*;
+pub use self::early_rate_limits::enforce_rate_limits;
 pub use self::error::*;
 pub use self::forward::*;
 pub use self::memory::*;

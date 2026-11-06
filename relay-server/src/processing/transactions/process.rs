@@ -55,10 +55,10 @@ pub fn expand(
 
         #[cfg(debug_assertions)]
         {
-            // Fix broken span count headers
+            // Parsing reveals the actual span count, which may differ from the header estimate.
             use relay_protocol::get_value;
             let embedded = get_value!(event.spans).map_or(0, Vec::len);
-            let diff = embedded as isize - transaction_item.span_count() as isize;
+            let diff = embedded as isize - transaction_item.span_count().unwrap_or(0) as isize;
             record_keeper.modify_by(DataCategory::Span, diff);
             record_keeper.modify_by(DataCategory::SpanIndexed, diff);
         }
@@ -475,5 +475,114 @@ struct IndexedSpans(usize);
 impl Counted for IndexedSpans {
     fn quantities(&self) -> Quantities {
         smallvec![(DataCategory::SpanIndexed, self.0)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Envelope;
+    use crate::extractors::RequestMeta;
+    use crate::managed::ManagedTestHandle;
+
+    fn serialized_transaction(
+        payload: &str,
+        span_count: Option<&str>,
+    ) -> (Managed<SerializedTransaction>, ManagedTestHandle) {
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let envelope = Envelope::from_request(None, RequestMeta::new(dsn));
+        let span_count =
+            span_count.map_or(String::new(), |value| format!(r#", "span_count":{value}"#));
+        let bytes = format!(
+            "{{\"type\":\"transaction\",\"length\":{}{span_count}}}\n{payload}\n",
+            payload.len()
+        );
+        let (event, _) = Item::parse(bytes.into()).unwrap();
+
+        Managed::for_test(SerializedTransaction {
+            headers: envelope.headers().clone(),
+            event,
+            attachments: vec![],
+            profiles: vec![],
+        })
+        .build()
+    }
+
+    #[test]
+    fn test_expand_reconciles_span_count_headers() {
+        for (payload, embedded_spans) in [
+            (r#"{"spans":[{},{}]}"#, 2),
+            // The event parser accepts a JSON prefix without requiring end-of-input.
+            (r#"{"spans":[{},{}]} trailing"#, 2),
+            (r#"{"spans":null}"#, 0),
+            (r#"{}"#, 0),
+        ] {
+            for header in [
+                None,
+                Some("null"),
+                Some(r#""invalid""#),
+                Some("-1"),
+                Some("4294967296"),
+                Some("0"),
+                Some("2"),
+                Some("12"),
+            ] {
+                let (transaction, mut outcomes) = serialized_transaction(payload, header);
+                // Expanding must reconcile the serialized header estimate with the parsed payload,
+                // without a preliminary pass that populates or corrects the header.
+                let transaction = expand(transaction).unwrap();
+                outcomes.assert_no_outcomes();
+                assert_eq!(
+                    transaction.count_embedded_spans_and_self(),
+                    1 + embedded_spans
+                );
+
+                let outcome = Outcome::RateLimited(None);
+                let _ = transaction.reject_err(outcome.clone());
+                drop(transaction);
+                for (category, quantity) in [
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::SpanIndexed, 1 + embedded_spans as u64),
+                    (DataCategory::Span, 1 + embedded_spans as u64),
+                ] {
+                    outcomes.assert_outcome(&outcome, category, quantity);
+                }
+                outcomes.assert_no_outcomes();
+            }
+        }
+    }
+
+    #[test]
+    fn test_expand_invalid_json_rejects_original_quantities() {
+        for payload in ["{", r#"{"spans":[{},}"#, r#"{"spans":[{},{}]"#] {
+            for (header, declared_spans) in [
+                (None, 0),
+                (Some(r#""invalid""#), 0),
+                (Some("4294967296"), 0),
+                (Some("0"), 0),
+                (Some("2"), 2),
+                (Some("12"), 12),
+            ] {
+                let (transaction, mut outcomes) = serialized_transaction(payload, header);
+                let error = expand(transaction).unwrap_err().into_inner();
+                assert!(matches!(error, Error::InvalidJson(_)));
+
+                // Failed parsing cannot supply a validated payload count. As in release builds,
+                // rejection uses the original declared quantities, including the root span.
+                let outcome = Outcome::Invalid(DiscardReason::InvalidJson);
+                for (category, quantity) in [
+                    (DataCategory::Transaction, 1),
+                    (DataCategory::TransactionIndexed, 1),
+                    (DataCategory::Span, 1 + declared_spans),
+                    (DataCategory::SpanIndexed, 1 + declared_spans),
+                ] {
+                    outcomes.assert_outcome(&outcome, category, quantity);
+                }
+                outcomes.assert_no_outcomes();
+            }
+        }
     }
 }
