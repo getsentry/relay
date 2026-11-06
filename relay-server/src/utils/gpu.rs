@@ -32,11 +32,11 @@ pub fn split_crash(
     }
 
     // Cloning the scope duplicates the event and any attachment-shaped scope items.
-    let mut duplicated: Vec<(DataCategory, isize)> = vec![(DataCategory::Error, 1)];
+    let mut duplicated: Vec<(DataCategory, usize)> = vec![(DataCategory::Error, 1)];
     for item in &scope {
         for (category, quantity) in item.quantities() {
             if category != DataCategory::Error {
-                duplicated.push((category, quantity as isize));
+                duplicated.push((category, quantity));
             }
         }
     }
@@ -50,9 +50,7 @@ pub fn split_crash(
             gpu.add_item(item);
         }
 
-        for (category, quantity) in duplicated {
-            records.modify_by(category, quantity);
-        }
+        records.add(duplicated);
 
         (envelope, gpu)
     });

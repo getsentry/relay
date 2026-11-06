@@ -63,6 +63,7 @@ fn otel_body_to_sentry_body(body: Option<AnyValue>) -> Option<String> {
                 .collect();
             serde_json::to_string(&values).ok()
         }
+        OtelValue::StringValueStrindex(_) => None,
     })
 }
 
@@ -760,12 +761,14 @@ mod tests {
                         value: Some(AnyValue {
                             value: Some(OtelValue::StringValue("value1".to_owned())),
                         }),
+                        key_strindex: 0,
                     },
                     KeyValue {
                         key: "key2".to_owned(),
                         value: Some(AnyValue {
                             value: Some(OtelValue::IntValue(42)),
                         }),
+                        key_strindex: 0,
                     },
                 ],
             })),

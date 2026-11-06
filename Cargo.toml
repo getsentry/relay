@@ -39,6 +39,7 @@ str_to_string = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 
 [workspace.dependencies]
+proto-descriptors = { path = "tools/proto-descriptors" }
 relay-auth = { path = "relay-auth" }
 relay-base-schema = { path = "relay-base-schema" }
 relay-browser-reporting = { path = "relay-browser-reporting" }
@@ -117,6 +118,7 @@ chrono = { version = "0.4", default-features = false, features = [
 clap = "4"
 clap_complete = "4"
 console = "0.15"
+convert_case = "0.11.0"
 cookie = "0.18"
 criterion = "0.5"
 data-encoding = "2"
@@ -147,6 +149,7 @@ insta = { version = "1", features = ["json", "redactions", "ron"] }
 ipnetwork = { version = "0.21", features = ["serde"] }
 itertools = "0.14"
 json-forensics = "0.1"
+leb128 = "0.2.7"
 libc = "0.2"
 liblzma = "0.4"
 lz4_flex = "0.13.1"
@@ -166,7 +169,7 @@ num_cpus = "1"
 objectstore-client = { version = "0.3.1", features = ["resumable-upload-api"] }
 objectstore-types = { version = "0.3" }
 opentelemetry-semantic-conventions = "0.31"
-opentelemetry-proto = { version = "0.31", default-features = false }
+opentelemetry-proto = { version = "0.33.1", default-features = false }
 papaya = "0.2"
 parking_lot = "0.12"
 path-slash = "0.2"
@@ -179,6 +182,7 @@ priority-queue = "2"
 proc-macro2 = "1"
 prost = "0.14"
 prost-types = "0.14"
+protox = "0.10"
 psl = "2"
 quote = "1"
 rand = "0.9"

@@ -14,7 +14,7 @@ use crate::processing::errors::{ErrorsProcessor, UnrealErrorIntegrationProcessor
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
 use crate::processing::logs::{
-    IntegrityLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
+    BrowserReportLogsIntegrationProcessor, LogsProcessor, NelLogsIntegrationProcessor,
     OtelLogsIntegrationProcessor, VercelLogsIntegrationProcessor,
 };
 use crate::processing::profile_chunks::ProfileChunksProcessor;
@@ -44,7 +44,7 @@ pub struct RelayProcessor {
     forward_unknown: ForwardUnknownProcessor,
     invalid: InvalidUnhandledProcessor,
     logs: LogsProcessor,
-    logs_integration_integrity: IntegrityLogsIntegrationProcessor,
+    logs_integration_browser: BrowserReportLogsIntegrationProcessor,
     logs_integration_nel: NelLogsIntegrationProcessor,
     logs_integration_otel: OtelLogsIntegrationProcessor,
     logs_integration_vercel: VercelLogsIntegrationProcessor,
@@ -81,8 +81,8 @@ impl RelayProcessor {
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
             logs: LogsProcessor::new(ql()),
+            logs_integration_browser: BrowserReportLogsIntegrationProcessor,
             logs_integration_nel: NelLogsIntegrationProcessor,
-            logs_integration_integrity: IntegrityLogsIntegrationProcessor,
             logs_integration_otel: OtelLogsIntegrationProcessor,
             logs_integration_vercel: VercelLogsIntegrationProcessor,
             profile_chunks: ProfileChunksProcessor::new(ql()),
@@ -133,7 +133,7 @@ impl RelayProcessor {
         run!(self.replays);
         run!(self.spans);
         run!(self.logs);
-        run!(self.logs_integration_integrity);
+        run!(self.logs_integration_browser);
         run!(self.logs_integration_nel);
         run!(self.logs_integration_otel);
         run!(self.logs_integration_vercel);
