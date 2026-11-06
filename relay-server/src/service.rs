@@ -26,6 +26,7 @@ use crate::services::projects::source::ProjectSource;
 use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
+use crate::services::store::create_kafka_client;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::upload::{self, Upload};
@@ -245,24 +246,24 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&current_config)?;
-        // Taken before the service is started, which consumes it. `ConfigReloadService` pushes
-        // a reloaded Kafka config to it.
+
         #[cfg(feature = "processing")]
-        let mut kafka_client = None;
+        let mut maybe_kafka_client = None;
+
         #[cfg(feature = "processing")]
         let store = current_config
             .processing_enabled()
             .then(|| {
+                let kafka_client = create_kafka_client(&current_config)?;
+                maybe_kafka_client = Some(kafka_client.clone());
                 StoreService::create(
                     store_pool.clone(),
+                    kafka_client.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| {
-                    kafka_client = Some(s.kafka_client());
-                    services.start(s)
-                })
+                .map(|s| services.start(s))
             })
             .transpose()?;
 
@@ -339,11 +340,13 @@ impl ServiceState {
                             let (addr, rx) = channel("outcome_store");
                             let service = StoreService::create(
                                 store_pool.clone(),
+                                maybe_kafka_client
+                                    .clone()
+                                    .expect("kafka client created by store"),
                                 config.clone(),
                                 global_config_handle.clone(),
                                 MetricOutcomes::new(dummy_outcomes.clone()),
                             )?;
-                            kafka_client = Some(service.kafka_client()); // TODO: share kafka client
                             services.start_with(service, rx);
                             Some(addr)
                         } else {
@@ -449,7 +452,7 @@ impl ServiceState {
         let _ = services.start(ConfigReloadService::new(
             config.clone(),
             #[cfg(feature = "processing")]
-            kafka_client,
+            maybe_kafka_client,
         ));
 
         let registry = Registry {
