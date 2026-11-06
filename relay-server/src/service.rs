@@ -317,7 +317,6 @@ impl ServiceState {
                         #[cfg(feature = "processing")]
                         store_forwarder: store.clone(),
                     },
-                    metric_outcomes.clone(),
                 ));
 
                 let router = RouterService::new(
@@ -369,7 +368,6 @@ impl ServiceState {
                             #[cfg(feature = "processing")]
                             store_forwarder: outcome_store,
                         },
-                        metric_outcomes.clone(),
                     );
                     services.start_with(outcome_bucket_service, outcome_bucket_rx);
 
