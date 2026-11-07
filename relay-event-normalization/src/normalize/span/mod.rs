@@ -112,13 +112,7 @@ pub fn normalize_dsc_for_span_data(
         data.insert_value(SENTRY__DSC__PROJECT_ID, project_id.to_string());
     }
     match &dsc.transaction {
-        // To match the behaviour of the `count_per_root` metric, which had its tags
-        // removed if they were over the limit.
-        Some(tx) if tx.len() <= config.max_tag_value_length => {
-            data.insert_value(SENTRY__DSC__TRANSACTION, tx.clone())
-        }
-        // Keep an empty value around for the DS job
-        Some(_) => data.insert_value(SENTRY__DSC__TRANSACTION, "".to_owned()),
+        Some(tx) => data.insert_value(SENTRY__DSC__TRANSACTION, tx.clone()),
         None => drop(data.remove(SENTRY__DSC__TRANSACTION)),
     }
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{Interface, Service};
 
 /// A service that handles messages one at a time.
@@ -30,4 +32,12 @@ pub trait MessageHandler {
 
     /// The asynchronous message handler for this service.
     fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send;
+}
+
+impl<T: MessageHandler + ?Sized> MessageHandler for Arc<T> {
+    type Interface = T::Interface;
+
+    fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send {
+        self.as_ref().handle_message(message)
+    }
 }

@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timezone, timedelta
 
+import pytest
+
 from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
     ExportLogsServiceResponse,
 )
@@ -515,7 +517,8 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     ]
 
 
-def test_otlp_logs_without_body(mini_sentry, relay):
+@pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
+def test_otlp_logs_without_body(mini_sentry, relay, relay_mode):
     """OTel makes the log body optional, such logs must not be dropped."""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -523,7 +526,8 @@ def test_otlp_logs_without_body(mini_sentry, relay):
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay(mini_sentry)
+    upstream = relay(mini_sentry)
+    relay = relay(upstream, options={"relay": {"mode": relay_mode}})
 
     ts = datetime.now(timezone.utc)
     ts_nanos = str(int(ts.timestamp() * 1e6) * 1000)

@@ -5,20 +5,37 @@
 **Features**:
 
 - Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
+- Derive `user.geo.subregion` for streamed spans and copy `user.geo.country_code`, `user.geo.region` and `user.geo.subregion` onto web vital metrics. ([#6576](https://github.com/getsentry/relay/pull/6576))
+- Copy `sentry.replay_id` and `sentry.profile_id` onto web vital metrics. ([#6638](https://github.com/getsentry/relay/pull/6638))
 - Emit `browser.web_vital.*.score` metrics carrying each web vital's performance score as a ratio. ([#6607](https://github.com/getsentry/relay/pull/6607))
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
 - Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
 
 **Bug Fixes**:
 
+- Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
+- Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
+- Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
 - Apply default replacement-only PII scrubbing to AI and MCP attributes on native spans. ([#6511](https://github.com/getsentry/relay/pull/6511), [#6612](https://github.com/getsentry/relay/pull/6612)
+- Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
+- Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
+- Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
+
 **Internal**:
 
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Update sentry-conventions to 0.31.0. Adds Heroku log drain, `faas.document.*`, `faas.instance`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, and deprecates the `gen_ai.handoff` op. ([#6649](https://github.com/getsentry/relay/pull/6649))
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
+- Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
+- Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
+- Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 
 **Bug Fixes**:
 
