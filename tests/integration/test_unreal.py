@@ -316,6 +316,9 @@ libc.so.6!__libc_start_main(+0x8a)
 </CallStack>
     <PCallStack>Game-Linux-Test 0x0000000000200000 + b3a7402 libc.so 0x00007f0b38200000 + 2a28b</PCallStack>
   </RuntimeProperties>
+  <GameData>
+    <__sentry>{"debug_meta":{"images":[{"type":"elf","code_file":"Game-Linux-Test","image_addr":"0x200000"}]}}</__sentry>
+  </GameData>
 </FGenericCrashContext>
 """
 

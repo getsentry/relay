@@ -1,0 +1,41 @@
+// Call stacks in the Unreal crash context (`CrashContext.runtime-xml`).
+
+WS = _{ " " | "\t" | "\r" | "\n" }
+hex = _{ ASCII_HEX_DIGIT+ }
+
+// One trimmed line of the legacy `CallStack`: `[0xAddress ]Module!Function(Args) [File:Line]`.
+// Everything after the module is optional, and the module can be omitted as well.
+legacy_frame = { SOI ~ ("0x" ~ hex ~ WS+)? ~ (module ~ "!" ~ symbol | module_only | symbol) ~ EOI }
+
+module = @{ (!"!" ~ ANY)* }
+
+// A line without `!`, arguments or file is a module, except for the function placeholder.
+module_only = @{ !("UnknownFunction" ~ EOI) ~ (!("!" | "(" | "]" ~ EOI) ~ ANY)+ ~ &EOI }
+
+// Whitespace runs are consumed at once, so a location is only looked for at their start.
+symbol = _{ function ~ (module_offset | export_offset)? ~ location? }
+function = @{ (!((module_offset | export_offset)? ~ location? ~ EOI) ~ (WS+ | ANY))* }
+
+// Unsymbolicated frames carry their offset into the module: `UnknownFunction(0x10)`.
+module_offset = { "(0x" ~ offset ~ ")" }
+offset = @{ (!("(" | ")") ~ ANY)* }
+
+// Symbols found without debug information carry their offset: `__libc_start_main(+0x8a)`.
+export_offset = { "(+0x" ~ (!("(" | ")") ~ ANY)* ~ ")" }
+
+// `[]` and `[UnknownFile]` are written when the file is unknown.
+location = _{ WS+ ~ "[" ~ (file ~ ":" ~ lineno | "UnknownFile")? ~ "]" }
+file = @{ (!(":" ~ lineno ~ "]" ~ EOI | " [") ~ ANY)+ }
+lineno = @{ ASCII_DIGIT{1, 19} }
+
+// The portable `PCallStack`: frames written as `Module 0xImageBase + Offset`, separated by
+// whitespace. Older versions omit the module. Module names can contain whitespace and `+`.
+// The engine cuts off long call stacks, so anything after the last full frame is `truncated`.
+portable_call_stack = { SOI ~ WS* ~ (portable_frame ~ WS*)* ~ truncated? ~ EOI }
+truncated = { ANY+ }
+
+portable_frame = { (portable_module ~ WS+)? ~ "0x" ~ image_base ~ WS+ ~ "+" ~ WS+ ~ portable_offset ~ &(WS | EOI) }
+portable_module = @{ !frame_address ~ (!(WS+ ~ (frame_address | "+" ~ WS)) ~ (WS+ | ANY))+ }
+frame_address = _{ "0x" ~ hex ~ WS+ ~ "+" ~ WS }
+image_base = @{ hex }
+portable_offset = @{ hex }

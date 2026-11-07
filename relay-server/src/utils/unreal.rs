@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
+use pest::Parser;
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{
     Addr, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
@@ -19,6 +20,8 @@ use crate::constants::{
 };
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::services::processor::ProcessingError;
+
+use self::call_stack::{CallStackParser, Rule};
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
@@ -359,6 +362,15 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 }
 
+#[allow(clippy::empty_docs)]
+mod call_stack {
+    use pest_derive::Parser;
+
+    #[derive(Parser)]
+    #[grammar = "utils/unreal_call_stack.pest"]
+    pub struct CallStackParser;
+}
+
 /// Parses one line of the legacy `CallStack` into a frame.
 ///
 /// Lines look like `Module!Function(...) [File:Line]`, where everything after the module is
@@ -368,61 +380,41 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 ///
 /// Returns the frame and the module offset of an unsymbolicated frame.
 fn parse_legacy_frame(line: &str) -> Option<(Frame, Option<u64>)> {
-    let mut line = line.trim();
-    if let Some((address, rest)) = line.split_once(' ')
-        && address.starts_with("0x")
-    {
-        line = rest.trim_start();
-    }
-
+    let line = line.trim();
     if line.is_empty() {
         return None;
     }
 
-    let (package, mut function) = match line.split_once('!') {
-        Some((package, function)) => (Some(package), function),
-        // Without a module, the function is followed by its arguments or file.
-        None if line.contains('(') || line.ends_with(']') || line == "UnknownFunction" => {
-            (None, line)
-        }
-        None => (Some(line), ""),
-    };
+    let pairs = CallStackParser::parse(Rule::legacy_frame, line).ok()?;
 
-    let mut frame = Frame {
-        package: Annotated::from(package.map(str::to_owned)),
-        ..Frame::default()
-    };
+    let mut frame = Frame::default();
+    let mut function = "";
+    let mut offset = None;
+    let mut has_offset = false;
 
-    if let Some((name, location)) = function.strip_suffix(']').and_then(|f| f.rsplit_once(" [")) {
-        if let Some((filename, lineno)) = location.rsplit_once(':')
-            && let Ok(lineno) = lineno.parse::<u64>()
-        {
-            function = name;
-            frame.filename = Annotated::new(filename.into());
-            frame.lineno = Annotated::new(lineno);
-        } else if location.is_empty() || location == "UnknownFile" {
-            function = name;
+    for pair in pairs.flatten() {
+        match pair.as_rule() {
+            Rule::module | Rule::module_only if !pair.as_str().is_empty() => {
+                frame.package = Annotated::new(pair.as_str().to_owned());
+            }
+            Rule::function => function = pair.as_str(),
+            Rule::module_offset | Rule::export_offset => has_offset = true,
+            Rule::offset => offset = u64::from_str_radix(pair.as_str(), 16).ok(),
+            Rule::file => frame.filename = Annotated::new(pair.as_str().into()),
+            Rule::lineno => frame.lineno = Annotated::from(pair.as_str().parse::<u64>().ok()),
+            _ => {}
         }
     }
 
     // Symbols with an offset are the closest exported symbol, found without debug information.
-    // They are often wrong and would group unrelated crashes together, so they are skipped.
-    let function = function.trim_end();
-    let mut offset = None;
-    let is_symbol = match function.strip_suffix(')').and_then(|f| f.rsplit_once('(')) {
-        Some((_, args)) if args.starts_with("+0x") => false,
-        Some((_, args)) => match args.strip_prefix("0x") {
-            Some(hex) => {
-                offset = u64::from_str_radix(hex, 16).ok();
-                false
-            }
-            None => true,
-        },
-        // The last line is cut off when the call stack exceeds the engine's buffer.
-        None => function.matches('(').count() == function.matches(')').count(),
-    };
+    // They are often wrong and would group unrelated crashes together, so they are skipped. The
+    // last line is cut off when the call stack exceeds the engine's buffer.
+    let is_cut_off = !(function.ends_with(')') && function.contains('('))
+        && function.matches('(').count() != function.matches(')').count();
+    let is_symbol =
+        !has_offset && !is_cut_off && !function.is_empty() && function != "UnknownFunction";
 
-    if is_symbol && !function.is_empty() && function != "UnknownFunction" {
+    if is_symbol {
         frame.function = Annotated::new(function.to_owned());
     }
 
@@ -439,30 +431,36 @@ struct PortableFrame<'a> {
 
 /// Parses the portable `PCallStack`.
 ///
-/// Each frame is written as `Module 0xImageBase + Offset`, older versions omit the module. Module
-/// names can contain whitespace, so a frame ends with the offset after the `+`.
-/// Returns `None` if the call stack cannot be fully parsed or contains placeholder addresses.
+/// Returns `None` if the call stack cannot be parsed up to the frame limit or contains
+/// placeholder addresses.
 fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>> {
+    let pairs = CallStackParser::parse(Rule::portable_call_stack, call_stack).ok()?;
+
     let mut frames = Vec::new();
-    let mut rest = call_stack.trim_start();
+    for frame in pairs.flatten() {
+        if frames.len() >= MAX_NUM_UNREAL_FRAMES {
+            break;
+        }
+        match frame.as_rule() {
+            Rule::portable_frame => {}
+            // Frames after the limit are ignored, so they may be cut off.
+            Rule::truncated => return None,
+            _ => continue,
+        }
 
-    while !rest.is_empty() && frames.len() < MAX_NUM_UNREAL_FRAMES {
-        // The `+` between image base and offset, not one in a module name like `libstdc++.so`.
-        let (plus, _) = rest.match_indices('+').find(|&(index, _)| {
-            rest[..index].ends_with(char::is_whitespace)
-                && rest[index + 1..].starts_with(char::is_whitespace)
-        })?;
-        let head = rest[..plus].trim_end();
-        let tail = rest[plus + 1..].trim_start();
+        let mut module = None;
+        let mut base = None;
+        let mut offset = None;
+        for pair in frame.into_inner() {
+            match pair.as_rule() {
+                Rule::portable_module => module = Some(pair.as_str()),
+                Rule::image_base => base = u64::from_str_radix(pair.as_str(), 16).ok(),
+                Rule::portable_offset => offset = u64::from_str_radix(pair.as_str(), 16).ok(),
+                _ => {}
+            }
+        }
 
-        let (module, base) = match head.rsplit_once(char::is_whitespace) {
-            Some((module, base)) => (Some(module.trim_end()), base),
-            None => (None, head),
-        };
-        let (offset, tail) = tail.split_once(char::is_whitespace).unwrap_or((tail, ""));
-
-        let base = u64::from_str_radix(base.strip_prefix("0x")?, 16).ok()?;
-        let offset = u64::from_str_radix(offset, 16).ok()?;
+        let (base, offset) = (base?, offset?);
         if base == 0xffff_ffff {
             return None;
         }
@@ -472,7 +470,6 @@ fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>>
             offset,
             address: base.checked_add(offset)?,
         });
-        rest = tail.trim_start();
     }
 
     Some(frames)
@@ -621,12 +618,36 @@ fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<E
     })
 }
 
+/// Returns whether the event has debug images to symbolicate its frames.
+fn has_debug_images(event: &Event) -> bool {
+    event
+        .debug_meta
+        .value()
+        .and_then(|debug_meta| debug_meta.images.value())
+        .is_some_and(|images| !images.is_empty())
+}
+
+/// Returns whether a frame of the exception has a function or file name.
+fn has_symbols(exception: &Exception) -> bool {
+    let frames = exception
+        .stacktrace
+        .value()
+        .and_then(|stacktrace| stacktrace.frames.value());
+
+    frames.into_iter().flatten().any(|frame| {
+        frame
+            .value()
+            .is_some_and(|frame| !frame.function.is_empty() || !frame.filename.is_empty())
+    })
+}
+
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
 ///
 /// With `context_stacktrace`, crashes without a minidump or Apple crash report get an exception
-/// with the stack trace from the crash context.
+/// with the stack trace from the crash context, if its frames have names or the event has debug
+/// images.
 pub fn process_unreal(
     context: Option<Unreal4Context>,
     event_id: EventId,
@@ -675,6 +696,9 @@ pub fn process_unreal(
                 .runtime_properties
                 .as_ref()
                 .and_then(unreal_exception)
+                // Frames without names can only be symbolicated with debug images. Without
+                // either, the stack trace adds nothing but would still change grouping.
+                .filter(|exception| has_debug_images(event) || has_symbols(exception))
         } else {
             None
         };
@@ -708,7 +732,7 @@ pub struct ProcessedUnrealReport {
 mod tests {
 
     use relay_config::Config;
-    use relay_event_schema::protocol::NativeImagePath;
+    use relay_event_schema::protocol::{DebugImage, DebugMeta, NativeDebugImage, NativeImagePath};
     use relay_protocol::SerializableAnnotated;
 
     use super::*;
@@ -1040,8 +1064,24 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         unreal_exception(context.runtime_properties.as_ref()?)
     }
 
+    /// An event with the debug images that the Unreal SDK adds to the crash context.
+    fn event_with_debug_images() -> Event {
+        let image = NativeDebugImage {
+            code_file: Annotated::new("Game-Linux-Test".into()),
+            ..NativeDebugImage::default()
+        };
+
+        Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Elf(Box::new(image)))]),
+                ..DebugMeta::default()
+            }),
+            ..Event::default()
+        }
+    }
+
     fn process_with_attachments(attachments: &[Item]) -> Annotated<Event> {
-        let mut event = Annotated::empty();
+        let mut event = Annotated::new(event_with_debug_images());
         process_unreal(
             Some(get_linux_context()),
             EventId::new(),
@@ -1157,6 +1197,27 @@ Game-Linux-Test!UnknownFunction(0x4871028)
                 "Foo() [Foo.cpp:3]",
                 (None, Some("Foo()"), Some("Foo.cpp"), Some(3), None),
             ),
+            (
+                "Game!Foo<'('>() [Foo.cpp:3]",
+                (
+                    Some("Game"),
+                    Some("Foo<'('>()"),
+                    Some("Foo.cpp"),
+                    Some(3),
+                    None,
+                ),
+            ),
+            // A line number that does not fit is left in the function.
+            (
+                "Game!Foo() [Foo.cpp:99999999999999999999]",
+                (
+                    Some("Game"),
+                    Some("Foo() [Foo.cpp:99999999999999999999]"),
+                    None,
+                    None,
+                    None,
+                ),
+            ),
         ];
 
         for (line, expected) in cases {
@@ -1219,6 +1280,11 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         assert_eq!(addresses("0x00000000ffffffff + ffffffff"), None);
         assert_eq!(addresses("Game 0x200000 +"), None);
         assert_eq!(addresses("Game 200000 + 10"), None);
+        assert_eq!(addresses("Game 200000 + 10 Game 0x200000 + 10"), None);
+        assert_eq!(
+            addresses("Game 0x1000 + 10\r\nlibc.so 0x2000 + 20\r\n"),
+            Some(vec![(Some("Game"), 0x1010), (Some("libc.so"), 0x2020)])
+        );
         assert_eq!(addresses("Game 0xffffffffffffffff + 1"), None);
     }
 
@@ -1339,7 +1405,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         // A level sent by the client is kept.
         let mut event = Annotated::new(Event {
             level: Annotated::new(Level::Info),
-            ..Event::default()
+            ..event_with_debug_images()
         });
         process_unreal(
             Some(get_linux_context()),
@@ -1356,6 +1422,33 @@ Game-Linux-Test!UnknownFunction(0x4871028)
 
         // Without a call stack, there is no exception.
         let event = process_runtime_properties("<CrashType>Crash</CrashType>");
+        assert!(event.exceptions.is_empty());
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_requires_symbols_or_debug_images() {
+        // The frames of the sample have no names, and the event has no debug images.
+        let mut event = Annotated::empty();
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            true,
+        )
+        .unwrap();
+        let event = event.value().unwrap();
+        assert!(event.exceptions.is_empty());
+        assert!(event.platform.is_empty());
+
+        // Frames with a function or a file name are kept without debug images.
+        for call_stack in ["Game!Main()", "Game!UnknownFunction(0x10) [Main.cpp:3]"] {
+            let event = process_runtime_properties(&format!("<CallStack>{call_stack}</CallStack>"));
+            assert!(!event.exceptions.is_empty(), "{call_stack}");
+        }
+
+        let event = process_runtime_properties("<CallStack>Game!UnknownFunction(0x10)</CallStack>");
         assert!(event.exceptions.is_empty());
     }
 
@@ -1535,7 +1628,24 @@ Game-Linux-Test!UnknownFunction(0x4871028)
             let call_stack = frame.repeat(1000);
             let frames = parse_portable_call_stack(&call_stack).unwrap();
             assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
+
+            // The engine cuts off long call stacks, possibly within a frame.
+            let call_stack = format!("{call_stack}Game 0x1000 +");
+            let frames = parse_portable_call_stack(&call_stack).unwrap();
+            assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
         }
+    }
+
+    #[test]
+    fn test_parse_call_stack_long_whitespace() {
+        let spaces = " ".repeat(1_000_000);
+
+        let (frame, _) = parse_legacy_frame(&format!("Game!Foo({spaces}) [Foo.cpp:3]")).unwrap();
+        assert_eq!(frame.lineno.value(), Some(&3));
+
+        let call_stack = format!("Game{spaces}0x1000 + 10{spaces}libc.so 0x2000 + 20");
+        let frames = parse_portable_call_stack(&call_stack).unwrap();
+        assert_eq!(frames.len(), 2);
     }
 
     #[test]
