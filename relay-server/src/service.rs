@@ -331,7 +331,30 @@ impl ServiceState {
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
-                // Start the secondary outcome pipeline:
+                // Start the secondary outcome pipeline to prevent cycles in the service graph.
+                // +-------------------+
+                // | EnvelopeProcessor |------------------------+
+                // +-------------------+                        |
+                //           |                                  |
+                //           v                                  v
+                // +-------------------+          +---------------------------+
+                // | MetricsAggregator |     +--->|      OutcomeProducer      |
+                // +-------------------+     |    +---------------------------+
+                //           |               |                  |
+                //           v               |                  v
+                // +-------------------+     |    +---------------------------+
+                // |  BucketProcessor  |-----+    | outcome MetricsAggregator |
+                // +-------------------+     |    +---------------------------+
+                //           |               |                  |
+                //           v               |                  v
+                // +-------------------+     |    +---------------------------+
+                // |       Store       |-----+    |  outcome BucketProcessor  |
+                // +-------------------+          +---------------------------+
+                //                                              |
+                //                                              v
+                //                                +---------------------------+
+                //                                |       outcome Store       |
+                //                                +---------------------------+
                 {
                     #[cfg(feature = "processing")]
                     let outcome_store = {
