@@ -1360,8 +1360,8 @@ def test_dsc_normalization(
 @pytest.mark.parametrize(
     ("dsc_transaction", "expected_transaction"),
     [
-        pytest.param("t" * 10, "t" * 10, id="at-limit"),
-        pytest.param("t" * 11, "", id="over-limit"),
+        pytest.param("t" * 200, "t" * 200, id="at-limit"),
+        pytest.param("t" * 201, "t" * 197 + "...", id="over-limit"),
     ],
 )
 def test_dsc_transaction_tag_length(
@@ -1376,7 +1376,6 @@ def test_dsc_transaction_tag_length(
     relay = relay(
         mini_sentry,
         options={
-            "aggregator": {"max_tag_value_length": 10},
             "normalization": {"level": "full"},
         },
     )

@@ -213,9 +213,8 @@ async fn multipart_to_items(
             .iter_mut()
             .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
             .ok_or(BadStoreRequest::MissingProsperodump)?;
-        let payload = prosperodump.payload();
-        validate_prosperodump(&payload)?;
-        prosperodump.set_payload(ContentType::OctetStream, payload);
+        validate_prosperodump(&prosperodump.payload())?;
+        prosperodump.set_content_type(ContentType::OctetStream);
         Ok(())
     })?;
     Ok(items)

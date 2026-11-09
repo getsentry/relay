@@ -155,6 +155,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -247,6 +248,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -336,6 +338,7 @@ def test_span_extraction(
             "user.geo.country_code": {"type": "string", "value": "AT"},
             "user.geo.region": {"type": "string", "value": "Austria"},
             "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "user.geo.subregion": {"type": "string", "value": "155"},
             "user.id": {"type": "string", "value": user_id},
             "user.ip_address": {"type": "string", "value": "192.168.0.1"},
             "sentry.dsc.project_id": {"type": "string", "value": "42"},

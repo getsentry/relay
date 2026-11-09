@@ -78,7 +78,6 @@ fn make_app(
         .layer(SentryHttpLayer::new().enable_transaction())
         .layer(middlewares::trace_http_layer())
         .map_request(middlewares::remove_empty_encoding)
-        .layer(axum::middleware::from_fn(middlewares::decompress))
         .layer(
             CompressionLayer::new()
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),

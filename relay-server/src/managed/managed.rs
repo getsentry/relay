@@ -270,9 +270,7 @@ impl<T: Counted> Managed<T> {
         F: FnOnce(&mut T, S, &mut RecordKeeper),
     {
         self.modify(|s, records| {
-            for (category, quantity) in other.quantities() {
-                records.modify_by(category, quantity as isize);
-            }
+            records.add(other.as_ref());
             other.accept(|o| f(s, o, records));
         })
     }
@@ -290,9 +288,7 @@ impl<T: Counted> Managed<T> {
             "cannot zip Managed values with different metadata"
         );
         first.map(|first, records| {
-            for (category, quantity) in second.quantities() {
-                records.modify_by(category, quantity as isize);
-            }
+            records.add(second.as_ref());
             let second = second.accept(|second| second);
             (first, second)
         })

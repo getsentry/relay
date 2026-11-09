@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reject register responses whose Relay ID does not match the register challenge with `UnpackErrorRelayIdMismatch`. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Remove the `organizations:relay-automatic-json-expansion` feature from project config. ([#6518](https://github.com/getsentry/relay/pull/6518))
 - Remove the `user.sentry_user` field from normalized events. ([#6609](https://github.com/getsentry/relay/pull/6609))
 
