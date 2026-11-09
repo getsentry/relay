@@ -95,15 +95,15 @@ pub fn expand(
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
-                if total_log_size >= max_logs_size.as_bytes() {
-                    return Err(Error::Invalid(DiscardReason::RequestTooLarge));
-                }
-
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
                 total_log_size += byte_size as usize;
+
+                if total_log_size >= max_logs_size.as_bytes() {
+                    return Err(Error::Invalid(DiscardReason::RequestTooLarge));
+                }
 
                 records.add([
                     (DataCategory::LogItem, 1),
