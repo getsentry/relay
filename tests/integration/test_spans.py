@@ -104,9 +104,7 @@ def test_span_extraction(
     user_id = str(uuid.uuid4())
     event["user"] = {
         "id": user_id,
-        # "email": "john@example.com",
         "ip_address": "192.168.0.1",
-        "sentry_user": f"id:{user_id}",
         "geo": {
             "country_code": "AT",
             "city": "Vienna",
@@ -157,6 +155,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -249,6 +248,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -338,6 +338,7 @@ def test_span_extraction(
             "user.geo.country_code": {"type": "string", "value": "AT"},
             "user.geo.region": {"type": "string", "value": "Austria"},
             "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "user.geo.subregion": {"type": "string", "value": "155"},
             "user.id": {"type": "string", "value": user_id},
             "user.ip_address": {"type": "string", "value": "192.168.0.1"},
             "sentry.dsc.project_id": {"type": "string", "value": "42"},
