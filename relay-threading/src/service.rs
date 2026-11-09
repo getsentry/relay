@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::future::BoxFuture;
 use relay_log::sentry::SentryFutureExt;
 use relay_system::{MessageHandler, Receiver, Service};
@@ -10,12 +12,12 @@ pub type ServicePool = AsyncPool<BoxFuture<'static, ()>>;
 /// A service that delegates its work to an [`ServicePool`].
 pub struct AsyncPoolService<T> {
     handler: T,
-    pool: ServicePool,
+    pool: Arc<ServicePool>,
 }
 
 impl<T> AsyncPoolService<T> {
     /// Creates a new service from a handler and a pool.
-    pub fn new(handler: T, pool: ServicePool) -> Self {
+    pub fn new(handler: T, pool: Arc<ServicePool>) -> Self {
         Self { handler, pool }
     }
 }

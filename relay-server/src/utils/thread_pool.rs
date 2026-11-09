@@ -91,9 +91,7 @@ impl ThreadPoolBuilder {
                 b.spawn(move || {
                     set_current_thread_priority(self.kind);
                     thread.run()
-                })?;
-
-                Ok(())
+                })
             })
             .build()
     }
