@@ -1,4 +1,5 @@
 use relay_cogs::AppFeature;
+use relay_config::ByteSize;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
 use relay_ourlogs::otel_logs::LogsData;
@@ -65,7 +66,7 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
                 work,
                 records,
                 ctx.config.max_expanded_log_operations(),
-                ctx.config.max_expanded_log_count(),
+                ctx.config.max_expanded_logs_size(),
             )
         })?;
         Ok(Output::intermediates(intermediates))
@@ -78,7 +79,7 @@ pub fn expand(
     SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
     max_ops: usize,
-    max_logs: usize,
+    max_logs_size: ByteSize,
 ) -> Result<Intermediates, Error> {
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
@@ -87,22 +88,22 @@ pub fn expand(
     let payload = item.payload();
     let mut logs = Vec::new();
     let parsed = parse_logs_data(format, &payload, max_ops)?;
-    let mut log_count = 0;
+    let mut total_log_size = 0;
 
     for resource_logs in parsed.resource_logs {
         let resource = resource_logs.resource.as_ref();
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
-                if log_count >= max_logs {
+                if total_log_size >= max_logs_size.as_bytes() {
                     return Err(Error::Invalid(DiscardReason::RequestTooLarge));
                 }
-                log_count += 1;
 
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
+                total_log_size += byte_size as usize;
 
                 records.add([
                     (DataCategory::LogItem, 1),

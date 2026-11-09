@@ -655,8 +655,8 @@ pub struct Limits {
     pub max_expanded_span_operations: usize,
     /// The maximum number of operations that can occur in a trace metric expansion.
     pub max_expanded_trace_metric_operations: usize,
-    /// The maximum number of logs that can result from a log expansion.
-    pub max_expanded_log_count: usize,
+    /// The maximum total number of bytes that can result from a log expansion.
+    pub max_expanded_logs_size: ByteSize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum amount of standalone transaction spans per envelope.
@@ -752,7 +752,7 @@ impl Default for Limits {
             max_expanded_log_operations: 3_000_000,
             max_expanded_span_operations: 3_000_000,
             max_expanded_trace_metric_operations: 3_000_000,
-            max_expanded_log_count: 1000,
+            max_expanded_logs_size: ByteSize::mebibytes(20),
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
@@ -2657,8 +2657,8 @@ impl ConfigSnapshot {
     }
 
     /// Returns the maximum number of logs than can be generated from a log expansion.
-    pub fn max_expanded_log_count(&self) -> usize {
-        self.inner.values.limits.max_expanded_log_count
+    pub fn max_expanded_logs_size(&self) -> ByteSize {
+        self.inner.values.limits.max_expanded_logs_size
     }
 
     /// Returns the maximum payload size of a span in bytes.
