@@ -13,6 +13,7 @@ import zlib
 
 import msgpack
 import pytest
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -49,6 +50,37 @@ def attachment_types(envelope):
         for item in envelope.items
         if item.headers.get("type") == "attachment"
     }
+
+
+def assert_gpu_placeholder(event):
+    """Asserts the event is a native crash with the GPU placeholder as its first exception."""
+    assert event["platform"] == "native"
+    assert event["level"] == "fatal"
+    exception = event["exception"]["values"][0]
+    assert exception["type"] == "GpuCrash"
+    assert exception["value"] == "Unprocessed GPU Crash"
+    assert exception["mechanism"]["type"] == "gpu_crash"
+    assert exception["mechanism"]["synthetic"] is True
+
+
+def unreal_crash(files):
+    """Compresses `(file name, content)` pairs into an Unreal crash report."""
+
+    def unreal_string(value):
+        content = value.encode() + b"\0"
+        return struct.pack("<i", len(content)) + content
+
+    payload = b""
+    for index, (filename, content) in enumerate(files):
+        payload += (
+            struct.pack("<i", index)
+            + unreal_string(filename)
+            + struct.pack("<i", len(content))
+            + content
+        )
+    header = b"CR1" + unreal_string("crash") + unreal_string("crash.ue4crash")
+    header += struct.pack("<ii", len(header) + 8 + len(payload), len(files))
+    return zlib.compress(header + payload)
 
 
 def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
@@ -184,6 +216,7 @@ def test_gpu_crash_split_with_processing(
     # The GPU event is the copied scope, carrying the GPU crash attachments.
     assert gpu_event["event_id"] != cpu_event["event_id"]
     assert gpu_event["release"] == "game@1.0.0"
+    assert_gpu_placeholder(gpu_event)
     gpu_names = {att["name"] for att in gpu_message.get("attachments", [])}
     assert {"crash.nv-gpudmp", "shader-abc.nvdbg", "shader-abc.cso"} <= gpu_names
     assert "minidump.dmp" not in gpu_names
@@ -216,22 +249,7 @@ def test_gpu_crash_splits_into_two_events_from_unreal(
         (SHADER_CSO[1], SHADER_CSO[2]),
     ]
 
-    def unreal_string(value):
-        content = value.encode() + b"\0"
-        return struct.pack("<i", len(content)) + content
-
-    payload = b""
-    for index, (filename, content) in enumerate(files):
-        payload += (
-            struct.pack("<i", index)
-            + unreal_string(filename)
-            + struct.pack("<i", len(content))
-            + content
-        )
-    header = b"CR1" + unreal_string("crash") + unreal_string("crash.ue4crash")
-    header += struct.pack("<ii", len(header) + 8 + len(payload), len(files))
-
-    response = relay.send_unreal_request(project_id, zlib.compress(header + payload))
+    response = relay.send_unreal_request(project_id, unreal_crash(files))
     cpu_event_id = response.text.strip().replace("-", "")
 
     events = {}
@@ -269,6 +287,7 @@ def test_gpu_crash_splits_into_two_events_from_unreal(
     assert gpu_event["release"] == "game@1.0.0"
     assert gpu_event["environment"] == "prod"
     assert gpu_event["tags"] == cpu_event["tags"]
+    assert_gpu_placeholder(gpu_event)
 
     cpu_trace = cpu_event["contexts"]["trace"]
     gpu_trace = gpu_event["contexts"]["trace"]
@@ -278,3 +297,52 @@ def test_gpu_crash_splits_into_two_events_from_unreal(
     if has_trace_context:
         assert cpu_trace["trace_id"] == SCOPE_TRACE_ID
         assert cpu_trace["span_id"] == "cccccccccccccccc"
+
+
+def test_gpu_crash_placeholder_from_unreal_without_event(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    """Relay creates a placeholder event for the GPU crash in a report without an event."""
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+
+    files = [(MINIDUMP[1], MINIDUMP[2].encode()), (GPU_DUMP[1], GPU_DUMP[2])]
+    relay.send_unreal_request(project_id, unreal_crash(files))
+
+    events = {}
+    for _ in range(2):
+        message, event = attachments_consumer.get_event_only()
+        names = {attachment["name"] for attachment in message["attachments"]}
+        events["gpu" if "crash.nv-gpudmp" in names else "cpu"] = event
+    assert set(events) == {"cpu", "gpu"}
+
+    assert events["cpu"]["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+    assert_gpu_placeholder(events["gpu"])
+    assert len(events["gpu"]["exception"]["values"]) == 1
+
+
+def test_gpu_crash_placeholder_without_event(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    """Relay creates a placeholder event for a GPU dump sent alone in an envelope."""
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            PayloadRef(bytes=GPU_DUMP[2]),
+            type="attachment",
+            filename=GPU_DUMP[1],
+            headers={"attachment_type": "event.nv_gpudmp"},
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    _, event = attachments_consumer.get_event_only()
+    assert_gpu_placeholder(event)
