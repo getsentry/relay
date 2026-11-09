@@ -101,7 +101,7 @@ pub fn expand(
                 let byte_size = relay_ourlogs::calculate_size(&log);
                 total_log_size += byte_size as usize;
 
-                if total_log_size >= max_logs_size.as_bytes() {
+                if total_log_size > max_logs_size.as_bytes() {
                     return Err(Error::Invalid(DiscardReason::RequestTooLarge));
                 }
 
