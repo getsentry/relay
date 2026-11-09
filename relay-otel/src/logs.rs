@@ -8,13 +8,13 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope};
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 
-use opentelemetry_proto::tonic::resource::v1::Resource;
-use relay_conventions::attributes::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
-use relay_otel::{
+use crate::{
     otel_array_to_sentry_array, otel_kvlist_to_string, otel_resource_to_platform,
     otel_value_to_attribute,
 };
+use opentelemetry_proto::tonic::resource::v1::Resource;
+use relay_conventions::attributes::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Object};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
@@ -113,7 +113,7 @@ pub fn otel_to_sentry_log(
         attribute_data.insert(SENTRY__PLATFORM, platform.to_owned());
     }
 
-    relay_otel::otel_scope_into_attributes(&mut attribute_data, resource, scope);
+    crate::otel_scope_into_attributes(&mut attribute_data, resource, scope);
 
     for attribute in attributes {
         if let Some(attr) = attribute

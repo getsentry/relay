@@ -4899,11 +4899,13 @@ dependencies = [
 name = "relay-otel"
 version = "26.10.1"
 dependencies = [
+ "chrono",
  "insta",
  "opentelemetry-proto",
  "opentelemetry-semantic-conventions",
  "prost 0.14.4",
  "proto-descriptors",
+ "relay-conventions",
  "relay-event-schema",
  "relay-protocol",
  "relay-serialization",
@@ -4917,13 +4919,11 @@ dependencies = [
  "chrono",
  "hex",
  "insta",
- "opentelemetry-proto",
  "relay-browser-reporting",
  "relay-common",
  "relay-conventions",
  "relay-event-normalization",
  "relay-event-schema",
- "relay-otel",
  "relay-protocol",
  "serde",
  "serde_json",

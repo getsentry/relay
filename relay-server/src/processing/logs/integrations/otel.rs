@@ -1,7 +1,7 @@
+use opentelemetry_proto::tonic::logs::v1::LogsData;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
-use relay_ourlogs::otel_logs::LogsData;
 use relay_quotas::DataCategory;
 
 use crate::envelope::WithHeader;
@@ -87,7 +87,7 @@ pub fn expand(
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
-                let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
+                let log = relay_otel::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
@@ -145,8 +145,8 @@ mod tests {
     use opentelemetry_proto::tonic::common::v1::{
         AnyValue, ArrayValue, InstrumentationScope, KeyValue,
     };
+    use opentelemetry_proto::tonic::logs::v1::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
     use opentelemetry_proto::tonic::resource::v1::Resource;
-    use relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
     use prost::Message;
 
