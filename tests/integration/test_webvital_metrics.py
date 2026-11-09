@@ -580,7 +580,11 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "cd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "265"},
+                "sentry.payload_size_bytes": {"intValue": "362"},
+                "sentry.replay_id": {"stringValue": "8477286c8e5148b386b71ade38374d58"},
+                "sentry.profile_id": {
+                    "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                },
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "score.weight.inp": {"doubleValue": 1.0},
@@ -687,6 +691,12 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "cd429c44b67a3eb1",
                 ratio=0.9948129113413748,
                 extra_attributes={
+                    "sentry.replay_id": {
+                        "stringValue": "8477286c8e5148b386b71ade38374d58"
+                    },
+                    "sentry.profile_id": {
+                        "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                    },
                     "sentry.segment.name": {
                         "stringValue": "/page/with/click/interaction/*/*"
                     },
@@ -927,7 +937,10 @@ def test_v2(
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b176"},
-                "sentry.payload_size_bytes": {"intValue": "150"},
+                "sentry.payload_size_bytes": {"intValue": "199"},
+                "sentry.profile_id": {
+                    "stringValue": "3d9428087fda4ba0936788b70a7587d0"
+                },
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},

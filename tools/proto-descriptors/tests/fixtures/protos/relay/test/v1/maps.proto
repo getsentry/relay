@@ -1,0 +1,9 @@
+// A map field is sugar for a repeated synthesized entry message, which the generator refuses to
+// describe rather than under-count. Only used to assert that refusal.
+syntax = "proto3";
+
+package relay.test.v1;
+
+message WithMap {
+  map<string, string> labels = 1;
+}
