@@ -99,16 +99,7 @@ impl AggregatorService {
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(
-        config: AggregatorServiceConfig,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-        project_cache: ProjectCacheHandle,
-    ) -> Self {
-        Self::named("default".to_owned(), config, receiver, project_cache)
-    }
-
-    /// Like [`Self::new`], but with a provided name.
-    pub(crate) fn named(
+    pub(crate) fn new(
         name: String,
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
@@ -526,7 +517,8 @@ mod tests {
             ..Default::default()
         };
         let aggregator =
-            AggregatorService::new(config, Some(recipient), project_cache).start_detached();
+            AggregatorService::new("test".to_owned(), config, Some(recipient), project_cache)
+                .start_detached();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();

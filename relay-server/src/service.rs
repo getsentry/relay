@@ -395,8 +395,11 @@ impl ServiceState {
                     );
                     services.start_with(outcome_bucket_service, outcome_bucket_rx);
 
-                    let outcome_metrics_router = RouterService::new(
+                    // Give the outcome metrics router the full config, because the user
+                    // may have configured specifics for outcome metrics.
+                    let outcome_metrics_router = RouterService::prefixed(
                         handle.clone(),
+                        "outcomes_",
                         current_config.default_aggregator_config().clone(),
                         current_config.secondary_aggregator_configs().clone(),
                         Some(outcome_bucket_processor.recipient()),
