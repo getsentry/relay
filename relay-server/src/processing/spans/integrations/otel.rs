@@ -1,6 +1,8 @@
 use opentelemetry_proto::tonic::trace::v1::TracesData;
+use relay_config::ByteSize;
 use relay_event_schema::protocol::SpanV2;
 use relay_otel::descriptors::Decodable;
+use relay_spans::calculate_size;
 
 use crate::integrations::OtelFormat;
 use crate::processing::spans::{Error, Result};
@@ -12,27 +14,27 @@ pub fn expand<F>(
     payload: &[u8],
     mut produce: F,
     max_ops: usize,
-    max_spans: usize,
+    max_spans_bytes: ByteSize,
 ) -> Result<()>
 where
     F: FnMut(SpanV2),
 {
     let traces = parse_traces_data(format, payload, max_ops)?;
-    let mut total_spans = 0;
+    let mut total_spans_bytes = 0;
 
     for resource_spans in traces.resource_spans {
         let resource = resource_spans.resource.as_ref();
         for scope_spans in resource_spans.scope_spans {
             let scope = scope_spans.scope.as_ref();
             for span in scope_spans.spans {
-                if total_spans >= max_spans {
+                let span = relay_spans::otel_to_sentry_span_v2(span, resource, scope);
+                total_spans_bytes += calculate_size(&span) as usize;
+
+                if total_spans_bytes > max_spans_bytes.as_bytes() {
                     return Err(Error::Invalid(DiscardReason::RequestTooLarge));
                 }
 
-                let span = relay_spans::otel_to_sentry_span_v2(span, resource, scope);
                 produce(span);
-
-                total_spans += 1;
             }
         }
     }
