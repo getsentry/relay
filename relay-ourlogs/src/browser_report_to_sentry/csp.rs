@@ -127,7 +127,7 @@ fn get_message(blocked_url: &BlockedUrl, directive: &CspDirective) -> String {
                 CspDirective::StyleSrc => format!("Blocked 'style' from '{url}'"),
                 CspDirective::StyleSrcElem => format!("Blocked 'style' from '{url}'"),
                 CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{url}'"),
-                _ => format!("Blocked '{directive}' from '{url}'"),
+                CspDirective::Other(_) => format!("Blocked '{directive}' from '{url}'"),
             }
         }
     }
