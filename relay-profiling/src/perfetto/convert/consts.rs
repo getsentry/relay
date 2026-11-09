@@ -9,6 +9,10 @@ pub const CLOCK_REALTIME: u32 = 1;
 ///
 /// See <https://perfetto.dev/docs/concepts/clock-sync>.
 pub const CLOCK_BOOTTIME: u32 = 6;
+/// Highest clock ID reserved for the Perfetto builtin clocks.
+///
+/// See <https://perfetto.dev/docs/concepts/clock-sync>.
+pub const BUILTIN_CLOCK_MAX_ID: u32 = 63;
 
 /// Estimated maximum amount of memory which can be used for storing interning tables and caches.
 pub const MAX_MEMORY_WORK: usize = 15 * 1024 * 1024;

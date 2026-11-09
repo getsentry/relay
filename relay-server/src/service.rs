@@ -15,16 +15,12 @@ use crate::services::global_config::{
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 #[cfg(feature = "processing")]
-use crate::services::objectstore::Objectstore;
-#[cfg(feature = "processing")]
-use crate::services::objectstore::ObjectstoreService;
+use crate::services::objectstore::{self, Objectstore};
 use crate::services::outcome::{
     ClientReportOutcomeProducerService, NullOutcomeProducerService, OutcomeProducerService,
     TrackOutcome,
 };
-use crate::services::processor::{
-    self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
-};
+use crate::services::processor::{self, EnvelopeProcessor};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
@@ -50,9 +46,8 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
-#[cfg(feature = "processing")]
-use relay_system::ConcurrentService;
 use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
+use relay_threading::ServicePool;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]
@@ -112,7 +107,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &ConfigSnapshot) -> Result<EnvelopeProcessorServicePool> {
+fn create_processor_pool(config: &ConfigSnapshot) -> Result<ServicePool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -197,9 +192,9 @@ impl ServiceState {
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
-        let (processor, processor_rx) = match current_config.relay_mode() {
+        let (envelope_processor, envelope_processor_rx) = match current_config.relay_mode() {
             RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            RelayMode::Managed => channel(EnvelopeProcessorService::name()),
+            RelayMode::Managed => channel("envelope_processor"),
         };
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
@@ -209,7 +204,7 @@ impl ServiceState {
             _ => match current_config.relay_mode() {
                 RelayMode::Proxy => services.start(ClientReportOutcomeProducerService::new(
                     &current_config,
-                    processor.clone(),
+                    envelope_processor.clone(),
                 )),
                 RelayMode::Managed => services.start(OutcomeProducerService::new(
                     Arc::clone(&config),
@@ -247,6 +242,10 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&current_config)?;
+        // Taken before the service is started, which consumes it. `ConfigReloadService` pushes
+        // a reloaded Kafka config to it.
+        #[cfg(feature = "processing")]
+        let mut kafka_client = None;
         #[cfg(feature = "processing")]
         let store = current_config
             .processing_enabled()
@@ -257,18 +256,16 @@ impl ServiceState {
                     global_config_handle.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| services.start(s))
+                .map(|s| {
+                    kafka_client = Some(s.kafka_client());
+                    services.start(s)
+                })
             })
             .transpose()?;
 
         #[cfg(feature = "processing")]
-        let objectstore = ObjectstoreService::new(current_config.objectstore(), store.clone())?
-            .map(|s| {
-                let concurrent = ConcurrentService::new(s)
-                    .with_backlog_limit(current_config.objectstore().max_backlog)
-                    .with_concurrency_limit(current_config.objectstore().max_concurrent_requests);
-                services.start(concurrent)
-            });
+        let objectstore = objectstore::create_service(current_config.objectstore(), store.clone())?
+            .map(|s| services.start(s));
 
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             current_config.spool_partitions(),
@@ -276,7 +273,7 @@ impl ServiceState {
             memory_stat.clone(),
             global_config_rx.clone(),
             project_cache_handle.clone(),
-            processor.clone(),
+            envelope_processor.clone(),
             outcome_aggregator.clone(),
             services,
         );
@@ -292,33 +289,54 @@ impl ServiceState {
                             upstream_relay: upstream_relay.clone(),
                         },
                     ),
-                    processor_rx,
+                    envelope_processor_rx,
                 );
                 (None, None, None)
             }
             RelayMode::Managed => {
                 let processor_pool = create_processor_pool(&current_config)?;
+                // Share the quota cache between envelope and bucket processing.
+                #[cfg(feature = "processing")]
+                let rate_limiter =
+                    processor::create_rate_limiter(&current_config, redis_clients.clone());
+
+                let bucket_processor = services.start(processor::bucket::create_service(
+                    processor_pool.clone(),
+                    config.clone(),
+                    global_config_handle.clone(),
+                    project_cache_handle.clone(),
+                    cogs.clone(),
+                    #[cfg(feature = "processing")]
+                    rate_limiter.clone(),
+                    processor::bucket::Addrs {
+                        outcome_aggregator: outcome_aggregator.clone(),
+                        upstream_relay: upstream_relay.clone(),
+                        #[cfg(feature = "processing")]
+                        store_forwarder: store.clone(),
+                    },
+                    metric_outcomes.clone(),
+                ));
 
                 let router = RouterService::new(
                     handle.clone(),
                     current_config.default_aggregator_config().clone(),
                     current_config.secondary_aggregator_configs().clone(),
-                    Some(processor.clone().recipient()),
+                    Some(bucket_processor.recipient()),
                     project_cache_handle.clone(),
                 );
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
                 services.start_with(
-                    EnvelopeProcessorService::new(
+                    processor::envelope::create_service(
                         processor_pool.clone(),
                         config.clone(),
                         global_config_handle.clone(),
                         project_cache_handle.clone(),
                         cogs.clone(),
                         #[cfg(feature = "processing")]
-                        redis_clients.clone(),
-                        processor::Addrs {
+                        rate_limiter,
+                        processor::envelope::Addrs {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
                             #[cfg(feature = "processing")]
@@ -329,7 +347,7 @@ impl ServiceState {
                         },
                         metric_outcomes.clone(),
                     ),
-                    processor_rx,
+                    envelope_processor_rx,
                 );
 
                 let autoscaling = services.start(AutoscalingMetricService::new(
@@ -374,11 +392,15 @@ impl ServiceState {
             &objectstore,
         ));
 
-        let _ = services.start(ConfigReloadService::new(config.clone()));
+        let _ = services.start(ConfigReloadService::new(
+            config.clone(),
+            #[cfg(feature = "processing")]
+            kafka_client,
+        ));
 
         let registry = Registry {
             cogs,
-            processor,
+            processor: envelope_processor,
             health_check,
             outcome_aggregator,
             relay_cache,
@@ -423,6 +445,11 @@ impl ServiceState {
 
     pub fn autoscaling(&self) -> Option<&Addr<AutoscalingMetrics>> {
         self.inner.registry.autoscaling.as_ref()
+    }
+
+    /// Returns `true` if all envelope buffer partitions are empty, in memory and on disk.
+    pub fn envelope_buffer_is_empty(&self) -> bool {
+        self.inner.registry.envelope_buffer.is_empty()
     }
 
     /// Returns the V2 envelope buffer, if present.

@@ -749,33 +749,6 @@ mod tests {
     }
 
     #[test]
-    fn test_sentry_user() {
-        let mut data = Event::from_value(
-            json!({
-                "user": {
-                    "ip_address": "73.133.27.120",
-                    "sentry_user": "ip:73.133.27.120",
-                },
-            })
-            .into(),
-        );
-
-        let scrubbing_config = DataScrubbingConfig {
-            scrub_data: true,
-            scrub_ip_addresses: true,
-            scrub_defaults: true,
-            ..Default::default()
-        };
-
-        let pii_config = to_pii_config(&scrubbing_config).unwrap();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-
-        assert_debug_snapshot!(&data);
-    }
-
-    #[test]
     fn test_basic_stripping() {
         let config = serde_json::from_str::<PiiConfig>(
             r#"
@@ -1866,6 +1839,33 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut event, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.csp.source_file!).as_str(), "[Filtered]");
+    }
+
+    #[test]
+    fn test_csp_script_sample_pii() {
+        let mut event = Event::from_value(
+            json!({
+                "csp": {
+                    "script_sample": "var user = {\"email\":\"jane@example.com\"",
+                }
+            })
+            .into(),
+        );
+
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "csp.script_sample": ["@anything:filter"]
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        processor::process_value(&mut event, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.csp.script_sample!).as_str(), "[Filtered]");
     }
 
     #[test]

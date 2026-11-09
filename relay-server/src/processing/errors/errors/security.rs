@@ -5,8 +5,8 @@ use relay_quotas::DataCategory;
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::Result;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Result, utils};
 use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ impl SentryError for Security {
 
         let payload = ev.payload();
         let mut metrics = Default::default();
-        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx)?;
+        let mut event = utils::event_from_json_payload(ev, None, &mut metrics, ctx.processing)?;
 
         // Normalization honours a declared `transaction` or `feedback` type. Discard it, a
         // security item must not turn into an event of a different data category.

@@ -28,11 +28,6 @@ impl Forward for AttachmentsOutput {
             return Err(attachments.reject_err(Error::NoEventId).map(drop));
         };
 
-        let use_objectstore = {
-            let options = &ctx.global_config.options;
-            crate::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-        };
-
         for attachment in attachments.split(|attachment| attachment.attachments) {
             let store_attachment = attachment.map(|attachment, _| {
                 use crate::services::store::StoreAttachment;
@@ -44,11 +39,7 @@ impl Forward for AttachmentsOutput {
                     retention: ctx.event_retention().standard,
                 }
             });
-            if use_objectstore {
-                s.send_to_objectstore(store_attachment);
-            } else {
-                s.send_to_store(store_attachment);
-            }
+            s.send(store_attachment);
         }
 
         Ok(())

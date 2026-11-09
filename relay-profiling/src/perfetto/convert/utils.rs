@@ -30,30 +30,6 @@ pub fn has_incremental_state_cleared(packet: &proto::TracePacket) -> bool {
         .is_some_and(|f| f & consts::SEQ_INCREMENTAL_STATE_CLEARED != 0)
 }
 
-pub fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
-    let primary_clock = cs.primary_trace_clock.unwrap_or(consts::CLOCK_BOOTTIME);
-
-    if primary_clock == consts::CLOCK_REALTIME {
-        return Some(0);
-    }
-
-    let mut primary_ns: Option<u64> = None;
-    let mut realtime_ns: Option<u64> = None;
-
-    for clock in &cs.clocks {
-        match clock.clock_id {
-            Some(consts::CLOCK_REALTIME) => realtime_ns = clock.timestamp,
-            Some(clock_id) if clock_id == primary_clock => primary_ns = clock.timestamp,
-            _ => {}
-        }
-    }
-
-    match (realtime_ns, primary_ns) {
-        (Some(rt), Some(primary)) => Some(rt as i128 - primary as i128),
-        _ => None,
-    }
-}
-
 /// Returns `true` if the mapping path indicates a JVM/ART runtime mapping.
 pub fn is_java_mapping(path: &str) -> bool {
     const JVM_EXTENSIONS: &[&str] = &[".oat", ".odex", ".vdex", ".jar", ".dex"];

@@ -104,9 +104,7 @@ def test_span_extraction(
     user_id = str(uuid.uuid4())
     event["user"] = {
         "id": user_id,
-        # "email": "john@example.com",
         "ip_address": "192.168.0.1",
-        "sentry_user": f"id:{user_id}",
         "geo": {
             "country_code": "AT",
             "city": "Vienna",
@@ -157,6 +155,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -249,6 +248,7 @@ def test_span_extraction(
                 "user.geo.country_code": {"type": "string", "value": "AT"},
                 "user.geo.region": {"type": "string", "value": "Austria"},
                 "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.geo.subregion": {"type": "string", "value": "155"},
                 "user.id": {"type": "string", "value": user_id},
                 "user.ip_address": {"type": "string", "value": "192.168.0.1"},
                 "sentry.description": {
@@ -325,10 +325,6 @@ def test_span_extraction(
             "sentry.segment.name": {"type": "string", "value": "hi"},
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
-            "sentry.event.serialized_contexts": {
-                "type": "string",
-                "value": '{"replay":{"replay_id":"4c79f60c11214eb38604f4ae0781bfb2","type":"replay"}}',
-            },
             "sentry.transaction.op": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -342,6 +338,7 @@ def test_span_extraction(
             "user.geo.country_code": {"type": "string", "value": "AT"},
             "user.geo.region": {"type": "string", "value": "Austria"},
             "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "user.geo.subregion": {"type": "string", "value": "155"},
             "user.id": {"type": "string", "value": user_id},
             "user.ip_address": {"type": "string", "value": "192.168.0.1"},
             "sentry.dsc.project_id": {"type": "string", "value": "42"},
@@ -376,6 +373,11 @@ def test_span_extraction(
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
+    serialized_contexts = transaction_span["attributes"].pop(
+        "sentry.event.serialized_contexts"
+    )
+    assert serialized_contexts["type"] == "string"
+    assert json.loads(serialized_contexts["value"]) == received_event["contexts"]
     assert transaction_span == expected_transaction_span
 
     spans_consumer.assert_empty()
@@ -1429,7 +1431,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
     ]
 
 
-def test_segment_span_preserves_contexts_breadcrumbs_extra(
+def test_segment_span_preserves_contexts_breadcrumbs_extra_request(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1442,6 +1444,12 @@ def test_segment_span_preserves_contexts_breadcrumbs_extra(
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["gpu"] = {"name": "AMD Radeon Pro 560", "vendor_name": "Apple"}
+    event["request"] = {
+        "url": "https://example.com/api/",
+        "method": "POST",
+        "data": {"answer": 42},
+        "headers": {"content-type": "application/json"},
+    }
     event["breadcrumbs"] = [
         {"type": "default", "category": "auth", "message": "login", "level": "info"},
     ]
@@ -1476,12 +1484,21 @@ def test_segment_span_preserves_contexts_breadcrumbs_extra(
         "vendor_name": "Apple",
         "type": "gpu",
     }
-    assert "trace" not in contexts
+    trace = contexts["trace"]
+    assert trace.items() >= event["contexts"]["trace"].items()
+    assert trace["type"] == "trace"
+    assert trace["exclusive_time"] == attributes["sentry.exclusive_time"]["value"]
+
+    request = json.loads(attributes["sentry.event.serialized_request"]["value"])
+    assert request["url"] == event["request"]["url"]
+    assert request["method"] == "POST"
+    assert request["data"] == {"answer": 42}
+    assert request["headers"] == [["Content-Type", "application/json"]]
 
     spans_consumer.assert_empty()
 
 
-def test_segment_span_scrubs_extra_before_serializing(
+def test_segment_span_scrubs_extra_request_trace_before_serializing(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1499,15 +1516,29 @@ def test_segment_span_scrubs_extra_before_serializing(
     event["extra"] = {
         "note": "contact john.doe@company.com for details",
     }
+    event["request"] = {"data": dict(event["extra"])}
+    event["contexts"]["trace"]["data"] = dict(event["extra"])
 
     relay.send_event(project_id, event)
 
     segment_span = spans_consumer.get_span()
-    extra = json.loads(
-        segment_span["attributes"]["sentry.event.serialized_extra"]["value"]
-    )
+    attributes = segment_span["attributes"]
+    extra = json.loads(attributes["sentry.event.serialized_extra"]["value"])
 
     assert "john.doe@company.com" not in extra["note"]
     assert "[email]" in extra["note"]
+
+    meta = json.loads(attributes["sentry.event.serialized_meta"]["value"])
+    assert meta["extra"]["note"][""]["rem"][0][0] == "@email"
+
+    request = json.loads(attributes["sentry.event.serialized_request"]["value"])
+    assert "john.doe@company.com" not in request["data"]["note"]
+    assert "[email]" in request["data"]["note"]
+    assert meta["request"]["data"]["note"][""]["rem"][0][0] == "@email"
+
+    contexts = json.loads(attributes["sentry.event.serialized_contexts"]["value"])
+    assert "john.doe@company.com" not in contexts["trace"]["data"]["note"]
+    assert "[email]" in contexts["trace"]["data"]["note"]
+    assert meta["contexts"]["trace"]["data"]["note"][""]["rem"][0][0] == "@email"
 
     spans_consumer.assert_empty()

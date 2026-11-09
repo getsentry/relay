@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::LazyLock};
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::VALID_PLATFORMS;
-use relay_pattern::Pattern;
+use relay_pattern::{Gas, Pattern};
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
@@ -361,7 +361,8 @@ pub struct ModelPattern {
 impl ModelPattern {
     /// Returns `true` if the pattern matches the passed string.
     pub fn is_match(&self, haystack: &str) -> bool {
-        self.pattern.is_match(haystack)
+        // Patterns are expected to be safe and not user controlled.
+        self.pattern.is_match(haystack, Gas::MAX).unwrap_or(false)
     }
 }
 

@@ -36,3 +36,17 @@ def patch_chunk(relay, location, project_key, chunk, offset, headers=None):
     return relay.patch(
         f"{location}&sentry_key={project_key}", headers=all_headers, data=chunk
     )
+
+
+def head_upload(relay, location, project_key, headers=None):
+    """Sends one TUS HEAD request with the standard headers.
+
+    Entries in `headers` override the defaults; a value of `None` removes the
+    header entirely.
+    """
+    all_headers = {"Tus-Resumable": "1.0.0"}
+    all_headers.update(headers or {})
+    all_headers = {k: v for k, v in all_headers.items() if v is not None}
+    return relay.request(
+        "head", f"{location}&sentry_key={project_key}", headers=all_headers
+    )

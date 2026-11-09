@@ -5,7 +5,7 @@
 
 use std::borrow::Cow;
 
-use relay_pattern::Patterns;
+use relay_pattern::{Gas, Patterns};
 
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
@@ -13,11 +13,16 @@ use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 fn matches<F: Filterable>(item: &F, patterns: &Patterns) -> bool {
     if let Some(logentry) = item.logentry() {
         if let Some(message) = logentry.formatted.value() {
-            if patterns.is_match(message.as_ref()) {
+            if patterns
+                .is_match(message.as_ref(), Gas::CONSTRAINED)
+                .unwrap_or(false)
+            {
                 return true;
             }
         } else if let Some(message) = logentry.message.value()
-            && patterns.is_match(message.as_ref())
+            && patterns
+                .is_match(message.as_ref(), Gas::CONSTRAINED)
+                .unwrap_or(false)
         {
             return true;
         }
@@ -35,7 +40,10 @@ fn matches<F: Filterable>(item: &F, patterns: &Patterns) -> bool {
                     (ty, "") => Cow::Borrowed(ty),
                     (ty, value) => Cow::Owned(format!("{ty}: {value}")),
                 };
-                if patterns.is_match(message.as_ref()) {
+                if patterns
+                    .is_match(message.as_ref(), Gas::CONSTRAINED)
+                    .unwrap_or(false)
+                {
                     return true;
                 }
             }

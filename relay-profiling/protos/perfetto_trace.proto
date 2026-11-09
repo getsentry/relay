@@ -18,12 +18,18 @@ message TracePacket {
 
   optional InternedData interned_data = 12;
   optional uint32 sequence_flags = 13;
+  optional uint32 timestamp_clock_id = 58;
+  optional TracePacketDefaults trace_packet_defaults = 59;
 
   // Only the oneof variants we care about; prost will skip the rest.
   oneof data {
     ClockSnapshot clock_snapshot = 6;
     PerfSample perf_sample = 66;
   }
+}
+
+message TracePacketDefaults {
+  optional uint32 timestamp_clock_id = 58;
 }
 
 // --- clock sync ---------------------------------------------------------------

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Reject register responses whose Relay ID does not match the register challenge with `UnpackErrorRelayIdMismatch`. ([#6642](https://github.com/getsentry/relay/pull/6642))
+- Remove the `organizations:relay-automatic-json-expansion` feature from project config. ([#6518](https://github.com/getsentry/relay/pull/6518))
+- Remove the `user.sentry_user` field from normalized events. ([#6609](https://github.com/getsentry/relay/pull/6609))
+
+## 0.10.1
+
+- Add the `release` rule condition for generic inbound filters. ([#6430](https://github.com/getsentry/relay/pull/6430))
+
 ## 0.10.0
 
 - **Breaking**: Removes codeowners and glob matching, this has been moved into Ophio. ([#6447](https://github.com/getsentry/relay/pull/6447))
@@ -63,7 +73,7 @@
 ## 0.9.25
 
 - feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))
-- **Breaking**:  To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
+- **Breaking**: To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
 ## 0.9.24
 

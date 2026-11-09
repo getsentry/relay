@@ -1,6 +1,7 @@
 //! Contains helper function for NEL reports.
 
 use chrono::{DateTime, Duration, Utc};
+use relay_conventions::{attributes::*, interpolate};
 use relay_event_schema::protocol::{
     Attributes, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
@@ -228,7 +229,7 @@ pub fn create_log_with_trace_id(
     let mut attributes: Attributes = Default::default();
 
     macro_rules! add_attribute {
-        ($name:literal, $value:expr) => {{
+        ($name:ident, $value:expr) => {{
             if let Some(value) = $value.into_value() {
                 attributes.insert($name.to_owned(), value);
             }
@@ -236,7 +237,7 @@ pub fn create_log_with_trace_id(
     }
 
     macro_rules! add_string_attribute {
-        ($name:literal, $value:expr) => {{
+        ($name:ident, $value:expr) => {{
             let val = $value.to_string();
             if !val.is_empty() {
                 attributes.insert($name.to_owned(), val);
@@ -244,19 +245,20 @@ pub fn create_log_with_trace_id(
         }};
     }
 
-    add_string_attribute!("sentry.origin", "auto.http.browser_report.nel");
-    add_string_attribute!("browser.report.type", "network-error");
+    add_string_attribute!(SENTRY__ORIGIN, "auto.http.browser_report.nel");
+    add_string_attribute!(BROWSER__REPORT__TYPE, "network-error");
 
     // Handle URL and extract server address if available
     if let Some(url_str) = raw_report.url.value() {
         let url_domain = extract_server_address(url_str);
-        add_string_attribute!("url.domain", &url_domain);
+        add_string_attribute!(URL__DOMAIN, &url_domain);
     }
-    add_attribute!("url.full", raw_report.url);
-    add_attribute!("http.request.duration", body.elapsed_time);
-    add_attribute!("http.request.method", body.method);
-    add_attribute!("http.request.header.referer", body.referrer.clone());
-    add_attribute!("http.response.status_code", body.status_code);
+    add_attribute!(URL__FULL, raw_report.url);
+    add_attribute!(HTTP__REQUEST__DURATION, body.elapsed_time);
+    add_attribute!(HTTP__REQUEST__METHOD, body.method);
+    let referrer = interpolate::http__request__header__key("referer");
+    add_attribute!(referrer, body.referrer.clone());
+    add_attribute!(HTTP__RESPONSE__STATUS_CODE, body.status_code);
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
         let mut parts = protocol.split('/');
@@ -264,26 +266,26 @@ pub fn create_log_with_trace_id(
             && !protocol.is_empty()
         {
             // e.g. "http"
-            add_string_attribute!("network.protocol.name", protocol);
+            add_string_attribute!(NETWORK__PROTOCOL__NAME, protocol);
         }
         if let Some(version) = parts.next()
             && !version.is_empty()
         {
             // e.g. "1.1"
-            add_string_attribute!("network.protocol.version", version);
+            add_string_attribute!(NETWORK__PROTOCOL__VERSION, version);
         }
     }
 
     if let Some(server_ip) = body.server_ip.value() {
         // server_ip contains the IP address of the server according to NEL spec
-        add_string_attribute!("server.address", server_ip.as_ref());
+        add_string_attribute!(SERVER__ADDRESS, server_ip.as_ref());
     }
 
     // NEL-specific attributes
-    add_attribute!("nel.referrer", body.referrer);
-    add_attribute!("nel.phase", body.phase.map_value(|s| s.to_string()));
-    add_attribute!("nel.sampling_fraction", body.sampling_fraction);
-    add_attribute!("nel.type", body.ty.clone());
+    add_attribute!(NEL__REFERRER, body.referrer);
+    add_attribute!(NEL__PHASE, body.phase.map_value(|s| s.to_string()));
+    add_attribute!(NEL__SAMPLING_FRACTION, body.sampling_fraction);
+    add_attribute!(NEL__TYPE, body.ty.clone());
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),

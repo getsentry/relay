@@ -56,7 +56,7 @@ impl PolymorphicEnvelopeBuffer {
         partition_id: u8,
         config: &ConfigSnapshot,
         memory_checker: MemoryChecker,
-        throttle: Option<Arc<Throttle>>,
+        throttle: Arc<Throttle>,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path(partition_id).is_some() {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
@@ -161,6 +161,14 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             Self::Sqlite(buffer) => buffer.has_capacity(),
             Self::InMemory(buffer) => buffer.has_capacity(),
+        }
+    }
+
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Sqlite(buffer) => buffer.is_empty(),
+            Self::InMemory(buffer) => buffer.is_empty(),
         }
     }
 
@@ -285,7 +293,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,
-        throttle: Option<Arc<Throttle>>,
+        throttle: Arc<Throttle>,
     ) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
@@ -473,6 +481,11 @@ where
                 // line blocking of non-ready stacks.
                 stack.next_project_fetch = Instant::now() + next_fetch;
             });
+    }
+
+    /// Returns `true` if the buffer contains no envelopes, in memory or on disk.
+    pub fn is_empty(&self) -> bool {
+        self.priority_queue.is_empty()
     }
 
     /// Returns `true` if the underlying storage has the capacity to store more envelopes.
@@ -1088,9 +1101,13 @@ mod tests {
         let mut store = SqliteEnvelopeStore::prepare(0, &current_config)
             .await
             .unwrap();
-        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &current_config, None)
-            .await
-            .unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(
+            0,
+            &current_config,
+            Arc::new(Throttle::new(None)),
+        )
+        .await
+        .unwrap();
 
         // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
         // belong to the same project keys, so they belong to the same envelope stack.

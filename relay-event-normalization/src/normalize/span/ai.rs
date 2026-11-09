@@ -150,11 +150,17 @@ pub fn calculate_costs(
     })
 }
 
-/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`]
-/// for AI spans without a well known AI span op.
-///
-/// See also: [`infer_ai_operation_type`].
-pub const DEFAULT_AI_OPERATION: &str = "ai_client";
+/// Returns the fallback AI operation type based on whether model info is available.
+pub fn default_ai_operation_type(attributes: &impl AttributesLike) -> &'static str {
+    if [GEN_AI__REQUEST__MODEL, GEN_AI__RESPONSE__MODEL]
+        .iter()
+        .any(|key| attributes.get_value(key).and_then(Value::as_str).is_some())
+    {
+        "ai_client"
+    } else {
+        "other"
+    }
+}
 
 /// Infers the AI operation from an AI operation name.
 ///
@@ -165,7 +171,7 @@ pub const DEFAULT_AI_OPERATION: &str = "ai_client";
 /// Sentry expects the operation type in the [`GEN_AI__OPERATION__TYPE`] attribute.
 ///
 /// The function returns `None` when the op is not a well known AI operation, callers likely want to default
-/// the value to [`DEFAULT_AI_OPERATION`] for AI spans.
+/// the value using [`default_ai_operation_type`] for AI spans.
 pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
     let ai_op = match op_name {
         // Full matches:
@@ -458,12 +464,27 @@ fn enrich_ai_span_data(
         .get_str(GEN_AI__OPERATION__NAME)
         .or(span_op.value().map(String::as_str))
         .and_then(infer_ai_operation_type)
-        .unwrap_or(DEFAULT_AI_OPERATION);
+        .unwrap_or_else(|| default_ai_operation_type(data));
 
     data.other
         .entry(GEN_AI__OPERATION__TYPE.to_owned())
         .or_default()
         .set_value(Some(Value::String(ai_op_type.to_owned())));
+
+    // Preserve sizes measured by the SDK before truncating its output.
+    if ai_op_type == "tool"
+        && !matches!(
+            data.get_value(GEN_AI__TOOL__CALL__RESULT__SIZE),
+            Some(Value::U64(_)) | Some(Value::I64(0..))
+        )
+        && let Some(result) = data.get_str(GEN_AI__TOOL__CALL__RESULT)
+    {
+        let size = result.len() as u64;
+        data.other
+            .entry(GEN_AI__TOOL__CALL__RESULT__SIZE.to_owned())
+            .or_default()
+            .set_value(Some(Value::U64(size)));
+    }
 }
 
 /// Enrich the AI span data
@@ -559,6 +580,59 @@ mod tests {
             op: "gen_ai.test".to_owned().into(),
             data: SpanData::from_value(data.into()),
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_tool_call_result_size_both_pipelines() {
+        use relay_event_schema::protocol::{Attribute, Attributes};
+
+        for (op, result, size, expected) in [
+            ("gen_ai.execute_tool", Some("hello"), None, Some(5)),
+            ("gen_ai.execute_tool", Some("雨🌧️"), None, Some(10)),
+            ("gen_ai.execute_tool", Some(""), None, Some(0)),
+            ("gen_ai.execute_tool", None, None, None),
+            ("gen_ai.execute_tool", Some("short"), Some(1000), Some(1000)),
+            ("gen_ai.chat", Some("hello"), None, None),
+        ] {
+            let mut span = ai_span_with_data(json!({
+                "gen_ai.tool.call.result": result,
+                "gen_ai.tool.call.result.size": size,
+            }));
+            span.op = op.to_owned().into();
+            enrich_ai_span(&mut span, None);
+            assert_eq!(
+                span.data
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
+                    .and_then(Value::as_f64),
+                expected.map(f64::from),
+                "legacy: {op}"
+            );
+
+            let mut attributes = Attributes::new();
+            attributes.insert(SENTRY__OP, op.to_owned());
+            if let Some(result) = result {
+                attributes.0.insert(
+                    GEN_AI__TOOL__CALL__RESULT.to_owned(),
+                    Annotated::new(Attribute::from(result)),
+                );
+            }
+            if let Some(size) = size {
+                attributes.insert(GEN_AI__TOOL__CALL__RESULT__SIZE, i64::from(size));
+            }
+            let mut attributes = Annotated::new(attributes);
+            crate::eap::normalize_ai(&mut attributes, None, None);
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(GEN_AI__TOOL__CALL__RESULT__SIZE)
+                    .and_then(Value::as_f64),
+                expected.map(f64::from),
+                "EAP: {op}"
+            );
         }
     }
 
@@ -880,9 +954,26 @@ mod tests {
         assert_annotated_snapshot!(&span.data, @r#"
         {
           "gen_ai.operation.name": "embeddings",
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.operation.type": "other"
         }
         "#);
+    }
+
+    #[test]
+    fn test_infer_ai_operation_type_fallback_with_model() {
+        for model_key in [GEN_AI__REQUEST__MODEL, GEN_AI__RESPONSE__MODEL] {
+            let mut span = ai_span_with_data(json!({
+                "gen_ai.operation.name": "embeddings",
+                (model_key): "gpt-4",
+            }));
+
+            enrich_ai_span(&mut span, None);
+
+            assert_eq!(
+                span.data.value().unwrap().get_str(GEN_AI__OPERATION__TYPE),
+                Some("ai_client"),
+            );
+        }
     }
 
     /// Test that the response model is defaulted to the request model if not set.
@@ -935,7 +1026,7 @@ mod tests {
         {
           "gen_ai.agent.name": "my-agent",
           "gen_ai.function_id": "my-agent",
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.operation.type": "other"
         }
         "#);
     }
@@ -954,7 +1045,7 @@ mod tests {
         {
           "gen_ai.agent.name": "my-agent",
           "gen_ai.function_id": "my-function",
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.operation.type": "other"
         }
         "#);
     }
@@ -1060,7 +1151,7 @@ mod tests {
               "span_id": "1234567890123457",
               "data": {
                 "gen_ai.operation.name": "chat",
-                "gen_ai.operation.type": "ai_client",
+                "gen_ai.operation.type": "other",
                 "gen_ai.usage.input_tokens": 100,
                 "gen_ai.usage.output_tokens": 50,
                 "gen_ai.usage.total_tokens": 150.0
@@ -1154,7 +1245,7 @@ mod tests {
               "parent_span_id": "1234567890123457",
               "data": {
                 "gen_ai.operation.name": "chat",
-                "gen_ai.operation.type": "ai_client",
+                "gen_ai.operation.type": "other",
                 "gen_ai.usage.input_tokens": 100,
                 "gen_ai.usage.output_tokens": 50,
                 "gen_ai.usage.total_tokens": 150.0
@@ -1252,7 +1343,7 @@ mod tests {
               "span_id": "1234567890123458",
               "parent_span_id": "1234567890123457",
               "data": {
-                "gen_ai.operation.type": "ai_client",
+                "gen_ai.operation.type": "other",
                 "gen_ai.usage.input_tokens": 100.0,
                 "gen_ai.usage.output_tokens": 50.0,
                 "gen_ai.usage.total_tokens": 150.0

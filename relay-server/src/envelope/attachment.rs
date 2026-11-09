@@ -53,11 +53,17 @@ pub enum AttachmentType {
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
 
+    /// Aggregated caller-to-callee trees with a shared profiling frame table (json payload).
+    Flamegraph,
+
     /// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`).
     NvGpuDump,
 
     /// NVIDIA Aftermath shader debug info (`.nvdbg`) accompanying an [`Self::NvGpuDump`].
     NvShaderDebug,
+
+    /// A compiled shader object (`.cso`) accompanying an [`Self::NvGpuDump`].
+    CompiledShader,
 }
 
 impl fmt::Display for AttachmentType {
@@ -73,8 +79,10 @@ impl fmt::Display for AttachmentType {
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
             AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
+            AttachmentType::Flamegraph => write!(f, "event.flamegraph"),
             AttachmentType::NvGpuDump => write!(f, "event.nv_gpudmp"),
             AttachmentType::NvShaderDebug => write!(f, "event.nv_shader_debug"),
+            AttachmentType::CompiledShader => write!(f, "event.compiled_shader"),
         }
     }
 }
@@ -105,10 +113,12 @@ impl std::str::FromStr for AttachmentType {
             "nswitch.dying_message" => AttachmentType::NintendoSwitchDyingMessage,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
+            "event.flamegraph" => AttachmentType::Flamegraph,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
             "event.nv_gpudmp" => AttachmentType::NvGpuDump,
             "event.nv_shader_debug" => AttachmentType::NvShaderDebug,
+            "event.compiled_shader" => AttachmentType::CompiledShader,
             _ => return Err(UnknownAttachmentType),
         })
     }

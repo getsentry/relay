@@ -1,5 +1,4 @@
 use relay_config::ConfigSnapshot;
-use relay_dynamic_config::GlobalConfig;
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 #[cfg(feature = "processing")]
 use relay_system::{Addr, FromMessage};
@@ -18,21 +17,12 @@ use crate::services::store::{Store, StoreEvent};
 pub struct StoreHandle<'a> {
     store: &'a Addr<Store>,
     objectstore: Option<&'a Addr<Objectstore>>,
-    global_config: &'a GlobalConfig,
 }
 
 #[cfg(feature = "processing")]
 impl<'a> StoreHandle<'a> {
-    pub fn new(
-        store: &'a Addr<Store>,
-        objectstore: Option<&'a Addr<Objectstore>>,
-        global_config: &'a GlobalConfig,
-    ) -> Self {
-        Self {
-            store,
-            objectstore,
-            global_config,
-        }
+    pub fn new(store: &'a Addr<Store>, objectstore: Option<&'a Addr<Objectstore>>) -> Self {
+        Self { store, objectstore }
     }
 
     /// Dispatches an event message to either the [`Objectstore`] or [`Store`] service.
@@ -42,22 +32,7 @@ impl<'a> StoreHandle<'a> {
             return;
         }
 
-        let Some(objectstore) = self.objectstore else {
-            self.store.send(message);
-            return;
-        };
-
-        let use_objectstore = crate::utils::sample(
-            self.global_config
-                .options
-                .objectstore_attachments_sample_rate,
-        )
-        .is_keep();
-
-        match use_objectstore {
-            true => objectstore.send(message),
-            false => self.store.send(message),
-        }
+        self.send(message)
     }
 
     /// Sends a message to the [`Store`] service.
@@ -77,6 +52,19 @@ impl<'a> StoreHandle<'a> {
             objectstore.send(message);
         } else {
             relay_log::error!("Objectstore service not configured. Dropping message.");
+        }
+    }
+
+    /// Dispatches to either store or objectstore, depending on static config.
+    pub fn send<M>(&self, message: M)
+    where
+        Objectstore: FromMessage<M>,
+        Store: FromMessage<M>,
+    {
+        if let Some(objectstore) = self.objectstore {
+            objectstore.send(message);
+        } else {
+            self.store.send(message);
         }
     }
 }
@@ -106,9 +94,6 @@ pub trait Forward {
 pub struct ForwardContext<'a> {
     /// The Relay configuration.
     pub config: &'a ConfigSnapshot,
-    /// A view of the currently active global configuration.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
-    pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
     pub project_info: &'a ProjectInfo,
 }

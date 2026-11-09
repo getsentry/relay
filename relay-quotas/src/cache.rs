@@ -181,7 +181,7 @@ where
                 // Apply ratio precision, which is already pre-multiplied into `max_over_spend_divisor`.
                 * RATIO_PRECISION
                 // Apply the actual ratio with the pre-computed divisor.
-                / self.max_over_spend_divisor.get();
+                / self.max_over_spend_divisor;
 
             match total_local_use > max_allowed_spend {
                 true => CachedQuota::new_needs_sync(total_local_use),

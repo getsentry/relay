@@ -251,7 +251,7 @@ impl hyper::body::Body for SyncBody {
     }
 
     fn size_hint(&self) -> SizeHint {
-        self.size_hint.clone()
+        self.size_hint
     }
 
     fn is_end_stream(&self) -> bool {

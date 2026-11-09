@@ -1,7 +1,8 @@
 use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures::{Stream, StreamExt};
+use tokio::time::Instant;
 
 use crate::statsd::RelayTimers;
 
@@ -86,10 +87,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::stream;
-    use tokio::time::Duration;
-
     use super::*;
+    use futures::stream;
 
     fn parse_metric_value(s: &str) -> f64 {
         regex::Regex::new(r":([0-9.]+)\|")
@@ -103,7 +102,12 @@ mod tests {
     #[test]
     fn test_slow_producer() {
         let captures = relay_statsd::with_capturing_test_client(|| {
-            tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .unwrap();
+            runtime.block_on(async {
                 let inner = stream::iter([1u8, 2, 3])
                     .then(|x| async move {
                         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -119,15 +123,20 @@ mod tests {
 
         assert_eq!(producers.len(), 3);
         assert_eq!(consumers.len(), 3);
-        // Producer was slow (we slept), consumer was immediate.
-        assert!(producers.iter().all(|s| parse_metric_value(s) > 10.0));
-        assert!(consumers.iter().all(|s| parse_metric_value(s) < 1.0));
+        // Only the producer advances the paused clock.
+        assert!(producers.iter().all(|s| parse_metric_value(s) == 10.0));
+        assert!(consumers.iter().all(|s| parse_metric_value(s) == 0.0));
     }
 
     #[test]
     fn test_slow_consumer() {
         let captures = relay_statsd::with_capturing_test_client(|| {
-            tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .unwrap();
+            runtime.block_on(async {
                 let inner = stream::iter([1u8, 2, 3]).boxed();
                 let mut stream = MeteredStream::new(inner, "test");
                 while stream.next().await.is_some() {
@@ -142,8 +151,8 @@ mod tests {
 
         assert_eq!(producers.len(), 3);
         assert_eq!(consumers.len(), 3);
-        // Consumer was slow (we slept between polls), producer was immediate.
-        assert!(producers.iter().all(|s| parse_metric_value(s) < 1.0));
-        assert!(consumers.iter().all(|s| parse_metric_value(s) > 10.0));
+        // Only the consumer advances the paused clock.
+        assert!(producers.iter().all(|s| parse_metric_value(s) == 0.0));
+        assert!(consumers.iter().all(|s| parse_metric_value(s) == 10.0));
     }
 }

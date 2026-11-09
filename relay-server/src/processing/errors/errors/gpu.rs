@@ -3,13 +3,16 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
-use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-use crate::processing::errors::{Error, Result};
+use crate::processing::errors::errors::{Context, Expansion, SentryError};
+use crate::processing::errors::{Error, Result, utils};
 
 /// An NVIDIA Aftermath GPU crash dump
 ///
 /// Builds the event from the envelope's scope and keeps the dump and any shader debug
 /// info as attachments, to be symbolicated later like a minidump.
+///
+/// In processing mode, this creates the event if there is no scope and adds a placeholder
+/// exception.
 #[derive(Debug)]
 pub struct GpuCrash(pub Item);
 
@@ -26,7 +29,12 @@ impl SentryError for GpuCrash {
         };
 
         let mut metrics = Default::default();
-        let event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
+
+        utils::if_processing!(ctx, {
+            crate::utils::process_gpu_crash(event.get_or_insert_with(Default::default));
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),
@@ -46,8 +54,8 @@ impl SentryError for GpuCrash {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.rate_limited() {
-            self.0.set_rate_limited(true);
             records.reject_err(Error::RateLimited(limits), &self.0);
+            self.0.set_rate_limited(true);
         }
 
         Ok(())

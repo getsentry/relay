@@ -25,6 +25,7 @@ pub enum RelayErrorCode {
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
     UnpackErrorBadEncoding = 1006,
+    UnpackErrorRelayIdMismatch = 1007,
 
     // relay_protocol::annotated::ProcessingAction
     ProcessingErrorInvalidTransaction = 2001,
@@ -35,7 +36,10 @@ pub enum RelayErrorCode {
     InvalidReleaseErrorRestrictedName = 3002,
     InvalidReleaseErrorBadCharacters = 3003,
 
+    // relay_pattern::Error
     PatternError = 4001,
+    // relay_pattern::OutOfGas,
+    PatternOutOfGas = 4002,
 }
 
 impl RelayErrorCode {
@@ -54,6 +58,9 @@ impl RelayErrorCode {
             if cause.downcast_ref::<relay_pattern::Error>().is_some() {
                 return RelayErrorCode::PatternError;
             }
+            if cause.downcast_ref::<relay_pattern::OutOfGas>().is_some() {
+                return RelayErrorCode::PatternOutOfGas;
+            }
             if let Some(err) = cause.downcast_ref::<KeyParseError>() {
                 return match err {
                     KeyParseError::BadEncoding => RelayErrorCode::KeyParseErrorBadEncoding,
@@ -66,6 +73,7 @@ impl RelayErrorCode {
                     UnpackError::BadPayload(..) => RelayErrorCode::UnpackErrorBadPayload,
                     UnpackError::Time(_) => RelayErrorCode::UnpackErrorSignatureExpired,
                     UnpackError::BadEncoding => RelayErrorCode::UnpackErrorBadEncoding,
+                    UnpackError::RelayIdMismatch => RelayErrorCode::UnpackErrorRelayIdMismatch,
                 };
             }
             if let Some(err) = cause.downcast_ref::<ProcessingAction>() {

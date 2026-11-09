@@ -185,9 +185,6 @@ def test_attachment_ref(
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
 
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
@@ -310,9 +307,6 @@ def test_attachment_ref_resumable_upload_in_chunks(
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config.setdefault("features", []).append("projects:resumable-uploads")
-    mini_sentry.global_config["options"][
-        "relay.objectstore-attachments.sample-rate"
-    ] = 1.0
 
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)

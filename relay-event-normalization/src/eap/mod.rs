@@ -18,6 +18,7 @@ use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
+use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
@@ -455,10 +456,18 @@ pub fn normalize_user_geo(
         return;
     };
 
+    let subregion = geo
+        .country_code
+        .value()
+        .and_then(|cc| Subregion::from_iso2(cc));
+
     attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
     attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
     attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
+    if let Some(subregion) = subregion {
+        attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
+    }
 }
 
 /// Normalizes the dynamic sampling context into [`Attributes`].
@@ -568,6 +577,28 @@ pub fn normalize_client_sample_rate(
         && let Some(new_sr) = normalize_sample_rate(sr)
     {
         *sr = new_sr;
+    }
+}
+
+/// Validates the [`SENTRY__RELEASE`] attribute.
+///
+/// Invalid releases are removed and marked with an error, the same way releases are validated on
+/// events.
+pub fn normalize_release(attributes: &mut Annotated<Attributes>) {
+    let Some(release) = attributes
+        .value_mut()
+        .as_mut()
+        .and_then(|attributes| attributes.0.get_mut(SENTRY__RELEASE))
+    else {
+        return;
+    };
+
+    if let Some(Value::String(value)) = release.value().and_then(|r| r.value.value.value())
+        && crate::validate_release(value).is_err()
+    {
+        let original = release.value_mut().take();
+        release.meta_mut().add_error(ErrorKind::InvalidData);
+        release.meta_mut().set_original_value(original);
     }
 }
 
@@ -958,6 +989,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     let current_to_legacy_attributes = [
         // DB attributes
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
+        (SENTRY__NORMALIZED_DB_QUERY__HASH, SENTRY__GROUP),
         (DB__OPERATION__NAME, SENTRY__ACTION),
         // HTTP attributes
         (SERVER__ADDRESS, SENTRY__DOMAIN),
@@ -1621,6 +1653,46 @@ mod tests {
         }
         "#
         );
+    }
+
+    #[test]
+    fn test_normalize_user_geo_subregion() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_user_geo(&mut attributes, |_| {
+            Some(Geo {
+                country_code: "AT".to_owned().into(),
+                city: Annotated::empty(),
+                subdivision: Annotated::empty(),
+                region: Annotated::empty(),
+                other: Default::default(),
+            })
+        });
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
+          "user.geo.country_code": {
+            "type": "string",
+            "value": "AT"
+          },
+          "user.geo.subregion": {
+            "type": "string",
+            "value": "155"
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -2495,6 +2567,10 @@ mod tests {
             "type": "string",
             "value": ",documents,"
           },
+          "sentry.group": {
+            "type": "string",
+            "value": "aedc5c7e8cec726b"
+          },
           "sentry.normalized_db_query": {
             "type": "string",
             "value": "{\"find\":\"documents\",\"foo\":\"?\"}"
@@ -2967,6 +3043,78 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_release_valid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.release": {
+            "type": "string",
+            "value": "my-app@1.0.0"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_release(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.release": {
+            "type": "string",
+            "value": "my-app@1.0.0"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_release_invalid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.release": {
+            "type": "string",
+            "value": "latest"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_release(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.release": null,
+          "_meta": {
+            "sentry.release": {
+              "": {
+                "err": [
+                  "invalid_data"
+                ],
+                "val": {
+                  "type": "string",
+                  "value": "latest"
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_release_too_long() {
+        let mut attributes = Annotated::new(Attributes::new());
+        attributes
+            .get_or_insert_with(Default::default)
+            .insert(SENTRY__RELEASE, "a".repeat(251));
+
+        normalize_release(&mut attributes);
+
+        let release = attributes.value().unwrap().0.get(SENTRY__RELEASE).unwrap();
+        assert!(release.value().is_none());
+        assert!(release.meta().has_errors());
     }
 
     #[test]
