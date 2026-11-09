@@ -183,9 +183,10 @@ impl Item {
                 }
                 Some(Integration::Logs(
                     LogsIntegration::Nel
-                    | LogsIntegration::Integrity
+                    | LogsIntegration::BrowserReport
                     | LogsIntegration::OtelV1 { .. }
-                    | LogsIntegration::VercelDrainLog { .. },
+                    | LogsIntegration::VercelDrainLog { .. }
+                    | LogsIntegration::HerokuLogDrain,
                 )) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
@@ -271,6 +272,13 @@ impl Item {
     {
         self.headers
             .set(ItemHeaderKey::ContentType, content_type.into());
+    }
+
+    /// Sets the content type of this item's payload without changing the payload.
+    ///
+    /// Unlike [`Self::set_payload`], this does not update the length header.
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
     }
 
     /// Sets the content type if there isn't already one set.
@@ -1303,6 +1311,22 @@ mod tests {
 
         // Meta data
         assert_eq!(item.content_type(), Some(ContentType::Json));
+    }
+
+    #[test]
+    fn test_item_set_content_type() {
+        let mut item = Item::new(ItemType::Attachment);
+
+        let payload = Bytes::from_static(b"payload");
+        item.set_payload(ContentType::Json, payload.clone());
+        item.set_content_type(ContentType::OctetStream);
+
+        assert_eq!(item.content_type(), Some(ContentType::OctetStream));
+        assert_eq!(item.payload(), payload);
+        assert_eq!(
+            item.headers.get::<usize>(ItemHeaderKey::Length),
+            Some(payload.len())
+        );
     }
 
     #[test]

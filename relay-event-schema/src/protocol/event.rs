@@ -204,7 +204,7 @@ pub struct Event {
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = 200, trim_whitespace = true)]
+    #[metastructure(max_chars = Event::MAX_TRANSACTION_CHARS, trim_whitespace = true)]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
@@ -298,7 +298,7 @@ pub struct Event {
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
-        max_chars = 200,  // release ends in tag
+        max_chars = Event::MAX_RELEASE_CHARS,  // release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
         required = false,
         trim_whitespace = true,
@@ -328,7 +328,7 @@ pub struct Event {
     /// { "environment": "production" }
     /// ```
     #[metastructure(
-        max_chars = 64,
+        max_chars = Event::MAX_ENVIRONMENT_CHARS,
         // environment allowed chars are validated in the sentry-release-parser crate!
         nonempty = true,
         required = false,
@@ -494,6 +494,15 @@ pub struct Event {
 }
 
 impl Event {
+    /// Maximum number of characters in a transaction name.
+    pub const MAX_TRANSACTION_CHARS: usize = 200;
+
+    /// Maximum number of characters in a release.
+    pub const MAX_RELEASE_CHARS: usize = 200;
+
+    /// Maximum number of characters in an environment.
+    pub const MAX_ENVIRONMENT_CHARS: usize = 64;
+
     /// Returns the value of a tag with the given key.
     ///
     /// If tags are specified in a pair list and the tag is declared multiple times, this function
@@ -660,9 +669,6 @@ impl Getter for Event {
                 .into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
-
-            // Computed fields (after normalization).
-            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
@@ -1101,7 +1107,6 @@ mod tests {
                 ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
-                sentry_user: Annotated::new("id:user-id".into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -1194,10 +1199,6 @@ mod tests {
         assert_eq!(
             Some(Val::String("user-id")),
             event.get_value("event.user.id")
-        );
-        assert_eq!(
-            Some(Val::String("id:user-id")),
-            event.get_value("event.sentry_user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),

@@ -3,7 +3,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::managed::{Counted, Managed, RecordKeeper, Rejected};
+use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
@@ -86,9 +86,7 @@ fn do_expand(
         // Currently all intermediates are new items which were not accounted for before.
         //
         // Intermediates are currently used for session items for Switch and PlayStation crashes.
-        for (category, quantity) in parsed.intermediates.quantities() {
-            records.modify_by(category, quantity as isize);
-        }
+        records.add(&parsed.intermediates);
 
         // The forked off envelope is completely standalone, to prevent any issues with duplicated
         // event ids that may get de-duplicated later, we always create a new event id here.

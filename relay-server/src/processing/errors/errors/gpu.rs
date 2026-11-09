@@ -10,6 +10,9 @@ use crate::processing::errors::{Error, Result, utils};
 ///
 /// Builds the event from the envelope's scope and keeps the dump and any shader debug
 /// info as attachments, to be symbolicated later like a minidump.
+///
+/// In processing mode, this creates the event if there is no scope and adds a placeholder
+/// exception.
 #[derive(Debug)]
 pub struct GpuCrash(pub Item);
 
@@ -26,7 +29,12 @@ impl SentryError for GpuCrash {
         };
 
         let mut metrics = Default::default();
-        let event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+        let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
+
+        utils::if_processing!(ctx, {
+            crate::utils::process_gpu_crash(event.get_or_insert_with(Default::default));
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),

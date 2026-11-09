@@ -219,6 +219,8 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
             referrer,
             server_ip,
             status_code,
+            request_headers,
+            response_headers,
         } => {
             let mut parts = protocol.split('/');
             if let Some(protocol) = parts.next() {
@@ -234,10 +236,21 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
 
             add_attribute!(attributes, HTTP__REQUEST__METHOD, method);
 
-            let referrer_key = interpolate::http__request__header__key("referer");
-            add_attribute!(attributes, referrer_key, referrer.clone());
+            if !referrer.is_empty() {
+                let referrer_key = interpolate::http__request__header__key("referer");
+                add_attribute!(attributes, referrer_key, vec![referrer.clone()]);
+            }
             add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
             add_attribute!(attributes, NEL__REFERRER, referrer);
+
+            for (name, values) in request_headers {
+                let key = interpolate::http__request__header__key(name.to_ascii_lowercase());
+                add_attribute!(attributes, key, values);
+            }
+            for (name, values) in response_headers {
+                let key = interpolate::http__response__header__key(name.to_ascii_lowercase());
+                add_attribute!(attributes, key, values);
+            }
         }
     }
 
