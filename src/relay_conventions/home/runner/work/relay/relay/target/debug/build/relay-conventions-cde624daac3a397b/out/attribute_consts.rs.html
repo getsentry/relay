@@ -446,7 +446,7 @@
 <a href=#446 id=446 data-nosnippet>446</a></span><span class="kw">pub const </span>NAVIGATION__ROUTE__ID: <span class="kw-2">&amp;</span>str = <span class="string">"navigation.route.id"</span>;
 <a href=#447 id=447 data-nosnippet>447</a>
 <a href=#448 id=448 data-nosnippet>448</a>
-<a href=#449 id=449 data-nosnippet>449</a><span class="doccomment">/// The origin of the navigation (usually client side router navigations). Should preferrably parameterized template (like url.template) or a URL path otherwise.
+<a href=#449 id=449 data-nosnippet>449</a><span class="doccomment">/// The origin of the navigation (usually client side router navigations). Should preferably be a parameterized template (like url.template) or a URL path otherwise.
 <a href=#450 id=450 data-nosnippet>450</a>/// * Scrubbing: Auto
 <a href=#451 id=451 data-nosnippet>451</a>/// * Rewriting behavior: Backfill
 <a href=#452 id=452 data-nosnippet>452</a>/// # Aliases
@@ -933,7 +933,7 @@
 <a href=#933 id=933 data-nosnippet>933</a></span><span class="kw">pub const </span>GEN_AI__TOOL__INPUT: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.tool.input"</span>;
 <a href=#934 id=934 data-nosnippet>934</a>
 <a href=#935 id=935 data-nosnippet>935</a>
-<a href=#936 id=936 data-nosnippet>936</a><span class="doccomment">/// The messages passed to the model. It has to be a stringified version of an array of objects. The `role` attribute of each object must be `"user"`, `"assistant"`, `"tool"`, or `"system"`. For messages of the role `"tool"`, the `content` can be a string or an arbitrary object with information about the tool call. For other messages the `content` can be either a string or a list of objects in the format `{type: "text", text:"..."}`. The first example shows this shape. Some operations use a different shape. See the additional context.
+<a href=#936 id=936 data-nosnippet>936</a><span class="doccomment">/// The messages passed to the model. It has to be a stringified version of an array of objects in the format `{role: "...", parts: [...]}`. The `role` must be `"user"`, `"assistant"`, `"tool"`, or `"system"`. Each part is an object with a `type`, such as `{type: "text", content: "..."}`. Other part types include `"reasoning"`, `"tool_call"`, and `"tool_call_response"`. The legacy format `{role, content}` is also accepted. The first example shows this shape. Some operations use a different shape. See the additional context.
 <a href=#937 id=937 data-nosnippet>937</a>/// * Scrubbing: Manual
 <a href=#938 id=938 data-nosnippet>938</a>/// * Rewriting behavior: None
 <a href=#939 id=939 data-nosnippet>939</a>/// # Aliases
@@ -971,7 +971,7 @@
 <a href=#971 id=971 data-nosnippet>971</a></span><span class="kw">pub const </span>GEN_AI__OPERATION__NAME: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.operation.name"</span>;
 <a href=#972 id=972 data-nosnippet>972</a>
 <a href=#973 id=973 data-nosnippet>973</a>
-<a href=#974 id=974 data-nosnippet>974</a><span class="doccomment">/// The system instructions passed to the model.
+<a href=#974 id=974 data-nosnippet>974</a><span class="doccomment">/// The system instructions passed to the model. It has to be a stringified version of an array of objects in the format `{type: "text", content: "..."}`.
 <a href=#975 id=975 data-nosnippet>975</a>/// * Scrubbing: Manual
 <a href=#976 id=976 data-nosnippet>976</a>/// * Rewriting behavior: None
 <a href=#977 id=977 data-nosnippet>977</a>/// # Aliases
