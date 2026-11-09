@@ -433,4 +433,25 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn drop_joins_tasks() {
+        let pool = AsyncPoolBuilder::new(Handle::current())
+            .num_threads(1)
+            .max_concurrency(1)
+            .build()
+            .unwrap();
+
+        let finished = Arc::new(AtomicBool::new(false));
+        let finished1 = finished.clone();
+
+        pool.spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            finished1.store(true, Ordering::Relaxed);
+        });
+
+        drop(pool);
+        let finished = finished.load(Ordering::Relaxed);
+        assert!(finished);
+    }
 }
