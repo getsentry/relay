@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use relay_config::ByteSize;
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
@@ -24,7 +25,7 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(
     spans: Managed<SerializedSpans>,
     max_ops: usize,
-    max_spans: usize,
+    max_spans_bytes: ByteSize,
 ) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
@@ -50,7 +51,7 @@ pub fn expand(
             SpanItems::Container(item) => expand_span_container(&item, max_ops)?,
             SpanItems::Legacy(items) => expand_legacy_spans(items, records),
             SpanItems::Integration(item) => {
-                spans::integrations::expand(records, &[item], max_ops, max_spans)
+                spans::integrations::expand(records, &[item], max_ops, max_spans_bytes)
             }
             SpanItems::None => (Default::default(), Vec::new()),
         };
