@@ -806,6 +806,12 @@ impl<I: Interface> Addr<I> {
     pub fn dummy() -> Self {
         Self::custom().0
     }
+
+    /// Dummy address that verifies that it never gets used.
+    pub fn never() -> (Self, AssertEmpty<I>) {
+        let (addr, rx) = Self::custom();
+        (addr, AssertEmpty(rx))
+    }
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
@@ -840,6 +846,23 @@ where
 
     fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {
         Box::new(self.clone())
+    }
+}
+
+/// Utility to assert that no message was received.
+#[derive(Debug)]
+pub struct AssertEmpty<T>(mpsc::UnboundedReceiver<T>);
+
+impl<T> Drop for AssertEmpty<T> {
+    fn drop(&mut self) {
+        debug_assert!(self.0.is_empty());
+        if !self.0.is_empty() {
+            relay_log::error!(
+                "Expected 0 messages of type {}, found {}",
+                std::any::type_name::<T>(),
+                self.0.len()
+            );
+        }
     }
 }
 
