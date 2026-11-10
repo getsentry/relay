@@ -221,7 +221,7 @@ impl RelayStats {
 impl Service for RelayStats {
     type Interface = ();
 
-    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Some(mut ticker) = self
             .config
             .current()
@@ -232,14 +232,19 @@ impl Service for RelayStats {
         };
 
         loop {
-            let _ = tokio::join!(
-                self.upstream_status(),
-                self.service_metrics(),
-                self.tokio_metrics(),
-                self.redis_clients(),
-                self.async_pools_metrics()
-            );
-            ticker.tick().await;
+            tokio::select! {
+                _ = async {
+                    tokio::join!(
+                        self.upstream_status(),
+                        self.service_metrics(),
+                        self.tokio_metrics(),
+                        self.redis_clients(),
+                        self.async_pools_metrics()
+                    );
+                    ticker.tick().await;
+                } => {},
+                None = rx.recv() => break,
+            }
         }
     }
 }

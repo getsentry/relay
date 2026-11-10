@@ -94,19 +94,10 @@ impl Service for RouterService {
         let mut router = StartedRouter::start(self);
         relay_log::info!("metrics router started");
 
-        // Note that currently this loop never exits and will run till the tokio runtime shuts
-        // down. This is about to change with the refactoring for the shutdown process.
-        loop {
-            tokio::select! {
-                biased;
-
-                Some(message) = rx.recv() => {
-                    router.handle_message(message)
-                },
-
-                else => break,
-            }
+        while let Some(message) = rx.recv().await {
+            router.handle_message(message)
         }
+
         relay_log::info!("metrics router stopped");
     }
 }
