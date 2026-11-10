@@ -660,46 +660,21 @@ fn test_enforce_limit_profile_chunks_no_profile_type() {
 }
 
 #[test]
-fn test_enforce_limit_profile_chunks_ui() {
-    let mut envelope = envelope![];
+fn test_enforce_limit_profile_chunks() {
+    for category in [DataCategory::ProfileChunkUi, DataCategory::ProfileChunk] {
+        let mut envelope = envelope![];
+        for platform in ["python", "javascript"] {
+            let mut item = Item::new(ItemType::ProfileChunk);
+            item.set_platform(platform.to_owned());
+            envelope.add_item(item);
+        }
 
-    let mut item = Item::new(ItemType::ProfileChunk);
-    item.set_platform("python".to_owned());
-    envelope.add_item(item);
-    let mut item = Item::new(ItemType::ProfileChunk);
-    item.set_platform("javascript".to_owned());
-    envelope.add_item(item);
+        let (envelope, limits, outcomes) = enforce_and_apply(cached_limits(&[category]), envelope);
 
-    let cached = cached_limits(&[DataCategory::ProfileChunkUi]);
-    let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(limits.is_limited());
-    assert_eq!(envelope.len(), 1);
-
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([(DataCategory::ProfileChunkUi, 1)])
-    );
-}
-
-#[test]
-fn test_enforce_limit_profile_chunks_backend() {
-    let mut envelope = envelope![];
-
-    let mut item = Item::new(ItemType::ProfileChunk);
-    item.set_platform("python".to_owned());
-    envelope.add_item(item);
-    let mut item = Item::new(ItemType::ProfileChunk);
-    item.set_platform("javascript".to_owned());
-    envelope.add_item(item);
-
-    let cached = cached_limits(&[DataCategory::ProfileChunk]);
-    let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(limits.is_limited());
-    assert_eq!(envelope.len(), 1);
-
-    assert_eq!(outcomes, BTreeMap::from([(DataCategory::ProfileChunk, 1)]));
+        assert!(limits.is_limited(), "{category:?}");
+        assert_eq!(envelope.len(), 1, "{category:?}");
+        assert_eq!(outcomes, BTreeMap::from([(category, 1)]), "{category:?}");
+    }
 }
 
 /// Limit replays.
@@ -1119,35 +1094,19 @@ fn test_enforce_span_no_indexing_quota() {
 }
 
 #[test]
-fn test_enforce_limit_logs_count() {
-    let envelope = envelope![Log, Log];
+fn test_enforce_limit_logs() {
+    for category in [DataCategory::LogItem, DataCategory::LogByte] {
+        let envelope = envelope![Log, Log];
+        let (envelope, limits, outcomes) = enforce_and_apply(cached_limits(&[category]), envelope);
 
-    let cached = cached_limits(&[DataCategory::LogItem]);
-    let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(limits.is_limited());
-    assert_eq!(envelope.len(), 0);
-
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)])
-    );
-}
-
-#[test]
-fn test_enforce_limit_logs_bytes() {
-    let envelope = envelope![Log, Log];
-
-    let cached = cached_limits(&[DataCategory::LogByte]);
-    let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert!(limits.is_limited());
-    assert_eq!(envelope.len(), 0);
-
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)])
-    );
+        assert!(limits.is_limited(), "{category:?}");
+        assert!(envelope.is_empty(), "{category:?}");
+        assert_eq!(
+            outcomes,
+            BTreeMap::from([(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]),
+            "{category:?}"
+        );
+    }
 }
 
 #[test]
