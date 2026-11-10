@@ -301,8 +301,6 @@ pub fn split_indexed_and_total_with_extracted_spans(
     debug_assert!(ctx.is_processing());
 
     let (transaction, metrics) = transaction.split_once(|mut tx, r| {
-        r.lenient(DataCategory::MetricBucket);
-
         let mut metrics = ProcessingExtractedMetrics::new();
         extraction::extract_metrics(
             &mut tx.event,
@@ -337,7 +335,11 @@ pub fn split_indexed_and_total_with_extracted_spans(
             r.modify_by(DataCategory::Span, spans.0.len() as isize);
         }
 
-        (Box::new(tx.into_indexed()), metrics.into_inner())
+        let metrics = metrics.into_inner();
+        // The split creates these metric buckets, so add their count.
+        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
+
+        (Box::new(tx.into_indexed()), metrics)
     });
 
     // In an ideal world we would use these extracted spans to also extract span metrics instead of
@@ -382,8 +384,6 @@ pub fn split_indexed_and_total(
     sampling_decision: SamplingDecision,
 ) -> IndexedAndMetrics {
     work.split_once(|mut work, r| {
-        r.lenient(DataCategory::MetricBucket);
-
         let mut metrics = ProcessingExtractedMetrics::new();
 
         extraction::extract_metrics(
@@ -399,7 +399,11 @@ pub fn split_indexed_and_total(
         r.lenient(DataCategory::Transaction);
         r.lenient(DataCategory::Span);
 
-        (Box::new(work.into_indexed()), metrics.into_inner())
+        let metrics = metrics.into_inner();
+        // The split creates these metric buckets, so add their count.
+        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
+
+        (Box::new(work.into_indexed()), metrics)
     })
 }
 

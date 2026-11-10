@@ -192,8 +192,9 @@ fn split_indexed_and_total(
     decision: SamplingDecision,
 ) -> SpansAndMetrics {
     spans.split_once(|spans, r| {
-        r.lenient(DataCategory::MetricBucket);
         let metrics = create_metrics(&spans.spans, decision);
+        // The split creates these metric buckets, so add their count.
+        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
 
         (spans.into_indexed(), metrics)
     })
