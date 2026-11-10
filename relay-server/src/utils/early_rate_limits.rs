@@ -10,6 +10,7 @@ use crate::utils::{AttachmentRole, EnvelopeSummary, EventSource};
 use enum_map::EnumMap;
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
+use smallvec::smallvec;
 
 /// Applies cached limits and zero quotas before payload processing, without consuming quota.
 ///
@@ -391,203 +392,79 @@ fn filter(
     }
     items.retain(|item| {
         let event = enforcement.event.as_mut();
-        match item.ty() {
+        let action = match item.ty() {
             ItemType::Event
             | ItemType::UnrealReport
             | ItemType::Security
             | ItemType::RawSecurity
             | ItemType::UserReportV2
-            | ItemType::FormData => {
-                apply_retention(RetentionAction::drop_on_rejection(event), [], item)
+            | ItemType::FormData
+            | ItemType::Transaction => RetentionAction::drop_on_rejection(event),
+            ItemType::MetricBuckets | ItemType::ClientReport | ItemType::Unknown(_) => {
+                RetentionAction::Keep
             }
-            ItemType::MetricBuckets | ItemType::ClientReport | ItemType::Unknown(_) => true,
-            ItemType::UserReport => apply_retention(
-                RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_mut())),
-                [(DataCategory::UserReportV2, 1)],
-                item,
-            ),
+            ItemType::UserReport => {
+                RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_mut()))
+            }
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                apply_retention(
-                    RetentionAction::drop_on_rejection(enforcement.replays.as_mut()),
-                    [(DataCategory::Replay, 1)],
-                    item,
-                )
+                RetentionAction::drop_on_rejection(enforcement.replays.as_mut())
             }
-            ItemType::Session | ItemType::Sessions => apply_retention(
-                enforcement
-                    .sessions
-                    .as_mut()
-                    .map_or(RetentionAction::Keep, RetentionAction::Drop),
-                [(
-                    DataCategory::Session,
-                    item.item_count().unwrap_or(1) as usize,
-                )],
-                item,
-            ),
-            ItemType::CheckIn => apply_retention(
-                RetentionAction::drop_on_rejection(enforcement.monitors.as_mut()),
-                [(
-                    DataCategory::Monitor,
-                    item.item_count().unwrap_or(1) as usize,
-                )],
-                item,
-            ),
-            ItemType::Log => apply_retention(
-                RetentionAction::drop_on_rejection(enforcement.logs.as_mut()),
-                [
-                    (
-                        DataCategory::LogItem,
-                        item.item_count().unwrap_or(1) as usize,
-                    ),
-                    (DataCategory::LogByte, item.len().max(1)),
-                ],
-                item,
-            ),
-            ItemType::TraceMetric => apply_retention(
-                RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_mut()),
-                [
-                    (
-                        DataCategory::TraceMetric,
-                        item.item_count().unwrap_or(1) as usize,
-                    ),
-                    (DataCategory::TraceMetricByte, item.len().max(1)),
-                ],
-                item,
-            ),
-            ItemType::Span => {
-                let count = item.item_count().unwrap_or(1) as usize;
-                apply_retention(
-                    RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
-                    [
-                        (DataCategory::Span, count),
-                        (DataCategory::SpanIndexed, count),
-                    ],
-                    item,
-                )
+            ItemType::Session | ItemType::Sessions => {
+                RetentionAction::drop_on_rejection(enforcement.sessions.as_mut())
             }
-            ItemType::ProfileChunk => match item.profile_type() {
-                None => true,
-                Some(ProfileType::Backend) => apply_retention(
-                    RetentionAction::drop_on_rejection(enforcement.backend_chunks.as_mut()),
-                    [(
-                        DataCategory::ProfileChunk,
-                        item.item_count().unwrap_or(1) as usize,
-                    )],
-                    item,
-                ),
-                Some(ProfileType::Ui) => apply_retention(
-                    RetentionAction::drop_on_rejection(enforcement.ui_chunks.as_mut()),
-                    [(
-                        DataCategory::ProfileChunkUi,
-                        item.item_count().unwrap_or(1) as usize,
-                    )],
-                    item,
-                ),
-            },
+            ItemType::CheckIn => RetentionAction::drop_on_rejection(enforcement.monitors.as_mut()),
+            ItemType::Log => RetentionAction::drop_on_rejection(enforcement.logs.as_mut()),
+            ItemType::TraceMetric => {
+                RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_mut())
+            }
+            ItemType::Span => RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
+            ItemType::ProfileChunk => {
+                RetentionAction::drop_on_rejection(match item.profile_type() {
+                    None => None,
+                    Some(ProfileType::Backend) => enforcement.backend_chunks.as_mut(),
+                    Some(ProfileType::Ui) => enforcement.ui_chunks.as_mut(),
+                })
+            }
             ItemType::Integration => match item.content_type() {
                 Some(ContentType::Integration(Integration::Errors(_))) => {
-                    apply_retention(RetentionAction::drop_on_rejection(event), [], item)
+                    RetentionAction::drop_on_rejection(event)
                 }
-                Some(ContentType::Integration(Integration::Logs(_))) => apply_retention(
-                    RetentionAction::drop_on_rejection(enforcement.logs.as_mut()),
-                    [
-                        (
-                            DataCategory::LogItem,
-                            item.item_count().unwrap_or(1) as usize,
-                        ),
-                        (DataCategory::LogByte, item.len().max(1)),
-                    ],
-                    item,
-                ),
+                Some(ContentType::Integration(Integration::Logs(_))) => {
+                    RetentionAction::drop_on_rejection(enforcement.logs.as_mut())
+                }
                 Some(ContentType::Integration(Integration::Spans(_))) => {
-                    let count = item.item_count().unwrap_or(1) as usize;
-                    apply_retention(
-                        RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
-                        [
-                            (DataCategory::Span, count),
-                            (DataCategory::SpanIndexed, count),
-                        ],
-                        item,
-                    )
+                    RetentionAction::drop_on_rejection(enforcement.spans.as_mut())
                 }
-                _ => true,
+                _ => RetentionAction::Keep,
             },
-            ItemType::Transaction => match event {
-                None => true,
-                Some(outcome) => {
-                    let spans = 1 + calc_span_count(item);
-                    apply_retention(
-                        RetentionAction::Drop(outcome),
-                        [
-                            (DataCategory::Span, spans),
-                            (DataCategory::SpanIndexed, spans),
-                        ],
-                        item,
-                    )
+            ItemType::Profile => RetentionAction::drop_on_rejection(match item.profile_type() {
+                None => enforcement.profiles.as_mut(),
+                Some(ProfileType::Backend) => enforcement.backend_profiles.as_mut(),
+                Some(ProfileType::Ui) => enforcement.ui_profiles.as_mut(),
+            }),
+            ItemType::Attachment => match (
+                item.attachment_parent_type(),
+                AttachmentRole::from_type(item.attachment_type()),
+                event,
+            ) {
+                (AttachmentParentType::Span, AttachmentRole::Plain, _)
+                | (AttachmentParentType::Span, AttachmentRole::CreatesEvent, None) => {
+                    RetentionAction::drop_on_rejection(enforcement.span_attachments.as_mut())
+                }
+                (_, _, Some(outcome)) => RetentionAction::Drop(outcome),
+                (AttachmentParentType::Trace, _, None) => {
+                    RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_mut())
+                }
+                (AttachmentParentType::Event, AttachmentRole::CreatesEvent, None) => enforcement
+                    .event_attachments
+                    .as_mut()
+                    .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
+                (AttachmentParentType::Event, AttachmentRole::Plain, None) => {
+                    RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
                 }
             },
-            ItemType::Profile => {
-                let count = item.item_count().unwrap_or(1) as usize;
-                match item.profile_type() {
-                    None => apply_retention(
-                        RetentionAction::drop_on_rejection(enforcement.profiles.as_mut()),
-                        [
-                            (DataCategory::Profile, count),
-                            (DataCategory::ProfileIndexed, count),
-                        ],
-                        item,
-                    ),
-                    Some(ProfileType::Backend) => apply_retention(
-                        RetentionAction::drop_on_rejection(enforcement.backend_profiles.as_mut()),
-                        [
-                            (DataCategory::Profile, count),
-                            (DataCategory::ProfileIndexed, count),
-                            (DataCategory::ProfileBackend, count),
-                        ],
-                        item,
-                    ),
-                    Some(ProfileType::Ui) => apply_retention(
-                        RetentionAction::drop_on_rejection(enforcement.ui_profiles.as_mut()),
-                        [
-                            (DataCategory::Profile, count),
-                            (DataCategory::ProfileIndexed, count),
-                            (DataCategory::ProfileUi, count),
-                        ],
-                        item,
-                    ),
-                }
-            }
-            ItemType::Attachment => apply_retention(
-                match (
-                    item.attachment_parent_type(),
-                    AttachmentRole::from_type(item.attachment_type()),
-                    event,
-                ) {
-                    (AttachmentParentType::Span, AttachmentRole::Plain, _)
-                    | (AttachmentParentType::Span, AttachmentRole::CreatesEvent, None) => {
-                        RetentionAction::drop_on_rejection(enforcement.span_attachments.as_mut())
-                    }
-                    (_, _, Some(outcome)) => RetentionAction::Drop(outcome),
-                    (AttachmentParentType::Trace, _, None) => {
-                        RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_mut())
-                    }
-                    (AttachmentParentType::Event, AttachmentRole::CreatesEvent, None) => {
-                        enforcement
-                            .event_attachments
-                            .as_mut()
-                            .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited)
-                    }
-                    (AttachmentParentType::Event, AttachmentRole::Plain, None) => {
-                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
-                    }
-                },
-                [
-                    (DataCategory::Attachment, item.attachment_body_size()),
-                    (DataCategory::AttachmentItem, 1),
-                ],
-                item,
-            ),
-        }
+        };
+        apply_retention(action, item)
     });
     enforcement.flush(records);
     (items, client_rate_limits)
@@ -610,11 +487,7 @@ fn calc_span_count(item: &Item) -> usize {
         })
 }
 
-fn apply_retention(
-    action: RetentionAction<'_>,
-    quantities: impl IntoIterator<Item = (DataCategory, usize)>,
-    item: &mut Item,
-) -> bool {
+fn apply_retention(action: RetentionAction<'_>, item: &mut Item) -> bool {
     let (rejection, keep) = match action {
         RetentionAction::Keep => return true,
         RetentionAction::Drop(rejection) => (rejection, false),
@@ -623,9 +496,37 @@ fn apply_retention(
     if item.rate_limited() {
         return keep;
     }
+    // Nintendo dying messages contribute to the event, but have no attachment quantities.
     if *item.ty() != ItemType::Attachment
         || item.attachment_type() != Some(AttachmentType::NintendoSwitchDyingMessage)
     {
+        let quantities = match item.ty() {
+            // Event quantities are already counted once per envelope in resolve_limits.
+            ItemType::Event
+            | ItemType::UnrealReport
+            | ItemType::Security
+            | ItemType::RawSecurity
+            | ItemType::UserReportV2
+            | ItemType::FormData => smallvec![],
+            ItemType::Integration
+                if matches!(
+                    item.content_type(),
+                    Some(ContentType::Integration(Integration::Errors(_)))
+                ) =>
+            {
+                smallvec![]
+            }
+            // Transactions are counted with the event; add only their root and embedded spans.
+            // Unlike Item::quantities(), this scans the payload when span_count is missing.
+            ItemType::Transaction => {
+                let spans = 1 + calc_span_count(item);
+                smallvec![
+                    (DataCategory::Span, spans),
+                    (DataCategory::SpanIndexed, spans),
+                ]
+            }
+            _ => item.quantities(),
+        };
         for quantity in quantities.into_iter().filter(|(_, quantity)| *quantity > 0) {
             rejection.add(quantity);
         }
