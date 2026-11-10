@@ -1,6 +1,9 @@
 ---
-minVersion: 0.34.1
-changelogPolicy: auto
+minVersion: 3.9.0
+changelog:
+  policy: auto
+versioning:
+  policy: manual
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 

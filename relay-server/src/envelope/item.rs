@@ -185,7 +185,8 @@ impl Item {
                     LogsIntegration::Nel
                     | LogsIntegration::BrowserReport
                     | LogsIntegration::OtelV1 { .. }
-                    | LogsIntegration::VercelDrainLog { .. },
+                    | LogsIntegration::VercelDrainLog { .. }
+                    | LogsIntegration::HerokuLogDrain,
                 )) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),

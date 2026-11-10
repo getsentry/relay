@@ -331,7 +331,30 @@ impl ServiceState {
                 let router_handle = router.handle();
                 services.start_with(router, aggregator_rx);
 
-                // Start the secondary outcome pipeline:
+                // Start the secondary outcome pipeline to prevent cycles in the service graph.
+                // +-------------------+
+                // | EnvelopeProcessor |------------------------+
+                // +-------------------+                        |
+                //           |                                  |
+                //           v                                  v
+                // +-------------------+          +---------------------------+
+                // | MetricsAggregator |     +--->|      OutcomeProducer      |
+                // +-------------------+     |    +---------------------------+
+                //           |               |                  |
+                //           v               |                  v
+                // +-------------------+     |    +---------------------------+
+                // |  BucketProcessor  |-----+    | outcome MetricsAggregator |
+                // +-------------------+     |    +---------------------------+
+                //           |               |                  |
+                //           v               |                  v
+                // +-------------------+     |    +---------------------------+
+                // |       Store       |-----+    |  outcome BucketProcessor  |
+                // +-------------------+          +---------------------------+
+                //                                              |
+                //                                              v
+                //                                +---------------------------+
+                //                                |       outcome Store       |
+                //                                +---------------------------+
                 {
                     #[cfg(feature = "processing")]
                     let outcome_store = {
@@ -372,8 +395,11 @@ impl ServiceState {
                     );
                     services.start_with(outcome_bucket_service, outcome_bucket_rx);
 
-                    let outcome_metrics_router = RouterService::new(
+                    // Give the outcome metrics router the full config, because the user
+                    // may have configured specifics for outcome metrics.
+                    let outcome_metrics_router = RouterService::prefixed(
                         handle.clone(),
+                        "outcomes_",
                         current_config.default_aggregator_config().clone(),
                         current_config.secondary_aggregator_configs().clone(),
                         Some(outcome_bucket_processor.recipient()),

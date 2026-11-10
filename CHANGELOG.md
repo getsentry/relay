@@ -4,11 +4,14 @@
 
 **Features**:
 
+- Derive `user.geo.subregion` for streamed spans and copy `user.geo.country_code`, `user.geo.region` and `user.geo.subregion` onto web vital metrics. ([#6576](https://github.com/getsentry/relay/pull/6576))
+- Accept the `error` span status on transactions and transaction spans, as defined by the `sentry.status` convention. ([#6646](https://github.com/getsentry/relay/pull/6646))
 - Copy `sentry.replay_id` and `sentry.profile_id` onto web vital metrics. ([#6638](https://github.com/getsentry/relay/pull/6638))
 - Emit `browser.web_vital.*.score` metrics carrying each web vital's performance score as a ratio. ([#6607](https://github.com/getsentry/relay/pull/6607))
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
 - Retain client-provided exceptions in PlayStation crash events. ([#6594](https://github.com/getsentry/relay/pull/6594))
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
+- Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
 - Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
 
 **Bug Fixes**:
@@ -20,12 +23,16 @@
 - Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
+- Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
 
 **Internal**:
 
+- Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
-- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Update sentry-conventions to 0.32.0. Adds Heroku log drain, `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, `faas.document.*`, `faas.instance`, `faas.max_memory`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, deprecates the `gen_ai.handoff` and `gen_ai.rerank` ops, and documents the JSON parts shape for `gen_ai.input.messages` and `gen_ai.system_instructions`. ([#6586](https://github.com/getsentry/relay/pull/6586), [#6649](https://github.com/getsentry/relay/pull/6649), [#6663](https://github.com/getsentry/relay/pull/6663))
+- Remove the `user.sentry_user` field from normalized events. ([#6609](https://github.com/getsentry/relay/pull/6609))
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
 - Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))

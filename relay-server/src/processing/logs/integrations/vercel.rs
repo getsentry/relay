@@ -40,8 +40,6 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let meta = envelope.envelope().headers().meta().clone();
-
         let (item, format) =
             envelope
                 .envelope_mut()
@@ -51,9 +49,10 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
                     }
                     _ => None,
                 })?;
+        let headers = envelope.envelope().headers().clone();
 
         let work =
-            SerializedVercelLogsIntegration(SerializedLogsIntegration { meta, item }, format);
+            SerializedVercelLogsIntegration(SerializedLogsIntegration { headers, item }, format);
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -70,11 +69,9 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
 /// Expands a Vercel log integration into an envelope of logs that can be
 /// returned to the processing pipeline.
 pub fn expand(
-    work: SerializedVercelLogsIntegration,
+    SerializedVercelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedVercelLogsIntegration,
     records: &mut RecordKeeper,
 ) -> Result<Intermediates, Error> {
-    let SerializedVercelLogsIntegration(SerializedLogsIntegration { meta, item }, format) = work;
-
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
@@ -141,5 +138,5 @@ pub fn expand(
         infer_ip: Some(InferIp::Never),
     };
 
-    create_intermediates(meta, logs, settings)
+    create_intermediates(headers, logs, settings)
 }

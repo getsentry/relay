@@ -33,15 +33,43 @@ impl RouterService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
+        Self::prefixed(
+            handle,
+            "",
+            default_config,
+            secondary_configs,
+            receiver,
+            project_cache,
+        )
+    }
+    /// Create a new router service, with prefixed names for separate instrumentation.
+    pub fn prefixed(
+        handle: relay_system::Handle,
+        prefix: &'static str,
+        default_config: AggregatorServiceConfig,
+        secondary_configs: Vec<ScopedAggregatorConfig>,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        project_cache: ProjectCacheHandle,
+    ) -> Self {
         let mut secondary = Vec::new();
 
         for c in secondary_configs {
-            let service =
-                AggregatorService::named(c.name, c.config, receiver.clone(), project_cache.clone());
+            let name = c.name;
+            let service = AggregatorService::new(
+                format!("{prefix}{name}"),
+                c.config,
+                receiver.clone(),
+                project_cache.clone(),
+            );
             secondary.push((service, c.condition));
         }
 
-        let default = AggregatorService::new(default_config, receiver, project_cache);
+        let default = AggregatorService::new(
+            format!("{prefix}default"),
+            default_config,
+            receiver,
+            project_cache,
+        );
         Self {
             handle,
             default,

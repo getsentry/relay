@@ -119,7 +119,9 @@ mod tests {
                     "referrer": "https://example.com/referer",
                     "server_ip": "192.168.1.1",
                     "status_code": 500,
-                    "sampling_fraction": 1.0
+                    "sampling_fraction": 1.0,
+                    "request_headers": {"Accept-Language": ["de-DE"]},
+                    "response_headers": {"X-Served-By": ["cache-fra-1", "cache-fra-2"]}
                 }
         }"#,
         )
@@ -143,13 +145,28 @@ mod tests {
               "type": "integer",
               "value": 1000
             },
+            "http.request.header.accept-language": {
+              "type": "array",
+              "value": [
+                "de-DE"
+              ]
+            },
             "http.request.header.referer": {
-              "type": "string",
-              "value": "https://example.com/referer"
+              "type": "array",
+              "value": [
+                "https://example.com/referer"
+              ]
             },
             "http.request.method": {
               "type": "string",
               "value": "GET"
+            },
+            "http.response.header.x-served-by": {
+              "type": "array",
+              "value": [
+                "cache-fra-1",
+                "cache-fra-2"
+              ]
             },
             "http.response.status_code": {
               "type": "integer",

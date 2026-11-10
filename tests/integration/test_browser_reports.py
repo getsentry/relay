@@ -28,6 +28,8 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
                     "server_ip": "123.123.123.123",
                     "status_code": 500,
                     "type": "http.error",
+                    "request_headers": {"Accept-Language": ["de-DE"]},
+                    "response_headers": {"X-Served-By": ["cache-fra-1", "cache-fra-2"]},
                 },
                 "type": "network-error",
                 "url": "https://example.com/index.html",
@@ -77,8 +79,16 @@ def test_nel_browser_report_converted_to_logs(mini_sentry, relay):
                     "network.protocol.version": {"type": "string", "value": "1.1"},
                     "server.address": {"type": "string", "value": "123.123.123.123"},
                     "http.request.header.referer": {
-                        "type": "string",
-                        "value": "https://example.com/nel/",
+                        "type": "array",
+                        "value": ["https://example.com/nel/"],
+                    },
+                    "http.request.header.accept-language": {
+                        "type": "array",
+                        "value": ["de-DE"],
+                    },
+                    "http.response.header.x-served-by": {
+                        "type": "array",
+                        "value": ["cache-fra-1", "cache-fra-2"],
                     },
                     "nel.referrer": {
                         "type": "string",

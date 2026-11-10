@@ -48,6 +48,7 @@ def test_span_mapping():
         14: "unavailable",
         15: "data_loss",
         16: "unauthenticated",
+        17: "error",
     }
 
 
