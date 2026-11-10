@@ -1,7 +1,7 @@
 use relay_config::ByteSize;
 use relay_event_schema::protocol::SpanV2;
 
-use crate::envelope::{ContainerItems, Item, WithHeader};
+use crate::envelope::{ContainerItems, Item};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::spans::Settings;
@@ -17,8 +17,7 @@ pub fn expand(
     max_ops: usize,
     max_spans_bytes: ByteSize,
 ) -> (Settings, ContainerItems<SpanV2>) {
-    let mut results = Vec::new();
-
+    let mut results = vec![];
     for item in items {
         let integration = match item.integration() {
             Some(Integration::Spans(integration)) => integration,
@@ -28,22 +27,19 @@ pub fn expand(
             }
         };
 
-        let mut cur_results = Vec::new();
-        let produce = |span: SpanV2| {
-            cur_results.push(WithHeader::new(span.into()));
-        };
-
         let payload = item.payload();
 
         let result = match integration {
             SpansIntegration::OtelV1 { format } => {
-                otel::expand(format, &payload, produce, max_ops, max_spans_bytes)
+                otel::expand(format, &payload, max_ops, max_spans_bytes)
             }
         };
 
         match result {
-            Err(err) => drop(records.reject_err(err, item)),
-            Ok(()) => {
+            Err(err) => {
+                drop(records.reject_err(err, item));
+            }
+            Ok(cur_results) => {
                 results.reserve(cur_results.len());
                 for result in cur_results {
                     records.add(&result);

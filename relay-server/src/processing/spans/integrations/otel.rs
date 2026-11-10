@@ -4,21 +4,19 @@ use relay_event_schema::protocol::SpanV2;
 use relay_otel::descriptors::Decodable;
 use relay_spans::calculate_size;
 
+use crate::envelope::WithHeader;
 use crate::integrations::OtelFormat;
 use crate::processing::spans::{Error, Result};
 use crate::services::outcome::DiscardReason;
 
 /// Expands OTeL traces into the [`SpanV2`] format.
-pub fn expand<F>(
+pub fn expand(
     format: OtelFormat,
     payload: &[u8],
-    mut produce: F,
     max_ops: usize,
     max_spans_bytes: ByteSize,
-) -> Result<()>
-where
-    F: FnMut(SpanV2),
-{
+) -> Result<Vec<WithHeader<SpanV2>>> {
+    let mut results = vec![];
     let traces = parse_traces_data(format, payload, max_ops)?;
     let mut total_spans_bytes = 0;
 
@@ -34,12 +32,12 @@ where
                     return Err(Error::Invalid(DiscardReason::RequestTooLarge));
                 }
 
-                produce(span);
+                results.push(WithHeader::new(span.into()));
             }
         }
     }
 
-    Ok(())
+    Ok(results)
 }
 
 fn parse_traces_data(
