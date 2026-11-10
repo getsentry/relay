@@ -232,10 +232,13 @@ impl relay_system::Service for ProjectCacheService {
                     "completed_fetch",
                     self.handle_completed_fetch(fetch)
                 ),
-                Some(message) = rx.recv() => timed!(
-                    message.variant(),
-                    self.handle_message(message)
-                ),
+                message = rx.recv() => match message {
+                    Some(message) => timed!(
+                        message.variant(),
+                        self.handle_message(message)
+                    ),
+                    None => break,
+                },
                 Some(action) = self.store.poll() => match action {
                     state::Action::Eviction(eviction) => timed!(
                         "eviction",
