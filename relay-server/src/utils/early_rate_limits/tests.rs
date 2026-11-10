@@ -769,13 +769,11 @@ fn test_replay_limits_are_independent_of_event_limits() {
                     );
                 }
                 if replay_blocked {
-                    for _ in &replay_types {
-                        outcomes.assert_outcome(
-                            &Outcome::RateLimited(Some(ReasonCode::new("replay_quota"))),
-                            DataCategory::Replay,
-                            1,
-                        );
-                    }
+                    outcomes.assert_outcome(
+                        &Outcome::RateLimited(Some(ReasonCode::new("replay_quota"))),
+                        DataCategory::Replay,
+                        replay_types.len() as u64,
+                    );
                 }
                 envelope.accept(drop);
                 outcomes.assert_no_outcomes();
