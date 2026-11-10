@@ -891,7 +891,7 @@
 <a href=#891 id=891 data-nosnippet>891</a></span><span class="kw">pub const </span>GEN_AI__USAGE__OUTPUT_TOKENS__REASONING: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.usage.output_tokens.reasoning"</span>;
 <a href=#892 id=892 data-nosnippet>892</a>
 <a href=#893 id=893 data-nosnippet>893</a>
-<a href=#894 id=894 data-nosnippet>894</a><span class="doccomment">/// The list of source system tool definitions available to the GenAI agent or model.
+<a href=#894 id=894 data-nosnippet>894</a><span class="doccomment">/// The list of source system tool definitions available to the GenAI agent or model. It has to be a stringified version of an array of objects.
 <a href=#895 id=895 data-nosnippet>895</a>/// * Scrubbing: Manual
 <a href=#896 id=896 data-nosnippet>896</a>/// * Rewriting behavior: None
 <a href=#897 id=897 data-nosnippet>897</a>/// # Aliases
@@ -933,7 +933,7 @@
 <a href=#933 id=933 data-nosnippet>933</a></span><span class="kw">pub const </span>GEN_AI__TOOL__INPUT: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.tool.input"</span>;
 <a href=#934 id=934 data-nosnippet>934</a>
 <a href=#935 id=935 data-nosnippet>935</a>
-<a href=#936 id=936 data-nosnippet>936</a><span class="doccomment">/// The messages passed to the model. It has to be a stringified version of an array of objects in the format `{role: "...", parts: [...]}`. The `role` must be `"user"`, `"assistant"`, `"tool"`, or `"system"`. Each part is an object with a `type`, such as `{type: "text", content: "..."}`. Other part types include `"reasoning"`, `"tool_call"`, and `"tool_call_response"`. The legacy format `{role, content}` is also accepted. The first example shows this shape. Some operations use a different shape. See the additional context.
+<a href=#936 id=936 data-nosnippet>936</a><span class="doccomment">/// The messages passed to the model. It has to be a stringified version of an array of objects in the format `{role: "...", parts: [...]}`. The `role` must be `"user"`, `"assistant"`, `"tool"`, or `"system"`. Each part is an object with a `type`, such as `{type: "text", content: "..."}`. Other part types include `"reasoning"`, `"tool_call"`, and `"tool_call_response"`. Put the model's thinking in a `{type: "reasoning", content: "..."}` part, not a `"text"` part. Sentry shows reasoning separately from user-visible messages. The legacy format `{role, content}` is also accepted. The first example shows this shape. Some operations use a different shape. See the additional context.
 <a href=#937 id=937 data-nosnippet>937</a>/// * Scrubbing: Manual
 <a href=#938 id=938 data-nosnippet>938</a>/// * Rewriting behavior: None
 <a href=#939 id=939 data-nosnippet>939</a>/// # Aliases
@@ -1012,7 +1012,7 @@
 <a href=#1012 id=1012 data-nosnippet>1012</a></span><span class="kw">pub const </span>GEN_AI__RESPONSE__FINISH_REASON: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.response.finish_reason"</span>;
 <a href=#1013 id=1013 data-nosnippet>1013</a>
 <a href=#1014 id=1014 data-nosnippet>1014</a>
-<a href=#1015 id=1015 data-nosnippet>1015</a><span class="doccomment">/// The reasoning or thinking effort level requested for a GenAI model.
+<a href=#1015 id=1015 data-nosnippet>1015</a><span class="doccomment">/// The reasoning or thinking effort level requested for a GenAI model. Supported values vary by provider.
 <a href=#1016 id=1016 data-nosnippet>1016</a>/// * Scrubbing: Manual
 <a href=#1017 id=1017 data-nosnippet>1017</a>/// * Rewriting behavior: None
 <a href=#1018 id=1018 data-nosnippet>1018</a></span><span class="kw">pub const </span>GEN_AI__REQUEST__REASONING__LEVEL: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.request.reasoning.level"</span>;
@@ -1051,7 +1051,7 @@
 <a href=#1051 id=1051 data-nosnippet>1051</a></span><span class="kw">pub const </span>GEN_AI__TOOL__TYPE: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.tool.type"</span>;
 <a href=#1052 id=1052 data-nosnippet>1052</a>
 <a href=#1053 id=1053 data-nosnippet>1053</a>
-<a href=#1054 id=1054 data-nosnippet>1054</a><span class="doccomment">/// The model's response messages. It has to be a stringified version of an array of message objects, which can include text responses and tool calls. The first example shows this shape. Some operations use a different shape. See the additional context.
+<a href=#1054 id=1054 data-nosnippet>1054</a><span class="doccomment">/// The model's response messages. It has to be a stringified version of an array of message objects in the format `{role: "assistant", parts: [...]}`, which can include text responses and tool calls. Each part is an object with a `type`, such as `{type: "text", content: "..."}`. Other part types include `"reasoning"` and `"tool_call"`. Put the model's thinking in a `{type: "reasoning", content: "..."}` part, not a `"text"` part. Sentry shows reasoning separately from user-visible messages. The first example shows this shape. Some operations use a different shape. See the additional context.
 <a href=#1055 id=1055 data-nosnippet>1055</a>/// * Scrubbing: Manual
 <a href=#1056 id=1056 data-nosnippet>1056</a>/// * Rewriting behavior: None
 <a href=#1057 id=1057 data-nosnippet>1057</a>/// # Aliases
@@ -1239,7 +1239,7 @@
 <a href=#1239 id=1239 data-nosnippet>1239</a></span><span class="kw">pub const </span>GEN_AI__PROVIDER__NAME: <span class="kw-2">&amp;</span>str = <span class="string">"gen_ai.provider.name"</span>;
 <a href=#1240 id=1240 data-nosnippet>1240</a>
 <a href=#1241 id=1241 data-nosnippet>1241</a>
-<a href=#1242 id=1242 data-nosnippet>1242</a><span class="doccomment">/// The total number of tokens used to process the prompt. (input tokens plus output todkens).
+<a href=#1242 id=1242 data-nosnippet>1242</a><span class="doccomment">/// The total number of tokens used to process the prompt. (input tokens plus output tokens).
 <a href=#1243 id=1243 data-nosnippet>1243</a>/// * Scrubbing: Manual
 <a href=#1244 id=1244 data-nosnippet>1244</a>/// * Rewriting behavior: None
 <a href=#1245 id=1245 data-nosnippet>1245</a>/// # Aliases
