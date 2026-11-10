@@ -19,7 +19,7 @@ pub fn calculate_size(span: &SpanV2) -> u64 {
         .map(|(k, v)| k.len() + value_size(v))
         .sum::<usize>() as u64;
 
-    u64::try_from(total_size).unwrap_or(u64::MAX).max(1)
+    total_size
 }
 
 fn attribute_size(v: &Annotated<Attribute>) -> usize {
