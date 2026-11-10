@@ -27,6 +27,7 @@
 
 **Internal**:
 
+- Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
 - Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
 - Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
