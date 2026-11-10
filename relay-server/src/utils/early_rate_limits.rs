@@ -6,7 +6,7 @@ use crate::envelope::{
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
 use crate::services::outcome::Outcome;
-use crate::utils::{AttachmentRole, EnvelopeSummary, EventGroup};
+use crate::utils::{AttachmentRole, EnvelopeSummary, EventSource};
 use enum_map::EnumMap;
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
@@ -270,20 +270,20 @@ fn resolve_limits(
     // Losing every event creator also rejects the event.
     let event = match (event, summary.event, &span_attachments, &trace_attachments) {
         (Some(event), _, _, _) => Some(event),
-        (None, EventGroup::SpanEventCreators, Some(outcome), _)
-        | (None, EventGroup::TraceEventCreators, _, Some(outcome))
-        | (None, EventGroup::BothSpanFirst, Some(outcome), Some(_))
-        | (None, EventGroup::BothTraceFirst, Some(_), Some(outcome)) => {
+        (None, EventSource::ErrorFromSpanAttachments, Some(outcome), _)
+        | (None, EventSource::ErrorFromTraceAttachments, _, Some(outcome))
+        | (None, EventSource::ErrorFromSpanAndTraceAttachmentsSpanFirst, Some(outcome), Some(_))
+        | (None, EventSource::ErrorFromSpanAndTraceAttachmentsTraceFirst, Some(_), Some(outcome)) => {
             Some((DataCategory::Error, outcome.clone()))
         }
         (
             None,
-            EventGroup::Absent
-            | EventGroup::SurvivesAttachmentLimits(_)
-            | EventGroup::SpanEventCreators
-            | EventGroup::TraceEventCreators
-            | EventGroup::BothSpanFirst
-            | EventGroup::BothTraceFirst,
+            EventSource::Absent
+            | EventSource::SurvivesAttachmentLimits(_)
+            | EventSource::ErrorFromSpanAttachments
+            | EventSource::ErrorFromTraceAttachments
+            | EventSource::ErrorFromSpanAndTraceAttachmentsSpanFirst
+            | EventSource::ErrorFromSpanAndTraceAttachmentsTraceFirst,
             _,
             _,
         ) => None,

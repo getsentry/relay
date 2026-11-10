@@ -140,13 +140,15 @@ impl AttachmentRole {
     }
 }
 
-/// Event-creating items in an envelope and their attachment parent types.
+/// Items that create the envelope's event, including crash attachments and their parent types.
 ///
 /// Plain attachments do not affect this group. The first creator that survives attachment limits
-/// determines the event category, even if a removable crash attachment precedes it. Otherwise,
-/// the order of crash attachments determines the rejection reason.
+/// determines the event category, even if a removable crash attachment precedes it. If only
+/// span-parent and trace-parent crash attachments create the error, reject it only when all
+/// such attachments are removed. Use the rejection reason from the parent group whose first
+/// crash attachment appeared earliest in the envelope.
 #[derive(Clone, Copy, Debug, Default)]
-pub enum EventGroup {
+pub enum EventSource {
     /// No item creates an event; associated items can still arrive separately.
     #[default]
     Absent,
@@ -154,25 +156,27 @@ pub enum EventGroup {
     /// The first such item determines the event category.
     SurvivesAttachmentLimits(DataCategory),
     /// Only span-parent crash attachments create the error event.
-    SpanEventCreators,
+    ErrorFromSpanAttachments,
     /// Only trace-parent crash attachments create the error event.
-    TraceEventCreators,
-    /// Both parent types create the event, with a span-parent creator appearing first.
-    BothSpanFirst,
-    /// Both parent types create the event, with a trace-parent creator appearing first.
-    BothTraceFirst,
+    ErrorFromTraceAttachments,
+    /// Both span-parent and trace-parent crash attachments create the error.
+    /// A span-parent crash attachment appears first, determining the rejection reason.
+    ErrorFromSpanAndTraceAttachmentsSpanFirst,
+    /// Both span-parent and trace-parent crash attachments create the error.
+    /// A trace-parent crash attachment appears first, determining the rejection reason.
+    ErrorFromSpanAndTraceAttachmentsTraceFirst,
 }
 
-impl EventGroup {
+impl EventSource {
     /// Returns the category of the event, counted once per envelope.
     pub fn category(self) -> Option<DataCategory> {
         match self {
             Self::Absent => None,
             Self::SurvivesAttachmentLimits(category) => Some(category),
-            Self::SpanEventCreators
-            | Self::TraceEventCreators
-            | Self::BothSpanFirst
-            | Self::BothTraceFirst => Some(DataCategory::Error),
+            Self::ErrorFromSpanAttachments
+            | Self::ErrorFromTraceAttachments
+            | Self::ErrorFromSpanAndTraceAttachmentsSpanFirst
+            | Self::ErrorFromSpanAndTraceAttachmentsTraceFirst => Some(DataCategory::Error),
         }
     }
 
@@ -182,10 +186,14 @@ impl EventGroup {
             // A removable crash attachment must not determine the category of a surviving
             // direct event. Otherwise removing it changes the category during accounting.
             (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
-            (Self::Absent, AttachmentParentType::Span) => Self::SpanEventCreators,
-            (Self::Absent, AttachmentParentType::Trace) => Self::TraceEventCreators,
-            (Self::SpanEventCreators, AttachmentParentType::Trace) => Self::BothSpanFirst,
-            (Self::TraceEventCreators, AttachmentParentType::Span) => Self::BothTraceFirst,
+            (Self::Absent, AttachmentParentType::Span) => Self::ErrorFromSpanAttachments,
+            (Self::Absent, AttachmentParentType::Trace) => Self::ErrorFromTraceAttachments,
+            (Self::ErrorFromSpanAttachments, AttachmentParentType::Trace) => {
+                Self::ErrorFromSpanAndTraceAttachmentsSpanFirst
+            }
+            (Self::ErrorFromTraceAttachments, AttachmentParentType::Span) => {
+                Self::ErrorFromSpanAndTraceAttachmentsTraceFirst
+            }
             _ => return,
         };
     }
@@ -211,7 +219,7 @@ pub struct ProfileQuantities {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnvelopeSummary {
     /// The event category and attachment dependencies of the event-creating items.
-    pub event: EventGroup,
+    pub event: EventSource,
 
     /// Total attachment storage across all parent types.
     pub attachment_bytes: usize,
