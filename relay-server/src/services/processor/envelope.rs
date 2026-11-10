@@ -411,7 +411,7 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
 /// Creates a multi-threaded envelope processor.
 #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
-    pool: ServicePool,
+    pool: Arc<ServicePool>,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,

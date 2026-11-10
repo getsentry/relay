@@ -446,7 +446,7 @@ impl FromMessage<Managed<StoreCheckIn>> for Store {
 
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
-    pool: StoreServicePool,
+    pool: Arc<StoreServicePool>,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
@@ -456,7 +456,7 @@ pub struct StoreService {
 
 impl StoreService {
     pub fn create(
-        pool: StoreServicePool,
+        pool: Arc<StoreServicePool>,
         kafka_client: Arc<KafkaClient>,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,

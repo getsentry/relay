@@ -69,7 +69,7 @@ pub struct Addrs {
 
 /// Creates a multi-threaded bucket processor.
 pub fn create_service(
-    pool: ServicePool,
+    pool: Arc<ServicePool>,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,
@@ -1018,7 +1018,7 @@ mod tests {
                 .build()
                 .unwrap();
             let processor = create_service(
-                pool,
+                Arc::new(pool),
                 Arc::new(config),
                 GlobalConfigHandle::fixed(Default::default()),
                 ProjectCacheHandle::for_test(),

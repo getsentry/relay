@@ -107,7 +107,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &ConfigSnapshot) -> Result<ServicePool> {
+fn create_processor_pool(config: &ConfigSnapshot) -> Result<Arc<ServicePool>> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -123,11 +123,11 @@ fn create_processor_pool(config: &ConfigSnapshot) -> Result<ServicePool> {
         .thread_kind(ThreadKind::Worker)
         .build()?;
 
-    Ok(pool)
+    Ok(Arc::new(pool))
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &ConfigSnapshot) -> Result<StoreServicePool> {
+fn create_store_pool(config: &ConfigSnapshot) -> Result<Arc<StoreServicePool>> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -141,7 +141,7 @@ fn create_store_pool(config: &ConfigSnapshot) -> Result<StoreServicePool> {
         .max_concurrency(config.pool_concurrency())
         .build()?;
 
-    Ok(pool)
+    Ok(Arc::new(pool))
 }
 
 #[derive(Debug)]

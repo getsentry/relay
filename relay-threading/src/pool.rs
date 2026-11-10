@@ -2,6 +2,7 @@ use std::future::Future;
 use std::io;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 
 use crate::builder::AsyncPoolBuilder;
 use crate::metrics::AsyncPoolMetrics;
@@ -27,7 +28,9 @@ pub struct AsyncPool<F> {
     /// The maximum number of tasks that are expected to run concurrently at any point in time.
     max_tasks: u64,
     /// Vector containing all the metrics collected individually in each thread.
-    threads_metrics: Arc<Vec<Arc<ThreadMetrics>>>,
+    threads_metrics: Vec<Arc<ThreadMetrics>>,
+    /// Threads are joined on drop.
+    join_handles: Vec<JoinHandle<()>>,
 }
 
 impl<F> AsyncPool<F> {
@@ -61,6 +64,7 @@ where
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
         let mut threads_metrics = Vec::with_capacity(builder.num_threads);
+        let mut join_handles = Vec::with_capacity(builder.num_threads);
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
@@ -89,14 +93,15 @@ where
 
             threads_metrics.push(metrics);
 
-            builder.spawn_handler.spawn(thread)?;
+            join_handles.push(builder.spawn_handler.spawn(thread)?);
         }
 
         Ok(Self {
             name: pool_name,
             tx,
             max_tasks: (builder.num_threads * builder.max_concurrency) as u64,
-            threads_metrics: Arc::new(threads_metrics),
+            threads_metrics,
+            join_handles,
         })
     }
 
@@ -131,13 +136,14 @@ where
     }
 }
 
-impl<F> Clone for AsyncPool<F> {
-    fn clone(&self) -> Self {
-        Self {
-            name: self.name,
-            tx: self.tx.clone(),
-            max_tasks: self.max_tasks,
-            threads_metrics: self.threads_metrics.clone(),
+impl<F> Drop for AsyncPool<F> {
+    fn drop(&mut self) {
+        // 1 - close the channel
+        let tx = std::mem::replace(&mut self.tx, flume::unbounded().0);
+        drop(tx);
+        // 2 - make workers stop
+        for join_handle in self.join_handles.drain(..) {
+            let _ = join_handle.join(); // thread handles panic.
         }
     }
 }
@@ -208,7 +214,7 @@ impl Thread {
 /// without altering the core functionality of the pool.
 pub trait ThreadSpawn {
     /// Spawns a new thread using the provided configuration.
-    fn spawn(&mut self, thread: Thread) -> io::Result<()>;
+    fn spawn(&mut self, thread: Thread) -> io::Result<JoinHandle<()>>;
 }
 
 /// [`DefaultSpawn`] is the default implementation of [`ThreadSpawn`] that delegates to the system's
@@ -219,14 +225,12 @@ pub trait ThreadSpawn {
 pub struct DefaultSpawn;
 
 impl ThreadSpawn for DefaultSpawn {
-    fn spawn(&mut self, thread: Thread) -> io::Result<()> {
+    fn spawn(&mut self, thread: Thread) -> io::Result<JoinHandle<()>> {
         let mut b = std::thread::Builder::new();
         if let Some(name) = thread.name() {
             b = b.name(name.to_owned());
         }
-        b.spawn(|| thread.run())?;
-
-        Ok(())
+        b.spawn(|| thread.run())
     }
 }
 
@@ -246,10 +250,10 @@ impl<B> CustomSpawn<B> {
 
 impl<B> ThreadSpawn for CustomSpawn<B>
 where
-    B: FnMut(Thread) -> io::Result<()>,
+    B: FnMut(Thread) -> io::Result<JoinHandle<()>>,
 {
     /// Applies the custom configuration closure when spawning a new thread.
-    fn spawn(&mut self, thread: Thread) -> io::Result<()> {
+    fn spawn(&mut self, thread: Thread) -> io::Result<JoinHandle<()>> {
         self.0(thread)
     }
 }
@@ -432,5 +436,26 @@ mod tests {
         }));
 
         assert!(result.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn drop_joins_tasks() {
+        let pool = AsyncPoolBuilder::new(Handle::current())
+            .num_threads(1)
+            .max_concurrency(1)
+            .build()
+            .unwrap();
+
+        let finished = Arc::new(AtomicBool::new(false));
+        let finished1 = finished.clone();
+
+        pool.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            finished1.store(true, Ordering::Relaxed);
+        });
+
+        drop(pool);
+        let finished = finished.load(Ordering::Relaxed);
+        assert!(finished);
     }
 }

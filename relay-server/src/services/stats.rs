@@ -23,9 +23,9 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_clients: Option<RedisClients>,
-    processor_pool: Option<ServicePool>,
+    processor_pool: Option<Arc<ServicePool>>,
     #[cfg(feature = "processing")]
-    store_pool: StoreServicePool,
+    store_pool: Arc<StoreServicePool>,
 }
 
 impl RelayStats {
@@ -34,8 +34,8 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
-        processor_pool: Option<ServicePool>,
-        #[cfg(feature = "processing")] store_pool: StoreServicePool,
+        processor_pool: Option<Arc<ServicePool>>,
+        #[cfg(feature = "processing")] store_pool: Arc<StoreServicePool>,
     ) -> Self {
         Self {
             config,

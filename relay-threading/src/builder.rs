@@ -2,6 +2,7 @@ use std::any::Any;
 use std::future::Future;
 use std::io;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 
 use crate::pool::{AsyncPool, Thread};
 use crate::pool::{CustomSpawn, DefaultSpawn, ThreadSpawn};
@@ -95,7 +96,7 @@ where
     /// making it possible to apply application-specific configurations.
     pub fn spawn_handler<F>(self, spawn_handler: F) -> AsyncPoolBuilder<CustomSpawn<F>>
     where
-        F: FnMut(Thread) -> io::Result<()>,
+        F: FnMut(Thread) -> io::Result<JoinHandle<()>>,
     {
         AsyncPoolBuilder {
             runtime: self.runtime,
