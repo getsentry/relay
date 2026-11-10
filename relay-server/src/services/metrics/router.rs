@@ -184,3 +184,36 @@ impl RouterHandle {
         self.0.iter().all(|ah| ah.can_accept_metrics())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        relay_test::setup();
+        let runtime = relay_system::Runtime::builder("router-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let service = RouterService::new(
+                runtime.handle().clone(),
+                AggregatorServiceConfig::default(),
+                Vec::new(),
+                None,
+                ProjectCacheHandle::for_test(),
+            );
+            let (addr, rx) = relay_system::channel(RouterService::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            drop(addr);
+            tokio::time::timeout(Duration::from_secs(1), run)
+                .await
+                .expect("metrics router did not shut down");
+        });
+    }
+}

@@ -248,3 +248,46 @@ impl Service for RelayStats {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        relay_test::setup();
+        let runtime = relay_system::Runtime::builder("stats-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let config = Arc::new(Config::default());
+            assert!(config.current().metrics_periodic_interval().is_some());
+            let (upstream, mut upstream_rx) = relay_system::channel("upstream");
+            let service = RelayStats::new(
+                config,
+                runtime.handle().clone(),
+                upstream,
+                #[cfg(feature = "processing")]
+                None,
+                None,
+                #[cfg(feature = "processing")]
+                relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
+                    .build()
+                    .unwrap(),
+            );
+            let (addr, rx) = relay_system::channel(RelayStats::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            // Keep the upstream response pending: shutdown must also interrupt a stats check.
+            let _request = upstream_rx.recv().await.unwrap();
+            drop(addr);
+            tokio::time::timeout(Duration::from_secs(1), run)
+                .await
+                .expect("stats service did not shut down");
+        });
+    }
+}
