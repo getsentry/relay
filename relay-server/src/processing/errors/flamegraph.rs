@@ -3,14 +3,15 @@
 use std::collections::{BTreeMap, HashMap};
 
 use relay_event_schema::protocol::{
-    Addr, DebugId, DebugImage, DebugMeta, Event, Frame, NativeDebugImage, RawStacktrace, Stacktrace,
+    Addr, DebugId, DebugImage, DebugMeta, Event, Frame, InstructionAddrAdjustment,
+    NativeDebugImage, RawStacktrace, Stacktrace,
 };
 use relay_protocol::{Annotated, Array, DeserializableAnnotated, FromValue, Value};
 
 use crate::envelope::{AttachmentType, Item};
 
 /// Relative frame addresses index the retained images, independently of existing event images.
-pub(super) type Culprit = (Annotated<Array<Frame>>, Option<DebugMeta>);
+pub(super) type Culprit = (RawStacktrace, Option<DebugMeta>);
 
 pub(super) fn needs_enrichment(event: &Event) -> bool {
     event
@@ -45,7 +46,7 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
         return false;
     };
 
-    let Some((mut frames, debug_meta)) = culprit() else {
+    let Some((mut stacktrace, debug_meta)) = culprit() else {
         return false;
     };
     if let Some(debug_meta) = debug_meta {
@@ -54,7 +55,8 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
             .get_or_insert_with(DebugMeta::default)
             .images
             .get_or_insert_with(Vec::new);
-        for frame in frames
+        for frame in stacktrace
+            .frames
             .get_or_insert_with(Vec::new)
             .iter_mut()
             .filter_map(|frame| frame.value_mut().as_mut())
@@ -70,10 +72,7 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
         }
         images.extend(debug_meta.images.into_value().unwrap_or_default());
     }
-    exception.stacktrace = Annotated::new(Stacktrace::from(RawStacktrace {
-        frames,
-        ..Default::default()
-    }));
+    exception.stacktrace = Annotated::new(Stacktrace::from(stacktrace));
     true
 }
 
@@ -139,7 +138,25 @@ pub(super) fn extract(
             .meta_mut()
             .set_original_length(Some(culprit.original_len));
     }
-    Some((frames, debug_meta.into_value()))
+    Some((
+        RawStacktrace {
+            frames,
+            // Culprit selection can reduce `main -> caller -> {leaf_a, leaf_b}` to `main -> caller`.
+            // Under profiling's raw native address convention, caller's address points after
+            // the call. Default symbolication treats the new top frame as the sampled instruction
+            // and skips return-address adjustment, potentially resolving to the wrong source line.
+            // If every sample continues into an omitted callee, all retained frames are callers:
+            // adjust the new top frame too. If samples end there, keep the default heuristic;
+            // an endpoint used as both a caller and a sampled instruction remains ambiguous.
+            instruction_addr_adjustment: Annotated::from(
+                culprit
+                    .ends_at_caller
+                    .then_some(InstructionAddrAdjustment::All),
+            ),
+            ..Default::default()
+        },
+        debug_meta.into_value(),
+    ))
 }
 
 fn merge_debug_images(
@@ -323,7 +340,8 @@ mod tests {
                       "instruction_addr": "0x20",
                       "addr_mode": "rel:0"
                     }
-                  ]
+                  ],
+                  "instruction_addr_adjustment": "all"
                 },
                 "mechanism": {
                   "type": "mx_hang_diagnostic",
@@ -364,11 +382,8 @@ mod tests {
             "nodes": [{"frame_id": 0, "sample_count": 1}],
             "trees": [{"roots": [0]}]
         });
-        let (frames, _) = extract_attachments(&[attachment(payload)], 100_000).unwrap();
-        let stacktrace = Annotated::new(RawStacktrace {
-            frames,
-            ..Default::default()
-        });
+        let (stacktrace, _) = extract_attachments(&[attachment(payload)], 100_000).unwrap();
+        let stacktrace = Annotated::new(stacktrace);
         insta::assert_json_snapshot!(SerializableAnnotated(&stacktrace), @r#"
         {
           "frames": [
@@ -392,6 +407,39 @@ mod tests {
           ]
         }
         "#);
+    }
+
+    #[test]
+    fn test_flamegraph_preserves_endpoint_address_adjustment() {
+        for (samples, children, endpoint, adjustment) in [
+            // The caller wins with 100 samples; 50 + 50 continue into leaves, so adjust it.
+            ([50, 50], [2, 3], "0x20", Some("all")),
+            // The 80-sample leaf wins; preserve ordinary sampled-instruction handling.
+            ([80, 20], [2, 3], "0x30", None),
+            // The caller wins, but 20 of its 100 samples end there; keep the default heuristic.
+            ([40, 40], [2, 3], "0x20", None),
+            // Both references name the same 50 samples, not 100 samples continuing into callees.
+            ([50, 50], [2, 2], "0x20", None),
+        ] {
+            let mut payload = graph();
+            for frame in payload["frames"].as_array_mut().unwrap() {
+                frame["in_app"] = json!(true);
+            }
+            payload["nodes"][2]["sample_count"] = json!(samples[0]);
+            payload["nodes"][3]["sample_count"] = json!(samples[1]);
+            payload["nodes"][1]["children"] = json!(children);
+            let mut event = event();
+            assert!(enrich(
+                event.value_mut().as_mut().unwrap(),
+                &[attachment(payload)]
+            ));
+
+            let event: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
+            let stack = &event["exception"]["values"][0]["stacktrace"];
+            let frames = stack["frames"].as_array().unwrap();
+            assert_eq!(frames.last().unwrap()["instruction_addr"], endpoint);
+            assert_eq!(stack["instruction_addr_adjustment"].as_str(), adjustment);
+        }
     }
 
     #[test]
@@ -459,7 +507,8 @@ mod tests {
                       "instruction_addr": "0x20",
                       "addr_mode": "rel:1"
                     }
-                  ]
+                  ],
+                  "instruction_addr_adjustment": "all"
                 },
                 "mechanism": {
                   "type": "mx_hang_diagnostic",
@@ -649,7 +698,8 @@ mod tests {
                       "instruction_addr": "0x20",
                       "addr_mode": "rel:0"
                     }
-                  ]
+                  ],
+                  "instruction_addr_adjustment": "all"
                 },
                 "mechanism": {
                   "type": "mx_hang_diagnostic",
@@ -720,7 +770,8 @@ mod tests {
                       "instruction_addr": "0x20",
                       "addr_mode": "rel:0"
                     }
-                  ]
+                  ],
+                  "instruction_addr_adjustment": "all"
                 },
                 "mechanism": {
                   "type": "mx_hang_diagnostic",

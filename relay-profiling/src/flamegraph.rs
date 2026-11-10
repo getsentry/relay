@@ -261,6 +261,9 @@ pub struct Culprit<'payload> {
     pub frames: Vec<&'payload RawValue>,
     /// Number of frames before middle-frame trimming.
     pub original_len: usize,
+    /// Whether every sample at the selected endpoint continues into an omitted callee.
+    /// An internal node can also have samples that end there; those endpoints return false.
+    pub ends_at_caller: bool,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -321,6 +324,7 @@ impl<'payload> Graph<'payload> {
         let mut best_path = Culprit {
             frames: Vec::new(),
             original_len: 0,
+            ends_at_caller: false,
         };
         let mut prefixes = HashMap::new();
         let mut candidates: Vec<Prefix> = Vec::new();
@@ -394,9 +398,17 @@ impl<'payload> Graph<'payload> {
                 }
             }
             if let Some(index) = best_prefix {
+                let winner = PrefixId::from_index(index).ok_or(Error::TraversalLimit)?;
+                // A winner with 100 samples and children with 60 + 40 samples is exclusively
+                // a caller. With 60 + 20 child samples, 20 samples end at the winner itself.
+                let child_samples: u128 = candidates
+                    .iter()
+                    .filter(|prefix| prefix.parent == Some(winner))
+                    .map(|prefix| prefix.samples)
+                    .sum();
                 let depth = candidates[index].depth;
                 let mut path = Vec::with_capacity(depth.min(RawStacktrace::MAX_FRAMES));
-                let mut current = Some(PrefixId::from_index(index).ok_or(Error::TraversalLimit)?);
+                let mut current = Some(winner);
                 while let Some(index) = current {
                     let prefix = &candidates[index.index()];
                     if prefix.depth <= RawStacktrace::MAX_OLDEST_FRAMES
@@ -410,6 +422,7 @@ impl<'payload> Graph<'payload> {
                 best_path = Culprit {
                     frames: path,
                     original_len: depth,
+                    ends_at_caller: child_samples == candidates[index].samples,
                 };
             }
         }
@@ -509,6 +522,9 @@ mod tests {
             {"frame_id": 3, "sample_count": 40}
         ]);
         graph["trees"][0]["roots"] = json!([0, 3]);
+        let payload = serde_json::to_vec(&graph).unwrap();
+        let culprit = parse(&payload).unwrap().identify_culprit().unwrap();
+        assert!(culprit.ends_at_caller);
         assert_eq!(identify(graph).unwrap(), vec![0, 1]);
     }
 
