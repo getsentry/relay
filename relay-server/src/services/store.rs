@@ -4,9 +4,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -36,8 +34,8 @@ use relay_metrics::{
 use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{FromMessage, Interface, NoResponse, Service};
-use relay_threading::AsyncPool;
+use relay_system::{FromMessage, Interface, MessageHandler, NoResponse, Service};
+use relay_threading::{AsyncPoolService, ServicePool};
 
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
@@ -316,9 +314,6 @@ impl Counted for StoreCheckIn {
     }
 }
 
-/// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
-pub type StoreServicePool = AsyncPool<StoreTask>;
-
 /// Service interface for storing items in Kafka.
 #[derive(Debug)]
 pub enum Store {
@@ -444,9 +439,28 @@ impl FromMessage<Managed<StoreCheckIn>> for Store {
     }
 }
 
-/// Service implementing the [`Store`] interface.
-pub struct StoreService {
-    pool: StoreServicePool,
+/// Creates a multi-threaded service for storing items in Kafka.
+pub fn create_service(
+    pool: ServicePool,
+    kafka_client: Arc<KafkaClient>,
+    config: Arc<Config>,
+    global_config: GlobalConfigHandle,
+    metric_outcomes: MetricOutcomes,
+) -> impl Service<Interface = Store> {
+    AsyncPoolService::new(
+        Arc::new(StoreService {
+            config,
+            global_config,
+            metric_outcomes,
+            kafka_client,
+            last_span_report: Instant::now().into(),
+        }),
+        pool,
+    )
+}
+
+/// Message handler implementing the [`Store`] interface.
+struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
@@ -455,51 +469,6 @@ pub struct StoreService {
 }
 
 impl StoreService {
-    pub fn create(
-        pool: StoreServicePool,
-        kafka_client: Arc<KafkaClient>,
-        config: Arc<Config>,
-        global_config: GlobalConfigHandle,
-        metric_outcomes: MetricOutcomes,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            pool,
-            config,
-            global_config,
-            metric_outcomes,
-            kafka_client,
-            last_span_report: Instant::now().into(),
-        })
-    }
-
-    fn handle_message(&self, message: Store) {
-        let ty = message.variant();
-        relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
-            let result = match message {
-                Store::Event(message) => self.handle_store_event(message),
-                Store::Metrics(message) => {
-                    self.handle_store_metrics(message);
-                    Ok(())
-                }
-                Store::TraceItem(message) => self.handle_store_trace_item(message),
-                Store::Span(message) => self.handle_store_span(message),
-                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
-                Store::Replay(message) => self.handle_store_replay(message),
-                Store::Attachment(message) => self.handle_store_attachment(message),
-                Store::UserReport(message) => self.handle_user_report(message),
-                Store::Profile(message) => self.handle_profile(message),
-                Store::CheckIn(message) => self.handle_check_in(message),
-            };
-            if let Err(error) = result {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.message = ty,
-                    "failed to store message"
-                );
-            }
-        })
-    }
-
     fn handle_store_event(
         &self,
         message: Managed<Box<StoreEvent>>,
@@ -1255,42 +1224,35 @@ impl StoreService {
     }
 }
 
-impl Service for StoreService {
+impl MessageHandler for StoreService {
     type Interface = Store;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let this = Arc::new(self);
-
-        relay_log::info!("store forwarder started");
-
-        while let Some(message) = rx.recv().await {
-            let task = StoreTask {
-                service: Arc::clone(&this),
-                message: Some(message),
+    async fn handle_message(&self, message: Store) {
+        let ty = message.variant();
+        relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
+            let result = match message {
+                Store::Event(message) => self.handle_store_event(message),
+                Store::Metrics(message) => {
+                    self.handle_store_metrics(message);
+                    Ok(())
+                }
+                Store::TraceItem(message) => self.handle_store_trace_item(message),
+                Store::Span(message) => self.handle_store_span(message),
+                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
+                Store::Replay(message) => self.handle_store_replay(message),
+                Store::Attachment(message) => self.handle_store_attachment(message),
+                Store::UserReport(message) => self.handle_user_report(message),
+                Store::Profile(message) => self.handle_profile(message),
+                Store::CheckIn(message) => self.handle_check_in(message),
             };
-            this.pool.spawn_async(task).await;
-        }
-
-        relay_log::info!("store forwarder stopped");
-    }
-}
-
-/// Task executed by [`StoreService`].
-pub struct StoreTask {
-    service: Arc<StoreService>,
-    message: Option<Store>,
-}
-
-impl Future for StoreTask {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        let message = self
-            .message
-            .take()
-            .expect("StoreTask polled after completion");
-        let () = relay_log::with_scope(|_| {}, || self.service.handle_message(message));
-        task::Poll::Ready(())
+            if let Err(error) = result {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.message = ty,
+                    "failed to store message"
+                );
+            }
+        })
     }
 }
 

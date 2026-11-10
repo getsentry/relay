@@ -27,7 +27,7 @@ use crate::services::proxy_processor::{ProxyAddrs, ProxyProcessorService};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
-use crate::services::store::{StoreService, StoreServicePool, create_kafka_client};
+use crate::services::store::{self, create_kafka_client};
 use crate::services::upload::{self, Upload};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -127,7 +127,7 @@ fn create_processor_pool(config: &ConfigSnapshot) -> Result<ServicePool> {
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &ConfigSnapshot) -> Result<StoreServicePool> {
+fn create_store_pool(config: &ConfigSnapshot) -> Result<ServicePool> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -257,14 +257,14 @@ impl ServiceState {
             .then(|| {
                 let kafka_client = create_kafka_client(&current_config)?;
                 maybe_kafka_client = Some(kafka_client.clone());
-                StoreService::create(
+                let service = store::create_service(
                     store_pool.clone(),
                     kafka_client.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     metric_outcomes.clone(),
-                )
-                .map(|s| services.start(s))
+                );
+                Ok::<_, anyhow::Error>(services.start(service))
             })
             .transpose()?;
 
@@ -360,7 +360,7 @@ impl ServiceState {
                     let outcome_store = {
                         if current_config.processing_enabled() {
                             let (addr, rx) = channel("outcome_store");
-                            let service = StoreService::create(
+                            let service = store::create_service(
                                 store_pool.clone(),
                                 maybe_kafka_client
                                     .clone()
@@ -368,7 +368,7 @@ impl ServiceState {
                                 config.clone(),
                                 global_config_handle.clone(),
                                 MetricOutcomes::new(dummy_outcomes.clone()),
-                            )?;
+                            );
                             services.start_with(service, rx);
                             Some(addr)
                         } else {
