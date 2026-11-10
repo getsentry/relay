@@ -193,8 +193,7 @@ fn split_indexed_and_total(
 ) -> SpansAndMetrics {
     spans.split_once(|spans, r| {
         let metrics = create_metrics(&spans.spans, decision);
-        // The split creates these metric buckets, so add their count.
-        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
+        r.add((DataCategory::MetricBucket, metrics.bucket_count()));
 
         (spans.into_indexed(), metrics)
     })

@@ -19,7 +19,7 @@ impl ExtractedMetrics {
     /// Returns the number of buckets counted in the [`DataCategory::MetricBucket`] category.
     ///
     /// [`DataCategory::MetricBucket`]: relay_quotas::DataCategory::MetricBucket
-    pub fn bucket_quantity(&self) -> usize {
+    pub fn bucket_count(&self) -> usize {
         crate::metrics::extract_quantities(&self.0).buckets
     }
 }

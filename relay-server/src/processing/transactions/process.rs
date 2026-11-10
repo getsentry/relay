@@ -336,8 +336,7 @@ pub fn split_indexed_and_total_with_extracted_spans(
         }
 
         let metrics = metrics.into_inner();
-        // The split creates these metric buckets, so add their count.
-        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
+        r.add((DataCategory::MetricBucket, metrics.bucket_count()));
 
         (Box::new(tx.into_indexed()), metrics)
     });
@@ -400,8 +399,7 @@ pub fn split_indexed_and_total(
         r.lenient(DataCategory::Span);
 
         let metrics = metrics.into_inner();
-        // The split creates these metric buckets, so add their count.
-        r.add((DataCategory::MetricBucket, metrics.bucket_quantity()));
+        r.add((DataCategory::MetricBucket, metrics.bucket_count()));
 
         (Box::new(work.into_indexed()), metrics)
     })
