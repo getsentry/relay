@@ -322,7 +322,8 @@ impl Service for AggregatorService {
             }};
         }
 
-        loop {
+        let mut expects_input = true;
+        while expects_input || !self.aggregator.is_empty() {
             tokio::select! {
                 biased;
 
@@ -332,16 +333,14 @@ impl Service for AggregatorService {
                         self.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
-                signal = rx.recv() => match signal {
+                signal = rx.recv(), if expects_input => match signal {
                     Some(message) => timed!(message.variant(), self.handle_message(message)),
                     None => {
+                        expects_input = false;
                         timed!("shutdown", self.handle_shutdown());
-                        break;
                     },
                 },
                 _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
-
-                else => break,
             }
         }
     }
@@ -527,6 +526,53 @@ mod tests {
         assert!(futures::poll!(&mut run).is_ready());
 
         // Verify that exactly one bucket was delivered.
+        let TestInterface(flush) = recipient_rx.try_recv().unwrap();
+        let buckets = &flush.buckets[&project_key].buckets;
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(&*buckets[0].name, "c:transactions/foo");
+        assert_eq!(buckets[0].value, BucketValue::counter(42.into()));
+        assert!(recipient_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_on_channel_close_waits_for_pending_project() {
+        // Start the service with a project whose config is still pending.
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_cache = ProjectCacheHandle::for_test();
+        let (recipient, mut recipient_rx) = relay_system::Addr::<TestInterface>::custom();
+        let service = AggregatorService::new(
+            "test".to_owned(),
+            AggregatorServiceConfig::default(),
+            Some(recipient.recipient()),
+            project_cache.clone(),
+        );
+        let (addr, rx) = relay_system::channel(AggregatorService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        // Queue a bucket before closing the input.
+        let mut bucket = some_bucket();
+        bucket.timestamp = UnixTimestamp::now();
+        addr.send(MergeBuckets::new(project_key, vec![bucket]));
+
+        // Keep the service running until the pending project can be resolved.
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_pending());
+        assert!(recipient_rx.try_recv().is_err());
+
+        // Resolve the project so the service can flush and finish.
+        project_cache.test_set_project_state(
+            project_key,
+            ProjectState::Enabled(Arc::new(ProjectInfo {
+                project_id: Some(ProjectId::new(3)),
+                organization_id: Some(OrganizationId::new(1)),
+                ..Default::default()
+            })),
+        );
+
+        run.await;
+
+        // Verify that the bucket survived shutdown and was delivered once.
         let TestInterface(flush) = recipient_rx.try_recv().unwrap();
         let buckets = &flush.buckets[&project_key].buckets;
         assert_eq!(buckets.len(), 1);
