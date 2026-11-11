@@ -1,7 +1,7 @@
 //! Apply cached rate limits and zero quotas before processing envelope payloads.
 
 use crate::envelope::{
-    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemType, Items,
+    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemType,
 };
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
@@ -36,15 +36,7 @@ pub fn enforce_rate_limits(
             records.lenient(DataCategory::Span);
             records.lenient(DataCategory::SpanIndexed);
         }
-        let (items, rate_limits) = filter(
-            envelope.replace_items(Items::new()),
-            &scoping,
-            cached,
-            quotas,
-            records,
-        );
-        envelope.replace_items(items);
-        client_rate_limits = rate_limits;
+        client_rate_limits = filter(envelope, &scoping, cached, quotas, records);
     });
     client_rate_limits
 }
@@ -353,21 +345,21 @@ fn resolve_limits(
 }
 
 fn filter(
-    mut items: Items,
+    envelope: &mut Envelope,
     scoping: &Scoping,
     cached: &RateLimits,
     quotas: &[Quota],
     records: &mut RecordKeeper<'_>,
-) -> (Items, RateLimits) {
-    let summary = EnvelopeSummary::compute_items(&items);
+) -> RateLimits {
+    let summary = EnvelopeSummary::compute(envelope);
     let (mut enforcement, client_rate_limits) = resolve_limits(summary, scoping, cached, quotas);
     if !enforcement.has_rejections() {
-        return (items, client_rate_limits);
+        return client_rate_limits;
     }
     if let Some(sessions) = enforcement.sessions.as_mut() {
         sessions.silence();
     }
-    items.retain(|item| {
+    envelope.retain_items(|item| {
         let event = enforcement.event.as_mut();
         let action = match item.ty() {
             ItemType::Event
@@ -441,7 +433,7 @@ fn filter(
         apply_retention(action, item)
     });
     enforcement.flush(records);
-    (items, client_rate_limits)
+    client_rate_limits
 }
 
 // Missing span counts require scanning the payload, so only call this on rejection.
