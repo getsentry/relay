@@ -3,6 +3,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
+use std::time::Duration;
 use tokio::sync::watch;
 use tokio::time::{Instant, timeout};
 
@@ -186,33 +187,48 @@ impl HealthCheckService {
 
         Status::from_iter([sys_mem, auth, agg, proj])
     }
+
+    async fn update_readiness(
+        mut self,
+        update_tx: watch::Sender<StatusUpdate>,
+        check_interval: Duration,
+        is_shutting_down: impl Fn() -> bool,
+    ) {
+        while !is_shutting_down() {
+            tokio::select! {
+                // Stop even when a probe or the refresh interval is still pending.
+                _ = update_tx.closed() => break,
+                _ = async {
+                    let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
+                        timer(RelayTimers::HealthCheckDuration),
+                        type = "readiness",
+                        { self.check_readiness().await }
+                    )));
+
+                    tokio::time::sleep(check_interval).await;
+                } => {}
+            }
+        }
+
+        // Shutdown marks readiness health check as unhealthy.
+        update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
+    }
 }
 
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let config = self.config.current();
         let check_interval = config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + config.health_probe_timeout()).mul_f64(1.1);
 
-        relay_system::spawn!(async move {
+        let update_task = relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
-
-            while shutdown.get().is_none() {
-                let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
-                    timer(RelayTimers::HealthCheckDuration),
-                    type = "readiness",
-                    { self.check_readiness().await }
-                )));
-
-                tokio::time::sleep(check_interval).await;
-            }
-
-            // Shutdown marks readiness health check as unhealthy.
-            update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
+            self.update_readiness(update_tx, check_interval, || shutdown.get().is_some())
+                .await;
         });
 
         while let Some(HealthCheck(message, sender)) = rx.recv().await {
@@ -226,12 +242,131 @@ impl Service for HealthCheckService {
                 update.status
             });
         }
+
+        drop(update_rx);
+        let _ = update_task.await;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use relay_system::TokioServiceSpawn;
+
+    use crate::MemoryStat;
+    use crate::services::global_config;
+    use crate::services::projects::cache::ProjectCacheHandle;
+
     use super::*;
+
+    fn dummy_service(upstream: Addr<UpstreamRelay>) -> HealthCheckService {
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "health": { "max_memory_percent": 2.0 }
+            }))
+            .unwrap(),
+        );
+        assert!(config.current().requires_auth());
+        let memory_stat = MemoryStat::default();
+        let (_, global_config_rx) = watch::channel(global_config::Status::Pending);
+        let buffer = PartitionedEnvelopeBuffer::create(
+            1.try_into().unwrap(),
+            config.clone(),
+            memory_stat.clone(),
+            global_config_rx,
+            ProjectCacheHandle::for_test(),
+            Addr::dummy(),
+            Addr::dummy(),
+            &TokioServiceSpawn,
+        );
+        HealthCheckService::new(
+            config.clone(),
+            MemoryChecker::new(memory_stat, config),
+            None,
+            upstream,
+            buffer,
+        )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close_joins_readiness_task() {
+        let (upstream, mut upstream_rx) = Addr::custom();
+        let service = dummy_service(upstream);
+        let buffer = Arc::downgrade(&service.envelope_buffer);
+        let (addr, rx) = relay_system::channel(HealthCheckService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        // Queued requests must still receive responses before the worker is joined.
+        let response = addr.send(IsHealthy::Liveness);
+        drop(addr);
+        run.await;
+        assert!(matches!(response.await.unwrap(), Status::Healthy));
+        assert!(buffer.upgrade().is_none());
+        while upstream_rx.recv().await.is_some() {}
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_readiness_task_stops_during_probe_or_sleep() {
+        for finish_probe in [false, true] {
+            let (upstream, mut upstream_rx) = Addr::custom();
+            let service = dummy_service(upstream);
+            let buffer = Arc::downgrade(&service.envelope_buffer);
+            let interval = service.config.current().health_refresh_interval();
+            let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
+            // Use a local shutdown predicate because other tests signal the global controller.
+            let mut run = std::pin::pin!(service.update_readiness(update_tx, interval, || false));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            let UpstreamRelay::IsAuthenticated(_, sender) = upstream_rx.recv().await.unwrap()
+            else {
+                panic!("expected an authentication probe");
+            };
+            let mut response = Some(sender);
+            if finish_probe {
+                response.take().unwrap().send(true);
+                assert!(futures::poll!(&mut run).is_pending());
+                assert!(matches!(update_rx.borrow().status, Status::Healthy));
+            }
+
+            // Closing the channel must cancel either pending work without advancing time.
+            drop(update_rx);
+            assert!(futures::poll!(&mut run).is_ready());
+            assert!(buffer.upgrade().is_none());
+            assert!(upstream_rx.recv().await.is_none());
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_marks_readiness_unhealthy() {
+        let (upstream, mut upstream_rx) = Addr::custom();
+        let service = dummy_service(upstream);
+        let interval = service.config.current().health_refresh_interval();
+        let (update_tx, mut update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
+        let shutdown = AtomicBool::new(false);
+        let mut run = std::pin::pin!(
+            service.update_readiness(update_tx, interval, || { shutdown.load(Ordering::Relaxed) })
+        );
+        assert!(futures::poll!(&mut run).is_pending());
+
+        let UpstreamRelay::IsAuthenticated(_, sender) = upstream_rx.recv().await.unwrap() else {
+            panic!("expected an authentication probe");
+        };
+        sender.send(true);
+        assert!(futures::poll!(&mut run).is_pending());
+        assert!(matches!(
+            update_rx.borrow_and_update().status,
+            Status::Healthy
+        ));
+
+        shutdown.store(true, Ordering::Relaxed);
+        tokio::time::advance(interval).await;
+        assert!(futures::poll!(&mut run).is_ready());
+        update_rx.changed().await.unwrap();
+        assert!(matches!(update_rx.borrow().status, Status::Unhealthy));
+        assert!(upstream_rx.recv().await.is_none());
+    }
 
     #[test]
     fn test_status() {

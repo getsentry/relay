@@ -379,10 +379,11 @@ impl Service for GlobalConfigService {
 
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                Some(message) = rx.recv() => self.handle_message(message),
+                message = rx.recv() => match message {
+                    Some(message) => self.handle_message(message),
+                    None => break,
+                },
                 _ = shutdown_handle.notified() => self.handle_shutdown(),
-
-                else => break,
             }
         }
         relay_log::info!("global config service stopped");
@@ -398,7 +399,53 @@ mod tests {
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
 
-    use crate::services::global_config::{Get, GlobalConfigService};
+    use crate::services::global_config::{Get, GetGlobalConfigResponse, GlobalConfigService};
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode": RelayMode::Proxy
+            }
+        }))
+        .unwrap();
+        let (service, mut config_rx) =
+            GlobalConfigService::new(Arc::new(config), relay_system::Addr::dummy());
+        let (addr, rx) = relay_system::channel(GlobalConfigService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+        assert!(config_rx.borrow_and_update().is_ready());
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+        assert!(config_rx.changed().await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_fetch_schedule_respects_shutdown() {
+        let config = Arc::new(Config::default());
+        let fetch_interval = config.current().global_config_fetch_interval();
+        let (mut service, _) = GlobalConfigService::new(config, relay_system::Addr::dummy());
+        let response = || {
+            Ok(Ok(GetGlobalConfigResponse {
+                global: Some(Default::default()),
+                global_status: None,
+            }))
+        };
+
+        // An upstream result must schedule another fetch while the service is running.
+        service.handle_result(response());
+        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
+        tokio::time::advance(fetch_interval).await;
+        assert!(futures::poll!(&mut service.fetch_handle).is_ready());
+
+        // Shutdown cancels scheduled fetches and prevents late results from rearming them.
+        service.handle_result(response());
+        service.handle_shutdown();
+        service.handle_result(response());
+        tokio::time::advance(fetch_interval).await;
+        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
+    }
 
     /// Tests that the service can still handle requests after sending a
     /// shutdown signal.
