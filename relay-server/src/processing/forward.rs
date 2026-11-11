@@ -79,7 +79,7 @@ pub trait Forward {
         ctx: ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
 
-    /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
+    /// Serializes the output into a [`crate::services::store::Store`] compatible format.
     ///
     /// This function must only be called when Relay is configured to be in processing mode.
     #[cfg(feature = "processing")]
