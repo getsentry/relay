@@ -676,7 +676,8 @@ impl Service for EnvelopeBufferService {
         }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
-        loop {
+        let mut expects_input = true;
+        while expects_input || !buffer.is_empty() {
             relay_statsd::metric!(
                 counter(RelayCounters::BufferServiceLoopIteration) += 1,
                 partition_id = &partition_tag
@@ -715,9 +716,18 @@ impl Service for EnvelopeBufferService {
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                 }
-                Some(message) = rx.recv() => {
-                    Self::handle_message(&mut buffer, message, &services).await;
-                        sleep = Duration::ZERO;
+                message = rx.recv(), if expects_input => {
+                    match message {
+                        Some(message) => Self::handle_message(&mut buffer, message, &services).await,
+                        None => {
+                            expects_input = false;
+                            // Flush persistent buffers; otherwise keep draining until empty.
+                            if buffer.shutdown().await {
+                                break;
+                            }
+                        }
+                    }
+                    sleep = Duration::ZERO;
                 }
                 shutdown = shutdown.notified() => {
                     // In case the shutdown was handled, we break out of the loop signaling that
@@ -921,6 +931,112 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            envelope_processor_rx: _envelope_processor_rx,
+            project_cache_handle: _project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(None, global_config::Status::Pending);
+        let (addr, rx) = relay_system::channel(EnvelopeBufferService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close_waits_for_configs() {
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx,
+            mut envelope_processor_rx,
+            project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(None, global_config::Status::Pending);
+        let (addr, rx) = relay_system::channel(EnvelopeBufferService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        let envelope = new_managed_envelope(false, "foo");
+        let event_id = envelope.envelope().event_id();
+        let project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Pending);
+        addr.send(EnvelopeBuffer::Push(envelope));
+        drop(addr);
+
+        // Closing the input must preserve pending envelopes and let the service yield.
+        assert!(futures::poll!(&mut run).is_pending());
+        assert!(envelope_processor_rx.try_recv().is_err());
+
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+        assert!(futures::poll!(&mut run).is_pending());
+        assert!(envelope_processor_rx.try_recv().is_err());
+
+        project_cache_handle.test_set_project_state(
+            project_key,
+            ProjectState::Enabled(Arc::new(ProjectInfo::default())),
+        );
+        assert!(futures::poll!(&mut run).is_ready());
+
+        let EnvelopeProcessor::ProcessEnvelope(message) = envelope_processor_rx.try_recv().unwrap()
+        else {
+            panic!("expected envelope processing");
+        };
+        assert_eq!(message.envelope.envelope().event_id(), event_id);
+        assert!(envelope_processor_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_on_channel_close_persists_envelopes() {
+        let directory = tempfile::tempdir().unwrap();
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            mut envelope_processor_rx,
+            project_cache_handle: _project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(
+            Some(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "path": directory.path().join("spool.sqlite"),
+                        "ephemeral": false,
+                    }
+                }
+            })),
+            global_config::Status::Pending,
+        );
+        let config = service.config.clone();
+        let (addr, rx) = relay_system::channel(EnvelopeBufferService::name());
+        let envelope = new_managed_envelope(false, "foo");
+        let event_id = envelope.envelope().event_id();
+        addr.send(EnvelopeBuffer::Push(envelope));
+        drop(addr);
+
+        timeout(Duration::from_secs(5), service.run(rx))
+            .await
+            .expect("persistent buffer should flush and stop");
+        assert!(envelope_processor_rx.try_recv().is_err());
+
+        let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+            0,
+            &config.current(),
+            MemoryChecker::new(MemoryStat::default(), config.clone()),
+            Arc::new(Throttle::new(None)),
+        )
+        .await
+        .unwrap();
+        buffer.initialize().await;
+        assert_eq!(buffer.pop().await.unwrap().unwrap().event_id(), event_id);
+        assert!(buffer.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn capacity_is_updated() {
         let EnvelopeBufferServiceResult {
             service,
@@ -932,7 +1048,10 @@ mod tests {
 
         service.metrics.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&TokioServiceSpawn);
+        let ObservableEnvelopeBuffer {
+            metrics,
+            addr: _addr,
+        } = service.start_in(&TokioServiceSpawn);
         assert!(!metrics.has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
