@@ -15,7 +15,7 @@ futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
 
-relay-log = { workspace = true }
+relay-log = { workspace = true, features = ["sentry"] }
 relay-system = { workspace = true }
 
 [dev-dependencies]
