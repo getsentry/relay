@@ -332,7 +332,13 @@ impl Service for AggregatorService {
                         self.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
-                Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),
+                signal = rx.recv() => match signal {
+                    Some(message) => timed!(message.variant(), self.handle_message(message)),
+                    None => {
+                        timed!("shutdown", self.handle_shutdown());
+                        break;
+                    },
+                },
                 _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
 
                 else => break,
@@ -485,6 +491,43 @@ mod tests {
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(timestamp),
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_cache = ProjectCacheHandle::for_test();
+        project_cache.test_set_project_state(
+            project_key,
+            ProjectState::Enabled(Arc::new(ProjectInfo {
+                project_id: Some(ProjectId::new(3)),
+                organization_id: Some(OrganizationId::new(1)),
+                ..Default::default()
+            })),
+        );
+        let (recipient, mut recipient_rx) = relay_system::Addr::<TestInterface>::custom();
+        let service = AggregatorService::new(
+            "test".to_owned(),
+            AggregatorServiceConfig::default(),
+            Some(recipient.recipient()),
+            project_cache,
+        );
+        let (addr, rx) = relay_system::channel(AggregatorService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        let mut bucket = some_bucket();
+        bucket.timestamp = UnixTimestamp::now();
+        addr.send(MergeBuckets::new(project_key, vec![bucket]));
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+        let TestInterface(flush) = recipient_rx.try_recv().unwrap();
+        let buckets = &flush.buckets[&project_key].buckets;
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(&*buckets[0].name, "c:transactions/foo");
+        assert_eq!(buckets[0].value, BucketValue::counter(42.into()));
+        assert!(recipient_rx.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]

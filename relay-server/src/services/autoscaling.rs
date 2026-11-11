@@ -56,7 +56,10 @@ impl Service for AutoscalingMetricService {
                 _ = shutdown.notified() => {
                     self.up = 0;
                 },
-                Some(message) = rx.recv() => {
+                signal = rx.recv() => {
+                    let Some(message) = signal else {
+                        break;
+                    };
                     match message {
                         AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
@@ -172,5 +175,55 @@ impl ServiceUtilization {
             instance_id,
             utilization,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_config::Config;
+    use relay_system::Addr;
+
+    use crate::services::global_config;
+    use crate::services::projects::cache::ProjectCacheHandle;
+
+    use super::*;
+
+    fn dummy_service(handle: &Handle) -> AutoscalingMetricService {
+        let config = Arc::new(Config::default());
+        let memory_stat = MemoryStat::default();
+        let (_, global_config_rx) = tokio::sync::watch::channel(global_config::Status::Pending);
+        let buffer = PartitionedEnvelopeBuffer::create(
+            1.try_into().unwrap(),
+            config,
+            memory_stat.clone(),
+            global_config_rx,
+            ProjectCacheHandle::for_test(),
+            Addr::dummy(),
+            Addr::dummy(),
+            handle,
+        );
+        let pool = relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
+            .build()
+            .unwrap();
+        AutoscalingMetricService::new(memory_stat, buffer, handle.clone(), pool)
+    }
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        let runtime = relay_system::Runtime::builder("autoscaling-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let service = dummy_service(runtime.handle());
+            let (addr, rx) = relay_system::channel(AutoscalingMetricService::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            let response = addr.send(AutoscalingMessageKind::Check);
+            drop(addr);
+            assert!(futures::poll!(&mut run).is_ready());
+            assert!(response.await.is_ok());
+        });
     }
 }
