@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <a href=#29 id=29 data-nosnippet>29</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">use </span><span class="kw">crate</span>::services::store::{StoreService, StoreServicePool, create_kafka_client};
+<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">use </span><span class="kw">crate</span>::services::store::{<span class="self">self</span>, create_kafka_client};
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span><span class="kw">crate</span>::services::upload::{<span class="self">self</span>, Upload};
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -127,7 +127,7 @@
 <a href=#127 id=127 data-nosnippet>127</a>}
 <a href=#128 id=128 data-nosnippet>128</a>
 <a href=#129 id=129 data-nosnippet>129</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#130 id=130 data-nosnippet>130</a></span><span class="kw">fn </span>create_store_pool(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; <span class="prelude-ty">Result</span>&lt;StoreServicePool&gt; {
+<a href=#130 id=130 data-nosnippet>130</a></span><span class="kw">fn </span>create_store_pool(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; <span class="prelude-ty">Result</span>&lt;ServicePool&gt; {
 <a href=#131 id=131 data-nosnippet>131</a>    <span class="comment">// Spawn a store worker for every 12 threads in the processor pool.
 <a href=#132 id=132 data-nosnippet>132</a>    // This ratio was found empirically and may need adjustments in the future.
 <a href=#133 id=133 data-nosnippet>133</a>    //
@@ -257,14 +257,14 @@
 <a href=#257 id=257 data-nosnippet>257</a>            .then(|| {
 <a href=#258 id=258 data-nosnippet>258</a>                <span class="kw">let </span>kafka_client = create_kafka_client(<span class="kw-2">&amp;</span>current_config)<span class="question-mark">?</span>;
 <a href=#259 id=259 data-nosnippet>259</a>                maybe_kafka_client = <span class="prelude-val">Some</span>(kafka_client.clone());
-<a href=#260 id=260 data-nosnippet>260</a>                StoreService::create(
+<a href=#260 id=260 data-nosnippet>260</a>                <span class="kw">let </span>service = store::create_service(
 <a href=#261 id=261 data-nosnippet>261</a>                    store_pool.clone(),
 <a href=#262 id=262 data-nosnippet>262</a>                    kafka_client.clone(),
 <a href=#263 id=263 data-nosnippet>263</a>                    config.clone(),
 <a href=#264 id=264 data-nosnippet>264</a>                    global_config_handle.clone(),
 <a href=#265 id=265 data-nosnippet>265</a>                    metric_outcomes.clone(),
-<a href=#266 id=266 data-nosnippet>266</a>                )
-<a href=#267 id=267 data-nosnippet>267</a>                .map(|s| services.start(s))
+<a href=#266 id=266 data-nosnippet>266</a>                );
+<a href=#267 id=267 data-nosnippet>267</a>                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, anyhow::Error&gt;(services.start(service))
 <a href=#268 id=268 data-nosnippet>268</a>            })
 <a href=#269 id=269 data-nosnippet>269</a>            .transpose()<span class="question-mark">?</span>;
 <a href=#270 id=270 data-nosnippet>270</a>
@@ -360,7 +360,7 @@
 <a href=#360 id=360 data-nosnippet>360</a>                    </span><span class="kw">let </span>outcome_store = {
 <a href=#361 id=361 data-nosnippet>361</a>                        <span class="kw">if </span>current_config.processing_enabled() {
 <a href=#362 id=362 data-nosnippet>362</a>                            <span class="kw">let </span>(addr, rx) = channel(<span class="string">"outcome_store"</span>);
-<a href=#363 id=363 data-nosnippet>363</a>                            <span class="kw">let </span>service = StoreService::create(
+<a href=#363 id=363 data-nosnippet>363</a>                            <span class="kw">let </span>service = store::create_service(
 <a href=#364 id=364 data-nosnippet>364</a>                                store_pool.clone(),
 <a href=#365 id=365 data-nosnippet>365</a>                                maybe_kafka_client
 <a href=#366 id=366 data-nosnippet>366</a>                                    .clone()
@@ -368,7 +368,7 @@
 <a href=#368 id=368 data-nosnippet>368</a>                                config.clone(),
 <a href=#369 id=369 data-nosnippet>369</a>                                global_config_handle.clone(),
 <a href=#370 id=370 data-nosnippet>370</a>                                MetricOutcomes::new(dummy_outcomes.clone()),
-<a href=#371 id=371 data-nosnippet>371</a>                            )<span class="question-mark">?</span>;
+<a href=#371 id=371 data-nosnippet>371</a>                            );
 <a href=#372 id=372 data-nosnippet>372</a>                            services.start_with(service, rx);
 <a href=#373 id=373 data-nosnippet>373</a>                            <span class="prelude-val">Some</span>(addr)
 <a href=#374 id=374 data-nosnippet>374</a>                        } <span class="kw">else </span>{
