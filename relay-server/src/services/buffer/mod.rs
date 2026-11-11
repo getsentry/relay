@@ -726,6 +726,8 @@ impl Service for EnvelopeBufferService {
                         None => {
                             expects_input = false;
                             // Flush persistent buffers; otherwise keep draining until empty.
+                            // We do not call the full `Self::handle_shutdown` here because we do
+                            // not have a timeout.
                             if buffer.shutdown().await.is_break() {
                                 break;
                             }

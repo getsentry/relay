@@ -379,9 +379,9 @@ impl Service for GlobalConfigService {
 
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                message = rx.recv() => match message {
+                signal = rx.recv() => match signal {
                     Some(message) => self.handle_message(message),
-                    None => break,
+                    None => break, // all requests have been answered, stop immediately.
                 },
                 _ = shutdown_handle.notified() => self.handle_shutdown(),
             }
