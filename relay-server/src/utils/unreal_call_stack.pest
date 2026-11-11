@@ -30,7 +30,7 @@ lineno = @{ ASCII_DIGIT{1, 19} }
 
 // The portable `PCallStack`: frames written as `Module 0xImageBase + Offset`, separated by
 // whitespace. Older versions omit the module. Module names can contain whitespace and `+`.
-// The engine cuts off long call stacks, so anything after the last full frame is `truncated`.
+// If some part of the input is not a frame, everything from there to the end is `truncated`.
 portable_call_stack = { SOI ~ WS* ~ (portable_frame ~ WS*)* ~ truncated? ~ EOI }
 truncated = { ANY+ }
 

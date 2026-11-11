@@ -29,6 +29,12 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 /// Maximum number of stack frames taken from the call stacks in the Unreal crash context.
 const MAX_NUM_UNREAL_FRAMES: usize = 256;
 
+/// Image base that older engine versions write for frames whose module was not found.
+///
+/// Unreal Engine 4.20 and 4.21 use `MAX_uint64` as the image base and offset of such frames and
+/// print them with a 32-bit format, as `0x00000000ffffffff + ffffffff`.
+const UNKNOWN_IMAGE_BASE: u64 = 0xffff_ffff;
+
 /// Client SDK name used for the event payload to identify the UE4 crash reporter.
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
@@ -443,7 +449,10 @@ fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>>
         }
         match frame.as_rule() {
             Rule::portable_frame => {}
-            // Frames after the limit are ignored, so they may be cut off.
+            // Addresses are paired with the `CallStack` frames by position, so a call stack that
+            // does not parse to the end is not used at all; the `CallStack` frames are then kept
+            // without addresses. This is not reached past the frame limit, where the rest is
+            // ignored.
             Rule::truncated => return None,
             _ => continue,
         }
@@ -461,7 +470,8 @@ fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>>
         }
 
         let (base, offset) = (base?, offset?);
-        if base == 0xffff_ffff {
+        // The frame has no address, so the call stack cannot be paired by position.
+        if base == UNKNOWN_IMAGE_BASE {
             return None;
         }
 
@@ -480,16 +490,27 @@ fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>>
 /// The legacy call stack can differ in case, replace `-` with `_`, or add a version suffix, like
 /// `libc.so.6` for `libc.so`.
 fn is_same_module(legacy: &str, portable: &str) -> bool {
-    let legacy = legacy.to_ascii_lowercase().replace('-', "_");
-    let portable = portable.to_ascii_lowercase().replace('-', "_");
+    fn normalize(c: u8) -> u8 {
+        match c {
+            b'-' => b'_',
+            c => c.to_ascii_lowercase(),
+        }
+    }
 
-    legacy == portable
-        || legacy
-            .strip_prefix(&portable)
-            .is_some_and(|s| s.starts_with('.'))
-        || portable
-            .strip_prefix(&legacy)
-            .is_some_and(|s| s.starts_with('.'))
+    let (legacy, portable) = (legacy.as_bytes(), portable.as_bytes());
+    let len = legacy.len().min(portable.len());
+
+    let same_prefix = legacy[..len]
+        .iter()
+        .zip(&portable[..len])
+        .all(|(a, b)| normalize(*a) == normalize(*b));
+
+    // The longer module may only continue with a version suffix, like `.6`.
+    same_prefix
+        && legacy
+            .get(len)
+            .or_else(|| portable.get(len))
+            .is_none_or(|c| *c == b'.')
 }
 
 /// Returns whether the engine writes full image bases into the portable call stack.
@@ -691,19 +712,17 @@ pub fn process_unreal(
             )
         });
 
-        let exception = if context_stacktrace && !has_native_crash && event.exceptions.is_empty() {
-            context
+        if context_stacktrace
+            && !has_native_crash
+            && event.exceptions.is_empty()
+            && let Some(exception) = context
                 .runtime_properties
                 .as_ref()
                 .and_then(unreal_exception)
                 // Frames without names can only be symbolicated with debug images. Without
                 // either, the stack trace adds nothing but would still change grouping.
                 .filter(|exception| has_debug_images(event) || has_symbols(exception))
-        } else {
-            None
-        };
-
-        if let Some(exception) = exception {
+        {
             event.exceptions = Annotated::new(Values::new(vec![Annotated::new(exception)]));
             // The frames are native, like those of a minidump.
             *event.platform.value_mut() = Some("native".to_owned());
@@ -1276,15 +1295,21 @@ Game-Linux-Test!UnknownFunction(0x4871028)
             Some(vec![(Some("libstdc++.so"), 0x1010), (Some("Game"), 0x2020)])
         );
 
-        // Placeholder addresses written by older engine versions.
+        // Placeholder for frames without a module, written by older engine versions.
         assert_eq!(addresses("0x00000000ffffffff + ffffffff"), None);
+
+        // Call stacks that do not parse to the end are not used.
         assert_eq!(addresses("Game 0x200000 +"), None);
         assert_eq!(addresses("Game 200000 + 10"), None);
         assert_eq!(addresses("Game 200000 + 10 Game 0x200000 + 10"), None);
+
+        // Frames can be separated by line breaks.
         assert_eq!(
             addresses("Game 0x1000 + 10\r\nlibc.so 0x2000 + 20\r\n"),
             Some(vec![(Some("Game"), 0x1010), (Some("libc.so"), 0x2020)])
         );
+
+        // Addresses that overflow are not used.
         assert_eq!(addresses("Game 0xffffffffffffffff + 1"), None);
     }
 
@@ -1299,6 +1324,11 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         assert!(!is_same_module("UnrealEditor", "UnrealEditor-Core"));
         assert!(!is_same_module("Game", "GameServer"));
         assert!(!is_same_module("libc.so.6", "libm.so"));
+        assert!(is_same_module("", ""));
+        assert!(!is_same_module("", "Game"));
+        assert!(!is_same_module("libc", "libc6"));
+        assert!(is_same_module("Gäme-Core", "gäme_core"));
+        assert!(!is_same_module("Gäme", "GÄME"));
     }
 
     #[test]
@@ -1629,7 +1659,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
             let frames = parse_portable_call_stack(&call_stack).unwrap();
             assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
 
-            // The engine cuts off long call stacks, possibly within a frame.
+            // Input past the frame limit is ignored, even if it ends within a frame.
             let call_stack = format!("{call_stack}Game 0x1000 +");
             let frames = parse_portable_call_stack(&call_stack).unwrap();
             assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
