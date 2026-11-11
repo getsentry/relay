@@ -81,7 +81,7 @@ jobs:
           rustup override set stable
           rustup target add --toolchain stable ${{ matrix.target }}
 
-      - uses: astral-sh/setup-uv@4c58170a945e4e68ce3fc5b7af3d341d9b8c64ef # v6
+      - uses: astral-sh/setup-uv@0a73d6eb01c0201c8fc84847d0f4425b704ad66d # v6
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
@@ -121,7 +121,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: astral-sh/setup-uv@4c58170a945e4e68ce3fc5b7af3d341d9b8c64ef # v6
+      - uses: astral-sh/setup-uv@0a73d6eb01c0201c8fc84847d0f4425b704ad66d # v6
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv

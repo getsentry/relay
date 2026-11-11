@@ -232,7 +232,7 @@ impl relay_system::Service for ProjectCacheService {
                     "completed_fetch",
                     self.handle_completed_fetch(fetch)
                 ),
-                message = rx.recv() => match message {
+                signal = rx.recv() => match signal {
                     Some(message) => timed!(
                         message.variant(),
                         self.handle_message(message)

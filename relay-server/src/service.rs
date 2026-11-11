@@ -149,6 +149,7 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
+    _daemons: Vec<Addr<()>>, // services that receive no messages but need to stay alive.
     _asserter: AssertEmpty<TrackOutcome>,
 }
 
@@ -450,7 +451,7 @@ impl ServiceState {
             envelope_buffer.clone(),
         ));
 
-        services.start(RelayStats::new(
+        let stats = services.start(RelayStats::new(
             config.clone(),
             handle.clone(),
             upstream_relay.clone(),
@@ -473,7 +474,7 @@ impl ServiceState {
             &objectstore,
         ));
 
-        let _ = services.start(ConfigReloadService::new(
+        let config_reload = services.start(ConfigReloadService::new(
             config.clone(),
             #[cfg(feature = "processing")]
             maybe_kafka_client,
@@ -500,6 +501,7 @@ impl ServiceState {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
+            _daemons: vec![stats, config_reload],
             _asserter,
         };
 
