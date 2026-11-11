@@ -495,6 +495,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_shutdown_on_channel_close() {
+        // Start the service with an enabled project and verify it waits for input.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_cache = ProjectCacheHandle::for_test();
         project_cache.test_set_project_state(
@@ -516,12 +517,16 @@ mod tests {
         let mut run = std::pin::pin!(service.run(rx));
         assert!(futures::poll!(&mut run).is_pending());
 
+        // Queue a bucket that needs to be flushed during shutdown.
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
         addr.send(MergeBuckets::new(project_key, vec![bucket]));
 
+        // Closing the input should flush the bucket and stop the service.
         drop(addr);
         assert!(futures::poll!(&mut run).is_ready());
+
+        // Verify that exactly one bucket was delivered.
         let TestInterface(flush) = recipient_rx.try_recv().unwrap();
         let buckets = &flush.buckets[&project_key].buckets;
         assert_eq!(buckets.len(), 1);
