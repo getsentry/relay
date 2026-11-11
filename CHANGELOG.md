@@ -16,7 +16,6 @@
 
 **Bug Fixes**:
 
-- Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 - Correct rate-limit outcome accounting for rejected envelope items, including V1 user reports (`user_report`). ([#6526](https://github.com/getsentry/relay/pull/6526))
 - Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
@@ -26,6 +25,7 @@
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
+- Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 
 **Internal**:
 
