@@ -98,11 +98,8 @@ impl Counted for EnvelopeSummary {
         }
 
         let data = [
-            (DataCategory::Attachment, self.attachment_quantities.bytes()),
-            (
-                DataCategory::AttachmentItem,
-                self.attachment_quantities.count(),
-            ),
+            (DataCategory::Attachment, self.attachment_bytes),
+            (DataCategory::AttachmentItem, self.attachment_count),
             (DataCategory::Profile, self.profile_quantity.total),
             (DataCategory::ProfileBackend, self.profile_quantity.backend),
             (DataCategory::ProfileUi, self.profile_quantity.ui),
