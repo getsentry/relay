@@ -119,6 +119,10 @@ where
             );
         }
     }
+
+    fn name() -> &'static str {
+        S::name() // use inner name
+    }
 }
 
 /// A trait describing what to do with a message that was load-shed.
@@ -163,6 +167,14 @@ mod tests {
         fn handle_loadshed(&self, _message: Incr) {
             self.fail.fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    #[test]
+    fn service_uses_inner_name() {
+        assert_eq!(
+            ConcurrentService::<CountingService>::name(),
+            "relay_system::service::concurrent::tests::CountingService"
+        );
     }
 
     #[tokio::test(start_paused = true)]

@@ -32,6 +32,11 @@ pub trait MessageHandler {
 
     /// The asynchronous message handler for this service.
     fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send;
+
+    /// The name of the message handler.
+    fn name() -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 impl<T: MessageHandler + ?Sized> MessageHandler for Arc<T> {
@@ -39,5 +44,9 @@ impl<T: MessageHandler + ?Sized> MessageHandler for Arc<T> {
 
     fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send {
         self.as_ref().handle_message(message)
+    }
+
+    fn name() -> &'static str {
+        std::any::type_name::<T>() // use inner name
     }
 }
