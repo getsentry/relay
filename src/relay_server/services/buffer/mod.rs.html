@@ -582,7 +582,7 @@
 <a href=#582 id=582 data-nosnippet>582</a>                sampling_project_info,
 <a href=#583 id=583 data-nosnippet>583</a>            } =&gt; {
 <a href=#584 id=584 data-nosnippet>584</a>                <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">pop_envelope!</span>();
-<a href=#585 id=585 data-nosnippet>585</a>                <span class="kw">if </span>own_project.check_envelope(<span class="kw-2">&amp;mut </span>envelope).<span class="kw">await</span>.is_err() || envelope.is_empty() {
+<a href=#585 id=585 data-nosnippet>585</a>                <span class="kw">if </span>own_project.check_envelope(<span class="kw-2">&amp;mut </span>envelope).is_err() || envelope.is_empty() {
 <a href=#586 id=586 data-nosnippet>586</a>                    <span class="comment">// Outcomes are emitted by `check_envelope`.
 <a href=#587 id=587 data-nosnippet>587</a>                    </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#588 id=588 data-nosnippet>588</a>                };
