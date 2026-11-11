@@ -2,6 +2,7 @@
 
 use std::error::Error;
 use std::num::{NonZeroU8, NonZeroU32};
+use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -517,7 +518,10 @@ impl EnvelopeBufferService {
         };
     }
 
-    async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
+    async fn handle_shutdown(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: Shutdown,
+    ) -> ControlFlow<()> {
         // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
             relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
@@ -536,7 +540,7 @@ impl EnvelopeBufferService {
             }
         }
 
-        false
+        ControlFlow::Continue(())
     }
 
     async fn push(
@@ -722,7 +726,7 @@ impl Service for EnvelopeBufferService {
                         None => {
                             expects_input = false;
                             // Flush persistent buffers; otherwise keep draining until empty.
-                            if buffer.shutdown().await {
+                            if buffer.shutdown().await.is_break() {
                                 break;
                             }
                         }
@@ -730,11 +734,10 @@ impl Service for EnvelopeBufferService {
                     sleep = Duration::ZERO;
                 }
                 shutdown = shutdown.notified() => {
-                    // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
+                    // Flushing persistent buffers completes their shutdown.
+                    if Self::handle_shutdown(&mut buffer, shutdown).await.is_break() {
+                        break;
+                    }
                 }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
