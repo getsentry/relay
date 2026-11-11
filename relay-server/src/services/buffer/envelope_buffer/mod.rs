@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -191,18 +192,18 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
-    pub async fn shutdown(&mut self) -> bool {
-        // Currently, we want to flush the buffer only for disk, since the in memory implementation
-        // tries to not do anything and pop as many elements as possible within the shutdown
-        // timeout.
+    ///
+    /// - In persistent disk mode, flush everything to disk and shut down.
+    /// - Otherwise, continue draining envelopes to the processor.
+    pub async fn shutdown(&mut self) -> ControlFlow<()> {
         match self {
             Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
                 buffer.flush().await;
-                true
+                ControlFlow::Break(())
             }
-            _ => {
+            Self::InMemory(_) | Self::Sqlite(_) => {
                 relay_log::trace!("shutdown procedure not needed");
-                false
+                ControlFlow::Continue(())
             }
         }
     }
