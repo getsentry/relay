@@ -105,100 +105,6 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
     rate_limits
 }
 
-/// Whether an attachment creates an event or is a plain attachment.
-///
-/// Summary construction and early retention must use the same classification.
-pub enum AttachmentRole {
-    CreatesEvent,
-    Plain,
-}
-
-impl AttachmentRole {
-    /// Classifies attachment types exhaustively, including an absent or unknown subtype.
-    pub fn from_type(attachment_type: Option<AttachmentType>) -> Self {
-        match attachment_type {
-            Some(
-                AttachmentType::AppleCrashReport
-                | AttachmentType::Minidump
-                | AttachmentType::EventPayload
-                | AttachmentType::Prosperodump
-                | AttachmentType::Breadcrumbs
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NintendoSwitchDyingMessage,
-            ) => Self::CreatesEvent,
-            Some(
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs
-                | AttachmentType::ViewHierarchy
-                | AttachmentType::Flamegraph
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            )
-            | None => Self::Plain,
-        }
-    }
-}
-
-/// Items that create the envelope's event, including crash attachments and their parent types.
-///
-/// Plain attachments do not affect this group. The first creator that survives attachment limits
-/// determines the event category, even if a removable crash attachment precedes it. If only
-/// span-parent and trace-parent crash attachments create the error, reject it only when all
-/// such attachments are removed. Use the rejection reason from the parent group whose first
-/// crash attachment appeared earliest in the envelope.
-#[derive(Clone, Copy, Debug, Default)]
-pub enum EventSource {
-    /// No item creates an event; associated items can still arrive separately.
-    #[default]
-    Absent,
-    /// A direct event or required event-parent attachment survives attachment limits.
-    /// The first such item determines the event category.
-    SurvivesAttachmentLimits(DataCategory),
-    /// Only span-parent crash attachments create the error event.
-    ErrorFromSpanAttachments,
-    /// Only trace-parent crash attachments create the error event.
-    ErrorFromTraceAttachments,
-    /// Both span-parent and trace-parent crash attachments create the error.
-    /// A span-parent crash attachment appears first, determining the rejection reason.
-    ErrorFromSpanAndTraceAttachmentsSpanFirst,
-    /// Both span-parent and trace-parent crash attachments create the error.
-    /// A trace-parent crash attachment appears first, determining the rejection reason.
-    ErrorFromSpanAndTraceAttachmentsTraceFirst,
-}
-
-impl EventSource {
-    /// Returns the category of the event, counted once per envelope.
-    pub fn category(self) -> Option<DataCategory> {
-        match self {
-            Self::Absent => None,
-            Self::SurvivesAttachmentLimits(category) => Some(category),
-            Self::ErrorFromSpanAttachments
-            | Self::ErrorFromTraceAttachments
-            | Self::ErrorFromSpanAndTraceAttachmentsSpanFirst
-            | Self::ErrorFromSpanAndTraceAttachmentsTraceFirst => Some(DataCategory::Error),
-        }
-    }
-
-    fn add_event_creator(&mut self, category: DataCategory, parent: AttachmentParentType) {
-        *self = match (*self, parent) {
-            (Self::SurvivesAttachmentLimits(_), _) => return,
-            // A removable crash attachment must not determine the category of a surviving
-            // direct event. Otherwise removing it changes the category during accounting.
-            (_, AttachmentParentType::Event) => Self::SurvivesAttachmentLimits(category),
-            (Self::Absent, AttachmentParentType::Span) => Self::ErrorFromSpanAttachments,
-            (Self::Absent, AttachmentParentType::Trace) => Self::ErrorFromTraceAttachments,
-            (Self::ErrorFromSpanAttachments, AttachmentParentType::Trace) => {
-                Self::ErrorFromSpanAndTraceAttachmentsSpanFirst
-            }
-            (Self::ErrorFromTraceAttachments, AttachmentParentType::Span) => {
-                Self::ErrorFromSpanAndTraceAttachmentsTraceFirst
-            }
-            _ => return,
-        };
-    }
-}
-
 /// Collection of all transaction profile quantities.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProfileQuantities {
@@ -218,8 +124,8 @@ pub struct ProfileQuantities {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnvelopeSummary {
-    /// The event category and attachment dependencies of the event-creating items.
-    pub event: EventSource,
+    /// The category of the first event creator, counted once per envelope.
+    pub event_category: Option<DataCategory>,
 
     /// Total attachment storage across all parent types.
     pub attachment_bytes: usize,
@@ -317,7 +223,7 @@ impl EnvelopeSummary {
                 summary.payload_size += item.len();
             }
 
-            // Already-limited items and Nintendo attachments have no individual quantities here.
+            // Already-limited items and event-parent Nintendo attachments have no individual quantities here.
             // Event-creating items still count toward the event; metrics still advertise client limits.
             let attachment_type = if *item.ty() == ItemType::Attachment {
                 item.attachment_type()
@@ -325,7 +231,8 @@ impl EnvelopeSummary {
                 None
             };
             let count_individual = !rate_limited
-                && attachment_type != Some(AttachmentType::NintendoSwitchDyingMessage);
+                && !(attachment_type == Some(AttachmentType::NintendoSwitchDyingMessage)
+                    && matches!(item.attachment_parent_type(), AttachmentParentType::Event));
             let count = if count_individual {
                 item.item_count().unwrap_or(1) as usize
             } else {
@@ -333,15 +240,17 @@ impl EnvelopeSummary {
             };
 
             match item.ty() {
-                ItemType::Event | ItemType::UnrealReport => summary
-                    .event
-                    .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
-                ItemType::Security | ItemType::RawSecurity => summary
-                    .event
-                    .add_event_creator(DataCategory::Security, AttachmentParentType::Event),
-                ItemType::UserReportV2 => summary
-                    .event
-                    .add_event_creator(DataCategory::UserReportV2, AttachmentParentType::Event),
+                ItemType::Event | ItemType::UnrealReport => {
+                    summary.event_category.get_or_insert(DataCategory::Error);
+                }
+                ItemType::Security | ItemType::RawSecurity => {
+                    summary.event_category.get_or_insert(DataCategory::Security);
+                }
+                ItemType::UserReportV2 => {
+                    summary
+                        .event_category
+                        .get_or_insert(DataCategory::UserReportV2);
+                }
                 ItemType::UserReport => {
                     summary.user_report_quantity += usize::from(!rate_limited);
                     summary.has_user_reports |= count_individual;
@@ -368,8 +277,8 @@ impl EnvelopeSummary {
                 }
                 ItemType::Transaction => {
                     summary
-                        .event
-                        .add_event_creator(DataCategory::Transaction, AttachmentParentType::Event);
+                        .event_category
+                        .get_or_insert(DataCategory::Transaction);
                     if count_individual {
                         summary.span_quantity += 1 + item.span_count().unwrap_or(0) as usize;
                     }
@@ -388,9 +297,9 @@ impl EnvelopeSummary {
                     None => {}
                 },
                 ItemType::Integration => match item.content_type() {
-                    Some(ContentType::Integration(Integration::Errors(_))) => summary
-                        .event
-                        .add_event_creator(DataCategory::Error, AttachmentParentType::Event),
+                    Some(ContentType::Integration(Integration::Errors(_))) => {
+                        summary.event_category.get_or_insert(DataCategory::Error);
+                    }
                     Some(ContentType::Integration(Integration::Spans(_))) => {
                         summary.span_quantity += count;
                     }
@@ -413,11 +322,10 @@ impl EnvelopeSummary {
                             AttachmentParentType::Trace => summary.has_trace_attachments = true,
                         }
                     }
-                    match AttachmentRole::from_type(attachment_type) {
-                        AttachmentRole::CreatesEvent => {
-                            summary.event.add_event_creator(DataCategory::Error, parent);
-                        }
-                        AttachmentRole::Plain => summary.has_plain_attachments = true,
+                    if item.creates_event() {
+                        summary.event_category.get_or_insert(DataCategory::Error);
+                    } else {
+                        summary.has_plain_attachments = true;
                     }
                 }
             }

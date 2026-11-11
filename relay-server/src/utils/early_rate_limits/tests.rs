@@ -322,93 +322,52 @@ fn test_event_rejection_preserves_independent_items() {
 }
 
 #[test]
-fn test_surviving_event_creator_keeps_associated_items() {
-    for parents in [
-        [Some(ParentId::SpanId(None)), None],
-        [None, Some(ParentId::SpanId(None))],
+fn test_span_and_trace_crash_attachments_do_not_create_events() {
+    for attachment_type in [
+        AttachmentType::Minidump,
+        AttachmentType::AppleCrashReport,
+        AttachmentType::EventPayload,
+        AttachmentType::Prosperodump,
+        AttachmentType::Breadcrumbs,
+        AttachmentType::NvGpuDump,
+        AttachmentType::NintendoSwitchDyingMessage,
     ] {
-        let mut envelope = envelope![UserReport];
-        for parent in parents {
-            let mut item = trace_attachment_item(10, parent);
-            item.set_attachment_type(AttachmentType::Minidump);
-            envelope.add_item(item);
+        for parent in [Some(ParentId::SpanId(None)), None] {
+            let mut attachment = trace_attachment_item(10, parent);
+            attachment.set_attachment_type(attachment_type);
+            assert!(!attachment.creates_event());
+
+            let mut original = envelope![UserReport, FormData, Session, Profile];
+            original.add_item(attachment);
+            assert_eq!(EnvelopeSummary::compute(&original).event_category, None);
+
+            for denied in [
+                DataCategory::Error,
+                DataCategory::Attachment,
+                DataCategory::AttachmentItem,
+            ] {
+                let (kept, limits, outcomes) =
+                    enforce_and_apply(cached_limits(&[denied]), original.clone());
+                let attachment_limited = denied != DataCategory::Error;
+                assert_eq!(kept.len(), if attachment_limited { 4 } else { 5 });
+                assert!(limits.is_empty());
+                let expected = if attachment_limited {
+                    BTreeMap::from([
+                        (DataCategory::Attachment, 10),
+                        (DataCategory::AttachmentItem, 1),
+                    ])
+                } else {
+                    BTreeMap::new()
+                };
+                assert_eq!(outcomes, expected);
+            }
         }
-        envelope.add_item(Item::new(ItemType::Session));
-
-        // The span limit removes only the minidump attached to the span. The minidump
-        // attached to the trace still creates an event, so the user report stays in
-        // either item order.
-        let (envelope, _, outcomes) =
-            enforce_and_apply(cached_limits(&[DataCategory::Span]), envelope);
-        assert_eq!(
-            envelope.items().map(Item::ty).collect::<Vec<_>>(),
-            [
-                &ItemType::UserReport,
-                &ItemType::Attachment,
-                &ItemType::Session
-            ],
-        );
-        assert!(matches!(
-            envelope.items().nth(1).unwrap().attachment_parent_type(),
-            AttachmentParentType::Trace,
-        ));
-        assert_eq!(
-            outcomes,
-            BTreeMap::from([
-                (DataCategory::Attachment, 10),
-                (DataCategory::AttachmentItem, 1),
-            ]),
-        );
     }
-}
-
-#[test]
-fn test_last_event_contributor_rejects_associated_items() {
-    // An attachment quota removes this minidump attached to a trace. Without another
-    // item that creates an event, the user report, form data, and profiles must also
-    // be dropped. The session stays.
-    let mut envelope = envelope![UserReport, Attachment::Minidump, FormData, Session, Profile];
-    envelope
-        .items_mut()
-        .nth(1)
-        .unwrap()
-        .set_payload(ContentType::TraceAttachment, "0123456789");
-    for platform in ["python", "cocoa"] {
-        let mut profile = Item::new(ItemType::Profile);
-        profile.set_platform(platform.into());
-        envelope.add_item(profile);
-    }
-    let mut cached = cached_limits(&[DataCategory::Attachment]);
-    let mut profile_limit = rate_limit(DataCategory::Profile);
-    profile_limit.reason_code = Some(ReasonCode::new("profile"));
-    cached.add(profile_limit);
-    // This helper also checks that every outcome uses the attachment rejection's reason
-    // (None), overriding the earlier profile quota's different reason.
-    let (envelope, _, outcomes) = enforce_and_apply(cached, envelope);
-
-    assert_eq!(
-        envelope.items().map(Item::ty).collect::<Vec<_>>(),
-        [&ItemType::Session]
-    );
-    assert_eq!(
-        outcomes,
-        BTreeMap::from([
-            (DataCategory::Error, 1),
-            (DataCategory::Attachment, 10),
-            (DataCategory::AttachmentItem, 1),
-            (DataCategory::UserReportV2, 1),
-            (DataCategory::Profile, 3),
-            (DataCategory::ProfileIndexed, 3),
-            (DataCategory::ProfileBackend, 1),
-            (DataCategory::ProfileUi, 1),
-        ])
-    );
 }
 
 #[test]
 fn test_event_category_survives_removable_crash_attachments() {
-    // These mixed-creator envelopes are not normal SDK inputs. If we retain a direct event,
-    // its category must stay the same when earlier crash attachments are removed.
+    // Span and trace crash attachments must not change the direct event's category.
     for (ty, category) in [
         (ItemType::Event, DataCategory::Error),
         (ItemType::Transaction, DataCategory::Transaction),
@@ -435,7 +394,7 @@ fn test_event_category_survives_removable_crash_attachments() {
             }
 
             assert_eq!(
-                EnvelopeSummary::compute(&original).event.category(),
+                EnvelopeSummary::compute(&original).event_category,
                 Some(category)
             );
             for (denied, retained, rejected_attachments) in [
@@ -469,7 +428,7 @@ fn test_event_category_survives_removable_crash_attachments() {
                 assert_eq!(kept.len(), retained);
                 assert!(kept.items().any(|item| item.ty() == &ty));
                 assert_eq!(
-                    EnvelopeSummary::compute(&kept).event.category(),
+                    EnvelopeSummary::compute(&kept).event_category,
                     Some(category)
                 );
                 let expected = if rejected_attachments == 0 {
@@ -486,12 +445,15 @@ fn test_event_category_survives_removable_crash_attachments() {
             // Check the selected category's own quota too, including its indexed accounting.
             let (kept, limits, outcomes) =
                 enforce_and_apply(cached_limits(&[category]), original.clone());
-            assert!(kept.is_empty());
+            // Late processing extracts span attachments before events, but trace attachments
+            // remaining in an event envelope are rejected with that event.
+            assert_eq!(kept.len(), 1);
+            assert!(kept.items().next().unwrap().is_span_attachment());
             assert!(limits.is_limited());
             let mut expected = BTreeMap::from([
                 (category, 1),
-                (DataCategory::Attachment, 20),
-                (DataCategory::AttachmentItem, 2),
+                (DataCategory::Attachment, 10),
+                (DataCategory::AttachmentItem, 1),
             ]);
             if category == DataCategory::Transaction {
                 expected.extend([

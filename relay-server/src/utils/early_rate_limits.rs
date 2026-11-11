@@ -6,7 +6,7 @@ use crate::envelope::{
 use crate::integrations::Integration;
 use crate::managed::{Managed, RecordKeeper};
 use crate::services::outcome::Outcome;
-use crate::utils::{AttachmentRole, EnvelopeSummary, EventSource};
+use crate::utils::EnvelopeSummary;
 use enum_map::EnumMap;
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
@@ -209,8 +209,7 @@ fn resolve_limits(
         Some(outcome)
     };
     let event = summary
-        .event
-        .category()
+        .event_category
         .and_then(|category| check(true, category, true).map(|outcome| (category, outcome)));
     let spans = check(
         summary.span_quantity > 0 || summary.has_span_attachments,
@@ -268,30 +267,8 @@ fn resolve_limits(
             false,
         )
     });
-    // Losing every event creator also rejects the event.
-    let event = match (event, summary.event, &span_attachments, &trace_attachments) {
-        (Some(event), _, _, _) => Some(event),
-        (None, EventSource::ErrorFromSpanAttachments, Some(outcome), _)
-        | (None, EventSource::ErrorFromTraceAttachments, _, Some(outcome))
-        | (None, EventSource::ErrorFromSpanAndTraceAttachmentsSpanFirst, Some(outcome), Some(_))
-        | (None, EventSource::ErrorFromSpanAndTraceAttachmentsTraceFirst, Some(_), Some(outcome)) => {
-            Some((DataCategory::Error, outcome.clone()))
-        }
-        (
-            None,
-            EventSource::Absent
-            | EventSource::SurvivesAttachmentLimits(_)
-            | EventSource::ErrorFromSpanAttachments
-            | EventSource::ErrorFromTraceAttachments
-            | EventSource::ErrorFromSpanAndTraceAttachmentsSpanFirst
-            | EventSource::ErrorFromSpanAndTraceAttachmentsTraceFirst,
-            _,
-            _,
-        ) => None,
-    };
     let event_outcome = event.as_ref().map(|(_, outcome)| outcome);
     let enforcement = Enforcement {
-        // If attachment limits remove the last event creator, reject its profiles too.
         backend_profiles: event_outcome
             .cloned()
             .or(profiles.clone().or_else(|| {
@@ -442,26 +419,23 @@ fn filter(
                 Some(ProfileType::Backend) => enforcement.backend_profiles.as_mut(),
                 Some(ProfileType::Ui) => enforcement.ui_profiles.as_mut(),
             }),
-            ItemType::Attachment => match (
-                item.attachment_parent_type(),
-                AttachmentRole::from_type(item.attachment_type()),
-                event,
-            ) {
-                (AttachmentParentType::Span, AttachmentRole::Plain, _)
-                | (AttachmentParentType::Span, AttachmentRole::CreatesEvent, None) => {
+            ItemType::Attachment => match item.attachment_parent_type() {
+                AttachmentParentType::Span => {
                     RetentionAction::drop_on_rejection(enforcement.span_attachments.as_mut())
                 }
-                (_, _, Some(outcome)) => RetentionAction::Drop(outcome),
-                (AttachmentParentType::Trace, _, None) => {
-                    RetentionAction::drop_on_rejection(enforcement.trace_attachments.as_mut())
-                }
-                (AttachmentParentType::Event, AttachmentRole::CreatesEvent, None) => enforcement
-                    .event_attachments
-                    .as_mut()
-                    .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
-                (AttachmentParentType::Event, AttachmentRole::Plain, None) => {
-                    RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
-                }
+                AttachmentParentType::Trace => RetentionAction::drop_on_rejection(
+                    event.or(enforcement.trace_attachments.as_mut()),
+                ),
+                AttachmentParentType::Event => match event {
+                    Some(rejection) => RetentionAction::Drop(rejection),
+                    None if item.creates_event() => enforcement
+                        .event_attachments
+                        .as_mut()
+                        .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
+                    None => {
+                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
+                    }
+                },
             },
         };
         apply_retention(action, item)
@@ -496,9 +470,10 @@ fn apply_retention(action: RetentionAction<'_>, item: &mut Item) -> bool {
     if item.rate_limited() {
         return keep;
     }
-    // Nintendo dying messages contribute to the event, but have no attachment quantities.
-    if *item.ty() != ItemType::Attachment
-        || item.attachment_type() != Some(AttachmentType::NintendoSwitchDyingMessage)
+    // Event-parent Nintendo dying messages contribute only to the event.
+    if !(item.ty() == &ItemType::Attachment
+        && matches!(item.attachment_parent_type(), AttachmentParentType::Event)
+        && item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage))
     {
         let quantities = match item.ty() {
             // Event quantities are already counted once per envelope in resolve_limits.

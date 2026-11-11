@@ -615,8 +615,12 @@ impl Item {
             | ItemType::UserReportV2 => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
-            // event payloads. Plain attachments never create event payloads.
+            // event payloads. Plain attachments never create events. Span and trace attachments
+            // never create events, regardless of subtype.
             ItemType::Attachment => {
+                if !matches!(self.attachment_parent_type(), AttachmentParentType::Event) {
+                    return false;
+                }
                 match self.attachment_type() {
                     Some(
                         AttachmentType::AppleCrashReport
