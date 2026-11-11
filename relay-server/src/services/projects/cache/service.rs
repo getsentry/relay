@@ -256,13 +256,9 @@ impl relay_system::Service for ProjectCacheService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
 
-    #[tokio::test(start_paused = true)]
-    async fn test_shutdown_on_channel_close() {
-        relay_test::setup();
+    async fn dummy_service() -> ProjectCacheService {
         let config = Arc::new(Config::default());
         let source = ProjectSource::start_in(
             &relay_system::TokioServiceSpawn,
@@ -272,14 +268,17 @@ mod tests {
             None,
         )
         .await;
-        let service = ProjectCacheService::new(config, source);
+        ProjectCacheService::new(config, source)
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_on_channel_close() {
+        let service = dummy_service().await;
         let (addr, rx) = relay_system::channel(ProjectCacheService::name());
         let mut run = std::pin::pin!(service.run(rx));
         assert!(futures::poll!(&mut run).is_pending());
 
         drop(addr);
-        tokio::time::timeout(Duration::from_secs(1), run)
-            .await
-            .expect("project cache did not shut down");
+        assert!(futures::poll!(&mut run).is_ready());
     }
 }
