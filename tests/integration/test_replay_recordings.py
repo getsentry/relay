@@ -109,6 +109,16 @@ def test_nonchunked_replay_recordings_processing(
             },
             id="no_pii_config",
         ),
+        # Keeps the non-empty PII config from the basic project config.
+        pytest.param(
+            {
+                "features": [
+                    "organizations:session-replay",
+                    "organizations:session-replay-recording-scrubbing",
+                ],
+            },
+            id="scrubbing_enabled",
+        ),
     ],
 )
 @pytest.mark.parametrize("too_large", [False, True], ids=["at_limit", "over_limit"])
@@ -152,7 +162,10 @@ def test_replay_recording_max_uncompressed_size(
     else:
         replay_recording = replay_recordings_consumer.get_not_chunked_replay(timeout=10)
         assert replay_recording["replay_id"] == replay_id
-        assert replay_recording["payload"] == payload
+        # Scrubbing recompresses the body, so compare the decompressed recording.
+        header, compressed = replay_recording["payload"].split(b"\n", 1)
+        assert header == b'{"segment_id": 0}'
+        assert json.loads(zlib.decompress(compressed)) == json.loads(body)
         outcomes_consumer.assert_empty()
 
 
