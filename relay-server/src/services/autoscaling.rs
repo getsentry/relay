@@ -56,11 +56,8 @@ impl Service for AutoscalingMetricService {
                 _ = shutdown.notified() => {
                     self.up = 0;
                 },
-                signal = rx.recv() => {
-                    let Some(message) = signal else {
-                        break;
-                    };
-                    match message {
+                signal = rx.recv() => match signal {
+                    Some(message) => match message {
                         AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
                             let metrics = self.handle
@@ -87,6 +84,7 @@ impl Service for AutoscalingMetricService {
                             });
                         }
                     }
+                    None => break
                 }
             }
         }
