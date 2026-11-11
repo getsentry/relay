@@ -182,6 +182,98 @@ impl Enforcement {
     }
 }
 
+fn filter(
+    envelope: &mut Envelope,
+    scoping: &Scoping,
+    cached: &RateLimits,
+    quotas: &[Quota],
+    records: &mut RecordKeeper<'_>,
+) -> RateLimits {
+    let summary = EnvelopeSummary::compute(envelope);
+    let (mut enforcement, client_rate_limits) = resolve_limits(summary, scoping, cached, quotas);
+    if !enforcement.has_rejections() {
+        return client_rate_limits;
+    }
+    if let Some(sessions) = enforcement.sessions.as_mut() {
+        sessions.silence();
+    }
+    envelope.retain_items(|item| {
+        let event = enforcement.event.as_mut();
+        let action = match item.ty() {
+            ItemType::Event
+            | ItemType::UnrealReport
+            | ItemType::Security
+            | ItemType::RawSecurity
+            | ItemType::UserReportV2
+            | ItemType::FormData
+            | ItemType::Transaction => RetentionAction::drop_on_rejection(event),
+            ItemType::MetricBuckets | ItemType::ClientReport | ItemType::Unknown(_) => {
+                RetentionAction::Keep
+            }
+            ItemType::UserReport => {
+                RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_mut()))
+            }
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                RetentionAction::drop_on_rejection(enforcement.replays.as_mut())
+            }
+            ItemType::Session | ItemType::Sessions => {
+                RetentionAction::drop_on_rejection(enforcement.sessions.as_mut())
+            }
+            ItemType::CheckIn => RetentionAction::drop_on_rejection(enforcement.monitors.as_mut()),
+            ItemType::Log => RetentionAction::drop_on_rejection(enforcement.logs.as_mut()),
+            ItemType::TraceMetric => {
+                RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_mut())
+            }
+            ItemType::Span => RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
+            ItemType::ProfileChunk => {
+                RetentionAction::drop_on_rejection(match item.profile_type() {
+                    None => None,
+                    Some(ProfileType::Backend) => enforcement.backend_chunks.as_mut(),
+                    Some(ProfileType::Ui) => enforcement.ui_chunks.as_mut(),
+                })
+            }
+            ItemType::Integration => match item.content_type() {
+                Some(ContentType::Integration(Integration::Errors(_))) => {
+                    RetentionAction::drop_on_rejection(event)
+                }
+                Some(ContentType::Integration(Integration::Logs(_))) => {
+                    RetentionAction::drop_on_rejection(enforcement.logs.as_mut())
+                }
+                Some(ContentType::Integration(Integration::Spans(_))) => {
+                    RetentionAction::drop_on_rejection(enforcement.spans.as_mut())
+                }
+                _ => RetentionAction::Keep,
+            },
+            ItemType::Profile => RetentionAction::drop_on_rejection(match item.profile_type() {
+                None => enforcement.profiles.as_mut(),
+                Some(ProfileType::Backend) => enforcement.backend_profiles.as_mut(),
+                Some(ProfileType::Ui) => enforcement.ui_profiles.as_mut(),
+            }),
+            ItemType::Attachment => match item.attachment_parent_type() {
+                AttachmentParentType::Span => {
+                    RetentionAction::drop_on_rejection(enforcement.span_attachments.as_mut())
+                }
+                AttachmentParentType::Trace => RetentionAction::drop_on_rejection(
+                    event.or(enforcement.trace_attachments.as_mut()),
+                ),
+                AttachmentParentType::Event => match event {
+                    Some(rejection) => RetentionAction::Drop(rejection),
+                    None if item.creates_event() => enforcement
+                        .event_attachments
+                        .as_mut()
+                        .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
+                    None => {
+                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
+                    }
+                },
+            },
+        };
+        apply_retention(action, item)
+    });
+    enforcement.flush(records);
+    client_rate_limits
+}
+
 fn resolve_limits(
     summary: EnvelopeSummary,
     scoping: &Scoping,
@@ -342,98 +434,6 @@ fn resolve_limits(
         ));
     }
     (enforcement, client_rate_limits)
-}
-
-fn filter(
-    envelope: &mut Envelope,
-    scoping: &Scoping,
-    cached: &RateLimits,
-    quotas: &[Quota],
-    records: &mut RecordKeeper<'_>,
-) -> RateLimits {
-    let summary = EnvelopeSummary::compute(envelope);
-    let (mut enforcement, client_rate_limits) = resolve_limits(summary, scoping, cached, quotas);
-    if !enforcement.has_rejections() {
-        return client_rate_limits;
-    }
-    if let Some(sessions) = enforcement.sessions.as_mut() {
-        sessions.silence();
-    }
-    envelope.retain_items(|item| {
-        let event = enforcement.event.as_mut();
-        let action = match item.ty() {
-            ItemType::Event
-            | ItemType::UnrealReport
-            | ItemType::Security
-            | ItemType::RawSecurity
-            | ItemType::UserReportV2
-            | ItemType::FormData
-            | ItemType::Transaction => RetentionAction::drop_on_rejection(event),
-            ItemType::MetricBuckets | ItemType::ClientReport | ItemType::Unknown(_) => {
-                RetentionAction::Keep
-            }
-            ItemType::UserReport => {
-                RetentionAction::drop_on_rejection(event.or(enforcement.feedback.as_mut()))
-            }
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                RetentionAction::drop_on_rejection(enforcement.replays.as_mut())
-            }
-            ItemType::Session | ItemType::Sessions => {
-                RetentionAction::drop_on_rejection(enforcement.sessions.as_mut())
-            }
-            ItemType::CheckIn => RetentionAction::drop_on_rejection(enforcement.monitors.as_mut()),
-            ItemType::Log => RetentionAction::drop_on_rejection(enforcement.logs.as_mut()),
-            ItemType::TraceMetric => {
-                RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_mut())
-            }
-            ItemType::Span => RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
-            ItemType::ProfileChunk => {
-                RetentionAction::drop_on_rejection(match item.profile_type() {
-                    None => None,
-                    Some(ProfileType::Backend) => enforcement.backend_chunks.as_mut(),
-                    Some(ProfileType::Ui) => enforcement.ui_chunks.as_mut(),
-                })
-            }
-            ItemType::Integration => match item.content_type() {
-                Some(ContentType::Integration(Integration::Errors(_))) => {
-                    RetentionAction::drop_on_rejection(event)
-                }
-                Some(ContentType::Integration(Integration::Logs(_))) => {
-                    RetentionAction::drop_on_rejection(enforcement.logs.as_mut())
-                }
-                Some(ContentType::Integration(Integration::Spans(_))) => {
-                    RetentionAction::drop_on_rejection(enforcement.spans.as_mut())
-                }
-                _ => RetentionAction::Keep,
-            },
-            ItemType::Profile => RetentionAction::drop_on_rejection(match item.profile_type() {
-                None => enforcement.profiles.as_mut(),
-                Some(ProfileType::Backend) => enforcement.backend_profiles.as_mut(),
-                Some(ProfileType::Ui) => enforcement.ui_profiles.as_mut(),
-            }),
-            ItemType::Attachment => match item.attachment_parent_type() {
-                AttachmentParentType::Span => {
-                    RetentionAction::drop_on_rejection(enforcement.span_attachments.as_mut())
-                }
-                AttachmentParentType::Trace => RetentionAction::drop_on_rejection(
-                    event.or(enforcement.trace_attachments.as_mut()),
-                ),
-                AttachmentParentType::Event => match event {
-                    Some(rejection) => RetentionAction::Drop(rejection),
-                    None if item.creates_event() => enforcement
-                        .event_attachments
-                        .as_mut()
-                        .map_or(RetentionAction::Keep, RetentionAction::KeepRateLimited),
-                    None => {
-                        RetentionAction::drop_on_rejection(enforcement.event_attachments.as_mut())
-                    }
-                },
-            },
-        };
-        apply_retention(action, item)
-    });
-    enforcement.flush(records);
-    client_rate_limits
 }
 
 // Missing span counts require scanning the payload, so only call this on rejection.

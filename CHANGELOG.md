@@ -14,6 +14,7 @@
 
 **Bug Fixes**:
 
+- Correct rate-limit outcome accounting for rejected envelope items, including V1 user reports (`user_report`). ([#6526](https://github.com/getsentry/relay/pull/6526))
 - Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
@@ -24,7 +25,6 @@
 
 **Internal**:
 
-- Correct rate-limit outcome accounting for rejected envelope items, including V1 user reports (`user_report`). ([#6526](https://github.com/getsentry/relay/pull/6526))
 - Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
 - Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
