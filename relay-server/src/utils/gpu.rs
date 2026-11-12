@@ -61,13 +61,49 @@ pub fn split_crash(
 /// Items an event is assembled from. Narrower than [`Item::carries_event_payload`], which
 /// also matches crash reports that must stay on the original event.
 fn is_scope_item(item: &Item) -> bool {
+    // Keep both matches exhaustive so new variants require an explicit scope decision.
     match item {
         Item::Event(_) => true,
-        Item::Attachment(attachment) => matches!(
-            attachment.attachment_type(),
-            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
-        ),
-        _ => false,
+        Item::Attachment(attachment) => match attachment.attachment_type() {
+            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs) => true,
+            Some(
+                AttachmentType::Attachment
+                | AttachmentType::Minidump
+                | AttachmentType::AppleCrashReport
+                | AttachmentType::Prosperodump
+                | AttachmentType::NintendoSwitchDyingMessage
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs
+                | AttachmentType::ViewHierarchy
+                | AttachmentType::Flamegraph
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
+            )
+            | None => false,
+        },
+        Item::Transaction(_)
+        | Item::Security(_)
+        | Item::FormData(_)
+        | Item::RawSecurity(_)
+        | Item::UnrealReport(_)
+        | Item::UserReport(_)
+        | Item::Session(_)
+        | Item::Sessions(_)
+        | Item::MetricBuckets(_)
+        | Item::ClientReport(_)
+        | Item::Profile(_)
+        | Item::ReplayEvent(_)
+        | Item::ReplayRecording(_)
+        | Item::ReplayVideo(_)
+        | Item::CheckIn(_)
+        | Item::Log(_)
+        | Item::TraceMetric(_)
+        | Item::Span(_)
+        | Item::UserReportV2(_)
+        | Item::ProfileChunk(_)
+        | Item::Integration(_)
+        | Item::Unknown(_) => false,
     }
 }
 
@@ -79,14 +115,28 @@ pub fn is_gpu_dump_item(item: &Item) -> bool {
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
 pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
-    matches!(
-        item.attachment_type(),
+    // New attachment subtypes must explicitly opt into or out of the GPU envelope.
+    match item.attachment_type() {
         Some(
             AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader,
+        ) => true,
+        Some(
+            AttachmentType::Attachment
+            | AttachmentType::Minidump
+            | AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph,
         )
-    )
+        | None => false,
+    }
 }
 
 #[cfg(test)]

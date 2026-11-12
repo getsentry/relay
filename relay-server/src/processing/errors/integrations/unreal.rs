@@ -214,10 +214,25 @@ fn take_gpu_crash(
 }
 
 fn is_cpu_dump_item(item: &AttachmentItem) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
-    )
+    // Keep exhaustive so new crash formats require an explicit splitting decision.
+    match item.attachment_type() {
+        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport) => true,
+        Some(
+            AttachmentType::Attachment
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader,
+        )
+        | None => false,
+    }
 }
 
 /// Adds a [`DynamicSamplingContext`] to `envelope`.
