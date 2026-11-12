@@ -22,7 +22,7 @@ use relay_threading::{AsyncPoolService, ServicePool};
 use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 
 use super::common::{self, SubmitClientReports};
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{ItemType, MetricBucketsItem};
 use crate::extractors::{RequestMeta, RequestTrust};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::MetricOutcomes;
@@ -267,8 +267,8 @@ pub struct ProcessMetrics {
 /// Raw unparsed metric data.
 #[derive(Debug)]
 pub enum MetricData {
-    /// Raw data, unparsed envelope items.
-    Raw(Vec<Item>),
+    /// Raw data, unparsed metric bucket items.
+    Raw(Vec<MetricBucketsItem>),
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -286,29 +286,22 @@ impl MetricData {
         let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::MetricBuckets {
-                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(parsed_buckets) => {
-                        // Re-use the allocation of `b` if possible.
-                        if buckets.is_empty() {
-                            buckets = parsed_buckets;
-                        } else {
-                            buckets.extend(parsed_buckets);
-                        }
-                    }
-                    Err(error) => {
-                        relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket",
-                        );
-                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+            match serde_json::from_slice::<Vec<Bucket>>(&payload) {
+                Ok(parsed_buckets) => {
+                    // Re-use the allocation of `b` if possible.
+                    if buckets.is_empty() {
+                        buckets = parsed_buckets;
+                    } else {
+                        buckets.extend(parsed_buckets);
                     }
                 }
-            } else {
-                relay_log::error!(
-                    "invalid item of type {} passed to ProcessMetrics",
-                    item.ty()
-                );
+                Err(error) => {
+                    relay_log::debug!(
+                        error = &error as &dyn Error,
+                        "failed to parse metric bucket",
+                    );
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                }
             }
         }
         buckets
@@ -1257,7 +1250,7 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessMetrics {
-                data: MetricData::Raw(vec![item.clone().into()]),
+                data: MetricData::Raw(vec![item.clone()]),
                 project_key,
                 source,
                 received_at,
