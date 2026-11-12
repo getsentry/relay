@@ -720,8 +720,8 @@ impl Service for EnvelopeBufferService {
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                 }
-                message = rx.recv(), if expects_input => {
-                    match message {
+                signal = rx.recv(), if expects_input => {
+                    match signal {
                         Some(message) => Self::handle_message(&mut buffer, message, &services).await,
                         None => {
                             expects_input = false;
