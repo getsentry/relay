@@ -17,7 +17,7 @@ use serde::Deserialize;
 
 use crate::envelope::{
     AttachmentItem, AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError,
-    Item, ItemType, Items,
+    Item, ItemType, Items, MetricBucketsItem,
 };
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
@@ -386,11 +386,11 @@ fn queue_envelope(
     if state.config().relay_mode() != RelayMode::Proxy {
         // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
         // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::MetricBuckets);
-
         let metrics;
         (envelope, metrics) = envelope.split_once(|mut envelope, _| {
-            let metrics = envelope.take_items_by(is_metric).into_vec();
+            let metrics = envelope
+                .drain_items::<MetricBucketsItem>()
+                .collect::<Vec<_>>();
             (envelope, metrics)
         });
 
