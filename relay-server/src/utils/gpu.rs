@@ -2,7 +2,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{AttachmentType, Item};
+use crate::envelope::{AttachmentItem, AttachmentType, Item};
 use crate::managed::Managed;
 
 /// Splits a GPU crash dump off an error envelope into its own event.
@@ -46,7 +46,7 @@ pub fn split_crash(
         for item in scope {
             gpu.add_item(item);
         }
-        for item in envelope.take_items_by(is_gpu_crash_item) {
+        for item in envelope.drain_items_if(is_gpu_crash_item) {
             gpu.add_item(item);
         }
 
@@ -78,28 +78,32 @@ pub fn is_gpu_dump_item(item: &Item) -> bool {
 }
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
-pub fn is_gpu_crash_item(item: &Item) -> bool {
-    matches!(item, Item::Attachment(attachment)
-        if matches!(attachment.attachment_type(),
-            Some(AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug | AttachmentType::CompiledShader)))
+pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
+    matches!(
+        item.attachment_type(),
+        Some(
+            AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader
+        )
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::AttachmentItem;
     use crate::envelope::EventItem;
     use relay_system::Addr;
 
     use super::*;
     use crate::extractors::RequestMeta;
 
-    fn attachment(ty: AttachmentType) -> Item {
+    fn attachment(ty: AttachmentType) -> AttachmentItem {
         let mut item = AttachmentItem::new();
         item.set_attachment_type(ty);
-        item.into()
+        item
     }
 
-    fn envelope(items: impl IntoIterator<Item = Item>) -> Managed<Box<Envelope>> {
+    fn envelope(items: impl IntoIterator<Item = AttachmentItem>) -> Managed<Box<Envelope>> {
         let meta = RequestMeta::new(
             "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
                 .parse()
@@ -125,11 +129,17 @@ mod tests {
     #[test]
     fn test_is_scope_item() {
         assert!(is_scope_item(&Item::Event(EventItem::new())));
-        assert!(is_scope_item(&attachment(AttachmentType::EventPayload)));
-        assert!(is_scope_item(&attachment(AttachmentType::Breadcrumbs)));
+        assert!(is_scope_item(
+            &attachment(AttachmentType::EventPayload).into()
+        ));
+        assert!(is_scope_item(
+            &attachment(AttachmentType::Breadcrumbs).into()
+        ));
 
-        assert!(!is_scope_item(&attachment(AttachmentType::NvGpuDump)));
-        assert!(!is_scope_item(&attachment(AttachmentType::Minidump)));
+        assert!(!is_scope_item(
+            &attachment(AttachmentType::NvGpuDump).into()
+        ));
+        assert!(!is_scope_item(&attachment(AttachmentType::Minidump).into()));
     }
 
     #[test]

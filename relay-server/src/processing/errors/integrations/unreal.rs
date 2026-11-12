@@ -206,16 +206,7 @@ fn take_gpu_crash(
     if let Some(event) = event {
         envelope.add_item(event.clone());
     }
-    for item in items.extract_if(.., |item| {
-        matches!(
-            item.attachment_type(),
-            Some(
-                AttachmentType::NvGpuDump
-                    | AttachmentType::NvShaderDebug
-                    | AttachmentType::CompiledShader
-            )
-        )
-    }) {
+    for item in items.extract_if(.., |item| crate::utils::gpu::is_gpu_crash_item(item)) {
         envelope.add_item(item);
     }
 
