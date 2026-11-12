@@ -335,7 +335,7 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     if let Some(user) = event.user.value() {
         if let Some(user) = get_event_user_tag(user) {
             // limited (128)
-            tags.user = truncate_string(user.as_str(), max_tag_value_size);
+            tags.user = truncate_string(user, max_tag_value_size);
         }
         if let Some(user_id) = user.id.value() {
             // limited (128)
@@ -856,17 +856,17 @@ pub fn extract_tags(
         .value()
         .and_then(|data| data.get_str(DB__SYSTEM__NAME));
     if let Some(sys) = system {
-        span_tags.system = truncate_string(sys.to_lowercase(), max_tag_value_size);
+        span_tags.system = sys.to_lowercase().into();
     }
 
     if let Some(status) = span.status.value() {
-        span_tags.status = truncate_string(status.as_str().to_owned(), max_tag_value_size);
+        span_tags.status = status.as_str().to_owned().into();
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.op = truncate_string(span_op.to_owned(), max_tag_value_size);
+        span_tags.op = span_op.to_owned().into();
 
         let category = category_for_span(span);
 
@@ -903,11 +903,11 @@ pub fn extract_tags(
         };
 
         if let Some(category) = category {
-            span_tags.category = truncate_string(category.into_owned(), max_tag_value_size);
+            span_tags.category = category.into_owned().into();
         }
 
         if let Some(act) = action {
-            span_tags.action = truncate_string(act, max_tag_value_size);
+            span_tags.action = act.into();
         }
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
@@ -925,9 +925,7 @@ pub fn extract_tags(
                     let (normalized_domain, raw_domain) =
                         domain_from_server_address(Some(server_address), url_scheme);
 
-                    span_tags.raw_domain = raw_domain
-                        .map(|raw_domain| truncate_string(raw_domain, max_tag_value_size))
-                        .unwrap_or_default();
+                    span_tags.raw_domain = raw_domain.into();
                     normalized_domain
                 } else {
                     None
@@ -969,7 +967,7 @@ pub fn extract_tags(
         if !span_op.starts_with("db.redis")
             && let Some(dom) = domain
         {
-            span_tags.domain = truncate_string(dom, max_tag_value_size);
+            span_tags.domain = dom.into();
         }
 
         if span_op.starts_with("cache.") {
@@ -979,7 +977,7 @@ pub fn extract_tags(
                 .and_then(|data| data.get_value(CACHE__HIT))
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
-                span_tags.cache_hit = truncate_string(tag_value.to_owned(), max_tag_value_size);
+                span_tags.cache_hit = tag_value.to_owned().into();
             }
             if let Some(cache_keys) = span
                 .data
@@ -987,7 +985,7 @@ pub fn extract_tags(
                 .and_then(|data| data.get_value(CACHE__KEY))
                 && let Ok(cache_keys) = serde_json::to_string(cache_keys)
             {
-                span_tags.cache_key = truncate_string(cache_keys, max_tag_value_size);
+                span_tags.cache_key = cache_keys.into();
             }
         }
 
@@ -997,32 +995,28 @@ pub fn extract_tags(
                 .value()
                 .and_then(|data| data.get_str(MESSAGING__DESTINATION__NAME))
             {
-                span_tags.messaging_destination_name =
-                    truncate_string(destination.to_owned(), max_tag_value_size);
+                span_tags.messaging_destination_name = destination.to_owned().into();
             }
             if let Some(message_id) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(MESSAGING__MESSAGE__ID))
             {
-                span_tags.messaging_message_id =
-                    truncate_string(message_id.to_owned(), max_tag_value_size);
+                span_tags.messaging_message_id = message_id.to_owned().into();
             }
             if let Some(operation_name) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(MESSAGING__OPERATION__NAME))
             {
-                span_tags.messaging_operation_name =
-                    truncate_string(operation_name.to_owned(), max_tag_value_size);
+                span_tags.messaging_operation_name = operation_name.to_owned().into();
             }
             if let Some(operation_type) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(MESSAGING__OPERATION__TYPE))
             {
-                span_tags.messaging_operation_type =
-                    truncate_string(operation_type.to_owned(), max_tag_value_size);
+                span_tags.messaging_operation_type = operation_type.to_owned().into();
             }
         }
 
@@ -1057,24 +1051,21 @@ pub fn extract_tags(
                     .get_value(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_response_content_length =
-                        truncate_string(value, max_tag_value_size);
+                    span_tags.http_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
                     .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_decoded_response_content_length =
-                        truncate_string(value, max_tag_value_size);
+                    span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
                     .get_value(HTTP__RESPONSE__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_response_transfer_size =
-                        truncate_string(value, max_tag_value_size);
+                    span_tags.http_response_transfer_size = value.into();
                 }
             }
 
@@ -1086,8 +1077,7 @@ pub fn extract_tags(
                 // Validate that it's a valid status:
                 if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
-                    span_tags.resource_render_blocking_status =
-                        truncate_string(status.to_string(), max_tag_value_size);
+                    span_tags.resource_render_blocking_status = status.to_string().into();
                 }
             }
         }
@@ -1096,28 +1086,28 @@ pub fn extract_tags(
                 || span_op.starts_with("ui.webvital."))
         {
             if let Some(user) = span.data.value().and_then(|data| data.get_str("user")) {
-                span_tags.user = truncate_string(user.to_owned(), max_tag_value_size);
+                span_tags.user = user.to_owned().into();
             }
             if let Some(replay_id) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(SENTRY__REPLAY_ID))
             {
-                span_tags.replay_id = truncate_string(replay_id.to_owned(), max_tag_value_size);
+                span_tags.replay_id = replay_id.to_owned().into();
             }
             if let Some(environment) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(SENTRY__ENVIRONMENT))
             {
-                span_tags.environment = truncate_string(environment.to_owned(), max_tag_value_size);
+                span_tags.environment = environment.to_owned().into();
             }
             if let Some(release) = span
                 .data
                 .value()
                 .and_then(|data| data.get_str(SENTRY__RELEASE))
             {
-                span_tags.release = truncate_string(release.to_owned(), max_tag_value_size);
+                span_tags.release = release.to_owned().into();
             }
             // Standalone vital spans don't come from an event with geo data.
             // Derive geo data from the client address inferred on the span.
@@ -1129,19 +1119,17 @@ pub fn extract_tags(
                 && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
             {
-                span_tags.user_country_code =
-                    truncate_string(country_code.to_owned(), max_tag_value_size);
+                span_tags.user_country_code = country_code.to_owned().into();
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
                     let numerical_subregion = subregion as u8;
-                    span_tags.user_subregion =
-                        truncate_string(numerical_subregion.to_string(), max_tag_value_size);
+                    span_tags.user_subregion = numerical_subregion.to_string().into();
                 }
             }
         }
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
-        span_tags.status_code = truncate_string(status_code, max_tag_value_size);
+        span_tags.status_code = status_code.into();
     }
 
     if is_mobile {
@@ -1161,10 +1149,9 @@ pub fn extract_tags(
             .value()
             .and_then(|data| data.get_str(APP__VITALS__START__TYPE))
         {
-            span_tags.app_start_type =
-                truncate_string(span_data_start_type.to_owned(), max_tag_value_size);
+            span_tags.app_start_type = span_data_start_type.to_owned().into();
         } else if let Some(start_type) = start_type {
-            span_tags.app_start_type = truncate_string(start_type.to_owned(), max_tag_value_size);
+            span_tags.app_start_type = start_type.to_owned().into();
         }
     }
 
@@ -1186,7 +1173,7 @@ pub fn extract_tags(
         .value()
         .and_then(|data| data.get_str(BROWSER__NAME))
     {
-        span_tags.browser_name = truncate_string(browser_name.to_owned(), max_tag_value_size);
+        span_tags.browser_name = browser_name.to_owned().into();
     }
 
     if let Some(data) = span.data.value() {
@@ -1194,11 +1181,11 @@ pub fn extract_tags(
             .get_value(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
-            span_tags.thread_id = truncate_string(thread_id, max_tag_value_size);
+            span_tags.thread_id = thread_id.into();
         }
 
         if let Some(thread_name) = data.get_str(THREAD__NAME) {
-            span_tags.thread_name = truncate_string(thread_name.to_owned(), max_tag_value_size);
+            span_tags.thread_name = thread_name.to_owned().into();
         }
     }
 
@@ -1208,7 +1195,7 @@ pub fn extract_tags(
         .and_then(|data| data.get_str("sentry.name"))
         && !name.is_empty()
     {
-        span_tags.name = truncate_string(name.to_owned(), max_tag_value_size);
+        span_tags.name = name.to_owned().into();
     }
 
     span_tags
