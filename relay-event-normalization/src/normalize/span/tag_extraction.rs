@@ -328,64 +328,52 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     let mut tags = SharedTags::default();
 
     if let Some(release) = event.release.as_str() {
-        // limited (200)
         tags.release = truncate_string(release.to_owned(), max_tag_value_size);
     }
 
     if let Some(user) = event.user.value() {
         if let Some(user) = get_event_user_tag(user) {
-            // limited (128)
             tags.user = truncate_string(user, max_tag_value_size);
         }
         if let Some(user_id) = user.id.value() {
-            // limited (128)
             tags.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_ip) = user.ip_address.value() {
-            // limited (128)
             tags.user_ip = truncate_string(user_ip.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_username) = user.username.value() {
-            // limited (128)
             tags.user_username =
                 truncate_string(user_username.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_email) = user.email.value() {
-            // limited (75)
             tags.user_email = truncate_string(user_email.clone(), max_tag_value_size);
         }
 
         if let Some(geo) = user.geo.value() {
             if let Some(city) = geo.city.value() {
-                // limited (1024)
                 tags.user_city = truncate_string(city.clone(), max_tag_value_size);
             }
 
             if let Some(country_code) = geo.country_code.value() {
-                // limited (1024)
                 tags.user_country_code = truncate_string(country_code.clone(), max_tag_value_size);
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
                     let numerical_subregion = subregion as u8;
-                    // limited (1024)
                     tags.user_subregion =
                         truncate_string(numerical_subregion.to_string(), max_tag_value_size);
                 }
             }
 
             if let Some(region) = geo.region.value() {
-                // limited (1024)
                 tags.user_region = truncate_string(region.clone(), max_tag_value_size);
             }
 
             if let Some(subdivision) = geo.subdivision.value() {
-                // not limited
                 tags.user_subdivision = truncate_string(subdivision.clone(), max_tag_value_size);
             }
         }
     }
 
     if let Some(environment) = event.environment.as_str() {
-        // limited
         tags.environment = truncate_string(environment.to_owned(), max_tag_value_size);
     }
 
@@ -399,25 +387,21 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
         if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            // limited
             tags.transaction_method = truncate_string(transaction_method, max_tag_value_size);
         }
     }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            // limited
             tags.transaction_op = truncate_string(op.to_lowercase(), max_tag_value_size);
         }
 
         if let Some(status) = trace_context.status.value() {
-            // limited
             tags.trace_status = truncate_string(status.to_string(), max_tag_value_size);
         }
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
-        // limited
         tags.mobile = truncate_string("true".to_owned(), max_tag_value_size);
     }
 
@@ -430,18 +414,15 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
             // an app (as opposed to mobile browser) since we are currently focused on
             // app use cases for mobile.
             if event.context::<AppContext>().is_some() {
-                // not limited
                 tags.os_name = truncate_string(os_name.to_string(), max_tag_value_size);
             }
         } else {
             // For non-mobile spans, always extract os_name.
-            // not limited
             tags.os_name = truncate_string(os_name.to_string(), max_tag_value_size);
         }
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
-        // not limited
         tags.device_class = truncate_string(device_class.to_owned(), max_tag_value_size);
     }
 
@@ -449,7 +430,6 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
         .context::<BrowserContext>()
         .and_then(|v| v.name.value())
     {
-        // not limited
         tags.browser_name = truncate_string(browser_name.to_owned(), max_tag_value_size);
     }
 
@@ -457,7 +437,6 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
         .context::<ProfileContext>()
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
-        // limited
         tags.profiler_id = truncate_string(profiler_id.to_string(), max_tag_value_size);
     }
 
@@ -465,15 +444,11 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
         .context::<ReplayContext>()
         .and_then(|replay_context| replay_context.replay_id.value())
     {
-        // limited
         tags.replay_id = truncate_string(replay_id.to_string(), max_tag_value_size);
     }
 
-    // limited (256)
     tags.sdk_name = truncate_string(event.sdk_name().to_owned(), max_tag_value_size);
-    // limited (256)
     tags.sdk_version = truncate_string(event.sdk_version().to_owned(), max_tag_value_size);
-    // not limited
     tags.platform = truncate_string(
         event.platform.as_str().unwrap_or("other").to_owned(),
         max_tag_value_size,
@@ -487,12 +462,10 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
             .get_value(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
-            // not limited
             tags.thread_id = truncate_string(thread_id, max_tag_value_size);
         }
 
         if let Some(thread_name) = data.get_str(THREAD__NAME) {
-            // not limited
             tags.thread_name = truncate_string(thread_name.to_owned(), max_tag_value_size);
         }
     }
