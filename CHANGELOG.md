@@ -25,6 +25,7 @@
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
+- Limit the size of the culprit derived from CSP reports. ([#6675](https://github.com/getsentry/relay/pull/6675))
 
 **Internal**:
 
