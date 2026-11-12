@@ -76,7 +76,7 @@ where
     deserialize_seed(PhantomData::<T>, deserializer, max_ops)
 }
 
-/// Deserializes a `T` from JSON bytes in `payload`, spending at most `max_ops` doing so.
+/// Deserializes a `T` from JSON bytes in `payload`, spending at most max_ops doing so.
 ///
 /// Returns [`Error::LimitExceeded`] if the value consumes too many operations.
 pub fn deserialize_json<'de, T>(
@@ -91,7 +91,9 @@ where
     let result = deserialize(&mut de, max_ops);
     let de_result: Result<(), serde_json::Error> = de.end();
 
-    if let Err(e) = de_result {
+    if result.is_ok()
+        && let Err(e) = de_result
+    {
         return Err(Error::Serde(e));
     }
 
