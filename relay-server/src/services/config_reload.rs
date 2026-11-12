@@ -79,7 +79,7 @@ impl ConfigReloadService {
 impl Service for ConfigReloadService {
     type Interface = ();
 
-    async fn run(mut self, _rx: Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         #[cfg(not(test))]
         let mut shutdown_handle = relay_system::Controller::shutdown_handle();
 
@@ -90,20 +90,19 @@ impl Service for ConfigReloadService {
 
         relay_log::info!("watching for configuration changes every {interval:?}");
 
-        loop {
-            // Other tests may set the shutdown handle and never reset it.
-            #[cfg(not(test))]
-            if tokio::time::timeout(interval, shutdown_handle.notified())
-                .await
-                .is_ok()
-            {
-                // Shutdown initiated, we can just exit here.
-                break;
-            }
-            #[cfg(test)]
-            tokio::time::sleep(interval).await;
+        // Other tests may set the shutdown handle and never reset it.
+        #[cfg(not(test))]
+        let shutdown = shutdown_handle.notified();
+        #[cfg(test)]
+        let shutdown = std::future::pending::<()>();
+        tokio::pin!(shutdown);
 
-            self.handle_reload().await;
+        loop {
+            tokio::select! {
+                _ = &mut shutdown => break,
+                None = rx.recv() => break,
+                _ = tokio::time::sleep(interval) => self.handle_reload().await,
+            }
         }
     }
 }
@@ -141,6 +140,24 @@ health:
         config.current().health_max_memory_watermark_bytes() == expected
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let dir = tempfile::tempdir().unwrap();
+        write_config_atomic(dir.path(), "1000");
+        let config = Arc::new(Config::from_path(dir.path()).unwrap());
+        let service = ConfigReloadService::new(
+            config,
+            #[cfg(feature = "processing")]
+            None,
+        );
+        let (addr, rx) = relay_system::channel(ConfigReloadService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+    }
+
     #[tokio::test]
     async fn test_reload_atomic_replace() {
         relay_test::setup();
@@ -155,7 +172,7 @@ health:
             #[cfg(feature = "processing")]
             None,
         );
-        service.start_detached();
+        let _addr = service.start_detached();
 
         write_config_atomic(dir.path(), "2000");
         assert!(wait_for_reload(&config, 2000).await);
@@ -180,7 +197,7 @@ health:
             #[cfg(feature = "processing")]
             None,
         );
-        service.start_detached();
+        let _addr = service.start_detached();
 
         std::fs::write(&ref_file, b"2000").unwrap();
         assert!(wait_for_reload(&config, 2000).await);
