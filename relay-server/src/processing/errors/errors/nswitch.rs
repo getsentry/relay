@@ -128,7 +128,7 @@ impl SentryError for Nswitch {
     }
 
     fn into_payload(self) -> ErrorPayload {
-        ErrorPayload::Attachments(match self {
+        ErrorPayload(match self {
             Self::Forward { dying_message } => smallvec::smallvec![dying_message],
             Self::Process => Default::default(),
         })

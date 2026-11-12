@@ -62,7 +62,7 @@ impl SentryError for GpuCrash {
     }
 
     fn into_payload(self) -> ErrorPayload {
-        ErrorPayload::Attachments(smallvec::smallvec![self.0])
+        ErrorPayload(smallvec::smallvec![self.0])
     }
 
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
@@ -72,9 +72,6 @@ impl SentryError for GpuCrash {
 
 impl Counted for GpuCrash {
     fn quantities(&self) -> Quantities {
-        match self.0.rate_limited() {
-            true => Default::default(),
-            false => self.0.quantities(),
-        }
+        self.0.quantities()
     }
 }

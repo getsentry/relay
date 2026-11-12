@@ -13,9 +13,9 @@ use tokio::io::AsyncReadExt;
 use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{AttachmentItem, AttachmentType, ContentType, FormDataItem, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, FormDataItem, Item, Items};
 use crate::extractors::RequestMeta;
-use crate::managed::Managed;
+use crate::managed::{Counted, Managed, Quantities};
 use crate::services::outcome::{
     DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
 };
@@ -252,15 +252,44 @@ pub async fn read_field_into_item(
     }
 }
 
+/// Attachments and form data parsed from a multipart request.
+#[derive(Debug, Default)]
+pub struct MultipartItems {
+    /// Uploaded files in their original order.
+    pub attachments: smallvec::SmallVec<[AttachmentItem; 3]>,
+    /// Plain form fields collected into a single item, if present.
+    pub form_data: Option<FormDataItem>,
+}
+
+impl MultipartItems {
+    /// Converts the parsed parts to envelope items, with form data last.
+    pub fn into_items(self) -> Items {
+        self.attachments
+            .into_iter()
+            .map(Item::from)
+            .chain(self.form_data.map(Item::from))
+            .collect()
+    }
+}
+
+impl Counted for MultipartItems {
+    fn quantities(&self) -> Quantities {
+        (&self.attachments, &self.form_data).quantities()
+    }
+}
+
 pub async fn multipart_items(
     mut multipart: Multipart<'static>,
     config: &ConfigSnapshot,
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
-) -> Result<Managed<Items>, BadStoreRequest> {
-    let mut items =
-        Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, Items::new());
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
+    let mut items = Managed::with_meta_from_request_meta(
+        request_meta,
+        outcome_aggregator,
+        MultipartItems::default(),
+    );
     let mut form_data = FormDataWriter::new();
     let mut attachments_size = 0;
 
@@ -290,7 +319,7 @@ pub async fn multipart_items(
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
                 attachments_size += item.len();
-                items.merge_with(item, |items, item, _| items.push(item.into()));
+                items.merge_with(item, |items, item, _| items.attachments.push(item));
                 if attachments_size > config.max_attachments_size() {
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
                     let _ =
@@ -324,7 +353,9 @@ pub async fn multipart_items(
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
         item.set_payload(ContentType::Text, form_data);
-        items.merge_with(items.wrap(item), |items, item, _| items.push(item.into()));
+        items.merge_with(items.wrap(item), |items, item, _| {
+            items.form_data = Some(item)
+        });
     }
 
     Ok(items)

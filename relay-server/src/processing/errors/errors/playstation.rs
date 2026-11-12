@@ -202,7 +202,7 @@ impl SentryError for Playstation {
     fn into_payload(self) -> ErrorPayload {
         let mut attachments = smallvec::smallvec![self.prosperodump];
         attachments.extend(self.minidump);
-        ErrorPayload::Attachments(attachments)
+        ErrorPayload(attachments)
     }
 
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
@@ -219,12 +219,8 @@ impl Counted for Playstation {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        if !self.prosperodump.rate_limited() {
-            quantities.extend(self.prosperodump.quantities());
-        }
-        if let Some(minidump) = &self.minidump
-            && !minidump.rate_limited()
-        {
+        quantities.extend(self.prosperodump.quantities());
+        if let Some(minidump) = &self.minidump {
             quantities.extend(minidump.quantities());
         }
         quantities

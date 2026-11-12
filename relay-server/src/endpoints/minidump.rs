@@ -18,9 +18,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::constants;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
-#[cfg(test)]
-use crate::envelope::ItemType;
-use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope, Item, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -408,7 +406,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
     let config = state.config();
 
@@ -422,12 +420,9 @@ async fn multipart_to_items(
     .await?;
 
     let (minidump_idx, minidump_item) = items
+        .attachments
         .iter()
         .enumerate()
-        .filter_map(|(index, item)| match item {
-            Item::Attachment(attachment) => Some((index, attachment)),
-            _ => None,
-        })
         .find(|(_, item)| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)
         .reject(&items)?;
@@ -444,7 +439,7 @@ async fn multipart_to_items(
             .reject(&items)?;
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
-            let Some(Item::Attachment(minidump_item)) = items.get_mut(minidump_idx) else {
+            let Some(minidump_item) = items.attachments.get_mut(minidump_idx) else {
                 return Err(BadStoreRequest::MissingMinidump);
             };
             minidump_item.set_payload(ContentType::Minidump, payload);
@@ -615,11 +610,14 @@ async fn items(
     meta: &RequestMeta,
     content_type: RawContentType,
     request: Request,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         raw_minidump_to_item(request, meta, state, upload_context)
             .await?
-            .map(|item, _| smallvec![Item::from(item)])
+            .map(|item, _| utils::MultipartItems {
+                attachments: smallvec![item],
+                form_data: None,
+            })
     } else {
         let multipart = utils::multipart_from_request(request)?;
         multipart_to_items(multipart, meta, state, upload_context).await?
@@ -666,6 +664,7 @@ async fn handle(
         .reject(&managed_err)?;
 
     let mut envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let items = items.into_items();
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
         Ok::<_, BadStoreRequest>(Box::new(envelope))
@@ -711,7 +710,8 @@ pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::ContentType;
+    use crate::envelope::{ContentType, Item};
+    use crate::managed::Counted;
     use crate::utils::FormDataIter;
     use axum::body::Body;
     use bzip2::Compression as BzCompression;
@@ -929,39 +929,32 @@ mod tests {
         // * one event file
         // * one form-data item
         // * one view-hierarchy file
-        assert_eq!(6, items.len());
+        assert_eq!(5, items.attachments.len());
+        assert!(items.form_data.is_some());
 
         // `config.json` has no content-type. MIME-detection in later processing will assign this.
-        let Item::Attachment(item) = &items[0] else {
-            panic!("expected an attachment");
-        };
+        let item = &items.attachments[0];
         assert_eq!(item.filename().unwrap(), "config.json");
         assert!(item.content_type().is_none());
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
         assert_eq!(item.payload().len(), 95);
 
         // the first breadcrumb buffer
-        let Item::Attachment(item) = &items[1] else {
-            panic!("expected an attachment");
-        };
+        let item = &items.attachments[1];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
         assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
-        let Item::Attachment(item) = &items[2] else {
-            panic!("expected an attachment");
-        };
+        let item = &items.attachments[2];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
         assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
         assert_eq!(item.payload().len(), 0);
 
         // the msg-pack encoded event file
-        let Item::Attachment(item) = &items[3] else {
-            panic!("expected an attachment");
-        };
+        let item = &items.attachments[3];
         assert_eq!(item.filename().unwrap(), "__sentry-event");
         assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
         assert_eq!(
@@ -971,9 +964,7 @@ mod tests {
         assert_eq!(item.payload().len(), 29);
 
         // the next item is the view-hierarchy file
-        let Item::Attachment(item) = &items[4] else {
-            panic!("expected an attachment");
-        };
+        let item = &items.attachments[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
         assert_eq!(item.content_type().unwrap(), ContentType::Json);
         assert_eq!(
@@ -983,10 +974,8 @@ mod tests {
         assert_eq!(item.payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
-        let item = &items[5];
-        assert!(!matches!(item, Item::Attachment(_)));
+        let item = items.form_data.as_ref().unwrap();
         assert_eq!(item.content_type().unwrap(), ContentType::Text);
-        assert_eq!(item.ty(), &ItemType::FormData);
         let form_payload = item.payload();
         let form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
         assert_eq!(form_data_entry.key(), "guid");
@@ -994,5 +983,29 @@ mod tests {
             form_data_entry.value(),
             "dd46bb04-bb27-448c-aad0-0deb0c134bdb"
         );
+
+        // Envelope conversion preserves accounting and keeps attachments in order, then form data.
+        let quantities = items.quantities();
+        let items = items.map(|items, _| items.into_items());
+        assert_eq!(items.quantities(), quantities);
+        assert_eq!(items.len(), 6);
+        assert_eq!(
+            items[..5]
+                .iter()
+                .map(|item| match item {
+                    Item::Attachment(attachment) => attachment.filename(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            [
+                Some("config.json"),
+                Some("__sentry-breadcrumb1"),
+                Some("__sentry-breadcrumb2"),
+                Some("__sentry-event"),
+                Some("view-hierarchy.json"),
+            ]
+        );
+        assert!(matches!(&items[5], Item::FormData(_)));
+        assert_eq!(items[5].payload(), form_payload);
     }
 }

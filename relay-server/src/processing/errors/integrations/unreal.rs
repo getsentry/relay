@@ -206,16 +206,7 @@ fn take_gpu_crash(
     if let Some(event) = event {
         envelope.add_item(event.clone());
     }
-    for item in items.extract_if(.., |item| {
-        matches!(
-            item.attachment_type(),
-            Some(
-                AttachmentType::NvGpuDump
-                    | AttachmentType::NvShaderDebug
-                    | AttachmentType::CompiledShader
-            )
-        )
-    }) {
+    for item in items.extract_if(.., |item| crate::utils::gpu::is_gpu_crash_item(item)) {
         envelope.add_item(item);
     }
 
@@ -223,10 +214,25 @@ fn take_gpu_crash(
 }
 
 fn is_cpu_dump_item(item: &AttachmentItem) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
-    )
+    // Keep exhaustive so new crash formats require an explicit splitting decision.
+    match item.attachment_type() {
+        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport) => true,
+        Some(
+            AttachmentType::Attachment
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader,
+        )
+        | None => false,
+    }
 }
 
 /// Adds a [`DynamicSamplingContext`] to `envelope`.

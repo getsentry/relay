@@ -1,5 +1,5 @@
 use crate::Envelope;
-use crate::envelope::{AttachmentItem, ContentType, Item, Items};
+use crate::envelope::{AttachmentItem, ContentType, Items};
 use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::processing::trace_attachments::ExpandedAttachments;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -17,7 +17,7 @@ impl ExpandedAttachments {
         } = self;
         let mut items = Items::new();
         for attachment in attachments {
-            items.push(attachment_to_item(attachment)?);
+            items.push(attachment_to_item(attachment)?.into());
         }
         Ok(Envelope::from_parts(headers, items))
     }
@@ -53,7 +53,9 @@ impl Forward for Managed<ExpandedAttachments> {
 }
 
 /// Converts an expanded trace attachment to an envelope item.
-pub fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, serde_json::Error> {
+pub fn attachment_to_item(
+    attachment: ExpandedAttachment,
+) -> Result<AttachmentItem, serde_json::Error> {
     let ExpandedAttachment {
         parent_id,
         meta,
@@ -73,5 +75,5 @@ pub fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, serde_
     item.set_meta_length(meta_length as u32);
     item.set_parent_id(parent_id);
 
-    Ok(item.into())
+    Ok(item)
 }

@@ -2,7 +2,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{AttachmentType, Item};
+use crate::envelope::{AttachmentItem, AttachmentType, Item};
 use crate::managed::Managed;
 
 /// Splits a GPU crash dump off an error envelope into its own event.
@@ -46,7 +46,7 @@ pub fn split_crash(
         for item in scope {
             gpu.add_item(item);
         }
-        for item in envelope.take_items_by(is_gpu_crash_item) {
+        for item in envelope.drain_items_if(is_gpu_crash_item) {
             gpu.add_item(item);
         }
 
@@ -61,13 +61,49 @@ pub fn split_crash(
 /// Items an event is assembled from. Narrower than [`Item::carries_event_payload`], which
 /// also matches crash reports that must stay on the original event.
 fn is_scope_item(item: &Item) -> bool {
+    // Keep both matches exhaustive so new variants require an explicit scope decision.
     match item {
         Item::Event(_) => true,
-        Item::Attachment(attachment) => matches!(
-            attachment.attachment_type(),
-            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
-        ),
-        _ => false,
+        Item::Attachment(attachment) => match attachment.attachment_type() {
+            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs) => true,
+            Some(
+                AttachmentType::Attachment
+                | AttachmentType::Minidump
+                | AttachmentType::AppleCrashReport
+                | AttachmentType::Prosperodump
+                | AttachmentType::NintendoSwitchDyingMessage
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs
+                | AttachmentType::ViewHierarchy
+                | AttachmentType::Flamegraph
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
+            )
+            | None => false,
+        },
+        Item::Transaction(_)
+        | Item::Security(_)
+        | Item::FormData(_)
+        | Item::RawSecurity(_)
+        | Item::UnrealReport(_)
+        | Item::UserReport(_)
+        | Item::Session(_)
+        | Item::Sessions(_)
+        | Item::MetricBuckets(_)
+        | Item::ClientReport(_)
+        | Item::Profile(_)
+        | Item::ReplayEvent(_)
+        | Item::ReplayRecording(_)
+        | Item::ReplayVideo(_)
+        | Item::CheckIn(_)
+        | Item::Log(_)
+        | Item::TraceMetric(_)
+        | Item::Span(_)
+        | Item::UserReportV2(_)
+        | Item::ProfileChunk(_)
+        | Item::Integration(_)
+        | Item::Unknown(_) => false,
     }
 }
 
@@ -78,28 +114,46 @@ pub fn is_gpu_dump_item(item: &Item) -> bool {
 }
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
-pub fn is_gpu_crash_item(item: &Item) -> bool {
-    matches!(item, Item::Attachment(attachment)
-        if matches!(attachment.attachment_type(),
-            Some(AttachmentType::NvGpuDump | AttachmentType::NvShaderDebug | AttachmentType::CompiledShader)))
+pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
+    // New attachment subtypes must explicitly opt into or out of the GPU envelope.
+    match item.attachment_type() {
+        Some(
+            AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader,
+        ) => true,
+        Some(
+            AttachmentType::Attachment
+            | AttachmentType::Minidump
+            | AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph,
+        )
+        | None => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::AttachmentItem;
     use crate::envelope::EventItem;
     use relay_system::Addr;
 
     use super::*;
     use crate::extractors::RequestMeta;
 
-    fn attachment(ty: AttachmentType) -> Item {
+    fn attachment(ty: AttachmentType) -> AttachmentItem {
         let mut item = AttachmentItem::new();
         item.set_attachment_type(ty);
-        item.into()
+        item
     }
 
-    fn envelope(items: impl IntoIterator<Item = Item>) -> Managed<Box<Envelope>> {
+    fn envelope(items: impl IntoIterator<Item = AttachmentItem>) -> Managed<Box<Envelope>> {
         let meta = RequestMeta::new(
             "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
                 .parse()
@@ -125,11 +179,17 @@ mod tests {
     #[test]
     fn test_is_scope_item() {
         assert!(is_scope_item(&Item::Event(EventItem::new())));
-        assert!(is_scope_item(&attachment(AttachmentType::EventPayload)));
-        assert!(is_scope_item(&attachment(AttachmentType::Breadcrumbs)));
+        assert!(is_scope_item(
+            &attachment(AttachmentType::EventPayload).into()
+        ));
+        assert!(is_scope_item(
+            &attachment(AttachmentType::Breadcrumbs).into()
+        ));
 
-        assert!(!is_scope_item(&attachment(AttachmentType::NvGpuDump)));
-        assert!(!is_scope_item(&attachment(AttachmentType::Minidump)));
+        assert!(!is_scope_item(
+            &attachment(AttachmentType::NvGpuDump).into()
+        ));
+        assert!(!is_scope_item(&attachment(AttachmentType::Minidump).into()));
     }
 
     #[test]

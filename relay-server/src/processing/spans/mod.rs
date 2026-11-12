@@ -460,7 +460,7 @@ impl<C> ExpandedSpans<C> {
 
             for ExpandedSpan { span, attachments } in self.spans {
                 for attachment in attachments {
-                    items.push(attachment_to_item(attachment)?);
+                    items.push(attachment_to_item(attachment)?.into());
                 }
 
                 spans_without_attachments.push(span);
@@ -481,7 +481,7 @@ impl<C> ExpandedSpans<C> {
         }
 
         for attachment in self.stand_alone_attachments {
-            items.push(attachment_to_item(attachment)?);
+            items.push(attachment_to_item(attachment)?.into());
         }
 
         Ok(Envelope::from_parts(self.headers, Items::from_vec(items)))
