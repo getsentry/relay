@@ -27,6 +27,8 @@
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
 - Limit the size of the culprit derived from CSP reports. ([#6675](https://github.com/getsentry/relay/pull/6675))
+- Correctly truncate shared tags during span tag extraction. ([#6637](https://github.com/getsentry/relay/pull/6637))
+
 
 **Internal**:
 
