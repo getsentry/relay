@@ -235,14 +235,13 @@ impl Service for ClientReportOutcomeProducerService {
 
                 () = &mut self.flush_handle => self.do_flush(),
                 signal = rx.recv() => match signal {
-                    None => self.handle_shutdown(),
                     Some(message) => self.handle_message(message),
+                    None => break,
                 },
-
                 else => break,
             }
         }
-        self.do_flush();
+        self.handle_shutdown();
         relay_log::info!("client report outcome producer stopped");
     }
 }

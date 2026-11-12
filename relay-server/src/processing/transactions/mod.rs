@@ -92,14 +92,9 @@ impl Processor for TransactionProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let mut event = envelope
+        let event = envelope
             .envelope_mut()
             .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
-
-        // Count number of spans by shallow-parsing the event.
-        // Needed for accounting but not in prod, because the event is immediately parsed afterwards.
-        #[cfg(debug_assertions)]
-        event.ensure_span_count();
 
         let attachments = envelope
             .envelope_mut()

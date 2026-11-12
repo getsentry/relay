@@ -1,8 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::error::Error;
 use std::num::{NonZeroU8, NonZeroU32};
-use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -19,7 +17,7 @@ use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 
 use tokio::sync::watch;
-use tokio::time::{Instant, timeout};
+use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -165,11 +163,6 @@ impl PartitionedEnvelopeBuffer {
 
     pub fn item_count(&self) -> u64 {
         self.buffers.iter().map(|buffer| buffer.item_count()).sum()
-    }
-
-    /// Returns `true` if all buffers are empty, in memory and on disk.
-    pub fn is_empty(&self) -> bool {
-        self.buffers.iter().all(|buffer| buffer.is_empty())
     }
 
     pub fn total_storage_size(&self) -> u64 {
@@ -561,7 +554,7 @@ impl EnvelopeBufferService {
                 sampling_project_info,
             } => {
                 let mut envelope = pop_envelope!();
-                if own_project.check_envelope(&mut envelope).await.is_err() || envelope.is_empty() {
+                if own_project.check_envelope(&mut envelope).is_err() || envelope.is_empty() {
                     // Outcomes are emitted by `check_envelope`.
                     return Ok(());
                 };
@@ -992,7 +985,7 @@ mod tests {
         addr.send(EnvelopeBuffer::Push(envelope));
         drop(addr);
 
-        timeout(Duration::from_secs(5), service.run(rx))
+        tokio::time::timeout(Duration::from_secs(5), service.run(rx))
             .await
             .expect("persistent buffer should flush and stop");
         assert!(envelope_processor_rx.try_recv().is_err());

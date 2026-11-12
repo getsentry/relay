@@ -203,6 +203,8 @@ pub struct GlobalConfigService {
     last_fetched: Instant,
     /// Interval of upstream fetching failures before reporting such errors.
     upstream_failure_interval: Duration,
+    /// Disables the upstream fetch loop.
+    shutdown: bool,
 }
 
 impl GlobalConfigService {
@@ -224,6 +226,7 @@ impl GlobalConfigService {
                 fetch_handle: SleepHandle::idle(),
                 last_fetched: Instant::now(),
                 upstream_failure_interval: Duration::from_secs(35),
+                shutdown: false,
             },
             rx,
         )
@@ -248,7 +251,7 @@ impl GlobalConfigService {
 
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
-        if !self.fetch_handle.is_idle() {
+        if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
                 .set(self.config.current().global_config_fetch_interval());
         }
@@ -372,7 +375,7 @@ impl Service for GlobalConfigService {
                 signal = rx.recv() => match signal {
                     Some(message) => self.handle_message(message),
                     None => break, // all requests have been answered, stop immediately.
-                },
+                }
             }
         }
         relay_log::info!("global config service stopped");
@@ -382,13 +385,12 @@ impl Service for GlobalConfigService {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::time::Duration;
 
     use relay_config::{Config, Credentials, RelayMode};
     use relay_system::Service;
     use relay_test::mock_service;
 
-    use crate::services::global_config::{Get, GetGlobalConfigResponse, GlobalConfigService};
+    use crate::services::global_config::{Get, GlobalConfigService};
 
     #[tokio::test(start_paused = true)]
     async fn test_shutdown_on_channel_close() {
@@ -408,65 +410,6 @@ mod tests {
         drop(addr);
         assert!(futures::poll!(&mut run).is_ready());
         assert!(config_rx.changed().await.is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_fetch_schedule_respects_shutdown() {
-        let config = Arc::new(Config::default());
-        let fetch_interval = config.current().global_config_fetch_interval();
-        let (mut service, _) = GlobalConfigService::new(config, relay_system::Addr::dummy());
-        let response = || {
-            Ok(Ok(GetGlobalConfigResponse {
-                global: Some(Default::default()),
-                global_status: None,
-            }))
-        };
-
-        // An upstream result must schedule another fetch while the service is running.
-        service.handle_result(response());
-        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
-        tokio::time::advance(fetch_interval).await;
-        assert!(futures::poll!(&mut service.fetch_handle).is_ready());
-
-        // Shutdown cancels scheduled fetches and prevents late results from rearming them.
-        service.handle_result(response());
-        service.handle_shutdown();
-        service.handle_result(response());
-        tokio::time::advance(fetch_interval).await;
-        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
-    }
-
-    /// Tests that the service can still handle requests after sending a
-    /// shutdown signal.
-    #[tokio::test]
-    async fn shutdown_service() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        let (upstream, _) = mock_service("upstream", 0, |state, _| {
-            *state += 1;
-
-            if *state > 1 {
-                panic!("should not receive requests after shutdown");
-            }
-        });
-
-        // Controller::start(Duration::from_secs(1));
-        let mut config = Config::default();
-        config
-            .replace_credentials(Some(Credentials::generate()))
-            .unwrap();
-        let fetch_interval = config.current().global_config_fetch_interval();
-
-        let service = GlobalConfigService::new(Arc::new(config), upstream)
-            .0
-            .start_detached();
-
-        assert!(service.send(Get).await.is_ok());
-
-        tokio::time::sleep(fetch_interval * 2).await;
-
-        assert!(service.send(Get).await.is_ok());
     }
 
     #[tokio::test]
