@@ -37,7 +37,7 @@ impl SentryError for Generic {
             event: Box::new(event),
             attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
             user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
-            intermediates: vec![],
+            session_updates: vec![],
             error: Self,
             metrics,
             fully_normalized,

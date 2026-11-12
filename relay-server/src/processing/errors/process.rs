@@ -85,17 +85,16 @@ fn do_expand(
     }
 
     let mut intermediates = Intermediates::default();
-    if !parsed.intermediates.is_empty() {
-        // Currently all intermediates are new items which were not accounted for before.
-        //
-        // Intermediates are currently used for session items for Switch and PlayStation crashes.
-        records.add(&parsed.intermediates);
+    if !parsed.session_updates.is_empty() {
+        // Crash-generated session updates were not accounted for in the original envelope.
+        // These are currently extracted from Switch and PlayStation crashes.
+        records.add(&parsed.session_updates);
 
         // The forked off envelope is completely standalone, to prevent any issues with duplicated
         // event ids that may get de-duplicated later, we always create a new event id here.
         let mut envelope =
             Envelope::from_request(Some(EventId::new()), error.headers.meta().clone());
-        for item in parsed.intermediates {
+        for item in parsed.session_updates {
             envelope.add_item(item);
         }
         intermediates.add_envelope(envelope);

@@ -58,7 +58,7 @@ impl SentryError for Nswitch {
                 )?),
                 attachments,
                 user_reports,
-                intermediates: vec![],
+                session_updates: vec![],
                 error: Self::Forward { dying_message },
                 metrics,
                 fully_normalized: false,
@@ -107,11 +107,7 @@ impl SentryError for Nswitch {
             event: Box::new(event),
             attachments,
             user_reports,
-            intermediates: dying_message
-                .session_updates
-                .into_iter()
-                .map(Item::from)
-                .collect(),
+            session_updates: dying_message.session_updates,
             error: Self::Process {},
             metrics,
             fully_normalized: false,

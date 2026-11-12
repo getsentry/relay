@@ -2,7 +2,7 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item, UserReportItem};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders, Item, SessionItem, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing;
 use crate::processing::errors::Result;
@@ -138,7 +138,7 @@ macro_rules! gen_error_kind {
                             event: p.event,
                             attachments: p.attachments,
                             user_reports: p.user_reports,
-                            intermediates: p.intermediates,
+                            session_updates: p.session_updates,
                             error: p.error.into(),
                             metrics: p.metrics,
                             fully_normalized: p.fully_normalized,
@@ -219,11 +219,11 @@ pub struct Expansion<T> {
     pub attachments: Vec<AttachmentItem>,
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<UserReportItem>,
-    /// Additional items extracted from the error that need to be processed in a separate pass.
+    /// Session updates extracted from the crash for processing in a separate pass.
     ///
-    /// All items will be added to a single envelope with a new event id and no envelope headers retained
-    /// and all items must make up a valid envelope.
-    pub intermediates: Vec<Item>,
+    /// All updates are added to a single envelope with a new event id and no original envelope
+    /// headers. Together they must form a valid envelope.
+    pub session_updates: Vec<SessionItem>,
     /// The custom error data.
     pub error: T,
     /// Metrics about the error/event.
