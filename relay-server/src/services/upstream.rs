@@ -1262,10 +1262,6 @@ enum Action {
     ///
     /// This message is delivered to the [`ConnectionMonitor`] instance.
     Connected,
-    /// The auth monitor indicates a change in the authentication state.
-    ///
-    /// The new auth state is mirrored in an internal field for immediate access.
-    UpdateAuth(AuthState),
 }
 
 type ActionTx = mpsc::UnboundedSender<Action>;
@@ -1283,7 +1279,7 @@ struct AuthMonitor {
     config: Arc<Config>,
     client: SharedClient,
     state: AuthState,
-    tx: ActionTx,
+    tx: mpsc::UnboundedSender<AuthState>,
 }
 
 impl AuthMonitor {
@@ -1306,7 +1302,7 @@ impl AuthMonitor {
     fn send_state(&mut self, state: AuthState) -> Result<(), UpstreamRequestError> {
         self.state = state;
         self.tx
-            .send(Action::UpdateAuth(state))
+            .send(state)
             .map_err(|_| UpstreamRequestError::ChannelClosed)
     }
 
@@ -1370,7 +1366,7 @@ impl AuthMonitor {
 
         let mut backoff = RetryBackoff::new(current_config.http_max_retry_interval());
 
-        loop {
+        while !self.tx.is_closed() {
             match self.authenticate(credentials).await {
                 Ok(_) => {
                     backoff.reset();
@@ -1413,7 +1409,9 @@ impl AuthMonitor {
                         "scheduling authentication retry in {} seconds",
                         backoff.as_secs()
                     );
-                    tokio::time::sleep(backoff).await;
+
+                    // Wait until backoff, or until the broker is gone:
+                    let _ = tokio::time::timeout(backoff, self.tx.closed()).await;
                 }
             };
         }
@@ -1658,7 +1656,6 @@ impl UpstreamBroker {
             Action::Retry(request) => self.queue.retry(request),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
-            Action::UpdateAuth(state) => self.auth_state = state,
         }
     }
 }
@@ -1689,6 +1686,7 @@ impl Service for UpstreamRelayService {
         // Channel for serialized communication from the auth monitor, connection monitor, and
         // concurrent requests back to the broker.
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+        let (auth_state_tx, mut auth_state_rx) = mpsc::unbounded_channel();
 
         // Spawn a recurring background check for authentication. It terminates automatically if
         // authentication is not required or rejected.
@@ -1696,9 +1694,9 @@ impl Service for UpstreamRelayService {
             config: config.clone(),
             client: client.clone(),
             state: AuthState::Unknown,
-            tx: action_tx.clone(),
+            tx: auth_state_tx,
         };
-        relay_system::spawn!(auth.run());
+        let auth_monitor = relay_system::spawn!(auth.run());
 
         // Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.
@@ -1711,17 +1709,28 @@ impl Service for UpstreamRelayService {
             action_tx,
         };
 
-        loop {
+        let mut expects_input = true;
+        let mut expects_actions = true;
+        while expects_input || expects_actions || broker.queue.len() > 0 {
             tokio::select! {
                 biased;
 
-                Some(action) = action_rx.recv() => broker.handle_action(action),
+                Some(auth_state) = auth_state_rx.recv() => broker.auth_state = auth_state,
+                signal = action_rx.recv(), if expects_actions => match signal {
+                    Some(action) => broker.handle_action(action),
+                    None => expects_actions = false},
                 Some(request) = broker.next_request() => broker.execute(request),
-                Some(message) = rx.recv() => broker.handle_message(message).await,
-
+                signal = rx.recv(), if expects_input => match signal {
+                    Some(message) => {broker.handle_message(message).await;},
+                    None => {expects_input = false; }
+                },
                 else => break,
             }
         }
+
+        // Drop the auth state receiver and join the auth monitor:
+        drop(auth_state_rx);
+        let _ = auth_monitor.await;
     }
 }
 
