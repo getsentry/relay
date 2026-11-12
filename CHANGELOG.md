@@ -44,6 +44,7 @@
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 - Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
 - Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
+- Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
 
 **Bug Fixes**:
 
