@@ -83,7 +83,14 @@ pub fn expand(
     let reports: std::vec::IntoIter<
         DeserializableAnnotated<relay_event_schema::protocol::NetworkReportRaw>,
     > = relay_serialization::serde::deserialize::<Vec<_>, _>(&mut de, max_ops)
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
+        .map_err(|e| match e {
+            relay_serialization::serde::Error::LimitExceeded(_) => {
+                Error::Invalid(DiscardReason::RequestTooLarge)
+            }
+            relay_serialization::serde::Error::Serde(_) => {
+                Error::Invalid(DiscardReason::InvalidJson)
+            }
+        })?
         .into_iter();
     de.end()
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
