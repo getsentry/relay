@@ -304,7 +304,6 @@ struct Prefix {
     depth: usize,
     app_frames: usize,
     samples: u128,
-    child_samples: u128,
 }
 
 #[derive(Default)]
@@ -402,7 +401,6 @@ impl<'payload> Graph<'payload> {
                             app_frames: app_frames
                                 + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
                             samples: 0,
-                            child_samples: 0,
                         });
                         *entry.insert(index)
                     }
@@ -414,12 +412,6 @@ impl<'payload> Graph<'payload> {
                     return Err(Error::CyclicCallPath);
                 }
                 candidate.samples += u128::from(node.sample_count);
-                if let Some(parent) = parent {
-                    candidates
-                        .get_mut(parent.index())
-                        .ok_or(Error::PrefixIndex(parent.index()))?
-                        .child_samples += u128::from(node.sample_count);
-                }
                 remaining_visits = remaining_visits
                     .checked_sub(node.children.len())
                     .ok_or(Error::TraversalLimit)?;
@@ -434,11 +426,21 @@ impl<'payload> Graph<'payload> {
             // Integer scores retain differences near the maximum safe JSON sample count. The input
             // byte limit bounds the number of nodes and path depth, so u128 also bounds aggregation.
             let mut best_prefix = None;
+            let mut child_samples = 0;
             for (index, prefix) in candidates.iter().enumerate() {
                 let score = prefix.samples * (prefix.depth + prefix.app_frames) as u128;
                 if score > best_score {
                     best_score = score;
                     best_prefix = Some(index);
+                    // Parents precede their children, so all children of the new winner
+                    // are still ahead of us. Sample totals are already fully aggregated.
+                    child_samples = 0;
+                }
+                if prefix
+                    .parent
+                    .is_some_and(|parent| Some(parent.index()) == best_prefix)
+                {
+                    child_samples += prefix.samples;
                 }
             }
             if let Some(index) = best_prefix {
@@ -446,7 +448,7 @@ impl<'payload> Graph<'payload> {
                 // A winner with 100 samples and children with 60 + 40 samples is exclusively
                 // a caller. With 60 + 20 child samples, 20 samples end at the winner itself.
                 let candidate = get(candidates, index)?;
-                let ends_at_caller = candidate.child_samples == candidate.samples;
+                let ends_at_caller = child_samples == candidate.samples;
                 let depth = candidate.depth;
                 let mut path = Vec::with_capacity(depth.min(RawStacktrace::MAX_FRAMES));
                 let mut current = Some(winner);
@@ -567,6 +569,50 @@ mod tests {
         let culprit = parse(&payload).unwrap().identify_culprit().unwrap();
         assert!(culprit.ends_at_caller);
         assert_eq!(identify(graph).unwrap(), vec![0, 1]);
+    }
+
+    #[test]
+    fn test_culprit_caller_status_after_winner_changes_and_ties() {
+        for child_samples in [40, 50] {
+            for roots in [[0, 3, 6], [0, 6, 3]] {
+                for separate_trees in [false, true] {
+                    let mut graph = culprit_graph();
+                    graph["frames"].as_array_mut().unwrap().push(json!({
+                        "instruction_addr": "0x5000", "in_app": true
+                    }));
+                    graph["nodes"] = json!([
+                        {"frame_id": 0, "sample_count": 50, "children": [1, 2]},
+                        {"frame_id": 2, "sample_count": 25},
+                        {"frame_id": 3, "sample_count": 25},
+                        {"frame_id": 1, "sample_count": 100, "children": [4, 5]},
+                        {"frame_id": 2, "sample_count": child_samples},
+                        {"frame_id": 3, "sample_count": child_samples},
+                        {"frame_id": 4, "sample_count": 100}
+                    ]);
+                    graph["trees"] = if separate_trees {
+                        roots.iter().map(|root| json!({"roots": [root]})).collect()
+                    } else {
+                        json!([{"roots": roots}])
+                    };
+                    // Root 0 initially wins and has child samples. Roots 3 and 6 then
+                    // tie at 200, so the first one wins, with its own caller status.
+                    let expected_frame = if roots[1] == 3 { 1 } else { 4 };
+                    let payload = serde_json::to_vec(&graph).unwrap();
+                    let graph = parse(&payload).unwrap();
+                    let culprit = graph.identify_culprit().unwrap();
+                    assert_eq!(culprit.frames.len(), 1);
+                    assert_eq!(
+                        culprit.frames[0].get(),
+                        graph.0.frames[expected_frame].raw.get()
+                    );
+                    assert_eq!(
+                        culprit.ends_at_caller,
+                        roots[1] == 3 && child_samples == 50,
+                        "roots: {roots:?}, child samples: {child_samples}, separate trees: {separate_trees}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
