@@ -110,6 +110,7 @@ pub fn validate_and_set_dsc(
                 dsc.project_id = sampling_project_info.project_id;
             }
         };
+        relay_event_normalization::normalize_dsc_values(dsc);
         Ok(())
     })
 }
@@ -191,8 +192,8 @@ fn split_indexed_and_total(
     decision: SamplingDecision,
 ) -> SpansAndMetrics {
     spans.split_once(|spans, r| {
-        r.lenient(DataCategory::MetricBucket);
         let metrics = create_metrics(&spans.spans, decision);
+        r.add((DataCategory::MetricBucket, metrics.bucket_count()));
 
         (spans.into_indexed(), metrics)
     })

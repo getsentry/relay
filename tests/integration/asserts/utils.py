@@ -36,9 +36,7 @@ class PrintLastCompare(object):
         # This depends on pytest internals, should this ever break, a simple alternative is to instead override
         # repr of `cls` to return `repr(self.__last_compare_value)`. This will not work for anything where pytest
         # has custom formatters, but for all primitives this will work.
-        def _dispatch_last_compare(
-            printer, obj, stream, indent, allowance, context, level
-        ):
+        def _dispatch_last_compare(printer, obj, indent, allowance, context, level):
             # Since cls.__repr__ points to this function and we want to delegate to the original
             # repr implementation, we'll have to use a wrapper such as `_NoopRepr` to break the recursion.
             p = _NoopRepr(obj)
@@ -47,7 +45,7 @@ class PrintLastCompare(object):
                     p = obj.__last_compare_value
             except AttributeError:
                 pass
-            printer._format(p, stream, indent, allowance, context, level)
+            yield from printer._format(p, indent, allowance, context, level)
 
         from _pytest._io.pprint import PrettyPrinter
 

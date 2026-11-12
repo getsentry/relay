@@ -107,6 +107,20 @@ impl From<&str> for AttributeValue {
     }
 }
 
+impl From<Vec<String>> for AttributeValue {
+    fn from(value: Vec<String>) -> Self {
+        let values = value
+            .into_iter()
+            .map(|value| Annotated::new(Value::String(value)))
+            .collect();
+
+        Self {
+            ty: Annotated::new(AttributeType::Array),
+            value: Annotated::new(Value::Array(values)),
+        }
+    }
+}
+
 /// Determines the `Pii` value for an attribute (or, more exactly, the
 /// attribute's `value` field) by looking it up in `relay-conventions`.
 ///
