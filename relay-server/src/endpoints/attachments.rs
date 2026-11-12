@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentItem, AttachmentType, Envelope};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
@@ -31,9 +31,9 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+    ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
         Ok(Some(read_field_into_item(field, item, config).await?))
     }
 }
@@ -54,7 +54,7 @@ async fn multipart_to_envelope(
     .await?;
 
     let envelope = items.map(|items, records| {
-        if items.iter().any(|i| i.creates_event()) {
+        if items.iter().any(|i| i.carries_event_payload()) {
             records.modify_by(DataCategory::Error, 1);
         }
         Box::new(Envelope::from_request(Some(path.event_id), meta).with_items(items))

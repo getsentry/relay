@@ -1,13 +1,13 @@
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::envelope::{AttachmentItem, EnvelopeHeaders, ProfileItem, TransactionItem};
 use crate::managed::{Counted, Quantities};
 
 /// A transaction in its serialized state, as transported in an envelope.
 #[derive(Debug)]
 pub struct SerializedTransaction {
     pub headers: EnvelopeHeaders,
-    pub event: Item,
-    pub attachments: Vec<Item>,
-    pub profiles: Vec<Item>,
+    pub event: TransactionItem,
+    pub attachments: Vec<AttachmentItem>,
+    pub profiles: Vec<ProfileItem>,
 }
 
 impl Counted for SerializedTransaction {

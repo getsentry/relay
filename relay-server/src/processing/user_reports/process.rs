@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use relay_event_schema::protocol::UserReport;
 
-use crate::envelope::{ContentType, Item};
+use crate::envelope::{ContentType, UserReportItem};
 use crate::managed::Managed;
 use crate::managed::RecordKeeper;
 use crate::processing::user_reports::SerializedUserReports;
@@ -18,7 +18,10 @@ pub fn process(reports: &mut Managed<SerializedUserReports>) {
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports(user_reports: &mut Vec<Item>, records: &mut RecordKeeper<'_>) {
+pub fn process_user_reports(
+    user_reports: &mut Vec<UserReportItem>,
+    records: &mut RecordKeeper<'_>,
+) {
     for mut user_report in std::mem::take(user_reports) {
         let data = match process_user_report(user_report.payload()) {
             Ok(data) => data,

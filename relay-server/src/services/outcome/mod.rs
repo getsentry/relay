@@ -646,15 +646,18 @@ impl From<ItemType> for DiscardItemType {
 
 impl From<&Item> for DiscardItemType {
     fn from(item: &Item) -> Self {
-        if let Some(attachment_type) = item.attachment_type() {
-            return attachment_type.into();
-        }
-
-        match item.integration() {
-            Some(Integration::Errors(ErrorsIntegration::Unreal)) => Self::UnrealReport,
-            Some(Integration::Logs(_)) => Self::Log,
-            Some(Integration::Spans(_)) => Self::Span,
-            None => item.ty().into(),
+        match item {
+            Item::Attachment(attachment) => attachment
+                .attachment_type()
+                .map(Self::from)
+                .unwrap_or_else(|| item.ty().into()),
+            Item::Integration(integration) => match integration.integration() {
+                Some(Integration::Errors(ErrorsIntegration::Unreal)) => Self::UnrealReport,
+                Some(Integration::Logs(_)) => Self::Log,
+                Some(Integration::Spans(_)) => Self::Span,
+                None => item.ty().into(),
+            },
+            _ => item.ty().into(),
         }
     }
 }

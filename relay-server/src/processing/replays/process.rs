@@ -1,3 +1,4 @@
+use crate::envelope::ReplayVideoItem;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, eap, replay};
 use relay_event_schema::processor::{self, ProcessingState};
@@ -8,7 +9,6 @@ use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
 use crate::processing::replays::{
     Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, Result, SerializedReplays,
@@ -17,7 +17,7 @@ use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
 use crate::utils::rmp;
 
-fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
+fn expand_video(item: &ReplayVideoItem) -> Result<ReplayPayload, Error> {
     let payload = item.payload();
     let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {

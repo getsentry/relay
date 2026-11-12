@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item, ItemStorage, ItemVariant};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -102,43 +102,47 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
-        let limit = match item.ty() {
-            ItemType::Event
-            | ItemType::Transaction
-            | ItemType::Security
-            | ItemType::ReplayEvent
-            | ItemType::RawSecurity
-            | ItemType::UserReportV2
-            | ItemType::FormData => &mut event,
-            ItemType::Attachment | ItemType::UnrealReport | ItemType::UserReport => &mut attachment,
-            ItemType::ReplayRecording => &mut replay_recording,
-            ItemType::ReplayVideo => &mut replay_video,
-            ItemType::Session | ItemType::Sessions => &mut session,
-            ItemType::ClientReport => &mut client_report,
-            ItemType::Profile | ItemType::ProfileChunk => &mut profile,
-            ItemType::CheckIn => &mut check_in,
-            ItemType::MetricBuckets => &mut metric_bucket,
-            ItemType::Log => &mut log,
-            ItemType::TraceMetric => &mut trace_metric,
-            ItemType::Span => match item.is_container() {
-                true => &mut span,
-                false => &mut span_legacy,
+        let result = match item {
+            Item::Event(item) => event.apply(item),
+            Item::Transaction(item) => event.apply(item),
+            Item::Security(item) => event.apply(item),
+            Item::ReplayEvent(item) => event.apply(item),
+            Item::RawSecurity(item) => event.apply(item),
+            Item::UserReportV2(item) => event.apply(item),
+            Item::FormData(item) => event.apply(item),
+            Item::Attachment(item) => attachment.apply(item),
+            Item::UnrealReport(item) => attachment.apply(item),
+            Item::UserReport(item) => attachment.apply(item),
+            Item::ReplayRecording(item) => replay_recording.apply(item),
+            Item::ReplayVideo(item) => replay_video.apply(item),
+            Item::Session(item) => session.apply(item),
+            Item::Sessions(item) => session.apply(item),
+            Item::ClientReport(item) => client_report.apply(item),
+            Item::Profile(item) => profile.apply(item),
+            Item::ProfileChunk(item) => profile.apply(item),
+            Item::CheckIn(item) => check_in.apply(item),
+            Item::MetricBuckets(item) => metric_bucket.apply(item),
+            Item::Log(item) => log.apply(item),
+            Item::TraceMetric(item) => trace_metric.apply(item),
+            Item::Span(item) => match item.is_container() {
+                true => span.apply(item),
+                false => span_legacy.apply(item),
             },
-            ItemType::Integration => match item.integration() {
-                Some(Integration::Errors(_)) => &mut attachment,
-                Some(Integration::Logs(_)) => &mut log_integration,
-                Some(Integration::Spans(_)) => &mut span_integration,
+            Item::Integration(item) => match item.integration() {
+                Some(Integration::Errors(_)) => attachment.apply(item),
+                Some(Integration::Logs(_)) => log_integration.apply(item),
+                Some(Integration::Spans(_)) => span_integration.apply(item),
                 None => {
                     // Shouldn't be possible, if it still happens due to a bug, be defensive.
                     debug_assert!(false);
-                    &mut empty
+                    empty.apply(item)
                 }
             },
             // Unknown items are either filtered or forwarded as is.
-            ItemType::Unknown(_) => continue,
+            Item::Unknown(_) => continue,
         };
 
-        if let Err(err) = limit.apply(item) {
+        if let Err(err) = result {
             relay_statsd::metric!(
                 counter(RelayCounters::EnvelopeSizeLimited) += 1,
                 item = item.ty().name(),
@@ -172,7 +176,10 @@ struct Limit {
 }
 
 impl Limit {
-    fn apply(&mut self, item: &Item) -> Result<(), Rejected> {
+    fn apply<T: ItemVariant + std::ops::Deref<Target = ItemStorage>>(
+        &mut self,
+        item: &T,
+    ) -> Result<(), Rejected> {
         let size = match item.is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //

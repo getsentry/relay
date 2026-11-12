@@ -1,10 +1,10 @@
+use crate::envelope::{SessionItem, SessionsItem};
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::protocol::{SessionAggregates, SessionAttributes, SessionUpdate};
 
-use crate::envelope::Item;
 use crate::managed::{Managed, RecordKeeper};
 use crate::metrics_extraction;
 use crate::metrics_extraction::ExtractedMetrics;
@@ -63,7 +63,7 @@ pub fn expand(sessions: Managed<SerializedSessions>, ctx: Context<'_>) -> Expans
     Expansion::Continue(expanded)
 }
 
-fn expand_session(item: &Item) -> Result<SessionUpdate> {
+fn expand_session(item: &SessionItem) -> Result<SessionUpdate> {
     let payload = item.payload();
 
     SessionUpdate::parse(&payload).map_err(|err| {
@@ -75,7 +75,7 @@ fn expand_session(item: &Item) -> Result<SessionUpdate> {
     })
 }
 
-fn expand_session_aggregates(item: &Item) -> Result<SessionAggregates> {
+fn expand_session_aggregates(item: &SessionsItem) -> Result<SessionAggregates> {
     let payload = item.payload();
 
     SessionAggregates::parse(&payload).map_err(|err| {

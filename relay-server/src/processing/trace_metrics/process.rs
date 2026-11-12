@@ -5,7 +5,9 @@ use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{
+    ContainerItems, ContainerParseError, EnvelopeHeaders, ItemContainer, TraceMetricItem,
+};
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
@@ -78,7 +80,7 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 
 /// Parses a trace metric container into its [`ContainerItems<TraceMetric>`] representation.
 fn expand_trace_metric_container(
-    item: &Item,
+    item: &TraceMetricItem,
     trust: RequestTrust,
     max_ops: usize,
 ) -> Result<(Settings, ContainerItems<TraceMetric>)> {
@@ -224,6 +226,7 @@ fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::ContainerPayload;
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
@@ -235,7 +238,7 @@ mod tests {
     fn test_expand_trace_metric_container_operations_limit() {
         let payload = r#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","name":"test.metric","type":"counter","value":1.0,"attributes":{}}]}"#;
 
-        let mut item = Item::new(crate::envelope::ItemType::TraceMetric);
+        let mut item = TraceMetricItem::new();
         item.set_payload_with_item_count(
             crate::envelope::ContentType::TraceMetricContainer,
             payload,

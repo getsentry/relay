@@ -1651,8 +1651,7 @@ def test_invalid_spans(mini_sentry, relay):
     )
     relay.send_envelope(project_id, envelope)
 
-    # Wait here till the event arrives at which point we know that all the outcomes should also be
-    # available as well to check afterwards.
+    # Wait for the surviving span to arrive.
     envelope = mini_sentry.get_captured_envelope()
     spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
 
@@ -1660,7 +1659,8 @@ def test_invalid_spans(mini_sentry, relay):
     spans[0].pop("attributes")  # irrelevant for this test
     assert spans[0] == valid_span
 
-    outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
+    # Rejections can arrive in separate outcome flushes.
+    outcomes = mini_sentry.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
