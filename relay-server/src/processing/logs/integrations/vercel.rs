@@ -114,20 +114,15 @@ pub fn expand(
     let payload = item.payload();
     match format {
         VercelLogDrainFormat::Json => {
-            let mut de = serde_json::Deserializer::from_slice(&payload);
-
             let logs =
-                relay_serialization::serde::deserialize::<Vec<VercelLog>, _>(&mut de, max_ops)
+                relay_serialization::serde::deserialize_json::<Vec<VercelLog>>(&payload, max_ops)
                     .map_err(|e| {
-                        relay_log::debug!(
-                            error = &e as &dyn std::error::Error,
-                            "Failed to parse logs data as JSON"
-                        );
-                        Error::Invalid(DiscardReason::InvalidJson)
-                    })?;
-
-            de.end()
-                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+                    relay_log::debug!(
+                        error = &e as &dyn std::error::Error,
+                        "Failed to parse logs data as JSON"
+                    );
+                    Error::Invalid(DiscardReason::InvalidJson)
+                })?;
 
             for log in logs {
                 count += 1;

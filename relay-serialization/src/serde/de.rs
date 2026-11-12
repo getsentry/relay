@@ -76,6 +76,28 @@ where
     deserialize_seed(PhantomData::<T>, deserializer, max_ops)
 }
 
+/// Deserializes a `T` from JSON bytes in `payload`, spending at most `max_ops` doing so.
+///
+/// Returns [`Error::LimitExceeded`] if the value consumes too many operations.
+pub fn deserialize_json<'de, T>(
+    payload: &[u8],
+    max_ops: usize,
+) -> Result<T, Error<serde_json::Error>>
+where
+    T: serde_de::Deserialize<'de>,
+{
+    let mut de: serde_json::Deserializer<serde_json::de::IoRead<&[u8]>> =
+        serde_json::Deserializer::from_reader(payload);
+    let result = deserialize(&mut de, max_ops);
+    let de_result: Result<(), serde_json::Error> = de.end();
+
+    if let Err(e) = de_result {
+        return Err(Error::Serde(e));
+    }
+
+    result
+}
+
 /// Like [`deserialize`], but deserializes through a [`DeserializeSeed`].
 ///
 /// Use this for types which need to carry state into their deserialization, for example to
