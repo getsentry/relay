@@ -1,6 +1,6 @@
 use relay_cogs::{AppFeature, FeatureWeights};
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::FormDataItem;
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Nothing, Output};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -46,8 +46,8 @@ impl processing::Processor for InvalidUnhandledProcessor {
             .envelope_mut()
             // `FormData` only makes sense together with an item which creates an event,
             // if it's mixed into an envelope which does not create an event, it is invalid.
-            .take_items_by(|item| matches!(*item.ty(), ItemType::FormData))
-            .into_vec();
+            .drain_items::<FormDataItem>()
+            .collect::<Vec<_>>();
 
         if invalid_items.is_empty() {
             return None;
@@ -68,11 +68,11 @@ impl processing::Processor for InvalidUnhandledProcessor {
     }
 }
 
-/// Unknown items extracted from an envelope.
+/// Unhandled form-data items extracted from an envelope.
 #[derive(Debug)]
 pub struct InvalidUnhandledItems {
-    /// List of unknown envelope items.
-    invalid_items: Vec<Item>,
+    /// Form-data items without an accompanying event-creating item.
+    invalid_items: Vec<FormDataItem>,
 }
 
 impl Counted for InvalidUnhandledItems {
