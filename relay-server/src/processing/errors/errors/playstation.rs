@@ -219,12 +219,8 @@ impl Counted for Playstation {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        if !self.prosperodump.rate_limited() {
-            quantities.extend(self.prosperodump.quantities());
-        }
-        if let Some(minidump) = &self.minidump
-            && !minidump.rate_limited()
-        {
+        quantities.extend(self.prosperodump.quantities());
+        if let Some(minidump) = &self.minidump {
             quantities.extend(minidump.quantities());
         }
         quantities

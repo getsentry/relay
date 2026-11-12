@@ -72,9 +72,6 @@ impl SentryError for GpuCrash {
 
 impl Counted for GpuCrash {
     fn quantities(&self) -> Quantities {
-        match self.0.rate_limited() {
-            true => Default::default(),
-            false => self.0.quantities(),
-        }
+        self.0.quantities()
     }
 }
