@@ -13,7 +13,7 @@ use crate::events::EventType;
 pub struct UnknownDataCategory(pub u32);
 
 /// Classifies the type of data that is being ingested.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, enum_map::Enum)]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
