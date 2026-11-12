@@ -194,7 +194,9 @@ impl PolymorphicEnvelopeBuffer {
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
     ///
     /// - In persistent disk mode, flush everything to disk and shut down.
-    /// - Otherwise, attempt to pop all envelopes and forward them to the processor.
+    /// - Otherwise, continue draining envelopes to the processor.
+    ///
+    /// Returns `Break` if all work has been done and the buffer service can stop.
     pub async fn shutdown(&mut self) -> ControlFlow<()> {
         match self {
             Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
