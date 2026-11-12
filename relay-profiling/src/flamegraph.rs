@@ -267,8 +267,10 @@ pub fn parse(payload: &[u8]) -> Result<Graph<'_>, Error> {
 /// Retention follows the frame limits on [`RawStacktrace`], matching event stacktrace trimming.
 ///
 /// Like the `AnrCulpritIdentifier` in the Android SDK, this scores identical root-to-frame prefixes by
-/// `sample_count * (depth + application_frames)`. Node counts are inclusive, so they already
-/// include the observations ending in descendants. Explicit `in_app: true` supplies the app boost.
+/// `sample_count * (depth + application_frames)`. Prefixes use the producer's frame-table indices
+/// as frame identity; entries at different indices remain distinct even if their values match.
+/// Node counts are inclusive, so they already include the observations ending in descendants.
+/// Explicit `in_app: true` supplies the app boost.
 ///
 /// Sample populations from different trees are never added together. Prefer trees attributed to
 /// the diagnostic when present; otherwise choose the strongest path across all trees. Ties retain
@@ -338,15 +340,6 @@ impl<'payload> Graph<'payload> {
     pub fn identify_culprit(&self) -> Result<Culprit<'payload>, Error> {
         let graph = &self.0;
 
-        // A producer may emit duplicate frame-table entries. Intern their known frame data once,
-        // rather than copying or hashing entire paths at every node.
-        let mut frames = HashMap::new();
-        let mut frame_ids = Vec::with_capacity(graph.frames.len());
-        for (index, frame) in graph.frames.iter().enumerate() {
-            let key = (&frame.frame, frame.addr_mode.as_deref().unwrap_or("abs"));
-            frame_ids.push(*frames.entry(key).or_insert(index));
-        }
-
         let has_attributed_tree = graph
             .trees
             .iter()
@@ -381,7 +374,7 @@ impl<'payload> Graph<'payload> {
                     continue;
                 }
                 let node = graph.node(*node_index)?;
-                let frame_id = frame_ids[node.frame_id];
+                let frame_id = node.frame_id;
                 let prefix = match prefixes.entry((parent, frame_id)) {
                     Entry::Occupied(entry) => *entry.get(),
                     Entry::Vacant(entry) => {
@@ -552,15 +545,13 @@ mod tests {
     }
 
     #[test]
-    fn test_culprit_duplicate_prefixes_and_frame_entries() {
+    fn test_culprit_aggregates_prefixes_with_shared_frame_ids() {
         let mut graph = culprit_graph();
-        let duplicate = graph["frames"][0].clone();
-        graph["frames"].as_array_mut().unwrap().push(duplicate);
         graph["nodes"] = json!([
             {"frame_id": 0, "sample_count": 60, "children": [1]},
             {"frame_id": 1, "sample_count": 60, "children": [2]},
             {"frame_id": 2, "sample_count": 60},
-            {"frame_id": 4, "sample_count": 40, "children": [4]},
+            {"frame_id": 0, "sample_count": 40, "children": [4]},
             {"frame_id": 1, "sample_count": 40, "children": [5]},
             {"frame_id": 3, "sample_count": 40}
         ]);
@@ -612,6 +603,51 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_culprit_preserves_distinct_root_frame_ids() {
+        let mut graph = culprit_graph();
+        let duplicate = graph["frames"][0].clone();
+        graph["frames"].as_array_mut().unwrap().push(duplicate);
+        graph["trees"][0]["roots"] = json!([0, 3]);
+        for (first_samples, second_samples, expected) in
+            [(60, 40, vec![0, 1, 2]), (40, 60, vec![4, 1, 3])]
+        {
+            graph["nodes"] = json!([
+                {"frame_id": 0, "sample_count": first_samples, "children": [1]},
+                {"frame_id": 1, "sample_count": first_samples, "children": [2]},
+                {"frame_id": 2, "sample_count": first_samples},
+                {"frame_id": 4, "sample_count": second_samples, "children": [4]},
+                {"frame_id": 1, "sample_count": second_samples, "children": [5]},
+                {"frame_id": 3, "sample_count": second_samples}
+            ]);
+            // Distinct root IDs keep the paths separate, despite identical frame values.
+            // The stronger full path scores 60 * (3 + 1) = 240, not a merged caller's 300.
+            let payload = serde_json::to_vec(&graph).unwrap();
+            let culprit = parse(&payload).unwrap().identify_culprit().unwrap();
+            assert!(!culprit.ends_at_caller);
+            assert_eq!(identify(graph.clone()).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn test_culprit_aggregates_children_by_frame_id() {
+        let mut graph = culprit_graph();
+        let duplicate = graph["frames"][1].clone();
+        graph["frames"].as_array_mut().unwrap().push(duplicate);
+        graph["frames"][2]["in_app"] = json!(true);
+        for (second_frame_id, expected) in [(1, vec![0, 1]), (4, vec![0, 2])] {
+            graph["nodes"] = json!([
+                {"frame_id": 0, "sample_count": 180, "children": [1, 2, 3]},
+                {"frame_id": 1, "sample_count": 60},
+                {"frame_id": second_frame_id, "sample_count": 40},
+                {"frame_id": 2, "sample_count": 80}
+            ]);
+            // Shared IDs score (60 + 40) * 3 = 300. Distinct IDs score at most 60 * 3
+            // separately, so the competing child's 80 * 3 = 240 wins instead.
+            assert_eq!(identify(graph.clone()).unwrap(), expected);
         }
     }
 

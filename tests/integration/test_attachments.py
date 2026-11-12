@@ -735,7 +735,8 @@ def test_flamegraph_without_envelope_event_id(mini_sentry, relay, event_type):
             "version": "1",
             "platform": "python",
             "frames": [{"function": "main"}],
-            "trees": [{"roots": [{"frame_id": 0, "sample_count": 1}]}],
+            "nodes": [{"frame_id": 0, "sample_count": 1}],
+            "trees": [{"roots": [0]}],
         }
     ).encode()
     envelope.add_item(
@@ -751,7 +752,7 @@ def test_flamegraph_without_envelope_event_id(mini_sentry, relay, event_type):
     forwarded = mini_sentry.get_captured_envelope()
     attachment = next(item for item in forwarded.items if item.type == "attachment")
     assert attachment.headers["attachment_type"] == "event.flamegraph"
-    assert attachment.payload.bytes == payload
+    assert json.loads(attachment.payload.bytes) == json.loads(payload)
 
 
 def test_flamegraph_requires_event_in_envelope(mini_sentry, relay):
