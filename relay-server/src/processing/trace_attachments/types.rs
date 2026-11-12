@@ -38,8 +38,6 @@ impl Counted for ExpandedAttachment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "processing")]
-    use crate::envelope::Item;
     use crate::envelope::{AttachmentItem, ContentType};
     use crate::managed::Managed;
     use crate::processing::trace_attachments::{forward, process};
@@ -67,12 +65,7 @@ mod tests {
 
             #[cfg(feature = "processing")]
             {
-                let expanded = item.map(|item, _| {
-                    let Item::Attachment(attachment) = item else {
-                        panic!("expected an attachment");
-                    };
-                    process::parse_and_validate(&attachment).unwrap()
-                });
+                let expanded = item.map(|item, _| process::parse_and_validate(&item).unwrap());
                 let stored = crate::processing::trace_attachments::store::convert(
                     expanded,
                     crate::processing::Retention {
