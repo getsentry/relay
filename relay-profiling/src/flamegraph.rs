@@ -50,6 +50,8 @@ pub enum Error {
     NodeIndex(usize),
     #[error("frame index out of bounds: {0}")]
     FrameIndex(usize),
+    #[error("prefix index out of bounds: {0}")]
+    PrefixIndex(usize),
     #[error("sample count out of bounds: {0}")]
     SampleCount(u64),
     #[error("children exceed parent sample count")]
@@ -122,6 +124,22 @@ impl Graph<'_> {
 }
 
 impl RawGraph<'_> {
+    /// Count nodes, child edges, and roots to bound queued references, including shared
+    /// nodes under distinct prefixes, without allowing exponential path expansion.
+    fn graph_cardinality(&self) -> usize {
+        self.nodes.len()
+            + self
+                .nodes
+                .iter()
+                .map(|node| node.children.len())
+                .sum::<usize>()
+            + self
+                .trees
+                .iter()
+                .map(|tree| tree.roots.len())
+                .sum::<usize>()
+    }
+
     fn node(&self, index: usize) -> Result<&Node, Error> {
         self.nodes.get(index).ok_or(Error::NodeIndex(index))
     }
@@ -280,6 +298,42 @@ impl PrefixId {
     }
 }
 
+struct Prefix {
+    parent: Option<PrefixId>,
+    frame_id: usize,
+    depth: usize,
+    app_frames: usize,
+    samples: u128,
+    child_samples: u128,
+}
+
+#[derive(Default)]
+struct Workspace<'graph> {
+    prefixes: HashMap<(Option<PrefixId>, usize), PrefixId>,
+    candidates: Vec<Prefix>,
+    pending: Vec<(&'graph usize, Option<PrefixId>)>,
+    visited: HashSet<(usize, Option<PrefixId>)>,
+}
+
+impl Workspace<'_> {
+    fn clear(&mut self) {
+        let Self {
+            prefixes,
+            candidates,
+            pending,
+            visited,
+        } = self;
+        prefixes.clear();
+        candidates.clear();
+        pending.clear();
+        visited.clear();
+    }
+}
+
+fn get<T>(values: &[T], index: usize) -> Result<&T, Error> {
+    values.get(index).ok_or(Error::PrefixIndex(index))
+}
+
 impl<'payload> Graph<'payload> {
     /// Select the bounded culprit path from this validated graph without reparsing it.
     pub fn identify_culprit(&self) -> Result<Culprit<'payload>, Error> {
@@ -294,42 +348,18 @@ impl<'payload> Graph<'payload> {
             frame_ids.push(*frames.entry(key).or_insert(index));
         }
 
-        struct Prefix {
-            parent: Option<PrefixId>,
-            frame_id: usize,
-            depth: usize,
-            app_frames: usize,
-            samples: u128,
-        }
-
         let has_attributed_tree = graph
             .trees
             .iter()
             .any(|tree| tree.thread_attributed == Some(true));
-        // Budget queued root and child references, not distinct nodes: shared nodes can
-        // occur under multiple call prefixes. Keep this allowance linear in the input
-        // structure so expanding shared paths cannot cause exponential work.
-        let mut remaining_visits = graph.nodes.len()
-            + graph
-                .nodes
-                .iter()
-                .map(|node| node.children.len())
-                .sum::<usize>()
-            + graph
-                .trees
-                .iter()
-                .map(|tree| tree.roots.len())
-                .sum::<usize>();
+        let mut remaining_visits = graph.graph_cardinality();
         let mut best_score = 0;
         let mut best_path = Culprit {
             frames: Vec::new(),
             original_len: 0,
             ends_at_caller: false,
         };
-        let mut prefixes = HashMap::new();
-        let mut candidates: Vec<Prefix> = Vec::new();
-        let mut pending = Vec::new();
-        let mut visited = HashSet::new();
+        let mut workspace = Workspace::default();
         for tree in &graph.trees {
             if has_attributed_tree && tree.thread_attributed != Some(true) {
                 continue;
@@ -337,10 +367,13 @@ impl<'payload> Graph<'payload> {
             remaining_visits = remaining_visits
                 .checked_sub(tree.roots.len())
                 .ok_or(Error::TraversalLimit)?;
-            prefixes.clear();
-            candidates.clear();
-            pending.clear();
-            visited.clear();
+            workspace.clear();
+            let Workspace {
+                prefixes,
+                candidates,
+                pending,
+                visited,
+            } = &mut workspace;
             pending.extend(tree.roots.iter().rev().map(|node| (node, None)));
             while let Some((node_index, parent)) = pending.pop() {
                 // A node's inclusive count belongs to this prefix only once, even when
@@ -355,9 +388,10 @@ impl<'payload> Graph<'payload> {
                     Entry::Vacant(entry) => {
                         let (depth, app_frames) = parent
                             .map(|parent: PrefixId| {
-                                let prefix = &candidates[parent.index()];
-                                (prefix.depth, prefix.app_frames)
+                                let prefix = get(candidates, parent.index())?;
+                                Ok::<_, Error>((prefix.depth, prefix.app_frames))
                             })
+                            .transpose()?
                             .unwrap_or_default();
                         let index =
                             PrefixId::from_index(candidates.len()).ok_or(Error::TraversalLimit)?;
@@ -368,14 +402,24 @@ impl<'payload> Graph<'payload> {
                             app_frames: app_frames
                                 + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
                             samples: 0,
+                            child_samples: 0,
                         });
                         *entry.insert(index)
                     }
                 };
-                if candidates[prefix.index()].depth > graph.nodes.len() {
+                let candidate = candidates
+                    .get_mut(prefix.index())
+                    .ok_or(Error::PrefixIndex(prefix.index()))?;
+                if candidate.depth > graph.nodes.len() {
                     return Err(Error::CyclicCallPath);
                 }
-                candidates[prefix.index()].samples += u128::from(node.sample_count);
+                candidate.samples += u128::from(node.sample_count);
+                if let Some(parent) = parent {
+                    candidates
+                        .get_mut(parent.index())
+                        .ok_or(Error::PrefixIndex(parent.index()))?
+                        .child_samples += u128::from(node.sample_count);
+                }
                 remaining_visits = remaining_visits
                     .checked_sub(node.children.len())
                     .ok_or(Error::TraversalLimit)?;
@@ -401,16 +445,13 @@ impl<'payload> Graph<'payload> {
                 let winner = PrefixId::from_index(index).ok_or(Error::TraversalLimit)?;
                 // A winner with 100 samples and children with 60 + 40 samples is exclusively
                 // a caller. With 60 + 20 child samples, 20 samples end at the winner itself.
-                let child_samples: u128 = candidates
-                    .iter()
-                    .filter(|prefix| prefix.parent == Some(winner))
-                    .map(|prefix| prefix.samples)
-                    .sum();
-                let depth = candidates[index].depth;
+                let candidate = get(candidates, index)?;
+                let ends_at_caller = candidate.child_samples == candidate.samples;
+                let depth = candidate.depth;
                 let mut path = Vec::with_capacity(depth.min(RawStacktrace::MAX_FRAMES));
                 let mut current = Some(winner);
                 while let Some(index) = current {
-                    let prefix = &candidates[index.index()];
+                    let prefix = get(candidates, index.index())?;
                     if prefix.depth <= RawStacktrace::MAX_OLDEST_FRAMES
                         || prefix.depth > depth.saturating_sub(RawStacktrace::MAX_NEWEST_FRAMES)
                     {
@@ -422,7 +463,7 @@ impl<'payload> Graph<'payload> {
                 best_path = Culprit {
                     frames: path,
                     original_len: depth,
-                    ends_at_caller: child_samples == candidates[index].samples,
+                    ends_at_caller,
                 };
             }
         }

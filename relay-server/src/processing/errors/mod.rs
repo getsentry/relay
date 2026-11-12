@@ -125,26 +125,12 @@ impl processing::Processor for ErrorsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let (mut error, intermediates) = process::expand(error, ctx)?;
 
-        let needs_culprit = error
-            .event
-            .value()
-            .is_some_and(flamegraph::needs_enrichment);
-        let mut culprit = None;
-        attachments::validate_attachments_with(
-            &mut error,
-            |e| &mut e.attachments,
-            ctx,
-            |graph| {
-                if needs_culprit && culprit.is_none() {
-                    culprit = flamegraph::extract(graph, ctx.config.max_event_size());
-                }
-            },
-        );
+        attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
-        process::process(&mut error)?;
+        process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
-        process::normalize(&mut error, &self.geoip_lookup, ctx, culprit)?;
+        process::normalize(&mut error, &self.geoip_lookup, ctx)?;
 
         filter::filter(&error, ctx).reject(&error)?;
 
@@ -198,6 +184,8 @@ struct ExpandedError {
     pub event: Box<Annotated<Event>>,
     /// Optional list of attachments sent with the event.
     pub attachments: Vec<Item>,
+    /// Flame graphs awaiting validation and culprit extraction.
+    pub flamegraphs: Vec<Item>,
     /// Optional list of user reports sent with the event.
     pub user_reports: Vec<Item>,
     /// Custom event data.
@@ -224,6 +212,7 @@ impl Counted for ExpandedError {
             // Quantity inferred from `data.event_category()`.
             event: _,
             attachments,
+            flamegraphs,
             user_reports,
             data,
             other,
@@ -233,6 +222,7 @@ impl Counted for ExpandedError {
 
         quantities.push((data.event_category(), 1));
         quantities.extend(attachments.quantities());
+        quantities.extend(flamegraphs.quantities());
         quantities.extend(user_reports.quantities());
         quantities.extend(data.quantities());
         quantities.extend(other.quantities());
@@ -328,6 +318,7 @@ impl Forward for ErrorOutput {
                     metrics: _,
                     event,
                     attachments,
+                    flamegraphs: _,
                     user_reports,
                     data,
                     other,
@@ -388,6 +379,7 @@ impl Forward for ErrorOutput {
                     metrics: _,
                     event,
                     mut attachments,
+                    flamegraphs: _,
                     user_reports,
                     data,
                     other,

@@ -1030,7 +1030,7 @@ def test_flamegraph_culprit_stack(
             item for item in forwarded.items if item.type == "event"
         ).payload.json
         attachment = next(item for item in forwarded.items if item.type == "attachment")
-        assert attachment.payload.bytes == payload
+        assert json.loads(attachment.payload.bytes) == json.loads(payload)
     exception = event["exception"]["values"][0]
     assert exception["value"] == "hangDuration:2s"
     assert exception["stacktrace"]["frames"] == [
