@@ -54,25 +54,17 @@ impl Context<'static> {
 }
 
 /// Serialized native error attachments.
-pub enum ErrorPayload {
-    Attachments(smallvec::SmallVec<[AttachmentItem; 2]>),
-}
+#[derive(Default)]
+pub struct ErrorPayload(smallvec::SmallVec<[AttachmentItem; 2]>);
 
 impl ErrorPayload {
     pub fn append_to_envelope(self, items: &mut Vec<Item>) {
-        match self {
-            Self::Attachments(attachments) => items.extend(attachments.into_iter().map(Item::from)),
-        }
+        items.extend(self.0.into_iter().map(Item::from));
     }
 
     #[cfg(feature = "processing")]
-    pub fn append_to_store(self, attachments: &mut Vec<AttachmentItem>) -> Result<()> {
-        match self {
-            Self::Attachments(native) => {
-                attachments.extend(native);
-                Ok(())
-            }
-        }
+    pub fn append_to_store(self, attachments: &mut Vec<AttachmentItem>) {
+        attachments.extend(self.0);
     }
 }
 

@@ -57,7 +57,7 @@ impl SentryError for AppleCrashReport {
     }
 
     fn into_payload(self) -> ErrorPayload {
-        ErrorPayload::Attachments(smallvec::smallvec![self.0])
+        ErrorPayload(smallvec::smallvec![self.0])
     }
 
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
