@@ -155,7 +155,17 @@ fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result
                 error = &e as &dyn std::error::Error,
                 "Failed to parse logs data as protobuf"
             );
-            Error::Invalid(DiscardReason::InvalidProtobuf)
+            match e {
+                relay_serialization::prost::Error::ScanError(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+                relay_serialization::prost::Error::LimitExceeded => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                relay_serialization::prost::Error::Decode(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+            }
         }),
     }
 }
