@@ -53,7 +53,15 @@ fn parse_traces_data(
                     error = &e as &dyn std::error::Error,
                     "Failed to parse traces data as JSON"
                 );
-                Error::Invalid(DiscardReason::InvalidJson)
+
+                match e {
+                    relay_serialization::serde::Error::LimitExceeded(_) => {
+                        Error::Invalid(DiscardReason::RequestTooLarge)
+                    }
+                    relay_serialization::serde::Error::Serde(_) => {
+                        Error::Invalid(DiscardReason::InvalidJson)
+                    }
+                }
             });
             de.end()
                 .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
@@ -64,7 +72,17 @@ fn parse_traces_data(
                 error = &e as &dyn std::error::Error,
                 "Failed to parse traces data as protobuf"
             );
-            Error::Invalid(DiscardReason::InvalidProtobuf)
+            match e {
+                relay_serialization::prost::Error::ScanError(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+                relay_serialization::prost::Error::LimitExceeded => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                relay_serialization::prost::Error::Decode(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+            }
         }),
     }
 }
