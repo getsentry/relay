@@ -136,7 +136,15 @@ fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result
                     error = &e as &dyn std::error::Error,
                     "Failed to parse logs data as JSON"
                 );
-                Error::Invalid(DiscardReason::InvalidJson)
+
+                match e {
+                    relay_serialization::serde::Error::LimitExceeded(_) => {
+                        Error::Invalid(DiscardReason::RequestTooLarge)
+                    }
+                    relay_serialization::serde::Error::Serde(_) => {
+                        Error::Invalid(DiscardReason::InvalidJson)
+                    }
+                }
             });
             de.end()
                 .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
