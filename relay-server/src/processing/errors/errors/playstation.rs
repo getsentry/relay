@@ -116,7 +116,7 @@ impl SentryError for Playstation {
                         crate::envelope::ContentType::Json,
                         session.as_bytes().to_owned(),
                     );
-                    item
+                    Item::from(item)
                 })
                 .into_iter()
                 .collect();
@@ -168,7 +168,7 @@ impl SentryError for Playstation {
             event,
             attachments,
             user_reports,
-            session_updates,
+            intermediates: session_updates,
             error: Self {
                 prosperodump,
                 minidump,

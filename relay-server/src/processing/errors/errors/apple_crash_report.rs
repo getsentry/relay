@@ -35,7 +35,7 @@ impl SentryError for AppleCrashReport {
             event: Box::new(event),
             attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
             user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
-            session_updates: vec![],
+            intermediates: vec![],
             error: Self(apple_crash_report),
             metrics,
             fully_normalized: false,

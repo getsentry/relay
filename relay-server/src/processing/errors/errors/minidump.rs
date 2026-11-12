@@ -34,7 +34,7 @@ impl SentryError for Minidump {
             event: Box::new(event),
             attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
             user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
-            session_updates: vec![],
+            intermediates: vec![],
             error: Self(minidump),
             metrics,
             fully_normalized: false,
