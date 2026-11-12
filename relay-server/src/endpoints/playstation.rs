@@ -13,7 +13,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope, Item, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -198,7 +198,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
         &state.config(),
@@ -210,15 +210,9 @@ async fn multipart_to_items(
 
     items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
         let prosperodump = inner
+            .attachments
             .iter_mut()
-            .find_map(|item| match item {
-                Item::Attachment(attachment)
-                    if attachment.attachment_type() == Some(AttachmentType::Prosperodump) =>
-                {
-                    Some(attachment)
-                }
-                _ => None,
-            })
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         validate_prosperodump(&prosperodump.payload())?;
         prosperodump.set_content_type(ContentType::OctetStream);
@@ -249,6 +243,7 @@ async fn handle(
         .await
         .reject(&managed_err)?;
     let envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let items = items.into_items();
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta)
             .with_items(items)
