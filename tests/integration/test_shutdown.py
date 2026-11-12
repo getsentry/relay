@@ -14,9 +14,9 @@ def test_graceful_shutdown(mini_sentry, relay, storage):
     On SIGTERM, relay completes any in-flight HTTP requests before shutting down.
     New connections are rejected once the TCP listener closes.
 
-    We test this by holding a request in-flight at the TCP level: send the HTTP
-    headers and the first byte of the body, then send SIGTERM, then send the rest
-    of the body.  Relay must process and respond to the request before it exits.
+    We wait for a 100 Continue response to confirm Relay has accepted the request,
+    then send an incomplete body, SIGTERM, and the rest of the body. Relay must
+    process and respond to the request before it exits.
     """
     is_ephemeral = storage == "ephemeral"
     project_id = 42
@@ -46,34 +46,39 @@ def test_graceful_shutdown(mini_sentry, relay, storage):
         dsn_key = relay.get_dsn_public_key(project_id)
 
         body = json.dumps({"message": "in-flight during shutdown"}).encode()
-        request = (
+        headers = (
             f"POST /api/{project_id}/store/ HTTP/1.1\r\n"
             f"Host: {host}:{port}\r\n"
             f"Content-Type: application/json\r\n"
             f"X-Sentry-Auth: Sentry sentry_version=7, sentry_key={dsn_key}\r\n"
             f"Content-Length: {len(body)}\r\n"
             f"Connection: close\r\n"
+            f"Expect: 100-continue\r\n"
             f"\r\n"
-        ).encode() + body
+        ).encode()
 
-        # Open a raw TCP connection and send everything up to the last byte.
-        # Relay is now holding the connection open waiting for the body to complete —
-        # the request is in-flight.
+        # Confirm Relay is reading the request before signaling shutdown. Merely
+        # sending bytes does not guarantee the connection has been accepted yet.
         sock = socket.create_connection((host, port))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        sock.sendall(request[:-1])
+        sock.settimeout(10)
+        sock.sendall(headers)
+        interim_response = b""
+        while b"\r\n\r\n" not in interim_response:
+            chunk = sock.recv(4096)
+            assert chunk, "connection closed before request acceptance"
+            interim_response += chunk
+        assert interim_response == b"HTTP/1.1 100 Continue\r\n\r\n"
+
+        sock.sendall(body[:-1])
 
         # Trigger graceful shutdown while the request is in-flight.
         relay.process.send_signal(signal.SIGTERM)
         time.sleep(0.05)
 
-        # Complete the request — relay will respond with Service Unavailable.
-        try:
-            sock.sendall(request[-1:])
-        except ConnectionResetError:
-            pytest.skip("flaky test")
+        # Complete the request after shutdown has begun.
+        sock.sendall(body[-1:])
 
-        sock.settimeout(10)
         response = b""
         while chunk := sock.recv(4096):
             response += chunk
