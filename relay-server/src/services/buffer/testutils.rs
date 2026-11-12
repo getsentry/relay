@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub mod utils {
+    use crate::envelope::TransactionItem;
     use chrono::{DateTime, Utc};
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
@@ -11,7 +12,7 @@ pub mod utils {
     use uuid::Uuid;
 
     use crate::Envelope;
-    use crate::envelope::{Item, ItemType};
+
     use crate::extractors::RequestMeta;
 
     /// Sets up a temporary SQLite database for testing purposes.
@@ -76,7 +77,7 @@ pub mod utils {
         envelope.set_dsc(dsc);
         envelope.set_received_at(received_at);
 
-        envelope.add_item(Item::new(ItemType::Transaction));
+        envelope.add_item(TransactionItem::new());
 
         envelope
     }

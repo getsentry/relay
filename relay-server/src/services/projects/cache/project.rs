@@ -89,9 +89,10 @@ impl<'a> Project<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::TransactionItem;
     use std::collections::BTreeMap;
 
-    use crate::envelope::{ContentType, Envelope, Item, ItemType};
+    use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -131,7 +132,10 @@ mod tests {
     }
 
     fn get_span_count(envelope: &Envelope) -> usize {
-        envelope.items().next().unwrap().span_count().unwrap_or(0) as usize
+        let Some(Item::Transaction(transaction)) = envelope.items().next() else {
+            panic!("expected a transaction");
+        };
+        transaction.span_count().unwrap_or(0) as usize
     }
 
     #[tokio::test]
@@ -152,7 +156,7 @@ mod tests {
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
-        let mut transaction = Item::new(ItemType::Transaction);
+        let mut transaction = TransactionItem::new();
         transaction.set_payload(
             ContentType::Json,
             r#"{
@@ -229,7 +233,7 @@ mod tests {
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
-        let mut transaction = Item::new(ItemType::Transaction);
+        let mut transaction = TransactionItem::new();
         transaction.set_span_count(Some(666));
         transaction.set_payload(
             ContentType::Json,

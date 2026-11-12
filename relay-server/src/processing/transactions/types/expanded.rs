@@ -8,7 +8,9 @@ use relay_statsd::metric;
 use smallvec::smallvec;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{
+    AttachmentItem, ContentType, EnvelopeHeaders, Item, Items, ProfileItem, TransactionItem,
+};
 use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::transactions::Error;
@@ -61,7 +63,7 @@ pub struct ExpandedTransaction<C = TotalAndIndexed, S = SpansEmbedded> {
     pub headers: EnvelopeHeaders,
     pub event: Annotated<Event>,
     pub flags: Flags,
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
     pub profile: Option<ExpandedProfile>,
     pub category: C,
     pub span_extraction: S,
@@ -248,24 +250,24 @@ impl ExpandedTransaction<TotalAndIndexed, SpansEmbedded> {
             span_extraction: _,
         } = self;
 
-        items.extend(attachments);
+        items.extend(attachments.into_iter().map(Item::from));
         if let Some(profile) = profile {
-            items.push(profile.serialize_item());
+            items.push(profile.serialize_item().into());
         }
 
         // To be compatible with previous code, add the transaction at the end:
         let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
             event.to_json()?
         });
-        let mut item = Item::new(ItemType::Transaction);
+        let mut item = TransactionItem::new();
         item.set_payload(ContentType::Json, data);
 
         let Flags { fully_normalized } = flags;
         item.set_fully_normalized(fully_normalized);
 
-        item.set_span_count(Some(span_count));
+        item.set_span_count(u32::try_from(span_count).ok());
 
-        items.push(item);
+        items.push(item.into());
 
         Ok(Envelope::from_parts(headers, items))
     }
@@ -277,11 +279,11 @@ pub struct ExpandedProfile {
     /// Parsed metadata from the [`Self::item`].
     pub meta: ProfileMetadata,
     /// The raw transaction profile received in an envelope.
-    pub item: Item,
+    pub item: ProfileItem,
 }
 
 impl ExpandedProfile {
-    pub fn serialize_item(mut self) -> Item {
+    pub fn serialize_item(mut self) -> ProfileItem {
         self.item.set_platform(self.meta.platform);
         self.item
     }

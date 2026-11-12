@@ -970,7 +970,7 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
         envelope.add_item({
-                let mut item = Item::new(ItemType::Event);
+                let mut item = crate::envelope::EventItem::new();
                 item.set_payload(
                     ContentType::Json,
                     r#"
@@ -1061,7 +1061,7 @@ mod tests {
         }"#;
         envelope.set_dsc(serde_json::from_str(dsc).unwrap());
 
-        let mut item = Item::new(ItemType::Event);
+        let mut item = crate::envelope::EventItem::new();
         item.set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
@@ -1237,7 +1237,7 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::MetricBuckets);
+        let mut item = crate::envelope::MetricBucketsItem::new();
         item.set_payload(
             ContentType::Json,
             serde_json::json!([{
@@ -1257,7 +1257,7 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessMetrics {
-                data: MetricData::Raw(vec![item.clone()]),
+                data: MetricData::Raw(vec![item.clone().into()]),
                 project_key,
                 source,
                 received_at,

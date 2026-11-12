@@ -5,8 +5,7 @@ use relay_quotas::DataCategory;
 
 use relay_profiling::ProfileType;
 
-use crate::envelope::ContentType;
-use crate::envelope::Item;
+use crate::envelope::{ContentType, ProfileChunkItem};
 use crate::managed::RecordKeeper;
 use crate::processing::Managed;
 use crate::processing::profile_chunks::Error;
@@ -54,7 +53,7 @@ pub fn normalize(profile_chunks: &mut Managed<ExpandedProfileChunks>) {
 }
 
 fn expand_profile_chunk(
-    item: &mut Item,
+    item: &mut ProfileChunkItem,
     sdk: &str,
     records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
@@ -78,7 +77,7 @@ fn expand_profile_chunk(
 }
 
 fn expand_json_item(
-    item: &mut Item,
+    item: &mut ProfileChunkItem,
     sdk: &str,
     records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
@@ -122,7 +121,7 @@ fn expand_json_item(
     Ok(ExpandedProfileChunk(pc.into()))
 }
 
-fn expand_perfetto_profile_chunk(item: &Item) -> Result<ExpandedProfileChunk> {
+fn expand_perfetto_profile_chunk(item: &ProfileChunkItem) -> Result<ExpandedProfileChunk> {
     let meta_length =
         item.meta_length()
             .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;

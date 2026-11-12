@@ -1,8 +1,8 @@
+use super::ErrorPayload;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, Item, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result, utils};
 
@@ -14,7 +14,7 @@ use crate::processing::errors::{Error, Result, utils};
 /// In processing mode, this creates the event if there is no scope and adds a placeholder
 /// exception.
 #[derive(Debug)]
-pub struct GpuCrash(pub Item);
+pub struct GpuCrash(pub AttachmentItem);
 
 impl SentryError for GpuCrash {
     fn event_category(&self) -> DataCategory {
@@ -22,7 +22,7 @@ impl SentryError for GpuCrash {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(dump) = utils::take_item_by(items, |item| {
+        let Some(dump) = utils::take_payload_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::NvGpuDump)
         }) else {
             return Ok(None);
@@ -38,8 +38,8 @@ impl SentryError for GpuCrash {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self(dump),
             metrics,
@@ -61,12 +61,11 @@ impl SentryError for GpuCrash {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.0);
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::Attachments(smallvec::smallvec![self.0])
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }

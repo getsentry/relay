@@ -2,7 +2,7 @@ use bytes::Bytes;
 use smallvec::smallvec;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, Item, ItemType, Items};
+use crate::envelope::{ContentType, Items, ReplayEventItem, ReplayRecordingItem, ReplayVideoItem};
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::replays::store;
@@ -67,20 +67,20 @@ impl Forward for ReplaysOutput {
     }
 }
 
-fn create_replay_event_item(payload: Bytes) -> Item {
-    let mut item = Item::new(ItemType::ReplayEvent);
+fn create_replay_event_item(payload: Bytes) -> ReplayEventItem {
+    let mut item = ReplayEventItem::new();
     item.set_payload(ContentType::Json, payload);
     item
 }
 
-fn create_replay_recording_item(payload: Bytes) -> Item {
-    let mut item = Item::new(ItemType::ReplayRecording);
+fn create_replay_recording_item(payload: Bytes) -> ReplayRecordingItem {
+    let mut item = ReplayRecordingItem::new();
     item.set_payload(ContentType::OctetStream, payload);
     item
 }
 
-fn create_replay_video_item(payload: Bytes) -> Item {
-    let mut item = Item::new(ItemType::ReplayVideo);
+fn create_replay_video_item(payload: Bytes) -> ReplayVideoItem {
+    let mut item = ReplayVideoItem::new();
     item.set_payload(ContentType::OctetStream, payload);
     item
 }
@@ -91,8 +91,8 @@ fn serialize_replay(replay: &ReplayPayload) -> Result<Items, SerializeReplayErro
             let event_bytes: Bytes = event.to_json()?.into_bytes().into();
 
             Ok(smallvec![
-                create_replay_event_item(event_bytes),
-                create_replay_recording_item(recording.clone())
+                create_replay_event_item(event_bytes).into(),
+                create_replay_recording_item(recording.clone()).into()
             ])
         }
         ReplayPayload::NativeReplay {
@@ -109,10 +109,10 @@ fn serialize_replay(replay: &ReplayPayload) -> Result<Items, SerializeReplayErro
             };
 
             let payload = rmp_serde::to_vec_named(&video_event)?;
-            Ok(smallvec![create_replay_video_item(payload.into())])
+            Ok(smallvec![create_replay_video_item(payload.into()).into()])
         }
-        ReplayPayload::StandaloneRecording { recording } => {
-            Ok(smallvec![create_replay_recording_item(recording.clone())])
-        }
+        ReplayPayload::StandaloneRecording { recording } => Ok(smallvec![
+            create_replay_recording_item(recording.clone()).into()
+        ]),
     }
 }
