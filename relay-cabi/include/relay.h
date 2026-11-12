@@ -487,6 +487,14 @@ enum RelaySpanStatus {
    * Prefer PermissionDenied if a user is logged in.
    */
   RELAY_SPAN_STATUS_UNAUTHENTICATED = 16,
+  /**
+   * The operation failed.
+   *
+   * Generic error status from the [`sentry.status`] convention.
+   *
+   * [`sentry.status`]: https://getsentry.github.io/sentry-conventions/attributes/sentry/#sentry-status
+   */
+  RELAY_SPAN_STATUS_ERROR = 17,
 };
 typedef uint8_t RelaySpanStatus;
 

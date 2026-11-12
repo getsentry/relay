@@ -739,8 +739,8 @@ dependencies = [
  "flate2",
  "liblzma",
  "memchr",
- "zstd 0.14.2",
- "zstd-safe 8.2.0",
+ "zstd",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -1381,6 +1381,26 @@ name = "endian-type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
+
+[[package]]
+name = "enum-map"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4532960034c15ba2f55e9eee631040ecc473c32e6c4b200828c759840f13a06"
+dependencies = [
+ "enum-map-derive",
+]
+
+[[package]]
+name = "enum-map-derive"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7127272f64b3e098f7d81f350d672081b879bff896d219c42370dc858b1af9ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
 
 [[package]]
 name = "enumset"
@@ -3465,7 +3485,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
- "zstd-safe 8.2.0",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -4587,6 +4607,7 @@ dependencies = [
 name = "relay-base-schema"
 version = "26.10.1"
 dependencies = [
+ "enum-map",
  "regex",
  "relay-common",
  "relay-protocol",
@@ -4606,7 +4627,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5150,6 +5171,7 @@ dependencies = [
  "criterion",
  "data-encoding",
  "either",
+ "enum-map",
  "flate2",
  "futures",
  "hashbrown 0.15.5",
@@ -5237,7 +5259,7 @@ dependencies = [
  "tower-http",
  "url",
  "uuid",
- "zstd 0.13.3",
+ "zstd",
 ]
 
 [[package]]
@@ -6567,7 +6589,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -7857,29 +7879,11 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "db3ae9bf90af6e40197bef767eeefc46ad6397420fe873830bd85e5fbbfb3c70"
 dependencies = [
- "zstd-safe 7.3.0",
-]
-
-[[package]]
-name = "zstd"
-version = "0.14.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "057cfd910cfac363a0ada849592624b4c9ff2e10bef504c3433810d78ed96f93"
-dependencies = [
- "zstd-safe 8.2.0",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "7.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d80649ab6db9d9f6f9c80a40becd948eda4714a0a5ac8c4d157a32231c7882"
-dependencies = [
- "zstd-sys",
+ "zstd-safe",
 ]
 
 [[package]]

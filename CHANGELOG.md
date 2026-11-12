@@ -6,6 +6,7 @@
 
 - Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, if its frames have names or the event has debug images. This is behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
 - Derive `user.geo.subregion` for streamed spans and copy `user.geo.country_code`, `user.geo.region` and `user.geo.subregion` onto web vital metrics. ([#6576](https://github.com/getsentry/relay/pull/6576))
+- Accept the `error` span status on transactions and transaction spans, as defined by the `sentry.status` convention. ([#6646](https://github.com/getsentry/relay/pull/6646))
 - Copy `sentry.replay_id` and `sentry.profile_id` onto web vital metrics. ([#6638](https://github.com/getsentry/relay/pull/6638))
 - Emit `browser.web_vital.*.score` metrics carrying each web vital's performance score as a ratio. ([#6607](https://github.com/getsentry/relay/pull/6607))
 - Implement support for splitting GPU dumps from CPU dumps for Unreal crash reports. ([#6583](https://github.com/getsentry/relay/pull/6583))
@@ -16,6 +17,7 @@
 
 **Bug Fixes**:
 
+- Correct rate-limit outcome accounting for rejected envelope items, including V1 user reports (`user_report`). ([#6526](https://github.com/getsentry/relay/pull/6526))
 - Carry the client and server sample rates of a span onto the web vital metrics extracted from it, so metrics extrapolate like the spans they came from. ([#6643](https://github.com/getsentry/relay/pull/6643))
 - Correctly parse unreal multi line logs. ([#6621](https://github.com/getsentry/relay/pull/6621))
 - Integration endpoints now forward requests instead of silently dropping telemetry. ([#6611](https://github.com/getsentry/relay/pull/6611))
@@ -23,6 +25,7 @@
 - Correct CSP `script-src` violation messages to follow blocked `inline` and `eval` resources. ([#6449](https://github.com/getsentry/relay/pull/6449))
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
+- Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
 
 **Internal**:
 
@@ -30,12 +33,14 @@
 - Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
-- Update sentry-conventions to 0.31.0. Adds Heroku log drain, `faas.document.*`, `faas.instance`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, and deprecates the `gen_ai.handoff` op. ([#6649](https://github.com/getsentry/relay/pull/6649))
-- Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
+- Update sentry-conventions to 0.33.0. Adds Heroku log drain, `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, `faas.document.*`, `faas.instance`, `faas.max_memory`, Vercel AI, `page.server_rendering.type`, and `user.geo.subregion` attributes with scrubbing policies, deprecates the `gen_ai.handoff` and `gen_ai.rerank` ops, documents the JSON parts shape for `gen_ai.input.messages` and `gen_ai.system_instructions` and reasoning parts for `gen_ai.*.messages`, and says `gen_ai.tool.definitions` must be stringified. ([#6586](https://github.com/getsentry/relay/pull/6586), [#6649](https://github.com/getsentry/relay/pull/6649), [#6663](https://github.com/getsentry/relay/pull/6663), [#6670](https://github.com/getsentry/relay/pull/6670))
+- Remove the `user.sentry_user` field from normalized events. ([#6609](https://github.com/getsentry/relay/pull/6609))
 - Split processor service into `EnvelopeProcessor` and `BucketProcessor`. ([#6622](https://github.com/getsentry/relay/pull/6622))
 - Add proto-descriptor tool. ([#6510](https://github.com/getsentry/relay/pull/6510))
 - Add prost proto serialization bounding. ([#6509](https://github.com/getsentry/relay/pull/6509))
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
+- Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
+- Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
 
 **Bug Fixes**:
 
