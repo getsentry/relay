@@ -5195,6 +5195,8 @@ dependencies = [
  "objectstore-types",
  "opentelemetry-proto",
  "papaya",
+ "pest",
+ "pest_derive",
  "pin-project-lite",
  "priority-queue",
  "prost 0.14.4",

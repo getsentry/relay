@@ -65,6 +65,8 @@ objectstore-client = { workspace = true }
 objectstore-types = { workspace = true }
 opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
+pest = { workspace = true }
+pest_derive = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 prost = { workspace = true }
