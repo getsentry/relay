@@ -54,6 +54,7 @@ async fn multipart_to_envelope(
     .await?;
 
     let envelope = items.map(|items, records| {
+        let items = items.into_items();
         if items.iter().any(|i| i.carries_event_payload()) {
             records.modify_by(DataCategory::Error, 1);
         }
