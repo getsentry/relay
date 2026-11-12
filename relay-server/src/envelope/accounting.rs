@@ -71,18 +71,40 @@ impl RejectionQuantities for SecurityItem {
 
 impl Counted for AttachmentItem {
     fn quantities(&self) -> Quantities {
-        // Event-parent dying messages are merged into event data.
-        if self.rate_limited()
-            || (self.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
-                && matches!(self.attachment_parent_type(), AttachmentParentType::Event))
-        {
-            Quantities::new()
-        } else {
-            smallvec![
-                (DataCategory::Attachment, self.attachment_body_size()),
-                (DataCategory::AttachmentItem, 1),
-            ]
+        if self.rate_limited() {
+            return Quantities::new();
         }
+
+        // New attachment types require an explicit accounting decision.
+        match self.attachment_type() {
+            Some(AttachmentType::NintendoSwitchDyingMessage) => {
+                // Event-parent dying messages are merged into event data.
+                if matches!(self.attachment_parent_type(), AttachmentParentType::Event) {
+                    return Quantities::new();
+                }
+            }
+            Some(
+                AttachmentType::Attachment
+                | AttachmentType::Minidump
+                | AttachmentType::AppleCrashReport
+                | AttachmentType::EventPayload
+                | AttachmentType::Breadcrumbs
+                | AttachmentType::Prosperodump
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs
+                | AttachmentType::ViewHierarchy
+                | AttachmentType::Flamegraph
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug
+                | AttachmentType::CompiledShader,
+            )
+            | None => {}
+        }
+
+        smallvec![
+            (DataCategory::Attachment, self.attachment_body_size()),
+            (DataCategory::AttachmentItem, 1),
+        ]
     }
 }
 
