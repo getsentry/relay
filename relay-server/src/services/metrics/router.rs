@@ -94,19 +94,10 @@ impl Service for RouterService {
         let mut router = StartedRouter::start(self);
         relay_log::info!("metrics router started");
 
-        // Note that currently this loop never exits and will run till the tokio runtime shuts
-        // down. This is about to change with the refactoring for the shutdown process.
-        loop {
-            tokio::select! {
-                biased;
-
-                Some(message) = rx.recv() => {
-                    router.handle_message(message)
-                },
-
-                else => break,
-            }
+        while let Some(message) = rx.recv().await {
+            router.handle_message(message)
         }
+
         relay_log::info!("metrics router stopped");
     }
 }
@@ -191,5 +182,37 @@ impl RouterHandle {
     /// Returns `true` if all the aggregators can still accept metrics.
     pub fn can_accept_metrics(&self) -> bool {
         self.0.iter().all(|ah| ah.can_accept_metrics())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_service(handle: &relay_system::Handle) -> RouterService {
+        RouterService::new(
+            handle.clone(),
+            AggregatorServiceConfig::default(),
+            Vec::new(),
+            None,
+            ProjectCacheHandle::for_test(),
+        )
+    }
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        let runtime = relay_system::Runtime::builder("router-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let service = dummy_service(runtime.handle());
+            let (addr, rx) = relay_system::channel(RouterService::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            drop(addr);
+            assert!(futures::poll!(&mut run).is_ready());
+        });
     }
 }

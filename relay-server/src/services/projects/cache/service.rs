@@ -232,10 +232,13 @@ impl relay_system::Service for ProjectCacheService {
                     "completed_fetch",
                     self.handle_completed_fetch(fetch)
                 ),
-                Some(message) = rx.recv() => timed!(
-                    message.variant(),
-                    self.handle_message(message)
-                ),
+                signal = rx.recv() => match signal {
+                    Some(message) => timed!(
+                        message.variant(),
+                        self.handle_message(message)
+                    ),
+                    None => break,
+                },
                 Some(action) = self.store.poll() => match action {
                     state::Action::Eviction(eviction) => timed!(
                         "eviction",
@@ -248,5 +251,34 @@ impl relay_system::Service for ProjectCacheService {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn dummy_service() -> ProjectCacheService {
+        let config = Arc::new(Config::default());
+        let source = ProjectSource::start_in(
+            &relay_system::TokioServiceSpawn,
+            config.clone(),
+            relay_system::Addr::dummy(),
+            #[cfg(feature = "processing")]
+            None,
+        )
+        .await;
+        ProjectCacheService::new(config, source)
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_on_channel_close() {
+        let service = dummy_service().await;
+        let (addr, rx) = relay_system::channel(ProjectCacheService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
     }
 }
