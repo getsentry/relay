@@ -72,9 +72,6 @@ impl Counted for Minidump {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        match self.0.data().rate_limited() {
-            true => Default::default(),
-            false => self.0.quantities(),
-        }
+        self.0.quantities()
     }
 }
