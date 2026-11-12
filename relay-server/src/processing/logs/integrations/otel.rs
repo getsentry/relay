@@ -130,23 +130,21 @@ pub fn expand(
 fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result<LogsData, Error> {
     match format {
         OtelFormat::Json => {
-            let result =
-                relay_serialization::serde::deserialize_json(payload, max_ops).map_err(|e| {
-                    relay_log::debug!(
-                        error = &e as &dyn std::error::Error,
-                        "Failed to parse logs data as JSON"
-                    );
+            relay_serialization::serde::deserialize_json(payload, max_ops).map_err(|e| {
+                relay_log::debug!(
+                    error = &e as &dyn std::error::Error,
+                    "Failed to parse logs data as JSON"
+                );
 
-                    match e {
-                        relay_serialization::serde::Error::LimitExceeded(_) => {
-                            Error::Invalid(DiscardReason::RequestTooLarge)
-                        }
-                        relay_serialization::serde::Error::Serde(_) => {
-                            Error::Invalid(DiscardReason::InvalidJson)
-                        }
+                match e {
+                    relay_serialization::serde::Error::LimitExceeded(_) => {
+                        Error::Invalid(DiscardReason::RequestTooLarge)
                     }
-                });
-            result
+                    relay_serialization::serde::Error::Serde(_) => {
+                        Error::Invalid(DiscardReason::InvalidJson)
+                    }
+                }
+            })
         }
         OtelFormat::Protobuf => LogsData::decode_bounded(payload, max_ops).map_err(|e| {
             relay_log::debug!(
