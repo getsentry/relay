@@ -11,7 +11,7 @@
 </div><span id="structfield.max_tag_key_length" class="structfield section-header"><a href="#structfield.max_tag_key_length" class="anchor field">§</a><code>max_tag_key_length: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.usize.html">usize</a></code></span><div class="docblock"><p>The length the tag key is allowed to be.</p>
 <p>Defaults to <code>200</code> bytes.</p>
 </div><span id="structfield.max_tag_value_length" class="structfield section-header"><a href="#structfield.max_tag_value_length" class="anchor field">§</a><code>max_tag_value_length: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.usize.html">usize</a></code></span><div class="docblock"><p>The length the tag value is allowed to be.</p>
-<p>Defaults to <code>200</code> chars.</p>
+<p>Defaults to <code>256</code> chars.</p>
 </div><span id="structfield.max_flush_bytes" class="structfield section-header"><a href="#structfield.max_flush_bytes" class="anchor field">§</a><code>max_flush_bytes: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.usize.html">usize</a></code></span><div class="docblock"><p>The approximate maximum number of bytes submitted within one flush cycle.</p>
 <p>This controls how big flushed batches of buckets get, depending on the number of buckets,
 the cumulative length of their keys, and the number of raw values. Since final serialization
