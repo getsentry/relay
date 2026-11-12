@@ -310,23 +310,27 @@ mod tests {
 
     #[test]
     fn rejects_mismatched_variant_payloads() {
-        for input in [
-            syn::parse_quote!(
-                pub enum Item {
-                    Transaction(ProfileItem),
-                }
+        for (input, expected) in [
+            (
+                syn::parse_quote!(
+                    pub enum Item {
+                        Transaction(ProfileItem),
+                    }
+                ),
+                "expected Transaction(TransactionItem)",
             ),
-            syn::parse_quote!(
-                pub enum Item {
-                    Profile,
-                }
+            (
+                syn::parse_quote!(
+                    pub enum Item {
+                        Profile,
+                    }
+                ),
+                "expected Profile(ProfileItem)",
             ),
         ] {
-            assert!(
-                expand_item_variants(input)
-                    .unwrap_err()
-                    .to_string()
-                    .contains("expected")
+            assert_eq!(
+                expand_item_variants(input).unwrap_err().to_string(),
+                expected,
             );
         }
     }
