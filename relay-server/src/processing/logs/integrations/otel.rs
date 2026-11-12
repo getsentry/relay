@@ -130,24 +130,22 @@ pub fn expand(
 fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result<LogsData, Error> {
     match format {
         OtelFormat::Json => {
-            let mut de = serde_json::Deserializer::from_reader(payload);
-            let result = relay_serialization::serde::deserialize(&mut de, max_ops).map_err(|e| {
-                relay_log::debug!(
-                    error = &e as &dyn std::error::Error,
-                    "Failed to parse logs data as JSON"
-                );
+            let result =
+                relay_serialization::serde::deserialize_json(payload, max_ops).map_err(|e| {
+                    relay_log::debug!(
+                        error = &e as &dyn std::error::Error,
+                        "Failed to parse logs data as JSON"
+                    );
 
-                match e {
-                    relay_serialization::serde::Error::LimitExceeded(_) => {
-                        Error::Invalid(DiscardReason::RequestTooLarge)
+                    match e {
+                        relay_serialization::serde::Error::LimitExceeded(_) => {
+                            Error::Invalid(DiscardReason::RequestTooLarge)
+                        }
+                        relay_serialization::serde::Error::Serde(_) => {
+                            Error::Invalid(DiscardReason::InvalidJson)
+                        }
                     }
-                    relay_serialization::serde::Error::Serde(_) => {
-                        Error::Invalid(DiscardReason::InvalidJson)
-                    }
-                }
-            });
-            de.end()
-                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+                });
             result
         }
         OtelFormat::Protobuf => LogsData::decode_bounded(payload, max_ops).map_err(|e| {
@@ -337,7 +335,7 @@ mod tests {
 
         assert!(matches!(
             parse_logs_data(OtelFormat::Protobuf, &payload, 1000),
-            Err(Error::Invalid(DiscardReason::InvalidProtobuf))
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
         ));
         assert!(parse_logs_data(OtelFormat::Protobuf, &payload, 1003).is_ok());
     }
