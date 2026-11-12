@@ -6,9 +6,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{
-    AttachmentParentType, AttachmentType, ContentType, Envelope, Item, ItemType,
-};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemStorage};
 use crate::integrations::Integration;
 
 /// Name of the rate limits header.
@@ -153,8 +151,7 @@ pub struct EnvelopeSummary {
     /// The number of user reports (legacy item type for user feedback).
     pub user_report_quantity: usize,
 
-    /// V1 reports participating in quota checks. Legacy accounting still counts a report with
-    /// a misplaced Nintendo attachment header, although early filtering excludes it.
+    /// Whether an unrejected legacy user report participates in quota checks.
     pub has_user_reports: bool,
 
     /// The number of monitor check-ins.
@@ -214,76 +211,68 @@ impl EnvelopeSummary {
         let mut summary = Self::empty();
 
         for item in items {
-            let rate_limited = item.rate_limited();
+            let data: &ItemStorage = item;
+            let rate_limited = data.rate_limited();
             if !rate_limited {
-                if let Some(source) = item.source_quantities() {
+                if let Some(source) = data.source_quantities() {
                     summary.secondary_transaction_quantity += source.transactions;
                     summary.secondary_span_quantity += source.spans;
                 }
-                summary.payload_size += item.len();
+                summary.payload_size += data.len();
             }
 
-            // Already-limited items and event-parent Nintendo attachments have no individual quantities here.
-            // Event-creating items still count toward the event; metrics still advertise client limits.
-            let attachment_type = if *item.ty() == ItemType::Attachment {
-                item.attachment_type()
-            } else {
-                None
-            };
-            let count_individual = !rate_limited
-                && !(attachment_type == Some(AttachmentType::NintendoSwitchDyingMessage)
-                    && matches!(item.attachment_parent_type(), AttachmentParentType::Event));
-            let count = if count_individual {
+            // Event contributions and metric backoffs remain relevant even for marked items.
+            let count = if !rate_limited {
                 item.item_count().unwrap_or(1) as usize
             } else {
                 0
             };
 
-            match item.ty() {
-                ItemType::Event | ItemType::UnrealReport => {
+            match item {
+                Item::Event(_) | Item::UnrealReport(_) => {
                     summary.event_category.get_or_insert(DataCategory::Error);
                 }
-                ItemType::Security | ItemType::RawSecurity => {
+                Item::Security(_) | Item::RawSecurity(_) => {
                     summary.event_category.get_or_insert(DataCategory::Security);
                 }
-                ItemType::UserReportV2 => {
+                Item::UserReportV2(_) => {
                     summary
                         .event_category
                         .get_or_insert(DataCategory::UserReportV2);
                 }
-                ItemType::UserReport => {
-                    summary.user_report_quantity += usize::from(!rate_limited);
-                    summary.has_user_reports |= count_individual;
+                Item::UserReport(_) => {
+                    summary.user_report_quantity += count;
+                    summary.has_user_reports |= !rate_limited;
                 }
-                ItemType::Session | ItemType::Sessions => summary.session_quantity += count,
-                ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                Item::Session(_) | Item::Sessions(_) => summary.session_quantity += count,
+                Item::ReplayEvent(_) | Item::ReplayRecording(_) | Item::ReplayVideo(_) => {
                     summary.replay_quantity += count;
                 }
-                ItemType::CheckIn => summary.monitor_quantity += count,
-                ItemType::Span => summary.span_quantity += count,
-                ItemType::MetricBuckets => summary.has_metrics = true,
-                ItemType::FormData | ItemType::ClientReport | ItemType::Unknown(_) => {}
-                ItemType::Log => {
+                Item::CheckIn(_) => summary.monitor_quantity += count,
+                Item::Span(_) => summary.span_quantity += count,
+                Item::MetricBuckets(_) => summary.has_metrics = true,
+                Item::FormData(_) | Item::ClientReport(_) | Item::Unknown(_) => {}
+                Item::Log(item) => {
                     summary.log_item_quantity += count;
-                    if count_individual {
+                    if !rate_limited {
                         summary.log_byte_quantity += item.len().max(1);
                     }
                 }
-                ItemType::TraceMetric => {
+                Item::TraceMetric(item) => {
                     summary.trace_metric_quantity += count;
-                    if count_individual {
+                    if !rate_limited {
                         summary.trace_metric_byte_quantity += item.len().max(1);
                     }
                 }
-                ItemType::Transaction => {
+                Item::Transaction(item) => {
                     summary
                         .event_category
                         .get_or_insert(DataCategory::Transaction);
-                    if count_individual {
+                    if !rate_limited {
                         summary.span_quantity += 1 + item.span_count().unwrap_or(0) as usize;
                     }
                 }
-                ItemType::Profile => {
+                Item::Profile(item) => {
                     summary.profile_quantity.total += count;
                     match item.profile_type() {
                         Some(ProfileType::Backend) => summary.profile_quantity.backend += count,
@@ -291,29 +280,34 @@ impl EnvelopeSummary {
                         None => {}
                     }
                 }
-                ItemType::ProfileChunk => match item.profile_type() {
+                Item::ProfileChunk(item) => match item.profile_type() {
                     Some(ProfileType::Backend) => summary.profile_chunk_quantity += count,
                     Some(ProfileType::Ui) => summary.profile_chunk_ui_quantity += count,
                     None => {}
                 },
-                ItemType::Integration => match item.content_type() {
-                    Some(ContentType::Integration(Integration::Errors(_))) => {
+                Item::Integration(item) => match item.integration_header() {
+                    Some(Integration::Errors(_)) => {
                         summary.event_category.get_or_insert(DataCategory::Error);
                     }
-                    Some(ContentType::Integration(Integration::Spans(_))) => {
+                    Some(Integration::Spans(_)) => {
                         summary.span_quantity += count;
                     }
-                    Some(ContentType::Integration(Integration::Logs(_))) => {
+                    Some(Integration::Logs(_)) => {
                         summary.log_item_quantity += count;
-                        if count_individual {
+                        if !rate_limited {
                             summary.log_byte_quantity += item.len().max(1);
                         }
                     }
                     _ => {}
                 },
-                ItemType::Attachment => {
+                Item::Attachment(item) => {
                     let parent = item.attachment_parent_type();
-                    if count_individual {
+                    // Event-parent dying messages contribute only to the event.
+                    if !rate_limited
+                        && !(item.attachment_type()
+                            == Some(AttachmentType::NintendoSwitchDyingMessage)
+                            && matches!(parent, AttachmentParentType::Event))
+                    {
                         summary.attachment_count += 1;
                         summary.attachment_bytes += item.attachment_body_size();
                         match parent {
@@ -322,7 +316,7 @@ impl EnvelopeSummary {
                             AttachmentParentType::Trace => summary.has_trace_attachments = true,
                         }
                     }
-                    if item.creates_event() {
+                    if item.carries_event_payload() {
                         summary.event_category.get_or_insert(DataCategory::Error);
                     } else {
                         summary.has_plain_attachments = true;
@@ -337,6 +331,8 @@ impl EnvelopeSummary {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::envelope::MetricBucketsItem;
 
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -553,7 +549,7 @@ mod tests {
 
         let mut envelope = Envelope::from_request(None, request_meta);
 
-        let mut item = Item::new(ItemType::MetricBuckets);
+        let mut item = MetricBucketsItem::new();
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
             spans: 0,
@@ -561,7 +557,7 @@ mod tests {
         });
         envelope.add_item(item);
 
-        let mut item = Item::new(ItemType::MetricBuckets);
+        let mut item = MetricBucketsItem::new();
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 0,

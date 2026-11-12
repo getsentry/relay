@@ -9,7 +9,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemVariant, Items,
+    LogItem,
 };
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
@@ -94,7 +95,7 @@ impl From<RateLimits> for Error {
 
 /// A processor for Logs.
 ///
-/// It processes items of type: [`ItemType::Log`].
+/// It processes items of type: [`LogItem`].
 #[derive(Debug)]
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -119,15 +120,10 @@ impl processing::Processor for LogsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let log_container = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Log))?;
+        let log_container = envelope.envelope_mut().take_item::<LogItem>()?;
 
         // Duplicates which are not allowed to be in the envelope.
-        let invalid = envelope
-            .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::Log))
-            .to_vec();
+        let invalid = envelope.envelope_mut().drain_items::<LogItem>().collect();
 
         let work = SerializedLogs {
             headers,
@@ -211,14 +207,14 @@ pub struct SerializedLogs {
     headers: EnvelopeHeaders,
 
     /// Serialized logs.
-    log_container: Item,
+    log_container: LogItem,
 
     /// Invalid log items which are not allowed to be in the envelope.
-    invalid: Vec<Item>,
+    invalid: Vec<LogItem>,
 }
 
 impl SerializedLogs {
-    fn items(&self) -> impl Iterator<Item = &Item> {
+    fn items(&self) -> impl Iterator<Item = &LogItem> {
         self.invalid.iter().chain(Some(&self.log_container))
     }
 
@@ -288,7 +284,7 @@ impl ExpandedLogs {
         let mut logs = Vec::new();
 
         if !self.logs.is_empty() {
-            let mut item = Item::new(ItemType::Log);
+            let mut item = LogItem::new();
             ItemContainer::from_parts(
                 ourlog::container::ContainerMetadata {
                     // Latest supported version.
@@ -300,7 +296,7 @@ impl ExpandedLogs {
             )
             .write_to(&mut item)
             .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
-            logs.push(item);
+            logs.push(Item::from(item));
         }
 
         Ok(Envelope::from_parts(self.headers, Items::from_vec(logs)))

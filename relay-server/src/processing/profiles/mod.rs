@@ -3,10 +3,10 @@ use std::sync::Arc;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_profiling::{ProfileError, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
-use smallvec::smallvec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, ProfileItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{
     Context, CountRateLimited, Forward, ForwardContext, Output, Processor, QuotaRateLimiter,
@@ -82,10 +82,10 @@ impl Processor for ProfilesProcessor {
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
-        let profiles = envelope
+        let profiles: SmallVec<[_; 3]> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::Profile));
-
+            .drain_items::<ProfileItem>()
+            .collect();
         if profiles.is_empty() {
             return None;
         }
@@ -113,7 +113,7 @@ pub struct SerializedProfiles {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of profiles.
-    profiles: Items,
+    profiles: SmallVec<[ProfileItem; 3]>,
 }
 
 impl Counted for SerializedProfiles {
@@ -128,7 +128,7 @@ pub struct ExpandedProfile {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// The profile received in an envelope.
-    profile: Item,
+    profile: ProfileItem,
     /// The type of the profile, inferred from the platform.
     profile_type: ProfileType,
 }
@@ -169,7 +169,7 @@ impl Forward for ProfilesOutput {
                  profile,
                  profile_type: _,
              },
-             _| { Envelope::from_parts(headers, smallvec![profile]) },
+             _| { Envelope::from_parts(headers, smallvec![profile.into()]) },
         );
 
         Ok(envelope)

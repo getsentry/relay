@@ -1,3 +1,4 @@
+use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
@@ -41,13 +42,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let (item, format) =
-            envelope
-                .envelope_mut()
-                .take_item_by_map(|item| match item.integration() {
-                    Some(Integration::Logs(LogsIntegration::OtelV1 { format })) => Some(format),
-                    _ => None,
-                })?;
+        let (item, format) = envelope
+            .envelope_mut()
+            .take_item_by_map::<IntegrationItem, _>(|item| match item.integration() {
+                Some(Integration::Logs(LogsIntegration::OtelV1 { format })) => Some(format),
+                _ => None,
+            })?;
         let headers = envelope.envelope().headers().clone();
 
         let work =

@@ -1,3 +1,4 @@
+use crate::envelope::AttachmentItem;
 use std::time::Instant;
 
 use bytes::Bytes;
@@ -6,7 +7,6 @@ use relay_pii::PiiAttachmentsProcessor;
 use relay_protocol::Annotated;
 use relay_statsd::metric;
 
-use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
 use crate::processing::Context;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -45,7 +45,7 @@ pub fn expand(work: Managed<SampledAttachments>) -> Managed<ExpandedAttachments>
 }
 
 /// Converts an envelope item into an expanded trace attachment.
-pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReason> {
+pub fn parse_and_validate(item: &AttachmentItem) -> Result<ExpandedAttachment, DiscardReason> {
     let meta_length = item.meta_length().ok_or_else(|| {
         relay_log::debug!("trace attachment missing meta_length");
         DiscardReason::InvalidTraceAttachment

@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::value::RawValue;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, RawSecurityItem};
 use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
 
@@ -32,8 +32,8 @@ struct SecurityReportParams {
 }
 
 impl SecurityReportParams {
-    fn create_security_item(query: &SecurityReportQuery, item: Bytes) -> Item {
-        let mut report_item = Item::new(ItemType::RawSecurity);
+    fn create_security_item(query: &SecurityReportQuery, item: Bytes) -> RawSecurityItem {
+        let mut report_item = RawSecurityItem::new();
         report_item.set_payload(ContentType::Json, item);
 
         if let Some(sentry_release) = &query.sentry_release {

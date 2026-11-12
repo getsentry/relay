@@ -1,10 +1,10 @@
+use crate::envelope::FormDataItem;
 use serde_json::Value as SerdeValue;
 
-use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), ProcessingError> {
+pub fn merge_formdata(target: &mut SerdeValue, item: &FormDataItem) -> Result<(), ProcessingError> {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
@@ -46,16 +46,16 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::envelope::{ContentType, ItemType};
+    use crate::envelope::ContentType;
     use crate::utils::FormDataWriter;
 
-    fn form_data_item(entries: &[(&str, &str)]) -> Item {
+    fn form_data_item(entries: &[(&str, &str)]) -> FormDataItem {
         let mut writer = FormDataWriter::new();
         for (key, value) in entries {
             writer.append(key, value);
         }
 
-        let mut item = Item::new(ItemType::FormData);
+        let mut item = FormDataItem::new();
         item.set_payload(ContentType::Text, writer.into_inner());
         item
     }

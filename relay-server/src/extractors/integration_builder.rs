@@ -1,3 +1,4 @@
+use crate::envelope::IntegrationItem;
 use std::marker::PhantomData;
 
 use axum::RequestExt;
@@ -10,7 +11,6 @@ use relay_event_schema::protocol::EventId;
 use relay_protocol::Value;
 
 use crate::Envelope;
-use crate::envelope::{Item, ItemType};
 use crate::extractors::{BadEventMeta, RequestMeta};
 use crate::integrations::Integration;
 use crate::service::ServiceState;
@@ -36,7 +36,7 @@ impl IntegrationBuilder<()> {
         let integration = integration.into();
 
         self.envelope.add_item({
-            let mut item = Item::new(ItemType::Integration);
+            let mut item = IntegrationItem::new();
             item.set_payload(integration.into(), self.payload.clone());
             item
         });

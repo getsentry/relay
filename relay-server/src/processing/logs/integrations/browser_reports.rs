@@ -1,3 +1,4 @@
+use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_quotas::DataCategory;
@@ -30,12 +31,14 @@ impl processing::Processor for BrowserReportLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let item = envelope.envelope_mut().take_item_by(|item| {
-            matches!(
-                item.integration(),
-                Some(Integration::Logs(LogsIntegration::BrowserReport))
-            )
-        })?;
+        let item = envelope
+            .envelope_mut()
+            .take_item_if::<IntegrationItem>(|item| {
+                matches!(
+                    item.integration(),
+                    Some(Integration::Logs(LogsIntegration::BrowserReport))
+                )
+            })?;
         let headers = envelope.envelope().headers().clone();
 
         let work = SerializedLogsIntegration { headers, item };

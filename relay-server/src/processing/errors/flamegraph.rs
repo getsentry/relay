@@ -8,7 +8,7 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Array, DeserializableAnnotated, FromValue, Value};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, ContentType};
 use crate::managed::RecordKeeper;
 use crate::services::processor::ProcessingError;
 
@@ -80,7 +80,7 @@ pub fn enrich(event: &mut Event, culprit: Option<Culprit>) -> bool {
 
 /// Validate and normalize the flame graph on every Relay and optionally extract its culprit.
 pub(super) fn process_flamegraph(
-    attachment: &mut Option<Item>,
+    attachment: &mut Option<AttachmentItem>,
     needs_culprit: bool,
     max_event_size: usize,
     records: &mut RecordKeeper<'_>,
@@ -97,12 +97,11 @@ pub(super) fn process_flamegraph(
 }
 
 fn validate_and_extract(
-    item: &mut Item,
+    item: &mut AttachmentItem,
     needs_culprit: bool,
     max_event_size: usize,
 ) -> Result<Option<Culprit>, ProcessingError> {
-    if item.ty() != &ItemType::Attachment
-        || item.filename() != Some("flamegraph.json")
+    if item.filename() != Some("flamegraph.json")
         || item.content_type() != Some(ContentType::Json)
     {
         return Err(ProcessingError::InvalidFlamegraph);
@@ -285,18 +284,18 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::*;
-    use crate::envelope::{AttachmentType, ContentType, ItemType};
+    use crate::envelope::{AttachmentType, ContentType, Item};
     use crate::managed::Managed;
 
     fn validate(
-        item: &mut Item,
+        item: &mut AttachmentItem,
         config: &relay_config::ConfigSnapshot,
     ) -> Result<(), ProcessingError> {
         validate_and_extract(item, false, config.max_event_size()).map(|_| ())
     }
 
-    fn flamegraph_item(payload: serde_json::Value) -> Item {
-        let mut item = Item::new(ItemType::Attachment);
+    fn flamegraph_item(payload: serde_json::Value) -> AttachmentItem {
+        let mut item = AttachmentItem::new();
         item.set_attachment_type(AttachmentType::Flamegraph);
         item.set_filename("flamegraph.json");
         item.set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
@@ -318,6 +317,7 @@ mod tests {
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
         let (item, _) = Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+        let item: AttachmentItem = item.try_into().unwrap();
         let (mut attachment, _handle) = Managed::for_test(Some(item)).build();
 
         attachment.modify(|item, records| {
@@ -415,6 +415,7 @@ mod tests {
         ] {
             let (mut item, _) =
                 Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+        let mut item: AttachmentItem = item.try_into().unwrap();
             assert!(validate(&mut item, &config.current()).is_err());
         }
     }
@@ -478,7 +479,7 @@ mod tests {
         assert!(validate(&mut flamegraph_item(payload), &config.current()).is_err());
     }
 
-    fn extract_attachments(attachments: &[Item], max_event_size: usize) -> Option<Culprit> {
+    fn extract_attachments(attachments: &[AttachmentItem], max_event_size: usize) -> Option<Culprit> {
         attachments.iter().find_map(|item| {
             validate_and_extract(&mut item.clone(), true, max_event_size)
                 .ok()
@@ -486,7 +487,7 @@ mod tests {
         })
     }
 
-    fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
+    fn enrich(event: &mut Event, attachments: &[AttachmentItem]) -> bool {
         super::enrich(
             event,
             extract_attachments(
@@ -531,8 +532,8 @@ mod tests {
         })
     }
 
-    fn attachment(graph: Value) -> Item {
-        let mut item = Item::new(ItemType::Attachment);
+    fn attachment(graph: Value) -> AttachmentItem {
+        let mut item = AttachmentItem::new();
         item.set_attachment_type(AttachmentType::Flamegraph);
         item.set_filename("flamegraph.json");
         item.set_payload(ContentType::Json, serde_json::to_vec(&graph).unwrap());

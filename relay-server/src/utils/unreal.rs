@@ -18,7 +18,7 @@ use crate::constants::{
     ATTACHMENT_CSO_SUFFIX, ATTACHMENT_NV_DBG_SUFFIX, ATTACHMENT_NV_GPUDUMP_SUFFIX,
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, SENTRY_CRASH_PAYLOAD_KEY,
 };
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, EventItem, UserReportItem};
 use crate::services::processor::ProcessingError;
 
 use self::call_stack::{CallStackParser, Rule};
@@ -39,8 +39,11 @@ const UNKNOWN_IMAGE_BASE: u64 = 0xffff_ffff;
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 /// Extracts the items from an Unreal 4 crash report payload.
-fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, ProcessingError> {
-    let mut items = Items::new();
+fn extract_items(
+    payload: Bytes,
+    config: &ConfigSnapshot,
+) -> Result<smallvec::SmallVec<[AttachmentItem; 3]>, ProcessingError> {
+    let mut items = smallvec::SmallVec::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     for file in crash.files().take(config.max_attachment_count()) {
@@ -69,7 +72,7 @@ fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, Proce
             },
         };
 
-        let mut item = Item::new(ItemType::Attachment);
+        let mut item = AttachmentItem::new();
         item.set_filename(file.name());
         item.set_payload(content_type, file.into_bytes());
         item.set_attachment_type(attachment_type);
@@ -104,16 +107,16 @@ pub fn expand_unreal(
 /// Expansion from an Unreal 4 report.
 pub struct UnrealExpansion {
     /// The error event if the crash contained one.
-    pub event: Option<Item>,
+    pub event: Option<EventItem>,
     /// The parsed unreal context.
     ///
     /// Note: the raw unreal context may still be in [`Self::attachments`].
     pub context: Option<Unreal4Context>,
     /// Files of the report as attachments.
-    pub attachments: Items,
+    pub attachments: smallvec::SmallVec<[AttachmentItem; 3]>,
 }
 
-fn take_event_item(context: &mut Unreal4Context) -> Option<Item> {
+fn take_event_item(context: &mut Unreal4Context) -> Option<EventItem> {
     let json = context
         .game_data
         .remove(crate::constants::SENTRY_CRASH_PAYLOAD_KEY)?;
@@ -123,7 +126,7 @@ fn take_event_item(context: &mut Unreal4Context) -> Option<Item> {
     }
 
     relay_log::trace!("adding event payload from unreal context");
-    let mut item = Item::new(ItemType::Event);
+    let mut item = EventItem::new();
     item.set_payload(ContentType::Json, json);
     Some(item)
 }
@@ -205,7 +208,10 @@ fn parse_unreal_logs(data: Bytes) -> impl Iterator<Item = Result<Breadcrumb, Unr
 }
 
 /// Parses `UserReport` from unreal user information.
-fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Option<Item> {
+fn get_unreal_user_report(
+    event_id: EventId,
+    context: &mut Unreal4Context,
+) -> Option<UserReportItem> {
     let runtime_props = context.runtime_properties.as_mut()?;
     let user_description = runtime_props.user_description.take()?;
 
@@ -223,7 +229,7 @@ fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Op
 
     let json = serde_json::to_string(&user_report).ok()?;
 
-    let mut item = Item::new(ItemType::UserReport);
+    let mut item = UserReportItem::new();
     item.set_payload(ContentType::Json, json);
     Some(item)
 }
@@ -673,7 +679,7 @@ pub fn process_unreal(
     context: Option<Unreal4Context>,
     event_id: EventId,
     event: &mut Annotated<Event>,
-    attachments: &[Item],
+    attachments: &[AttachmentItem],
     user_header: Option<&str>,
     context_stacktrace: bool,
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
@@ -698,7 +704,7 @@ pub fn process_unreal(
 
     merge_unreal_logs(event, logs_items)?;
 
-    let mut user_reports = Items::new();
+    let mut user_reports = smallvec::SmallVec::new();
     if let Some(mut context) = context {
         if let Some(report) = get_unreal_user_report(event_id, &mut context) {
             user_reports.push(report);
@@ -744,7 +750,7 @@ pub fn process_unreal(
 /// Result when processing an unreal report.
 pub struct ProcessedUnrealReport {
     /// User reports contained in the report.
-    pub user_reports: Items,
+    pub user_reports: smallvec::SmallVec<[UserReportItem; 3]>,
 }
 
 #[cfg(test)]
@@ -1099,7 +1105,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         }
     }
 
-    fn process_with_attachments(attachments: &[Item]) -> Annotated<Event> {
+    fn process_with_attachments(attachments: &[AttachmentItem]) -> Annotated<Event> {
         let mut event = Annotated::new(event_with_debug_images());
         process_unreal(
             Some(get_linux_context()),
@@ -1485,7 +1491,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
     #[test]
     fn test_process_unreal_stacktrace_with_native_crash() {
         for attachment_type in [AttachmentType::Minidump, AttachmentType::AppleCrashReport] {
-            let mut item = Item::new(ItemType::Attachment);
+            let mut item = AttachmentItem::new();
             item.set_attachment_type(attachment_type);
             item.set_payload(ContentType::OctetStream, "");
 

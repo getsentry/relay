@@ -16,8 +16,8 @@ use relay_system::Addr;
 use serde::Deserialize;
 
 use crate::envelope::{
-    AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
-    Items,
+    AttachmentItem, AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError,
+    Item, ItemType, Items,
 };
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
@@ -342,10 +342,14 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
         return Ok(Some(event_id));
     }
 
-    if let Some(item) = items
-        .iter()
-        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
-        && let Some(event_id) = event_id_from_msgpack(&item.payload())?
+    if let Some(item) = items.iter().find_map(|item| match item {
+        Item::Attachment(attachment)
+            if attachment.attachment_type() == Some(AttachmentType::EventPayload) =>
+        {
+            Some(attachment)
+        }
+        _ => None,
+    }) && let Some(event_id) = event_id_from_msgpack(&item.payload())?
     {
         return Ok(Some(event_id));
     }
@@ -558,12 +562,12 @@ fn emit_envelope_metrics(envelope: &Envelope) {
 pub async fn upload_stream<S, E>(
     stream: S,
     content_type: Option<String>,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, Rejected<BadStoreRequest>>
+) -> Result<Managed<AttachmentItem>, Rejected<BadStoreRequest>>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -587,7 +591,7 @@ where
 async fn upload_stream_inner<S, E>(
     stream: S,
     content_type: Option<String>,
-    item: &mut Managed<Item>,
+    item: &mut Managed<AttachmentItem>,
     config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,

@@ -8,7 +8,9 @@ use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
+use crate::envelope::{
+    AttachmentItem, ContainerItems, EnvelopeHeaders, ItemContainer, ParentId, SpanItem, WithHeader,
+};
 use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
@@ -103,7 +105,7 @@ pub fn expand(
 }
 
 fn expand_span_container(
-    item: &Item,
+    item: &SpanItem,
     max_ops: usize,
 ) -> Result<(Settings, ContainerItems<SpanV2>)> {
     let (metadata, spans) = ItemContainer::<SpanV2>::parse(item, max_ops)
@@ -147,7 +149,7 @@ fn expand_span_container(
 }
 
 fn expand_legacy_spans(
-    items: Vec<Item>,
+    items: Vec<SpanItem>,
     records: &mut RecordKeeper<'_>,
 ) -> (Settings, ContainerItems<SpanV2>) {
     let spans = items
@@ -182,7 +184,7 @@ fn expand_legacy_spans(
     (settings, spans)
 }
 
-fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
+fn expand_legacy_span(item: &SpanItem) -> Result<WithHeader<SpanV2>> {
     let payload = item.payload();
 
     let span = Annotated::<Span>::from_json_bytes(&payload)
@@ -199,7 +201,9 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
 }
 
 /// Parses and validates a span attachment, converting it into a structured type.
-fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, ExpandedAttachment)> {
+fn parse_and_validate_span_attachment(
+    item: &AttachmentItem,
+) -> Result<(Option<SpanId>, ExpandedAttachment)> {
     let associated_span_id = match item.parent_id() {
         Some(ParentId::SpanId(span_id)) => span_id,
         None => {
@@ -467,6 +471,7 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::ContainerPayload;
     use chrono::DateTime;
 
     use relay_conventions::attributes::*;
@@ -484,7 +489,7 @@ mod tests {
     fn test_expand_span_container_operations_limit() {
         let payload = r#"{"items":[{"start_timestamp":1544719859.0,"end_timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","span_id":"eee19b7ec3c1b174","name":"test"}]}"#;
 
-        let mut item = Item::new(crate::envelope::ItemType::Span);
+        let mut item = SpanItem::new();
         item.set_payload_with_item_count(crate::envelope::ContentType::SpanV2Container, payload, 1);
 
         // With a sufficient budget the container parses.

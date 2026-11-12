@@ -7,7 +7,7 @@ use relay_statsd::metric;
 
 #[cfg(feature = "processing")]
 use crate::envelope::AttachmentPlaceholder;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType};
 use crate::managed::{Counted, Managed, RecordKeeper, RetainMut};
 use crate::processing::Context;
 use crate::services::processor::ProcessingError;
@@ -24,7 +24,7 @@ pub fn validate_attachments<T, V>(
     ctx: Context<'_>,
 ) where
     T: Counted,
-    V: RetainMut<Item>,
+    V: RetainMut<AttachmentItem>,
 {
     managed.retain(select, |attachment, r| {
         if ctx.is_processing() {
@@ -37,7 +37,7 @@ pub fn validate_attachments<T, V>(
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
+fn validate(item: &mut AttachmentItem, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 
@@ -76,7 +76,7 @@ fn validate(item: &mut Item, config: &ConfigSnapshot) -> Result<(), ProcessingEr
 /// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
 /// modifies the attachment quantity.
 pub fn scrub<'a>(
-    attachments: impl Iterator<Item = &'a mut Item>,
+    attachments: impl Iterator<Item = &'a mut AttachmentItem>,
     project_info: &ProjectInfo,
     mut record_keeper: Option<&mut RecordKeeper>,
 ) {
@@ -87,7 +87,6 @@ pub fn scrub<'a>(
             .features
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
-            debug_assert_eq!(item.ty(), &ItemType::Attachment);
             if item.is_attachment_ref() {
                 relay_log::trace!("Skip attachment scrubbing for placeholder");
                 continue;
@@ -106,7 +105,7 @@ pub fn scrub<'a>(
                 }
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(project_info, item, config)
-            } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
+            } else if has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
                 // After we have assessed the impact on performance we can relax this condition.
@@ -116,7 +115,7 @@ pub fn scrub<'a>(
     }
 }
 
-fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
+fn scrub_minidump(project_info: &ProjectInfo, item: &mut AttachmentItem, config: &PiiConfig) {
     debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
@@ -169,7 +168,7 @@ fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfi
     item.set_payload_without_content_type(payload);
 }
 
-fn scrub_view_hierarchy(item: &mut Item, config: &PiiConfig) {
+fn scrub_view_hierarchy(item: &mut AttachmentItem, config: &PiiConfig) {
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
     let payload = item.payload();
@@ -211,7 +210,7 @@ pub fn has_simple_attachment_selector(config: &PiiConfig) -> bool {
     false
 }
 
-fn scrub_attachment(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
+fn scrub_attachment(project_info: &ProjectInfo, item: &mut AttachmentItem, config: &PiiConfig) {
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -239,6 +238,7 @@ fn scrub_attachment(project_info: &ProjectInfo, item: &mut Item, config: &PiiCon
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::Item;
     use relay_pii::PiiConfig;
 
     use super::*;

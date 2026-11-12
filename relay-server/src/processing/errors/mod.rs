@@ -7,7 +7,9 @@ use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{
+    AttachmentItem, ContentType, EnvelopeHeaders, Item, ItemType, UserReportItem,
+};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
@@ -97,14 +99,14 @@ impl processing::Processor for ErrorsProcessor {
             return None;
         }
 
-        let creates_event = envelope.envelope().items().any(Item::creates_event);
-        if !creates_event {
+        let has_event_payload = envelope.envelope().items().any(Item::carries_event_payload);
+        if !has_event_payload {
             return None;
         }
 
         let items = envelope
             .envelope_mut()
-            .take_items_by(Item::requires_event)
+            .take_items_by(Item::routes_with_event)
             .into_vec();
 
         if items.is_empty() {
@@ -154,7 +156,7 @@ pub struct SerializedError {
     headers: EnvelopeHeaders,
     /// List of items which can be processed as an error.
     ///
-    /// This is a mixture of items all of which return `true` for [`Item::requires_event`].
+    /// This is a mixture of items all of which return `true` for [`Item::routes_with_event`].
     items: Vec<Item>,
 }
 
@@ -183,11 +185,11 @@ struct ExpandedError {
     /// discarded.
     pub event: Box<Annotated<Event>>,
     /// Optional list of attachments sent with the event.
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
     /// Flame graph awaiting validation and culprit extraction.
-    pub flamegraph: Option<Item>,
+    pub flamegraph: Option<AttachmentItem>,
     /// Optional list of user reports sent with the event.
-    pub user_reports: Vec<Item>,
+    pub user_reports: Vec<UserReportItem>,
     /// Custom event data.
     ///
     /// This may contain elements which are custom to the specific event shape being handled.
@@ -347,11 +349,11 @@ impl Forward for ErrorOutput {
                     items.push(item);
                 }
 
-                data.serialize_into(&mut items, ctx)?;
+                data.into_payload().append_to_envelope(&mut items);
 
-                items.extend(attachments);
-                items.extend(flamegraph);
-                items.extend(user_reports);
+                items.extend(attachments.into_iter().map(Item::from));
+                items.extend(flamegraph.into_iter().map(Item::from));
+                items.extend(user_reports.into_iter().map(Item::from));
 
                 if !ctx.config.processing_enabled() {
                     items.extend(other);
@@ -394,7 +396,7 @@ impl Forward for ErrorOutput {
                 debug_assert!(other.is_empty());
 
                 let event_category = data.event_category();
-                data.serialize_into(&mut attachments, ctx)?;
+                data.into_payload().append_to_store(&mut attachments)?;
                 attachments.extend(flamegraph);
 
                 Ok(Box::new(StoreEvent {
