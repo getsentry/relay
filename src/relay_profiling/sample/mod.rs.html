@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>///
 <a href=#25 id=25 data-nosnippet>25</a>/// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
 <a href=#26 id=26 data-nosnippet>26</a>/// attribute. All values are optional, but recommended.
-<a href=#27 id=27 data-nosnippet>27</a></span><span class="attr">#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="attr">#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq, Hash)]
 <a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub struct </span>Frame {
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="doccomment">/// Absolute path to the source file.
 <a href=#30 id=30 data-nosnippet>30</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]

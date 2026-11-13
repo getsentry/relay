@@ -104,77 +104,101 @@
 <a href=#104 id=104 data-nosnippet>104</a>        metrics: parsed.metrics,
 <a href=#105 id=105 data-nosnippet>105</a>        event: parsed.event,
 <a href=#106 id=106 data-nosnippet>106</a>        attachments: parsed.attachments,
-<a href=#107 id=107 data-nosnippet>107</a>        user_reports: parsed.user_reports,
-<a href=#108 id=108 data-nosnippet>108</a>        data: parsed.error,
-<a href=#109 id=109 data-nosnippet>109</a>        other: error.items,
-<a href=#110 id=110 data-nosnippet>110</a>    };
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="prelude-val">Ok</span>((expanded_error, intermediates))
-<a href=#113 id=113 data-nosnippet>113</a>}
-<a href=#114 id=114 data-nosnippet>114</a>
-<a href=#115 id=115 data-nosnippet>115</a><span class="kw">pub fn </span>process(error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
-<a href=#116 id=116 data-nosnippet>116</a>    error.try_modify(|error, records| {
-<a href=#117 id=117 data-nosnippet>117</a>        processing::user_reports::process_user_reports(<span class="kw-2">&amp;mut </span>error.user_reports, records);
-<a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
-<a href=#120 id=120 data-nosnippet>120</a>    })
-<a href=#121 id=121 data-nosnippet>121</a>}
+<a href=#107 id=107 data-nosnippet>107</a>        flamegraph: parsed.flamegraph,
+<a href=#108 id=108 data-nosnippet>108</a>        user_reports: parsed.user_reports,
+<a href=#109 id=109 data-nosnippet>109</a>        data: parsed.error,
+<a href=#110 id=110 data-nosnippet>110</a>        other: error.items,
+<a href=#111 id=111 data-nosnippet>111</a>    };
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="prelude-val">Ok</span>((expanded_error, intermediates))
+<a href=#114 id=114 data-nosnippet>114</a>}
+<a href=#115 id=115 data-nosnippet>115</a>
+<a href=#116 id=116 data-nosnippet>116</a><span class="kw">pub fn </span>process(
+<a href=#117 id=117 data-nosnippet>117</a>    error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;,
+<a href=#118 id=118 data-nosnippet>118</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#119 id=119 data-nosnippet>119</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
+<a href=#120 id=120 data-nosnippet>120</a>    error.try_modify(|error, records| {
+<a href=#121 id=121 data-nosnippet>121</a>        processing::user_reports::process_user_reports(<span class="kw-2">&amp;mut </span>error.user_reports, records);
 <a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a><span class="kw">pub fn </span>finalize(
-<a href=#124 id=124 data-nosnippet>124</a>    error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;,
-<a href=#125 id=125 data-nosnippet>125</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#126 id=126 data-nosnippet>126</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
-<a href=#127 id=127 data-nosnippet>127</a>    error.try_modify(|error, <span class="kw">_</span>| {
-<a href=#128 id=128 data-nosnippet>128</a>        processing::utils::event::finalize(
-<a href=#129 id=129 data-nosnippet>129</a>            <span class="kw-2">&amp;</span>error.headers,
-<a href=#130 id=130 data-nosnippet>130</a>            <span class="kw-2">&amp;mut </span>error.event,
-<a href=#131 id=131 data-nosnippet>131</a>            error.attachments.iter(),
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="kw-2">&amp;mut </span>error.metrics,
-<a href=#133 id=133 data-nosnippet>133</a>            ctx.config,
-<a href=#134 id=134 data-nosnippet>134</a>        )<span class="question-mark">?</span>;
-<a href=#135 id=135 data-nosnippet>135</a>
-<a href=#136 id=136 data-nosnippet>136</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
-<a href=#137 id=137 data-nosnippet>137</a>    })
-<a href=#138 id=138 data-nosnippet>138</a>}
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">let </span>needs_culprit = error
+<a href=#124 id=124 data-nosnippet>124</a>            .event
+<a href=#125 id=125 data-nosnippet>125</a>            .value()
+<a href=#126 id=126 data-nosnippet>126</a>            .is_some_and(<span class="kw">super</span>::flamegraph::needs_enrichment);
+<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw">let </span>culprit = <span class="kw">super</span>::flamegraph::process_flamegraph(
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw-2">&amp;mut </span>error.flamegraph,
+<a href=#129 id=129 data-nosnippet>129</a>            needs_culprit,
+<a href=#130 id=130 data-nosnippet>130</a>            ctx.config.max_event_size(),
+<a href=#131 id=131 data-nosnippet>131</a>            records,
+<a href=#132 id=132 data-nosnippet>132</a>        );
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = error.event.value_mut().as_mut()
+<a href=#134 id=134 data-nosnippet>134</a>            &amp;&amp; <span class="kw">super</span>::flamegraph::enrich(event, culprit)
+<a href=#135 id=135 data-nosnippet>135</a>        {
+<a href=#136 id=136 data-nosnippet>136</a>            <span class="comment">// Derived frames need the same normalization and trimming as SDK-supplied frames.
+<a href=#137 id=137 data-nosnippet>137</a>            </span>error.fully_normalized = EventFullyNormalized(<span class="bool-val">false</span>);
+<a href=#138 id=138 data-nosnippet>138</a>        }
 <a href=#139 id=139 data-nosnippet>139</a>
-<a href=#140 id=140 data-nosnippet>140</a><span class="kw">pub fn </span>normalize(
-<a href=#141 id=141 data-nosnippet>141</a>    error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;,
-<a href=#142 id=142 data-nosnippet>142</a>    geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup,
-<a href=#143 id=143 data-nosnippet>143</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#144 id=144 data-nosnippet>144</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
-<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">let </span>scoping = error.scoping();
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a>    error.try_modify(|error, <span class="kw">_</span>| {
-<a href=#148 id=148 data-nosnippet>148</a>        error.fully_normalized = processing::utils::event::normalize(
-<a href=#149 id=149 data-nosnippet>149</a>            <span class="kw-2">&amp;</span>error.headers,
-<a href=#150 id=150 data-nosnippet>150</a>            <span class="kw-2">&amp;mut </span>error.event,
-<a href=#151 id=151 data-nosnippet>151</a>            error.fully_normalized,
-<a href=#152 id=152 data-nosnippet>152</a>            scoping.project_id,
-<a href=#153 id=153 data-nosnippet>153</a>            ctx,
-<a href=#154 id=154 data-nosnippet>154</a>            geoip_lookup,
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
+<a href=#141 id=141 data-nosnippet>141</a>    })
+<a href=#142 id=142 data-nosnippet>142</a>}
+<a href=#143 id=143 data-nosnippet>143</a>
+<a href=#144 id=144 data-nosnippet>144</a><span class="kw">pub fn </span>finalize(
+<a href=#145 id=145 data-nosnippet>145</a>    error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;,
+<a href=#146 id=146 data-nosnippet>146</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#147 id=147 data-nosnippet>147</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
+<a href=#148 id=148 data-nosnippet>148</a>    error.try_modify(|error, <span class="kw">_</span>| {
+<a href=#149 id=149 data-nosnippet>149</a>        processing::utils::event::finalize(
+<a href=#150 id=150 data-nosnippet>150</a>            <span class="kw-2">&amp;</span>error.headers,
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw-2">&amp;mut </span>error.event,
+<a href=#152 id=152 data-nosnippet>152</a>            error.attachments.iter().chain(error.flamegraph.iter()),
+<a href=#153 id=153 data-nosnippet>153</a>            <span class="kw-2">&amp;mut </span>error.metrics,
+<a href=#154 id=154 data-nosnippet>154</a>            ctx.config,
 <a href=#155 id=155 data-nosnippet>155</a>        )<span class="question-mark">?</span>;
 <a href=#156 id=156 data-nosnippet>156</a>
 <a href=#157 id=157 data-nosnippet>157</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
 <a href=#158 id=158 data-nosnippet>158</a>    })
 <a href=#159 id=159 data-nosnippet>159</a>}
 <a href=#160 id=160 data-nosnippet>160</a>
-<a href=#161 id=161 data-nosnippet>161</a><span class="kw">pub fn </span>scrub(error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
-<a href=#162 id=162 data-nosnippet>162</a>    error.try_modify(|error, records| {
-<a href=#163 id=163 data-nosnippet>163</a>        processing::utils::event::scrub(<span class="kw-2">&amp;mut </span>error.event, ctx.project_info)<span class="question-mark">?</span>;
-<a href=#164 id=164 data-nosnippet>164</a>        processing::utils::attachments::scrub(
-<a href=#165 id=165 data-nosnippet>165</a>            error.attachments.iter_mut(),
-<a href=#166 id=166 data-nosnippet>166</a>            ctx.project_info,
-<a href=#167 id=167 data-nosnippet>167</a>            <span class="prelude-val">Some</span>(records),
-<a href=#168 id=168 data-nosnippet>168</a>        );
-<a href=#169 id=169 data-nosnippet>169</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(minidump) = error.data.minidump_mut() {
-<a href=#170 id=170 data-nosnippet>170</a>            processing::utils::attachments::scrub(
-<a href=#171 id=171 data-nosnippet>171</a>                std::iter::once(minidump),
-<a href=#172 id=172 data-nosnippet>172</a>                ctx.project_info,
-<a href=#173 id=173 data-nosnippet>173</a>                <span class="prelude-val">Some</span>(records),
-<a href=#174 id=174 data-nosnippet>174</a>            );
-<a href=#175 id=175 data-nosnippet>175</a>        }
-<a href=#176 id=176 data-nosnippet>176</a>
-<a href=#177 id=177 data-nosnippet>177</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
-<a href=#178 id=178 data-nosnippet>178</a>    })
-<a href=#179 id=179 data-nosnippet>179</a>}
+<a href=#161 id=161 data-nosnippet>161</a><span class="kw">pub fn </span>normalize(
+<a href=#162 id=162 data-nosnippet>162</a>    error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;,
+<a href=#163 id=163 data-nosnippet>163</a>    geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup,
+<a href=#164 id=164 data-nosnippet>164</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#165 id=165 data-nosnippet>165</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
+<a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">let </span>scoping = error.scoping();
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a>    error.try_modify(|error, <span class="kw">_</span>| {
+<a href=#169 id=169 data-nosnippet>169</a>        error.fully_normalized = processing::utils::event::normalize(
+<a href=#170 id=170 data-nosnippet>170</a>            <span class="kw-2">&amp;</span>error.headers,
+<a href=#171 id=171 data-nosnippet>171</a>            <span class="kw-2">&amp;mut </span>error.event,
+<a href=#172 id=172 data-nosnippet>172</a>            error.fully_normalized,
+<a href=#173 id=173 data-nosnippet>173</a>            scoping.project_id,
+<a href=#174 id=174 data-nosnippet>174</a>            ctx,
+<a href=#175 id=175 data-nosnippet>175</a>            geoip_lookup,
+<a href=#176 id=176 data-nosnippet>176</a>        )<span class="question-mark">?</span>;
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
+<a href=#179 id=179 data-nosnippet>179</a>    })
+<a href=#180 id=180 data-nosnippet>180</a>}
+<a href=#181 id=181 data-nosnippet>181</a>
+<a href=#182 id=182 data-nosnippet>182</a><span class="kw">pub fn </span>scrub(error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;Error&gt;&gt; {
+<a href=#183 id=183 data-nosnippet>183</a>    error.try_modify(|error, records| {
+<a href=#184 id=184 data-nosnippet>184</a>        processing::utils::event::scrub(<span class="kw-2">&amp;mut </span>error.event, ctx.project_info)<span class="question-mark">?</span>;
+<a href=#185 id=185 data-nosnippet>185</a>        processing::utils::attachments::scrub(
+<a href=#186 id=186 data-nosnippet>186</a>            error
+<a href=#187 id=187 data-nosnippet>187</a>                .attachments
+<a href=#188 id=188 data-nosnippet>188</a>                .iter_mut()
+<a href=#189 id=189 data-nosnippet>189</a>                .chain(error.flamegraph.iter_mut()),
+<a href=#190 id=190 data-nosnippet>190</a>            ctx.project_info,
+<a href=#191 id=191 data-nosnippet>191</a>            <span class="prelude-val">Some</span>(records),
+<a href=#192 id=192 data-nosnippet>192</a>        );
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(minidump) = error.data.minidump_mut() {
+<a href=#194 id=194 data-nosnippet>194</a>            processing::utils::attachments::scrub(
+<a href=#195 id=195 data-nosnippet>195</a>                std::iter::once(minidump),
+<a href=#196 id=196 data-nosnippet>196</a>                ctx.project_info,
+<a href=#197 id=197 data-nosnippet>197</a>                <span class="prelude-val">Some</span>(records),
+<a href=#198 id=198 data-nosnippet>198</a>            );
+<a href=#199 id=199 data-nosnippet>199</a>        }
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Error&gt;(())
+<a href=#202 id=202 data-nosnippet>202</a>    })
+<a href=#203 id=203 data-nosnippet>203</a>}
 </code></pre></div></section></main></body></html>

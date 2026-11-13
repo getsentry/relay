@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MAX_FLAMEGRAPH_SIZE"],"enum":["Error"],"fn":["validate"]};
+window.SIDEBAR_ITEMS = {"constant":["MAX_FLAMEGRAPH_SIZE"],"enum":["Error"],"fn":["parse","validate"],"struct":["Culprit","Graph"]};
