@@ -632,7 +632,12 @@ fn or_none(string: &Annotated<impl AsRef<str>>) -> Option<&str> {
 
 impl Getter for Event {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path.strip_prefix("event.")? {
+        let path = path.strip_prefix("event.").or_else(|| {
+            let ty = self.ty.value()?.as_str();
+            path.strip_prefix(ty)?.strip_prefix('.')
+        })?;
+
+        Some(match path {
             // Simple fields
             "level" => self.level.value()?.name().into(),
             "release" => self.release.as_str()?.into(),
@@ -812,7 +817,12 @@ impl Getter for Event {
     }
 
     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-        Some(match path.strip_prefix("event.")? {
+        let path = path.strip_prefix("event.").or_else(|| {
+            let ty = self.ty.value()?.as_str();
+            path.strip_prefix(ty)?.strip_prefix('.')
+        })?;
+
+        Some(match path {
             "exception.values" => {
                 GetterIter::new_annotated(self.exceptions.value()?.values.value()?)
             }
@@ -1331,5 +1341,33 @@ mod tests {
         assert_eq!(None, event.get_value("event.user.id"));
         assert_eq!(None, event.get_value("event.user.segment"));
         assert_eq!(None, event.get_value("event.transaction"));
+    }
+
+    #[test]
+    fn test_field_value_provider_event_type_prefix() {
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/users".to_owned()),
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Some(Val::String("/users")),
+            event.get_value("event.transaction")
+        );
+        assert_eq!(
+            Some(Val::String("/users")),
+            event.get_value("transaction.transaction")
+        );
+        assert_eq!(
+            Some(Val::String("1.1.1")),
+            event.get_value("transaction.release")
+        );
+
+        // Prefixes of other event types do not match.
+        assert_eq!(None, event.get_value("error.release"));
+        // The prefix must be followed by a dot.
+        assert_eq!(None, event.get_value("transactionrelease"));
     }
 }
