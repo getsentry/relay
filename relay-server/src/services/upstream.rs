@@ -1080,6 +1080,17 @@ impl Entry {
     }
 }
 
+/// Result of attempting to dequeue an upstream request.
+#[derive(Debug)]
+enum Dequeue {
+    /// A request is ready to execute and has been removed from the queue.
+    Ready(Entry),
+    /// Only delayed retries remain; no request has been removed.
+    Retry(Instant),
+    /// No requests remain in the queue.
+    Empty,
+}
+
 /// Queue utility for the [`UpstreamRelayService`].
 ///
 /// Requests are queued and delivered according to their [`UpstreamRequest::priority`]. This queue
@@ -1106,7 +1117,7 @@ struct UpstreamQueue {
 
 impl UpstreamQueue {
     /// Creates an empty upstream queue.
-    pub fn new(retry_interval: Duration) -> Self {
+    fn new(retry_interval: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
@@ -1118,7 +1129,7 @@ impl UpstreamQueue {
     }
 
     /// Returns the number of entries in the queue.
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.high.len() + self.low.len() + self.retry_high.len() + self.retry_low.len()
     }
 
@@ -1127,7 +1138,7 @@ impl UpstreamQueue {
     /// Since entries are dequeued in FIFO order, this entry will be dequeued
     /// last within its priority class; see
     /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
-    pub fn enqueue(&mut self, entry: Entry) {
+    fn enqueue(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
             RequestPriority::High => self.high.push_back(entry),
@@ -1146,7 +1157,7 @@ impl UpstreamQueue {
     ///
     /// It also schedules the next retry time, based on the retry back off. The
     /// retry queue is not dequeued until the next retry has elapsed.
-    pub fn retry(&mut self, entry: Entry) {
+    fn retry(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
             RequestPriority::High => self.retry_high.push_back(entry),
@@ -1165,24 +1176,49 @@ impl UpstreamQueue {
     /// Dequeues the entry with highest priority.
     ///
     /// Highest priority entry is determined by (1) request priority and (2)
-    /// retries first.
-    pub fn dequeue(&mut self) -> Option<Entry> {
+    /// retries first. If no entry is ready, returns the retry deadline or indicates
+    /// that the queue is empty.
+    fn dequeue(&mut self) -> Dequeue {
         let should_retry = self.next_retry <= Instant::now();
 
         if let Some(Some(entry)) = should_retry.then(|| self.retry_high.pop_front()) {
-            Some(entry)
+            return Dequeue::Ready(entry);
         } else if let Some(entry) = self.high.pop_front() {
-            Some(entry)
+            return Dequeue::Ready(entry);
         } else if let Some(Some(entry)) = should_retry.then(|| self.retry_low.pop_front()) {
-            Some(entry)
+            return Dequeue::Ready(entry);
+        } else if let Some(entry) = self.low.pop_front() {
+            return Dequeue::Ready(entry);
+        }
+
+        if self.len() == 0 {
+            Dequeue::Empty
         } else {
-            self.low.pop_front()
+            Dequeue::Retry(self.next_retry)
         }
     }
 
     /// Starts retrying queued requests.
-    pub fn trigger_retries(&mut self) {
+    fn trigger_retries(&mut self) {
         self.next_retry = Instant::now();
+    }
+
+    /// Empties all queues and returns its elements.
+    fn drain(&mut self) -> impl Iterator<Item = Entry> {
+        self.queues().into_iter().flat_map(|q| q.drain(..))
+    }
+
+    /// Provides mutable references to internal queues.
+    fn queues(&mut self) -> [&mut VecDeque<Entry>; 4] {
+        let Self {
+            high,
+            low,
+            retry_high,
+            retry_low,
+            next_retry: _,
+            retry_interval: _,
+        } = self;
+        [high, low, retry_high, retry_low]
     }
 }
 
@@ -1370,13 +1406,16 @@ impl AuthMonitor {
 
         let mut backoff = RetryBackoff::new(current_config.http_max_retry_interval());
 
-        loop {
+        while !self.tx.is_closed() {
             match self.authenticate(credentials).await {
                 Ok(_) => {
                     backoff.reset();
 
                     match self.renew_auth_interval() {
-                        Some(interval) => tokio::time::sleep(interval).await,
+                        Some(interval) => {
+                            // Wait until renewal, or until the broker is gone:
+                            let _ = tokio::time::timeout(interval, self.tx.closed()).await;
+                        }
                         None => return,
                     }
                 }
@@ -1413,7 +1452,9 @@ impl AuthMonitor {
                         "scheduling authentication retry in {} seconds",
                         backoff.as_secs()
                     );
-                    tokio::time::sleep(backoff).await;
+
+                    // Wait until backoff, or until the broker is gone:
+                    let _ = tokio::time::timeout(backoff, self.tx.closed()).await;
                 }
             };
         }
@@ -1541,6 +1582,14 @@ impl ConnectionMonitor {
 
         self.state = ConnectionState::Connected;
     }
+
+    /// Stops and joins any connection task.
+    pub async fn shutdown(self) {
+        if let ConnectionState::Reconnecting(task) = self.state {
+            task.abort();
+            let _ = task.await;
+        }
+    }
 }
 
 /// Main broker of the [`UpstreamRelayService`].
@@ -1552,11 +1601,17 @@ struct UpstreamBroker {
     queue: UpstreamQueue,
     auth_state: AuthState,
     conn: ConnectionMonitor,
+    max_permits: usize,
     permits: usize,
     action_tx: ActionTx,
 }
 
 impl UpstreamBroker {
+    /// Returns whether there are any queued or in-flight requests.
+    fn has_outstanding_requests(&self) -> bool {
+        self.queue.len() > 0 || self.permits < self.max_permits
+    }
+
     /// Returns the next entry from the queue if the upstream is in a healthy state.
     ///
     /// This returns `None` in any of the following conditions:
@@ -1568,12 +1623,21 @@ impl UpstreamBroker {
     ///    [`Action::UpdateAuth`].
     ///  - The request queue is empty. New requests will be added through [`SendRequest`] or
     ///    [`SendQuery`] in the main message loop.
+    ///
+    /// Waits if only delayed retries remain. Cancellation-safe.
     async fn next_request(&mut self) -> Option<Entry> {
         if self.permits == 0 || self.conn.is_outage() || !self.auth_state.is_authenticated() {
             return None;
         }
 
-        let entry = self.queue.dequeue()?;
+        let entry = loop {
+            match self.queue.dequeue() {
+                Dequeue::Ready(entry) => break entry,
+                Dequeue::Retry(deadline) => tokio::time::sleep_until(deadline).await,
+                Dequeue::Empty => return None,
+            }
+        };
+
         self.permits -= 1;
         Some(entry)
     }
@@ -1653,12 +1717,37 @@ impl UpstreamBroker {
     }
 
     /// Handler of the internal action channel.
-    fn handle_action(&mut self, action: Action) {
+    async fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => self.queue.retry(request),
+            Action::UpdateAuth(state) => self.handle_auth_state(state).await,
+            Action::Retry(request) => self.handle_retry(request).await,
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
-            Action::UpdateAuth(state) => self.auth_state = state,
+        }
+    }
+
+    async fn handle_auth_state(&mut self, state: AuthState) {
+        self.auth_state = state;
+        if let AuthState::Denied = state {
+            // Abandon all requests.
+            for entry in self.queue.drain() {
+                entry
+                    .request
+                    .respond(Err(UpstreamRequestError::AuthDenied))
+                    .await;
+            }
+        }
+    }
+
+    async fn handle_retry(&mut self, entry: Entry) {
+        match self.auth_state {
+            AuthState::Denied => {
+                entry
+                    .request
+                    .respond(Err(UpstreamRequestError::AuthDenied))
+                    .await
+            }
+            _ => self.queue.retry(entry),
         }
     }
 }
@@ -1698,30 +1787,40 @@ impl Service for UpstreamRelayService {
             state: AuthState::Unknown,
             tx: action_tx.clone(),
         };
-        relay_system::spawn!(auth.run());
+        let auth_monitor = relay_system::spawn!(auth.run());
 
         // Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.
+        let permits = current_config.max_concurrent_requests();
         let mut broker = UpstreamBroker {
             client: client.clone(),
             queue: UpstreamQueue::new(current_config.http_retry_delay()),
             auth_state: AuthState::init(&current_config),
             conn: ConnectionMonitor::new(client),
-            permits: current_config.max_concurrent_requests(),
+            max_permits: permits,
+            permits,
             action_tx,
         };
 
-        loop {
+        let mut expects_input = true;
+        while expects_input || broker.has_outstanding_requests() {
             tokio::select! {
                 biased;
 
-                Some(action) = action_rx.recv() => broker.handle_action(action),
+                Some(action) = action_rx.recv() => broker.handle_action(action).await,
                 Some(request) = broker.next_request() => broker.execute(request),
-                Some(message) = rx.recv() => broker.handle_message(message).await,
-
-                else => break,
+                signal = rx.recv(), if expects_input => match signal {
+                    Some(message) => {broker.handle_message(message).await;},
+                    None => {expects_input = false; }
+                },
             }
         }
+
+        broker.conn.shutdown().await;
+
+        // Close the action channel to stop the auth monitor, then join it:
+        drop(action_rx);
+        let _ = auth_monitor.await;
     }
 }
 
@@ -1729,6 +1828,88 @@ impl Service for UpstreamRelayService {
 mod tests {
     use super::*;
     use relay_auth::generate_key_pair;
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode": RelayMode::Proxy
+            }
+        }))
+        .unwrap();
+        let service = UpstreamRelayService::new(Arc::new(config));
+        let (addr, rx) = relay_system::channel(UpstreamRelayService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        // Process buffered messages before stopping and joining the auth monitor.
+        let response = addr.send(IsAuthenticated);
+        drop(addr);
+        tokio::time::timeout(Duration::from_secs(1), &mut run)
+            .await
+            .expect("upstream service should stop when its channel closes");
+        assert!(response.await.unwrap());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_next_request_cancellation_preserves_permits() {
+        let client = SharedClient::build(Arc::new(Config::default()));
+        let (action_tx, _action_rx) = mpsc::unbounded_channel();
+        let mut broker = UpstreamBroker {
+            client: client.clone(),
+            queue: UpstreamQueue::new(Duration::from_secs(10)),
+            auth_state: AuthState::Registered,
+            conn: ConnectionMonitor::new(client),
+            max_permits: 1,
+            permits: 1,
+            action_tx,
+        };
+
+        assert!(broker.next_request().await.is_none());
+        assert_eq!(broker.permits, 1);
+
+        broker
+            .queue
+            .retry_low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        let deadline = Instant::now() + Duration::from_secs(10);
+        broker.queue.next_retry = deadline;
+
+        // Ready work bypasses the retry delay.
+        broker
+            .queue
+            .low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        let start = Instant::now();
+        assert!(broker.next_request().await.is_some());
+        assert_eq!(Instant::now(), start);
+        assert_eq!(broker.queue.retry_low.len(), 1);
+        assert_eq!(broker.permits, 0);
+        broker.complete(RequestOutcome::Failed);
+
+        // Cancel a real wait partway through the retry delay.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), broker.next_request())
+                .await
+                .is_err()
+        );
+        assert_eq!(broker.permits, 1);
+        assert_eq!(broker.queue.len(), 1);
+
+        // Recreating the future keeps the original deadline and consumes one permit.
+        assert!(broker.next_request().await.is_some());
+        assert_eq!(Instant::now(), deadline);
+        assert_eq!(broker.permits, 0);
+        assert_eq!(broker.queue.len(), 0);
+
+        broker
+            .queue
+            .low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        assert!(broker.next_request().await.is_none());
+        assert_eq!(broker.permits, 0);
+        assert_eq!(broker.queue.len(), 1);
+    }
 
     #[test]
     fn test_required_credentials_missing() {
