@@ -157,7 +157,7 @@ async fn test_attachment_quotas_do_not_infer_another_error() {
     .build();
     let ctx = processing::Context::for_test();
     let (expanded, _) = process::expand(error, ctx).unwrap();
-    assert!(expanded.attachments[0].creates_event());
+    assert!(expanded.attachments.iter().any(Item::creates_event));
     let mut requests = Vec::new();
     let error = expanded
         .enforce(RecordingLimiter(&mut requests), ctx)
@@ -170,14 +170,15 @@ async fn test_attachment_quotas_do_not_infer_another_error() {
             .count(),
         1,
     );
-    // The selected dump is charged separately. The extra dump and flamegraph share a budget.
+    // The selected dump is charged separately. The extra dump and flamegraph remain
+    // ordinary attachments and share a budget.
     assert!(requests.contains(&(DataCategory::Attachment, 4)));
     assert!(requests.contains(&(DataCategory::AttachmentItem, 1)));
     assert!(requests.contains(&(DataCategory::Attachment, 10)));
     assert!(requests.contains(&(DataCategory::AttachmentItem, 2)));
     error.accept(|error| {
-        assert_eq!(error.attachments.len(), 1);
-        assert!(error.flamegraph.is_some());
+        assert_eq!(error.attachments.len(), 2);
+        assert!(error.flamegraph.is_none());
     });
     handle.assert_no_outcomes();
 }
