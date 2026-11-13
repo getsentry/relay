@@ -1184,6 +1184,24 @@ impl UpstreamQueue {
     pub fn trigger_retries(&mut self) {
         self.next_retry = Instant::now();
     }
+
+    /// Empties all queues and returns its elements.
+    fn drain(&mut self) -> impl Iterator<Item = Entry> {
+        self.queues().into_iter().flat_map(|q| q.drain(..))
+    }
+
+    /// Provides mutable references to internal queues.
+    fn queues(&mut self) -> [&mut VecDeque<Entry>; 4] {
+        let Self {
+            high,
+            low,
+            retry_high,
+            retry_low,
+            next_retry: _,
+            retry_interval: _,
+        } = self;
+        [high, low, retry_high, retry_low]
+    }
 }
 
 /// Possible authentication states for Relay.
@@ -1662,12 +1680,37 @@ impl UpstreamBroker {
     }
 
     /// Handler of the internal action channel.
-    fn handle_action(&mut self, action: Action) {
+    async fn handle_action(&mut self, action: Action) {
         match action {
-            Action::UpdateAuth(state) => self.auth_state = state,
-            Action::Retry(request) => self.queue.retry(request),
+            Action::UpdateAuth(state) => self.handle_auth_state(state).await,
+            Action::Retry(request) => self.handle_retry(request).await,
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
+        }
+    }
+
+    async fn handle_auth_state(&mut self, state: AuthState) {
+        self.auth_state = state;
+        if let AuthState::Denied = state {
+            // Abandon all requests.
+            for entry in self.queue.drain() {
+                entry
+                    .request
+                    .respond(Err(UpstreamRequestError::AuthDenied))
+                    .await;
+            }
+        }
+    }
+
+    async fn handle_retry(&mut self, entry: Entry) {
+        match self.auth_state {
+            AuthState::Denied => {
+                entry
+                    .request
+                    .respond(Err(UpstreamRequestError::AuthDenied))
+                    .await
+            }
+            _ => self.queue.retry(entry),
         }
     }
 }
@@ -1727,7 +1770,7 @@ impl Service for UpstreamRelayService {
             tokio::select! {
                 biased;
 
-                Some(action) = action_rx.recv() => broker.handle_action(action),
+                Some(action) = action_rx.recv() => broker.handle_action(action).await,
                 Some(request) = broker.next_request() => broker.execute(request),
                 signal = rx.recv(), if expects_input => match signal {
                     Some(message) => {broker.handle_message(message).await;},
