@@ -1,5 +1,6 @@
 use deadpool::Runtime;
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
+use futures::FutureExt;
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
@@ -198,7 +199,7 @@ impl AsyncRedisClient {
                 let secondary = match Box::pin(secondary.get_connection()).await {
                     Ok(connection) => Some(Box::new(connection)),
                     Err(error) => {
-                        relay_log::error!(
+                        relay_log::warn!(
                             error = &error as &dyn std::error::Error,
                             "failed to acquire a secondary redis connection",
                         );
@@ -242,8 +243,9 @@ impl AsyncRedisClient {
                 pool.retain(|_, metrics| predicate(metrics));
             }
             Self::Dual { primary, secondary } => {
-                primary.retain(&mut predicate);
-                secondary.retain(&mut predicate);
+                // A `dyn` predicate keeps the recursion from instantiating without end.
+                primary.retain(&mut predicate as &mut dyn FnMut(Metrics) -> bool);
+                secondary.retain(&mut predicate as &mut dyn FnMut(Metrics) -> bool);
             }
         }
     }
@@ -322,7 +324,7 @@ impl std::fmt::Debug for AsyncRedisConnection {
 /// Logs a failed command sent to the secondary.
 fn log_secondary_error<T>(result: Option<redis::RedisResult<T>>) {
     if let Some(Err(error)) = result {
-        relay_log::error!(
+        relay_log::warn!(
             error = &error as &dyn std::error::Error,
             "failed to send command to secondary redis",
         );
@@ -334,7 +336,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),
             Self::Single(conn) => conn.req_packed_command(cmd),
-            Self::Dual { primary, secondary } => Box::pin(async move {
+            Self::Dual { primary, secondary } => async move {
                 let secondary = async {
                     match secondary {
                         Some(secondary) if is_secondary_command(cmd) => {
@@ -347,7 +349,8 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
                     futures::future::join(primary.req_packed_command(cmd), secondary).await;
                 log_secondary_error(secondary_result);
                 result
-            }),
+            }
+            .boxed(),
         }
     }
 
@@ -360,7 +363,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
             Self::Single(conn) => conn.req_packed_commands(cmd, offset, count),
-            Self::Dual { primary, secondary } => Box::pin(async move {
+            Self::Dual { primary, secondary } => async move {
                 let secondary = async {
                     let secondary = secondary.as_mut()?;
                     let filtered = secondary_pipeline(cmd)?;
@@ -382,7 +385,8 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
                 .await;
                 log_secondary_error(secondary_result);
                 result
-            }),
+            }
+            .boxed(),
         }
     }
 
