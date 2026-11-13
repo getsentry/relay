@@ -32,7 +32,7 @@ pub(super) fn needs_enrichment(event: &Event) -> bool {
 ///
 /// Existing stacks remain authoritative, including when a processing Relay receives an event
 /// already enriched by another Relay. A flame graph attachment opts into this enrichment.
-pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> bool {
+pub fn enrich(event: &mut Event, culprit: Option<Culprit>) -> bool {
     let Some(exception) = event
         .exceptions
         .value_mut()
@@ -48,7 +48,7 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
         return false;
     };
 
-    let Some((mut stacktrace, debug_meta)) = culprit() else {
+    let Some((mut stacktrace, debug_meta)) = culprit else {
         return false;
     };
     if let Some(debug_meta) = debug_meta {
@@ -78,33 +78,25 @@ pub fn enrich(event: &mut Event, culprit: impl FnOnce() -> Option<Culprit>) -> b
     true
 }
 
-/// Validate and normalize flame graphs on every Relay, extracting at most one culprit.
-pub(super) fn process_flamegraphs(
-    attachments: &mut Vec<Item>,
+/// Validate and normalize the flame graph on every Relay and optionally extract its culprit.
+pub(super) fn process_flamegraph(
+    attachment: &mut Option<Item>,
     needs_culprit: bool,
     max_event_size: usize,
     records: &mut RecordKeeper<'_>,
 ) -> Option<Culprit> {
     records.lenient(relay_quotas::DataCategory::Attachment);
-    let mut culprit = None;
-    attachments.retain_mut(|item| {
-        match process_flamegraph(item, needs_culprit && culprit.is_none(), max_event_size) {
-            Ok(extracted) => {
-                if extracted.is_some() {
-                    culprit = extracted;
-                }
-                true
-            }
-            Err(error) => {
-                records.reject_err(error, &*item);
-                false
-            }
+    let item = attachment.as_mut()?;
+    match validate_and_extract(item, needs_culprit, max_event_size) {
+        Ok(culprit) => culprit,
+        Err(error) => {
+            records.reject_err(error, attachment.take());
+            None
         }
-    });
-    culprit
+    }
 }
 
-fn process_flamegraph(
+fn validate_and_extract(
     item: &mut Item,
     needs_culprit: bool,
     max_event_size: usize,
@@ -300,7 +292,7 @@ mod tests {
         item: &mut Item,
         config: &relay_config::ConfigSnapshot,
     ) -> Result<(), ProcessingError> {
-        process_flamegraph(item, false, config.max_event_size()).map(|_| ())
+        validate_and_extract(item, false, config.max_event_size()).map(|_| ())
     }
 
     fn flamegraph_item(payload: serde_json::Value) -> Item {
@@ -326,18 +318,17 @@ mod tests {
         let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
         let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
         let (item, _) = Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
-        let (mut attachments, _handle) = Managed::for_test(vec![item]).build();
+        let (mut attachment, _handle) = Managed::for_test(Some(item)).build();
 
-        attachments.modify(|items, records| {
-            process_flamegraphs(items, false, usize::MAX, records);
+        attachment.modify(|item, records| {
+            process_flamegraph(item, false, usize::MAX, records);
         });
 
-        assert_eq!(attachments.len(), 1);
         assert_eq!(
-            attachments[0].payload(),
+            attachment.as_ref().as_ref().unwrap().payload(),
             relay_profiling::flamegraph::validate(payload.as_bytes()).unwrap()
         );
-        attachments.accept(|_| ());
+        attachment.accept(|_| ());
     }
 
     #[test]
@@ -489,19 +480,20 @@ mod tests {
 
     fn extract_attachments(attachments: &[Item], max_event_size: usize) -> Option<Culprit> {
         attachments.iter().find_map(|item| {
-            process_flamegraph(&mut item.clone(), true, max_event_size)
+            validate_and_extract(&mut item.clone(), true, max_event_size)
                 .ok()
                 .flatten()
         })
     }
 
     fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
-        super::enrich(event, || {
+        super::enrich(
+            event,
             extract_attachments(
                 attachments,
                 relay_config::Config::default().current().max_event_size(),
-            )
-        })
+            ),
+        )
     }
 
     fn event() -> Annotated<Event> {
@@ -550,29 +542,36 @@ mod tests {
     #[test]
     fn test_flamegraph_processing_drops_invalid_attachments_and_preserves_valid_ones() {
         for needs_culprit in [false, true] {
-            let valid = attachment(graph());
-            let mut invalid = attachment(graph());
-            invalid.set_filename("other.json");
-            let rejected_size = invalid.attachment_body_size() as u64;
-            let (mut attachments, mut handle) = Managed::for_test(vec![invalid, valid]).build();
-            let mut culprit = None;
-            attachments.modify(|items, records| {
-                culprit = process_flamegraphs(items, needs_culprit, usize::MAX, records);
-            });
-            assert_eq!(culprit.is_some(), needs_culprit);
-            assert_eq!(attachments.len(), 1);
-            let payload = attachments[0].payload();
-            assert!(relay_profiling::flamegraph::parse(&payload).is_ok());
-            attachments.accept(|_| ());
-            let outcome = crate::services::outcome::Outcome::Invalid(
-                crate::services::outcome::DiscardReason::InvalidFlamegraph,
-            );
-            handle.assert_outcome(
-                &outcome,
-                relay_quotas::DataCategory::Attachment,
-                rejected_size,
-            );
-            handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
+            for valid in [false, true] {
+                let mut item = attachment(graph());
+                if !valid {
+                    item.set_filename("other.json");
+                }
+                let rejected_size = item.attachment_body_size() as u64;
+                let (mut attachment, mut handle) = Managed::for_test(Some(item)).build();
+                let mut culprit = None;
+                attachment.modify(|item, records| {
+                    culprit = process_flamegraph(item, needs_culprit, usize::MAX, records);
+                });
+                assert_eq!(culprit.is_some(), valid && needs_culprit);
+                assert_eq!(attachment.is_some(), valid);
+                if let Some(item) = attachment.as_ref() {
+                    assert!(relay_profiling::flamegraph::parse(&item.payload()).is_ok());
+                }
+                attachment.accept(|_| ());
+                if !valid {
+                    let outcome = crate::services::outcome::Outcome::Invalid(
+                        crate::services::outcome::DiscardReason::InvalidFlamegraph,
+                    );
+                    handle.assert_outcome(
+                        &outcome,
+                        relay_quotas::DataCategory::Attachment,
+                        rejected_size,
+                    );
+                    handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
+                }
+                handle.assert_no_outcomes();
+            }
         }
     }
 
@@ -838,9 +837,10 @@ mod tests {
             })
             .collect();
         let mut event = event();
-        assert!(super::enrich(event.value_mut().as_mut().unwrap(), || {
+        assert!(super::enrich(
+            event.value_mut().as_mut().unwrap(),
             extract_attachments(&[attachment(payload)], 100_000)
-        }));
+        ));
         let event = event.value().unwrap();
         let exception = event.exceptions.value().unwrap().values.value().unwrap()[0]
             .value()
@@ -880,9 +880,10 @@ mod tests {
         payload["debug_meta"]["images"][0]["code_file"] = json!("x".repeat(60_000));
         let mut event = event();
         let original = event.clone();
-        assert!(!super::enrich(event.value_mut().as_mut().unwrap(), || {
+        assert!(!super::enrich(
+            event.value_mut().as_mut().unwrap(),
             extract_attachments(&[attachment(payload)], 100_000)
-        }));
+        ));
         assert_eq!(event, original);
     }
 
@@ -898,9 +899,10 @@ mod tests {
             .unwrap()
             .push(unused);
         let mut event = event();
-        assert!(super::enrich(event.value_mut().as_mut().unwrap(), || {
+        assert!(super::enrich(
+            event.value_mut().as_mut().unwrap(),
             extract_attachments(&[attachment(payload)], 100_000)
-        }));
+        ));
         assert_eq!(
             event
                 .value()

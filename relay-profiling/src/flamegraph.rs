@@ -392,7 +392,9 @@ impl<'payload> Graph<'payload> {
                             frame_id,
                             depth: depth + 1,
                             app_frames: app_frames
-                                + usize::from(graph.frames[frame_id].frame.in_app == Some(true)),
+                                + usize::from(
+                                    get(&graph.frames, frame_id)?.frame.in_app == Some(true),
+                                ),
                             samples: 0,
                         });
                         *entry.insert(index)
@@ -450,7 +452,7 @@ impl<'payload> Graph<'payload> {
                     if prefix.depth <= RawStacktrace::MAX_OLDEST_FRAMES
                         || prefix.depth > depth.saturating_sub(RawStacktrace::MAX_NEWEST_FRAMES)
                     {
-                        path.push(graph.frames[prefix.frame_id].raw);
+                        path.push(get(&graph.frames, prefix.frame_id)?.raw);
                     }
                     current = prefix.parent;
                 }

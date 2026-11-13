@@ -2,7 +2,7 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{EnvelopeHeaders, Item};
+use crate::envelope::{AttachmentType, EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::errors::Result;
 use crate::processing::{self, ForwardContext};
@@ -103,7 +103,7 @@ macro_rules! gen_error_kind {
 
             fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
                 $(
-                    if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
+                    if let Some(mut p) = <$name as SentryError>::try_expand(items, ctx)? {
                         relay_log::debug!("expanded event using: {name}", name = stringify!($name));
 
                         relay_statsd::metric!(
@@ -111,7 +111,14 @@ macro_rules! gen_error_kind {
                             expansion = stringify!($name),
                         );
 
+                        // Each error kind determines which attachments it accepts. Separate the
+                        // first flamegraph from those attachments and drop additional graphs.
+                        let flamegraph = p.attachments.extract_if(.., |item| {
+                            item.attachment_type() == Some(AttachmentType::Flamegraph)
+                        }).fold(None, |first, item| first.or(Some(item)));
+
                         return Ok(Some(Expansion {
+                            flamegraph,
                             event: p.event,
                             attachments: p.attachments,
                             user_reports: p.user_reports,
@@ -196,6 +203,8 @@ pub struct Expansion<T> {
     pub event: Box<Annotated<Event>>,
     /// A list of attachments, either from the original envelope or created through the expansion.
     pub attachments: Vec<Item>,
+    /// The single flamegraph attachment accepted for culprit extraction.
+    pub flamegraph: Option<Item>,
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<Item>,
     /// Additional items extracted from the error that need to be processed in a separate pass.

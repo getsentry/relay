@@ -3,7 +3,6 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::AttachmentType;
 use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
@@ -53,7 +52,7 @@ fn do_expand(
     // User feedback is extracted from unreal reports.
     records.lenient(DataCategory::UserReportV2);
 
-    let Some(mut parsed) = ErrorKind::try_expand(
+    let Some(parsed) = ErrorKind::try_expand(
         &mut error.items,
         errors::Context {
             envelope: &error.headers,
@@ -99,20 +98,13 @@ fn do_expand(
         intermediates.add_envelope(envelope);
     };
 
-    let flamegraphs = parsed
-        .attachments
-        .extract_if(.., |item| {
-            item.attachment_type() == Some(AttachmentType::Flamegraph)
-        })
-        .collect();
-
     let expanded_error = ExpandedError {
         headers: error.headers,
         fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
         metrics: parsed.metrics,
         event: parsed.event,
         attachments: parsed.attachments,
-        flamegraphs,
+        flamegraph: parsed.flamegraph,
         user_reports: parsed.user_reports,
         data: parsed.error,
         other: error.items,
@@ -132,15 +124,14 @@ pub fn process(
             .event
             .value()
             .is_some_and(super::flamegraph::needs_enrichment);
-        let culprit = super::flamegraph::process_flamegraphs(
-            &mut error.flamegraphs,
+        let culprit = super::flamegraph::process_flamegraph(
+            &mut error.flamegraph,
             needs_culprit,
             ctx.config.max_event_size(),
             records,
         );
-        error.attachments.append(&mut error.flamegraphs);
         if let Some(event) = error.event.value_mut().as_mut()
-            && super::flamegraph::enrich(event, || culprit)
+            && super::flamegraph::enrich(event, culprit)
         {
             // Derived frames need the same normalization and trimming as SDK-supplied frames.
             error.fully_normalized = EventFullyNormalized(false);
@@ -158,7 +149,7 @@ pub fn finalize(
         processing::utils::event::finalize(
             &error.headers,
             &mut error.event,
-            error.attachments.iter(),
+            error.attachments.iter().chain(error.flamegraph.iter()),
             &mut error.metrics,
             ctx.config,
         )?;
@@ -192,7 +183,10 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
     error.try_modify(|error, records| {
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
         processing::utils::attachments::scrub(
-            error.attachments.iter_mut(),
+            error
+                .attachments
+                .iter_mut()
+                .chain(error.flamegraph.iter_mut()),
             ctx.project_info,
             Some(records),
         );

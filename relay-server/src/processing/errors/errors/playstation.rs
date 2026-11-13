@@ -163,6 +163,7 @@ impl SentryError for Playstation {
         });
 
         Ok(Some(Expansion {
+            flamegraph: None,
             event,
             attachments,
             user_reports,

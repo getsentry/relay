@@ -39,6 +39,7 @@ impl SentryError for Security {
         }
 
         Ok(Some(Expansion {
+            flamegraph: None,
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),

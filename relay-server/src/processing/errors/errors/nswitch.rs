@@ -48,6 +48,7 @@ impl SentryError for Nswitch {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
+                flamegraph: None,
                 event: Box::new(utils::take_parsed_event(
                     items,
                     &mut metrics,
@@ -101,6 +102,7 @@ impl SentryError for Nswitch {
         });
 
         Ok(Some(Expansion {
+            flamegraph: None,
             event: Box::new(event),
             attachments,
             user_reports,
