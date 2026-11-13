@@ -1580,6 +1580,14 @@ impl ConnectionMonitor {
 
         self.state = ConnectionState::Connected;
     }
+
+    /// Stops and joins any connection task.
+    pub async fn shutdown(self) {
+        if let ConnectionState::Reconnecting(task) = self.state {
+            task.abort();
+            let _ = task.await;
+        }
+    }
 }
 
 /// Main broker of the [`UpstreamRelayService`].
@@ -1806,8 +1814,7 @@ impl Service for UpstreamRelayService {
             }
         }
 
-        // Stop any connection task:
-        broker.conn.reset_error();
+        broker.conn.shutdown().await;
 
         // Close the action channel to stop the auth monitor, then join it:
         drop(action_rx);
