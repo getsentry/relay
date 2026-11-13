@@ -1600,7 +1600,15 @@ impl UpstreamBroker {
             return None;
         }
 
-        let entry = self.queue.dequeue()?;
+        let entry = match self.queue.dequeue() {
+            Some(entry) => entry,
+            None if self.queue.len() == 0 => return None,
+            None => {
+                tokio::time::sleep_until(self.queue.next_retry).await;
+                self.queue.dequeue()?
+            }
+        };
+
         self.permits -= 1;
         Some(entry)
     }
@@ -1792,6 +1800,66 @@ impl Service for UpstreamRelayService {
 mod tests {
     use super::*;
     use relay_auth::generate_key_pair;
+
+    #[tokio::test(start_paused = true)]
+    async fn test_next_request_cancellation_preserves_permits() {
+        let client = SharedClient::build(Arc::new(Config::default()));
+        let (action_tx, _action_rx) = mpsc::unbounded_channel();
+        let mut broker = UpstreamBroker {
+            client: client.clone(),
+            queue: UpstreamQueue::new(Duration::from_secs(10)),
+            auth_state: AuthState::Registered,
+            conn: ConnectionMonitor::new(client),
+            max_permits: 1,
+            permits: 1,
+            action_tx,
+        };
+
+        assert!(broker.next_request().await.is_none());
+        assert_eq!(broker.permits, 1);
+
+        broker
+            .queue
+            .retry_low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        let deadline = Instant::now() + Duration::from_secs(10);
+        broker.queue.next_retry = deadline;
+
+        // Ready work bypasses the retry delay.
+        broker
+            .queue
+            .low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        let start = Instant::now();
+        assert!(broker.next_request().await.is_some());
+        assert_eq!(Instant::now(), start);
+        assert_eq!(broker.queue.retry_low.len(), 1);
+        assert_eq!(broker.permits, 0);
+        broker.complete(RequestOutcome::Failed);
+
+        // Cancel a real wait partway through the retry delay.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), broker.next_request())
+                .await
+                .is_err()
+        );
+        assert_eq!(broker.permits, 1);
+        assert_eq!(broker.queue.len(), 1);
+
+        // Recreating the future keeps the original deadline and consumes one permit.
+        assert!(broker.next_request().await.is_some());
+        assert_eq!(Instant::now(), deadline);
+        assert_eq!(broker.permits, 0);
+        assert_eq!(broker.queue.len(), 0);
+
+        broker
+            .queue
+            .low
+            .push_back(Entry::new(Box::new(GetHealthCheck)));
+        assert!(broker.next_request().await.is_none());
+        assert_eq!(broker.permits, 0);
+        assert_eq!(broker.queue.len(), 1);
+    }
 
     #[test]
     fn test_required_credentials_missing() {
