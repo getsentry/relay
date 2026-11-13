@@ -48,13 +48,13 @@ impl SentryError for Nswitch {
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
-                flamegraph: None,
                 event: Box::new(utils::take_parsed_event(
                     items,
                     &mut metrics,
                     ctx.processing,
                 )?),
                 attachments,
+                flamegraph: None,
                 user_reports,
                 intermediates: vec![],
                 error: Self::Forward { dying_message },
@@ -102,9 +102,9 @@ impl SentryError for Nswitch {
         });
 
         Ok(Some(Expansion {
-            flamegraph: None,
             event: Box::new(event),
             attachments,
+            flamegraph: None,
             user_reports,
             intermediates: dying_message.session_updates,
             error: Self::Process {},

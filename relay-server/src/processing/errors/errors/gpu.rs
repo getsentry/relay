@@ -29,9 +29,9 @@ impl SentryError for GpuCrash {
         let event = utils::take_event_from_crash_items(items, &mut metrics, ctx.processing)?;
 
         Ok(Some(Expansion {
-            flamegraph: None,
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
+            flamegraph: None,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             intermediates: vec![],
             error: Self(dump),

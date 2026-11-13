@@ -163,9 +163,9 @@ impl SentryError for Playstation {
         });
 
         Ok(Some(Expansion {
-            flamegraph: None,
             event,
             attachments,
+            flamegraph: None,
             user_reports,
             intermediates: session_updates,
             error: Self {

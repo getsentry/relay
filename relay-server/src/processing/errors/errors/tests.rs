@@ -48,7 +48,7 @@ pub(super) fn assert_crash_rate_limit<T: SentryError>(
 }
 
 #[test]
-fn test_expansion_keeps_only_one_flamegraph() {
+fn test_generic_expansion_keeps_only_one_flamegraph() {
     let mut event = Item::new(ItemType::Event);
     event.set_payload(
         ContentType::Json,
@@ -60,7 +60,7 @@ fn test_expansion_keeps_only_one_flamegraph() {
         attachment(AttachmentType::Attachment, "ordinary"),
         attachment(AttachmentType::Flamegraph, "second"),
     ];
-    let expanded = ErrorKind::try_expand(&mut items, Context::for_test())
+    let expanded = Generic::try_expand(&mut items, Context::for_test())
         .unwrap()
         .unwrap();
     let retained_flamegraphs = expanded
@@ -73,6 +73,28 @@ fn test_expansion_keeps_only_one_flamegraph() {
     assert_eq!(expanded.flamegraph.unwrap().payload().as_ref(), b"second");
     assert_eq!(expanded.attachments.len(), 1);
     assert_eq!(expanded.attachments[0].payload().as_ref(), b"ordinary");
+}
+
+#[test]
+fn test_minidump_expansion_keeps_flamegraphs_as_attachments() {
+    let mut items = vec![
+        attachment(AttachmentType::Minidump, "dump"),
+        attachment(AttachmentType::Flamegraph, "first"),
+        attachment(AttachmentType::Flamegraph, "second"),
+    ];
+    let expanded = ErrorKind::try_expand(&mut items, Context::for_test())
+        .unwrap()
+        .unwrap();
+
+    assert!(matches!(expanded.error, ErrorKind::Minidump(_)));
+    assert!(expanded.flamegraph.is_none());
+    assert_eq!(expanded.attachments.len(), 2);
+    assert!(
+        expanded
+            .attachments
+            .iter()
+            .all(|item| { item.attachment_type() == Some(AttachmentType::Flamegraph) })
+    );
 }
 
 #[test]

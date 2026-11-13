@@ -2,7 +2,7 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentType, EnvelopeHeaders, Item};
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::errors::Result;
 use crate::processing::{self, ForwardContext};
@@ -103,7 +103,7 @@ macro_rules! gen_error_kind {
 
             fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
                 $(
-                    if let Some(mut p) = <$name as SentryError>::try_expand(items, ctx)? {
+                    if let Some(p) = <$name as SentryError>::try_expand(items, ctx)? {
                         relay_log::debug!("expanded event using: {name}", name = stringify!($name));
 
                         relay_statsd::metric!(
@@ -111,16 +111,10 @@ macro_rules! gen_error_kind {
                             expansion = stringify!($name),
                         );
 
-                        // Each error kind determines which attachments it accepts. Separate the
-                        // first flamegraph from those attachments and drop additional graphs.
-                        let flamegraph = p.attachments.extract_if(.., |item| {
-                            item.attachment_type() == Some(AttachmentType::Flamegraph)
-                        }).fold(None, |first, item| first.or(Some(item)));
-
                         return Ok(Some(Expansion {
-                            flamegraph,
                             event: p.event,
                             attachments: p.attachments,
+                            flamegraph: p.flamegraph,
                             user_reports: p.user_reports,
                             intermediates: p.intermediates,
                             error: p.error.into(),

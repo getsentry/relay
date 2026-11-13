@@ -30,7 +30,6 @@ impl SentryError for UserReportV2 {
         );
 
         Ok(Some(Expansion {
-            flamegraph: None,
             event: Box::new(utils::event_from_json_payload(
                 ev,
                 EventType::UserReportV2,
@@ -38,6 +37,7 @@ impl SentryError for UserReportV2 {
                 ctx.processing,
             )?),
             attachments,
+            flamegraph: None,
             user_reports: Default::default(),
             intermediates: Default::default(),
             error: Self,
