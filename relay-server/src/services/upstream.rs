@@ -1117,7 +1117,7 @@ struct UpstreamQueue {
 
 impl UpstreamQueue {
     /// Creates an empty upstream queue.
-    pub fn new(retry_interval: Duration) -> Self {
+    fn new(retry_interval: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
@@ -1129,7 +1129,7 @@ impl UpstreamQueue {
     }
 
     /// Returns the number of entries in the queue.
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.high.len() + self.low.len() + self.retry_high.len() + self.retry_low.len()
     }
 
@@ -1138,7 +1138,7 @@ impl UpstreamQueue {
     /// Since entries are dequeued in FIFO order, this entry will be dequeued
     /// last within its priority class; see
     /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
-    pub fn enqueue(&mut self, entry: Entry) {
+    fn enqueue(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
             RequestPriority::High => self.high.push_back(entry),
@@ -1157,7 +1157,7 @@ impl UpstreamQueue {
     ///
     /// It also schedules the next retry time, based on the retry back off. The
     /// retry queue is not dequeued until the next retry has elapsed.
-    pub fn retry(&mut self, entry: Entry) {
+    fn retry(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
             RequestPriority::High => self.retry_high.push_back(entry),
@@ -1178,7 +1178,7 @@ impl UpstreamQueue {
     /// Highest priority entry is determined by (1) request priority and (2)
     /// retries first. If no entry is ready, returns the retry deadline or indicates
     /// that the queue is empty.
-    pub fn dequeue(&mut self) -> Dequeue {
+    fn dequeue(&mut self) -> Dequeue {
         let should_retry = self.next_retry <= Instant::now();
 
         if let Some(Some(entry)) = should_retry.then(|| self.retry_high.pop_front()) {
@@ -1199,7 +1199,7 @@ impl UpstreamQueue {
     }
 
     /// Starts retrying queued requests.
-    pub fn trigger_retries(&mut self) {
+    fn trigger_retries(&mut self) {
         self.next_retry = Instant::now();
     }
 
@@ -1285,8 +1285,6 @@ enum RequestOutcome {
 /// by the auth monitor, connection monitor, and internal tasks for request handling.
 #[derive(Debug)]
 enum Action {
-    /// Updates the broker's authentication state.
-    UpdateAuth(AuthState),
     /// A dropped needs to be retried.
     ///
     /// The entry is placed on the front of the [`UpstreamQueue`].
@@ -1300,6 +1298,10 @@ enum Action {
     ///
     /// This message is delivered to the [`ConnectionMonitor`] instance.
     Connected,
+    /// The auth monitor indicates a change in the authentication state.
+    ///
+    /// The new auth state is mirrored in an internal field for immediate access.
+    UpdateAuth(AuthState),
 }
 
 type ActionTx = mpsc::UnboundedSender<Action>;
