@@ -1080,6 +1080,17 @@ impl Entry {
     }
 }
 
+/// Result of attempting to dequeue an upstream request.
+#[derive(Debug)]
+enum Dequeue {
+    /// A request is ready to execute and has been removed from the queue.
+    Ready(Entry),
+    /// Only delayed retries remain; no request has been removed.
+    Retry(Instant),
+    /// No requests remain in the queue.
+    Empty,
+}
+
 /// Queue utility for the [`UpstreamRelayService`].
 ///
 /// Requests are queued and delivered according to their [`UpstreamRequest::priority`]. This queue
@@ -1165,18 +1176,25 @@ impl UpstreamQueue {
     /// Dequeues the entry with highest priority.
     ///
     /// Highest priority entry is determined by (1) request priority and (2)
-    /// retries first.
-    pub fn dequeue(&mut self) -> Option<Entry> {
+    /// retries first. If no entry is ready, returns the retry deadline or indicates
+    /// that the queue is empty.
+    pub fn dequeue(&mut self) -> Dequeue {
         let should_retry = self.next_retry <= Instant::now();
 
         if let Some(Some(entry)) = should_retry.then(|| self.retry_high.pop_front()) {
-            Some(entry)
+            return Dequeue::Ready(entry);
         } else if let Some(entry) = self.high.pop_front() {
-            Some(entry)
+            return Dequeue::Ready(entry);
         } else if let Some(Some(entry)) = should_retry.then(|| self.retry_low.pop_front()) {
-            Some(entry)
+            return Dequeue::Ready(entry);
+        } else if let Some(entry) = self.low.pop_front() {
+            return Dequeue::Ready(entry);
+        }
+
+        if self.len() == 0 {
+            Dequeue::Empty
         } else {
-            self.low.pop_front()
+            Dequeue::Retry(self.next_retry)
         }
     }
 
@@ -1595,17 +1613,18 @@ impl UpstreamBroker {
     ///    [`Action::UpdateAuth`].
     ///  - The request queue is empty. New requests will be added through [`SendRequest`] or
     ///    [`SendQuery`] in the main message loop.
+    ///
+    /// Waits if only delayed retries remain. Cancellation-safe.
     async fn next_request(&mut self) -> Option<Entry> {
         if self.permits == 0 || self.conn.is_outage() || !self.auth_state.is_authenticated() {
             return None;
         }
 
-        let entry = match self.queue.dequeue() {
-            Some(entry) => entry,
-            None if self.queue.len() == 0 => return None,
-            None => {
-                tokio::time::sleep_until(self.queue.next_retry).await;
-                self.queue.dequeue()?
+        let entry = loop {
+            match self.queue.dequeue() {
+                Dequeue::Ready(entry) => break entry,
+                Dequeue::Retry(deadline) => tokio::time::sleep_until(deadline).await,
+                Dequeue::Empty => return None,
             }
         };
 
