@@ -46,6 +46,7 @@
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 - Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
 - Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
+- Allow the event type as a field prefix in rule conditions, such as `transaction.` for transactions and `replay.` for replays, in addition to `event.`. ([#6680](https://github.com/getsentry/relay/pull/6680))
 
 **Bug Fixes**:
 
