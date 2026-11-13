@@ -234,7 +234,10 @@ impl Service for ClientReportOutcomeProducerService {
                 biased;
 
                 () = &mut self.flush_handle => self.do_flush(),
-                Some(message) = rx.recv() => self.handle_message(message),
+                signal = rx.recv() => match signal {
+                    Some(message) => self.handle_message(message),
+                    None => break,
+                },
                 _ = shutdown.notified() => self.handle_shutdown(),
 
                 else => break,
@@ -294,7 +297,50 @@ fn metric_reason(outcome: &Outcome) -> Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::ProjectId;
+
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let config = Config::default();
+        let (processor, mut processor_rx) = Addr::custom();
+        let service = ClientReportOutcomeProducerService::new(&config.current(), processor);
+        let (addr, rx) = relay_system::channel(ClientReportOutcomeProducerService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(1),
+            project_id: ProjectId::new(3),
+            project_key: "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap(),
+            key_id: None,
+        };
+        addr.send(TrackOutcome {
+            timestamp: Utc::now(),
+            scoping,
+            outcome: Outcome::Filtered(FilterStatKey::WebCrawlers),
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::Error,
+            quantity: 1,
+        });
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+        let EnvelopeProcessor::SubmitClientReports(message) = processor_rx.try_recv().unwrap()
+        else {
+            panic!("expected client reports");
+        };
+        assert_eq!(message.scoping, scoping);
+        assert_eq!(message.client_reports.len(), 1);
+        let events = &message.client_reports[0].filtered_events;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason, "web-crawlers");
+        assert_eq!(events[0].quantity, 1);
+        assert!(processor_rx.try_recv().is_err());
+    }
 
     #[test]
     fn metric_reason_strips_generic_filter_instance_id() {

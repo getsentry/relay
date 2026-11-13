@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, if its frames have names or the event has debug images. This is behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
 - Derive `user.geo.subregion` for streamed spans and copy `user.geo.country_code`, `user.geo.region` and `user.geo.subregion` onto web vital metrics. ([#6576](https://github.com/getsentry/relay/pull/6576))
 - Accept the `error` span status on transactions and transaction spans, as defined by the `sentry.status` convention. ([#6646](https://github.com/getsentry/relay/pull/6646))
 - Copy `sentry.replay_id` and `sentry.profile_id` onto web vital metrics. ([#6638](https://github.com/getsentry/relay/pull/6638))
@@ -13,6 +14,7 @@
 - Update device classification for new iPhone and iPad models. ([#6595](https://github.com/getsentry/relay/pull/6595))
 - Add a Heroku log drain endpoint at `/api/:project_id/integration/heroku/logs` for Logplex HTTPS. ([#6575](https://github.com/getsentry/relay/pull/6575))
 - Classify compiled shader objects (`.cso`) as `event.compiled_shader` and move them onto the split-off GPU crash event alongside `.nv-gpudmp` and `.nvdbg`. ([#6600](https://github.com/getsentry/relay/pull/6600))
+- Improve grouping of MetricKit hang reports by selecting representative exception stacks from flamegraph attachments. ([#6520](https://github.com/getsentry/relay/pull/6520))
 
 **Bug Fixes**:
 
@@ -25,11 +27,15 @@
 - Reject Relay register responses whose Relay ID does not match the register challenge. ([#6642](https://github.com/getsentry/relay/pull/6642))
 - Trim and truncate oversized DSC attributes. ([#6623](https://github.com/getsentry/relay/pull/6623))
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
+- Limit the size of the culprit derived from CSP reports. ([#6675](https://github.com/getsentry/relay/pull/6675))
+- Correctly truncate shared tags during span tag extraction. ([#6637](https://github.com/getsentry/relay/pull/6637))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
+
 
 **Internal**:
 
 - Forward compressed TUS uploads without decompression or recompression until writing to objectstore. Apply `max_upload_size` to forwarded compressed bytes as well as decoded bytes at storage, and cancel resumable sessions on decoding corruption. ([#6572](https://github.com/getsentry/relay/pull/6572))
+- Change the user agent parsing dependency `uaparser` to the much more efficient `ua-parser` crate. ([#6678](https://github.com/getsentry/relay/pull/6678))
 - Drop the per-filter instance id from the `reason` tag of the `events.outcomes` metric for generic inbound filters. ([#6655](https://github.com/getsentry/relay/pull/6655))
 - Process Unreal crash reports as an internal integration item. ([#6598](https://github.com/getsentry/relay/pull/6598))
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))

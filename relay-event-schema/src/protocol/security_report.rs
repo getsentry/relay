@@ -460,7 +460,14 @@ impl CspRaw {
         let document_uri = self.document_uri.as_deref().unwrap_or("");
         let normalized_uri = normalize_uri(document_uri);
 
+        // Conservative limit assuming all chars are 4 bytes. Since the culprit is trimmed to
+        // `Event::MAX_CULPRIT_CHARS` during normalization anyway, no point in materializing more.
+        let limit = Event::MAX_CULPRIT_CHARS * 4;
+
         for bit in bits {
+            if culprit.len() >= limit {
+                break;
+            }
             write!(culprit, " {}", self.normalize_value(bit, &normalized_uri)).ok();
         }
 
@@ -1030,6 +1037,30 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src example2.com""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_limit() {
+        // Since a long non-http scheme is stitched onto every source expression this can cause
+        // culprit to grow drastically.
+        let scheme = "z".repeat(1000);
+        let json = format!(
+            r#"{{
+            "csp-report": {{
+                "document-uri": "{scheme}://example.com/",
+                "violated-directive": "script-src{}"
+            }}
+        }}"#,
+            " a".repeat(10)
+        );
+
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        // The scheme is so large that the first expansion already exceeds the limit.
+        assert_eq!(
+            event.culprit.as_str(),
+            Some(format!("script-src {scheme}://a").as_str())
+        );
     }
 
     #[test]
