@@ -1249,6 +1249,8 @@ enum RequestOutcome {
 /// by the auth monitor, connection monitor, and internal tasks for request handling.
 #[derive(Debug)]
 enum Action {
+    /// Updates the broker's authentication state.
+    UpdateAuth(AuthState),
     /// A dropped needs to be retried.
     ///
     /// The entry is placed on the front of the [`UpstreamQueue`].
@@ -1279,7 +1281,7 @@ struct AuthMonitor {
     config: Arc<Config>,
     client: SharedClient,
     state: AuthState,
-    tx: mpsc::UnboundedSender<AuthState>,
+    tx: ActionTx,
 }
 
 impl AuthMonitor {
@@ -1302,7 +1304,7 @@ impl AuthMonitor {
     fn send_state(&mut self, state: AuthState) -> Result<(), UpstreamRequestError> {
         self.state = state;
         self.tx
-            .send(state)
+            .send(Action::UpdateAuth(state))
             .map_err(|_| UpstreamRequestError::ChannelClosed)
     }
 
@@ -1372,7 +1374,10 @@ impl AuthMonitor {
                     backoff.reset();
 
                     match self.renew_auth_interval() {
-                        Some(interval) => tokio::time::sleep(interval).await,
+                        Some(interval) => {
+                            // Wait until renewal, or until the broker is gone:
+                            let _ = tokio::time::timeout(interval, self.tx.closed()).await;
+                        }
                         None => return,
                     }
                 }
@@ -1550,11 +1555,17 @@ struct UpstreamBroker {
     queue: UpstreamQueue,
     auth_state: AuthState,
     conn: ConnectionMonitor,
+    max_permits: usize,
     permits: usize,
     action_tx: ActionTx,
 }
 
 impl UpstreamBroker {
+    /// Returns whether there are any queued or in-flight requests.
+    fn has_outstanding_requests(&self) -> bool {
+        self.queue.len() > 0 || self.permits < self.max_permits
+    }
+
     /// Returns the next entry from the queue if the upstream is in a healthy state.
     ///
     /// This returns `None` in any of the following conditions:
@@ -1653,6 +1664,7 @@ impl UpstreamBroker {
     /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
+            Action::UpdateAuth(state) => self.auth_state = state,
             Action::Retry(request) => self.queue.retry(request),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
@@ -1686,7 +1698,6 @@ impl Service for UpstreamRelayService {
         // Channel for serialized communication from the auth monitor, connection monitor, and
         // concurrent requests back to the broker.
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
-        let (auth_state_tx, mut auth_state_rx) = mpsc::unbounded_channel();
 
         // Spawn a recurring background check for authentication. It terminates automatically if
         // authentication is not required or rejected.
@@ -1694,42 +1705,42 @@ impl Service for UpstreamRelayService {
             config: config.clone(),
             client: client.clone(),
             state: AuthState::Unknown,
-            tx: auth_state_tx,
+            tx: action_tx.clone(),
         };
         let auth_monitor = relay_system::spawn!(auth.run());
 
         // Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.
+        let permits = current_config.max_concurrent_requests();
         let mut broker = UpstreamBroker {
             client: client.clone(),
             queue: UpstreamQueue::new(current_config.http_retry_delay()),
             auth_state: AuthState::init(&current_config),
             conn: ConnectionMonitor::new(client),
-            permits: current_config.max_concurrent_requests(),
+            max_permits: permits,
+            permits,
             action_tx,
         };
 
         let mut expects_input = true;
-        let mut expects_actions = true;
-        while expects_input || expects_actions || broker.queue.len() > 0 {
+        while expects_input || broker.has_outstanding_requests() {
             tokio::select! {
                 biased;
 
-                Some(auth_state) = auth_state_rx.recv() => broker.auth_state = auth_state,
-                signal = action_rx.recv(), if expects_actions => match signal {
-                    Some(action) => broker.handle_action(action),
-                    None => expects_actions = false},
+                Some(action) = action_rx.recv() => broker.handle_action(action),
                 Some(request) = broker.next_request() => broker.execute(request),
                 signal = rx.recv(), if expects_input => match signal {
                     Some(message) => {broker.handle_message(message).await;},
                     None => {expects_input = false; }
                 },
-                else => break,
             }
         }
 
-        // Drop the auth state receiver and join the auth monitor:
-        drop(auth_state_rx);
+        // Stop any connection task:
+        broker.conn.reset_error();
+
+        // Close the action channel to stop the auth monitor, then join it:
+        drop(action_rx);
         let _ = auth_monitor.await;
     }
 }
