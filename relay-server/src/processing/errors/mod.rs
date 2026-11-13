@@ -267,8 +267,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
         }
 
         let attachment_quantities =
-            EnvelopeSummary::compute_items(self.attachments.iter().chain(self.flamegraph.iter()))
-                .quantities();
+            [self.attachments.quantities(), self.flamegraph.quantities()].quantities();
         for (category, quantity) in attachment_quantities {
             let limits = rate_limiter
                 .try_consume(&scoping.item(category), quantity)

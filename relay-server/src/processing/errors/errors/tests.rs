@@ -105,6 +105,61 @@ fn test_forwarding_retains_separate_flamegraph() {
     });
 }
 
+#[tokio::test]
+async fn test_attachment_quotas_do_not_infer_another_error() {
+    use crate::processing::errors::{SerializedError, process};
+    use crate::processing::{RateLimited as _, RateLimiter};
+
+    struct RecordingLimiter<'a>(&'a mut Vec<(DataCategory, usize)>);
+
+    impl RateLimiter for RecordingLimiter<'_> {
+        async fn try_consume(
+            &mut self,
+            scope: &relay_quotas::ItemScoping,
+            quantity: usize,
+        ) -> RateLimits {
+            self.0.push((scope.category, quantity));
+            RateLimits::new()
+        }
+    }
+
+    let envelope = crate::testutils::new_envelope(false, "");
+    let (error, mut handle) = Managed::for_test(SerializedError {
+        headers: envelope.headers().clone(),
+        items: vec![
+            attachment(AttachmentType::Minidump, "dump"),
+            attachment(AttachmentType::Minidump, "extra"),
+            attachment(AttachmentType::Flamegraph, "graph"),
+        ],
+    })
+    .build();
+    let ctx = processing::Context::for_test();
+    let (expanded, _) = process::expand(error, ctx).unwrap();
+    assert!(expanded.attachments[0].creates_event());
+    let mut requests = Vec::new();
+    let error = expanded
+        .enforce(RecordingLimiter(&mut requests), ctx)
+        .await
+        .unwrap();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|(category, _)| *category == DataCategory::Error)
+            .count(),
+        1,
+    );
+    // The selected dump is charged separately. The extra dump and flamegraph share a budget.
+    assert!(requests.contains(&(DataCategory::Attachment, 4)));
+    assert!(requests.contains(&(DataCategory::AttachmentItem, 1)));
+    assert!(requests.contains(&(DataCategory::Attachment, 10)));
+    assert!(requests.contains(&(DataCategory::AttachmentItem, 2)));
+    error.accept(|error| {
+        assert_eq!(error.attachments.len(), 1);
+        assert!(error.flamegraph.is_some());
+    });
+    handle.assert_no_outcomes();
+}
+
 #[test]
 fn test_minidump_crash_rate_limit() {
     assert_crash_rate_limit(
