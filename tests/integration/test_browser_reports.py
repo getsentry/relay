@@ -214,3 +214,181 @@ def test_integrity_browser_report_converted_to_logs(mini_sentry, relay):
         ],
     }
     assert mini_sentry.captured_envelopes.empty()
+
+
+def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:browser-report-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    relay.send_browser_report(
+        project_id,
+        payload=[
+            {
+                "age": 10,
+                "body": {
+                    "blockedURL": "https://example.net/assets/media/7_del.png",
+                    "disposition": "enforce",
+                    "documentURL": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    "effectiveDirective": "img-src",
+                    "lineNumber": 9,
+                    "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+                    "referrer": "https://example.net/test229/",
+                    "sourceFile": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    "statusCode": 0,
+                },
+                "type": "csp-violation",
+                "url": "https://example.com/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+            },
+            {
+                "age": 0,
+                "body": {
+                    "blockedURL": "https://example.com/tst/media/7_del.png",
+                    "disposition": "report",
+                    "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    "effectiveDirective": "img-src",
+                    "lineNumber": 9,
+                    "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+                    "referrer": "https://example.com/test229/",
+                    "sourceFile": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    "statusCode": 0,
+                },
+                "type": "csp-violation",
+                "url": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+            },
+        ],
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    # Time is corrected by the `age` specified in the NEL report
+    expected_ts_1 = datetime.now(tz=timezone.utc) - timedelta(milliseconds=10)
+    expected_ts_2 = datetime.now(tz=timezone.utc)
+
+    assert [item.type for item in envelope.items] == ["log"]
+    assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
+        "items": [
+            {
+                "__header": matches_any(),
+                "timestamp": time_within_delta(expected_ts_1),
+                "trace_id": matches_any(),
+                "level": "warn",
+                "body": "Blocked 'image' from 'example.net'",
+                "attributes": {
+                    "browser.name": {
+                        "type": "string",
+                        "value": "Chrome",
+                    },
+                    "browser.report.type": {"type": "string", "value": "csp-violation"},
+                    "browser.version": {"type": "string", "value": "79.0.3945"},
+                    "csp.blocked_url": {
+                        "type": "string",
+                        "value": "https://example.net/assets/media/7_del.png",
+                    },
+                    "csp.document_url": {
+                        "type": "string",
+                        "value": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "csp.effective_directive": {
+                        "type": "string",
+                        "value": "img-src",
+                    },
+                    "csp.original_policy": {
+                        "type": "string",
+                        "value": "default-src 'none'; report-to endpoint-csp;",
+                    },
+                    "csp.report_only": {
+                        "type": "boolean",
+                        "value": False,
+                    },
+                    "http.request.header.referer": {
+                        "type": "string",
+                        "value": "https://example.net/test229/",
+                    },
+                    "http.response.status_code": {"type": "integer", "value": 0},
+                    "sentry.observed_timestamp_nanos": {
+                        "type": "string",
+                        "value": time_within_delta(expect_resolution="ns"),
+                    },
+                    "sentry.origin": {
+                        "type": "string",
+                        "value": "auto.http.browser_report",
+                    },
+                    "url.domain": {"type": "string", "value": "example.com"},
+                    "url.full": {
+                        "type": "string",
+                        "value": "https://example.com/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+                    },
+                },
+            },
+            {
+                "__header": matches_any(),
+                "timestamp": time_within_delta(expected_ts_2),
+                "trace_id": matches_any(),
+                "level": "warn",
+                "body": "Blocked 'image' from 'example.com'",
+                "attributes": {
+                    "browser.name": {
+                        "type": "string",
+                        "value": "Chrome",
+                    },
+                    "browser.report.type": {"type": "string", "value": "csp-violation"},
+                    "browser.version": {"type": "string", "value": "79.0.3945"},
+                    "csp.blocked_url": {
+                        "type": "string",
+                        "value": "https://example.com/tst/media/7_del.png",
+                    },
+                    "csp.document_url": {
+                        "type": "string",
+                        "value": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "csp.effective_directive": {
+                        "type": "string",
+                        "value": "img-src",
+                    },
+                    "csp.original_policy": {
+                        "type": "string",
+                        "value": "default-src 'none'; report-to endpoint-csp;",
+                    },
+                    "csp.report_only": {
+                        "type": "boolean",
+                        "value": True,
+                    },
+                    "http.request.header.referer": {
+                        "type": "string",
+                        "value": "https://example.com/test229/",
+                    },
+                    "http.response.status_code": {"type": "integer", "value": 0},
+                    "sentry.observed_timestamp_nanos": {
+                        "type": "string",
+                        "value": time_within_delta(expect_resolution="ns"),
+                    },
+                    "sentry.origin": {
+                        "type": "string",
+                        "value": "auto.http.browser_report",
+                    },
+                    "url.domain": {"type": "string", "value": "example.com"},
+                    "url.full": {
+                        "type": "string",
+                        "value": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+                    },
+                },
+            },
+        ],
+    }
+    assert mini_sentry.captured_envelopes.empty()
