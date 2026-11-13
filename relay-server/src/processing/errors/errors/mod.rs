@@ -114,6 +114,7 @@ macro_rules! gen_error_kind {
                         return Ok(Some(Expansion {
                             event: p.event,
                             attachments: p.attachments,
+                            flamegraph: p.flamegraph,
                             user_reports: p.user_reports,
                             intermediates: p.intermediates,
                             error: p.error.into(),
@@ -196,6 +197,8 @@ pub struct Expansion<T> {
     pub event: Box<Annotated<Event>>,
     /// A list of attachments, either from the original envelope or created through the expansion.
     pub attachments: Vec<Item>,
+    /// The single flamegraph attachment accepted for culprit extraction.
+    pub flamegraph: Option<Item>,
     /// A list of user reports, either from the original envelope or created through the expansion.
     pub user_reports: Vec<Item>,
     /// Additional items extracted from the error that need to be processed in a separate pass.

@@ -27,6 +27,7 @@ mod dynamic_sampling;
 )]
 mod errors;
 mod filter;
+mod flamegraph;
 mod integrations;
 mod process;
 mod utils;
@@ -126,7 +127,7 @@ impl processing::Processor for ErrorsProcessor {
 
         attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
-        process::process(&mut error)?;
+        process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
         process::normalize(&mut error, &self.geoip_lookup, ctx)?;
@@ -183,6 +184,8 @@ struct ExpandedError {
     pub event: Box<Annotated<Event>>,
     /// Optional list of attachments sent with the event.
     pub attachments: Vec<Item>,
+    /// Flame graph awaiting validation and culprit extraction.
+    pub flamegraph: Option<Item>,
     /// Optional list of user reports sent with the event.
     pub user_reports: Vec<Item>,
     /// Custom event data.
@@ -209,6 +212,7 @@ impl Counted for ExpandedError {
             // Quantity inferred from `data.event_category()`.
             event: _,
             attachments,
+            flamegraph,
             user_reports,
             data,
             other,
@@ -218,6 +222,7 @@ impl Counted for ExpandedError {
 
         quantities.push((data.event_category(), 1));
         quantities.extend(attachments.quantities());
+        quantities.extend(flamegraph.quantities());
         quantities.extend(user_reports.quantities());
         quantities.extend(data.quantities());
         quantities.extend(other.quantities());
@@ -261,7 +266,9 @@ impl processing::RateLimited for Managed<ExpandedError> {
             }
         }
 
-        for (category, quantity) in self.attachments.quantities() {
+        let attachment_quantities =
+            [self.attachments.quantities(), self.flamegraph.quantities()].quantities();
+        for (category, quantity) in attachment_quantities {
             let limits = rate_limiter
                 .try_consume(&scoping.item(category), quantity)
                 .await;
@@ -269,9 +276,10 @@ impl processing::RateLimited for Managed<ExpandedError> {
             if !limits.is_empty() {
                 self.modify(|this, record_keeper| {
                     record_keeper.reject_err(
-                        Error::RateLimited(limits),
+                        Error::RateLimited(limits.clone()),
                         std::mem::take(&mut this.attachments),
                     );
+                    record_keeper.reject_err(Error::RateLimited(limits), this.flamegraph.take());
                 });
                 break;
             }
@@ -313,6 +321,7 @@ impl Forward for ErrorOutput {
                     metrics: _,
                     event,
                     attachments,
+                    flamegraph,
                     user_reports,
                     data,
                     other,
@@ -341,6 +350,7 @@ impl Forward for ErrorOutput {
                 data.serialize_into(&mut items, ctx)?;
 
                 items.extend(attachments);
+                items.extend(flamegraph);
                 items.extend(user_reports);
 
                 if !ctx.config.processing_enabled() {
@@ -373,6 +383,7 @@ impl Forward for ErrorOutput {
                     metrics: _,
                     event,
                     mut attachments,
+                    flamegraph,
                     user_reports,
                     data,
                     other,
@@ -384,6 +395,7 @@ impl Forward for ErrorOutput {
 
                 let event_category = data.event_category();
                 data.serialize_into(&mut attachments, ctx)?;
+                attachments.extend(flamegraph);
 
                 Ok(Box::new(StoreEvent {
                     event_category,

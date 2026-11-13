@@ -48,6 +48,142 @@ pub(super) fn assert_crash_rate_limit<T: SentryError>(
 }
 
 #[test]
+fn test_generic_expansion_keeps_only_one_flamegraph() {
+    let mut event = Item::new(ItemType::Event);
+    event.set_payload(
+        ContentType::Json,
+        r#"{"exception":{"values":[{"type":"hang"}]}}"#,
+    );
+    let mut items = vec![
+        event,
+        attachment(AttachmentType::Flamegraph, "first"),
+        attachment(AttachmentType::Attachment, "ordinary"),
+        attachment(AttachmentType::Flamegraph, "second"),
+    ];
+    let expanded = Generic::try_expand(&mut items, Context::for_test())
+        .unwrap()
+        .unwrap();
+    let retained_flamegraphs = expanded
+        .attachments
+        .iter()
+        .filter(|item| item.attachment_type() == Some(AttachmentType::Flamegraph))
+        .count();
+    assert_eq!(retained_flamegraphs, 0);
+    // Removing the event swaps the last item into its slot before attachments are extracted.
+    assert_eq!(expanded.flamegraph.unwrap().payload().as_ref(), b"second");
+    assert_eq!(expanded.attachments.len(), 1);
+    assert_eq!(expanded.attachments[0].payload().as_ref(), b"ordinary");
+}
+
+#[test]
+fn test_minidump_expansion_keeps_flamegraphs_as_attachments() {
+    let mut items = vec![
+        attachment(AttachmentType::Minidump, "dump"),
+        attachment(AttachmentType::Flamegraph, "first"),
+        attachment(AttachmentType::Flamegraph, "second"),
+    ];
+    let expanded = ErrorKind::try_expand(&mut items, Context::for_test())
+        .unwrap()
+        .unwrap();
+
+    assert!(matches!(expanded.error, ErrorKind::Minidump(_)));
+    assert!(expanded.flamegraph.is_none());
+    assert_eq!(expanded.attachments.len(), 2);
+    assert!(
+        expanded
+            .attachments
+            .iter()
+            .all(|item| { item.attachment_type() == Some(AttachmentType::Flamegraph) })
+    );
+}
+
+#[test]
+fn test_forwarding_retains_separate_flamegraph() {
+    use crate::processing::Forward as _;
+    use crate::processing::errors::{ErrorOutput, SerializedError, process};
+
+    let envelope = crate::testutils::new_envelope(false, "");
+    let mut event = Item::new(ItemType::Event);
+    event.set_payload(ContentType::Json, "{}");
+    let (error, _handle) = Managed::for_test(SerializedError {
+        headers: envelope.headers().clone(),
+        items: vec![event, attachment(AttachmentType::Flamegraph, "graph")],
+    })
+    .build();
+    let ctx = processing::Context::for_test();
+    let (expanded, _) = process::expand(error, ctx).unwrap();
+    assert!(expanded.attachments.is_empty());
+    assert!(expanded.flamegraph.is_some());
+    let output = ErrorOutput(expanded)
+        .serialize_envelope(ctx.to_forward())
+        .unwrap();
+    output.accept(|envelope| {
+        let graphs: Vec<_> = envelope
+            .items()
+            .filter(|item| item.attachment_type() == Some(AttachmentType::Flamegraph))
+            .collect();
+        assert_eq!(graphs.len(), 1);
+        assert_eq!(graphs[0].payload().as_ref(), b"graph");
+    });
+}
+
+#[tokio::test]
+async fn test_attachment_quotas_do_not_infer_another_error() {
+    use crate::processing::errors::{SerializedError, process};
+    use crate::processing::{RateLimited as _, RateLimiter};
+
+    struct RecordingLimiter<'a>(&'a mut Vec<(DataCategory, usize)>);
+
+    impl RateLimiter for RecordingLimiter<'_> {
+        async fn try_consume(
+            &mut self,
+            scope: &relay_quotas::ItemScoping,
+            quantity: usize,
+        ) -> RateLimits {
+            self.0.push((scope.category, quantity));
+            RateLimits::new()
+        }
+    }
+
+    let envelope = crate::testutils::new_envelope(false, "");
+    let (error, mut handle) = Managed::for_test(SerializedError {
+        headers: envelope.headers().clone(),
+        items: vec![
+            attachment(AttachmentType::Minidump, "dump"),
+            attachment(AttachmentType::Minidump, "extra"),
+            attachment(AttachmentType::Flamegraph, "graph"),
+        ],
+    })
+    .build();
+    let ctx = processing::Context::for_test();
+    let (expanded, _) = process::expand(error, ctx).unwrap();
+    assert!(expanded.attachments.iter().any(Item::creates_event));
+    let mut requests = Vec::new();
+    let error = expanded
+        .enforce(RecordingLimiter(&mut requests), ctx)
+        .await
+        .unwrap();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|(category, _)| *category == DataCategory::Error)
+            .count(),
+        1,
+    );
+    // The selected dump is charged separately. The extra dump and flamegraph remain
+    // ordinary attachments and share a budget.
+    assert!(requests.contains(&(DataCategory::Attachment, 4)));
+    assert!(requests.contains(&(DataCategory::AttachmentItem, 1)));
+    assert!(requests.contains(&(DataCategory::Attachment, 10)));
+    assert!(requests.contains(&(DataCategory::AttachmentItem, 2)));
+    error.accept(|error| {
+        assert_eq!(error.attachments.len(), 2);
+        assert!(error.flamegraph.is_none());
+    });
+    handle.assert_no_outcomes();
+}
+
+#[test]
 fn test_minidump_crash_rate_limit() {
     assert_crash_rate_limit(
         || Minidump(attachment(AttachmentType::Minidump, "dump")),
