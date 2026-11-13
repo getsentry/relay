@@ -51,10 +51,10 @@ pub enum DeprecationStatus {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Deprecation {
     /// The attribute's new name.
-    replacement: Option<String>,
+    pub replacement: Option<String>,
     /// How to handle the attribute's deprecation.
     #[serde(rename = "_status")]
-    status: Option<DeprecationStatus>,
+    pub status: Option<DeprecationStatus>,
 }
 
 /// An attribute, according to the `sentry-conventions` schema.
@@ -64,6 +64,8 @@ pub struct Deprecation {
 pub struct Attribute {
     /// The attribute's name.
     pub key: String,
+    #[serde(rename = "type")]
+    pub ty: String,
     /// Short description of the attribute.
     pub brief: String,
     /// Whether the attribute should be scrubbed.
@@ -87,6 +89,7 @@ pub struct Attribute {
 pub fn check_attribute(attribute: &Attribute) {
     let Attribute {
         key,
+        ty: _,
         brief: _,
         apply_scrubbing: _,
         deprecation,
@@ -140,6 +143,7 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 pub fn format_attribute_info(attr: &Attribute) -> String {
     let Attribute {
         key: _,
+        ty: _,
         brief: _,
         apply_scrubbing,
         deprecation,
@@ -161,6 +165,7 @@ pub fn format_attribute_info(attr: &Attribute) -> String {
 pub fn format_constant(attr: &Attribute) -> String {
     let Attribute {
         key,
+        ty: _,
         brief,
         apply_scrubbing,
         deprecation,
@@ -220,6 +225,7 @@ pub fn format_constant(attr: &Attribute) -> String {
 pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
     let Attribute {
         key,
+        ty: _,
         brief: _,
         apply_scrubbing: _,
         deprecation,
@@ -306,6 +312,7 @@ pub fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
 pub fn constant_pair(attribute: &Attribute) -> Option<(String, String)> {
     let Attribute {
         key,
+        ty: _,
         brief: _,
         apply_scrubbing: _,
         deprecation,

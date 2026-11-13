@@ -488,6 +488,10 @@ impl SpanData {
         self.get(key).and_then(Annotated::value)
     }
 
+    pub fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
+        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+    }
+
     /// Returns a string attribute from span data.
     pub fn get_str(&self, key: &str) -> Option<&str> {
         self.get_value(key)?.as_str()
