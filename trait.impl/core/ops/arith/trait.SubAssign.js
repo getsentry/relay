@@ -1,9 +1,9 @@
 (function() {
-    const implementors = Object.fromEntries([["relay_metrics",[["impl&lt;T: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.99.1/core/ops/arith/trait.SubAssign.html\" title=\"trait core::ops::arith::SubAssign\">SubAssign</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.99.1/core/ops/arith/trait.SubAssign.html\" title=\"trait core::ops::arith::SubAssign\">SubAssign</a> for <a class=\"struct\" href=\"relay_metrics/struct.ByNamespace.html\" title=\"struct relay_metrics::ByNamespace\">ByNamespace</a>&lt;T&gt;",0]]]]);
+    const implementors = Object.fromEntries([["relay_metrics",[["impl&lt;T: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.100.0/core/ops/arith/trait.SubAssign.html\" title=\"trait core::ops::arith::SubAssign\">SubAssign</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.100.0/core/ops/arith/trait.SubAssign.html\" title=\"trait core::ops::arith::SubAssign\">SubAssign</a> for <a class=\"struct\" href=\"relay_metrics/struct.ByNamespace.html\" title=\"struct relay_metrics::ByNamespace\">ByNamespace</a>&lt;T&gt;",0]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":59,"fragment_lengths":[490]}
+//{"start":59,"fragment_lengths":[492]}
