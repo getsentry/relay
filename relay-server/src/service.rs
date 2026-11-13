@@ -635,36 +635,36 @@ fn create_async_redis_client(
     (name, secondary_name): (&'static str, &'static str),
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
-    let (primary, secondary) = match config {
+    match config {
+        RedisConfigRef::MultiWrite { configs } => {
+            // Client names must be static, which limits multi write to a primary and a secondary.
+            let [primary, secondary] = configs.as_slice() else {
+                return Err(RedisError::Configuration);
+            };
+            Ok(AsyncRedisClient::dual(
+                create_async_redis_pool(name, primary)?,
+                create_async_redis_pool(secondary_name, secondary)?,
+            ))
+        }
+        config => create_async_redis_pool(name, config),
+    }
+}
+
+#[cfg(feature = "processing")]
+fn create_async_redis_pool(
+    name: &'static str,
+    config: &RedisConfigRef<'_>,
+) -> Result<AsyncRedisClient, RedisError> {
+    match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
-            secondary,
             options,
-        } => (
-            AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options)?,
-            secondary,
-        ),
-        RedisConfigRef::Single {
-            server,
-            secondary,
-            options,
-        } => (AsyncRedisClient::single(name, server, options)?, secondary),
-    };
-
-    let Some(secondary) = secondary else {
-        return Ok(primary);
-    };
-
-    let secondary = match (secondary.is_cluster, secondary.nodes) {
-        (true, nodes) => AsyncRedisClient::cluster(
-            secondary_name,
-            nodes.iter().map(String::as_str),
-            &secondary.options,
-        )?,
-        (false, [server]) => AsyncRedisClient::single(secondary_name, server, &secondary.options)?,
-        (false, _) => return Err(RedisError::Configuration),
-    };
-    Ok(AsyncRedisClient::dual(primary, secondary))
+        } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::Single { server, options } => {
+            AsyncRedisClient::single(name, server, options)
+        }
+        RedisConfigRef::MultiWrite { .. } => Err(RedisError::Configuration),
+    }
 }
 
 #[cfg(feature = "processing")]
