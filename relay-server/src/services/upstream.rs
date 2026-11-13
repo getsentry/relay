@@ -1830,6 +1830,28 @@ mod tests {
     use relay_auth::generate_key_pair;
 
     #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode": RelayMode::Proxy
+            }
+        }))
+        .unwrap();
+        let service = UpstreamRelayService::new(Arc::new(config));
+        let (addr, rx) = relay_system::channel(UpstreamRelayService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        // Process buffered messages before stopping and joining the auth monitor.
+        let response = addr.send(IsAuthenticated);
+        drop(addr);
+        tokio::time::timeout(Duration::from_secs(1), &mut run)
+            .await
+            .expect("upstream service should stop when its channel closes");
+        assert!(response.await.unwrap());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn test_next_request_cancellation_preserves_permits() {
         let client = SharedClient::build(Arc::new(Config::default()));
         let (action_tx, _action_rx) = mpsc::unbounded_channel();
