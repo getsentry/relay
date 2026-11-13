@@ -105,6 +105,11 @@ pub enum RedisConfig {
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
     },
+    /// Write to multiple Redis instances, results are returned from the first.
+    MultiWrite {
+        /// Configurations for the Redis instances.
+        configs: Vec<RedisConfig>,
+    },
     /// Connect to a single Redis instance.
     Single(SingleRedisConfig),
 }
@@ -183,6 +188,11 @@ pub enum RedisConfigRef<'a> {
         /// Options of the Redis config.
         options: RedisConfigOptions,
     },
+    /// Write to multiple Redis instances, results are returned from the first.
+    MultiWrite {
+        /// Configurations for the Redis instances.
+        configs: Vec<RedisConfigRef<'a>>,
+    },
     /// Connect to a single Redis instance.
     Single {
         /// Reference to the Redis node url.
@@ -237,6 +247,12 @@ pub(super) fn build_redis_config(
         } => RedisConfigRef::Cluster {
             cluster_nodes,
             options: build_redis_config_options(options, default_connections),
+        },
+        RedisConfig::MultiWrite { configs } => RedisConfigRef::MultiWrite {
+            configs: configs
+                .iter()
+                .map(|c| build_redis_config(c, default_connections))
+                .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
             RedisConfigRef::Single {
@@ -515,6 +531,47 @@ max_connections: 20
                     ..Default::default()
                 },
             })
+        );
+    }
+
+    #[test]
+    fn test_redis_multi_write() {
+        let yaml = r#"
+configs:
+    - cluster_nodes:
+          - "redis://127.0.0.1:6379"
+          - "redis://127.0.0.2:6379"
+      max_connections: 42
+    - server: "redis://127.0.0.3:6379"
+      max_connections: 84
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: multi write with options");
+
+        assert_eq!(
+            config,
+            RedisConfig::MultiWrite {
+                configs: vec![
+                    RedisConfig::Cluster {
+                        cluster_nodes: vec![
+                            "redis://127.0.0.1:6379".to_owned(),
+                            "redis://127.0.0.2:6379".to_owned()
+                        ],
+                        options: PartialRedisConfigOptions {
+                            max_connections: Some(42),
+                            ..Default::default()
+                        },
+                    },
+                    RedisConfig::Single(SingleRedisConfig::Detailed {
+                        server: "redis://127.0.0.3:6379".to_owned(),
+                        options: PartialRedisConfigOptions {
+                            max_connections: Some(84),
+                            ..Default::default()
+                        },
+                    }),
+                ],
+            }
         );
     }
 

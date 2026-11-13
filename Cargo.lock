@@ -5093,6 +5093,7 @@ dependencies = [
  "deadpool",
  "futures",
  "redis",
+ "relay-log",
  "relay-statsd",
  "relay-system",
  "serde",
