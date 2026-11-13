@@ -1,4 +1,5 @@
 use relay_cogs::AppFeature;
+use relay_config::ByteSize;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
 use relay_ourlogs::otel_logs::LogsData;
@@ -61,7 +62,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
         ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let intermediates = work.try_map(|work, records| {
-            expand(work, records, ctx.config.max_expanded_log_operations())
+            expand(
+                work,
+                records,
+                ctx.config.max_expanded_log_operations(),
+                ctx.config.max_expanded_logs_size(),
+            )
         })?;
         Ok(Output::intermediates(intermediates))
     }
@@ -73,6 +79,7 @@ pub fn expand(
     SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
     max_ops: usize,
+    max_logs_size: ByteSize,
 ) -> Result<Intermediates, Error> {
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
@@ -81,6 +88,7 @@ pub fn expand(
     let payload = item.payload();
     let mut logs = Vec::new();
     let parsed = parse_logs_data(format, &payload, max_ops)?;
+    let mut total_log_size = 0;
 
     for resource_logs in parsed.resource_logs {
         let resource = resource_logs.resource.as_ref();
@@ -91,6 +99,11 @@ pub fn expand(
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
+                total_log_size += byte_size as usize;
+
+                if total_log_size > max_logs_size.as_bytes() {
+                    return Err(Error::Invalid(DiscardReason::RequestTooLarge));
+                }
 
                 records.add([
                     (DataCategory::LogItem, 1),
@@ -117,24 +130,38 @@ pub fn expand(
 fn parse_logs_data(format: OtelFormat, payload: &[u8], max_ops: usize) -> Result<LogsData, Error> {
     match format {
         OtelFormat::Json => {
-            let mut de = serde_json::Deserializer::from_reader(payload);
-            let result = relay_serialization::serde::deserialize(&mut de, max_ops).map_err(|e| {
+            relay_serialization::serde::deserialize_json(payload, max_ops).map_err(|e| {
                 relay_log::debug!(
                     error = &e as &dyn std::error::Error,
                     "Failed to parse logs data as JSON"
                 );
-                Error::Invalid(DiscardReason::InvalidJson)
-            });
-            de.end()
-                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
-            result
+
+                match e {
+                    relay_serialization::serde::Error::LimitExceeded(_) => {
+                        Error::Invalid(DiscardReason::RequestTooLarge)
+                    }
+                    relay_serialization::serde::Error::Serde(_) => {
+                        Error::Invalid(DiscardReason::InvalidJson)
+                    }
+                }
+            })
         }
         OtelFormat::Protobuf => LogsData::decode_bounded(payload, max_ops).map_err(|e| {
             relay_log::debug!(
                 error = &e as &dyn std::error::Error,
                 "Failed to parse logs data as protobuf"
             );
-            Error::Invalid(DiscardReason::InvalidProtobuf)
+            match e {
+                relay_serialization::prost::Error::ScanError(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+                relay_serialization::prost::Error::LimitExceeded => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                relay_serialization::prost::Error::Decode(_) => {
+                    Error::Invalid(DiscardReason::InvalidProtobuf)
+                }
+            }
         }),
     }
 }
@@ -306,7 +333,7 @@ mod tests {
 
         assert!(matches!(
             parse_logs_data(OtelFormat::Protobuf, &payload, 1000),
-            Err(Error::Invalid(DiscardReason::InvalidProtobuf))
+            Err(Error::Invalid(DiscardReason::RequestTooLarge))
         ));
         assert!(parse_logs_data(OtelFormat::Protobuf, &payload, 1003).is_ok());
     }

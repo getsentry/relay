@@ -1,4 +1,5 @@
 use relay_cogs::AppFeature;
+use relay_config::ByteSize;
 use relay_event_normalization::nel;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_protocol::DeserializableAnnotated;
@@ -47,9 +48,16 @@ impl processing::Processor for NelLogsIntegrationProcessor {
     async fn process(
         &self,
         work: Managed<Self::Input>,
-        _ctx: processing::Context<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let intermediates = work.try_map(expand)?;
+        let intermediates = work.try_map(|work, records| {
+            expand(
+                work,
+                records,
+                ctx.config.max_expanded_log_operations(),
+                ctx.config.max_expanded_logs_size(),
+            )
+        })?;
         Ok(Output::intermediates(intermediates))
     }
 }
@@ -59,6 +67,8 @@ impl processing::Processor for NelLogsIntegrationProcessor {
 pub fn expand(
     SerializedLogsIntegration { headers, item }: SerializedLogsIntegration,
     records: &mut RecordKeeper,
+    max_ops: usize,
+    max_logs_size: ByteSize,
 ) -> Result<Intermediates, Error> {
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
@@ -66,14 +76,24 @@ pub fn expand(
 
     let payload = item.payload();
     let received_at = headers.meta().received_at();
+    let mut total_logs_size = 0;
 
-    let logs = serde_json::from_slice::<Vec<_>>(&payload)
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
-        .into_iter()
-        .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
-        .map(|log| {
-            // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
-            // the logs back into an envelope fails. Consider removing it.
+    let reports: std::vec::IntoIter<
+        DeserializableAnnotated<relay_event_schema::protocol::NetworkReportRaw>,
+    > = relay_serialization::serde::deserialize_json::<Vec<_>>(&payload, max_ops)
+        .map_err(|e| match e {
+            relay_serialization::serde::Error::LimitExceeded(_) => {
+                Error::Invalid(DiscardReason::RequestTooLarge)
+            }
+            relay_serialization::serde::Error::Serde(_) => {
+                Error::Invalid(DiscardReason::InvalidJson)
+            }
+        })?
+        .into_iter();
+
+    let mut logs = vec![];
+    for report in reports {
+        if let Some(log) = nel::create_log(report.0, received_at) {
             let byte_size = relay_ourlogs::calculate_size(&log);
 
             records.add([
@@ -81,9 +101,15 @@ pub fn expand(
                 (DataCategory::LogByte, byte_size as usize),
             ]);
 
-            WithHeader::just(log.into())
-        })
-        .collect();
+            total_logs_size += byte_size as usize;
+
+            if total_logs_size > max_logs_size.as_bytes() {
+                return Err(Error::Invalid(DiscardReason::RequestTooLarge));
+            }
+
+            logs.push(WithHeader::just(log.into()));
+        }
+    }
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
