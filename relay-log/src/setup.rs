@@ -331,6 +331,13 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
         })
         .init();
 
+    // Dependencies that log through the `log` crate, like `sqlparser`, bypass the callsite cache of
+    // `tracing` and run the full filter on every call. The default filters never enable them below
+    // INFO, so cut those calls off at `log`'s own max level check instead.
+    if env::var_os(EnvFilter::DEFAULT_ENV).is_none() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
+
     if let Some(dsn) = sentry.enabled_dsn() {
         let traces_sample_rate = config.traces_sample_rate;
         // We're explicitly setting a `traces_sampler` here to circumvent trace

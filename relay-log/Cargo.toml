@@ -16,7 +16,7 @@ workspace = true
 [features]
 default = []
 test = ["dep:tracing-subscriber"]
-init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
+init = ["dep:console", "dep:log", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
 crash-handler = ["init", "sentry/minidump"]
 sentry = ["dep:sentry"]
 
@@ -24,6 +24,7 @@ sentry = ["dep:sentry"]
 relay-common = { workspace = true }
 
 console = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
