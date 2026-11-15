@@ -16,6 +16,4 @@ workspace = true
 prost = { workspace = true }
 serde = { workspace = true }
 leb128 = { workspace = true }
-
-[dev-dependencies]
 serde_json = { workspace = true }
