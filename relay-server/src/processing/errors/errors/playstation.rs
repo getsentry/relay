@@ -66,7 +66,7 @@ impl SentryError for Playstation {
             relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
             let data = playstation::uncompress(
-                prosperodump.payload(),
+                prosperodump.data().payload(),
                 ctx.processing.config.max_attachment_size(),
             ).map_err(ProcessingError::from)?;
             let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
@@ -82,10 +82,10 @@ impl SentryError for Playstation {
             let mut event = match (event, prospero_event) {
                 (Some(event), Some(prospero)) => {
                     metrics.bytes_ingested_event =
-                        ((event.len() + prospero.len()) as u64).into();
+                        ((event.data().len() + prospero.len()) as u64).into();
                     merge_events(&event, prospero.as_bytes(), ctx)?
                 }
-                (Some(event), None) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx.processing)?,
+                (Some(event), None) => utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx.processing)?,
                 (None, Some(prospero)) => {
                     utils::event_from_json(prospero.as_bytes(), None, &mut metrics, ctx.processing)?
                 }
@@ -112,7 +112,7 @@ impl SentryError for Playstation {
                 .get(SENTRY_SESSION_PAYLOAD_KEY)
                 .map(|session| {
                     let mut item = SessionItem::new();
-                    item.set_payload(
+                    item.data_mut().set_payload(
                         crate::envelope::ContentType::Json,
                         session.as_bytes().to_owned(),
                     );
@@ -125,10 +125,10 @@ impl SentryError for Playstation {
                 metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
                 let mut item = AttachmentItem::new();
                 item.set_filename("generated_minidump.dmp");
-                item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
+                item.data_mut().set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
                 item.set_attachment_type(AttachmentType::Minidump);
                 // If the original prosperodump is already rate limited, so will be the minidump.
-                item.set_rate_limited(prosperodump.rate_limited());
+                item.data_mut().set_rate_limited(prosperodump.data().rate_limited());
 
                 crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item);
 
@@ -139,7 +139,7 @@ impl SentryError for Playstation {
                 let mut item = AttachmentItem::new();
                 item.set_filename(file.name);
                 item.set_attachment_type(AttachmentType::Attachment);
-                item.set_payload(
+                item.data_mut().set_payload(
                     crate::utils::playstation::infer_content_type(file.name),
                     file.contents.to_owned(),
                 );
@@ -155,7 +155,7 @@ impl SentryError for Playstation {
                 attachments.push({
                     let mut item = AttachmentItem::new();
                     item.set_filename("console.log");
-                    item.set_payload(crate::envelope::ContentType::Text, console_log.into_bytes());
+                    item.data_mut().set_payload(crate::envelope::ContentType::Text, console_log.into_bytes());
                     item.set_attachment_type(AttachmentType::Attachment);
                     item
                 })
@@ -238,7 +238,8 @@ fn merge_events(
     from_prospero: &[u8],
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    if from_envelope.len().max(from_prospero.len()) > ctx.processing.config.max_event_size() {
+    if from_envelope.data().len().max(from_prospero.len()) > ctx.processing.config.max_event_size()
+    {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
 
@@ -252,7 +253,7 @@ fn merge_events_inner(
     from_envelope: &EventItem,
     from_prospero: &[u8],
 ) -> Result<Annotated<Event>, serde_json::Error> {
-    let from_envelope = serde_json::from_slice(&from_envelope.payload())?;
+    let from_envelope = serde_json::from_slice(&from_envelope.data().payload())?;
     let mut from_prospero = serde_json::from_slice(from_prospero)?;
 
     // Uses the dying message as a base and fills it with values from the event.
