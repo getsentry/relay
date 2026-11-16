@@ -59,7 +59,7 @@ fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
     })
 }
 
-/// Count metadata can be absent, readable, or readable and writable as a container.
+/// Whether a variant supports reading `item_count` and writing the shared container format.
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 enum ItemCountSupport {
     None,
@@ -80,14 +80,23 @@ impl ItemCountSupport {
             })
     }
 
-    fn count_method(self) -> TokenStream {
+    fn count_impl(self, payload: &syn::Ident) -> TokenStream {
         match self {
             Self::None => quote!(),
             Self::Read | Self::ReadWrite => quote! {
-                fn item_count(&self) -> Option<u32> {
-                    self.data.headers.get(ItemHeaderKey::ItemCount)
+                impl ItemCount for #payload {
+                    fn item_count(&self) -> Option<u32> {
+                        self.data.headers.get(ItemHeaderKey::ItemCount)
+                    }
                 }
             },
+        }
+    }
+
+    fn count_arm(self, name: &syn::Ident) -> TokenStream {
+        match self {
+            Self::None => quote!(Self::#name(_) => None),
+            Self::Read | Self::ReadWrite => quote!(Self::#name(item) => item.item_count()),
         }
     }
 
@@ -198,11 +207,12 @@ impl VariantCode {
             item_tag,
         } = WireTag::for_variant(name);
         let container_impl = count_support.container_impl(&payload);
-        let count_method = count_support.count_method();
+        let count_impl = count_support.count_impl(&payload);
 
         Ok(Self {
             wire_variant: quote!(#(#docs)* #wire_variant),
             payload_struct: quote! {
+                #count_impl
                 #container_impl
                 #[derive(Clone)]
                 pub struct #payload { data: ItemData, #type_field }
@@ -226,7 +236,6 @@ impl VariantCode {
                     fn downcast_ref(item: &Item) -> Option<&Self> {
                         match item { Item::#name(payload) => Some(payload), _ => None }
                     }
-                    #count_method
                 }
                 impl TryFrom<Item> for #payload {
                     type Error = Item;
@@ -240,7 +249,7 @@ impl VariantCode {
             },
             from_data: quote!(#wire_pattern => Self::#name(#payload { data, #payload_init })),
             tag: item_tag,
-            count: quote!(Self::#name(item) => item.item_count()),
+            count: count_support.count_arm(name),
             reference: quote!(Self::#name(item) => &item.data),
             reference_mut: quote!(Self::#name(item) => &mut item.data),
         })
@@ -270,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn container_setters_are_only_generated_for_container_payloads() {
+    fn count_and_container_traits_are_only_generated_for_supported_payloads() {
         let generated = expand_typed_items(syn::parse_quote! {
             pub enum Item {
                 Transaction(TransactionItem),
@@ -282,21 +291,30 @@ mod tests {
         })
         .unwrap();
         let file: syn::File = syn::parse2(generated).unwrap();
-        let container_impls: Vec<_> = file
-            .items
-            .iter()
-            .filter_map(|item| {
-                let syn::Item::Impl(item) = item else {
-                    return None;
-                };
-                let (_, implemented, _) = item.trait_.as_ref()?;
-                implemented.is_ident("ContainerPayload").then(|| {
-                    let ty = &item.self_ty;
-                    quote!(#ty).to_string()
+        for (trait_name, expected) in [
+            (
+                "TypedItem",
+                vec!["TransactionItem", "ProfileItem", "LogItem"],
+            ),
+            ("ItemCount", vec!["ProfileItem", "LogItem"]),
+            ("ContainerPayload", vec!["LogItem"]),
+        ] {
+            let implementations: Vec<_> = file
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let syn::Item::Impl(item) = item else {
+                        return None;
+                    };
+                    let (_, implemented, _) = item.trait_.as_ref()?;
+                    implemented.is_ident(trait_name).then(|| {
+                        let ty = &item.self_ty;
+                        quote!(#ty).to_string()
+                    })
                 })
-            })
-            .collect();
-        assert_eq!(container_impls, ["LogItem"]);
+                .collect();
+            assert_eq!(implementations, expected, "{trait_name}");
+        }
     }
 
     #[test]

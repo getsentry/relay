@@ -29,15 +29,16 @@ pub trait TypedItem: TryFrom<Item, Error = Item> {
 
     /// Borrows the concrete item if the enum contains this variant.
     fn downcast_ref(item: &Item) -> Option<&Self>;
-
-    /// Returns the declared `item_count` header when supported by this payload type.
-    fn item_count(&self) -> Option<u32> {
-        None
-    }
 }
 
-/// Payload types that can be written as item containers.
-pub trait ContainerPayload: TypedItem {
+/// Typed items that support the `item_count` header.
+pub trait ItemCount: TypedItem {
+    /// Returns the declared count, or `None` if the header is absent or invalid.
+    fn item_count(&self) -> Option<u32>;
+}
+
+/// Payload types that can be written in the shared [`crate::envelope::ItemContainer`] format.
+pub trait ContainerPayload: ItemCount {
     /// Sets the payload, its content type, and its declared container count.
     fn set_payload_with_item_count(
         &mut self,
@@ -713,8 +714,8 @@ pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 /// An envelope item with an unparsed payload.
 ///
 /// `TypedItems` generates the concrete variant structs and wire tags.
-/// `#[typed_item(item_count_header)]` enables reading the `item_count` header.
-/// `#[typed_item(container)]` additionally enables writing item containers.
+/// `#[typed_item(item_count_header)]` implements [`ItemCount`] for reading the count header.
+/// `#[typed_item(container)]` additionally implements [`ContainerPayload`] for writing containers.
 #[derive(Clone, relay_server_macros::TypedItems)]
 pub enum Item {
     /// Event payload encoded in JSON.
@@ -1361,6 +1362,34 @@ mod tests {
             serde_json::to_value(profile.wire_headers()).unwrap()["type"],
             "profile"
         );
+    }
+
+    #[test]
+    fn item_count_headers_are_only_read_by_supported_variants() {
+        for (tag, supported) in [
+            ("transaction", false),
+            ("event", false),
+            ("integration", false),
+            ("session", true),
+            ("profile", true),
+            ("log", true),
+            ("future_item", true),
+        ] {
+            for (header, count) in [
+                ("null", None),
+                ("0", Some(0)),
+                ("3", Some(3)),
+                ("\"invalid\"", None),
+            ] {
+                let wire = format!("{{\"type\":\"{tag}\",\"item_count\":{header}}}\n{{}}\n");
+                let (item, _) = Item::parse(Bytes::from(wire)).unwrap();
+                assert_eq!(
+                    item.item_count(),
+                    if supported { count } else { None },
+                    "{tag}: {header}"
+                );
+            }
+        }
     }
 
     #[test]

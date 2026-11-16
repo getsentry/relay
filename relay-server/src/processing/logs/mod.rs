@@ -9,8 +9,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, Items, LogItem,
-    TypedItem,
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemCount, Items,
+    LogItem,
 };
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,

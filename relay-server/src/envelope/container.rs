@@ -9,7 +9,7 @@ use serde::ser::SerializeMap as _;
 use serde::{Deserialize, Serialize, de, ser};
 
 use crate::envelope::{
-    ContainerPayload, ContentType, LogItem, SpanItem, TraceMetricItem, TypedItem,
+    ContainerPayload, ContentType, ItemCount, LogItem, SpanItem, TraceMetricItem, TypedItem,
 };
 
 /// Error emitted when failing to parse an [`ItemContainer`].

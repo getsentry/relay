@@ -12,7 +12,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::Envelope;
 use crate::envelope::{
     AttachmentItem, ContainerWriteError, EnvelopeHeaders, IntegrationItem, Item, ItemContainer,
-    Items, SpanItem, TypedItem, WithHeader,
+    ItemCount, Items, SpanItem, WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -355,7 +355,7 @@ impl Counted for SerializedSpans {
         let span_quantity = (match &self.items {
             SpanItems::Container(item) => outcome_count(std::slice::from_ref(item)),
             SpanItems::Legacy(items) => outcome_count(items),
-            SpanItems::Integration(item) => outcome_count(std::slice::from_ref(item)),
+            SpanItems::Integration(_) => 1,
             SpanItems::None => 0,
         } + self
             .invalid
@@ -724,7 +724,7 @@ impl Counted for ExpandedSpan {
 /// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
 ///
 /// The function expects all passed items to only contain spans.
-fn outcome_count<T: TypedItem>(spans: &[T]) -> u32 {
+fn outcome_count<T: ItemCount>(spans: &[T]) -> u32 {
     spans
         .iter()
         .map(|item| item.item_count().unwrap_or(1))

@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, TypedItem};
+use crate::envelope::{Envelope, Item, ItemData};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -102,45 +102,47 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
-        let result = match item {
-            Item::Event(item) => event.apply(item),
-            Item::Transaction(item) => event.apply(item),
-            Item::Security(item) => event.apply(item),
-            Item::ReplayEvent(item) => event.apply(item),
-            Item::RawSecurity(item) => event.apply(item),
-            Item::UserReportV2(item) => event.apply(item),
-            Item::FormData(item) => event.apply(item),
-            Item::Attachment(item) => attachment.apply(item),
-            Item::UnrealReport(item) => attachment.apply(item),
-            Item::UserReport(item) => attachment.apply(item),
-            Item::ReplayRecording(item) => replay_recording.apply(item),
-            Item::ReplayVideo(item) => replay_video.apply(item),
-            Item::Session(item) => session.apply(item),
-            Item::Sessions(item) => session.apply(item),
-            Item::ClientReport(item) => client_report.apply(item),
-            Item::Profile(item) => profile.apply(item),
-            Item::ProfileChunk(item) => profile.apply(item),
-            Item::CheckIn(item) => check_in.apply(item),
-            Item::MetricBuckets(item) => metric_bucket.apply(item),
-            Item::Log(item) => log.apply(item),
-            Item::TraceMetric(item) => trace_metric.apply(item),
+        let limit = match item {
+            Item::Event(_) => &mut event,
+            Item::Transaction(_) => &mut event,
+            Item::Security(_) => &mut event,
+            Item::ReplayEvent(_) => &mut event,
+            Item::RawSecurity(_) => &mut event,
+            Item::UserReportV2(_) => &mut event,
+            Item::FormData(_) => &mut event,
+            Item::Attachment(_) => &mut attachment,
+            Item::UnrealReport(_) => &mut attachment,
+            Item::UserReport(_) => &mut attachment,
+            Item::ReplayRecording(_) => &mut replay_recording,
+            Item::ReplayVideo(_) => &mut replay_video,
+            Item::Session(_) => &mut session,
+            Item::Sessions(_) => &mut session,
+            Item::ClientReport(_) => &mut client_report,
+            Item::Profile(_) => &mut profile,
+            Item::ProfileChunk(_) => &mut profile,
+            Item::CheckIn(_) => &mut check_in,
+            Item::MetricBuckets(_) => &mut metric_bucket,
+            Item::Log(_) => &mut log,
+            Item::TraceMetric(_) => &mut trace_metric,
             Item::Span(item) => match item.data().is_container() {
-                true => span.apply(item),
-                false => span_legacy.apply(item),
+                true => &mut span,
+                false => &mut span_legacy,
             },
             Item::Integration(item) => match item.integration() {
-                Some(Integration::Errors(_)) => attachment.apply(item),
-                Some(Integration::Logs(_)) => log_integration.apply(item),
-                Some(Integration::Spans(_)) => span_integration.apply(item),
+                Some(Integration::Errors(_)) => &mut attachment,
+                Some(Integration::Logs(_)) => &mut log_integration,
+                Some(Integration::Spans(_)) => &mut span_integration,
                 None => {
                     // Shouldn't be possible, if it still happens due to a bug, be defensive.
                     debug_assert!(false);
-                    empty.apply(item)
+                    &mut empty
                 }
             },
             // Unknown items are either filtered or forwarded as is.
             Item::Unknown(_) => continue,
         };
+
+        let result = limit.apply(item.data(), item.item_count());
 
         if let Err(err) = result {
             relay_statsd::metric!(
@@ -176,13 +178,13 @@ struct Limit {
 }
 
 impl Limit {
-    fn apply<T: TypedItem>(&mut self, item: &T) -> Result<(), Rejected> {
-        let size = match item.data().is_container() {
+    fn apply(&mut self, data: &ItemData, item_count: Option<u32>) -> Result<(), Rejected> {
+        let size = match data.is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //
             // Individual size validation must then be done again after parsing.
-            true => item.data().len() / item.item_count().unwrap_or(1).max(1) as usize,
-            false => item.data().len(),
+            true => data.len() / item_count.unwrap_or(1).max(1) as usize,
+            false => data.len(),
         };
         if size > self.item_size {
             return Err(Rejected::ItemSize);
@@ -195,7 +197,7 @@ impl Limit {
 
         self.total_size = self
             .total_size
-            .checked_sub(item.data().len())
+            .checked_sub(data.len())
             .ok_or(Rejected::TotalSize)?;
 
         Ok(())
@@ -223,4 +225,81 @@ pub fn remove_unknown_items(config: &ConfigSnapshot, envelope: &mut Managed<Box<
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_config::Config;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn size_limits_only_average_supported_container_counts() {
+        let config = Config::from_json_value(json!({
+            "limits": {
+                "max_event_size": 4,
+                "max_log_size": 4,
+                "max_span_size": 4,
+                "max_container_size": 20,
+            },
+        }))
+        .unwrap();
+
+        for (tag, content_type, count, accepted) in [
+            (
+                "log",
+                "application/vnd.sentry.items.log+json",
+                json!(3),
+                true,
+            ),
+            (
+                "span",
+                "application/vnd.sentry.items.span.v2+json",
+                json!(3),
+                true,
+            ),
+            ("log", "application/json", json!(3), false),
+            ("span", "application/json", json!(3), false),
+            (
+                "transaction",
+                "application/vnd.sentry.items.log+json",
+                json!(3),
+                false,
+            ),
+            (
+                "log",
+                "application/vnd.sentry.items.log+json",
+                json!(0),
+                false,
+            ),
+            (
+                "log",
+                "application/vnd.sentry.items.log+json",
+                json!(null),
+                false,
+            ),
+            (
+                "log",
+                "application/vnd.sentry.items.log+json",
+                json!("invalid"),
+                false,
+            ),
+        ] {
+            let header = json!({
+                "type": tag,
+                "content_type": content_type,
+                "item_count": count,
+            });
+            let envelope = Envelope::parse_bytes(
+                format!("{{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42\"}}\n{header}\n123456789\n").into(),
+            )
+            .unwrap();
+            assert_eq!(
+                check_envelope_size_limits(&config.current(), &envelope).is_ok(),
+                accepted,
+                "{header}",
+            );
+        }
+    }
 }
