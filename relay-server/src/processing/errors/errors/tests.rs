@@ -1,7 +1,7 @@
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 
 use super::*;
-use crate::envelope::{AttachmentItem, AttachmentType, ContentType};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, ItemType};
 use crate::managed::Managed;
 use crate::services::outcome::Outcome;
 
@@ -51,15 +51,15 @@ pub(super) fn assert_crash_rate_limit<T: SentryError>(
 #[test]
 fn test_generic_expansion_keeps_only_one_flamegraph() {
     let mut event = Item::new(ItemType::Event);
-    event.set_payload(
+    event.data_mut().set_payload(
         ContentType::Json,
         r#"{"exception":{"values":[{"type":"hang"}]}}"#,
     );
     let mut items = vec![
         event,
-        attachment(AttachmentType::Flamegraph, "first"),
-        attachment(AttachmentType::Attachment, "ordinary"),
-        attachment(AttachmentType::Flamegraph, "second"),
+        attachment(AttachmentType::Flamegraph, "first").into(),
+        attachment(AttachmentType::Attachment, "ordinary").into(),
+        attachment(AttachmentType::Flamegraph, "second").into(),
     ];
     let expanded = Generic::try_expand(&mut items, Context::for_test())
         .unwrap()
@@ -71,17 +71,23 @@ fn test_generic_expansion_keeps_only_one_flamegraph() {
         .count();
     assert_eq!(retained_flamegraphs, 0);
     // Removing the event swaps the last item into its slot before attachments are extracted.
-    assert_eq!(expanded.flamegraph.unwrap().payload().as_ref(), b"second");
+    assert_eq!(
+        expanded.flamegraph.unwrap().data().payload().as_ref(),
+        b"second"
+    );
     assert_eq!(expanded.attachments.len(), 1);
-    assert_eq!(expanded.attachments[0].payload().as_ref(), b"ordinary");
+    assert_eq!(
+        expanded.attachments[0].data().payload().as_ref(),
+        b"ordinary"
+    );
 }
 
 #[test]
 fn test_minidump_expansion_keeps_flamegraphs_as_attachments() {
     let mut items = vec![
-        attachment(AttachmentType::Minidump, "dump"),
-        attachment(AttachmentType::Flamegraph, "first"),
-        attachment(AttachmentType::Flamegraph, "second"),
+        attachment(AttachmentType::Minidump, "dump").into(),
+        attachment(AttachmentType::Flamegraph, "first").into(),
+        attachment(AttachmentType::Flamegraph, "second").into(),
     ];
     let expanded = ErrorKind::try_expand(&mut items, Context::for_test())
         .unwrap()
@@ -105,10 +111,13 @@ fn test_forwarding_retains_separate_flamegraph() {
 
     let envelope = crate::testutils::new_envelope(false, "");
     let mut event = Item::new(ItemType::Event);
-    event.set_payload(ContentType::Json, "{}");
+    event.data_mut().set_payload(ContentType::Json, "{}");
     let (error, _handle) = Managed::for_test(SerializedError {
         headers: envelope.headers().clone(),
-        items: vec![event, attachment(AttachmentType::Flamegraph, "graph")],
+        items: vec![
+            event,
+            attachment(AttachmentType::Flamegraph, "graph").into(),
+        ],
     })
     .build();
     let ctx = processing::Context::for_test();
@@ -121,10 +130,11 @@ fn test_forwarding_retains_separate_flamegraph() {
     output.accept(|envelope| {
         let graphs: Vec<_> = envelope
             .items()
+            .filter_map(Item::downcast_ref::<AttachmentItem>)
             .filter(|item| item.attachment_type() == Some(AttachmentType::Flamegraph))
             .collect();
         assert_eq!(graphs.len(), 1);
-        assert_eq!(graphs[0].payload().as_ref(), b"graph");
+        assert_eq!(graphs[0].data().payload().as_ref(), b"graph");
     });
 }
 
@@ -150,15 +160,20 @@ async fn test_attachment_quotas_do_not_infer_another_error() {
     let (error, mut handle) = Managed::for_test(SerializedError {
         headers: envelope.headers().clone(),
         items: vec![
-            attachment(AttachmentType::Minidump, "dump"),
-            attachment(AttachmentType::Minidump, "extra"),
-            attachment(AttachmentType::Flamegraph, "graph"),
+            attachment(AttachmentType::Minidump, "dump").into(),
+            attachment(AttachmentType::Minidump, "extra").into(),
+            attachment(AttachmentType::Flamegraph, "graph").into(),
         ],
     })
     .build();
     let ctx = processing::Context::for_test();
     let (expanded, _) = process::expand(error, ctx).unwrap();
-    assert!(expanded.attachments.iter().any(Item::creates_event));
+    assert!(
+        expanded
+            .attachments
+            .iter()
+            .any(AttachmentItem::carries_event_payload)
+    );
     let mut requests = Vec::new();
     let error = expanded
         .enforce(RecordingLimiter(&mut requests), ctx)

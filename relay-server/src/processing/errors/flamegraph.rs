@@ -298,7 +298,8 @@ mod tests {
         let mut item = AttachmentItem::new();
         item.set_attachment_type(AttachmentType::Flamegraph);
         item.set_filename("flamegraph.json");
-        item.data_mut().set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
+        item.data_mut()
+            .set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
         item
     }
 
@@ -413,9 +414,9 @@ mod tests {
             r#"{"type":"attachment","attachment_type":"event.flamegraph","content_type":"application/json"}"#,
             r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json"}"#,
         ] {
-            let (mut item, _) =
+            let (item, _) =
                 Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
-        let mut item: AttachmentItem = item.try_into().unwrap();
+            let mut item: AttachmentItem = item.try_into().unwrap();
             assert!(validate(&mut item, &config.current()).is_err());
         }
     }
@@ -479,7 +480,10 @@ mod tests {
         assert!(validate(&mut flamegraph_item(payload), &config.current()).is_err());
     }
 
-    fn extract_attachments(attachments: &[AttachmentItem], max_event_size: usize) -> Option<Culprit> {
+    fn extract_attachments(
+        attachments: &[AttachmentItem],
+        max_event_size: usize,
+    ) -> Option<Culprit> {
         attachments.iter().find_map(|item| {
             validate_and_extract(&mut item.clone(), true, max_event_size)
                 .ok()
@@ -536,7 +540,8 @@ mod tests {
         let mut item = AttachmentItem::new();
         item.set_attachment_type(AttachmentType::Flamegraph);
         item.set_filename("flamegraph.json");
-        item.data_mut().set_payload(ContentType::Json, serde_json::to_vec(&graph).unwrap());
+        item.data_mut()
+            .set_payload(ContentType::Json, serde_json::to_vec(&graph).unwrap());
         item
     }
 

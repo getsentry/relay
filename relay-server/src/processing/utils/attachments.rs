@@ -239,7 +239,6 @@ fn scrub_attachment(project_info: &ProjectInfo, item: &mut AttachmentItem, confi
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::Item;
     use relay_pii::PiiConfig;
 
     use super::*;
