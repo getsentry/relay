@@ -311,14 +311,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         services.start(HttpServer::new(config, state)?);
 
         // Wait for first shutdown signal. This is redundant because the HTTP server also does it.
-        // Here we use it for accelarated shutdown.
+        // Here we use it so we can listen for an optional second signal that kills the process
+        // immediately.
         let _ = shutdown().await?;
 
         relay_log::debug!("shutting down...");
 
         tokio::select! {
             _ = services.join() => {
-                relay_log::debug!("all services have stopped");
+                relay_log::info!("all services have stopped");
             }
             _ = shutdown() => {
                 relay_log::warn!("shutdown interrupted, data loss may occur");

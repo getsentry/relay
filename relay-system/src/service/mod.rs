@@ -1092,9 +1092,9 @@ fn run_instrumented<S: Service>(
 ) -> impl Future<Output = ()> + Send + 'static {
     let future = service.run(rx);
     async move {
-        relay_log::debug!("service_start {}", S::name());
+        relay_log::trace!("service_start {}", S::name());
         future.await;
-        relay_log::debug!("service_stop {}", S::name());
+        relay_log::trace!("service_stop {}", S::name());
     }
 }
 
