@@ -308,6 +308,14 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "default-src 'none'; report-to endpoint-csp;",
                     },
+                    "code.file.path": {
+                        "type": "string",
+                        "value": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "code.line.number": {
+                        "type": "integer",
+                        "value": 9,
+                    },
                     "http.request.header.referer": {
                         "type": "string",
                         "value": "https://example.net/test229/",
@@ -364,6 +372,14 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                     "browser.report.csp.original_policy": {
                         "type": "string",
                         "value": "default-src 'none'; report-to endpoint-csp;",
+                    },
+                    "code.file.path": {
+                        "type": "string",
+                        "value": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                    },
+                    "code.line.number": {
+                        "type": "integer",
+                        "value": 9,
                     },
                     "http.request.header.referer": {
                         "type": "string",

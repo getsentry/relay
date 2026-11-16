@@ -154,8 +154,12 @@ pub fn create_log_from_csp_body(body: Body, mut attributes: Attributes) -> OurLo
     }) = source_file
     {
         add_string_attribute!(attributes, CODE__FILE__PATH, source_file);
-        add_attribute!(attributes, CODE__COLUMN__NUMBER, column_number as i64);
-        add_attribute!(attributes, CODE__LINE__NUMBER, line_number as i64);
+        if let Some(column_number) = column_number {
+            add_attribute!(attributes, CODE__COLUMN__NUMBER, column_number as i64);
+        }
+        if let Some(line_number) = line_number {
+            add_attribute!(attributes, CODE__LINE__NUMBER, line_number as i64);
+        }
     }
 
     add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);

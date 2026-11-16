@@ -94,9 +94,15 @@ pub struct SourceFile {
     /// The URL of the resource where the violation occurred.
     pub source_file: String,
     /// The column number in source-file on which the violation occurred.
-    pub column_number: u64,
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub column_number: Option<u64>,
     /// The line number in source-file on which the violation occurred.
-    pub line_number: u64,
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub line_number: Option<u64>,
 }
 
 /// The type or URL of a resource that was blocked
