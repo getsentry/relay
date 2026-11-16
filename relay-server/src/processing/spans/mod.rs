@@ -725,9 +725,6 @@ impl Counted for ExpandedSpan {
 ///
 /// The function expects all passed items to only contain spans.
 fn outcome_count<T: TypedItem>(spans: &[T]) -> u32 {
-    // We rely here on the invariant that all items in `self.spans` are actually spans,
-    // that's why sum up `item_count`'s blindly instead of checking again for the item type
-    // or using `Item::quantities`.
     spans
         .iter()
         .map(|item| item.item_count().unwrap_or(1))

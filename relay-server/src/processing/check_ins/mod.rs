@@ -179,8 +179,6 @@ pub struct SerializedCheckIns {
     headers: EnvelopeHeaders,
 
     /// A list of check-ins waiting to be processed.
-    ///
-    /// All items contained here must be check-ins.
     check_ins: Vec<CheckInItem>,
 }
 
