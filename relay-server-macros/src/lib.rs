@@ -7,15 +7,15 @@ use quote::{format_ident, quote};
 use syn::Result;
 
 /// Generate wire tags and variant helpers from the owning serialized Item enum.
-#[proc_macro_derive(ItemVariants, attributes(item_variant))]
-pub fn item_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(TypedItems, attributes(typed_item))]
+pub fn typed_items(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     syn::parse::<syn::ItemEnum>(input)
-        .and_then(expand_item_variants)
+        .and_then(expand_typed_items)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }
 
-fn expand_item_variants(input: syn::ItemEnum) -> Result<TokenStream> {
+fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
     if input.ident != "Item" || !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
             input.ident,
@@ -71,7 +71,7 @@ impl ItemCountSupport {
     fn from_attributes(attributes: &[syn::Attribute]) -> Result<Self> {
         attributes
             .iter()
-            .filter(|attribute| attribute.path().is_ident("item_variant"))
+            .filter(|attribute| attribute.path().is_ident("typed_item"))
             .try_fold(Self::None, |support, attribute| {
                 let declared = attribute.parse_args_with(
                     syn::punctuated::Punctuated::<Self, syn::Token![,]>::parse_terminated,
@@ -260,7 +260,7 @@ mod tests {
                 Unknown(UnknownItem),
             }
         );
-        let generated = expand_item_variants(input).unwrap();
+        let generated = expand_typed_items(input).unwrap();
         syn::parse2::<syn::File>(generated.clone()).unwrap();
         let generated = generated.to_string();
         assert!(generated.contains("enum ItemType { Transaction , Profile , Unknown (String) }"));
@@ -271,12 +271,12 @@ mod tests {
 
     #[test]
     fn container_setters_are_only_generated_for_container_payloads() {
-        let generated = expand_item_variants(syn::parse_quote! {
+        let generated = expand_typed_items(syn::parse_quote! {
             pub enum Item {
                 Transaction(TransactionItem),
-                #[item_variant(item_count_header)]
+                #[typed_item(item_count_header)]
                 Profile(ProfileItem),
-                #[item_variant(container)]
+                #[typed_item(container)]
                 Log(LogItem),
             }
         })
@@ -300,11 +300,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_item_variant_attribute() {
+    fn rejects_unknown_typed_item_attribute() {
         assert_eq!(
-            expand_item_variants(syn::parse_quote! {
+            expand_typed_items(syn::parse_quote! {
                 pub enum Item {
-                    #[item_variant(unsupported_option)]
+                    #[typed_item(unsupported_option)]
                     Log(LogItem),
                 }
             })
@@ -334,10 +334,7 @@ mod tests {
                 "expected Profile(ProfileItem)",
             ),
         ] {
-            assert_eq!(
-                expand_item_variants(input).unwrap_err().to_string(),
-                expected,
-            );
+            assert_eq!(expand_typed_items(input).unwrap_err().to_string(), expected,);
         }
     }
 }

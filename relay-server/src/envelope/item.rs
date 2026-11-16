@@ -712,10 +712,10 @@ pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 /// An envelope item with an unparsed payload.
 ///
-/// `ItemVariants` generates the concrete variant structs and wire tags.
-/// `#[item_variant(item_count_header)]` enables reading the `item_count` header.
-/// `#[item_variant(container)]` additionally enables writing item containers.
-#[derive(Clone, relay_server_macros::ItemVariants)]
+/// `TypedItems` generates the concrete variant structs and wire tags.
+/// `#[typed_item(item_count_header)]` enables reading the `item_count` header.
+/// `#[typed_item(container)]` additionally enables writing item containers.
+#[derive(Clone, relay_server_macros::TypedItems)]
 pub enum Item {
     /// Event payload encoded in JSON.
     Event(EventItem),
@@ -738,19 +738,19 @@ pub enum Item {
     /// User feedback encoded as JSON.
     UserReport(UserReportItem),
     /// Session update data.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     Session(SessionItem),
     /// Aggregated session data.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     Sessions(SessionsItem),
     /// Buckets of preaggregated metrics encoded as JSON.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     MetricBuckets(MetricBucketsItem),
     /// Client internal report (eg: outcomes).
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     ClientReport(ClientReportItem),
     /// Profile event payload encoded as JSON.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     Profile(ProfileItem),
     /// Replay metadata and breadcrumb payload.
     ReplayEvent(ReplayEventItem),
@@ -759,21 +759,21 @@ pub enum Item {
     /// Replay Video data.
     ReplayVideo(ReplayVideoItem),
     /// Monitor check-in encoded as JSON.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     CheckIn(CheckInItem),
     /// A log for the log product, not internal logs.
-    #[item_variant(container)]
+    #[typed_item(container)]
     Log(LogItem),
     /// A trace metric item.
-    #[item_variant(container)]
+    #[typed_item(container)]
     TraceMetric(TraceMetricItem),
     /// A standalone span.
-    #[item_variant(container)]
+    #[typed_item(container)]
     Span(SpanItem),
     /// UserReport as an Event
     UserReportV2(UserReportV2Item),
     /// ProfileChunk is a chunk of a profiling session.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     ProfileChunk(ProfileChunkItem),
     /// Integrations are a vendor specific set of endpoints providing integrations with external
     /// systems, standards and vendors.
@@ -788,7 +788,7 @@ pub enum Item {
     /// By default, items of this type are forwarded without modification. Processing Relays and
     /// Relays explicitly configured to do so will instead drop those items. This allows
     /// forward-compatibility with new item types where we expect outdated Relays.
-    #[item_variant(item_count_header)]
+    #[typed_item(item_count_header)]
     Unknown(UnknownItem),
     // Keep `Unknown` last in the list. Add new items above `Unknown`.
 }
