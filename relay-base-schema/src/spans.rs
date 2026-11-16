@@ -91,6 +91,13 @@ pub enum SpanStatus {
     ///
     /// Prefer PermissionDenied if a user is logged in.
     Unauthenticated = 16,
+
+    /// The operation failed.
+    ///
+    /// Generic error status from the [`sentry.status`] convention.
+    ///
+    /// [`sentry.status`]: https://getsentry.github.io/sentry-conventions/attributes/sentry/#sentry-status
+    Error = 17,
 }
 
 impl SpanStatus {
@@ -114,6 +121,7 @@ impl SpanStatus {
             SpanStatus::Aborted => "aborted",
             SpanStatus::OutOfRange => "out_of_range",
             SpanStatus::DataLoss => "data_loss",
+            SpanStatus::Error => "error",
         }
     }
 }
@@ -160,6 +168,7 @@ impl FromStr for SpanStatus {
             "aborted" => SpanStatus::Aborted,
             "out_of_range" => SpanStatus::OutOfRange,
             "data_loss" => SpanStatus::DataLoss,
+            "error" => SpanStatus::Error,
             _ => return Err(ParseSpanStatusError),
         })
     }
@@ -208,6 +217,7 @@ impl FromValue for SpanStatus {
                     14 => SpanStatus::Unavailable,
                     15 => SpanStatus::DataLoss,
                     16 => SpanStatus::Unauthenticated,
+                    17 => SpanStatus::Error,
                     _ => {
                         meta.add_error(Error::expected("a trace status"));
                         meta.set_original_value(Some(value));

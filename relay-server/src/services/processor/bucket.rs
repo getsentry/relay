@@ -68,7 +68,6 @@ pub struct Addrs {
 }
 
 /// Creates a multi-threaded bucket processor.
-#[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
     pool: ServicePool,
     config: Arc<Config>,
@@ -77,8 +76,8 @@ pub fn create_service(
     cogs: Cogs,
     #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
     addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = BucketProcessor> {
+    let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
     AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
             config,
@@ -1015,7 +1014,6 @@ mod tests {
             .unwrap();
             let (upstream_relay, mut upstream_rx) = Addr::custom();
             let outcome_aggregator = Addr::dummy();
-            let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
             let pool = relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
                 .build()
                 .unwrap();
@@ -1033,7 +1031,6 @@ mod tests {
                     #[cfg(feature = "processing")]
                     store_forwarder: None,
                 },
-                metric_outcomes,
             )
             .start_detached();
 

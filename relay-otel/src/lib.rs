@@ -9,6 +9,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod descriptors;
 use opentelemetry_proto::tonic::common::v1::ArrayValue as OtelArrayValue;
 use opentelemetry_proto::tonic::common::v1::KeyValueList;
 use opentelemetry_proto::tonic::common::v1::any_value;
@@ -37,7 +38,9 @@ pub fn otel_kvlist_to_string(kvlist: KeyValueList) -> Option<String> {
             OtelValue::BytesValue(bytes) => {
                 String::from_utf8(bytes).ok().map(serde_json::Value::String)
             }
-            OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
+            OtelValue::StringValueStrindex(_)
+            | OtelValue::ArrayValue(_)
+            | OtelValue::KvlistValue(_) => None,
         }) {
             json_obj.insert(kv.key, val);
         }
@@ -59,7 +62,9 @@ pub fn otel_array_to_sentry_array(array: OtelArrayValue) -> Vec<Annotated<Value>
                 OtelValue::IntValue(i) => Value::I64(i),
                 OtelValue::DoubleValue(d) => Value::F64(d),
                 OtelValue::BytesValue(bytes) => Value::String(String::from_utf8(bytes).ok()?),
-                OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
+                OtelValue::ArrayValue(_)
+                | OtelValue::KvlistValue(_)
+                | OtelValue::StringValueStrindex(_) => return None,
             })
         })
         .map(Annotated::new)
@@ -92,6 +97,7 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
             let json = otel_kvlist_to_string(kvlist)?;
             (AttributeType::String, Value::String(json))
         }
+        OtelValue::StringValueStrindex(_) => return None,
     };
 
     Some(Attribute::new(ty, value))
@@ -250,6 +256,7 @@ mod tests {
                 value: Some(AnyValue {
                     value: Some(any_value::Value::StringValue("value1".to_owned())),
                 }),
+                key_strindex: 0,
             }],
         };
         let otel_value = OtelValue::KvlistValue(kvlist);
@@ -285,6 +292,7 @@ mod tests {
                     value: Some(AnyValue {
                         value: Some(any_value::Value::IntValue(42)),
                     }),
+                    key_strindex: 0,
                 },
                 // Clashes with `scope.name` and should be overwritten.
                 KeyValue {
@@ -292,6 +300,7 @@ mod tests {
                     value: Some(AnyValue {
                         value: Some(any_value::Value::StringValue("oops".to_owned())),
                     }),
+                    key_strindex: 0,
                 },
             ],
             dropped_attributes_count: 12,

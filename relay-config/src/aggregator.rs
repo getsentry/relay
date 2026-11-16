@@ -24,7 +24,7 @@ pub struct AggregatorServiceConfig {
 
     /// The length the tag value is allowed to be.
     ///
-    /// Defaults to `200` chars.
+    /// Defaults to `256` chars.
     pub max_tag_value_length: usize,
 
     /// The approximate maximum number of bytes submitted within one flush cycle.
@@ -56,7 +56,7 @@ impl Default for AggregatorServiceConfig {
             aggregator: AggregatorConfig::default(),
             max_name_length: 200,
             max_tag_key_length: 200,
-            max_tag_value_length: 200,
+            max_tag_value_length: 256,
             max_flush_bytes: 5_000_000, // 5 MB
         }
     }

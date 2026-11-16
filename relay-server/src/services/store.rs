@@ -4,9 +4,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -36,8 +34,8 @@ use relay_metrics::{
 use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{FromMessage, Interface, NoResponse, Service};
-use relay_threading::AsyncPool;
+use relay_system::{FromMessage, Interface, MessageHandler, NoResponse, Service};
+use relay_threading::{AsyncPoolService, ServicePool};
 
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
@@ -93,38 +91,31 @@ impl OutcomeError for StoreError {
 /// Selects Relay's overrides in the Kafka config blob.
 const KAFKA_CONFIG_APP: &str = "relay";
 
-struct Producer {
-    client: Arc<KafkaClient>,
-}
+/// Creates a shared kafka client from the given config.
+pub fn create_kafka_client(config: &ConfigSnapshot) -> anyhow::Result<Arc<KafkaClient>> {
+    let mut client_builder = KafkaClient::builder();
 
-impl Producer {
-    pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder();
+    let blob = config.kafka_config_blob()?;
+    let source = KafkaConfigSource {
+        blob: &blob,
+        app: KAFKA_CONFIG_APP,
+        jitter: config.reloading_producer_jitter(),
+    };
 
-        let blob = config.kafka_config_blob()?;
-        let source = KafkaConfigSource {
-            blob: &blob,
-            app: KAFKA_CONFIG_APP,
-            jitter: config.reloading_producer_jitter(),
-        };
+    for topic in KafkaTopic::iter() {
+        let kafka_configs = config.kafka_configs(*topic)?;
 
-        for topic in KafkaTopic::iter() {
-            let kafka_configs = config.kafka_configs(*topic)?;
-
-            client_builder = client_builder
-                .add_kafka_topic_config(
-                    *topic,
-                    &kafka_configs,
-                    config.kafka_validate_topics(),
-                    &source,
-                )
-                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
-        }
-
-        Ok(Self {
-            client: Arc::new(client_builder.build()),
-        })
+        client_builder = client_builder
+            .add_kafka_topic_config(
+                *topic,
+                &kafka_configs,
+                config.kafka_validate_topics(),
+                &source,
+            )
+            .map_err(|e| ServiceError::Kafka(e.to_string()))?;
     }
+
+    Ok(Arc::new(client_builder.build()))
 }
 
 /// Publishes an [`Event`] and its attachments to Kafka.
@@ -323,9 +314,6 @@ impl Counted for StoreCheckIn {
     }
 }
 
-/// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
-pub type StoreServicePool = AsyncPool<StoreTask>;
-
 /// Service interface for storing items in Kafka.
 #[derive(Debug)]
 pub enum Store {
@@ -451,70 +439,36 @@ impl FromMessage<Managed<StoreCheckIn>> for Store {
     }
 }
 
-/// Service implementing the [`Store`] interface.
-pub struct StoreService {
-    pool: StoreServicePool,
+/// Creates a multi-threaded service for storing items in Kafka.
+pub fn create_service(
+    pool: ServicePool,
+    kafka_client: Arc<KafkaClient>,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     metric_outcomes: MetricOutcomes,
-    producer: Producer,
+) -> impl Service<Interface = Store> {
+    AsyncPoolService::new(
+        Arc::new(StoreService {
+            config,
+            global_config,
+            metric_outcomes,
+            kafka_client,
+            last_span_report: Instant::now().into(),
+        }),
+        pool,
+    )
+}
+
+/// Message handler implementing the [`Store`] interface.
+struct StoreService {
+    config: Arc<Config>,
+    global_config: GlobalConfigHandle,
+    metric_outcomes: MetricOutcomes,
+    kafka_client: Arc<KafkaClient>,
     last_span_report: Mutex<Instant>, // used to debounce expensive instrumentation.
 }
 
 impl StoreService {
-    pub fn create(
-        pool: StoreServicePool,
-        config: Arc<Config>,
-        global_config: GlobalConfigHandle,
-        metric_outcomes: MetricOutcomes,
-    ) -> anyhow::Result<Self> {
-        let producer = Producer::create(&config.current())?;
-        Ok(Self {
-            pool,
-            config,
-            global_config,
-            metric_outcomes,
-            producer,
-            last_span_report: Instant::now().into(),
-        })
-    }
-
-    /// The Kafka client this service produces through.
-    ///
-    /// Handed to [`ConfigReloadService`](crate::services::config_reload::ConfigReloadService)
-    /// so a reloaded config can reach topics whose client can be replaced.
-    pub fn kafka_client(&self) -> Arc<KafkaClient> {
-        Arc::clone(&self.producer.client)
-    }
-
-    fn handle_message(&self, message: Store) {
-        let ty = message.variant();
-        relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
-            let result = match message {
-                Store::Event(message) => self.handle_store_event(message),
-                Store::Metrics(message) => {
-                    self.handle_store_metrics(message);
-                    Ok(())
-                }
-                Store::TraceItem(message) => self.handle_store_trace_item(message),
-                Store::Span(message) => self.handle_store_span(message),
-                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
-                Store::Replay(message) => self.handle_store_replay(message),
-                Store::Attachment(message) => self.handle_store_attachment(message),
-                Store::UserReport(message) => self.handle_user_report(message),
-                Store::Profile(message) => self.handle_profile(message),
-                Store::CheckIn(message) => self.handle_check_in(message),
-            };
-            if let Err(error) = result {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.message = ty,
-                    "failed to store message"
-                );
-            }
-        })
-    }
-
     fn handle_store_event(
         &self,
         message: Managed<Box<StoreEvent>>,
@@ -964,7 +918,7 @@ impl StoreService {
             message.variant()
         );
 
-        let topic_name = self.producer.client.send_message(topic, &message)?;
+        let topic_name = self.kafka_client.send_message(topic, &message)?;
 
         match &message {
             KafkaMessage::Metric {
@@ -1270,42 +1224,35 @@ impl StoreService {
     }
 }
 
-impl Service for StoreService {
+impl MessageHandler for StoreService {
     type Interface = Store;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let this = Arc::new(self);
-
-        relay_log::info!("store forwarder started");
-
-        while let Some(message) = rx.recv().await {
-            let task = StoreTask {
-                service: Arc::clone(&this),
-                message: Some(message),
+    async fn handle_message(&self, message: Store) {
+        let ty = message.variant();
+        relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
+            let result = match message {
+                Store::Event(message) => self.handle_store_event(message),
+                Store::Metrics(message) => {
+                    self.handle_store_metrics(message);
+                    Ok(())
+                }
+                Store::TraceItem(message) => self.handle_store_trace_item(message),
+                Store::Span(message) => self.handle_store_span(message),
+                Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
+                Store::Replay(message) => self.handle_store_replay(message),
+                Store::Attachment(message) => self.handle_store_attachment(message),
+                Store::UserReport(message) => self.handle_user_report(message),
+                Store::Profile(message) => self.handle_profile(message),
+                Store::CheckIn(message) => self.handle_check_in(message),
             };
-            this.pool.spawn_async(task).await;
-        }
-
-        relay_log::info!("store forwarder stopped");
-    }
-}
-
-/// Task executed by [`StoreService`].
-pub struct StoreTask {
-    service: Arc<StoreService>,
-    message: Option<Store>,
-}
-
-impl Future for StoreTask {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        let message = self
-            .message
-            .take()
-            .expect("StoreTask polled after completion");
-        let () = relay_log::with_scope(|_| {}, || self.service.handle_message(message));
-        task::Poll::Ready(())
+            if let Err(error) = result {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.message = ty,
+                    "failed to store message"
+                );
+            }
+        })
     }
 }
 

@@ -1,6 +1,6 @@
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
@@ -33,9 +33,18 @@ impl SentryError for Generic {
             event.ty.set_value(None);
         }
 
+        let mut attachments: Vec<Item> = utils::take_items_of_type(items, ItemType::Attachment);
+        // Separate the first flamegraph from the event's attachments and drop additional graphs.
+        let flamegraph = attachments
+            .extract_if(.., |item| {
+                item.attachment_type() == Some(AttachmentType::Flamegraph)
+            })
+            .fold(None, |first, item| first.or(Some(item)));
+
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
+            attachments,
+            flamegraph,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             intermediates: vec![],
             error: Self,

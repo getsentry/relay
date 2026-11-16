@@ -33,6 +33,11 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
+    /// Enable Heroku log drain ingestion via the `/integration/heroku/logs` endpoint.
+    ///
+    /// Serialized as `organizations:relay-heroku-log-drain-endpoint`.
+    #[serde(rename = "organizations:relay-heroku-log-drain-endpoint")]
+    HerokuLogDrainEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -102,6 +107,9 @@ pub enum Feature {
     /// Enable Nintendo event rewrite.
     #[serde(rename = "projects:relay-nintendo-event-rewrite")]
     NintendoEventRewrite,
+    /// Add a stack trace from the Unreal crash context to crashes without a minidump.
+    #[serde(rename = "projects:relay-unreal-crash-context-stacktrace")]
+    UnrealCrashContextStacktrace,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,

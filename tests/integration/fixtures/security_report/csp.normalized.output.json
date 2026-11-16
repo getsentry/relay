@@ -11,8 +11,7 @@
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "environment": "production",
   "user": {
-    "ip_address": "127.0.0.1",
-    "sentry_user": "ip:127.0.0.1"
+    "ip_address": "127.0.0.1"
   },
   "contexts": {
     "browser": {

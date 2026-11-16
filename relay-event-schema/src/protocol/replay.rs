@@ -280,9 +280,6 @@ impl Getter for Replay {
             "sdk.name" => self.sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.sdk.value()?.version.as_str()?.into(),
 
-            // Computed fields (after normalization).
-            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
-
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
                 self.context::<AppContext>()?.in_foreground.value()?.into()

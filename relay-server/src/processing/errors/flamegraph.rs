@@ -1,0 +1,1084 @@
+//! Enrichment of exceptions with a representative path from a flame graph attachment.
+
+use std::collections::{BTreeMap, HashMap};
+
+use relay_event_schema::protocol::{
+    Addr, DebugId, DebugImage, DebugMeta, Event, Frame, InstructionAddrAdjustment,
+    NativeDebugImage, RawStacktrace, Stacktrace,
+};
+use relay_protocol::{Annotated, Array, DeserializableAnnotated, FromValue, Value};
+
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::RecordKeeper;
+use crate::services::processor::ProcessingError;
+
+/// Relative frame addresses index the retained images, independently of existing event images.
+pub(super) type Culprit = (RawStacktrace, Option<DebugMeta>);
+
+pub(super) fn needs_enrichment(event: &Event) -> bool {
+    event
+        .exceptions
+        .value()
+        .and_then(|exceptions| exceptions.values.value())
+        .into_iter()
+        .flatten()
+        .filter_map(|exception| exception.value())
+        .any(|exception| {
+            exception.stacktrace.value().is_none() && exception.raw_stacktrace.value().is_none()
+        })
+}
+
+/// Fill a missing exception stack without changing the attachment.
+///
+/// Existing stacks remain authoritative, including when a processing Relay receives an event
+/// already enriched by another Relay. A flame graph attachment opts into this enrichment.
+pub fn enrich(event: &mut Event, culprit: Option<Culprit>) -> bool {
+    let Some(exception) = event
+        .exceptions
+        .value_mut()
+        .as_mut()
+        .and_then(|exceptions| exceptions.values.value_mut().as_mut())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.value_mut().as_mut())
+        .find(|exception| {
+            exception.stacktrace.value().is_none() && exception.raw_stacktrace.value().is_none()
+        })
+    else {
+        return false;
+    };
+
+    let Some((mut stacktrace, debug_meta)) = culprit else {
+        return false;
+    };
+    if let Some(debug_meta) = debug_meta {
+        let images = event
+            .debug_meta
+            .get_or_insert_with(DebugMeta::default)
+            .images
+            .get_or_insert_with(Vec::new);
+        for frame in stacktrace
+            .frames
+            .get_or_insert_with(Vec::new)
+            .iter_mut()
+            .filter_map(|frame| frame.value_mut().as_mut())
+        {
+            if let Some(index) = frame
+                .addr_mode
+                .as_str()
+                .and_then(|mode| mode.strip_prefix("rel:"))
+                .and_then(|index| index.parse::<usize>().ok())
+            {
+                frame.addr_mode = Annotated::new(format!("rel:{}", images.len() + index));
+            }
+        }
+        images.extend(debug_meta.images.into_value().unwrap_or_default());
+    }
+    exception.stacktrace = Annotated::new(Stacktrace::from(stacktrace));
+    true
+}
+
+/// Validate and normalize the flame graph on every Relay and optionally extract its culprit.
+pub(super) fn process_flamegraph(
+    attachment: &mut Option<Item>,
+    needs_culprit: bool,
+    max_event_size: usize,
+    records: &mut RecordKeeper<'_>,
+) -> Option<Culprit> {
+    records.lenient(relay_quotas::DataCategory::Attachment);
+    let item = attachment.as_mut()?;
+    match validate_and_extract(item, needs_culprit, max_event_size) {
+        Ok(culprit) => culprit,
+        Err(error) => {
+            records.reject_err(error, attachment.take());
+            None
+        }
+    }
+}
+
+fn validate_and_extract(
+    item: &mut Item,
+    needs_culprit: bool,
+    max_event_size: usize,
+) -> Result<Option<Culprit>, ProcessingError> {
+    if item.ty() != &ItemType::Attachment
+        || item.filename() != Some("flamegraph.json")
+        || item.content_type() != Some(ContentType::Json)
+    {
+        return Err(ProcessingError::InvalidFlamegraph);
+    }
+    let payload = item.payload();
+    let graph = relay_profiling::flamegraph::parse(&payload)
+        .map_err(|_| ProcessingError::InvalidFlamegraph)?;
+    let normalized = serde_json::to_vec(&graph).map_err(|_| ProcessingError::InvalidFlamegraph)?;
+    let culprit = needs_culprit
+        .then(|| extract(&graph, max_event_size))
+        .flatten();
+    item.set_payload_without_content_type(normalized);
+    Ok(culprit)
+}
+
+pub(super) fn extract(
+    graph: &relay_profiling::flamegraph::Graph<'_>,
+    max_event_size: usize,
+) -> Option<Culprit> {
+    let culprit = graph.identify_culprit().ok()?;
+    let source_frames = culprit.frames;
+    // Recursion can reference one large frame many times. Bound the derived event before
+    // materializing frames, rather than amplifying a small attachment ahead of normalization.
+    let remaining = source_frames
+        .iter()
+        .try_fold(max_event_size, |remaining, raw| {
+            remaining.checked_sub(raw.get().len())
+        })?;
+    let mut frames = source_frames
+        .into_iter()
+        .map(|raw| {
+            let mut frame = Annotated::<Value>::from_json(raw.get())?;
+            if let Some(Value::Object(fields)) = frame.value_mut() {
+                for (alias, canonical) in [
+                    ("name", "function"),
+                    ("file", "filename"),
+                    ("line", "lineno"),
+                    ("column", "colno"),
+                ] {
+                    if let Some(value) = fields.remove(alias) {
+                        fields.insert(canonical.to_owned(), value);
+                    }
+                }
+            }
+            Ok(Frame::from_value(frame))
+        })
+        .collect::<Result<Array<Frame>, serde_json::Error>>()
+        .ok()?;
+    let source_debug_meta = graph
+        .debug_meta()
+        .map(|raw| serde_json::from_str::<DeserializableAnnotated<DebugMeta>>(raw.get()))
+        .transpose()
+        .ok()?
+        .and_then(|meta| meta.0.into_value());
+    let mut debug_meta = Annotated::empty();
+    if let Some(source) = source_debug_meta {
+        merge_debug_images(&mut debug_meta, source, &mut frames);
+        remaining.checked_sub(debug_meta.to_json().ok()?.len())?;
+    }
+    let retained_len = frames.len();
+    let mut frames = Annotated::new(frames);
+    if culprit.original_len > retained_len {
+        frames
+            .meta_mut()
+            .set_original_length(Some(culprit.original_len));
+    }
+    Some((
+        RawStacktrace {
+            frames,
+            // Culprit selection can reduce `main -> caller -> {leaf_a, leaf_b}` to `main -> caller`.
+            // Under profiling's raw native address convention, caller's address points after
+            // the call. Default symbolication treats the new top frame as the sampled instruction
+            // and skips return-address adjustment, potentially resolving to the wrong source line.
+            // If every sample continues into an omitted callee, all retained frames are callers:
+            // adjust the new top frame too. If samples end there, keep the default heuristic;
+            // an endpoint used as both a caller and a sampled instruction remains ambiguous.
+            instruction_addr_adjustment: Annotated::from(
+                culprit
+                    .ends_at_caller
+                    .then_some(InstructionAddrAdjustment::All),
+            ),
+            ..Default::default()
+        },
+        debug_meta.into_value(),
+    ))
+}
+
+fn merge_debug_images(
+    target: &mut Annotated<DebugMeta>,
+    source: DebugMeta,
+    frames: &mut Array<Frame>,
+) {
+    let source_images = source.images.into_value().unwrap_or_default();
+    let images = target
+        .get_or_insert_with(DebugMeta::default)
+        .images
+        .get_or_insert_with(Vec::new);
+    let mut image_indices = HashMap::new();
+    let mut images_by_address = BTreeMap::new();
+    let mut images_by_debug_id = HashMap::new();
+    for (index, image) in source_images.iter().enumerate() {
+        let Some(image) = native_image(image) else {
+            continue;
+        };
+        if let Some(address) = image.image_addr.value() {
+            images_by_address.insert(address.0, (index, image));
+        }
+        if let Some(debug_id) = image.debug_id.value() {
+            images_by_debug_id
+                .entry(debug_id.to_string())
+                .or_insert(index);
+        }
+    }
+
+    for frame in frames
+        .iter_mut()
+        .filter_map(|frame| frame.value_mut().as_mut())
+    {
+        let Some((source_index, address)) =
+            referenced_image(frame, &images_by_address, &images_by_debug_id)
+        else {
+            continue;
+        };
+        let index = *image_indices.entry(source_index).or_insert_with(|| {
+            let index = images.len();
+            images.push(source_images[source_index].clone());
+            index
+        });
+        // Keep only images needed by the selected path. Explicit relative references also avoid
+        // resolving against current-run images at the same addresses as an earlier diagnostic.
+        frame.instruction_addr = Annotated::new(Addr(address));
+        frame.addr_mode = Annotated::new(format!("rel:{index}"));
+    }
+}
+
+fn referenced_image(
+    frame: &Frame,
+    images_by_address: &BTreeMap<u64, (usize, &NativeDebugImage)>,
+    images_by_debug_id: &HashMap<String, usize>,
+) -> Option<(usize, u64)> {
+    let address = frame.instruction_addr.value()?.0;
+    if let Some(reference) = frame
+        .addr_mode
+        .as_str()
+        .and_then(|mode| mode.strip_prefix("rel:"))
+    {
+        let index = if let Ok(index) = reference.parse::<usize>() {
+            index
+        } else {
+            let debug_id: DebugId = reference.parse().ok()?;
+            *images_by_debug_id.get(&debug_id.to_string())?
+        };
+        return Some((index, address));
+    }
+    // Like Symbolicator, missing or zero image sizes extend to the next loaded image.
+    let (start, (index, image)) = images_by_address.range(..=address).next_back()?;
+    let relative = address - start;
+    image
+        .image_size
+        .value()
+        .is_none_or(|size| *size == 0 || relative < *size)
+        .then_some((*index, relative))
+}
+
+fn native_image(image: &Annotated<DebugImage>) -> Option<&NativeDebugImage> {
+    match image.value()? {
+        DebugImage::Symbolic(image)
+        | DebugImage::MachO(image)
+        | DebugImage::Elf(image)
+        | DebugImage::Pe(image)
+        | DebugImage::PeDotnet(image)
+        | DebugImage::Wasm(image) => Some(image),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_protocol::{Annotated, SerializableAnnotated};
+    use serde_json::{Value, json};
+
+    use super::*;
+    use crate::envelope::{AttachmentType, ContentType, ItemType};
+    use crate::managed::Managed;
+
+    fn validate(
+        item: &mut Item,
+        config: &relay_config::ConfigSnapshot,
+    ) -> Result<(), ProcessingError> {
+        validate_and_extract(item, false, config.max_event_size()).map(|_| ())
+    }
+
+    fn flamegraph_item(payload: serde_json::Value) -> Item {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        item.set_filename("flamegraph.json");
+        item.set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
+        item
+    }
+
+    fn flamegraph_payload() -> serde_json::Value {
+        serde_json::json!({
+            "version": "1",
+            "platform": "python",
+            "frames": [{"function": "main"}],
+            "nodes": [{"frame_id": 0, "sample_count": 10, "children": []}],
+            "trees": [{"roots": [0]}]
+        })
+    }
+
+    #[test]
+    fn test_flamegraph_without_length_header() {
+        let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
+        let headers = r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json","content_type":"application/json"}"#;
+        let (item, _) = Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+        let (mut attachment, _handle) = Managed::for_test(Some(item)).build();
+
+        attachment.modify(|item, records| {
+            process_flamegraph(item, false, usize::MAX, records);
+        });
+
+        assert_eq!(
+            attachment.as_ref().as_ref().unwrap().payload(),
+            relay_profiling::flamegraph::validate(payload.as_bytes()).unwrap()
+        );
+        attachment.accept(|_| ());
+    }
+
+    #[test]
+    fn test_flamegraph_invalid_payloads() {
+        use serde_json::json;
+        let config = relay_config::Config::default();
+        let cases = [
+            ("/version", json!("2")),
+            ("/version", json!(1)),
+            ("/platform", json!("unknown")),
+            ("/frames", json!([])),
+            ("/frames", json!([{}])),
+            ("/frames", json!([{"function": 1}])),
+            ("/frames", json!([{"instruction_addr": "not an address"}])),
+            ("/nodes", json!([])),
+            ("/trees", json!([])),
+            ("/trees/0/roots", json!([])),
+            ("/trees/0/roots/0", json!(1)),
+            ("/nodes/0/frame_id", json!(1)),
+            ("/nodes/0/frame_id", json!(-1)),
+            ("/nodes/0/frame_id", json!(0.0)),
+            ("/nodes/0/sample_count", json!(0)),
+            ("/nodes/0/sample_count", json!(-1)),
+            ("/nodes/0/sample_count", json!(1.5)),
+            ("/nodes/0/sample_count", json!(9007199254740992u64)),
+            (
+                "/nodes",
+                json!([
+                    {"frame_id": 0, "sample_count": 10, "children": [1]},
+                    {"frame_id": 0, "sample_count": 11}
+                ]),
+            ),
+            (
+                "/nodes",
+                json!([
+                    {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
+                    {"frame_id": 0, "sample_count": 6},
+                    {"frame_id": 0, "sample_count": 5}
+                ]),
+            ),
+            ("/nodes/0/children", json!(null)),
+            ("/nodes/0/children", json!([1])),
+            ("/trees/0", json!({"thread_id": 42, "roots": [0]})),
+            (
+                "/trees/0",
+                json!({"thread_attributed": "true", "roots": [0]}),
+            ),
+            ("/platform", json!("cocoa")),
+        ];
+        for (path, value) in cases {
+            let mut payload = flamegraph_payload();
+            *payload.pointer_mut(path).unwrap() = value;
+            assert!(
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
+                "{path}"
+            );
+        }
+        for field in ["version", "platform", "frames", "nodes", "trees"] {
+            let mut payload = flamegraph_payload();
+            payload.as_object_mut().unwrap().remove(field);
+            assert!(
+                validate(&mut flamegraph_item(payload), &config.current()).is_err(),
+                "{field}"
+            );
+        }
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_payload(ContentType::Json, "not json");
+        assert!(validate(&mut item, &config.current()).is_err());
+    }
+
+    #[test]
+    fn test_flamegraph_invalid_headers() {
+        let config = relay_config::Config::default();
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_filename("other.json");
+        assert!(validate(&mut item, &config.current()).is_err());
+        let mut item = flamegraph_item(flamegraph_payload());
+        item.set_content_type(ContentType::Text);
+        assert!(validate(&mut item, &config.current()).is_err());
+        let payload = serde_json::to_string(&flamegraph_payload()).unwrap();
+        for headers in [
+            r#"{"type":"attachment","attachment_type":"event.flamegraph","content_type":"application/json"}"#,
+            r#"{"type":"attachment","attachment_type":"event.flamegraph","filename":"flamegraph.json"}"#,
+        ] {
+            let (mut item, _) =
+                Item::parse(bytes::Bytes::from(format!("{headers}\n{payload}\n"))).unwrap();
+            assert!(validate(&mut item, &config.current()).is_err());
+        }
+    }
+
+    #[test]
+    fn test_flamegraph_removes_unknown_fields() {
+        let config = relay_config::Config::default();
+        let mut payload = flamegraph_payload();
+        payload["future"] = serde_json::json!({"keep": "this"});
+        payload["nodes"] = serde_json::json!([
+            {"frame_id": 0, "sample_count": 10, "children": [1, 2]},
+            {"frame_id": 0, "sample_count": 6, "future": true},
+            {"frame_id": 0, "sample_count": 4}
+        ]);
+        let mut expected = payload.clone();
+        let mut item = flamegraph_item(payload);
+        validate(&mut item, &config.current()).unwrap();
+        let reparsed: serde_json::Value = serde_json::from_slice(&item.payload()).unwrap();
+
+        let expected = expected.as_object_mut().unwrap();
+        expected.remove("future");
+        expected["nodes"][1]
+            .as_object_mut()
+            .unwrap()
+            .remove("future");
+
+        assert_eq!(&reparsed.as_object().unwrap(), &expected);
+    }
+
+    #[test]
+    fn test_flamegraph_native_inputs_and_frame_budget() {
+        use serde_json::json;
+        let config = relay_config::Config::default();
+        let mut payload = flamegraph_payload();
+        payload["platform"] = json!("cocoa");
+        payload["debug_meta"] = json!({"images": [{
+            "type": "macho", "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+            "code_file": "ExampleApp", "image_addr": "0x100000000",
+            "image_size": 8192, "arch": "arm64", "future": true
+        }]});
+        let frame = json!({
+            "instruction_addr": "0x100001000", "function": "main", "package": "ExampleApp",
+            "filename": "Sources/Main.swift", "lineno": 42, "future": "preserved"
+        });
+        payload["frames"] = json!(vec![frame; 2501]);
+        payload["nodes"][0]["frame_id"] = json!(2500);
+        payload["nodes"][0]["sample_count"] = json!(9007199254740991u64);
+        payload["trees"][0]["thread_id"] = json!("42");
+        payload["trees"][0]["thread_attributed"] = json!(true);
+        for mode in ["abs", "rel:0", "rel:84a04d24-0e60-3810-a8c0-90a65e2df61a"] {
+            payload["frames"][0]["addr_mode"] = json!(mode);
+            let mut item = flamegraph_item(payload.clone());
+            assert!(validate(&mut item, &config.current()).is_ok());
+        }
+        for mode in ["bogus", "rel:1", "rel:invalid"] {
+            payload["frames"][0]["addr_mode"] = json!(mode);
+            assert!(validate(&mut flamegraph_item(payload.clone()), &config.current()).is_err());
+        }
+        payload["frames"][0]["addr_mode"] = json!("abs");
+        payload["debug_meta"] = json!({"images": [{"type": "macho", "debug_id": "invalid"}]});
+        assert!(validate(&mut flamegraph_item(payload), &config.current()).is_err());
+    }
+
+    fn extract_attachments(attachments: &[Item], max_event_size: usize) -> Option<Culprit> {
+        attachments.iter().find_map(|item| {
+            validate_and_extract(&mut item.clone(), true, max_event_size)
+                .ok()
+                .flatten()
+        })
+    }
+
+    fn enrich(event: &mut Event, attachments: &[Item]) -> bool {
+        super::enrich(
+            event,
+            extract_attachments(
+                attachments,
+                relay_config::Config::default().current().max_event_size(),
+            ),
+        )
+    }
+
+    fn event() -> Annotated<Event> {
+        Annotated::from_json(
+            r#"{"platform":"cocoa","exception":{"values":[{
+                "type":"MXHangDiagnostic","value":"hangDuration:2s",
+                "mechanism":{"type":"mx_hang_diagnostic","handled":true,"synthetic":true}
+            }]}}"#,
+        )
+        .unwrap()
+    }
+
+    fn graph() -> Value {
+        json!({
+            "version": "1", "platform": "cocoa",
+            "frames": [
+                {"instruction_addr": "0x1010", "in_app": false},
+                {"instruction_addr": "0x1020", "in_app": true, "addr_mode": "abs",
+                 "package": "SampleApp", "function": "work", "filename": "App.swift", "lineno": 42},
+                {"instruction_addr": "0x1030", "in_app": false},
+                {"instruction_addr": "0x1040", "in_app": false}
+            ],
+            "debug_meta": {"images": [{
+                "type": "macho", "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "code_file": "SampleApp", "image_addr": "0x1000", "image_size": 4096,
+                "image_vmaddr": "0x100000000", "arch": "arm64", "code_id": "abcdef"
+            }]},
+            "nodes": [
+                {"frame_id": 0, "sample_count": 100, "children": [1]},
+                {"frame_id": 1, "sample_count": 100, "children": [2, 3]},
+                {"frame_id": 2, "sample_count": 60},
+                {"frame_id": 3, "sample_count": 40}
+            ],
+            "trees": [{"roots": [0]}]
+        })
+    }
+
+    fn attachment(graph: Value) -> Item {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_attachment_type(AttachmentType::Flamegraph);
+        item.set_filename("flamegraph.json");
+        item.set_payload(ContentType::Json, serde_json::to_vec(&graph).unwrap());
+        item
+    }
+
+    #[test]
+    fn test_flamegraph_processing_drops_invalid_attachments_and_preserves_valid_ones() {
+        for needs_culprit in [false, true] {
+            for valid in [false, true] {
+                let mut item = attachment(graph());
+                if !valid {
+                    item.set_filename("other.json");
+                }
+                let rejected_size = item.attachment_body_size() as u64;
+                let (mut attachment, mut handle) = Managed::for_test(Some(item)).build();
+                let mut culprit = None;
+                attachment.modify(|item, records| {
+                    culprit = process_flamegraph(item, needs_culprit, usize::MAX, records);
+                });
+                assert_eq!(culprit.is_some(), valid && needs_culprit);
+                assert_eq!(attachment.is_some(), valid);
+                if let Some(item) = attachment.as_ref() {
+                    assert!(relay_profiling::flamegraph::parse(&item.payload()).is_ok());
+                }
+                attachment.accept(|_| ());
+                if !valid {
+                    let outcome = crate::services::outcome::Outcome::Invalid(
+                        crate::services::outcome::DiscardReason::InvalidFlamegraph,
+                    );
+                    handle.assert_outcome(
+                        &outcome,
+                        relay_quotas::DataCategory::Attachment,
+                        rejected_size,
+                    );
+                    handle.assert_outcome(&outcome, relay_quotas::DataCategory::AttachmentItem, 1);
+                }
+                handle.assert_no_outcomes();
+            }
+        }
+    }
+
+    #[test]
+    fn test_flamegraph_rejects_invalid_headers_before_enrichment() {
+        for invalid_filename in [true, false] {
+            let mut item = attachment(graph());
+            if invalid_filename {
+                item.set_filename("other.json");
+            } else {
+                item.set_content_type(ContentType::Text);
+            }
+            assert!(extract_attachments(&[item], usize::MAX).is_none());
+        }
+    }
+
+    #[test]
+    fn test_flamegraph_enriches_hang_without_rewriting_attachment() {
+        let mut event = event();
+        let attachments = [attachment(graph())];
+        let original = attachments[0].payload();
+
+        assert!(enrich(event.value_mut().as_mut().unwrap(), &attachments));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ],
+                  "instruction_addr_adjustment": "all"
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
+        assert_eq!(attachments[0].payload(), original);
+    }
+
+    #[test]
+    fn test_flamegraph_preserves_profiling_frame_aliases() {
+        let payload = json!({
+            "version": "1", "platform": "javascript",
+            "frames": [{
+                "name": "work", "file": "app.js", "line": 42, "column": 7,
+                "in_app": true, "pre_context": ["before"], "context_line": "work()",
+                "post_context": ["after"], "vars": {"state": "running"}
+            }],
+            "nodes": [{"frame_id": 0, "sample_count": 1}],
+            "trees": [{"roots": [0]}]
+        });
+        let (stacktrace, _) = extract_attachments(&[attachment(payload)], 100_000).unwrap();
+        let stacktrace = Annotated::new(stacktrace);
+        insta::assert_json_snapshot!(SerializableAnnotated(&stacktrace), @r#"
+        {
+          "frames": [
+            {
+              "function": "work",
+              "filename": "app.js",
+              "lineno": 42,
+              "colno": 7,
+              "pre_context": [
+                "before"
+              ],
+              "context_line": "work()",
+              "post_context": [
+                "after"
+              ],
+              "in_app": true,
+              "vars": {
+                "state": "running"
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_flamegraph_preserves_endpoint_address_adjustment() {
+        for (samples, children, endpoint, adjustment) in [
+            // The caller wins with 100 samples; 50 + 50 continue into leaves, so adjust it.
+            ([50, 50], [2, 3], "0x20", Some("all")),
+            // The 80-sample leaf wins; preserve ordinary sampled-instruction handling.
+            ([80, 20], [2, 3], "0x30", None),
+            // The caller wins, but 20 of its 100 samples end there; keep the default heuristic.
+            ([40, 40], [2, 3], "0x20", None),
+            // Both references name the same 50 samples, not 100 samples continuing into callees.
+            ([50, 50], [2, 2], "0x20", None),
+        ] {
+            let mut payload = graph();
+            for frame in payload["frames"].as_array_mut().unwrap() {
+                frame["in_app"] = json!(true);
+            }
+            payload["nodes"][2]["sample_count"] = json!(samples[0]);
+            payload["nodes"][3]["sample_count"] = json!(samples[1]);
+            payload["nodes"][1]["children"] = json!(children);
+            let mut event = event();
+            assert!(enrich(
+                event.value_mut().as_mut().unwrap(),
+                &[attachment(payload)]
+            ));
+
+            let event: Value = serde_json::from_str(&event.to_json().unwrap()).unwrap();
+            let stack = &event["exception"]["values"][0]["stacktrace"];
+            let frames = stack["frames"].as_array().unwrap();
+            assert_eq!(frames.last().unwrap()["instruction_addr"], endpoint);
+            assert_eq!(stack["instruction_addr_adjustment"].as_str(), adjustment);
+        }
+    }
+
+    #[test]
+    fn test_flamegraph_enriches_without_metrickit_mechanism() {
+        for mechanism in [json!({"type": "generic"}), Value::Null] {
+            let mut value: Value = serde_json::from_str(&event().to_json().unwrap()).unwrap();
+            value["exception"]["values"][0]["mechanism"] = mechanism;
+            let mut event = Annotated::<Event>::from_json(&value.to_string()).unwrap();
+            assert!(enrich(
+                event.value_mut().as_mut().unwrap(),
+                &[attachment(graph())]
+            ));
+        }
+    }
+
+    #[test]
+    fn test_flamegraph_preserves_existing_stack() {
+        let mut event = event();
+        let attachments = [attachment(graph())];
+        assert!(enrich(event.value_mut().as_mut().unwrap(), &attachments));
+        let original = event.clone();
+        assert!(!enrich(event.value_mut().as_mut().unwrap(), &attachments));
+        assert_eq!(event, original);
+    }
+
+    #[test]
+    fn test_flamegraph_keeps_event_images_and_remaps_relative_addresses() {
+        let mut value: Value = serde_json::from_str(&event().to_json().unwrap()).unwrap();
+        value["debug_meta"] = json!({"images": [{
+            "type": "macho", "debug_id": "94a04d24-0e60-3810-a8c0-90a65e2df61a",
+            "code_file": "CurrentRun", "image_addr": "0x1000", "image_size": 4096
+        }]});
+        let mut event = Annotated::<Event>::from_json(&value.to_string()).unwrap();
+        // The absolute frame must resolve against the diagnostic's image, not the current run's.
+        let mut payload = graph();
+        payload["frames"][1]["addr_mode"] = json!("rel:0");
+        payload["frames"][1]["instruction_addr"] = json!("0x20");
+
+        assert!(enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:1"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:1"
+                    }
+                  ],
+                  "instruction_addr_adjustment": "all"
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_file": "CurrentRun",
+                "debug_id": "94a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "type": "macho"
+              },
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_flamegraph_does_not_materialize_discarded_middle_frames() {
+        let mut payload = graph();
+        payload["frames"][2]["filename"] = json!("x".repeat(200_000));
+        payload["nodes"] = (0..251)
+            .map(|index| {
+                json!({
+                    "frame_id": if index == 50 { 2 } else { 1 },
+                    "sample_count": 1,
+                    "children": if index < 250 { vec![index + 1] } else { vec![] }
+                })
+            })
+            .collect();
+        let mut event = event();
+        assert!(super::enrich(
+            event.value_mut().as_mut().unwrap(),
+            extract_attachments(&[attachment(payload)], 100_000)
+        ));
+        let event = event.value().unwrap();
+        let exception = event.exceptions.value().unwrap().values.value().unwrap()[0]
+            .value()
+            .unwrap();
+        let frames = exception
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap();
+        assert_eq!(
+            exception
+                .stacktrace
+                .value()
+                .unwrap()
+                .frames
+                .meta()
+                .original_length(),
+            Some(251)
+        );
+        assert_eq!(frames.len(), 250);
+        assert!(frames.iter().all(|frame| {
+            frame
+                .value()
+                .unwrap()
+                .filename
+                .value()
+                .is_some_and(|path| path.0 == "App.swift")
+        }));
+    }
+
+    #[test]
+    fn test_flamegraph_budgets_referenced_debug_images() {
+        let mut payload = graph();
+        payload["frames"][1]["filename"] = json!("x".repeat(40_000));
+        payload["debug_meta"]["images"][0]["code_file"] = json!("x".repeat(60_000));
+        let mut event = event();
+        let original = event.clone();
+        assert!(!super::enrich(
+            event.value_mut().as_mut().unwrap(),
+            extract_attachments(&[attachment(payload)], 100_000)
+        ));
+        assert_eq!(event, original);
+    }
+
+    #[test]
+    fn test_flamegraph_does_not_budget_unused_debug_images() {
+        let mut payload = graph();
+        let mut unused = payload["debug_meta"]["images"][0].clone();
+        unused["code_file"] = json!("x".repeat(100_000));
+        unused["image_addr"] = json!("0x5000");
+        unused["debug_id"] = json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+        payload["debug_meta"]["images"]
+            .as_array_mut()
+            .unwrap()
+            .push(unused);
+        let mut event = event();
+        assert!(super::enrich(
+            event.value_mut().as_mut().unwrap(),
+            extract_attachments(&[attachment(payload)], 100_000)
+        ));
+        assert_eq!(
+            event
+                .value()
+                .unwrap()
+                .debug_meta
+                .value()
+                .unwrap()
+                .images
+                .value()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_flamegraph_bounds_repeated_frame_data() {
+        let mut payload = graph();
+        payload["frames"][1]["filename"] = json!("x".repeat(400_000));
+        payload["nodes"] = json!([
+            {"frame_id": 1, "sample_count": 1, "children": [1]},
+            {"frame_id": 1, "sample_count": 1, "children": [2]},
+            {"frame_id": 1, "sample_count": 1}
+        ]);
+        let mut event = event();
+        let original = event.clone();
+        assert!(!enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+        assert_eq!(event, original);
+    }
+
+    #[test]
+    fn test_flamegraph_images_without_sizes() {
+        let mut payload = graph();
+        payload["debug_meta"]["images"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("image_size");
+        // Image order is not guaranteed. Missing sizes extend to the next loaded image.
+        let mut later = payload["debug_meta"]["images"][0].clone();
+        later["image_addr"] = json!("0x2000");
+        later["debug_id"] = json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+        payload["debug_meta"]["images"]
+            .as_array_mut()
+            .unwrap()
+            .insert(0, later);
+        let mut event = event();
+
+        assert!(enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ],
+                  "instruction_addr_adjustment": "all"
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_flamegraph_copies_only_images_used_by_selected_path() {
+        let mut payload = graph();
+        let mut unused = payload["debug_meta"]["images"][0].clone();
+        unused["code_file"] = json!("UnusedFramework");
+        unused["image_addr"] = json!("0x5000");
+        unused["debug_id"] = json!("94a04d24-0e60-3810-a8c0-90a65e2df61a");
+        payload["debug_meta"]["images"]
+            .as_array_mut()
+            .unwrap()
+            .insert(0, unused);
+        payload["frames"][1]["addr_mode"] = json!("rel:1");
+        payload["frames"][1]["instruction_addr"] = json!("0x20");
+        let mut event = event();
+
+        assert!(enrich(
+            event.value_mut().as_mut().unwrap(),
+            &[attachment(payload)]
+        ));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r#"
+        {
+          "platform": "cocoa",
+          "exception": {
+            "values": [
+              {
+                "type": "MXHangDiagnostic",
+                "value": "hangDuration:2s",
+                "stacktrace": {
+                  "frames": [
+                    {
+                      "in_app": false,
+                      "instruction_addr": "0x10",
+                      "addr_mode": "rel:0"
+                    },
+                    {
+                      "function": "work",
+                      "package": "SampleApp",
+                      "filename": "App.swift",
+                      "lineno": 42,
+                      "in_app": true,
+                      "instruction_addr": "0x20",
+                      "addr_mode": "rel:0"
+                    }
+                  ],
+                  "instruction_addr_adjustment": "all"
+                },
+                "mechanism": {
+                  "type": "mx_hang_diagnostic",
+                  "synthetic": true,
+                  "handled": true
+                }
+              }
+            ]
+          },
+          "debug_meta": {
+            "images": [
+              {
+                "code_id": "abcdef",
+                "code_file": "SampleApp",
+                "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+                "arch": "arm64",
+                "image_addr": "0x1000",
+                "image_size": 4096,
+                "image_vmaddr": "0x100000000",
+                "type": "macho"
+              }
+            ]
+          }
+        }
+        "#);
+    }
+}

@@ -57,6 +57,37 @@ pub fn parameterize_dsc_transaction(
     };
 }
 
+/// Trims and truncates the `transaction`, `release` and `environment` of a DSC.
+///
+/// The values are limited like the corresponding [`Event`] fields. Values that are empty after
+/// trimming whitespace are removed.
+pub fn normalize_dsc_values(dsc: &mut DynamicSamplingContext) {
+    normalize_dsc_value(&mut dsc.transaction, Event::MAX_TRANSACTION_CHARS);
+    normalize_dsc_value(&mut dsc.release, Event::MAX_RELEASE_CHARS);
+    normalize_dsc_value(&mut dsc.environment, Event::MAX_ENVIRONMENT_CHARS);
+}
+
+fn normalize_dsc_value(value: &mut Option<String>, max_chars: usize) {
+    let Some(original) = value.as_deref() else {
+        return;
+    };
+    let trimmed = original.trim();
+
+    *value = if trimmed.is_empty() {
+        None
+    } else if trimmed.chars().count() <= max_chars {
+        Some(trimmed.to_owned())
+    } else {
+        Some(
+            trimmed
+                .chars()
+                .take(max_chars.saturating_sub(3))
+                .chain("...".chars())
+                .collect(),
+        )
+    };
+}
+
 /// Applies the rule if any found to the transaction name.
 ///
 /// It find the first rule matching the criteria:
@@ -422,7 +453,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{ClientSdkInfo, Contexts};
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, LenientString};
     use relay_protocol::{assert_annotated_snapshot, get_value};
     use serde_json::json;
 
@@ -430,6 +461,88 @@ mod tests {
     use crate::{EventValidationConfig, RedactionRule};
 
     use super::*;
+
+    fn dsc_with_values(
+        transaction: &str,
+        release: &str,
+        environment: &str,
+    ) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            project_id: None,
+            release: Some(release.to_owned()),
+            environment: Some(environment.to_owned()),
+            transaction: Some(transaction.to_owned()),
+            sample_rate: None,
+            user: Default::default(),
+            replay_id: None,
+            sampled: None,
+            other: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_normalize_dsc_values_limits() {
+        let mut dsc = dsc_with_values(&"t".repeat(201), &"r".repeat(200), &"e".repeat(63));
+        normalize_dsc_values(&mut dsc);
+        assert_eq!(dsc.transaction, Some(format!("{}...", "t".repeat(197))));
+        assert_eq!(dsc.release, Some("r".repeat(200)));
+        assert_eq!(dsc.environment, Some("e".repeat(63)));
+    }
+
+    #[test]
+    fn test_normalize_dsc_values_whitespace() {
+        let mut dsc = dsc_with_values("  /users/ list\n", " \t ", "prod ");
+        normalize_dsc_values(&mut dsc);
+        assert_eq!(dsc.transaction.as_deref(), Some("/users/ list"));
+        assert_eq!(dsc.release, None);
+        assert_eq!(dsc.environment.as_deref(), Some("prod"));
+    }
+
+    #[test]
+    fn test_normalize_dsc_values_multibyte() {
+        let mut dsc = dsc_with_values(&"ü".repeat(201), "1.0", "prod");
+        normalize_dsc_values(&mut dsc);
+        assert_eq!(dsc.transaction, Some(format!("{}...", "ü".repeat(197))));
+    }
+
+    #[test]
+    fn test_normalize_dsc_values_matches_event_fields() {
+        let transaction = format!("  {}  ", "t".repeat(201));
+        let release = format!("\t{}\n", "r".repeat(201));
+        let environment = format!(" {} ", "e".repeat(65));
+
+        let mut event = Annotated::new(Event {
+            transaction: Annotated::new(transaction.clone()),
+            release: Annotated::new(LenientString(release.clone())),
+            environment: Annotated::new(environment.clone()),
+            ..Default::default()
+        });
+        process_value(
+            &mut event,
+            &mut crate::SchemaProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        process_value(
+            &mut event,
+            &mut crate::TrimmingProcessor::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        let event = event.value().unwrap();
+
+        let mut dsc = dsc_with_values(&transaction, &release, &environment);
+        normalize_dsc_values(&mut dsc);
+
+        assert_eq!(dsc.transaction.as_ref(), event.transaction.value());
+        assert_eq!(
+            dsc.release.as_deref(),
+            event.release.value().map(|r| r.as_str())
+        );
+        assert_eq!(dsc.environment.as_ref(), event.environment.value());
+    }
 
     #[test]
     fn test_is_high_cardinality_sdk_ruby_ok() {

@@ -33,6 +33,7 @@ impl SentryError for Minidump {
         Ok(Some(Expansion {
             event: Box::new(event),
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
+            flamegraph: None,
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             intermediates: vec![],
             error: Self(minidump),

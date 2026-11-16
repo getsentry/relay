@@ -1,14 +1,17 @@
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
+use pest::Parser;
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{
-    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
-    GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
-    User, UserReport, Values,
+    Addr, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
+    Exception, Frame, GpuContext, JsonLenientString, LenientString, Level, LogEntry, Mechanism,
+    Message, OsContext, RawStacktrace, Stacktrace, TagEntry, Tags, Timestamp, User, UserReport,
+    Values,
 };
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use symbolic_unreal::{
-    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
+    Unreal4Context, Unreal4ContextRuntimeProperties, Unreal4Crash, Unreal4Error, Unreal4FileType,
+    Unreal4LogEntry,
 };
 
 use crate::constants::{
@@ -18,8 +21,19 @@ use crate::constants::{
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::services::processor::ProcessingError;
 
+use self::call_stack::{CallStackParser, Rule};
+
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
+
+/// Maximum number of stack frames taken from the call stacks in the Unreal crash context.
+const MAX_NUM_UNREAL_FRAMES: usize = 256;
+
+/// Image base that older engine versions write for frames whose module was not found.
+///
+/// Unreal Engine 4.20 and 4.21 use `MAX_uint64` as the image base and offset of such frames and
+/// print them with a 32-bit format, as `0x00000000ffffffff + ffffffff`.
+const UNKNOWN_IMAGE_BASE: u64 = 0xffff_ffff;
 
 /// Client SDK name used for the event payload to identify the UE4 crash reporter.
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
@@ -354,18 +368,317 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 }
 
+#[allow(clippy::empty_docs)]
+mod call_stack {
+    use pest_derive::Parser;
+
+    #[derive(Parser)]
+    #[grammar = "utils/unreal_call_stack.pest"]
+    pub struct CallStackParser;
+}
+
+/// Parses one line of the legacy `CallStack` into a frame.
+///
+/// Lines look like `Module!Function(...) [File:Line]`, where everything after the module is
+/// optional. Unsymbolicated frames are written as `Module!UnknownFunction(0xOffset)`, and symbols
+/// without debug information carry their offset, like `Module!Function(+0x8a)`. The module can
+/// also be omitted, like in `UnknownFunction []`.
+///
+/// Returns the frame and the module offset of an unsymbolicated frame.
+fn parse_legacy_frame(line: &str) -> Option<(Frame, Option<u64>)> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+
+    let pairs = CallStackParser::parse(Rule::legacy_frame, line).ok()?;
+
+    let mut frame = Frame::default();
+    let mut function = "";
+    let mut offset = None;
+    let mut has_offset = false;
+
+    for pair in pairs.flatten() {
+        match pair.as_rule() {
+            Rule::module | Rule::module_only if !pair.as_str().is_empty() => {
+                frame.package = Annotated::new(pair.as_str().to_owned());
+            }
+            Rule::function => function = pair.as_str(),
+            Rule::module_offset | Rule::export_offset => has_offset = true,
+            Rule::offset => offset = u64::from_str_radix(pair.as_str(), 16).ok(),
+            Rule::file => frame.filename = Annotated::new(pair.as_str().into()),
+            Rule::lineno => frame.lineno = Annotated::from(pair.as_str().parse::<u64>().ok()),
+            _ => {}
+        }
+    }
+
+    // Symbols with an offset are the closest exported symbol, found without debug information.
+    // They are often wrong and would group unrelated crashes together, so they are skipped. The
+    // last line is cut off when the call stack exceeds the engine's buffer.
+    let is_cut_off = !(function.ends_with(')') && function.contains('('))
+        && function.matches('(').count() != function.matches(')').count();
+    let is_symbol =
+        !has_offset && !is_cut_off && !function.is_empty() && function != "UnknownFunction";
+
+    if is_symbol {
+        frame.function = Annotated::new(function.to_owned());
+    }
+
+    Some((frame, offset))
+}
+
+/// A frame of the portable `PCallStack`.
+#[derive(Debug, PartialEq)]
+struct PortableFrame<'a> {
+    module: Option<&'a str>,
+    offset: u64,
+    address: u64,
+}
+
+/// Parses the portable `PCallStack`.
+///
+/// Returns `None` if the call stack cannot be parsed up to the frame limit or contains
+/// placeholder addresses.
+fn parse_portable_call_stack(call_stack: &str) -> Option<Vec<PortableFrame<'_>>> {
+    let pairs = CallStackParser::parse(Rule::portable_call_stack, call_stack).ok()?;
+
+    let mut frames = Vec::new();
+    for frame in pairs.flatten() {
+        if frames.len() >= MAX_NUM_UNREAL_FRAMES {
+            break;
+        }
+        match frame.as_rule() {
+            Rule::portable_frame => {}
+            // Addresses are paired with the `CallStack` frames by position, so a call stack that
+            // does not parse to the end is not used at all; the `CallStack` frames are then kept
+            // without addresses. This is not reached past the frame limit, where the rest is
+            // ignored.
+            Rule::truncated => return None,
+            _ => continue,
+        }
+
+        let mut module = None;
+        let mut base = None;
+        let mut offset = None;
+        for pair in frame.into_inner() {
+            match pair.as_rule() {
+                Rule::portable_module => module = Some(pair.as_str()),
+                Rule::image_base => base = u64::from_str_radix(pair.as_str(), 16).ok(),
+                Rule::portable_offset => offset = u64::from_str_radix(pair.as_str(), 16).ok(),
+                _ => {}
+            }
+        }
+
+        let (base, offset) = (base?, offset?);
+        // The frame has no address, so the call stack cannot be paired by position.
+        if base == UNKNOWN_IMAGE_BASE {
+            return None;
+        }
+
+        frames.push(PortableFrame {
+            module,
+            offset,
+            address: base.checked_add(offset)?,
+        });
+    }
+
+    Some(frames)
+}
+
+/// Returns whether a module of the legacy call stack is the module of the portable call stack.
+///
+/// The legacy call stack can differ in case, replace `-` with `_`, or add a version suffix, like
+/// `libc.so.6` for `libc.so`.
+fn is_same_module(legacy: &str, portable: &str) -> bool {
+    fn normalize(c: u8) -> u8 {
+        match c {
+            b'-' => b'_',
+            c => c.to_ascii_lowercase(),
+        }
+    }
+
+    let (legacy, portable) = (legacy.as_bytes(), portable.as_bytes());
+    let len = legacy.len().min(portable.len());
+
+    let same_prefix = legacy[..len]
+        .iter()
+        .zip(&portable[..len])
+        .all(|(a, b)| normalize(*a) == normalize(*b));
+
+    // The longer module may only continue with a version suffix, like `.6`.
+    same_prefix
+        && legacy
+            .get(len)
+            .or_else(|| portable.get(len))
+            .is_none_or(|c| *c == b'.')
+}
+
+/// Returns whether the engine writes full image bases into the portable call stack.
+///
+/// Unreal Engine 4.25 and older truncate image bases to 32 bits.
+fn has_full_image_bases(engine_version: Option<&str>) -> bool {
+    let mut parts = engine_version.unwrap_or_default().split(['.', '-']);
+    let major = parts.next().and_then(|part| part.parse::<u32>().ok());
+    let minor = parts.next().and_then(|part| part.parse::<u32>().ok());
+
+    match (major, minor) {
+        (Some(major), Some(minor)) => (major, minor) >= (4, 26),
+        _ => true,
+    }
+}
+
+/// Creates an exception with the stack trace from the Unreal crash context.
+///
+/// Platforms that do not write a minidump, like Linux, still store the crashing call stack in the
+/// crash context. Frames are taken from the legacy `CallStack`, and their instruction addresses
+/// from the portable `PCallStack` if it has at least as many frames and both agree on every frame.
+fn unreal_exception(runtime_props: &Unreal4ContextRuntimeProperties) -> Option<Exception> {
+    let legacy: Vec<(Frame, Option<u64>)> = runtime_props
+        .legacy_call_stack
+        .as_deref()
+        .unwrap_or_default()
+        .lines()
+        .filter_map(parse_legacy_frame)
+        .take(MAX_NUM_UNREAL_FRAMES)
+        .collect();
+
+    let portable = runtime_props
+        .portable_call_stack
+        .as_deref()
+        .filter(|_| has_full_image_bases(runtime_props.engine_version.as_deref()))
+        .and_then(parse_portable_call_stack)
+        .unwrap_or_default();
+
+    // Unknown functions are written with the offset of their return address minus one, to point
+    // into the call instruction. The engine does not do this for the crashing frame, which is the
+    // first frame unless the frames of the crash handler were skipped.
+    let stacks_match = legacy.len() <= portable.len()
+        && legacy
+            .iter()
+            .zip(&portable)
+            .enumerate()
+            .all(|(index, ((frame, offset), portable))| {
+                let same_module = match (frame.package.as_str(), portable.module) {
+                    (Some(legacy), Some(portable)) => is_same_module(legacy, portable),
+                    // Without a module, only the offset can confirm the frame. Frames without
+                    // an offset are only kept in place if they have nothing to misattribute.
+                    (None, _) => {
+                        offset.is_some() || (frame.function.is_empty() && frame.filename.is_empty())
+                    }
+                    (Some(_), None) => false,
+                };
+                let same_offset = offset.is_none_or(|offset| {
+                    offset.checked_add(1) == Some(portable.offset)
+                        || (index == 0 && offset == portable.offset)
+                });
+                same_module && same_offset
+            });
+
+    let mut frames: Vec<Frame> = legacy.into_iter().map(|(frame, _)| frame).collect();
+
+    if stacks_match {
+        for (frame, portable) in frames.iter_mut().zip(&portable) {
+            frame.instruction_addr = Annotated::new(Addr(portable.address));
+            if frame.package.is_empty() {
+                frame.package = Annotated::from(portable.module.map(str::to_owned));
+            }
+        }
+
+        // The legacy call stack can be shorter, for example it may omit system libraries.
+        let missing = portable.get(frames.len()..).unwrap_or_default();
+        frames.extend(missing.iter().map(|portable| Frame {
+            package: Annotated::from(portable.module.map(str::to_owned)),
+            instruction_addr: Annotated::new(Addr(portable.address)),
+            ..Frame::default()
+        }));
+    }
+
+    if frames.is_empty() {
+        return None;
+    }
+
+    // Unreal lists the crashing frame first, Sentry expects it last.
+    frames.reverse();
+
+    let crash_type = runtime_props
+        .crash_type
+        .as_deref()
+        .filter(|crash_type| !crash_type.is_empty());
+    let is_ensure = runtime_props.is_ensure.unwrap_or(false) || crash_type == Some("Ensure");
+    let is_stall = runtime_props
+        .custom
+        .get("IsStall")
+        .is_some_and(|v| v == "true")
+        || crash_type == Some("Stall");
+
+    let ty = match crash_type {
+        Some(crash_type) => crash_type,
+        None if is_ensure => "Ensure",
+        None if is_stall => "Stall",
+        None if runtime_props.is_assert.unwrap_or(false) => "Assert",
+        None => "Crash",
+    };
+
+    // These reports are sent while the application keeps running.
+    let handled = is_ensure || is_stall || crash_type == Some("VerseRuntimeError");
+
+    Some(Exception {
+        ty: Annotated::new(ty.to_owned()),
+        value: Annotated::from(runtime_props.error_message.clone().map(JsonLenientString)),
+        stacktrace: Annotated::new(Stacktrace(RawStacktrace {
+            frames: Annotated::new(frames.into_iter().map(Annotated::new).collect()),
+            ..RawStacktrace::default()
+        })),
+        mechanism: Annotated::new(Mechanism {
+            ty: Annotated::new("unreal".to_owned()),
+            handled: Annotated::new(handled),
+            synthetic: Annotated::new(true),
+            ..Mechanism::default()
+        }),
+        ..Exception::default()
+    })
+}
+
+/// Returns whether the event has debug images to symbolicate its frames.
+fn has_debug_images(event: &Event) -> bool {
+    event
+        .debug_meta
+        .value()
+        .and_then(|debug_meta| debug_meta.images.value())
+        .is_some_and(|images| !images.is_empty())
+}
+
+/// Returns whether a frame of the exception has a function or file name.
+fn has_symbols(exception: &Exception) -> bool {
+    let frames = exception
+        .stacktrace
+        .value()
+        .and_then(|stacktrace| stacktrace.frames.value());
+
+    frames.into_iter().flatten().any(|frame| {
+        frame
+            .value()
+            .is_some_and(|frame| !frame.function.is_empty() || !frame.filename.is_empty())
+    })
+}
+
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
-pub fn process_unreal<'a>(
+///
+/// With `context_stacktrace`, crashes without a minidump or Apple crash report get an exception
+/// with the stack trace from the crash context, if its frames have names or the event has debug
+/// images.
+pub fn process_unreal(
     context: Option<Unreal4Context>,
     event_id: EventId,
     event: &mut Annotated<Event>,
-    attachments: impl IntoIterator<Item = &'a Item>,
+    attachments: &[Item],
     user_header: Option<&str>,
+    context_stacktrace: bool,
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
     let mut logs_items = attachments
-        .into_iter()
+        .iter()
         .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
         .map(|item| item.payload())
         .peekable();
@@ -391,6 +704,30 @@ pub fn process_unreal<'a>(
             user_reports.push(report);
         }
 
+        // Minidumps and Apple crash reports are processed later and provide a better stack trace.
+        let has_native_crash = attachments.iter().any(|item| {
+            matches!(
+                item.attachment_type(),
+                Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
+            )
+        });
+
+        if context_stacktrace
+            && !has_native_crash
+            && event.exceptions.is_empty()
+            && let Some(exception) = context
+                .runtime_properties
+                .as_ref()
+                .and_then(unreal_exception)
+                // Frames without names can only be symbolicated with debug images. Without
+                // either, the stack trace adds nothing but would still change grouping.
+                .filter(|exception| has_debug_images(event) || has_symbols(exception))
+        {
+            event.exceptions = Annotated::new(Values::new(vec![Annotated::new(exception)]));
+            // The frames are native, like those of a minidump.
+            *event.platform.value_mut() = Some("native".to_owned());
+        }
+
         merge_unreal_context(event, context);
     }
 
@@ -414,6 +751,7 @@ pub struct ProcessedUnrealReport {
 mod tests {
 
     use relay_config::Config;
+    use relay_event_schema::protocol::{DebugImage, DebugMeta, NativeDebugImage, NativeImagePath};
     use relay_protocol::SerializableAnnotated;
 
     use super::*;
@@ -710,5 +1048,683 @@ mod tests {
           }
         }
         "###);
+    }
+
+    /// Crash context of an ensure on Linux, which does not write a minidump.
+    ///
+    /// Taken from the sample in https://github.com/getsentry/relay/issues/5192.
+    fn get_linux_context() -> Unreal4Context {
+        let raw_context = br#"<?xml version="1.0" encoding="UTF-8"?>
+<FGenericCrashContext>
+	<RuntimeProperties>
+		<IsEnsure>true</IsEnsure>
+		<IsStall>false</IsStall>
+		<CrashType>Ensure</CrashType>
+		<ErrorMessage>Ensure condition failed: false [File:../../Game/Source/Game/GameInstance.cpp] [Line: 112] Stack: 0x000000000b5a7402 Game-Linux-Test!UnknownFunction(0xb3a7401) 0x000000000898ce09 Game-Linux-Test!UnknownFunction(0x878ce08) 0x00007f0b3822a28b libc.so.6!__libc_start_main(+0x8a) 0x0000000004a71029 Game-Linux-Test!UnknownFunction(0x4871028)</ErrorMessage>
+		<EngineVersion>5.4.4-35769+++Proto+Release</EngineVersion>
+		<CallStack>Game-Linux-Test!UnknownFunction(0xb3a7401)
+Game-Linux-Test!UnknownFunction(0x878ce08)
+libc.so.6!__libc_start_main(+0x8a)
+Game-Linux-Test!UnknownFunction(0x4871028)
+</CallStack>
+		<PCallStack>Game-Linux-Test 0x0000000000200000 + b3a7402 Game-Linux-Test 0x0000000000200000 + 878ce09 libc.so 0x00007f0b38200000 + 2a28b Game-Linux-Test 0x0000000000200000 + 4871029</PCallStack>
+	</RuntimeProperties>
+</FGenericCrashContext>
+"#;
+
+        Unreal4Context::parse(raw_context).unwrap()
+    }
+
+    fn get_exception(runtime_properties: &str) -> Option<Exception> {
+        let raw_context = format!(
+            "<FGenericCrashContext><RuntimeProperties>{runtime_properties}</RuntimeProperties></FGenericCrashContext>"
+        );
+        let context = Unreal4Context::parse(raw_context.as_bytes()).unwrap();
+        unreal_exception(context.runtime_properties.as_ref()?)
+    }
+
+    /// An event with the debug images that the Unreal SDK adds to the crash context.
+    fn event_with_debug_images() -> Event {
+        let image = NativeDebugImage {
+            code_file: Annotated::new("Game-Linux-Test".into()),
+            ..NativeDebugImage::default()
+        };
+
+        Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Elf(Box::new(image)))]),
+                ..DebugMeta::default()
+            }),
+            ..Event::default()
+        }
+    }
+
+    fn process_with_attachments(attachments: &[Item]) -> Annotated<Event> {
+        let mut event = Annotated::new(event_with_debug_images());
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            attachments,
+            None,
+            true,
+        )
+        .unwrap();
+        event
+    }
+
+    fn process_runtime_properties(runtime_properties: &str) -> Event {
+        let raw_context = format!(
+            "<FGenericCrashContext><RuntimeProperties>{runtime_properties}</RuntimeProperties></FGenericCrashContext>"
+        );
+        let context = Unreal4Context::parse(raw_context.as_bytes()).unwrap();
+
+        let mut event = Annotated::empty();
+        process_unreal(Some(context), EventId::new(), &mut event, &[], None, true).unwrap();
+        event.into_value().unwrap()
+    }
+
+    #[test]
+    fn test_parse_legacy_frame() {
+        let cases = [
+            (
+                "MyProject!AActor::BeginPlay()",
+                (
+                    Some("MyProject"),
+                    Some("AActor::BeginPlay()"),
+                    None,
+                    None,
+                    None,
+                ),
+            ),
+            (
+                r"MyProject!__scrt_common_main_seh() [f:\dd\vctools\crt\vcstartup\src\startup\exe_common.inl:288]",
+                (
+                    Some("MyProject"),
+                    Some("__scrt_common_main_seh()"),
+                    Some(r"f:\dd\vctools\crt\vcstartup\src\startup\exe_common.inl"),
+                    Some(288),
+                    None,
+                ),
+            ),
+            (
+                "Game!Foo::operator[]() [Foo.cpp:3]",
+                (
+                    Some("Game"),
+                    Some("Foo::operator[]()"),
+                    Some("Foo.cpp"),
+                    Some(3),
+                    None,
+                ),
+            ),
+            (
+                "Game!Foo(int) [clone .cold]",
+                (
+                    Some("Game"),
+                    Some("Foo(int) [clone .cold]"),
+                    None,
+                    None,
+                    None,
+                ),
+            ),
+            (
+                "Game!Foo() []",
+                (Some("Game"), Some("Foo()"), None, None, None),
+            ),
+            (
+                "0x02a3b4c5 Game!Foo()  [UnknownFile]",
+                (Some("Game"), Some("Foo()"), None, None, None),
+            ),
+            ("kernel32", (Some("kernel32"), None, None, None, None)),
+            (
+                "Game!UnknownFunction(0xb3a7401)",
+                (Some("Game"), None, None, None, Some(0xb3a7401)),
+            ),
+            (
+                "Game!UnknownFunction(0x10) [Foo.cpp:3]",
+                (Some("Game"), None, Some("Foo.cpp"), Some(3), Some(0x10)),
+            ),
+            (
+                "libc.so.6!__libc_start_main(+0x8a)",
+                (Some("libc.so.6"), None, None, None, None),
+            ),
+            (
+                "Game!UnknownFunction(0x48",
+                (Some("Game"), None, None, None, None),
+            ),
+            (
+                "My Game!Foo() [Foo.cpp:3]",
+                (
+                    Some("My Game"),
+                    Some("Foo()"),
+                    Some("Foo.cpp"),
+                    Some(3),
+                    None,
+                ),
+            ),
+            // The module may be omitted.
+            (
+                "0x00000000 UnknownFunction []",
+                (None, None, None, None, None),
+            ),
+            ("0x00000000 UnknownFunction", (None, None, None, None, None)),
+            (
+                "0x0002a3b4 UnknownFunction(0x10)",
+                (None, None, None, None, Some(0x10)),
+            ),
+            (
+                "Foo() [Foo.cpp:3]",
+                (None, Some("Foo()"), Some("Foo.cpp"), Some(3), None),
+            ),
+            (
+                "Game!Foo<'('>() [Foo.cpp:3]",
+                (
+                    Some("Game"),
+                    Some("Foo<'('>()"),
+                    Some("Foo.cpp"),
+                    Some(3),
+                    None,
+                ),
+            ),
+            // A line number that does not fit is left in the function.
+            (
+                "Game!Foo() [Foo.cpp:99999999999999999999]",
+                (
+                    Some("Game"),
+                    Some("Foo() [Foo.cpp:99999999999999999999]"),
+                    None,
+                    None,
+                    None,
+                ),
+            ),
+        ];
+
+        for (line, expected) in cases {
+            let (frame, offset) = parse_legacy_frame(line).unwrap();
+            let actual = (
+                frame.package.as_str(),
+                frame.function.as_str(),
+                frame.filename.value().map(NativeImagePath::as_str),
+                frame.lineno.value().copied(),
+                offset,
+            );
+            assert_eq!(actual, expected, "{line}");
+        }
+
+        assert!(parse_legacy_frame("  ").is_none());
+    }
+
+    #[test]
+    fn test_parse_portable_call_stack() {
+        let addresses = |call_stack| {
+            parse_portable_call_stack(call_stack).map(|frames| {
+                frames
+                    .iter()
+                    .map(|f| (f.module, f.address))
+                    .collect::<Vec<_>>()
+            })
+        };
+
+        assert_eq!(
+            addresses("Game 0x0000000000200000 + b3a7402 libc.so 0x00007f0b38200000 + 2a28b"),
+            Some(vec![
+                (Some("Game"), 0xb5a7402),
+                (Some("libc.so"), 0x7f0b3822a28b)
+            ])
+        );
+        assert_eq!(
+            addresses("0x0000000000200000 + 10"),
+            Some(vec![(None, 0x200010)])
+        );
+        // Module names can contain whitespace, and offsets are padded.
+        assert_eq!(
+            addresses(
+                "My Game 0x0000000000200000 + 10       libc.so 0x00007f0000000000 + 20      "
+            ),
+            Some(vec![
+                (Some("My Game"), 0x200010),
+                (Some("libc.so"), 0x7f0000000020)
+            ])
+        );
+        assert_eq!(
+            addresses("0x200000 + 10 My Game 0x300000 + 20"),
+            Some(vec![(None, 0x200010), (Some("My Game"), 0x300020)])
+        );
+        assert_eq!(
+            addresses("libstdc++.so 0x1000 + 10 Game 0x2000\t+  20"),
+            Some(vec![(Some("libstdc++.so"), 0x1010), (Some("Game"), 0x2020)])
+        );
+
+        // Placeholder for frames without a module, written by older engine versions.
+        assert_eq!(addresses("0x00000000ffffffff + ffffffff"), None);
+
+        // Call stacks that do not parse to the end are not used.
+        assert_eq!(addresses("Game 0x200000 +"), None);
+        assert_eq!(addresses("Game 200000 + 10"), None);
+        assert_eq!(addresses("Game 200000 + 10 Game 0x200000 + 10"), None);
+
+        // Frames can be separated by line breaks.
+        assert_eq!(
+            addresses("Game 0x1000 + 10\r\nlibc.so 0x2000 + 20\r\n"),
+            Some(vec![(Some("Game"), 0x1010), (Some("libc.so"), 0x2020)])
+        );
+
+        // Addresses that overflow are not used.
+        assert_eq!(addresses("Game 0xffffffffffffffff + 1"), None);
+    }
+
+    #[test]
+    fn test_is_same_module() {
+        assert!(is_same_module("Game", "Game"));
+        assert!(is_same_module("kernel32", "KERNEL32"));
+        assert!(is_same_module("UnrealEditor_Core", "UnrealEditor-Core"));
+        assert!(is_same_module("libc.so.6", "libc.so"));
+        assert!(is_same_module("kernel32", "KERNEL32.DLL"));
+
+        assert!(!is_same_module("UnrealEditor", "UnrealEditor-Core"));
+        assert!(!is_same_module("Game", "GameServer"));
+        assert!(!is_same_module("libc.so.6", "libm.so"));
+        assert!(is_same_module("", ""));
+        assert!(!is_same_module("", "Game"));
+        assert!(!is_same_module("libc", "libc6"));
+        assert!(is_same_module("Gäme-Core", "gäme_core"));
+        assert!(!is_same_module("Gäme", "GÄME"));
+    }
+
+    #[test]
+    fn test_has_full_image_bases() {
+        assert!(has_full_image_bases(Some("5.4.4-35769+++Proto+Release")));
+        assert!(has_full_image_bases(Some(
+            "4.26.2-15973114+++UE4+Release-4.26"
+        )));
+        assert!(!has_full_image_bases(Some(
+            "4.24.3-11590370+++UE4+Release-4.24"
+        )));
+        assert!(has_full_image_bases(Some("unknown")));
+        assert!(has_full_image_bases(None));
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_without_minidump() {
+        let event = process_with_attachments(&[]);
+        let exceptions = &event.value().unwrap().exceptions;
+
+        insta::assert_snapshot!(exceptions.to_json_pretty().unwrap(), @r#"
+        {
+          "values": [
+            {
+              "type": "Ensure",
+              "value": "Ensure condition failed: false [File:../../Game/Source/Game/GameInstance.cpp] [Line: 112] Stack: 0x000000000b5a7402 Game-Linux-Test!UnknownFunction(0xb3a7401) 0x000000000898ce09 Game-Linux-Test!UnknownFunction(0x878ce08) 0x00007f0b3822a28b libc.so.6!__libc_start_main(+0x8a) 0x0000000004a71029 Game-Linux-Test!UnknownFunction(0x4871028)",
+              "stacktrace": {
+                "frames": [
+                  {
+                    "package": "Game-Linux-Test",
+                    "instruction_addr": "0x4a71029"
+                  },
+                  {
+                    "package": "libc.so.6",
+                    "instruction_addr": "0x7f0b3822a28b"
+                  },
+                  {
+                    "package": "Game-Linux-Test",
+                    "instruction_addr": "0x898ce09"
+                  },
+                  {
+                    "package": "Game-Linux-Test",
+                    "instruction_addr": "0xb5a7402"
+                  }
+                ]
+              },
+              "mechanism": {
+                "type": "unreal",
+                "synthetic": true,
+                "handled": true
+              }
+            }
+          ]
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_native_event() {
+        let event = process_with_attachments(&[]);
+        let event = event.value().unwrap();
+
+        assert_eq!(event.platform.as_str(), Some("native"));
+        // The crash context of the sample is an ensure.
+        assert_eq!(event.level.value(), Some(&Level::Warning));
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_disabled() {
+        let mut event = Annotated::empty();
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            false,
+        )
+        .unwrap();
+        let event = event.value().unwrap();
+
+        assert!(event.exceptions.is_empty());
+        assert!(event.platform.is_empty());
+        assert_eq!(event.level.value(), Some(&Level::Warning));
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_level() {
+        let cases = [
+            ("<IsAssert>true</IsAssert>", Level::Error),
+            ("<IsEnsure>true</IsEnsure>", Level::Warning),
+            ("<CrashType>Crash</CrashType>", Level::Fatal),
+            ("<CrashType>Stall</CrashType>", Level::Fatal),
+            ("", Level::Fatal),
+        ];
+
+        for (properties, level) in cases {
+            let event = process_runtime_properties(&format!(
+                "{properties}<CallStack>Game!Main()</CallStack>"
+            ));
+            assert_eq!(event.level.value(), Some(&level), "{properties}");
+        }
+
+        // A level sent by the client is kept.
+        let mut event = Annotated::new(Event {
+            level: Annotated::new(Level::Info),
+            ..event_with_debug_images()
+        });
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            true,
+        )
+        .unwrap();
+        let event = event.into_value().unwrap();
+        assert!(!event.exceptions.is_empty());
+        assert_eq!(event.level.value(), Some(&Level::Info));
+
+        // Without a call stack, there is no exception.
+        let event = process_runtime_properties("<CrashType>Crash</CrashType>");
+        assert!(event.exceptions.is_empty());
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_requires_symbols_or_debug_images() {
+        // The frames of the sample have no names, and the event has no debug images.
+        let mut event = Annotated::empty();
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            true,
+        )
+        .unwrap();
+        let event = event.value().unwrap();
+        assert!(event.exceptions.is_empty());
+        assert!(event.platform.is_empty());
+
+        // Frames with a function or a file name are kept without debug images.
+        for call_stack in ["Game!Main()", "Game!UnknownFunction(0x10) [Main.cpp:3]"] {
+            let event = process_runtime_properties(&format!("<CallStack>{call_stack}</CallStack>"));
+            assert!(!event.exceptions.is_empty(), "{call_stack}");
+        }
+
+        let event = process_runtime_properties("<CallStack>Game!UnknownFunction(0x10)</CallStack>");
+        assert!(event.exceptions.is_empty());
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_with_native_crash() {
+        for attachment_type in [AttachmentType::Minidump, AttachmentType::AppleCrashReport] {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_attachment_type(attachment_type);
+            item.set_payload(ContentType::OctetStream, "");
+
+            let event = process_with_attachments(&[item]);
+            assert!(event.value().unwrap().exceptions.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_process_unreal_stacktrace_keeps_exceptions() {
+        let mut event = Annotated::new(Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("ClientError".to_owned()),
+                ..Exception::default()
+            })])),
+            ..Event::default()
+        });
+
+        process_unreal(
+            Some(get_linux_context()),
+            EventId::new(),
+            &mut event,
+            &[],
+            None,
+            true,
+        )
+        .unwrap();
+
+        let exceptions = event.value().unwrap().exceptions.value().unwrap();
+        let exceptions = exceptions.values.value().unwrap();
+        assert_eq!(exceptions.len(), 1);
+        assert_eq!(
+            exceptions[0].value().unwrap().ty.as_str(),
+            Some("ClientError")
+        );
+    }
+
+    #[test]
+    fn test_unreal_exception_addresses() {
+        let cases = [
+            // Only the portable call stack.
+            (
+                "",
+                "Game 0x200000 + 10 libc.so 0x7f0000000000 + 20",
+                "",
+                vec![
+                    (Some("libc.so"), Some(0x7f0000000020)),
+                    (Some("Game"), Some(0x200010)),
+                ],
+            ),
+            // The legacy call stack omits the last module.
+            (
+                "Game!Inner()",
+                "Game 0x200000 + 10 kernel32 0x7f0000000000 + 20",
+                "",
+                vec![
+                    (Some("kernel32"), Some(0x7f0000000020)),
+                    (Some("Game"), Some(0x200010)),
+                ],
+            ),
+            // Different modules.
+            (
+                "Game!Inner()\nGame!Outer()",
+                "Game 0x200000 + 10 Other 0x300000 + 20",
+                "",
+                vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // The legacy call stack has more frames.
+            (
+                "Game!Inner()\nGame!Outer()",
+                "Game 0x200000 + 10",
+                "",
+                vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // Offsets of unknown functions do not match.
+            (
+                "Game!UnknownFunction(0x100)\nGame!UnknownFunction(0x200)",
+                "Game 0x1000 + 201 Game 0x1000 + 301",
+                "",
+                vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // The crashing frame is not moved back to the call site when it is written first.
+            (
+                "Game!UnknownFunction(0x10)\nGame!UnknownFunction(0x1f)",
+                "Game 0x1000 + 10 Game 0x1000 + 20",
+                "",
+                vec![(Some("Game"), Some(0x1020)), (Some("Game"), Some(0x1010))],
+            ),
+            // All other frames are moved back to the call site.
+            (
+                "Game!UnknownFunction(0xf)\nGame!UnknownFunction(0x20)",
+                "Game 0x1000 + 10 Game 0x1000 + 20",
+                "",
+                vec![(Some("Game"), None), (Some("Game"), None)],
+            ),
+            // Frames without a module take it from the portable call stack.
+            (
+                "Game!UnknownFunction(0xf)\n0x00000000 UnknownFunction []",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(Some("Other"), Some(0x2020)), (Some("Game"), Some(0x1010))],
+            ),
+            // Frames without a module are confirmed by their offset.
+            (
+                "Game!UnknownFunction(0xf)\nUnknownFunction(0x1f) [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(Some("Other"), Some(0x2020)), (Some("Game"), Some(0x1010))],
+            ),
+            (
+                "Game!UnknownFunction(0xf)\nUnknownFunction(0x20) [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(None, None), (Some("Game"), None)],
+            ),
+            // A function without a module or offset cannot be placed.
+            (
+                "Game!UnknownFunction(0xf)\nFoo() [Foo.cpp:3]",
+                "Game 0x1000 + 10 Other 0x2000 + 20",
+                "",
+                vec![(None, None), (Some("Game"), None)],
+            ),
+            // Module names can contain whitespace.
+            (
+                "My Game!UnknownFunction(0xf)",
+                "My Game 0x1000 + 10",
+                "",
+                vec![(Some("My Game"), Some(0x1010))],
+            ),
+            // Image bases are truncated by old engine versions.
+            (
+                "Game!Inner()",
+                "Game 0x200000 + 10",
+                "<EngineVersion>4.24.3-11590370+++UE4+Release-4.24</EngineVersion>",
+                vec![(Some("Game"), None)],
+            ),
+        ];
+
+        for (legacy, portable, properties, expected) in cases {
+            let exception = get_exception(&format!(
+                "<CallStack>{legacy}</CallStack><PCallStack>{portable}</PCallStack>{properties}"
+            ))
+            .unwrap();
+
+            let frames = exception
+                .stacktrace
+                .value()
+                .unwrap()
+                .frames
+                .value()
+                .unwrap();
+            let actual: Vec<_> = frames
+                .iter()
+                .map(|frame| {
+                    let frame = frame.value().unwrap();
+                    (
+                        frame.package.as_str(),
+                        frame.instruction_addr.value().map(|a| a.0),
+                    )
+                })
+                .collect();
+
+            assert_eq!(actual, expected, "{legacy:?} {portable:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_portable_call_stack_frame_limit() {
+        for frame in ["Game 0x1000 + 10 ", "0x1000 + 10 "] {
+            let call_stack = frame.repeat(1000);
+            let frames = parse_portable_call_stack(&call_stack).unwrap();
+            assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
+
+            // Input past the frame limit is ignored, even if it ends within a frame.
+            let call_stack = format!("{call_stack}Game 0x1000 +");
+            let frames = parse_portable_call_stack(&call_stack).unwrap();
+            assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES, "{frame:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_call_stack_long_whitespace() {
+        let spaces = " ".repeat(1_000_000);
+
+        let (frame, _) = parse_legacy_frame(&format!("Game!Foo({spaces}) [Foo.cpp:3]")).unwrap();
+        assert_eq!(frame.lineno.value(), Some(&3));
+
+        let call_stack = format!("Game{spaces}0x1000 + 10{spaces}libc.so 0x2000 + 20");
+        let frames = parse_portable_call_stack(&call_stack).unwrap();
+        assert_eq!(frames.len(), 2);
+    }
+
+    #[test]
+    fn test_unreal_exception_frame_limit() {
+        let exception = get_exception(&format!(
+            "<CallStack>{}</CallStack>",
+            "Game!Main()\n".repeat(1000)
+        ))
+        .unwrap();
+        let frames = exception
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap();
+        assert_eq!(frames.len(), MAX_NUM_UNREAL_FRAMES);
+    }
+
+    #[test]
+    fn test_unreal_exception_crash_types() {
+        let cases = [
+            ("<CrashType>Stall</CrashType>", "Stall", true),
+            ("<IsStall>true</IsStall>", "Stall", true),
+            ("<CrashType>Ensure</CrashType>", "Ensure", true),
+            ("<IsEnsure>true</IsEnsure>", "Ensure", true),
+            (
+                "<CrashType>VerseRuntimeError</CrashType>",
+                "VerseRuntimeError",
+                true,
+            ),
+            ("<IsAssert>true</IsAssert>", "Assert", false),
+            ("<CrashType />", "Crash", false),
+            ("<CrashType>GPUCrash</CrashType>", "GPUCrash", false),
+        ];
+
+        for (properties, ty, handled) in cases {
+            let exception =
+                get_exception(&format!("{properties}<CallStack>Game!Main()</CallStack>")).unwrap();
+
+            assert_eq!(exception.ty.as_str(), Some(ty), "{properties}");
+            let mechanism = exception.mechanism.value().unwrap();
+            assert_eq!(mechanism.handled.value(), Some(&handled), "{properties}");
+        }
+    }
+
+    #[test]
+    fn test_unreal_exception_without_call_stack() {
+        let runtime_properties = get_context().runtime_properties.unwrap();
+        assert!(unreal_exception(&runtime_properties).is_none());
     }
 }

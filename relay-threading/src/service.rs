@@ -36,4 +36,39 @@ impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T>
                 .await;
         }
     }
+
+    fn name() -> &'static str {
+        T::name()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[derive(Clone)]
+    struct TestHandler;
+    impl MessageHandler for TestHandler {
+        type Interface = ();
+
+        async fn handle_message(&self, _: Self::Interface) {}
+    }
+
+    #[test]
+    fn service_uses_inner_name() {
+        assert_eq!(
+            AsyncPoolService::<TestHandler>::name(),
+            "relay_threading::service::tests::TestHandler"
+        );
+    }
+
+    #[test]
+    fn service_uses_inner_name_for_arc() {
+        assert_eq!(
+            AsyncPoolService::<Arc<TestHandler>>::name(),
+            "relay_threading::service::tests::TestHandler"
+        );
+    }
 }
