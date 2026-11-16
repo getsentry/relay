@@ -27,7 +27,8 @@ pub trait TypedItem: TryFrom<Item, Error = Item> {
     /// Returns mutable access to the shared headers and serialized payload.
     fn data_mut(&mut self) -> &mut ItemData;
 
-    fn from_item_ref(item: &Item) -> Option<&Self>;
+    /// Borrows the concrete item if the enum contains this variant.
+    fn downcast_ref(item: &Item) -> Option<&Self>;
 
     /// Returns the declared `item_count` header when supported by this payload type.
     fn item_count(&self) -> Option<u32> {
@@ -75,6 +76,11 @@ impl ItemData {
 }
 
 impl Item {
+    /// Borrows the concrete item if it has type `T`.
+    pub fn downcast_ref<T: TypedItem>(&self) -> Option<&T> {
+        T::downcast_ref(self)
+    }
+
     /// Parses an [`Item`] from raw bytes.
     pub fn parse(bytes: Bytes) -> Result<(Item, usize), EnvelopeError> {
         let slice = bytes.as_ref();
@@ -1476,6 +1482,25 @@ mod tests {
         for (item, expected) in cases {
             assert_eq!(item.quantities().as_slice(), expected.as_slice());
         }
+    }
+
+    #[test]
+    fn test_item_downcast_ref() {
+        let mut transaction = TransactionItem::new();
+        transaction.set_span_count(Some(3));
+        let item = Item::from(transaction);
+
+        let borrowed = item.downcast_ref::<TransactionItem>().unwrap();
+        assert_eq!(borrowed.span_count(), Some(3));
+        let Item::Transaction(original) = &item else {
+            unreachable!();
+        };
+        assert!(std::ptr::eq(borrowed, original));
+        assert!(item.downcast_ref::<AttachmentItem>().is_none());
+
+        let unknown = Item::from(UnknownItem::new("future".into()));
+        assert!(unknown.downcast_ref::<UnknownItem>().is_some());
+        assert!(unknown.downcast_ref::<TransactionItem>().is_none());
     }
 
     #[test]

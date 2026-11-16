@@ -221,7 +221,7 @@ impl VariantCode {
                 impl TypedItem for #payload {
                     fn data(&self) -> &ItemData { self.data() }
                     fn data_mut(&mut self) -> &mut ItemData { self.data_mut() }
-                    fn from_item_ref(item: &Item) -> Option<&Self> {
+                    fn downcast_ref(item: &Item) -> Option<&Self> {
                         match item { Item::#name(payload) => Some(payload), _ => None }
                     }
                     #count_method

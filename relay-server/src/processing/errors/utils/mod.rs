@@ -59,7 +59,7 @@ pub fn take_payload<T: TypedItem>(items: &mut Vec<Item>) -> Option<T> {
 
 pub fn take_payloads<T: TypedItem>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
     items
-        .extract_if(.., |item| T::from_item_ref(item).is_some())
+        .extract_if(.., |item| item.downcast_ref::<T>().is_some())
         .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
 }
 
@@ -69,7 +69,7 @@ pub fn take_payload_if<T: TypedItem>(
 ) -> Option<T> {
     let index = items
         .iter()
-        .position(|item| T::from_item_ref(item).is_some_and(&mut predicate))?;
+        .position(|item| item.downcast_ref::<T>().is_some_and(&mut predicate))?;
     Some(
         T::try_from(items.swap_remove(index))
             .unwrap_or_else(|_| unreachable!("selected payload type")),

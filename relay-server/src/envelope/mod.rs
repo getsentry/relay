@@ -540,7 +540,7 @@ impl Envelope {
         let index = self
             .items
             .iter()
-            .position(|item| T::from_item_ref(item).is_some_and(&mut predicate))?;
+            .position(|item| item.downcast_ref::<T>().is_some_and(&mut predicate))?;
         Some(
             T::try_from(self.items.swap_remove(index))
                 .unwrap_or_else(|_| unreachable!("selected payload type")),
@@ -558,7 +558,7 @@ impl Envelope {
         mut predicate: impl FnMut(&T) -> bool,
     ) -> impl Iterator<Item = T> {
         self.items
-            .drain_filter(move |item| T::from_item_ref(item).is_some_and(&mut predicate))
+            .drain_filter(move |item| item.downcast_ref::<T>().is_some_and(&mut predicate))
             .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
     }
 
@@ -573,7 +573,7 @@ impl Envelope {
             .items
             .iter()
             .enumerate()
-            .find_map(|(index, item)| Some((index, predicate(T::from_item_ref(item)?)?)))?;
+            .find_map(|(index, item)| Some((index, predicate(item.downcast_ref::<T>()?)?)))?;
         let item = T::try_from(self.items.swap_remove(index))
             .unwrap_or_else(|_| unreachable!("selected payload type"));
         Some((item, result))
