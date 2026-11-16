@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemData};
+use crate::envelope::{Envelope, Item, ItemCount, ItemData};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -102,47 +102,45 @@ pub fn check_envelope_size_limits(
     };
 
     for item in envelope.items() {
-        let limit = match item {
-            Item::Event(_) => &mut event,
-            Item::Transaction(_) => &mut event,
-            Item::Security(_) => &mut event,
-            Item::ReplayEvent(_) => &mut event,
-            Item::RawSecurity(_) => &mut event,
-            Item::UserReportV2(_) => &mut event,
-            Item::FormData(_) => &mut event,
-            Item::Attachment(_) => &mut attachment,
-            Item::UnrealReport(_) => &mut attachment,
-            Item::UserReport(_) => &mut attachment,
-            Item::ReplayRecording(_) => &mut replay_recording,
-            Item::ReplayVideo(_) => &mut replay_video,
-            Item::Session(_) => &mut session,
-            Item::Sessions(_) => &mut session,
-            Item::ClientReport(_) => &mut client_report,
-            Item::Profile(_) => &mut profile,
-            Item::ProfileChunk(_) => &mut profile,
-            Item::CheckIn(_) => &mut check_in,
-            Item::MetricBuckets(_) => &mut metric_bucket,
-            Item::Log(_) => &mut log,
-            Item::TraceMetric(_) => &mut trace_metric,
+        let result = match item {
+            Item::Event(item) => event.apply(item.data(), None),
+            Item::Transaction(item) => event.apply(item.data(), None),
+            Item::Security(item) => event.apply(item.data(), None),
+            Item::ReplayEvent(item) => event.apply(item.data(), None),
+            Item::RawSecurity(item) => event.apply(item.data(), None),
+            Item::UserReportV2(item) => event.apply(item.data(), None),
+            Item::FormData(item) => event.apply(item.data(), None),
+            Item::Attachment(item) => attachment.apply(item.data(), None),
+            Item::UnrealReport(item) => attachment.apply(item.data(), None),
+            Item::UserReport(item) => attachment.apply(item.data(), None),
+            Item::ReplayRecording(item) => replay_recording.apply(item.data(), None),
+            Item::ReplayVideo(item) => replay_video.apply(item.data(), None),
+            Item::Session(item) => session.apply(item.data(), item.item_count()),
+            Item::Sessions(item) => session.apply(item.data(), item.item_count()),
+            Item::ClientReport(item) => client_report.apply(item.data(), item.item_count()),
+            Item::Profile(item) => profile.apply(item.data(), item.item_count()),
+            Item::ProfileChunk(item) => profile.apply(item.data(), item.item_count()),
+            Item::CheckIn(item) => check_in.apply(item.data(), item.item_count()),
+            Item::MetricBuckets(item) => metric_bucket.apply(item.data(), item.item_count()),
+            Item::Log(item) => log.apply(item.data(), item.item_count()),
+            Item::TraceMetric(item) => trace_metric.apply(item.data(), item.item_count()),
             Item::Span(item) => match item.data().is_container() {
-                true => &mut span,
-                false => &mut span_legacy,
+                true => span.apply(item.data(), item.item_count()),
+                false => span_legacy.apply(item.data(), item.item_count()),
             },
             Item::Integration(item) => match item.integration() {
-                Some(Integration::Errors(_)) => &mut attachment,
-                Some(Integration::Logs(_)) => &mut log_integration,
-                Some(Integration::Spans(_)) => &mut span_integration,
+                Some(Integration::Errors(_)) => attachment.apply(item.data(), None),
+                Some(Integration::Logs(_)) => log_integration.apply(item.data(), None),
+                Some(Integration::Spans(_)) => span_integration.apply(item.data(), None),
                 None => {
                     // Shouldn't be possible, if it still happens due to a bug, be defensive.
                     debug_assert!(false);
-                    &mut empty
+                    empty.apply(item.data(), None)
                 }
             },
             // Unknown items are either filtered or forwarded as is.
             Item::Unknown(_) => continue,
         };
-
-        let result = limit.apply(item.data(), item.item_count());
 
         if let Err(err) = result {
             relay_statsd::metric!(
