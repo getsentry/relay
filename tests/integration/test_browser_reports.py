@@ -288,25 +288,25 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                     },
                     "browser.report.type": {"type": "string", "value": "csp-violation"},
                     "browser.version": {"type": "string", "value": "79.0.3945"},
-                    "csp.blocked_url": {
+                    "browser.report.blocked_url": {
                         "type": "string",
                         "value": "https://example.net/assets/media/7_del.png",
                     },
-                    "csp.document_url": {
+                    "browser.report.document_url": {
                         "type": "string",
                         "value": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
                     },
-                    "csp.effective_directive": {
+                    "browser.report.report_only": {
+                        "type": "boolean",
+                        "value": False,
+                    },
+                    "browser.report.csp.effective_directive": {
                         "type": "string",
                         "value": "img-src",
                     },
-                    "csp.original_policy": {
+                    "browser.report.csp.original_policy": {
                         "type": "string",
                         "value": "default-src 'none'; report-to endpoint-csp;",
-                    },
-                    "csp.report_only": {
-                        "type": "boolean",
-                        "value": False,
                     },
                     "http.request.header.referer": {
                         "type": "string",
@@ -345,25 +345,25 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                     },
                     "browser.report.type": {"type": "string", "value": "csp-violation"},
                     "browser.version": {"type": "string", "value": "79.0.3945"},
-                    "csp.blocked_url": {
+                    "browser.report.blocked_url": {
                         "type": "string",
                         "value": "https://example.com/tst/media/7_del.png",
                     },
-                    "csp.document_url": {
+                    "browser.report.report_only": {
+                        "type": "boolean",
+                        "value": True,
+                    },
+                    "browser.report.document_url": {
                         "type": "string",
                         "value": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
                     },
-                    "csp.effective_directive": {
+                    "browser.report.csp.effective_directive": {
                         "type": "string",
                         "value": "img-src",
                     },
-                    "csp.original_policy": {
+                    "browser.report.csp.original_policy": {
                         "type": "string",
                         "value": "default-src 'none'; report-to endpoint-csp;",
-                    },
-                    "csp.report_only": {
-                        "type": "boolean",
-                        "value": True,
                     },
                     "http.request.header.referer": {
                         "type": "string",

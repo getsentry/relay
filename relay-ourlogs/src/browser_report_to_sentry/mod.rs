@@ -26,6 +26,29 @@ mod csp;
 mod integrity;
 mod nel;
 
+/// Attributes used in converting browser reports to logs.
+///
+/// This module is temporary while this project is under development.
+/// As part of INGEST-1350, the attributes will be integrated into `sentry-conventions` once
+/// they've been nailed down.
+mod attributes {
+    // Analogous to, and should subsume, `INTEGRITY__BLOCKED_URL`.
+    pub const BROWSER__REPORT__BLOCKED_URL: &str = "browser.report.blocked_url";
+    // Analogous to, and should subsume, `INTEGRITY__DOCUMENT_URL`.
+    // This might be redundant with the URL on reports.
+    pub const BROWSER__REPORT__DOCUMENT_URL: &str = "browser.report.document_url";
+    // Analogous to, and should subsume, `NEL__REPORT_ONLY`. CSP reports strictly speaking don't
+    // have a field for this, they have "disposition" of `enforce` or `report`
+    // instead.
+    pub const BROWSER__REPORT__REPORT_ONLY: &str = "browser.report.report_only";
+    pub const BROWSER__REPORT__CSP__EFFECTIVE_DIRECTIVE: &str =
+        "browser.report.csp.effective_directive";
+    pub const BROWSER__REPORT__CSP__ORIGINAL_POLICY: &str = "browser.report.csp.original_policy";
+    pub const BROWSER__REPORT__CSP__SAMPLE: &str = "browser.report.csp.sample";
+    // Analogous to `CODE__LINE__NUMBER` (doesn't exist yet).
+    pub const CODE__COLUMN__NUMBER: &str = "code.column.number";
+}
+
 /// Extracts the domain or IP address from a server address string.
 ///
 /// e.g. 123.123.123.123 -> 123.123.123.123
@@ -484,41 +507,41 @@ mod tests {
           "level": "warn",
           "body": "Blocked 'script' from 'baddomain.com'",
           "attributes": {
+            "browser.report.blocked_url": {
+              "type": "string",
+              "value": "http://baddomain.com/test.js?_=1515535030116"
+            },
+            "browser.report.csp.effective_directive": {
+              "type": "string",
+              "value": "script-src"
+            },
+            "browser.report.csp.original_policy": {
+              "type": "string",
+              "value": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7"
+            },
+            "browser.report.document_url": {
+              "type": "string",
+              "value": "https://sentry.io/sentry/csp/issues/88513416/"
+            },
+            "browser.report.report_only": {
+              "type": "boolean",
+              "value": false
+            },
             "browser.report.type": {
               "type": "string",
               "value": "csp-violation"
             },
-            "csp.blocked_url": {
-              "type": "string",
-              "value": "http://baddomain.com/test.js?_=1515535030116"
-            },
-            "csp.column_number": {
+            "code.column.number": {
               "type": "integer",
               "value": 66270
             },
-            "csp.document_url": {
-              "type": "string",
-              "value": "https://sentry.io/sentry/csp/issues/88513416/"
-            },
-            "csp.effective_directive": {
-              "type": "string",
-              "value": "script-src"
-            },
-            "csp.line_number": {
-              "type": "integer",
-              "value": 24
-            },
-            "csp.original_policy": {
-              "type": "string",
-              "value": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7"
-            },
-            "csp.report_only": {
-              "type": "boolean",
-              "value": false
-            },
-            "csp.source_file": {
+            "code.file.path": {
               "type": "string",
               "value": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js"
+            },
+            "code.line.number": {
+              "type": "integer",
+              "value": 24
             },
             "http.request.header.referer": {
               "type": "string",

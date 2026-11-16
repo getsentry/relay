@@ -5,28 +5,7 @@ use relay_conventions::{attributes::*, interpolate};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel};
 use url::Url;
 
-mod attributes {
-    // Analogous to `INTEGRITY__BLOCKED_URL`.
-    pub const CSP__BLOCKED_URL: &str = "csp.blocked_url";
-    // Possibly replace by `code.column.number` (doesn't exist yet)?
-    pub const CSP__COLUMN_NUMBER: &str = "csp.column_number";
-    // Analogous to `INTEGRITY__DOCUMENT_URL`.
-    // This might be redundant with the URL on reports.
-    pub const CSP__DOCUMENT_URL: &str = "csp.document_url";
-    pub const CSP__EFFECTIVE_DIRECTIVE: &str = "csp.effective_directive";
-    // Possibly replace by `code.line.number`?
-    pub const CSP__LINE_NUMBER: &str = "csp.line_number";
-    pub const CSP__ORIGINAL_POLICY: &str = "csp.original_policy";
-    // Analogous to `NEL__REPORT_ONLY`. CSP reports strictly speaking don't
-    // have a field for this, they have "disposition" of `enforce` or `report`
-    // instead.
-    pub const CSP__REPORT_ONLY: &str = "csp.report_only";
-    pub const CSP__SAMPLE: &str = "csp.sample";
-    // Possibly replace by `code.file.path`?
-    pub const CSP__SOURCE_FILE: &str = "csp.source_file";
-}
-
-use attributes::*;
+use crate::browser_report_to_sentry::attributes::*;
 
 fn scheme_uses_host(scheme: &str) -> bool {
     // List of schemes with host (netloc) from Python's urlunsplit:
@@ -146,18 +125,26 @@ pub fn create_log_from_csp_body(body: Body, mut attributes: Attributes) -> OurLo
         status_code,
     } = body;
 
-    add_string_attribute!(attributes, CSP__ORIGINAL_POLICY, original_policy);
-    add_string_attribute!(attributes, CSP__EFFECTIVE_DIRECTIVE, effective_directive);
-    add_string_attribute!(attributes, CSP__BLOCKED_URL, blocked_url);
-    add_string_attribute!(attributes, CSP__DOCUMENT_URL, document_url);
+    add_string_attribute!(attributes, BROWSER__REPORT__BLOCKED_URL, blocked_url);
+    add_string_attribute!(attributes, BROWSER__REPORT__DOCUMENT_URL, document_url);
     add_attribute!(
         attributes,
-        CSP__REPORT_ONLY,
+        BROWSER__REPORT__REPORT_ONLY,
         matches!(disposition, Disposition::Report)
+    );
+    add_string_attribute!(
+        attributes,
+        BROWSER__REPORT__CSP__ORIGINAL_POLICY,
+        original_policy
+    );
+    add_string_attribute!(
+        attributes,
+        BROWSER__REPORT__CSP__EFFECTIVE_DIRECTIVE,
+        effective_directive
     );
 
     if let Some(sample) = sample {
-        add_string_attribute!(attributes, CSP__SAMPLE, sample);
+        add_string_attribute!(attributes, BROWSER__REPORT__CSP__SAMPLE, sample);
     }
 
     if let Some(SourceFile {
@@ -166,9 +153,9 @@ pub fn create_log_from_csp_body(body: Body, mut attributes: Attributes) -> OurLo
         line_number,
     }) = source_file
     {
-        add_string_attribute!(attributes, CSP__SOURCE_FILE, source_file);
-        add_attribute!(attributes, CSP__COLUMN_NUMBER, column_number as i64);
-        add_attribute!(attributes, CSP__LINE_NUMBER, line_number as i64);
+        add_string_attribute!(attributes, CODE__FILE__PATH, source_file);
+        add_attribute!(attributes, CODE__COLUMN__NUMBER, column_number as i64);
+        add_attribute!(attributes, CODE__LINE__NUMBER, line_number as i64);
     }
 
     add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
