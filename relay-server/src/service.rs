@@ -632,38 +632,30 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 
 #[cfg(feature = "processing")]
 fn create_async_redis_client(
-    (name, secondary_name): (&'static str, &'static str),
+    names: (&'static str, &'static str),
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
-    match config {
-        RedisConfigRef::MultiWrite { configs } => {
-            // Client names must be static, which limits multi write to a primary and a secondary.
-            let [primary, secondary] = configs.as_slice() else {
-                return Err(RedisError::Configuration);
-            };
-            Ok(AsyncRedisClient::dual(
-                create_async_redis_pool(name, primary)?,
-                create_async_redis_pool(secondary_name, secondary)?,
-            ))
-        }
-        config => create_async_redis_pool(name, config),
-    }
-}
+    let (name, secondary_name) = names;
 
-#[cfg(feature = "processing")]
-fn create_async_redis_pool(
-    name: &'static str,
-    config: &RedisConfigRef<'_>,
-) -> Result<AsyncRedisClient, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
         } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::MultiWrite { configs } => {
+            let mut configs = configs.iter();
+            let primary = configs.next().ok_or(RedisError::Configuration)?;
+            let primary = create_async_redis_client(names, primary)?;
+            // Client names must be static, all secondaries share one.
+            let secondaries = configs
+                .map(|config| create_async_redis_client((secondary_name, secondary_name), config))
+                .collect::<Result<_, _>>()?;
+
+            Ok(AsyncRedisClient::multi_write(primary, secondaries))
+        }
         RedisConfigRef::Single { server, options } => {
             AsyncRedisClient::single(name, server, options)
         }
-        RedisConfigRef::MultiWrite { .. } => Err(RedisError::Configuration),
     }
 }
 

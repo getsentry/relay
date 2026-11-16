@@ -13,6 +13,9 @@ mod config;
 pub use self::config::*;
 
 #[cfg(feature = "impl")]
+mod multi_write;
+
+#[cfg(feature = "impl")]
 mod pool;
 
 #[cfg(feature = "impl")]
