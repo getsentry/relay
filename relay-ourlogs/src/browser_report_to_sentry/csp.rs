@@ -81,9 +81,9 @@ fn normalize_url(value: &str) -> Cow<'_, str> {
 
 fn get_message(blocked_url: &BlockedUrl, directive: &CspDirective) -> String {
     match blocked_url {
-        BlockedUrl::Inline => "Blocked unsafe inline 'script'".to_owned(),
-        BlockedUrl::Eval => "Blocked unsafe eval() 'script'".to_owned(),
-        BlockedUrl::WasmEval => "Blocked unsafe WASM eval() 'script'".to_owned(),
+        BlockedUrl::Inline => format!("Blocked unsafe inline '{directive}'"),
+        BlockedUrl::Eval => format!("Blocked unsafe eval() '{directive}'"),
+        BlockedUrl::WasmEval => format!("Blocked unsafe WASM eval() '{directive}'"),
         BlockedUrl::TrustedTypesPolicy => "Blocked creation of trusted types policy".to_owned(),
         BlockedUrl::TrustedTypesSink => "Blocked sending of unsanitized data to sink".to_owned(),
         BlockedUrl::Url(url) => {
