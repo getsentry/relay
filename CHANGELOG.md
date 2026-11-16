@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
+
 ## 26.11.0
 
 **Features**:
