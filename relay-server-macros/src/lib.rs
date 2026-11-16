@@ -1,5 +1,7 @@
 //! Generate concrete envelope item variants and their wire tags.
 
+#![warn(missing_docs)]
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Result;
