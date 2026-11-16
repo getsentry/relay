@@ -251,7 +251,11 @@ impl Replay {
 
 impl Getter for Replay {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path.strip_prefix("event.")? {
+        let path = path
+            .strip_prefix("event.")
+            .or_else(|| path.strip_prefix("replay."))?;
+
+        Some(match path {
             // Simple fields
             "release" => self.release.as_str()?.into(),
             "dist" => self.dist.as_str()?.into(),
@@ -502,5 +506,23 @@ mod tests {
             Some(Val::String("12345678-1234-1234-1234-1234567890ab")),
             replay.get_value("event.contexts.ota_updates.update_id")
         );
+    }
+
+    #[test]
+    fn test_getter_replay_prefix() {
+        let replay = Replay {
+            release: Annotated::new("1.1.1".to_owned().into()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Some(Val::String("1.1.1")),
+            replay.get_value("event.release")
+        );
+        assert_eq!(
+            Some(Val::String("1.1.1")),
+            replay.get_value("replay.release")
+        );
+        assert_eq!(None, replay.get_value("transaction.release"));
     }
 }

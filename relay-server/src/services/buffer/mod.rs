@@ -1,7 +1,6 @@
 //! Types for buffering envelopes.
 
 use std::num::{NonZeroU8, NonZeroU32};
-use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
