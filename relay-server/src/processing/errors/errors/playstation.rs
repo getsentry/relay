@@ -67,10 +67,10 @@ impl SentryError for Playstation {
                 prosperodump.payload(),
                 ctx.processing.config.max_attachment_size(),
             ).map_err(ProcessingError::from)?;
-            let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
+            let prospero_dump = relay_horatio::playstation::ProsperoDump::parse(&data).map_err(|err| {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
             })?;
-            let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
+            let minidump_buffer = relay_horatio::playstation::write_dump(&prospero_dump).map_err(|err| {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
             })?;
 

@@ -4836,6 +4836,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-horatio"
+version = "26.11.0"
+dependencies = [
+ "anyhow",
+ "dircpy",
+ "lz4_flex",
+ "minidump-writer",
+ "object 0.37.3",
+ "rmpv",
+ "tempfile",
+ "tracing",
+ "watto",
+]
+
+[[package]]
 name = "relay-kafka"
 version = "26.11.0"
 dependencies = [
@@ -5019,21 +5034,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-prosperoconv"
-version = "26.11.0"
-dependencies = [
- "anyhow",
- "dircpy",
- "lz4_flex",
- "minidump-writer",
- "object 0.37.3",
- "rmpv",
- "tempfile",
- "tracing",
- "watto",
-]
-
-[[package]]
 name = "relay-protocol"
 version = "26.11.0"
 dependencies = [
@@ -5206,6 +5206,7 @@ dependencies = [
  "relay-event-normalization",
  "relay-event-schema",
  "relay-filter",
+ "relay-horatio",
  "relay-kafka",
  "relay-log",
  "relay-metrics",
@@ -5214,7 +5215,6 @@ dependencies = [
  "relay-ourlogs",
  "relay-pii",
  "relay-profiling",
- "relay-prosperoconv",
  "relay-protocol",
  "relay-quotas",
  "relay-redis",

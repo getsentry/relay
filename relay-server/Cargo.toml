@@ -82,6 +82,7 @@ relay-dynamic-config = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-filter = { workspace = true }
+relay-horatio = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
 relay-metrics = { workspace = true }
@@ -89,7 +90,6 @@ relay-monitors = { workspace = true }
 relay-ourlogs = { workspace = true }
 relay-pii = { workspace = true }
 relay-profiling = { workspace = true }
-relay-prosperoconv = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-redis = { workspace = true }

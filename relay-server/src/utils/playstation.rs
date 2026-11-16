@@ -6,7 +6,7 @@ use relay_event_schema::protocol::{
     RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
-use relay_prosperoconv::ProsperoDump;
+use relay_horatio::playstation::ProsperoDump;
 use relay_protocol::{Annotated, Empty, Object};
 
 use crate::envelope::ContentType;
