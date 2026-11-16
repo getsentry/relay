@@ -45,15 +45,15 @@ impl SentryError for Playstation {
 
         let mut metrics = Metrics::default();
 
-        let Some(prosperodump) = utils::take_payload_if::<AttachmentItem>(items, |item| {
+        let Some(prosperodump) = utils::take_item_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::Prosperodump)
         }) else {
             return Ok(None);
         };
 
-        let user_reports = utils::take_payloads::<UserReportItem>(items).collect();
+        let user_reports = utils::take_items::<UserReportItem>(items).collect();
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut attachments: Vec<_> = utils::take_payloads::<AttachmentItem>(items).collect();
+        let mut attachments: Vec<_> = utils::take_items::<AttachmentItem>(items).collect();
 
         let (event, minidump, session_updates) = utils::if_not_processing!(ctx, {
             let event = Box::new(utils::take_parsed_event(items, &mut metrics, ctx.processing)?);
@@ -76,7 +76,7 @@ impl SentryError for Playstation {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
             })?;
 
-            let event = utils::take_payload::<EventItem>(items);
+            let event = utils::take_item::<EventItem>(items);
             let prospero_event = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY);
 
             let mut event = match (event, prospero_event) {

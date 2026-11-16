@@ -15,7 +15,7 @@ impl SentryError for Generic {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(ev) = utils::take_payload::<EventItem>(items) else {
+        let Some(ev) = utils::take_item::<EventItem>(items) else {
             return Ok(None);
         };
 
@@ -34,7 +34,7 @@ impl SentryError for Generic {
             event.ty.set_value(None);
         }
 
-        let mut attachments: Vec<AttachmentItem> = utils::take_payloads(items).collect();
+        let mut attachments: Vec<AttachmentItem> = utils::take_items(items).collect();
         // Separate the first flamegraph from the event's attachments and drop additional graphs.
         let flamegraph = attachments
             .extract_if(.., |item| {
@@ -46,7 +46,7 @@ impl SentryError for Generic {
             event: Box::new(event),
             attachments,
             flamegraph,
-            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
+            user_reports: utils::take_items::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self,
             metrics,

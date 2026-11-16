@@ -38,7 +38,7 @@ impl SentryError for Nswitch {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(dying_message) = utils::take_payload_if::<AttachmentItem>(items, |item| {
+        let Some(dying_message) = utils::take_item_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
         }) else {
             return Ok(None);
@@ -46,8 +46,8 @@ impl SentryError for Nswitch {
 
         let mut metrics = Default::default();
 
-        let attachments: Vec<_> = utils::take_payloads::<AttachmentItem>(items).collect();
-        let user_reports = utils::take_payloads::<UserReportItem>(items).collect();
+        let attachments: Vec<_> = utils::take_items::<AttachmentItem>(items).collect();
+        let user_reports = utils::take_items::<UserReportItem>(items).collect();
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
@@ -66,7 +66,7 @@ impl SentryError for Nswitch {
             }));
         }
 
-        let event = utils::take_payload::<EventItem>(items);
+        let event = utils::take_item::<EventItem>(items);
 
         let dying_message = expand_dying_message(dying_message.data().payload())
             .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
@@ -274,9 +274,9 @@ fn expand_dying_message_from_envelope_items(
         .map_err(SwitchProcessingError::EnvelopeParsing)?
         .into_vec();
 
-    let event = utils::take_payload::<EventItem>(&mut items);
-    let attachments = utils::take_payloads::<AttachmentItem>(&mut items).collect();
-    let session_updates = utils::take_payloads::<SessionItem>(&mut items).collect();
+    let event = utils::take_item::<EventItem>(&mut items);
+    let attachments = utils::take_items::<AttachmentItem>(&mut items).collect();
+    let session_updates = utils::take_items::<SessionItem>(&mut items).collect();
 
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.

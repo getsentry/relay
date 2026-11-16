@@ -17,14 +17,13 @@ impl SentryError for UserReportV2 {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(ev) = utils::take_payload::<UserReportV2Item>(items) else {
+        let Some(ev) = utils::take_item::<UserReportV2Item>(items) else {
             return Ok(None);
         };
 
         let mut metrics = Default::default();
 
-        let attachments: Vec<AttachmentItem> =
-            utils::take_payloads::<AttachmentItem>(items).collect();
+        let attachments: Vec<AttachmentItem> = utils::take_items::<AttachmentItem>(items).collect();
 
         relay_statsd::metric!(
             counter(RelayCounters::FeedbackAttachments) += attachments.len() as u64

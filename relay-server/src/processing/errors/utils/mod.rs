@@ -53,17 +53,17 @@ where
     index.map(|index| items.swap_remove(index))
 }
 
-pub fn take_payload<T: TypedItem>(items: &mut Vec<Item>) -> Option<T> {
-    take_payload_if(items, |_| true)
+pub fn take_item<T: TypedItem>(items: &mut Vec<Item>) -> Option<T> {
+    take_item_if(items, |_| true)
 }
 
-pub fn take_payloads<T: TypedItem>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
+pub fn take_items<T: TypedItem>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
     items
         .extract_if(.., |item| item.is::<T>())
         .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
 }
 
-pub fn take_payload_if<T: TypedItem>(
+pub fn take_item_if<T: TypedItem>(
     items: &mut Vec<Item>,
     mut predicate: impl FnMut(&T) -> bool,
 ) -> Option<T> {
@@ -111,7 +111,7 @@ pub fn take_parsed_event(
     metrics: &mut Metrics,
     ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
-    let Some(item) = take_payload::<EventItem>(items) else {
+    let Some(item) = take_item::<EventItem>(items) else {
         return Ok(Annotated::empty());
     };
     event_from_json(&item.data().payload(), None, metrics, ctx)
@@ -128,13 +128,13 @@ pub fn take_event_from_attachments(
     metrics: &mut Metrics,
     ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
-    let ev = take_payload_if::<AttachmentItem>(items, |item| {
+    let ev = take_item_if::<AttachmentItem>(items, |item| {
         item.attachment_type() == Some(AttachmentType::EventPayload)
     });
-    let b1 = take_payload_if::<AttachmentItem>(items, |item| {
+    let b1 = take_item_if::<AttachmentItem>(items, |item| {
         item.attachment_type() == Some(AttachmentType::Breadcrumbs)
     });
-    let b2 = take_payload_if::<AttachmentItem>(items, |item| {
+    let b2 = take_item_if::<AttachmentItem>(items, |item| {
         item.attachment_type() == Some(AttachmentType::Breadcrumbs)
     });
 
@@ -181,7 +181,7 @@ pub fn take_event_from_formdata(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
 ) -> Result<Annotated<Event>> {
-    let Some(form_data) = take_payload::<FormDataItem>(items) else {
+    let Some(form_data) = take_item::<FormDataItem>(items) else {
         return Ok(Annotated::empty());
     };
 

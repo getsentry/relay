@@ -22,7 +22,7 @@ impl SentryError for GpuCrash {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(dump) = utils::take_payload_if::<AttachmentItem>(items, |item| {
+        let Some(dump) = utils::take_item_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::NvGpuDump)
         }) else {
             return Ok(None);
@@ -38,9 +38,9 @@ impl SentryError for GpuCrash {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            attachments: utils::take_items::<AttachmentItem>(items).collect(),
             flamegraph: None,
-            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
+            user_reports: utils::take_items::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self(dump),
             metrics,

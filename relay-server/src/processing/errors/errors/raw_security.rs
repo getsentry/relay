@@ -21,7 +21,7 @@ impl SentryError for RawSecurity {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(item) = utils::take_payload::<RawSecurityItem>(items) else {
+        let Some(item) = utils::take_item::<RawSecurityItem>(items) else {
             return Ok(None);
         };
 
@@ -33,9 +33,9 @@ impl SentryError for RawSecurity {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_payloads::<AttachmentItem>(items).collect(),
+            attachments: utils::take_items::<AttachmentItem>(items).collect(),
             flamegraph: None,
-            user_reports: utils::take_payloads::<UserReportItem>(items).collect(),
+            user_reports: utils::take_items::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self,
             metrics,
