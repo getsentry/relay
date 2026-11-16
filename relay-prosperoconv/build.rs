@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
     if !Command::new("git")
         .args([
             "clone",
-            "git@github.com:getsentry/tempest.git",
+            "git@github.com:getsentry/horatio.git",
             &temp_dir_str,
             &format!("--revision={desired_version}"),
             "--depth=1",
@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
         Command::new("git")
             .args([
                 "clone",
-                "https://github.com/getsentry/tempest.git",
+                "https://github.com/getsentry/horatio.git",
                 &temp_dir_str,
                 &format!("--revision={desired_version}"),
                 "--depth=1",
