@@ -122,7 +122,7 @@ struct WireTag {
     constructor_args: TokenStream,
     wire_variant: TokenStream,
     wire_pattern: TokenStream,
-    payload_field: TokenStream,
+    type_field: TokenStream,
     payload_init: TokenStream,
     debug_tag: TokenStream,
     item_tag: TokenStream,
@@ -135,7 +135,7 @@ impl WireTag {
                 constructor_args: quote!(name: String),
                 wire_variant: quote!(#name(String)),
                 wire_pattern: quote!(ItemType::Unknown(name)),
-                payload_field: quote!(ty: ItemType,),
+                type_field: quote!(ty: ItemType,),
                 payload_init: quote!(ty: ItemType::Unknown(name),),
                 debug_tag: quote!(&self.ty),
                 item_tag: quote!(Self::Unknown(item) => &item.ty),
@@ -144,7 +144,7 @@ impl WireTag {
                 constructor_args: quote!(),
                 wire_variant: quote!(#name),
                 wire_pattern: quote!(ItemType::#name),
-                payload_field: quote!(),
+                type_field: quote!(),
                 payload_init: quote!(),
                 debug_tag: quote!(&ItemType::#name),
                 item_tag: quote!(Self::#name(_) => &ItemType::#name),
@@ -190,7 +190,7 @@ impl VariantCode {
             constructor_args,
             wire_variant,
             wire_pattern,
-            payload_field,
+            type_field,
             payload_init,
             debug_tag,
             item_tag,
@@ -203,7 +203,7 @@ impl VariantCode {
             payload_struct: quote! {
                 #container_impl
                 #[derive(Clone)]
-                pub struct #payload { data: ItemData, #payload_field }
+                pub struct #payload { data: ItemData, #type_field }
                 impl #payload {
                     pub fn new(#constructor_args) -> Self { Self { data: ItemData::new(), #payload_init } }
                     /// Returns the shared headers and serialized payload.
