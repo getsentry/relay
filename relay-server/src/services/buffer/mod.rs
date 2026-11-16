@@ -1,6 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::num::{NonZeroU8, NonZeroU32};
+use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -701,7 +702,6 @@ impl Service for EnvelopeBufferService {
                         }
                     }
                     sleep = Duration::ZERO;
-
                 }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;

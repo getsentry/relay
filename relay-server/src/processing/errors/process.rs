@@ -104,6 +104,7 @@ fn do_expand(
         metrics: parsed.metrics,
         event: parsed.event,
         attachments: parsed.attachments,
+        flamegraph: parsed.flamegraph,
         user_reports: parsed.user_reports,
         data: parsed.error,
         other: error.items,
@@ -112,9 +113,29 @@ fn do_expand(
     Ok((expanded_error, intermediates))
 }
 
-pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {
+pub fn process(
+    error: &mut Managed<ExpandedError>,
+    ctx: Context<'_>,
+) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
         processing::user_reports::process_user_reports(&mut error.user_reports, records);
+
+        let needs_culprit = error
+            .event
+            .value()
+            .is_some_and(super::flamegraph::needs_enrichment);
+        let culprit = super::flamegraph::process_flamegraph(
+            &mut error.flamegraph,
+            needs_culprit,
+            ctx.config.max_event_size(),
+            records,
+        );
+        if let Some(event) = error.event.value_mut().as_mut()
+            && super::flamegraph::enrich(event, culprit)
+        {
+            // Derived frames need the same normalization and trimming as SDK-supplied frames.
+            error.fully_normalized = EventFullyNormalized(false);
+        }
 
         Ok::<_, Error>(())
     })
@@ -128,7 +149,7 @@ pub fn finalize(
         processing::utils::event::finalize(
             &error.headers,
             &mut error.event,
-            error.attachments.iter(),
+            error.attachments.iter().chain(error.flamegraph.iter()),
             &mut error.metrics,
             ctx.config,
         )?;
@@ -162,7 +183,10 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
     error.try_modify(|error, records| {
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
         processing::utils::attachments::scrub(
-            error.attachments.iter_mut(),
+            error
+                .attachments
+                .iter_mut()
+                .chain(error.flamegraph.iter_mut()),
             ctx.project_info,
             Some(records),
         );

@@ -17,7 +17,7 @@ use relay_event_schema::protocol::{
     OsContext, ProfileContext, ReplayContext, RuntimeContext, SentryTags, Span, Timestamp,
     TraceContext,
 };
-use relay_protocol::{Annotated, Empty, FiniteF64, Value};
+use relay_protocol::{Annotated, Empty, FiniteF64, Meta, Value};
 use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
@@ -124,7 +124,7 @@ pub fn extract_span_tags(
 ) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
-    let shared_tags = extract_shared_tags(event);
+    let shared_tags = extract_shared_tags(event, max_tag_value_size);
     let is_mobile = shared_tags
         .mobile
         .value()
@@ -322,55 +322,59 @@ impl SharedTags {
 }
 
 /// Extracts tags shared by every span.
-fn extract_shared_tags(event: &Event) -> SharedTags {
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     let mut tags = SharedTags::default();
 
     if let Some(release) = event.release.as_str() {
-        tags.release = release.to_owned().into();
+        tags.release = truncate_string(release.to_owned(), max_tag_value_size);
     }
 
     if let Some(user) = event.user.value() {
         if let Some(user) = get_event_user_tag(user) {
-            tags.user = user.into();
+            tags.user = truncate_string(user, max_tag_value_size);
         }
         if let Some(user_id) = user.id.value() {
-            tags.user_id = user_id.as_str().to_owned().into();
+            tags.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_ip) = user.ip_address.value() {
-            tags.user_ip = user_ip.as_str().to_owned().into();
+            tags.user_ip = truncate_string(user_ip.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_username) = user.username.value() {
-            tags.user_username = user_username.as_str().to_owned().into();
+            tags.user_username =
+                truncate_string(user_username.as_str().to_owned(), max_tag_value_size);
         }
         if let Some(user_email) = user.email.value() {
-            tags.user_email = user_email.clone().into();
+            tags.user_email = truncate_string(user_email.clone(), max_tag_value_size);
         }
 
         if let Some(geo) = user.geo.value() {
             if let Some(city) = geo.city.value() {
-                tags.user_city = city.clone().into();
+                tags.user_city = truncate_string(city.clone(), max_tag_value_size);
             }
 
             if let Some(country_code) = geo.country_code.value() {
-                tags.user_country_code = country_code.clone().into();
+                tags.user_country_code = truncate_string(country_code.clone(), max_tag_value_size);
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
                     let numerical_subregion = subregion as u8;
-                    tags.user_subregion = numerical_subregion.to_string().into();
+                    tags.user_subregion =
+                        truncate_string(numerical_subregion.to_string(), max_tag_value_size);
                 }
             }
 
             if let Some(region) = geo.region.value() {
-                tags.user_region = region.clone().into();
+                tags.user_region = truncate_string(region.clone(), max_tag_value_size);
             }
 
             if let Some(subdivision) = geo.subdivision.value() {
-                tags.user_subdivision = subdivision.clone().into();
+                tags.user_subdivision = truncate_string(subdivision.clone(), max_tag_value_size);
             }
         }
     }
 
     if let Some(environment) = event.environment.as_str() {
-        tags.environment = environment.to_owned().into();
+        tags.environment = truncate_string(environment.to_owned(), max_tag_value_size);
     }
 
     if let Some(transaction_name) = event.transaction.value() {
@@ -383,22 +387,22 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            tags.transaction_method = transaction_method.into();
+            tags.transaction_method = truncate_string(transaction_method, max_tag_value_size);
         }
     }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.transaction_op = op.to_lowercase().into();
+            tags.transaction_op = truncate_string(op.to_lowercase(), max_tag_value_size);
         }
 
         if let Some(status) = trace_context.status.value() {
-            tags.trace_status = status.to_string().into();
+            tags.trace_status = truncate_string(status.to_string(), max_tag_value_size);
         }
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
-        tags.mobile = "true".to_owned().into();
+        tags.mobile = truncate_string("true".to_owned(), max_tag_value_size);
     }
 
     if let Some(os_context) = event.context::<OsContext>()
@@ -410,42 +414,45 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
             // an app (as opposed to mobile browser) since we are currently focused on
             // app use cases for mobile.
             if event.context::<AppContext>().is_some() {
-                tags.os_name = os_name.to_string().into();
+                tags.os_name = truncate_string(os_name.to_string(), max_tag_value_size);
             }
         } else {
             // For non-mobile spans, always extract os_name.
-            tags.os_name = os_name.to_string().into();
+            tags.os_name = truncate_string(os_name.to_string(), max_tag_value_size);
         }
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
-        tags.device_class = device_class.to_owned().into();
+        tags.device_class = truncate_string(device_class.to_owned(), max_tag_value_size);
     }
 
     if let Some(browser_name) = event
         .context::<BrowserContext>()
         .and_then(|v| v.name.value())
     {
-        tags.browser_name = browser_name.to_owned().into();
+        tags.browser_name = truncate_string(browser_name.to_owned(), max_tag_value_size);
     }
 
     if let Some(profiler_id) = event
         .context::<ProfileContext>()
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
-        tags.profiler_id = profiler_id.to_string().into();
+        tags.profiler_id = truncate_string(profiler_id.to_string(), max_tag_value_size);
     }
 
     if let Some(replay_id) = event
         .context::<ReplayContext>()
         .and_then(|replay_context| replay_context.replay_id.value())
     {
-        tags.replay_id = replay_id.to_string().into();
+        tags.replay_id = truncate_string(replay_id.to_string(), max_tag_value_size);
     }
 
-    tags.sdk_name = event.sdk_name().to_owned().into();
-    tags.sdk_version = event.sdk_version().to_owned().into();
-    tags.platform = event.platform.as_str().unwrap_or("other").to_owned().into();
+    tags.sdk_name = truncate_string(event.sdk_name().to_owned(), max_tag_value_size);
+    tags.sdk_version = truncate_string(event.sdk_version().to_owned(), max_tag_value_size);
+    tags.platform = truncate_string(
+        event.platform.as_str().unwrap_or("other").to_owned(),
+        max_tag_value_size,
+    );
 
     if let Some(data) = event
         .context::<TraceContext>()
@@ -455,11 +462,11 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
             .get_value(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
-            tags.thread_id = thread_id.into();
+            tags.thread_id = truncate_string(thread_id, max_tag_value_size);
         }
 
         if let Some(thread_name) = data.get_str(THREAD__NAME) {
-            tags.thread_name = thread_name.to_owned().into();
+            tags.thread_name = truncate_string(thread_name.to_owned(), max_tag_value_size);
         }
     }
 
@@ -999,15 +1006,15 @@ pub fn extract_tags(
             let truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             if span_op.starts_with("resource.")
                 && let Some(ext) = truncated
-                    .rsplit('/')
-                    .next()
+                    .value()
+                    .and_then(|truncated| truncated.rsplit('/').next())
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
             {
                 span_tags.file_extension = ext.to_lowercase().into();
             }
 
-            span_tags.description = truncated.into();
+            span_tags.description = truncated;
         }
 
         if span_op.starts_with("resource.") {
@@ -1354,13 +1361,16 @@ fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
 /// If the string is short, it remains unchanged. If it's long, this method
 /// truncates it to the maximum allowed size and sets the last character to
 /// `*`.
-fn truncate_string(mut string: String, max_bytes: usize) -> String {
+fn truncate_string(mut string: String, max_bytes: usize) -> Annotated<String> {
     if string.len() <= max_bytes {
-        return string;
+        return string.into();
     }
 
+    let mut meta = Meta::default();
+    meta.set_original_length(Some(bytecount::num_chars(string.as_bytes())));
+
     if max_bytes == 0 {
-        return String::new();
+        return Annotated(Some(String::new()), meta);
     }
 
     let mut cutoff = max_bytes - 1; // Leave space for `*`
@@ -1371,7 +1381,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 
     string.truncate(cutoff);
     string.push('*');
-    string
+    Annotated(Some(string), meta)
 }
 
 /// Regex with a capture group to extract the database action from a query.
@@ -1599,22 +1609,22 @@ mod tests {
         let string = "ÆÆ".to_owned();
 
         let truncated = truncate_string(string.clone(), 0);
-        assert_eq!(truncated, "");
+        assert_eq!(truncated.value().unwrap(), "");
 
         let truncated = truncate_string(string.clone(), 1);
-        assert_eq!(truncated, "*");
+        assert_eq!(truncated.value().unwrap(), "*");
 
         let truncated = truncate_string(string.clone(), 2);
-        assert_eq!(truncated, "*");
+        assert_eq!(truncated.value().unwrap(), "*");
 
         let truncated = truncate_string(string.clone(), 3);
-        assert_eq!(truncated, "Æ*");
+        assert_eq!(truncated.value().unwrap(), "Æ*");
 
         let truncated = truncate_string(string.clone(), 4);
-        assert_eq!(truncated, "ÆÆ");
+        assert_eq!(truncated.value().unwrap(), "ÆÆ");
 
         let truncated = truncate_string(string, 5);
-        assert_eq!(truncated, "ÆÆ");
+        assert_eq!(truncated.value().unwrap(), "ÆÆ");
     }
 
     macro_rules! span_transaction_method_test {

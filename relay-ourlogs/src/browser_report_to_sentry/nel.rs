@@ -14,15 +14,12 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ("dns.unreachable", "DNS server is unreachable"),
     (
         "dns.name_not_resolved",
-        "DNS server responded but is unable to resolve the address",
+        "DNS server could not resolve the address",
     ),
-    (
-        "dns.failed",
-        "Request to the DNS server failed due to reasons not covered by previous errors",
-    ),
+    ("dns.failed", "Request to the DNS server failed"),
     (
         "dns.address_changed",
-        "Indicates that the resolved IP address for a request's origin has changed since the corresponding NEL policy was received",
+        "The resolved IP address for request's origin has changed since the NEL policy was received",
     ),
     ("tcp.timed_out", "TCP connection to the server timed out"),
     ("tcp.closed", "The TCP connection was closed by the server"),
@@ -34,10 +31,7 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ("tcp.aborted", "The TCP connection was aborted"),
     ("tcp.address_invalid", "The IP address is invalid"),
     ("tcp.address_unreachable", "The IP address is unreachable"),
-    (
-        "tcp.failed",
-        "The TCP connection failed due to reasons not covered by previous errors",
-    ),
+    ("tcp.failed", "The TCP connection failed"),
     (
         "tls.version_or_cipher_mismatch",
         "The TLS connection was aborted due to version or cipher mismatch",
@@ -74,10 +68,7 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
         "tls.protocol.error",
         "The TLS connection was aborted due to a TLS protocol error",
     ),
-    (
-        "tls.failed",
-        "The TLS connection failed due to reasons not covered by previous errors",
-    ),
+    ("tls.failed", "The TLS connection failed"),
     (
         "http.error",
         "The user agent successfully received a response, but it had a {} status code",
@@ -88,21 +79,18 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
     (
         "http.response.invalid",
-        "Response is empty, has a content-length mismatch, has improper encoding, and/or other conditions that prevent user agent from processing the response",
+        "Response is invalid (empty, content-length mismatch, improper encoding, etc.)",
     ),
     (
         "http.response.redirect_loop",
         "The request was aborted due to a detected redirect loop",
     ),
-    (
-        "http.failed",
-        "The connection failed due to errors in HTTP protocol not covered by previous errors",
-    ),
+    ("http.failed", "The connection failed"),
     (
         "abandoned",
         "User aborted the resource fetch before it is complete",
     ),
-    ("unknown", "error type is unknown"),
+    ("unknown", "Error type is unknown"),
     // Chromium-specific errors, not documented in the spec
     // https://chromium.googlesource.com/chromium/src/+/HEAD/net/network_error_logging/network_error_logging_service.cc
     ("dns.protocol", "ERR_DNS_MALFORMED_RESPONSE"),

@@ -54,6 +54,7 @@ impl SentryError for Nswitch {
                     ctx.processing,
                 )?),
                 attachments,
+                flamegraph: None,
                 user_reports,
                 intermediates: vec![],
                 error: Self::Forward { dying_message },
@@ -103,6 +104,7 @@ impl SentryError for Nswitch {
         Ok(Some(Expansion {
             event: Box::new(event),
             attachments,
+            flamegraph: None,
             user_reports,
             intermediates: dying_message.session_updates,
             error: Self::Process {},

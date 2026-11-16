@@ -197,7 +197,7 @@ pub struct Event {
     /// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    #[metastructure(max_chars = 200, pii = "maybe")]
+    #[metastructure(max_chars = Event::MAX_CULPRIT_CHARS, pii = "maybe")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
@@ -502,6 +502,9 @@ impl Event {
 
     /// Maximum number of characters in an environment.
     pub const MAX_ENVIRONMENT_CHARS: usize = 64;
+
+    /// Maximum number of characters in a culprit.
+    pub const MAX_CULPRIT_CHARS: usize = 200;
 
     /// Returns the value of a tag with the given key.
     ///
