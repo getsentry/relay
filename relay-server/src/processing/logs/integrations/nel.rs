@@ -78,18 +78,17 @@ pub fn expand(
     let received_at = headers.meta().received_at();
     let mut total_logs_size = 0;
 
-    let reports: std::vec::IntoIter<
-        DeserializableAnnotated<relay_event_schema::protocol::NetworkReportRaw>,
-    > = relay_serialization::serde::deserialize_json::<Vec<_>>(&payload, max_ops)
-        .map_err(|e| match e {
-            relay_serialization::serde::Error::LimitExceeded(_) => {
-                Error::Invalid(DiscardReason::RequestTooLarge)
+    let reports: Vec<DeserializableAnnotated<relay_event_schema::protocol::NetworkReportRaw>> =
+        relay_serialization::serde::deserialize_json::<Vec<_>>(&payload, max_ops).map_err(|e| {
+            match e {
+                relay_serialization::serde::Error::LimitExceeded(_) => {
+                    Error::Invalid(DiscardReason::RequestTooLarge)
+                }
+                relay_serialization::serde::Error::Serde(_) => {
+                    Error::Invalid(DiscardReason::InvalidJson)
+                }
             }
-            relay_serialization::serde::Error::Serde(_) => {
-                Error::Invalid(DiscardReason::InvalidJson)
-            }
-        })?
-        .into_iter();
+        })?;
 
     let mut logs = vec![];
     for report in reports {
