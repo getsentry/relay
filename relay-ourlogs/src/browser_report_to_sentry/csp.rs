@@ -166,7 +166,7 @@ pub fn create_log_from_csp_body(body: Body, mut attributes: Attributes) -> OurLo
 
     if let Some(referrer) = referrer {
         let referrer_key = interpolate::http__request__header__key("referer");
-        add_attribute!(attributes, referrer_key, referrer.clone());
+        add_attribute!(attributes, referrer_key, vec![referrer.clone()]);
     }
 
     OurLog {

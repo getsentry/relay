@@ -317,8 +317,8 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                         "value": 9,
                     },
                     "http.request.header.referer": {
-                        "type": "string",
-                        "value": "https://example.net/test229/",
+                        "type": "array",
+                        "value": ["https://example.net/test229/"],
                     },
                     "http.response.status_code": {"type": "integer", "value": 0},
                     "sentry.observed_timestamp_nanos": {
@@ -382,8 +382,8 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
                         "value": 9,
                     },
                     "http.request.header.referer": {
-                        "type": "string",
-                        "value": "https://example.com/test229/",
+                        "type": "array",
+                        "value": ["https://example.com/test229/"],
                     },
                     "http.response.status_code": {"type": "integer", "value": 0},
                     "sentry.observed_timestamp_nanos": {

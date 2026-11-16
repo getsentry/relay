@@ -544,8 +544,10 @@ mod tests {
               "value": 24
             },
             "http.request.header.referer": {
-              "type": "string",
-              "value": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/"
+              "type": "array",
+              "value": [
+                "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/"
+              ]
             },
             "http.response.status_code": {
               "type": "integer",
