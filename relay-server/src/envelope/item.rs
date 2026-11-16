@@ -716,7 +716,7 @@ pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 /// `TypedItems` generates the concrete variant structs and wire tags.
 /// `#[typed_item(item_count_header)]` implements [`ItemCount`] for reading the count header.
 /// `#[typed_item(container)]` additionally implements [`ContainerPayload`] for writing containers.
-#[derive(Clone, relay_server_macros::TypedItems)]
+#[derive(Clone, relay_server_derive::TypedItems)]
 pub enum Item {
     /// Event payload encoded in JSON.
     Event(EventItem),

@@ -1,5 +1,5 @@
 [package]
-name = "relay-server-macros"
+name = "relay-server-derive"
 authors = ["Sentry <oss@sentry.io>"]
 description = "Compile-time declarations for Relay server processing"
 version = "26.10.0"
