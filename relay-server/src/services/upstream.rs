@@ -1203,7 +1203,7 @@ impl UpstreamQueue {
         self.next_retry = Instant::now();
     }
 
-    /// Empties all queues and returns its elements.
+    /// Empties all queues and returns their elements.
     fn drain(&mut self) -> impl Iterator<Item = Entry> {
         self.queues().into_iter().flat_map(|q| q.drain(..))
     }
