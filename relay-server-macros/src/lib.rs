@@ -41,8 +41,8 @@ fn expand_item_variants(input: syn::ItemEnum) -> Result<TokenStream> {
         #(#structs)*
         #(#constructors)*
         impl Item {
-            pub fn new(ty: ItemType) -> Self { Self::from_parts(ty, ItemStorage::new()) }
-            fn from_parts(ty: ItemType, data: ItemStorage) -> Self {
+            pub fn new(ty: ItemType) -> Self { Self::from_parts(ty, ItemData::new()) }
+            fn from_parts(ty: ItemType, data: ItemData) -> Self {
                 match ty { #(#from_data),* }
             }
             pub fn ty(&self) -> &ItemType { match self { #(#tags),* } }
@@ -52,7 +52,7 @@ fn expand_item_variants(input: syn::ItemEnum) -> Result<TokenStream> {
             }
         }
         impl std::ops::Deref for Item {
-            type Target = ItemStorage;
+            type Target = ItemData;
             fn deref(&self) -> &Self::Target { match self { #(#refs),* } }
         }
         impl std::ops::DerefMut for Item {
@@ -207,12 +207,12 @@ impl VariantCode {
             payload_struct: quote! {
                 #container_impl
                 #[derive(Clone)]
-                pub struct #payload { data: ItemStorage, #payload_field }
+                pub struct #payload { data: ItemData, #payload_field }
                 impl #payload {
-                    pub fn new(#constructor_args) -> Self { Self { data: ItemStorage::new(), #payload_init } }
+                    pub fn new(#constructor_args) -> Self { Self { data: ItemData::new(), #payload_init } }
                 }
                 impl std::ops::Deref for #payload {
-                    type Target = ItemStorage;
+                    type Target = ItemData;
                     fn deref(&self) -> &Self::Target { &self.data }
                 }
                 impl std::ops::DerefMut for #payload {
@@ -267,7 +267,7 @@ mod tests {
         syn::parse2::<syn::File>(generated.clone()).unwrap();
         let generated = generated.to_string();
         assert!(generated.contains("enum ItemType { Transaction , Profile , Unknown (String) }"));
-        assert!(generated.contains("struct TransactionItem { data : ItemStorage"));
+        assert!(generated.contains("struct TransactionItem { data : ItemData"));
         assert!(generated.contains("ItemType :: Unknown (name) => Self :: Unknown"));
         assert!(!generated.contains("Box"));
     }

@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemStorage, ItemVariant};
+use crate::envelope::{Envelope, Item, ItemData, ItemVariant};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -176,7 +176,7 @@ struct Limit {
 }
 
 impl Limit {
-    fn apply<T: ItemVariant + std::ops::Deref<Target = ItemStorage>>(
+    fn apply<T: ItemVariant + std::ops::Deref<Target = ItemData>>(
         &mut self,
         item: &T,
     ) -> Result<(), Rejected> {

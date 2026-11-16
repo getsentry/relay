@@ -6,7 +6,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemStorage};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemData};
 use crate::integrations::Integration;
 
 /// Name of the rate limits header.
@@ -211,7 +211,7 @@ impl EnvelopeSummary {
         let mut summary = Self::empty();
 
         for item in items {
-            let data: &ItemStorage = item;
+            let data: &ItemData = item;
             let rate_limited = data.rate_limited();
             if !rate_limited {
                 if let Some(source) = data.source_quantities() {

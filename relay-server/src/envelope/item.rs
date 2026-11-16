@@ -30,7 +30,7 @@ pub trait ItemVariant: TryFrom<Item, Error = Item> {
 }
 
 /// Payload types that can be written as item containers.
-pub trait ContainerPayload: ItemVariant + std::ops::DerefMut<Target = ItemStorage> {
+pub trait ContainerPayload: ItemVariant + std::ops::DerefMut<Target = ItemData> {
     /// Sets the payload, its content type, and its declared container count.
     fn set_payload_with_item_count(
         &mut self,
@@ -42,12 +42,12 @@ pub trait ContainerPayload: ItemVariant + std::ops::DerefMut<Target = ItemStorag
 
 /// Raw headers and payload shared by all item types.
 #[derive(Clone)]
-pub struct ItemStorage {
+pub struct ItemData {
     pub(super) headers: CommonItemHeaders,
     pub(super) payload: Bytes,
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Creates empty storage for a serialized item.
     fn new() -> Self {
         Self {
@@ -114,13 +114,13 @@ impl Item {
 
         let payload = bytes.slice(payload_start..payload_end);
         let ItemHeaders { ty, data: headers } = headers;
-        let item = Item::from_parts(ty, ItemStorage { headers, payload });
+        let item = Item::from_parts(ty, ItemData { headers, payload });
 
         Ok((item, payload_end + 1))
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
@@ -157,7 +157,7 @@ impl TransactionItem {
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Returns the content type of this item's payload.
     pub fn content_type(&self) -> Option<ContentType> {
         self.headers.get(ItemHeaderKey::ContentType)
@@ -239,7 +239,7 @@ impl AttachmentItem {
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Returns the payload of this item.
     ///
     /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
@@ -314,7 +314,7 @@ impl AttachmentItem {
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Returns the routing_hint of this item.
     pub fn routing_hint(&self) -> Option<Uuid> {
         self.headers.routing_hint
@@ -427,7 +427,7 @@ impl AttachmentItem {
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Retrieves the sentry release from an item header.
     pub fn sentry_release(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::SentryRelease)
@@ -633,7 +633,7 @@ impl Item {
     }
 }
 
-impl ItemStorage {
+impl ItemData {
     /// Whether the content-type header names a container format.
     pub fn is_container(&self) -> bool {
         self.content_type().is_some_and(ContentType::is_container)

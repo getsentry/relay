@@ -1,7 +1,7 @@
 //! Apply cached rate limits and zero quotas before processing envelope payloads.
 
 use crate::envelope::{
-    AttachmentParentType, ContentType, Envelope, Item, ItemStorage, RejectionQuantities,
+    AttachmentParentType, ContentType, Envelope, Item, ItemData, RejectionQuantities,
 };
 #[cfg(test)]
 use crate::envelope::{AttachmentType, ItemType};
@@ -484,7 +484,7 @@ fn resolve_limits(
 // Empty quantities need no special case; source quantities still transfer independently.
 fn apply_retention<T>(action: RetentionAction<'_>, item: &mut T) -> bool
 where
-    T: RejectionQuantities + std::ops::DerefMut<Target = ItemStorage>,
+    T: RejectionQuantities + std::ops::DerefMut<Target = ItemData>,
 {
     let (rejection, keep) = match action {
         RetentionAction::Keep => return true,
