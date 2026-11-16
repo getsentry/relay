@@ -76,6 +76,11 @@ impl ItemData {
 }
 
 impl Item {
+    /// Returns whether this item contains the concrete type `T`.
+    pub fn is<T: TypedItem>(&self) -> bool {
+        self.downcast_ref::<T>().is_some()
+    }
+
     /// Borrows the concrete item if it has type `T`.
     pub fn downcast_ref<T: TypedItem>(&self) -> Option<&T> {
         T::downcast_ref(self)
@@ -1482,6 +1487,18 @@ mod tests {
         for (item, expected) in cases {
             assert_eq!(item.quantities().as_slice(), expected.as_slice());
         }
+    }
+
+    #[test]
+    fn test_item_is() {
+        let item = Item::from(TransactionItem::new());
+        assert!(item.is::<TransactionItem>());
+        assert!(!item.is::<EventItem>());
+        assert!(!item.is::<UnknownItem>());
+
+        let unknown = Item::from(UnknownItem::new("future".into()));
+        assert!(unknown.is::<UnknownItem>());
+        assert!(!unknown.is::<TransactionItem>());
     }
 
     #[test]
