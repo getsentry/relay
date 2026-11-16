@@ -57,7 +57,7 @@ impl fmt::Display for CspDirective {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CspDirective::ChildSrc => f.write_str("child-src"),
-            CspDirective::ConnectSrc => f.write_str("`connect-src"),
+            CspDirective::ConnectSrc => f.write_str("connect-src"),
             CspDirective::FontSrc => f.write_str("font-src"),
             CspDirective::ImgSrc => f.write_str("img-src"),
             CspDirective::ManifestSrc => f.write_str("manifest-src"),
