@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemVariant};
+use crate::envelope::{Envelope, Item, TypedItem};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -176,7 +176,7 @@ struct Limit {
 }
 
 impl Limit {
-    fn apply<T: ItemVariant>(&mut self, item: &T) -> Result<(), Rejected> {
+    fn apply<T: TypedItem>(&mut self, item: &T) -> Result<(), Rejected> {
         let size = match item.data().is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //

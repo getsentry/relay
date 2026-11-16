@@ -20,7 +20,7 @@ use crate::utils::DebugBytes;
 /// A concrete variant of the serialized [`Item`] enum.
 ///
 /// Borrowed extraction and `TryFrom<Item>` must accept the same variant.
-pub trait ItemVariant: TryFrom<Item, Error = Item> {
+pub trait TypedItem: TryFrom<Item, Error = Item> {
     /// Returns the shared headers and serialized payload.
     fn data(&self) -> &ItemData;
 
@@ -36,7 +36,7 @@ pub trait ItemVariant: TryFrom<Item, Error = Item> {
 }
 
 /// Payload types that can be written as item containers.
-pub trait ContainerPayload: ItemVariant {
+pub trait ContainerPayload: TypedItem {
     /// Sets the payload, its content type, and its declared container count.
     fn set_payload_with_item_count(
         &mut self,

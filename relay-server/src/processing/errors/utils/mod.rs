@@ -2,7 +2,7 @@ use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 
-use crate::envelope::{AttachmentItem, AttachmentType, EventItem, FormDataItem, Item, ItemVariant};
+use crate::envelope::{AttachmentItem, AttachmentType, EventItem, FormDataItem, Item, TypedItem};
 use crate::processing;
 use crate::processing::errors::Result;
 use crate::services::outcome::DiscardItemType;
@@ -53,17 +53,17 @@ where
     index.map(|index| items.swap_remove(index))
 }
 
-pub fn take_payload<T: ItemVariant>(items: &mut Vec<Item>) -> Option<T> {
+pub fn take_payload<T: TypedItem>(items: &mut Vec<Item>) -> Option<T> {
     take_payload_if(items, |_| true)
 }
 
-pub fn take_payloads<T: ItemVariant>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
+pub fn take_payloads<T: TypedItem>(items: &mut Vec<Item>) -> impl Iterator<Item = T> {
     items
         .extract_if(.., |item| T::from_item_ref(item).is_some())
         .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
 }
 
-pub fn take_payload_if<T: ItemVariant>(
+pub fn take_payload_if<T: TypedItem>(
     items: &mut Vec<Item>,
     mut predicate: impl FnMut(&T) -> bool,
 ) -> Option<T> {

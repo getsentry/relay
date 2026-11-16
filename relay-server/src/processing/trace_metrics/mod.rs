@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemVariant, Items,
-    TraceMetricItem,
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, Items,
+    TraceMetricItem, TypedItem,
 };
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};

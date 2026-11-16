@@ -528,12 +528,12 @@ impl Envelope {
     }
 
     /// Takes the first item of type `T`. Removal may reorder the remaining items.
-    pub fn take_item<T: ItemVariant>(&mut self) -> Option<T> {
+    pub fn take_item<T: TypedItem>(&mut self) -> Option<T> {
         self.take_item_if(|_| true)
     }
 
     /// Takes the first item of type `T` matching the predicate. Removal may reorder items.
-    pub fn take_item_if<T: ItemVariant>(
+    pub fn take_item_if<T: TypedItem>(
         &mut self,
         mut predicate: impl FnMut(&T) -> bool,
     ) -> Option<T> {
@@ -548,12 +548,12 @@ impl Envelope {
     }
 
     /// Removes all items of type `T`, preserving their order.
-    pub fn drain_items<T: ItemVariant>(&mut self) -> impl Iterator<Item = T> {
+    pub fn drain_items<T: TypedItem>(&mut self) -> impl Iterator<Item = T> {
         self.drain_items_if(|_| true)
     }
 
     /// Removes items of type `T` matching the predicate, preserving their order.
-    pub fn drain_items_if<T: ItemVariant>(
+    pub fn drain_items_if<T: TypedItem>(
         &mut self,
         mut predicate: impl FnMut(&T) -> bool,
     ) -> impl Iterator<Item = T> {
@@ -565,7 +565,7 @@ impl Envelope {
     /// Takes the first payload of type `T` for which `predicate` returns `Some`.
     ///
     /// Returns the payload together with the mapped value. Removal may reorder items.
-    pub fn take_item_by_map<T: ItemVariant, R>(
+    pub fn take_item_by_map<T: TypedItem, R>(
         &mut self,
         mut predicate: impl FnMut(&T) -> Option<R>,
     ) -> Option<(T, R)> {

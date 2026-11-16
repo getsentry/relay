@@ -12,7 +12,7 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::Envelope;
 use crate::envelope::{
     AttachmentItem, ContainerWriteError, EnvelopeHeaders, IntegrationItem, Item, ItemContainer,
-    ItemVariant, Items, SpanItem, WithHeader,
+    Items, SpanItem, TypedItem, WithHeader,
 };
 use crate::integrations::Integration;
 use crate::managed::{
@@ -724,7 +724,7 @@ impl Counted for ExpandedSpan {
 /// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
 ///
 /// The function expects all passed items to only contain spans.
-fn outcome_count<T: ItemVariant>(spans: &[T]) -> u32 {
+fn outcome_count<T: TypedItem>(spans: &[T]) -> u32 {
     // We rely here on the invariant that all items in `self.spans` are actually spans,
     // that's why sum up `item_count`'s blindly instead of checking again for the item type
     // or using `Item::quantities`.

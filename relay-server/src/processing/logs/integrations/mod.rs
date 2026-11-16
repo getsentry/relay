@@ -3,7 +3,7 @@ use relay_quotas::DataCategory;
 
 use crate::Envelope;
 use crate::envelope::{
-    EnvelopeHeaders, IntegrationItem, ItemContainer, ItemVariant, LogItem, WithHeader,
+    EnvelopeHeaders, IntegrationItem, ItemContainer, LogItem, TypedItem, WithHeader,
 };
 use crate::managed::{Counted, OutcomeError, Quantities};
 use crate::processing::Intermediates;

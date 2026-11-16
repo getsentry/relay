@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemVariant, Items, SessionItem, SessionsItem};
+use crate::envelope::{EnvelopeHeaders, Item, Items, SessionItem, SessionsItem, TypedItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::sessions::process::Expansion;
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
@@ -200,7 +200,7 @@ impl CountRateLimited for Managed<ExpandedSessions> {
     type Error = Error;
 }
 
-fn item_count<T: ItemVariant>(items: &[T]) -> usize {
+fn item_count<T: TypedItem>(items: &[T]) -> usize {
     items
         .iter()
         .map(|item| item.item_count().unwrap_or(1) as usize)

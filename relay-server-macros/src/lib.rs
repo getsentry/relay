@@ -218,7 +218,7 @@ impl VariantCode {
                 }
             },
             conversions: quote! {
-                impl ItemVariant for #payload {
+                impl TypedItem for #payload {
                     fn data(&self) -> &ItemData { self.data() }
                     fn data_mut(&mut self) -> &mut ItemData { self.data_mut() }
                     fn from_item_ref(item: &Item) -> Option<&Self> {
