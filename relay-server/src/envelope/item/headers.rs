@@ -71,8 +71,9 @@ pub enum ItemHeaderKey {
     SpanId,
     /// Size of the attachment that an attachment placeholder represents.
     ///
-    /// Only valid in combination with [`ContentType::AttachmentRef`]. This untrusted header is used
-    /// to emit negative outcomes, but must not be used for consistent rate limiting.
+    /// Only valid in combination with [`ContentType::AttachmentRef`](crate::envelope::ContentType::AttachmentRef).
+    /// This untrusted header is used to emit negative outcomes, but must not be used for consistent
+    /// rate limiting.
     AttachmentLength,
     /// The Sentry release stored in a header.
     SentryRelease,
