@@ -12,6 +12,9 @@ publish = false
 name = "proto_descriptors_lib"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 prost = { workspace = true }
