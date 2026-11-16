@@ -24,7 +24,7 @@ pub fn calculate_size(log: &OurLog) -> u64 {
     total_size += log.body.value().map_or(0, |s| s.len());
 
     if let Some(attributes) = log.attributes.value() {
-        total_size += relay_event_normalization::eap::attributes_size(attributes);
+        total_size += relay_event_schema::protocol::attributes_size(attributes);
     }
 
     u64::try_from(total_size).unwrap_or(u64::MAX).max(1)

@@ -32,7 +32,6 @@ use crate::{
 mod ai;
 mod attribute_like;
 mod mobile;
-mod size;
 pub mod time;
 pub mod trace_metric;
 mod trimming;
@@ -40,7 +39,6 @@ mod trimming;
 pub use self::ai::normalize_ai;
 pub use self::attribute_like::AttributesLike;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
-pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 
 /// How an EAP item entered Relay.
