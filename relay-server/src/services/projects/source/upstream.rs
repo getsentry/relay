@@ -5,7 +5,8 @@ use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::future;
+use futures::stream::FuturesUnordered;
+use futures::{StreamExt, future};
 use itertools::Itertools;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, ConfigSnapshot};
@@ -15,7 +16,7 @@ use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::services::projects::project::Revision;
@@ -243,8 +244,7 @@ pub struct UpstreamProjectSourceService {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
     state_channels: ProjectStateChannels,
-    inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
-    inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
+    fetch_tasks: FuturesUnordered<JoinHandle<Vec<Option<UpstreamResponse>>>>,
     fetch_handle: SleepHandle,
     /// Instant when the last fetch failed, `None` if there aren't any failures.
     ///
@@ -261,7 +261,6 @@ pub struct UpstreamProjectSourceService {
 impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
     pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
-        let (inner_tx, inner_rx) = mpsc::unbounded_channel();
         let current_config = config.current();
 
         Self {
@@ -269,8 +268,7 @@ impl UpstreamProjectSourceService {
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
-            inner_tx,
-            inner_rx,
+            fetch_tasks: FuturesUnordered::new(),
             last_failed_fetch: None,
             failure_interval: current_config.http_project_failure_interval(),
             config,
@@ -431,7 +429,9 @@ impl UpstreamProjectSourceService {
                     // - return `None` to signal that we do not have any response from the Upstream
                     //   and we should ignore this.
                     Err(_err) => {
-                        relay_log::error!("failed to send the request to upstream: channel full");
+                        relay_log::error!(
+                            "upstream relay stopped while project upstream cache task is running"
+                        );
                         None
                     }
                 }
@@ -603,18 +603,13 @@ impl UpstreamProjectSourceService {
         }
 
         let config = self.config.current();
-        let inner_tx = self.inner_tx.clone();
         let channels = self.prepare_batches();
         let upstream_relay = self.upstream_relay.clone();
 
-        relay_system::spawn!(async move {
-            let responses = Self::fetch_states(config, upstream_relay, channels).await;
-            // Send back all resolved responses and also unused channels.
-            // These responses will be handled by `handle_responses` function.
-            if inner_tx.send(responses).is_err() {
-                relay_log::error!("unable to forward the requests to further processing");
-            }
+        let fetch_task = relay_system::spawn!(async move {
+            Self::fetch_states(config, upstream_relay, channels).await
         });
+        self.fetch_tasks.push(fetch_task);
     }
 
     /// Handles the incoming external messages.
@@ -665,15 +660,29 @@ impl Service for UpstreamProjectSourceService {
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         relay_log::info!("project upstream cache started");
-        loop {
+        let mut expects_input = true;
+        while expects_input || !self.state_channels.is_empty() || !self.fetch_tasks.is_empty() {
             tokio::select! {
                 biased;
 
                 () = &mut self.fetch_handle => self.do_fetch(),
-                Some(responses) = self.inner_rx.recv() => self.handle_responses(responses),
-                Some(message) = rx.recv() => self.handle_message(message),
-
-                else => break,
+                Some(result) = self.fetch_tasks.next() => {
+                    let responses = match result {
+                        Ok(responses) => responses,
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "fetch task panicked or was cancelled"
+                            );
+                            Vec::new()
+                        }
+                    };
+                    self.handle_responses(responses);
+                }
+                signal = rx.recv(), if expects_input => match signal {
+                    Some(message) => self.handle_message(message),
+                    None => expects_input = false,
+                }
             }
         }
         relay_log::info!("project upstream cache stopped");
@@ -696,6 +705,72 @@ mod tests {
             .unwrap();
 
         Response(response.into())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_with_closed_upstream() {
+        let (upstream, upstream_rx) = Addr::custom();
+        drop(upstream_rx);
+        let service = UpstreamProjectSourceService::new(Arc::new(Config::default()), upstream);
+        let (addr, rx) = relay_system::channel(UpstreamProjectSourceService::name());
+        let response = addr.send(FetchProjectState {
+            project_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            current_revision: Revision::default(),
+            no_cache: false,
+        });
+        drop(addr);
+
+        tokio::time::timeout(Duration::from_secs(10), service.run(rx))
+            .await
+            .expect("project upstream cache should stop when the upstream service is gone");
+        assert!(response.await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_drains_pending_requests() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let (upstream, mut upstream_rx) = Addr::custom();
+            let config = Arc::new(Config::default());
+            let service = UpstreamProjectSourceService::new(Arc::clone(&config), upstream);
+            let (addr, rx) = relay_system::channel(UpstreamProjectSourceService::name());
+            let task = relay_system::spawn!(service.run(rx));
+            let project_key = ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap();
+            let response = addr.send(FetchProjectState {
+                project_key,
+                current_revision: "123".into(),
+                no_cache: false,
+            });
+
+            let UpstreamRelay::SendRequest(mut request) = upstream_rx.recv().await.unwrap() else {
+                panic!()
+            };
+            // Close the input while a fetch is in flight. Pending projects must still be retried.
+            drop(addr);
+            request.configure(&config.current());
+            request
+                .respond(Ok(to_response(&serde_json::json!({
+                    "pending": [project_key],
+                }))))
+                .await;
+
+            let UpstreamRelay::SendRequest(mut request) = upstream_rx.recv().await.unwrap() else {
+                panic!()
+            };
+            request.configure(&config.current());
+            request
+                .respond(Ok(to_response(&serde_json::json!({
+                    "unchanged": [project_key],
+                }))))
+                .await;
+
+            assert!(matches!(
+                response.await,
+                Ok(Ok(SourceProjectState::NotModified))
+            ));
+            task.await.unwrap();
+        })
+        .await
+        .expect("project upstream cache should drain pending requests and stop");
     }
 
     #[tokio::test]
