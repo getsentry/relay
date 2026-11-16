@@ -250,14 +250,14 @@ impl<T: ContainerItem> ItemContainer<T> {
     /// This function also validates metadata of the container, specifically the content type
     /// and amount of contained items.
     pub fn parse(item: &T::EnvelopeItem, max_ops: usize) -> Result<Self, ContainerParseError> {
-        if item.content_type() != Some(T::CONTENT_TYPE) {
+        if item.data().content_type() != Some(T::CONTENT_TYPE) {
             return Err(ContainerParseError::MismatchedContentType {
                 expected: T::CONTENT_TYPE,
-                actual: item.content_type(),
+                actual: item.data().content_type(),
             });
         }
 
-        let payload = item.payload();
+        let payload = item.data().payload();
         // Currently we assume every payload is JSON, but in the future we may allow other formats.
         let mut de = serde_json::Deserializer::from_slice(&payload);
         let container = Self::deserialize(&mut de, max_ops).map_err(|e| match e {
@@ -455,10 +455,10 @@ mod tests {
         let mut item = LogItem::new();
         container.write_to(&mut item).unwrap();
 
-        assert_eq!(item.content_type(), Some(ContentType::LogContainer));
+        assert_eq!(item.data().content_type(), Some(ContentType::LogContainer));
         assert_eq!(item.item_count(), Some(2));
 
-        let payload = item.payload();
+        let payload = item.data().payload();
         let s = std::str::from_utf8(&payload).unwrap();
         insta::assert_snapshot!(s, @r#"{"version":42,"items":[{"level":"info","message":"foobar"},{"level":"error","message":"ohno"}]}"#);
     }
@@ -771,6 +771,6 @@ mod tests {
         //
         // The test is engineered to have a matching serialization as the original test input,
         // e.g. correct order of fields.
-        assert_eq!(new_item.payload(), item.payload());
+        assert_eq!(new_item.data().payload(), item.data().payload());
     }
 }

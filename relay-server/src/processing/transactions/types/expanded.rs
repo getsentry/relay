@@ -260,10 +260,10 @@ impl ExpandedTransaction<TotalAndIndexed, SpansEmbedded> {
             event.to_json()?
         });
         let mut item = TransactionItem::new();
-        item.set_payload(ContentType::Json, data);
+        item.data_mut().set_payload(ContentType::Json, data);
 
         let Flags { fully_normalized } = flags;
-        item.set_fully_normalized(fully_normalized);
+        item.data_mut().set_fully_normalized(fully_normalized);
 
         item.set_span_count(u32::try_from(span_count).ok());
 

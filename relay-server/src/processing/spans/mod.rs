@@ -134,7 +134,7 @@ impl processing::Processor for SpansProcessor {
 
         let items =
             if let Some(container) = envelope.envelope_mut().take_item_if::<SpanItem>(|item| {
-                item.content_type()
+                item.data().content_type()
                     == Some(<SpanV2 as crate::envelope::ContainerItem>::CONTENT_TYPE)
             }) {
                 SpanItems::Container(container)

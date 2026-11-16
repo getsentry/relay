@@ -285,7 +285,7 @@ impl MetricData {
 
         let mut buckets = Vec::new();
         for item in items {
-            let payload = item.payload();
+            let payload = item.data().payload();
             if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
@@ -971,7 +971,7 @@ mod tests {
 
         envelope.add_item({
                 let mut item = crate::envelope::EventItem::new();
-                item.set_payload(
+                item.data_mut().set_payload(
                     ContentType::Json,
                     r#"
                     {
@@ -1017,7 +1017,7 @@ mod tests {
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+            Annotated::from_json_bytes(&event_item.data().payload()).unwrap();
         let event = annotated_event.into_value().unwrap();
         let headers = event
             .request
@@ -1062,7 +1062,7 @@ mod tests {
         envelope.set_dsc(serde_json::from_str(dsc).unwrap());
 
         let mut item = crate::envelope::EventItem::new();
-        item.set_payload(ContentType::Json, r#"{}"#);
+        item.data_mut().set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
         let outcome_aggregator = Addr::dummy();
@@ -1096,7 +1096,7 @@ mod tests {
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
-        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        let event = Annotated::<Event>::from_json_bytes(&event.data().payload()).unwrap();
         insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
         Object(
             {
@@ -1238,7 +1238,7 @@ mod tests {
         .await;
 
         let mut item = crate::envelope::MetricBucketsItem::new();
-        item.set_payload(
+        item.data_mut().set_payload(
             ContentType::Json,
             serde_json::json!([{
                 "timestamp": received_at.timestamp(),

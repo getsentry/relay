@@ -90,7 +90,7 @@ pub fn expand(
 
     let mut count: i32 = 0;
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     match format {
         VercelLogDrainFormat::Json => {
             let logs = serde_json::from_slice::<Vec<VercelLog>>(&payload).map_err(|e| {

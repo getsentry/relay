@@ -73,7 +73,7 @@ pub fn expand(
 ) -> Result<Intermediates, Error> {
     records.lenient(DataCategory::LogByte);
 
-    let payload = item.payload();
+    let payload = item.data().payload();
 
     let msg_count = headers
         .get_header(HEROKU_LOGPLEX_HEADER_MSG_COUNT)

@@ -197,9 +197,9 @@ pub fn read_bytes_into_item(
 ) -> Managed<AttachmentItem> {
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
-            inner.set_payload(content_type, bytes);
+            inner.data_mut().set_payload(content_type, bytes);
         } else {
-            inner.set_payload_without_content_type(bytes);
+            inner.data_mut().set_payload_without_content_type(bytes);
         };
         records.lenient(DataCategory::Attachment);
     });
@@ -231,9 +231,9 @@ pub async fn read_field_into_item(
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
-            inner.set_payload(content_type, bytes);
+            inner.data_mut().set_payload(content_type, bytes);
         } else {
-            inner.set_payload_without_content_type(bytes);
+            inner.data_mut().set_payload_without_content_type(bytes);
         };
         records.lenient(DataCategory::Attachment);
     });
@@ -289,7 +289,7 @@ pub async fn multipart_items(
                 // This increases the attachments byte count even if the item is an attachment ref.
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
-                attachments_size += item.len();
+                attachments_size += item.data().len();
                 items.merge_with(item, |items, item, _| items.push(item.into()));
                 if attachments_size > config.max_attachments_size() {
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
@@ -323,7 +323,7 @@ pub async fn multipart_items(
         let mut item = FormDataItem::new();
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
-        item.set_payload(ContentType::Text, form_data);
+        item.data_mut().set_payload(ContentType::Text, form_data);
         items.merge_with(items.wrap(item), |items, item, _| items.push(item.into()));
     }
 

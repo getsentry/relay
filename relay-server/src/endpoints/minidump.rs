@@ -434,7 +434,7 @@ async fn multipart_to_items(
 
     // Doing these operations does not make sense if we already streamed the minidump to objectstore.
     if !minidump_item.is_attachment_ref() {
-        let payload = minidump_item.payload();
+        let payload = minidump_item.data().payload();
         let payload = extract_embedded_minidump(payload.clone())
             .await
             .reject(&items)?
@@ -447,13 +447,15 @@ async fn multipart_to_items(
             let Some(Item::Attachment(minidump_item)) = items.get_mut(minidump_idx) else {
                 return Err(BadStoreRequest::MissingMinidump);
             };
-            minidump_item.set_payload(ContentType::Minidump, payload);
+            minidump_item
+                .data_mut()
+                .set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             if let Some(minidump_filename) = minidump_item.filename() {
                 let filename = remove_container_extension(minidump_filename).to_owned();
                 minidump_item.set_filename(filename)
             }
-            validate_minidump(&minidump_item.payload())?;
+            validate_minidump(&minidump_item.data().payload())?;
             Ok(())
         })?;
     }
@@ -562,9 +564,9 @@ async fn raw_minidump_to_item(
                     .await
                     .reject(&item)?;
                 item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-                    inner.set_payload(ContentType::Minidump, payload);
+                    inner.data_mut().set_payload(ContentType::Minidump, payload);
                     records.lenient(DataCategory::Attachment); // decoding changes its size
-                    validate_minidump(&inner.payload())?;
+                    validate_minidump(&inner.data().payload())?;
                     Ok(())
                 })?;
             }
@@ -599,9 +601,9 @@ async fn raw_minidump_to_item(
             .await
             .reject(&item)?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-            inner.set_payload(ContentType::Minidump, payload);
+            inner.data_mut().set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
-            validate_minidump(&inner.payload())?;
+            validate_minidump(&inner.data().payload())?;
             Ok(())
         })?;
     };
@@ -936,58 +938,67 @@ mod tests {
             panic!("expected an attachment");
         };
         assert_eq!(item.filename().unwrap(), "config.json");
-        assert!(item.content_type().is_none());
+        assert!(item.data().content_type().is_none());
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
-        assert_eq!(item.payload().len(), 95);
+        assert_eq!(item.data().payload().len(), 95);
 
         // the first breadcrumb buffer
         let Item::Attachment(item) = &items[1] else {
             panic!("expected an attachment");
         };
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
+        assert_eq!(
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
+        );
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-        assert_eq!(item.payload().len(), 66);
+        assert_eq!(item.data().payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
         let Item::Attachment(item) = &items[2] else {
             panic!("expected an attachment");
         };
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
+        assert_eq!(
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
+        );
         assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-        assert_eq!(item.payload().len(), 0);
+        assert_eq!(item.data().payload().len(), 0);
 
         // the msg-pack encoded event file
         let Item::Attachment(item) = &items[3] else {
             panic!("expected an attachment");
         };
         assert_eq!(item.filename().unwrap(), "__sentry-event");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
+        assert_eq!(
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
+        );
         assert_eq!(
             item.attachment_type().unwrap(),
             AttachmentType::EventPayload
         );
-        assert_eq!(item.payload().len(), 29);
+        assert_eq!(item.data().payload().len(), 29);
 
         // the next item is the view-hierarchy file
         let Item::Attachment(item) = &items[4] else {
             panic!("expected an attachment");
         };
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
-        assert_eq!(item.content_type().unwrap(), ContentType::Json);
+        assert_eq!(item.data().content_type().unwrap(), ContentType::Json);
         assert_eq!(
             item.attachment_type().unwrap(),
             AttachmentType::ViewHierarchy
         );
-        assert_eq!(item.payload().len(), 184);
+        assert_eq!(item.data().payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
         let item = &items[5];
         assert!(!matches!(item, Item::Attachment(_)));
-        assert_eq!(item.content_type().unwrap(), ContentType::Text);
+        assert_eq!(item.data().content_type().unwrap(), ContentType::Text);
         assert_eq!(item.ty(), &ItemType::FormData);
-        let form_payload = item.payload();
+        let form_payload = item.data().payload();
         let form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
         assert_eq!(form_data_entry.key(), "guid");
         assert_eq!(

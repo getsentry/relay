@@ -34,14 +34,18 @@ struct SecurityReportParams {
 impl SecurityReportParams {
     fn create_security_item(query: &SecurityReportQuery, item: Bytes) -> RawSecurityItem {
         let mut report_item = RawSecurityItem::new();
-        report_item.set_payload(ContentType::Json, item);
+        report_item.data_mut().set_payload(ContentType::Json, item);
 
         if let Some(sentry_release) = &query.sentry_release {
-            report_item.set_sentry_release(sentry_release.clone());
+            report_item
+                .data_mut()
+                .set_sentry_release(sentry_release.clone());
         }
 
         if let Some(sentry_environment) = &query.sentry_environment {
-            report_item.set_sentry_environment(sentry_environment.clone());
+            report_item
+                .data_mut()
+                .set_sentry_environment(sentry_environment.clone());
         }
 
         report_item

@@ -74,7 +74,7 @@ fn extract_items(
 
         let mut item = AttachmentItem::new();
         item.set_filename(file.name());
-        item.set_payload(content_type, file.into_bytes());
+        item.data_mut().set_payload(content_type, file.into_bytes());
         item.set_attachment_type(attachment_type);
         items.push(item);
     }
@@ -92,7 +92,7 @@ pub fn expand_unreal(
     let mut context = items
         .iter()
         .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
-        .map(|item| Unreal4Context::parse(&item.payload()))
+        .map(|item| Unreal4Context::parse(&item.data().payload()))
         .transpose()?;
 
     let event = context.as_mut().and_then(take_event_item);
@@ -127,7 +127,7 @@ fn take_event_item(context: &mut Unreal4Context) -> Option<EventItem> {
 
     relay_log::trace!("adding event payload from unreal context");
     let mut item = EventItem::new();
-    item.set_payload(ContentType::Json, json);
+    item.data_mut().set_payload(ContentType::Json, json);
     Some(item)
 }
 
@@ -230,7 +230,7 @@ fn get_unreal_user_report(
     let json = serde_json::to_string(&user_report).ok()?;
 
     let mut item = UserReportItem::new();
-    item.set_payload(ContentType::Json, json);
+    item.data_mut().set_payload(ContentType::Json, json);
     Some(item)
 }
 
@@ -686,7 +686,7 @@ pub fn process_unreal(
     let mut logs_items = attachments
         .iter()
         .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
-        .map(|item| item.payload())
+        .map(|item| item.data().payload())
         .peekable();
 
     // Early exit if there is no information.
@@ -1493,7 +1493,7 @@ Game-Linux-Test!UnknownFunction(0x4871028)
         for attachment_type in [AttachmentType::Minidump, AttachmentType::AppleCrashReport] {
             let mut item = AttachmentItem::new();
             item.set_attachment_type(attachment_type);
-            item.set_payload(ContentType::OctetStream, "");
+            item.data_mut().set_payload(ContentType::OctetStream, "");
 
             let event = process_with_attachments(&[item]);
             assert!(event.value().unwrap().exceptions.is_empty());

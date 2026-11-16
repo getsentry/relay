@@ -5,7 +5,7 @@ use crate::services::processor::ProcessingError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
 pub fn merge_formdata(target: &mut SerdeValue, item: &FormDataItem) -> Result<(), ProcessingError> {
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
     for entry in FormDataIter::new(&payload) {
@@ -56,7 +56,8 @@ mod tests {
         }
 
         let mut item = FormDataItem::new();
-        item.set_payload(ContentType::Text, writer.into_inner());
+        item.data_mut()
+            .set_payload(ContentType::Text, writer.into_inner());
         item
     }
 

@@ -37,7 +37,8 @@ impl IntegrationBuilder<()> {
 
         self.envelope.add_item({
             let mut item = IntegrationItem::new();
-            item.set_payload(integration.into(), self.payload.clone());
+            item.data_mut()
+                .set_payload(integration.into(), self.payload.clone());
             item
         });
 

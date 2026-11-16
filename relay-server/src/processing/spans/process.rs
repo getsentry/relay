@@ -185,7 +185,7 @@ fn expand_legacy_spans(
 }
 
 fn expand_legacy_span(item: &SpanItem) -> Result<WithHeader<SpanV2>> {
-    let payload = item.payload();
+    let payload = item.data().payload();
 
     let span = Annotated::<Span>::from_json_bytes(&payload)
         .map_err(|err| {

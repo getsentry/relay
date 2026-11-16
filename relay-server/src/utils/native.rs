@@ -242,7 +242,7 @@ pub fn process_minidump(event: &mut Event, item: &AttachmentItem) {
         return;
     }
 
-    let data = item.payload();
+    let data = item.data().payload();
     let minidump = match Minidump::read(&data) {
         Ok(minidump) => minidump,
         Err(err) => {

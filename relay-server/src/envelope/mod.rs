@@ -282,7 +282,7 @@ impl Envelope {
 
         let serialized = Annotated::new(event).to_json()?;
         let mut item = Item::new(ItemType::from_event_type(event_type));
-        item.set_payload(ContentType::Json, serialized);
+        item.data_mut().set_payload(ContentType::Json, serialized);
 
         Ok(Self::from_parts(headers, smallvec::smallvec![item]))
     }
@@ -631,7 +631,7 @@ impl Envelope {
                 .map_err(EnvelopeError::HeaderIoFailed)?;
             self.write(&mut writer, b"\n")?;
 
-            self.write(&mut writer, &item.payload)?;
+            self.write(&mut writer, &item.data().payload)?;
             self.write(&mut writer, b"\n")?;
         }
 
@@ -848,8 +848,8 @@ mod tests {
         assert_eq!(envelope.len(), 2);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
-        assert_eq!(items[1].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
+        assert_eq!(items[1].data().len(), 0);
     }
 
     #[test]
@@ -868,8 +868,8 @@ mod tests {
         assert_eq!(envelope.len(), 2);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
-        assert_eq!(items[1].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
+        assert_eq!(items[1].data().len(), 0);
     }
 
     #[test]
@@ -887,7 +887,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -905,7 +905,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -923,7 +923,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
     }
 
     #[test]
@@ -943,20 +943,20 @@ mod tests {
         let items: Vec<_> = envelope.items().collect();
 
         assert_eq!(items[0].ty(), &ItemType::Attachment);
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
         assert_eq!(
-            items[0].payload(),
+            items[0].data().payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(ContentType::Text));
+        assert_eq!(items[0].data().content_type(), Some(ContentType::Text));
 
         assert_eq!(items[1].ty(), &ItemType::Event);
-        assert_eq!(items[1].len(), 41);
+        assert_eq!(items[1].data().len(), 41);
         assert_eq!(
-            items[1].payload(),
+            items[1].data().payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(ContentType::Json));
+        assert_eq!(items[1].data().content_type(), Some(ContentType::Json));
         assert_eq!(
             serde_json::to_value(items[1].wire_headers()).unwrap()["filename"],
             "application.log"
@@ -978,7 +978,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -1055,10 +1055,10 @@ mod tests {
             Some(AttachmentType::Flamegraph)
         );
         assert_eq!(attachment.filename(), Some("flamegraph.json"));
-        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert_eq!(item.data().content_type(), Some(ContentType::Json));
         assert!(!item.carries_event_payload());
         assert!(item.routes_with_event());
-        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+        assert_eq!(item.data().payload().as_ref(), payload.as_bytes());
 
         let mut serialized = Vec::new();
         envelope.serialize(&mut serialized).unwrap();
@@ -1072,8 +1072,8 @@ mod tests {
             Some(AttachmentType::Flamegraph)
         );
         assert_eq!(attachment.filename(), Some("flamegraph.json"));
-        assert_eq!(item.content_type(), Some(ContentType::Json));
-        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+        assert_eq!(item.data().content_type(), Some(ContentType::Json));
+        assert_eq!(item.data().payload().as_ref(), payload.as_bytes());
     }
 
     #[test]
@@ -1097,9 +1097,9 @@ mod tests {
         // Without terminating newline after header
         let items = Envelope::parse_items_bytes(bytes).unwrap();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
         assert_eq!(items[0].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].len(), 10);
+        assert_eq!(items[1].data().len(), 10);
         assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
@@ -1232,14 +1232,15 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let mut item = EventItem::new();
-        item.set_payload(
+        item.data_mut().set_payload(
             ContentType::Json,
             "{\"message\":\"hello world\",\"level\":\"error\"}",
         );
         envelope.add_item(item);
 
         let mut item = AttachmentItem::new();
-        item.set_payload(ContentType::Text, &b"Hello\r\n"[..]);
+        item.data_mut()
+            .set_payload(ContentType::Text, &b"Hello\r\n"[..]);
         item.set_filename("application.log");
         envelope.add_item(item);
 

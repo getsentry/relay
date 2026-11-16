@@ -153,7 +153,7 @@ fn expand_profile(
     global_config: &GlobalConfig,
 ) -> Result<ProfileId, Outcome> {
     match relay_profiling::expand_profile(
-        &item.payload(),
+        &item.data().payload(),
         event,
         client_ip,
         filter_settings,
@@ -161,7 +161,7 @@ fn expand_profile(
     ) {
         Ok((id, payload)) => {
             if payload.len() <= config.max_profile_size() {
-                item.set_payload(ContentType::Json, payload);
+                item.data_mut().set_payload(ContentType::Json, payload);
                 Ok(id)
             } else {
                 Err(Outcome::Invalid(DiscardReason::Profiling(

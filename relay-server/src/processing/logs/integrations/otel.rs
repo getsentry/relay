@@ -78,7 +78,7 @@ pub fn expand(
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut logs = Vec::new();
     let parsed = parse_logs_data(format, &payload, max_ops)?;
 

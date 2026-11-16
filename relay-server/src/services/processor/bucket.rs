@@ -351,8 +351,10 @@ impl InnerProcessor {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = MetricBucketsItem::new();
-                item.set_source_quantities(crate::metrics::extract_quantities(buckets));
-                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+                item.data_mut()
+                    .set_source_quantities(crate::metrics::extract_quantities(buckets));
+                item.data_mut()
+                    .set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
                 let mut envelope =
@@ -1098,7 +1100,7 @@ mod tests {
                 let envelope = Envelope::parse_bytes(Bytes::copy_from_slice(body)).unwrap();
                 let item = envelope.items().next().unwrap();
                 assert_eq!(item.ty(), &ItemType::MetricBuckets);
-                serde_json::from_slice(&item.payload()).unwrap()
+                serde_json::from_slice(&item.data().payload()).unwrap()
             };
             assert_eq!(buckets, vec![bucket]);
 

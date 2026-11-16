@@ -57,7 +57,7 @@ fn expand_profile_chunk(
     sdk: &str,
     records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
-    let profile_chunk = match item.content_type() {
+    let profile_chunk = match item.data().content_type() {
         Some(ContentType::PerfettoTrace) => expand_perfetto_profile_chunk(item),
         _ => expand_json_item(item, sdk, records),
     }?;
@@ -85,7 +85,7 @@ fn expand_json_item(
         return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
     }
 
-    let pc = AndroidOrV2ProfileChunk::parse(&item.payload())?;
+    let pc = AndroidOrV2ProfileChunk::parse(&item.data().payload())?;
 
     // Validate the item inferred profile type with the one from the payload.
     //
@@ -127,7 +127,7 @@ fn expand_perfetto_profile_chunk(item: &ProfileChunkItem) -> Result<ExpandedProf
             .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;
 
     let (v2, perfetto) = {
-        let mut v2 = item.payload();
+        let mut v2 = item.data().payload();
         // Split off panics on out of bounds -> validate the split off length.
         //
         // Both parts (v2 metadata and Perfetto profile) are required and must be length > 0.

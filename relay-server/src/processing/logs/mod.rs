@@ -230,7 +230,7 @@ impl SerializedLogs {
 
     /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
-        self.items().map(|item| item.len()).sum()
+        self.items().map(|item| item.data().len()).sum()
     }
 }
 

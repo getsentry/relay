@@ -66,7 +66,7 @@ impl ProxyProcessorService {
             match client_report.serialize() {
                 Ok(payload) => {
                     let mut item = ClientReportItem::new();
-                    item.set_payload(ContentType::Json, payload);
+                    item.data_mut().set_payload(ContentType::Json, payload);
                     envelope.add_item(item);
                 }
                 Err(error) => {

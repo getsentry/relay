@@ -8,7 +8,8 @@ use crate::services::outcome::Outcome;
 pub(super) fn attachment(ty: AttachmentType, payload: &'static str) -> AttachmentItem {
     let mut item = AttachmentItem::new();
     item.set_attachment_type(ty);
-    item.set_payload(ContentType::OctetStream, payload);
+    item.data_mut()
+        .set_payload(ContentType::OctetStream, payload);
     item
 }
 
@@ -189,8 +190,8 @@ fn test_minidump_crash_rate_limit() {
         || Minidump(attachment(AttachmentType::Minidump, "dump")),
         &[4],
         |crash| {
-            assert!(crash.0.rate_limited());
-            assert_eq!(crash.0.payload().as_ref(), b"dump");
+            assert!(crash.0.data().rate_limited());
+            assert_eq!(crash.0.data().payload().as_ref(), b"dump");
         },
     );
 }
@@ -201,8 +202,8 @@ fn test_apple_crash_rate_limit() {
         || AppleCrashReport(attachment(AttachmentType::AppleCrashReport, "report")),
         &[6],
         |crash| {
-            assert!(crash.0.rate_limited());
-            assert_eq!(crash.0.payload().as_ref(), b"report");
+            assert!(crash.0.data().rate_limited());
+            assert_eq!(crash.0.data().payload().as_ref(), b"report");
         },
     );
 }
@@ -213,8 +214,8 @@ fn test_gpu_crash_rate_limit() {
         || GpuCrash(attachment(AttachmentType::NvGpuDump, "gpu dump")),
         &[8],
         |crash| {
-            assert!(crash.0.rate_limited());
-            assert_eq!(crash.0.payload().as_ref(), b"gpu dump");
+            assert!(crash.0.data().rate_limited());
+            assert_eq!(crash.0.data().payload().as_ref(), b"gpu dump");
         },
     );
 }

@@ -532,7 +532,8 @@ async fn validate_and_limit(
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     let mut item = AttachmentItem::new();
-    item.set_payload(ContentType::AttachmentRef, vec![]);
+    item.data_mut()
+        .set_payload(ContentType::AttachmentRef, vec![]);
     item.set_attachment_length(headers.upload_length.unwrap_or(1));
     if let Some(ref metadata) = headers.metadata {
         item.set_attachment_type(metadata.attachment_type);

@@ -46,17 +46,13 @@ fn expand_item_variants(input: syn::ItemEnum) -> Result<TokenStream> {
                 match ty { #(#from_data),* }
             }
             pub fn ty(&self) -> &ItemType { match self { #(#tags),* } }
-            pub fn len(&self) -> usize { std::ops::Deref::deref(self).len() }
             pub fn item_count(&self) -> Option<u32> {
                 match self { #(#counts),* }
             }
-        }
-        impl std::ops::Deref for Item {
-            type Target = ItemData;
-            fn deref(&self) -> &Self::Target { match self { #(#refs),* } }
-        }
-        impl std::ops::DerefMut for Item {
-            fn deref_mut(&mut self) -> &mut Self::Target { match self { #(#muts),* } }
+            /// Returns the shared headers and serialized payload.
+            pub fn data(&self) -> &ItemData { match self { #(#refs),* } }
+            /// Returns mutable access to the shared headers and serialized payload.
+            pub fn data_mut(&mut self) -> &mut ItemData { match self { #(#muts),* } }
         }
     })
 }
@@ -210,13 +206,10 @@ impl VariantCode {
                 pub struct #payload { data: ItemData, #payload_field }
                 impl #payload {
                     pub fn new(#constructor_args) -> Self { Self { data: ItemData::new(), #payload_init } }
-                }
-                impl std::ops::Deref for #payload {
-                    type Target = ItemData;
-                    fn deref(&self) -> &Self::Target { &self.data }
-                }
-                impl std::ops::DerefMut for #payload {
-                    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.data }
+                    /// Returns the shared headers and serialized payload.
+                    pub fn data(&self) -> &ItemData { &self.data }
+                    /// Returns mutable access to the shared headers and serialized payload.
+                    pub fn data_mut(&mut self) -> &mut ItemData { &mut self.data }
                 }
                 impl std::fmt::Debug for #payload {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -226,6 +219,8 @@ impl VariantCode {
             },
             conversions: quote! {
                 impl ItemVariant for #payload {
+                    fn data(&self) -> &ItemData { self.data() }
+                    fn data_mut(&mut self) -> &mut ItemData { self.data_mut() }
                     fn from_item_ref(item: &Item) -> Option<&Self> {
                         match item { Item::#name(payload) => Some(payload), _ => None }
                     }

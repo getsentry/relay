@@ -335,7 +335,7 @@ impl Forward for ErrorOutput {
                     let event_type = ev.ty.value().copied().unwrap_or_default();
 
                     let mut item = Item::new(ItemType::from_event_type(event_type));
-                    item.set_payload(
+                    item.data_mut().set_payload(
                         ContentType::Json,
                         relay_statsd::metric!(timer(RelayTimers::EventProcessingSerialization), {
                             event.to_json().map_err(ProcessingError::SerializeFailed)?
@@ -343,7 +343,7 @@ impl Forward for ErrorOutput {
                     );
 
                     if fully_normalized.0 {
-                        item.set_fully_normalized(true);
+                        item.data_mut().set_fully_normalized(true);
                     }
 
                     items.push(item);

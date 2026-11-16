@@ -31,7 +31,7 @@ pub fn expand(
             result.push(span);
         };
 
-        let payload = item.payload();
+        let payload = item.data().payload();
 
         let result = match integration {
             SpansIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),

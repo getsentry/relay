@@ -49,7 +49,8 @@ mod tests {
         for (body, bytes) in [("", 1), ("x", 1), ("payload", 7)] {
             let meta = r#"{"trace_id":"0123456789abcdef0123456789abcdef","attachment_id":"00000000-0000-7000-8000-000000000001","timestamp":1700000000.0,"filename":"test.txt","content_type":"text/plain"}"#;
             let mut item = AttachmentItem::new();
-            item.set_payload(ContentType::TraceAttachment, format!("{meta}{body}"));
+            item.data_mut()
+                .set_payload(ContentType::TraceAttachment, format!("{meta}{body}"));
             item.set_meta_length(meta.len() as u32);
             let expected: Quantities = smallvec::smallvec![
                 (DataCategory::Attachment, bytes),

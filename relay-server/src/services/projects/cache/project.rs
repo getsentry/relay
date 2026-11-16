@@ -157,7 +157,7 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
         let mut transaction = TransactionItem::new();
-        transaction.set_payload(
+        transaction.data_mut().set_payload(
             ContentType::Json,
             r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
@@ -235,7 +235,7 @@ mod tests {
 
         let mut transaction = TransactionItem::new();
         transaction.set_span_count(Some(666));
-        transaction.set_payload(
+        transaction.data_mut().set_payload(
             ContentType::Json,
             r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",

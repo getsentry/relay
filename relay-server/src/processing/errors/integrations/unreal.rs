@@ -45,10 +45,12 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
                 .take_item_if::<IntegrationItem>(|item| {
                     item.integration() == Some(Integration::Errors(ErrorsIntegration::Unreal))
                 })?
+                .data()
                 .payload(),
             Item::UnrealReport(_) => envelope
                 .envelope_mut()
                 .take_item::<UnrealReportItem>()?
+                .data()
                 .payload(),
             _ => unreachable!("selected an Unreal report"),
         };
@@ -100,7 +102,7 @@ fn convert(
 
     let mut metrics = Default::default();
     let mut event = match event {
-        Some(event) => utils::event_from_json(&event.payload(), None, &mut metrics, ctx)?,
+        Some(event) => utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx)?,
         None => utils::take_event_from_typed_attachments(&mut attachments, &mut metrics, ctx)?,
     };
     // Metrics are not actually required here, they will be calculated again by the error processor.
@@ -139,7 +141,7 @@ fn convert(
         true => None,
         false => {
             let mut item = EventItem::new();
-            item.set_payload(
+            item.data_mut().set_payload(
                 ContentType::Json,
                 event.to_json().map_err(ProcessingError::SerializeFailed)?,
             );

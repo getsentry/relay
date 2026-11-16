@@ -13,7 +13,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
-use crate::envelope::{Envelope, Item};
+use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -83,8 +83,11 @@ impl PolymorphicEnvelopeBuffer {
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopeBodySize) =
-                envelope.items().map(Item::len).sum::<usize>() as u64,
+            distribution(RelayDistributions::BufferEnvelopeBodySize) = envelope
+                .items()
+                .map(|item| item.data().len())
+                .sum::<usize>()
+                as u64,
             partition_id = self.partition_tag()
         );
 

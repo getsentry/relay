@@ -28,7 +28,7 @@ macro_rules! envelope {
             let mut envelope = Envelope::parse_bytes(bytes.into()).unwrap();
             $(
                 let mut item = envelope!(@item $item_type $( :: $attachment_type )?);
-                item.set_payload(ContentType::OctetStream, "0123456789");
+                item.data_mut().set_payload(ContentType::OctetStream, "0123456789");
                 envelope.add_item(item);
             )*
 
@@ -49,7 +49,8 @@ fn rate_limit(category: DataCategory) -> RateLimit {
 
 fn trace_attachment_item(bytes: usize, parent_id: Option<ParentId>) -> AttachmentItem {
     let mut item = AttachmentItem::new();
-    item.set_payload(ContentType::TraceAttachment, "0".repeat(bytes));
+    item.data_mut()
+        .set_payload(ContentType::TraceAttachment, "0".repeat(bytes));
     item.set_parent_id(parent_id);
     item
 }
@@ -159,8 +160,8 @@ fn test_metrics_return_namespace_backoff_without_discarding_items() {
     for already_limited in [false, true] {
         let mut original = envelope![MetricBuckets];
         let metric = original.items_mut().next().unwrap();
-        metric.set_rate_limited(already_limited);
-        metric.set_source_quantities(SourceQuantities {
+        metric.data_mut().set_rate_limited(already_limited);
+        metric.data_mut().set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 3,
             buckets: 4,
@@ -168,10 +169,13 @@ fn test_metrics_return_namespace_backoff_without_discarding_items() {
         let (kept, client_rate_limits, outcomes) =
             enforce_and_apply(cached.clone(), original.clone());
         assert_eq!(kept.to_vec().unwrap(), original.to_vec().unwrap());
-        assert_eq!(kept.items().next().unwrap().rate_limited(), already_limited);
         assert_eq!(
-            kept.items().next().unwrap().source_quantities(),
-            original.items().next().unwrap().source_quantities(),
+            kept.items().next().unwrap().data().rate_limited(),
+            already_limited
+        );
+        assert_eq!(
+            kept.items().next().unwrap().data().source_quantities(),
+            original.items().next().unwrap().data().source_quantities(),
         );
         assert!(outcomes.is_empty());
         assert_eq!(
@@ -237,10 +241,15 @@ fn test_error_and_user_report_outcomes() {
 fn test_user_report_with_nintendo_header() {
     // Attachment headers do not change a feedback item's category or quantity.
     let mut original = envelope![UserReport];
-    original.items_mut().next().unwrap().set_test_header(
-        crate::envelope::ItemHeaderKey::AttachmentType,
-        Some(AttachmentType::NintendoSwitchDyingMessage),
-    );
+    original
+        .items_mut()
+        .next()
+        .unwrap()
+        .data_mut()
+        .set_test_header(
+            crate::envelope::ItemHeaderKey::AttachmentType,
+            Some(AttachmentType::NintendoSwitchDyingMessage),
+        );
     assert_eq!(EnvelopeSummary::compute(&original).user_report_quantity, 1);
 
     let (kept, limits, outcomes) =
@@ -253,10 +262,15 @@ fn test_user_report_with_nintendo_header() {
 #[test]
 fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
     let mut envelope = envelope![Event, UserReport];
-    envelope.items_mut().nth(1).unwrap().set_test_header(
-        crate::envelope::ItemHeaderKey::AttachmentType,
-        Some(AttachmentType::NintendoSwitchDyingMessage),
-    );
+    envelope
+        .items_mut()
+        .nth(1)
+        .unwrap()
+        .data_mut()
+        .set_test_header(
+            crate::envelope::ItemHeaderKey::AttachmentType,
+            Some(AttachmentType::NintendoSwitchDyingMessage),
+        );
 
     let (kept, _, outcomes) = enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
     assert!(kept.is_empty());
@@ -308,7 +322,7 @@ fn test_enforce_counts_implicit_event_once() {
         assert!(
             envelope
                 .items()
-                .all(|item| item.rate_limited() == attachments_blocked)
+                .all(|item| item.data().rate_limited() == attachments_blocked)
         );
     }
 }
@@ -388,7 +402,7 @@ fn test_event_category_survives_removable_crash_attachments() {
             let mut trace_crash = trace_attachment_item(10, None);
             trace_crash.set_attachment_type(AttachmentType::Minidump);
             let mut event = Item::new(ty.clone());
-            event.set_payload(ContentType::Json, "{}");
+            event.data_mut().set_payload(ContentType::Json, "{}");
             if let Item::Transaction(transaction) = &mut event {
                 transaction.set_span_count(Some(0));
             }
@@ -526,7 +540,9 @@ fn test_enforce_limit_attachments() {
     ] {
         let mut envelope = envelope![Attachment::Minidump];
         let mut attachment = AttachmentItem::new();
-        attachment.set_payload(ContentType::OctetStream, "0123456789");
+        attachment
+            .data_mut()
+            .set_payload(ContentType::OctetStream, "0123456789");
         attachment.set_attachment_type(subtype);
         envelope.add_item(attachment);
 
@@ -542,7 +558,7 @@ fn test_enforce_limit_attachments() {
 #[test]
 fn test_enforce_nintendo_dying_message_with_attachment_limit() {
     let mut envelope = envelope![Attachment::NintendoSwitchDyingMessage, Attachment];
-    envelope.items_mut().next().unwrap().set_payload(
+    envelope.items_mut().next().unwrap().data_mut().set_payload(
         ContentType::OctetStream,
         &include_bytes!(
             "../../../../tests/integration/fixtures/native/nnswitch_dying_message_plain.dat"
@@ -760,8 +776,9 @@ fn test_enforce_skip_rate_limited() {
     let mut envelope = envelope![];
 
     let mut item = AttachmentItem::new();
-    item.set_payload(ContentType::OctetStream, "0123456789");
-    item.set_rate_limited(true);
+    item.data_mut()
+        .set_payload(ContentType::OctetStream, "0123456789");
+    item.data_mut().set_rate_limited(true);
     envelope.add_item(item);
 
     let cached = cached_limits(&[DataCategory::Error]);
@@ -774,7 +791,12 @@ fn test_enforce_skip_rate_limited() {
 #[test]
 fn test_enforce_skip_rate_limited_minidump() {
     let mut envelope = envelope![Attachment::Minidump, Attachment];
-    envelope.items_mut().next().unwrap().set_rate_limited(true);
+    envelope
+        .items_mut()
+        .next()
+        .unwrap()
+        .data_mut()
+        .set_rate_limited(true);
 
     let cached = cached_limits(&[DataCategory::Attachment]);
     let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
@@ -785,7 +807,7 @@ fn test_enforce_skip_rate_limited_minidump() {
         panic!("expected an attachment");
     };
     assert_eq!(minidump.attachment_type(), Some(AttachmentType::Minidump));
-    assert!(minidump.rate_limited());
+    assert!(minidump.data().rate_limited());
     // A new attachment limit must not emit another outcome for the retained minidump.
     assert_eq!(
         outcomes,
@@ -1103,8 +1125,9 @@ fn test_container_counts_and_byte_quota_fallback() {
             for limited_category in [count_category, byte_category] {
                 let mut envelope = envelope![];
                 let mut item = Item::new(ty.clone());
-                item.set_payload(ContentType::Json, "0123456789");
-                item.set_test_header(crate::envelope::ItemHeaderKey::ItemCount, Some(count));
+                item.data_mut().set_payload(ContentType::Json, "0123456789");
+                item.data_mut()
+                    .set_test_header(crate::envelope::ItemHeaderKey::ItemCount, Some(count));
                 envelope.add_item(item);
                 let (envelope, limits, outcomes) =
                     enforce_and_apply(cached_limits(&[limited_category]), envelope);
@@ -1159,6 +1182,7 @@ fn test_integration_items_use_native_limits() {
             .items_mut()
             .next()
             .unwrap()
+            .data_mut()
             .set_payload(ContentType::Integration(integration), "0123456789");
         let (envelope, limits, outcomes) = enforce_and_apply(cached_limits(&[category]), envelope);
         assert!(envelope.is_empty());
@@ -1174,7 +1198,7 @@ fn test_unreal_integration_with_event_counts_one_logical_error() {
 
     let mut envelope = envelope![Event];
     let mut item = IntegrationItem::new();
-    item.set_payload(
+    item.data_mut().set_payload(
         ContentType::Integration(Integration::Errors(ErrorsIntegration::Unreal)),
         "unreal report",
     );
@@ -1192,12 +1216,12 @@ fn test_rejected_source_quantities_are_total_only() {
     for already_limited in [false, true] {
         let mut envelope = envelope![Span, Span];
         let item = envelope.items_mut().next().unwrap();
-        item.set_source_quantities(SourceQuantities {
+        item.data_mut().set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 3,
             buckets: 4,
         });
-        item.set_rate_limited(already_limited);
+        item.data_mut().set_rate_limited(already_limited);
         let (envelope, _, outcomes) =
             enforce_and_apply(cached_limits(&[DataCategory::Span]), envelope);
         assert!(envelope.is_empty());

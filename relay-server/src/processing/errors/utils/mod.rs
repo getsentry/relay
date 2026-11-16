@@ -114,7 +114,7 @@ pub fn take_parsed_event(
     let Some(item) = take_payload::<EventItem>(items) else {
         return Ok(Annotated::empty());
     };
-    event_from_json(&item.payload(), None, metrics, ctx)
+    event_from_json(&item.data().payload(), None, metrics, ctx)
 }
 
 /// Attempts to create an event from event creating attachments.
@@ -190,7 +190,7 @@ pub fn take_event_from_formdata(
         formdata::merge_formdata(&mut value, &form_data)?;
         Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
     }?;
-    metrics.bytes_ingested_event = Annotated::new(form_data.len() as u64);
+    metrics.bytes_ingested_event = Annotated::new(form_data.data().len() as u64);
 
     Ok(event)
 }

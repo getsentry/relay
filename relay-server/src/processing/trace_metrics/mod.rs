@@ -242,7 +242,7 @@ impl Counted for SerializedTraceMetrics {
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum();
 
-        let bytes = self.all_items().map(|item| item.len()).sum();
+        let bytes = self.all_items().map(|item| item.data().len()).sum();
 
         smallvec![
             (DataCategory::TraceMetric, count),

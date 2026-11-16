@@ -12,9 +12,13 @@ pub fn event_from_attachments(
     breadcrumbs_item1: Option<AttachmentItem>,
     breadcrumbs_item2: Option<AttachmentItem>,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
-    let len = event_item.as_ref().map_or(0, |item| item.len())
-        + breadcrumbs_item1.as_ref().map_or(0, |item| item.len())
-        + breadcrumbs_item2.as_ref().map_or(0, |item| item.len());
+    let len = event_item.as_ref().map_or(0, |item| item.data().len())
+        + breadcrumbs_item1
+            .as_ref()
+            .map_or(0, |item| item.data().len())
+        + breadcrumbs_item2
+            .as_ref()
+            .map_or(0, |item| item.data().len());
 
     let mut event = extract_attached_event(config, event_item)?;
     let mut breadcrumbs1 = parse_msgpack_breadcrumbs(config, breadcrumbs_item1)?;
@@ -63,13 +67,13 @@ fn extract_attached_event(
     item: Option<AttachmentItem>,
 ) -> Result<Annotated<Event>, ProcessingError> {
     let item = match item {
-        Some(item) if !item.is_empty() => item,
+        Some(item) if !item.data().is_empty() => item,
         _ => return Ok(Annotated::new(Event::default())),
     };
 
     // Protect against blowing up during deserialization. Attachments can have a significantly
     // larger size than regular events and may cause significant processing delays.
-    if item.len() > config.max_event_size() {
+    if item.data().len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
             item.attachment_type()
                 .unwrap_or(AttachmentType::Attachment)
@@ -77,7 +81,7 @@ fn extract_attached_event(
         ));
     }
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let deserializer = &mut rmp::slice_deserializer(payload.as_ref());
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
@@ -88,7 +92,7 @@ fn parse_msgpack_breadcrumbs(
 ) -> Result<Array<Breadcrumb>, ProcessingError> {
     let mut breadcrumbs = Array::new();
     let item = match item {
-        Some(item) if !item.is_empty() => item,
+        Some(item) if !item.data().is_empty() => item,
         _ => return Ok(breadcrumbs),
     };
 
@@ -96,7 +100,7 @@ fn parse_msgpack_breadcrumbs(
     // truncated to a maximum of 100 in event normalization, but this is to protect us from
     // blowing up during deserialization. As approximation, we use the maximum event payload
     // size as bound, which is roughly in the right ballpark.
-    if item.len() > config.max_event_size() {
+    if item.data().len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
             item.attachment_type()
                 .unwrap_or(AttachmentType::Attachment)
@@ -104,7 +108,7 @@ fn parse_msgpack_breadcrumbs(
         ));
     }
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut deserializer = rmp::stream_deserializer(&payload);
 
     while !deserializer.get_ref().is_empty() {
@@ -144,7 +148,7 @@ mod tests {
         }
 
         let mut item = AttachmentItem::new();
-        item.set_payload(ContentType::MsgPack, data);
+        item.data_mut().set_payload(ContentType::MsgPack, data);
         item
     }
 
@@ -268,7 +272,7 @@ mod tests {
         assert!(payload.len() < config().max_event_size());
 
         let mut item = AttachmentItem::new();
-        item.set_payload(ContentType::MsgPack, payload);
+        item.data_mut().set_payload(ContentType::MsgPack, payload);
 
         let result = extract_attached_event(&config(), Some(item));
 

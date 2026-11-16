@@ -19,10 +19,11 @@ impl SentryError for Generic {
             return Ok(None);
         };
 
-        let fully_normalized = ev.fully_normalized();
+        let fully_normalized = ev.data().fully_normalized();
         let mut metrics = Default::default();
 
-        let mut event = utils::event_from_json(&ev.payload(), None, &mut metrics, ctx.processing)?;
+        let mut event =
+            utils::event_from_json(&ev.data().payload(), None, &mut metrics, ctx.processing)?;
 
         let skip_normalization = ctx.processing.is_processing()
             && ctx.envelope.meta().request_trust().is_trusted()

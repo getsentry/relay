@@ -69,19 +69,21 @@ impl Forward for ReplaysOutput {
 
 fn create_replay_event_item(payload: Bytes) -> ReplayEventItem {
     let mut item = ReplayEventItem::new();
-    item.set_payload(ContentType::Json, payload);
+    item.data_mut().set_payload(ContentType::Json, payload);
     item
 }
 
 fn create_replay_recording_item(payload: Bytes) -> ReplayRecordingItem {
     let mut item = ReplayRecordingItem::new();
-    item.set_payload(ContentType::OctetStream, payload);
+    item.data_mut()
+        .set_payload(ContentType::OctetStream, payload);
     item
 }
 
 fn create_replay_video_item(payload: Bytes) -> ReplayVideoItem {
     let mut item = ReplayVideoItem::new();
-    item.set_payload(ContentType::OctetStream, payload);
+    item.data_mut()
+        .set_payload(ContentType::OctetStream, payload);
     item
 }
 

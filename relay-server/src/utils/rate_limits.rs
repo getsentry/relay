@@ -6,7 +6,7 @@ use relay_quotas::{
     Scoping,
 };
 
-use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item, ItemData};
+use crate::envelope::{AttachmentParentType, AttachmentType, Envelope, Item};
 use crate::integrations::Integration;
 
 /// Name of the rate limits header.
@@ -211,7 +211,7 @@ impl EnvelopeSummary {
         let mut summary = Self::empty();
 
         for item in items {
-            let data: &ItemData = item;
+            let data = item.data();
             let rate_limited = data.rate_limited();
             if !rate_limited {
                 if let Some(source) = data.source_quantities() {
@@ -255,13 +255,13 @@ impl EnvelopeSummary {
                 Item::Log(item) => {
                     summary.log_item_quantity += count;
                     if !rate_limited {
-                        summary.log_byte_quantity += item.len().max(1);
+                        summary.log_byte_quantity += item.data().len().max(1);
                     }
                 }
                 Item::TraceMetric(item) => {
                     summary.trace_metric_quantity += count;
                     if !rate_limited {
-                        summary.trace_metric_byte_quantity += item.len().max(1);
+                        summary.trace_metric_byte_quantity += item.data().len().max(1);
                     }
                 }
                 Item::Transaction(item) => {
@@ -295,7 +295,7 @@ impl EnvelopeSummary {
                     Some(Integration::Logs(_)) => {
                         summary.log_item_quantity += count;
                         if !rate_limited {
-                            summary.log_byte_quantity += item.len().max(1);
+                            summary.log_byte_quantity += item.data().len().max(1);
                         }
                     }
                     _ => {}
@@ -550,7 +550,7 @@ mod tests {
         let mut envelope = Envelope::from_request(None, request_meta);
 
         let mut item = MetricBucketsItem::new();
-        item.set_source_quantities(SourceQuantities {
+        item.data_mut().set_source_quantities(SourceQuantities {
             transactions: 5,
             spans: 0,
             buckets: 5,
@@ -558,7 +558,7 @@ mod tests {
         envelope.add_item(item);
 
         let mut item = MetricBucketsItem::new();
-        item.set_source_quantities(SourceQuantities {
+        item.data_mut().set_source_quantities(SourceQuantities {
             transactions: 2,
             spans: 0,
             buckets: 3,

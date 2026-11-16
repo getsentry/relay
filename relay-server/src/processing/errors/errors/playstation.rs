@@ -185,16 +185,16 @@ impl SentryError for Playstation {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        if !self.prosperodump.rate_limited() {
+        if !self.prosperodump.data().rate_limited() {
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
-            self.prosperodump.set_rate_limited(true);
+            self.prosperodump.data_mut().set_rate_limited(true);
         }
 
         if let Some(minidump) = self.minidump.as_mut()
-            && !minidump.rate_limited()
+            && !minidump.data().rate_limited()
         {
             records.reject_err(Error::RateLimited(limits), &*minidump);
-            minidump.set_rate_limited(true);
+            minidump.data_mut().set_rate_limited(true);
         }
 
         Ok(())
@@ -220,11 +220,11 @@ impl Counted for Playstation {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        if !self.prosperodump.rate_limited() {
+        if !self.prosperodump.data().rate_limited() {
             quantities.extend(self.prosperodump.quantities());
         }
         if let Some(minidump) = &self.minidump
-            && !minidump.rate_limited()
+            && !minidump.data().rate_limited()
         {
             quantities.extend(minidump.quantities());
         }
@@ -273,11 +273,11 @@ fn test_playstation_crash_rate_limit() {
         },
         &[8, 4],
         |crash| {
-            assert!(crash.prosperodump.rate_limited());
-            assert_eq!(crash.prosperodump.payload().as_ref(), b"prospero");
+            assert!(crash.prosperodump.data().rate_limited());
+            assert_eq!(crash.prosperodump.data().payload().as_ref(), b"prospero");
             let minidump = crash.minidump.unwrap();
-            assert!(minidump.rate_limited());
-            assert_eq!(minidump.payload().as_ref(), b"dump");
+            assert!(minidump.data().rate_limited());
+            assert_eq!(minidump.data().payload().as_ref(), b"dump");
         },
     );
 }

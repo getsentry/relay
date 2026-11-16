@@ -54,9 +54,9 @@ impl SentryError for GpuCrash {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        if !self.0.rate_limited() {
+        if !self.0.data().rate_limited() {
             records.reject_err(Error::RateLimited(limits), &self.0);
-            self.0.set_rate_limited(true);
+            self.0.data_mut().set_rate_limited(true);
         }
 
         Ok(())
@@ -73,7 +73,7 @@ impl SentryError for GpuCrash {
 
 impl Counted for GpuCrash {
     fn quantities(&self) -> Quantities {
-        match self.0.rate_limited() {
+        match self.0.data().rate_limited() {
             true => Default::default(),
             false => self.0.quantities(),
         }

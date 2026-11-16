@@ -831,7 +831,7 @@ impl StoreService {
                 project_id: scoping.project_id,
                 event_id: report.event_id,
                 start_time: safe_timestamp(received_at),
-                payload: report.report.payload(),
+                payload: report.report.data().payload(),
                 org_id: scoping.organization_id,
             });
             self.produce(KafkaTopic::Attachments, kafka_msg)
@@ -866,8 +866,8 @@ impl StoreService {
                 retention_days: check_in.retention_days,
                 start_time: safe_timestamp(received_at),
                 sdk: check_in.sdk,
-                payload: check_in.check_in.payload(),
-                routing_key_hint: check_in.check_in.routing_hint(),
+                payload: check_in.check_in.data().payload(),
+                routing_key_hint: check_in.check_in.data().routing_hint(),
             });
 
             self.produce(KafkaTopic::Monitors, message)
@@ -967,7 +967,7 @@ impl StoreService {
             "AttachmentRef should not have been uploaded to objectstore"
         );
 
-        let payload = item.payload();
+        let payload = item.data().payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
         let config = self.config.current();
@@ -981,7 +981,7 @@ impl StoreService {
         Ok(ChunkedAttachment {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
-            rate_limited: item.rate_limited(),
+            rate_limited: item.data().rate_limited(),
             content_type: placeholder.content_type,
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
@@ -1001,8 +1001,8 @@ impl StoreService {
     ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
-        let payload = item.payload();
-        let size = item.len();
+        let payload = item.data().payload();
+        let size = item.data().len();
         let max_chunk_size = self.config.current().attachment_chunk_size();
 
         let payload = if size == 0 {
@@ -1049,8 +1049,11 @@ impl StoreService {
                 Some(name) => name.to_owned(),
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
-            rate_limited: item.rate_limited(),
-            content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
+            rate_limited: item.data().rate_limited(),
+            content_type: item
+                .data()
+                .raw_content_type()
+                .map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             retention_days,
@@ -1117,7 +1120,7 @@ impl StoreService {
             project_id,
             event_id,
             start_time: safe_timestamp(received_at),
-            payload: item.payload(),
+            payload: item.data().payload(),
             org_id,
         });
 
@@ -1220,7 +1223,7 @@ impl StoreService {
                 ),
                 ("project_id".to_owned(), project_id.to_string()),
             ]),
-            payload: item.payload(),
+            payload: item.data().payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         Ok(())

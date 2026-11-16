@@ -49,7 +49,7 @@ fn validate(item: &mut AttachmentItem, config: &ConfigSnapshot) -> Result<(), Pr
             return Ok(());
         }
 
-        let payload = item.payload();
+        let payload = item.data().payload();
         let payload: AttachmentPlaceholder =
             serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
         let signed_location: SignedLocation<Final> = SignedLocation::try_from_str(payload.location)
@@ -93,9 +93,9 @@ pub fn scrub<'a>(
             } else if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
-                let old_size = item.payload().len();
+                let old_size = item.data().payload().len();
                 scrub_view_hierarchy(item, config);
-                let new_size = item.payload().len();
+                let new_size = item.data().payload().len();
 
                 if let Some(record_keeper) = record_keeper.as_mut() {
                     record_keeper.modify_by(
@@ -118,7 +118,7 @@ pub fn scrub<'a>(
 fn scrub_minidump(project_info: &ProjectInfo, item: &mut AttachmentItem, config: &PiiConfig) {
     debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
-    let mut payload = item.payload().to_vec();
+    let mut payload = item.data().payload().to_vec();
 
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
@@ -164,14 +164,15 @@ fn scrub_minidump(project_info: &ProjectInfo, item: &mut AttachmentItem, config:
         }
     }
 
-    item.set_default_content_type(ContentType::Minidump);
-    item.set_payload_without_content_type(payload);
+    item.data_mut()
+        .set_default_content_type(ContentType::Minidump);
+    item.data_mut().set_payload_without_content_type(payload);
 }
 
 fn scrub_view_hierarchy(item: &mut AttachmentItem, config: &PiiConfig) {
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let start = Instant::now();
     match processor.scrub_json(&payload) {
         Ok(output) => {
@@ -179,8 +180,8 @@ fn scrub_view_hierarchy(item: &mut AttachmentItem, config: &PiiConfig) {
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
                 status = if output != payload { "ok" } else { "n/a" }
             );
-            item.set_default_content_type(ContentType::Json);
-            item.set_payload_without_content_type(output);
+            item.data_mut().set_default_content_type(ContentType::Json);
+            item.data_mut().set_payload_without_content_type(output);
         }
         Err(e) => {
             relay_log::debug!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
@@ -212,7 +213,7 @@ pub fn has_simple_attachment_selector(config: &PiiConfig) -> bool {
 
 fn scrub_attachment(project_info: &ProjectInfo, item: &mut AttachmentItem, config: &PiiConfig) {
     let filename = item.filename().unwrap_or_default();
-    let mut payload = item.payload().to_vec();
+    let mut payload = item.data().payload().to_vec();
 
     let processor = PiiAttachmentsProcessor::new(config.compiled());
     let attachment_type_tag = match item.attachment_type() {
@@ -233,7 +234,7 @@ fn scrub_attachment(project_info: &ProjectInfo, item: &mut AttachmentItem, confi
         );
     }
 
-    item.set_payload_without_content_type(payload);
+    item.data_mut().set_payload_without_content_type(payload);
 }
 
 #[cfg(test)]

@@ -48,7 +48,9 @@ fn test_flamegraph_requires_explicit_event() {
     let rejected_size = flamegraph.attachment_body_size() as u64;
 
     let mut ordinary = AttachmentItem::new();
-    ordinary.set_payload(ContentType::Text, "keep me");
+    ordinary
+        .data_mut()
+        .set_payload(ContentType::Text, "keep me");
     let (mut attachments, mut handle) = Managed::for_test(SerializedAttachments {
         headers: envelope.headers().clone(),
         attachments: smallvec![flamegraph, ordinary],
@@ -58,7 +60,10 @@ fn test_flamegraph_requires_explicit_event() {
     remove_illegal_attachments(&mut attachments);
 
     assert_eq!(attachments.attachments.len(), 1);
-    assert_eq!(attachments.attachments[0].payload().as_ref(), b"keep me");
+    assert_eq!(
+        attachments.attachments[0].data().payload().as_ref(),
+        b"keep me"
+    );
     attachments.accept(|_| ());
     let outcome = crate::services::outcome::Outcome::Invalid(
         crate::services::outcome::DiscardReason::InvalidFlamegraph,

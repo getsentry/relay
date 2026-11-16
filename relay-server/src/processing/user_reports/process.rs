@@ -23,14 +23,14 @@ pub fn process_user_reports(
     records: &mut RecordKeeper<'_>,
 ) {
     for mut user_report in std::mem::take(user_reports) {
-        let data = match process_user_report(user_report.payload()) {
+        let data = match process_user_report(user_report.data().payload()) {
             Ok(data) => data,
             Err(err) => {
                 records.reject_err(err, user_report);
                 continue;
             }
         };
-        user_report.set_payload(ContentType::Json, data);
+        user_report.data_mut().set_payload(ContentType::Json, data);
         user_reports.push(user_report);
     }
 }

@@ -64,7 +64,7 @@ pub fn expand(sessions: Managed<SerializedSessions>, ctx: Context<'_>) -> Expans
 }
 
 fn expand_session(item: &SessionItem) -> Result<SessionUpdate> {
-    let payload = item.payload();
+    let payload = item.data().payload();
 
     SessionUpdate::parse(&payload).map_err(|err| {
         relay_log::trace!(
@@ -76,7 +76,7 @@ fn expand_session(item: &SessionItem) -> Result<SessionUpdate> {
 }
 
 fn expand_session_aggregates(item: &SessionsItem) -> Result<SessionAggregates> {
-    let payload = item.payload();
+    let payload = item.data().payload();
 
     SessionAggregates::parse(&payload).map_err(|err| {
         relay_log::trace!(

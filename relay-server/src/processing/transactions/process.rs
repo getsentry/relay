@@ -43,14 +43,14 @@ pub fn expand(
             profiles,
         } = work;
         let mut event = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+            Annotated::<Event>::from_json_bytes(&transaction_item.data().payload())
         })?;
         if let Some(event) = event.value_mut() {
             event.ty = EventType::Transaction.into();
         }
         let flags = Flags {
             fully_normalized: headers.meta().request_trust().is_trusted()
-                && transaction_item.fully_normalized(),
+                && transaction_item.data().fully_normalized(),
         };
 
         let profile = expand_profile(profiles, record_keeper);
@@ -94,7 +94,7 @@ fn expand_profile(
         );
     }
 
-    let meta = match relay_profiling::parse_metadata(&profile.payload()) {
+    let meta = match relay_profiling::parse_metadata(&profile.data().payload()) {
         Ok(meta) => meta,
         Err(err) => {
             record_keeper.reject_err(

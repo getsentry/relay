@@ -1,7 +1,7 @@
 //! Apply cached rate limits and zero quotas before processing envelope payloads.
 
 use crate::envelope::{
-    AttachmentParentType, ContentType, Envelope, Item, ItemData, RejectionQuantities,
+    AttachmentParentType, ContentType, Envelope, Item, ItemVariant, RejectionQuantities,
 };
 #[cfg(test)]
 use crate::envelope::{AttachmentType, ItemType};
@@ -266,7 +266,7 @@ fn filter(
                 };
                 apply_retention(RetentionAction::drop_on_rejection(outcome), item)
             }
-            Item::Integration(item) => match item.content_type() {
+            Item::Integration(item) => match item.data().content_type() {
                 Some(ContentType::Integration(Integration::Errors(_))) => {
                     apply_retention(RetentionAction::drop_on_rejection(event), item)
                 }
@@ -484,14 +484,14 @@ fn resolve_limits(
 // Empty quantities need no special case; source quantities still transfer independently.
 fn apply_retention<T>(action: RetentionAction<'_>, item: &mut T) -> bool
 where
-    T: RejectionQuantities + std::ops::DerefMut<Target = ItemData>,
+    T: RejectionQuantities + ItemVariant,
 {
     let (rejection, keep) = match action {
         RetentionAction::Keep => return true,
         RetentionAction::Drop(rejection) => (rejection, false),
         RetentionAction::KeepRateLimited(rejection) => (rejection, true),
     };
-    if item.rate_limited() {
+    if item.data().rate_limited() {
         return keep;
     }
     for quantity in item
@@ -502,7 +502,7 @@ where
         rejection.add(quantity);
     }
     // Source quantities transfer total accounting only; no indexed categories are added.
-    if let Some(source) = item.source_quantities() {
+    if let Some(source) = item.data().source_quantities() {
         for quantity in [
             (DataCategory::Transaction, source.transactions),
             (DataCategory::Span, source.spans),
@@ -514,7 +514,7 @@ where
         }
     }
     if keep {
-        item.set_rate_limited(true);
+        item.data_mut().set_rate_limited(true);
     }
     keep
 }

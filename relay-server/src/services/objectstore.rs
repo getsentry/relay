@@ -668,8 +668,8 @@ impl ObjectstoreServiceInner {
 
         for mut attachment in attachments.split(|e| e) {
             let content_type =
-                normalize_content_type(attachment.raw_content_type(), attachment.filename());
-            attachment.modify(|a, _| a.set_raw_content_type(content_type.clone()));
+                normalize_content_type(attachment.data().raw_content_type(), attachment.filename());
+            attachment.modify(|a, _| a.data_mut().set_raw_content_type(content_type.clone()));
 
             let attributes = ObjectAttributes {
                 content_type: Some(content_type),
@@ -681,7 +681,7 @@ impl ObjectstoreServiceInner {
                 .upload_bytes(
                     MessageKind::Event,
                     &session,
-                    attachment.payload(),
+                    attachment.data().payload(),
                     event.retention_days,
                     attributes,
                 )
@@ -725,10 +725,14 @@ impl ObjectstoreServiceInner {
         );
 
         let content_type = normalize_content_type(
-            attachment.attachment.raw_content_type(),
+            attachment.attachment.data().raw_content_type(),
             attachment.attachment.filename(),
         );
-        attachment.modify(|a, _| a.attachment.set_raw_content_type(content_type.clone()));
+        attachment.modify(|a, _| {
+            a.attachment
+                .data_mut()
+                .set_raw_content_type(content_type.clone())
+        });
 
         let upload_result = match session {
             Err(error) => Err(error),
@@ -742,7 +746,7 @@ impl ObjectstoreServiceInner {
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
-                    attachment.attachment.payload(),
+                    attachment.attachment.data().payload(),
                     attachment.retention,
                     attributes,
                 )
@@ -1387,7 +1391,7 @@ fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'sta
 }
 
 fn should_upload(item: &AttachmentItem) -> bool {
-    item.stored_key().is_none() && !item.is_empty() && !item.is_attachment_ref()
+    item.stored_key().is_none() && !item.data().is_empty() && !item.is_attachment_ref()
 }
 
 fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
@@ -1482,7 +1486,7 @@ mod tests {
             .unwrap();
 
         let mut item = AttachmentItem::new();
-        item.set_payload(ContentType::Text, "hello");
+        item.data_mut().set_payload(ContentType::Text, "hello");
         let quantities = item.quantities();
         let (attachment, mut handle) = Managed::for_test(StoreAttachment {
             event_id: EventId::new(),
@@ -1551,7 +1555,9 @@ mod tests {
 
     fn test_event() -> (Managed<Box<StoreEvent>>, ManagedTestHandle) {
         let mut attachment = AttachmentItem::new();
-        attachment.set_payload(ContentType::Text, "hello");
+        attachment
+            .data_mut()
+            .set_payload(ContentType::Text, "hello");
 
         Managed::for_test(Box::new(StoreEvent {
             event_category: DataCategory::Error,

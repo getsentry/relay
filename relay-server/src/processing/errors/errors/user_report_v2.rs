@@ -32,7 +32,7 @@ impl SentryError for UserReportV2 {
 
         Ok(Some(Expansion {
             event: Box::new(utils::event_from_json(
-                &ev.payload(),
+                &ev.data().payload(),
                 EventType::UserReportV2,
                 &mut metrics,
                 ctx.processing,

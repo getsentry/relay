@@ -71,7 +71,7 @@ impl RejectionQuantities for SecurityItem {
 
 impl Counted for AttachmentItem {
     fn quantities(&self) -> Quantities {
-        if self.rate_limited() {
+        if self.data().rate_limited() {
             return Quantities::new();
         }
 
@@ -265,7 +265,7 @@ impl Counted for LogItem {
                 DataCategory::LogItem,
                 self.item_count().unwrap_or(1) as usize,
             ),
-            (DataCategory::LogByte, self.len().max(1)),
+            (DataCategory::LogByte, self.data().len().max(1)),
         ]
     }
 }
@@ -279,7 +279,7 @@ impl Counted for TraceMetricItem {
                 DataCategory::TraceMetric,
                 self.item_count().unwrap_or(1) as usize,
             ),
-            (DataCategory::TraceMetricByte, self.len().max(1)),
+            (DataCategory::TraceMetricByte, self.data().len().max(1)),
         ]
     }
 }
@@ -318,7 +318,7 @@ impl Counted for IntegrationItem {
             Some(Integration::Errors(_)) => smallvec![(DataCategory::Error, 1)],
             Some(Integration::Logs(_)) => smallvec![
                 (DataCategory::LogItem, 1),
-                (DataCategory::LogByte, self.len().max(1)),
+                (DataCategory::LogByte, self.data().len().max(1)),
             ],
             Some(Integration::Spans(_)) => {
                 smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]

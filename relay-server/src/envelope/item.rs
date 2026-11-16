@@ -21,6 +21,12 @@ use crate::utils::DebugBytes;
 ///
 /// Borrowed extraction and `TryFrom<Item>` must accept the same variant.
 pub trait ItemVariant: TryFrom<Item, Error = Item> {
+    /// Returns the shared headers and serialized payload.
+    fn data(&self) -> &ItemData;
+
+    /// Returns mutable access to the shared headers and serialized payload.
+    fn data_mut(&mut self) -> &mut ItemData;
+
     fn from_item_ref(item: &Item) -> Option<&Self>;
 
     /// Returns the declared `item_count` header when supported by this payload type.
@@ -30,7 +36,7 @@ pub trait ItemVariant: TryFrom<Item, Error = Item> {
 }
 
 /// Payload types that can be written as item containers.
-pub trait ContainerPayload: ItemVariant + std::ops::DerefMut<Target = ItemData> {
+pub trait ContainerPayload: ItemVariant {
     /// Sets the payload, its content type, and its declared container count.
     fn set_payload_with_item_count(
         &mut self,
@@ -130,7 +136,7 @@ impl ItemData {
 impl TransactionItem {
     /// Returns the declared number of embedded spans, or `None` for an absent or invalid header.
     pub fn span_count(&self) -> Option<u32> {
-        self.headers.get(ItemHeaderKey::SpanCount)
+        self.data().headers.get(ItemHeaderKey::SpanCount)
     }
 
     /// Counts embedded spans using the header, falling back to scanning the `spans` payload array.
@@ -145,7 +151,7 @@ impl TransactionItem {
             .map(|count| count as usize)
             .unwrap_or_else(|| {
                 relay_statsd::metric!(timer(crate::statsd::RelayTimers::CheckNestedSpans), {
-                    serde_json::from_slice::<PartialEvent>(&self.payload())
+                    serde_json::from_slice::<PartialEvent>(&self.data().payload())
                         .map_or(0, |event| event.spans.0)
                 })
             })
@@ -153,7 +159,9 @@ impl TransactionItem {
 
     /// Sets the number of spans in the transaction payload.
     pub fn set_span_count(&mut self, value: Option<u32>) {
-        self.headers.set_or_remove(ItemHeaderKey::SpanCount, value);
+        self.data_mut()
+            .headers
+            .set_or_remove(ItemHeaderKey::SpanCount, value);
     }
 }
 
@@ -195,7 +203,7 @@ impl ItemData {
 impl IntegrationItem {
     /// Returns the integration named by the content-type header, if present and valid.
     pub fn integration_header(&self) -> Option<Integration> {
-        match self.content_type() {
+        match self.data().content_type() {
             Some(ContentType::Integration(integration)) => Some(integration),
             _ => None,
         }
@@ -215,7 +223,7 @@ impl IntegrationItem {
 impl AttachmentItem {
     /// Returns the attachment type.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
-        if let Some(ty) = self.headers.get(ItemHeaderKey::AttachmentType) {
+        if let Some(ty) = self.data().headers.get(ItemHeaderKey::AttachmentType) {
             return Some(ty);
         }
 
@@ -223,6 +231,7 @@ impl AttachmentItem {
         // attachment type, that's why we have to infer it here from the filename and contents.
         if self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
             && self
+                .data()
                 .payload
                 .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
         {
@@ -234,7 +243,8 @@ impl AttachmentItem {
 
     /// Sets the attachment type of this item.
     pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
-        self.headers
+        self.data_mut()
+            .headers
             .set(ItemHeaderKey::AttachmentType, attachment_type);
     }
 }
@@ -292,7 +302,7 @@ impl ItemData {
 impl AttachmentItem {
     /// Returns the attachment file name.
     pub fn filename(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::Filename)
+        self.data().headers.get(ItemHeaderKey::Filename)
     }
 
     /// Sets the file name of this item.
@@ -300,17 +310,19 @@ impl AttachmentItem {
     where
         S: Into<String>,
     {
-        self.headers.set(ItemHeaderKey::Filename, filename.into());
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::Filename, filename.into());
     }
 
     /// Returns the objectstore key for a stored attachment.
     pub fn stored_key(&self) -> Option<&str> {
-        self.headers.stored_key.as_deref()
+        self.data().headers.stored_key.as_deref()
     }
 
     /// Sets the objectstore key of this attachment item.
     pub fn set_stored_key(&mut self, stored_key: String) {
-        self.headers.stored_key = Some(stored_key);
+        self.data_mut().headers.stored_key = Some(stored_key);
     }
 }
 
@@ -362,12 +374,14 @@ impl ItemData {
 impl ProfileItem {
     /// Returns the associated platform.
     pub fn platform(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::Platform)
+        self.data().headers.get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
     pub fn set_platform(&mut self, platform: String) {
-        self.headers.set(ItemHeaderKey::Platform, platform);
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::Platform, platform);
     }
 
     /// Infers the [`ProfileType`] from [`Self::platform`].
@@ -377,24 +391,29 @@ impl ProfileItem {
 
     /// Gets the profile sampling flag.
     pub fn sampled(&self) -> bool {
-        self.headers.get(ItemHeaderKey::Sampled).unwrap_or(true)
+        self.data()
+            .headers
+            .get(ItemHeaderKey::Sampled)
+            .unwrap_or(true)
     }
 
     /// Sets the `sampled` flag.
     pub fn set_sampled(&mut self, sampled: bool) {
-        self.headers.set(ItemHeaderKey::Sampled, sampled);
+        self.data_mut().headers.set(ItemHeaderKey::Sampled, sampled);
     }
 }
 
 impl ProfileChunkItem {
     /// Returns the associated platform.
     pub fn platform(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::Platform)
+        self.data().headers.get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
     pub fn set_platform(&mut self, platform: String) {
-        self.headers.set(ItemHeaderKey::Platform, platform);
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::Platform, platform);
     }
 
     /// Infers the [`ProfileType`] from [`Self::platform`].
@@ -404,25 +423,28 @@ impl ProfileChunkItem {
 
     /// Returns the length of the metadata segment for a Perfetto profile chunk.
     pub fn meta_length(&self) -> Option<u32> {
-        self.headers.get(ItemHeaderKey::MetaLength)
+        self.data().headers.get(ItemHeaderKey::MetaLength)
     }
 }
 
 impl AttachmentItem {
     /// Returns the length of the optional attachment metadata segment.
     pub fn meta_length(&self) -> Option<u32> {
-        self.headers.get(ItemHeaderKey::MetaLength)
+        self.data().headers.get(ItemHeaderKey::MetaLength)
     }
 
     /// Sets the length of the optional meta segment.
     pub fn set_meta_length(&mut self, meta_length: u32) {
-        self.headers.set(ItemHeaderKey::MetaLength, meta_length);
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::MetaLength, meta_length);
     }
 
     /// Sets the original payload length for an attachment with [`ContentType::AttachmentRef`].
     pub fn set_attachment_length(&mut self, original_length: usize) {
         debug_assert!(self.is_attachment_ref());
-        self.headers
+        self.data_mut()
+            .headers
             .set(ItemHeaderKey::AttachmentLength, original_length);
     }
 }
@@ -454,7 +476,7 @@ impl AttachmentItem {
     /// Returns the parent entity associated with this attachment, if any.
     pub fn parent_id(&self) -> Option<ParentId> {
         // Currently only `span_id` supported in `ParentId`.
-        let span_id = self.headers.get(ItemHeaderKey::SpanId)?;
+        let span_id = self.data().headers.get(ItemHeaderKey::SpanId)?;
         Some(ParentId::SpanId(span_id))
     }
 
@@ -463,12 +485,14 @@ impl AttachmentItem {
         let span_id = parent_id.map(|p| match p {
             ParentId::SpanId(span_id) => span_id,
         });
-        self.headers.set_or_remove(ItemHeaderKey::SpanId, span_id);
+        self.data_mut()
+            .headers
+            .set_or_remove(ItemHeaderKey::SpanId, span_id);
     }
 
     /// Returns `true` if this item is an attachment with AttachmentV2 content type.
     fn is_attachment_v2(&self) -> bool {
-        self.content_type() == Some(ContentType::TraceAttachment)
+        self.data().content_type() == Some(ContentType::TraceAttachment)
     }
 
     /// Returns `true` if this item is a V2 attachment owned by spans.
@@ -483,14 +507,14 @@ impl AttachmentItem {
 
     /// Returns `true` if this item is an attachment placeholder.
     pub fn is_attachment_ref(&self) -> bool {
-        self.content_type() == Some(ContentType::AttachmentRef)
+        self.data().content_type() == Some(ContentType::AttachmentRef)
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
     pub fn attachment_parent_type(&self) -> AttachmentParentType {
-        let is_trace_attachment = self.content_type() == Some(ContentType::TraceAttachment);
+        let is_trace_attachment = self.data().content_type() == Some(ContentType::TraceAttachment);
 
         if is_trace_attachment {
             match self.parent_id() {
@@ -512,14 +536,16 @@ impl AttachmentItem {
     /// is best effort.
     pub fn attachment_body_size(&self) -> usize {
         if self.is_attachment_v2() {
-            self.len()
+            self.data()
+                .len()
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
         } else if self.is_attachment_ref() {
-            self.headers
+            self.data()
+                .headers
                 .get(ItemHeaderKey::AttachmentLength)
                 .unwrap_or(0)
         } else {
-            self.len()
+            self.data().len()
         }
         .max(1)
     }
@@ -561,6 +587,7 @@ impl Item {
         match self {
             Self::Unknown(_) => true,
             Self::Attachment(item) => item
+                .data()
                 .headers
                 .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
                 .is_err(),
@@ -663,7 +690,7 @@ impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Item")
             .field("headers", &self.wire_headers())
-            .field("payload", &DebugBytes(&self.payload))
+            .field("payload", &DebugBytes(&self.data().payload))
             .finish()
     }
 }
@@ -1014,7 +1041,7 @@ impl Item {
     pub(super) fn wire_headers(&self) -> ItemHeadersRef<'_> {
         ItemHeadersRef {
             ty: self.ty(),
-            data: &self.headers,
+            data: &self.data().headers,
         }
     }
 }
@@ -1273,7 +1300,8 @@ mod tests {
             let mut dump = AttachmentItem::new();
             dump.set_attachment_type(AttachmentType::Minidump);
             if !matches!(parent, AttachmentParentType::Event) {
-                dump.set_payload(ContentType::TraceAttachment, "{}");
+                dump.data_mut()
+                    .set_payload(ContentType::TraceAttachment, "{}");
                 if matches!(parent, AttachmentParentType::Span) {
                     dump.set_parent_id(Some(ParentId::SpanId(None)));
                 }
@@ -1297,7 +1325,7 @@ mod tests {
             assert_eq!(consumed, wire.len());
             assert_eq!(item.ty().as_str(), tag);
             assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
-            assert_eq!(item.payload(), "{}");
+            assert_eq!(item.data().payload(), "{}");
             match item {
                 Item::Transaction(transaction) => assert_eq!(transaction.span_count(), None),
                 Item::Profile(profile) => assert_eq!(profile.profile_type(), None),
@@ -1310,7 +1338,7 @@ mod tests {
         let mut transaction = TransactionItem::new();
         transaction.set_span_count(Some(3));
         let mut profile = ProfileItem::new();
-        std::mem::swap(&mut *transaction, &mut *profile);
+        std::mem::swap(transaction.data_mut(), profile.data_mut());
         assert_eq!(transaction.span_count(), None);
         let transaction = Item::from(transaction);
         assert_eq!(
@@ -1343,8 +1371,10 @@ mod tests {
         );
         let mut transaction = TransactionItem::new();
         // Transactions never support containers: `1` still means one transaction.
-        transaction.set_payload(ContentType::Json, "{}");
-        transaction.set_test_header(ItemHeaderKey::ItemCount, Some(99u32));
+        transaction.data_mut().set_payload(ContentType::Json, "{}");
+        transaction
+            .data_mut()
+            .set_test_header(ItemHeaderKey::ItemCount, Some(99u32));
         transaction.set_span_count(Some(2));
         assert_eq!(
             transaction.quantities().as_slice(),
@@ -1360,28 +1390,36 @@ mod tests {
     #[test]
     fn test_item_quantities_preserve_order_and_zero_counts() {
         let mut span = SpanItem::new();
-        span.set_payload(ContentType::Json, "{}");
-        span.set_test_header(ItemHeaderKey::ItemCount, Some(3u32));
+        span.data_mut().set_payload(ContentType::Json, "{}");
+        span.data_mut()
+            .set_test_header(ItemHeaderKey::ItemCount, Some(3u32));
         let mut log = LogItem::new();
-        log.set_payload(ContentType::Json, "");
-        log.set_test_header(ItemHeaderKey::ItemCount, Some(0u32));
+        log.data_mut().set_payload(ContentType::Json, "");
+        log.data_mut()
+            .set_test_header(ItemHeaderKey::ItemCount, Some(0u32));
         let mut profile = ProfileItem::new();
         profile.set_platform("python".into());
         let mut transaction = TransactionItem::new();
         transaction.set_span_count(Some(2));
         let mut attachment = AttachmentItem::new();
-        attachment.set_rate_limited(true);
+        attachment.data_mut().set_rate_limited(true);
         let mut minidump = AttachmentItem::new();
         minidump.set_attachment_type(AttachmentType::Minidump);
-        minidump.set_payload(ContentType::OctetStream, "MDMP");
+        minidump
+            .data_mut()
+            .set_payload(ContentType::OctetStream, "MDMP");
         let mut trace_attachment = AttachmentItem::new();
-        trace_attachment.set_payload(ContentType::TraceAttachment, "{}body");
+        trace_attachment
+            .data_mut()
+            .set_payload(ContentType::TraceAttachment, "{}body");
         trace_attachment.set_meta_length(2);
         let mut nintendo = AttachmentItem::new();
         nintendo.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
-        nintendo.set_payload(ContentType::OctetStream, "dying message");
+        nintendo
+            .data_mut()
+            .set_payload(ContentType::OctetStream, "dying message");
         let mut misplaced = UserReportItem::new();
-        misplaced.set_test_header(
+        misplaced.data_mut().set_test_header(
             crate::envelope::ItemHeaderKey::AttachmentType,
             Some(AttachmentType::NintendoSwitchDyingMessage),
         );
@@ -1444,11 +1482,11 @@ mod tests {
     fn test_item_empty() {
         let item = Item::Attachment(AttachmentItem::new());
 
-        assert_eq!(item.payload(), Bytes::new());
-        assert_eq!(item.len(), 0);
-        assert!(item.is_empty());
+        assert_eq!(item.data().payload(), Bytes::new());
+        assert_eq!(item.data().len(), 0);
+        assert!(item.data().is_empty());
 
-        assert_eq!(item.content_type(), None);
+        assert_eq!(item.data().content_type(), None);
     }
 
     #[test]
@@ -1456,15 +1494,16 @@ mod tests {
         let mut item = EventItem::new();
 
         let payload = Bytes::from(&br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#[..]);
-        item.set_payload(ContentType::Json, payload.clone());
+        item.data_mut()
+            .set_payload(ContentType::Json, payload.clone());
 
         // Payload
-        assert_eq!(item.payload(), payload);
-        assert_eq!(item.len(), payload.len());
-        assert!(!item.is_empty());
+        assert_eq!(item.data().payload(), payload);
+        assert_eq!(item.data().len(), payload.len());
+        assert!(!item.data().is_empty());
 
         // Meta data
-        assert_eq!(item.content_type(), Some(ContentType::Json));
+        assert_eq!(item.data().content_type(), Some(ContentType::Json));
     }
 
     #[test]
@@ -1472,13 +1511,14 @@ mod tests {
         let mut item = Item::new(ItemType::Attachment);
 
         let payload = Bytes::from_static(b"payload");
-        item.set_payload(ContentType::Json, payload.clone());
-        item.set_content_type(ContentType::OctetStream);
+        item.data_mut()
+            .set_payload(ContentType::Json, payload.clone());
+        item.data_mut().set_content_type(ContentType::OctetStream);
 
-        assert_eq!(item.content_type(), Some(ContentType::OctetStream));
-        assert_eq!(item.payload(), payload);
+        assert_eq!(item.data().content_type(), Some(ContentType::OctetStream));
+        assert_eq!(item.data().payload(), payload);
         assert_eq!(
-            item.headers.get::<usize>(ItemHeaderKey::Length),
+            item.data().headers.get::<usize>(ItemHeaderKey::Length),
             Some(payload.len())
         );
     }
@@ -1489,23 +1529,23 @@ mod tests {
         let uuid = Uuid::parse_str("8a4ab00f-fba2-4f7b-a164-b58199d55c95").unwrap();
 
         let mut item = EventItem::new();
-        item.set_routing_hint(uuid);
+        item.data_mut().set_routing_hint(uuid);
 
-        assert_eq!(item.routing_hint(), Some(uuid));
+        assert_eq!(item.data().routing_hint(), Some(uuid));
     }
 
     #[test]
     fn test_item_source_quantities() {
         let mut item = MetricBucketsItem::new();
-        assert!(item.source_quantities().is_none());
+        assert!(item.data().source_quantities().is_none());
 
         let source_quantities = SourceQuantities {
             transactions: 12,
             ..Default::default()
         };
-        item.set_source_quantities(source_quantities);
+        item.data_mut().set_source_quantities(source_quantities);
 
-        assert_eq!(item.source_quantities(), Some(source_quantities));
+        assert_eq!(item.data().source_quantities(), Some(source_quantities));
     }
 
     #[test]
@@ -1518,7 +1558,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            item.content_type(),
+            item.data().content_type(),
             Some(ContentType::Integration(Integration::Logs(
                 LogsIntegration::OtelV1 {
                     format: OtelFormat::Json

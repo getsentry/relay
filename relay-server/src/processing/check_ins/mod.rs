@@ -118,7 +118,7 @@ impl Forward for CheckInsOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let envelope = self.0.try_map(|ExpandedCheckIn { headers, check_in }, _| {
             let mut item = CheckInItem::new();
-            item.set_payload(
+            item.data_mut().set_payload(
                 ContentType::Json,
                 serde_json::to_vec(&check_in)
                     .map_err(ProcessCheckInError::from)
@@ -151,14 +151,14 @@ impl Forward for CheckInsOutput {
                     let routing_hint =
                         relay_monitors::routing_hint(&expanded_check_in.check_in, &project_id);
                     let mut item = CheckInItem::new();
-                    item.set_payload(
+                    item.data_mut().set_payload(
                         ContentType::Json,
                         serde_json::to_vec(&expanded_check_in.check_in)
                             .map_err(ProcessCheckInError::from)
                             .map_err(Error::from)?,
                     );
 
-                    item.set_routing_hint(routing_hint);
+                    item.data_mut().set_routing_hint(routing_hint);
                     Ok::<StoreCheckIn, Error>(StoreCheckIn {
                         check_in: item.into(),
                         sdk: sdk.clone(),
@@ -234,7 +234,8 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
 
         let mut item = CheckInItem::new();
-        item.set_payload(ContentType::Json, payload.to_owned());
+        item.data_mut()
+            .set_payload(ContentType::Json, payload.to_owned());
 
         let check_in = ExpandedCheckIn {
             headers: envelope.headers().to_owned(),

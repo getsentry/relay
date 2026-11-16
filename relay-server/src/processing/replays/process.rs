@@ -18,7 +18,7 @@ use crate::statsd::RelayTimers;
 use crate::utils::rmp;
 
 fn expand_video(item: &ReplayVideoItem) -> Result<ReplayPayload, Error> {
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {
         replay_event: event,
@@ -58,14 +58,14 @@ pub fn expand(
 
         match (events.as_slice(), recordings.as_slice(), videos.as_slice()) {
             ([event], [recording], []) => {
-                let event_bytes = event.payload();
+                let event_bytes = event.data().payload();
                 let event = Annotated::<Replay>::from_json_bytes(&event_bytes)?;
 
                 Ok(ExpandedReplay {
                     headers,
                     payload: ReplayPayload::WebReplay {
                         event,
-                        recording: recording.payload(),
+                        recording: recording.data().payload(),
                     },
                 })
             }
@@ -77,7 +77,7 @@ pub fn expand(
             ([], [recording], []) => Ok(ExpandedReplay {
                 headers,
                 payload: ReplayPayload::StandaloneRecording {
-                    recording: recording.payload(),
+                    recording: recording.data().payload(),
                 },
             }),
             ([], [], [video]) => {

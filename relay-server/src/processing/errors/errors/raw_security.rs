@@ -71,10 +71,10 @@ fn event_from_security_report(
     item: RawSecurityItem,
     meta: &RequestMeta,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
-    let len = item.len();
+    let len = item.data().len();
     let mut event = Event::default();
 
-    let bytes = item.payload();
+    let bytes = item.data().payload();
     let data = &bytes;
     let Some(report_type) =
         SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)?
@@ -97,11 +97,11 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityReport(json_error));
     }
 
-    if let Some(release) = item.sentry_release() {
+    if let Some(release) = item.data().sentry_release() {
         event.release = Annotated::from(LenientString(release.to_owned()));
     }
 
-    if let Some(env) = item.sentry_environment() {
+    if let Some(env) = item.data().sentry_environment() {
         event.environment = Annotated::from(env.to_owned());
     }
 

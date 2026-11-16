@@ -87,7 +87,7 @@ fn parse_event(
     // event type. The processing queue expects those in an explicit item.
     let item_type = ItemType::from_event_type(minimal.ty);
     let mut event_item = Item::new(item_type);
-    event_item.set_payload(ContentType::Json, body);
+    event_item.data_mut().set_payload(ContentType::Json, body);
 
     let event_id = minimal.id.unwrap_or_else(EventId::new);
     let mut envelope = Envelope::from_request(Some(event_id), meta);

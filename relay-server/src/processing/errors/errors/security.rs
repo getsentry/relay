@@ -22,9 +22,10 @@ impl SentryError for Security {
             return Ok(None);
         };
 
-        let payload = ev.payload();
+        let payload = ev.data().payload();
         let mut metrics = Default::default();
-        let mut event = utils::event_from_json(&ev.payload(), None, &mut metrics, ctx.processing)?;
+        let mut event =
+            utils::event_from_json(&ev.data().payload(), None, &mut metrics, ctx.processing)?;
 
         // Normalization honours a declared `transaction` or `feedback` type. Discard it, a
         // security item must not turn into an event of a different data category.
@@ -83,7 +84,8 @@ mod tests {
 
     fn expand(payload: &str) -> Result<Expansion<Security>> {
         let mut item = SecurityItem::new();
-        item.set_payload(ContentType::Json, payload.to_owned());
+        item.data_mut()
+            .set_payload(ContentType::Json, payload.to_owned());
 
         Ok(
             Security::try_expand(&mut vec![item.into()], Context::for_test())?

@@ -54,7 +54,7 @@ impl SerializedLogsIntegration {
     }
 
     fn bytes(&self) -> usize {
-        self.item.len()
+        self.item.data().len()
     }
 }
 

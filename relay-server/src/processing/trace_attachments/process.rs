@@ -51,7 +51,7 @@ pub fn parse_and_validate(item: &AttachmentItem) -> Result<ExpandedAttachment, D
         DiscardReason::InvalidTraceAttachment
     })? as usize;
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let Some((meta_bytes, body)) = payload.split_at_checked(meta_length) else {
         relay_log::debug!(
             "trace attachment meta_length ({}) exceeds total length ({})",

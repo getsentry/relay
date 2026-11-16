@@ -65,7 +65,7 @@ async fn handle(
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
     let mut item = CheckInItem::new();
-    item.set_payload(ContentType::Json, json);
+    item.data_mut().set_payload(ContentType::Json, json);
     envelope.add_item(item);
 
     // Never respond with a 429

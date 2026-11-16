@@ -69,7 +69,8 @@ pub fn attachment_to_item(attachment: ExpandedAttachment) -> Result<Item, serde_
     payload.extend_from_slice(&body);
 
     let mut item = AttachmentItem::new();
-    item.set_payload(ContentType::TraceAttachment, payload.freeze());
+    item.data_mut()
+        .set_payload(ContentType::TraceAttachment, payload.freeze());
     item.set_meta_length(meta_length as u32);
     item.set_parent_id(parent_id);
 

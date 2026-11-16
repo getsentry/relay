@@ -1,6 +1,6 @@
 use relay_config::ConfigSnapshot;
 
-use crate::envelope::{Envelope, Item, ItemData, ItemVariant};
+use crate::envelope::{Envelope, Item, ItemVariant};
 use crate::integrations::Integration;
 use crate::managed::Managed;
 use crate::services::outcome::DiscardItemType;
@@ -124,7 +124,7 @@ pub fn check_envelope_size_limits(
             Item::MetricBuckets(item) => metric_bucket.apply(item),
             Item::Log(item) => log.apply(item),
             Item::TraceMetric(item) => trace_metric.apply(item),
-            Item::Span(item) => match item.is_container() {
+            Item::Span(item) => match item.data().is_container() {
                 true => span.apply(item),
                 false => span_legacy.apply(item),
             },
@@ -176,16 +176,13 @@ struct Limit {
 }
 
 impl Limit {
-    fn apply<T: ItemVariant + std::ops::Deref<Target = ItemData>>(
-        &mut self,
-        item: &T,
-    ) -> Result<(), Rejected> {
-        let size = match item.is_container() {
+    fn apply<T: ItemVariant>(&mut self, item: &T) -> Result<(), Rejected> {
+        let size = match item.data().is_container() {
             // For container items, check that the contained items obey the size limit on average.
             //
             // Individual size validation must then be done again after parsing.
-            true => item.len() / item.item_count().unwrap_or(1).max(1) as usize,
-            false => item.len(),
+            true => item.data().len() / item.item_count().unwrap_or(1).max(1) as usize,
+            false => item.data().len(),
         };
         if size > self.item_size {
             return Err(Rejected::ItemSize);
@@ -198,7 +195,7 @@ impl Limit {
 
         self.total_size = self
             .total_size
-            .checked_sub(item.len())
+            .checked_sub(item.data().len())
             .ok_or(Rejected::TotalSize)?;
 
         Ok(())
