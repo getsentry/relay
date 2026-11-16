@@ -300,11 +300,20 @@ mod tests {
             })
             .collect();
         assert_eq!(container_impls, ["LogItem"]);
-        assert!(
+    }
+
+    #[test]
+    fn rejects_unknown_item_variant_attribute() {
+        assert_eq!(
             expand_item_variants(syn::parse_quote! {
-                pub enum Item { #[item_variant(contianer)] Log(LogItem) }
+                pub enum Item {
+                    #[item_variant(unsupported_option)]
+                    Log(LogItem),
+                }
             })
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+            "expected item_count_header or container",
         );
     }
 
