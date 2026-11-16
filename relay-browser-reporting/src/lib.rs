@@ -192,6 +192,9 @@ mod tests {
             "blockedURL": "https://example.com/tst/media/7_del.png",
             "effectiveDirective": "img-src",
             "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+            "sourceFile": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "columnNumber": null,
+            "lineNumber": 9,
             "sample": null,
             "disposition": "enforce",
             "statusCode": 0
