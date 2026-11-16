@@ -29,10 +29,10 @@ pub fn calculate_size(metric: &TraceMetric) -> u64 {
 
     total_size += metric.name.value().map_or(0, |s| s.len());
     // Currently always a number (8 bytes), but could be a string for sets in the future.
-    total_size += relay_event_normalization::eap::value_size(&metric.value);
+    total_size += relay_event_schema::protocol::value_size(&metric.value);
 
     if let Some(attributes) = metric.attributes.value() {
-        total_size += relay_event_normalization::eap::attributes_size(attributes);
+        total_size += relay_event_schema::protocol::attributes_size(attributes);
     }
 
     u64::try_from(total_size).unwrap_or(u64::MAX).max(1)

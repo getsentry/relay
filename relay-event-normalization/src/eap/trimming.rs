@@ -7,8 +7,6 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Array, Empty, Meta, Object};
 
-use crate::eap::size;
-
 #[derive(Clone, Debug)]
 struct SizeState {
     max_depth: Option<usize>,
@@ -365,7 +363,7 @@ impl Processor for TrimmingProcessor {
         // attributes. However, this value is only used to set the `original_value`
         // on the attributes collection for documentation purposes, we accept this
         // discrepancy for now. In any case this is fine to change.
-        let original_length = size::attributes_size(attributes);
+        let original_length = relay_event_schema::protocol::attributes_size(attributes);
 
         // Sort attributes by key + value size so small attributes are more likely to be preserved.
         // Attributes with missing values will be sorted at the beginning.
@@ -376,8 +374,8 @@ impl Processor for TrimmingProcessor {
                 (false, false) => k1.len().cmp(&k2.len()),
                 (false, true) => Ordering::Less,
                 (true, false) => Ordering::Greater,
-                (true, true) => (k1.len() + size::attribute_size(v1))
-                    .cmp(&(k2.len() + size::attribute_size(v2))),
+                (true, true) => (k1.len() + relay_event_schema::protocol::attribute_size(v1))
+                    .cmp(&(k2.len() + relay_event_schema::protocol::attribute_size(v2))),
             },
         );
 
@@ -434,7 +432,7 @@ impl Processor for TrimmingProcessor {
 
         attributes.0 = sorted.into_iter().collect();
 
-        let new_size = size::attributes_size(attributes);
+        let new_size = relay_event_schema::protocol::attributes_size(attributes);
         if new_size != original_length {
             meta.set_original_length(Some(original_length));
         }
@@ -873,7 +871,7 @@ mod tests {
     #[test]
     fn test_oversized_key_does_not_consume_global_limit() {
         let mut attributes = Attributes::new();
-        attributes.insert("a", 1); // 9B 
+        attributes.insert("a", 1); // 9B
         attributes.insert("this_key_is_exactly_35_chars_long!!", true); // 35B key + 1B = 36B
 
         let mut value = Annotated::new(TestObject {
