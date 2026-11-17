@@ -1,5 +1,7 @@
-use futures::FutureExt;
-use futures::future::{join, join_all};
+use futures::future::join;
+use futures::stream::FuturesUnordered;
+use futures::{FutureExt, StreamExt};
+use redis::aio::ConnectionLike;
 use redis::{Cmd, Pipeline, RedisFuture, RedisResult, Value};
 
 use crate::AsyncRedisConnection;
@@ -34,9 +36,24 @@ fn secondary_pipeline(pipeline: &Pipeline) -> Option<Pipeline> {
     (!filtered.is_empty()).then_some(filtered)
 }
 
-/// Logs failed commands sent to the secondaries.
-fn log_secondary_errors<T>(results: Vec<RedisResult<T>>) {
-    for error in results.into_iter().filter_map(Result::err) {
+/// Sends the filtered pipeline to all secondaries, logging failures.
+async fn write_secondary_pipeline(secondaries: &mut [AsyncRedisConnection], pipeline: Pipeline) {
+    // Mirrors the offset and count of `Pipeline::query_async`.
+    let (offset, count) = match pipeline.is_transaction() {
+        true => (pipeline.len() + 1, 1),
+        false => (0, pipeline.len()),
+    };
+    secondaries
+        .iter_mut()
+        .map(|secondary| secondary.req_packed_commands(&pipeline, offset, count))
+        .collect::<FuturesUnordered<_>>()
+        .for_each(log_secondary_error)
+        .await;
+}
+
+/// Logs a failed command sent to a secondary.
+async fn log_secondary_error<T>(result: RedisResult<T>) {
+    if let Err(error) = result {
         relay_log::warn!(
             error = &error as &dyn std::error::Error,
             "failed to send command to secondary redis",
@@ -65,26 +82,26 @@ impl MultiWriteConnection {
     }
 }
 
-impl redis::aio::ConnectionLike for MultiWriteConnection {
+impl ConnectionLike for MultiWriteConnection {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         let Self {
             primary,
             secondaries,
         } = self;
 
-        async move {
-            let secondaries = async {
-                if !is_secondary_command(cmd) {
-                    return Vec::new();
-                }
-                join_all(secondaries.iter_mut().map(|s| s.req_packed_command(cmd))).await
-            };
-            let (result, secondary_results) =
-                join(primary.req_packed_command(cmd), secondaries).await;
-            log_secondary_errors(secondary_results);
-            result
+        if !is_secondary_command(cmd) {
+            return primary.req_packed_command(cmd);
         }
-        .boxed()
+
+        let secondaries = secondaries
+            .iter_mut()
+            .map(|r| r.req_packed_command(cmd))
+            .collect::<FuturesUnordered<_>>()
+            .for_each(log_secondary_error);
+
+        join(primary.req_packed_command(cmd), secondaries)
+            .map(|(primary, ())| primary)
+            .boxed()
     }
 
     fn req_packed_commands<'a>(
@@ -98,29 +115,15 @@ impl redis::aio::ConnectionLike for MultiWriteConnection {
             secondaries,
         } = self;
 
-        async move {
-            let secondaries = async {
-                let Some(filtered) = secondary_pipeline(cmd) else {
-                    return Vec::new();
-                };
-                // Mirrors the offset and count of `Pipeline::query_async`.
-                let (offset, count) = match filtered.is_transaction() {
-                    true => (filtered.len() + 1, 1),
-                    false => (0, filtered.len()),
-                };
-                join_all(
-                    secondaries
-                        .iter_mut()
-                        .map(|s| s.req_packed_commands(&filtered, offset, count)),
-                )
-                .await
-            };
-            let (result, secondary_results) =
-                join(primary.req_packed_commands(cmd, offset, count), secondaries).await;
-            log_secondary_errors(secondary_results);
-            result
-        }
-        .boxed()
+        let Some(filtered) = secondary_pipeline(cmd) else {
+            return primary.req_packed_commands(cmd, offset, count);
+        };
+
+        let secondaries = write_secondary_pipeline(secondaries, filtered);
+
+        join(primary.req_packed_commands(cmd, offset, count), secondaries)
+            .map(|(primary, ())| primary)
+            .boxed()
     }
 
     fn get_db(&self) -> i64 {
