@@ -436,17 +436,16 @@ pub fn scrub(
 #[cfg(feature = "processing")]
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use relay_config::Config;
+    use relay_event_schema::protocol::EventId;
+    use serde_json::json;
 
-    #[cfg(feature = "processing")]
+    use super::*;
+    use crate::envelope::Envelope;
+    use crate::extractors::RequestMeta;
+
     #[test]
     fn attachment_type_defaults_count_attachment_bytes() {
-        use crate::envelope::Envelope;
-        use crate::extractors::RequestMeta;
-        use relay_config::Config;
-        use relay_event_schema::protocol::EventId;
-        use serde_json::json;
-
         let config = Config::from_json_value(json!({"processing": {"enabled": true}})).unwrap();
         let meta = RequestMeta::new(
             "https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42"
