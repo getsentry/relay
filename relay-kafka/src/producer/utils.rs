@@ -1,4 +1,6 @@
 use std::error::Error;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
@@ -83,18 +85,25 @@ pub struct Context {
     producer_name: String,
     /// Delegate statistics to Arroyo.
     arroyo_statistics: ArroyoProducerContext,
+    /// Counts the number of in-flight messages.
+    inflight: Arc<AtomicUsize>,
 }
 
 impl Context {
-    pub fn new(producer_name: String) -> Self {
+    pub fn new(producer_name: String, inflight: Arc<AtomicUsize>) -> Self {
         Self {
             arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
+            inflight,
         }
     }
 
     pub fn producer_name(&self) -> &str {
         &self.producer_name
+    }
+
+    pub fn inflight(&self) -> &AtomicUsize {
+        &self.inflight
     }
 }
 
@@ -115,6 +124,8 @@ impl ProducerContext for Context {
     fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
+
+        self.inflight.fetch_sub(1, Ordering::Relaxed);
 
         match result {
             Ok(message) => {
@@ -149,6 +160,9 @@ impl ProducerContext for Context {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+
     use rdkafka::ClientContext;
     use rdkafka::statistics::{Broker, Statistics};
     use relay_statsd::with_capturing_test_client;
@@ -157,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_statistics_backend() {
-        let context = Context::new("test-producer".to_owned());
+        let context = Context::new("test-producer".to_owned(), Arc::new(AtomicUsize::new(0)));
         let statistics = Statistics {
             msg_cnt: 42,
             brokers: [(
