@@ -10,6 +10,7 @@
 
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
+- Improve performance of SQL span scrubbing by skipping debug logs from dependencies before filtering them. ([#6710](https://github.com/getsentry/relay/pull/6710))
 
 ## 26.11.0
 
