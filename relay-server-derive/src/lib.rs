@@ -266,7 +266,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn derives_tags_from_owning_variants() {
+    fn test_expand_typed_items_variant_tags() {
         let input = syn::parse_quote!(
             pub enum Item {
                 Transaction(TransactionItem),
@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn count_and_container_traits_are_only_generated_for_supported_payloads() {
+    fn test_expand_typed_items_supported_traits() {
         let generated = expand_typed_items(syn::parse_quote! {
             pub enum Item {
                 Transaction(TransactionItem),
@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_typed_item_attribute() {
+    fn test_expand_typed_items_unknown_attribute() {
         assert_eq!(
             expand_typed_items(syn::parse_quote! {
                 pub enum Item {
@@ -338,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_mismatched_variant_payloads() {
+    fn test_expand_typed_items_mismatched_payloads() {
         for (input, expected) in [
             (
                 syn::parse_quote!(

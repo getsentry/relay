@@ -226,13 +226,12 @@ fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::ContainerPayload;
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
-    use crate::services::projects::project::ProjectInfo;
-
     use super::*;
+    use crate::envelope::ContainerPayload;
+    use crate::services::projects::project::ProjectInfo;
 
     #[test]
     fn test_expand_trace_metric_container_operations_limit() {
