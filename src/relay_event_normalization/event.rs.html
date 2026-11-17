@@ -367,7 +367,7 @@
 <a href=#367 id=367 data-nosnippet>367</a>            config.max_tag_value_length,
 <a href=#368 id=368 data-nosnippet>368</a>            config.span_allowed_hosts,
 <a href=#369 id=369 data-nosnippet>369</a>        );
-<a href=#370 id=370 data-nosnippet>370</a>        extract_segment_name_from_event(event);
+<a href=#370 id=370 data-nosnippet>370</a>        extract_segment_name_from_event(event, config.max_tag_value_length);
 <a href=#371 id=371 data-nosnippet>371</a>    }
 <a href=#372 id=372 data-nosnippet>372</a>
 <a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(context) = event.context_mut::&lt;TraceContext&gt;() {
