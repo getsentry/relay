@@ -94,128 +94,127 @@ mod tests {
         let hints = format!(r#""{}";v="{}""#, "x".repeat(4096), "1".repeat(4096));
         let explicit = "Mozilla/5.0 Firefox/128.0";
 
-        for infer in [false, true] {
-            for ua in [None, Some(ua.as_str())] {
-                for hints in [None, Some(hints.as_str()), Some("invalid hints")] {
-                    for (ty, content_type, mut item) in [
-                        (
-                            ItemType::Log,
-                            ContentType::LogContainer,
-                            json!({
-                                "timestamp": timestamp, "level": "info", "body": "test"
-                            }),
-                        ),
-                        (
-                            ItemType::Span,
-                            ContentType::SpanV2Container,
-                            json!({
-                                "start_timestamp": timestamp, "end_timestamp": timestamp + 0.5,
-                                "span_id": "0000000000000001", "name": "test", "status": "ok"
-                            }),
-                        ),
-                        (
-                            ItemType::TraceMetric,
-                            ContentType::TraceMetricContainer,
-                            json!({
-                                "timestamp": timestamp, "name": "test.metric", "type": "counter", "value": 1.0
-                            }),
-                        ),
-                    ] {
-                        item["trace_id"] = json!("0123456789abcdef0123456789abcdef");
-                        // Skipped items precede an explicit UA and repeated transport enrichment.
-                        let items: Vec<_> = [
-                            json!({"browser.name": {"type": "string", "value": "existing"}}),
-                            json!({"browser.version": {"type": "string", "value": "existing"}}),
-                            json!({"user_agent.original": {"type": "string", "value": explicit}}),
-                            json!({}),
-                            json!({}),
-                        ]
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, attributes)| {
-                            let mut item = item.clone();
-                            if ty == ItemType::Span {
-                                item["span_id"] = json!(format!("{:016x}", index + 1));
-                            }
-                            item["attributes"] = attributes;
-                            item
+        let empty = json!([null, null, null]);
+        let firefox = json!(["Fir", "128", explicit]);
+        let chrome = json!(["Chr", "131", "Moz"]);
+        let hinted = json!(["xxx", "111", null]);
+        let hinted_ua = json!(["xxx", "111", "Moz"]);
+        let hinted_explicit = json!(["xxx", "111", explicit]);
+        // Header inputs, expected explicit-UA item, expected transport-only item.
+        let cases = [
+            (None, None, &firefox, &empty),
+            (Some(ua.as_str()), None, &firefox, &chrome),
+            (None, Some(hints.as_str()), &hinted_explicit, &hinted),
+            (
+                Some(ua.as_str()),
+                Some(hints.as_str()),
+                &hinted_explicit,
+                &hinted_ua,
+            ),
+            (None, Some("invalid hints"), &firefox, &empty),
+            (Some(ua.as_str()), Some("invalid hints"), &firefox, &chrome),
+        ];
+        let item_attributes = [
+            json!({"browser.name": {"type": "string", "value": "existing"}}),
+            json!({"browser.version": {"type": "string", "value": "existing"}}),
+            json!({"user_agent.original": {"type": "string", "value": explicit}}),
+            json!({}),
+            json!({}),
+        ];
+
+        for (ty, content_type, item) in [
+            (
+                ItemType::Log,
+                ContentType::LogContainer,
+                json!({
+                    "timestamp": timestamp, "level": "info", "body": "test"
+                }),
+            ),
+            (
+                ItemType::Span,
+                ContentType::SpanV2Container,
+                json!({
+                    "start_timestamp": timestamp, "end_timestamp": timestamp + 0.5,
+                    "name": "test", "status": "ok"
+                }),
+            ),
+            (
+                ItemType::TraceMetric,
+                ContentType::TraceMetricContainer,
+                json!({
+                    "timestamp": timestamp, "name": "test.metric", "type": "counter", "value": 1.0
+                }),
+            ),
+        ] {
+            let items: Vec<_> = item_attributes
+                .iter()
+                .enumerate()
+                .map(|(index, attributes)| {
+                    let mut item = item.clone();
+                    item["trace_id"] = json!("0123456789abcdef0123456789abcdef");
+                    if ty == ItemType::Span {
+                        item["span_id"] = json!(format!("{:016x}", index + 1));
+                    }
+                    item["attributes"] = attributes.clone();
+                    item
+                })
+                .collect();
+            for (case, (ua, hints, explicit, transport)) in cases.iter().enumerate() {
+                for infer in [false, true] {
+                    let headers = json!({
+                        "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
+                        "user_agent": ua, "client_hints": {"sec_ch_ua": hints},
+                        "trace": {
+                            "trace_id": "0123456789abcdef0123456789abcdef",
+                            "public_key": "a94ae32be2584e0bbd7a4cbb95971fee"
+                        }
+                    });
+                    let payload = json!({
+                        "version": 2, "items": items,
+                        "ingest_settings": {"infer_user_agent": if infer {"auto"} else {"never"}}
+                    });
+                    let wire = format!(
+                        "{}\n{}\n{}\n",
+                        headers,
+                        json!({
+                            "type": ty, "content_type": content_type.as_str(), "item_count": items.len()
+                        }),
+                        payload
+                    );
+                    let output = match ty {
+                        ItemType::Log => process_user_agent_container(&logs, &wire, ctx).await,
+                        ItemType::Span => process_user_agent_container(&spans, &wire, ctx).await,
+                        ItemType::TraceMetric => {
+                            process_user_agent_container(&metrics, &wire, ctx).await
+                        }
+                        _ => unreachable!(),
+                    };
+                    let actual: Vec<_> = output["items"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|item| {
+                            ["browser.name", "browser.version", "user_agent.original"]
+                                .map(|key| item["attributes"][key]["value"].clone())
                         })
                         .collect();
-                        let headers = json!({
-                            "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
-                            "user_agent": ua, "client_hints": {"sec_ch_ua": hints},
-                            "trace": {
-                                "trace_id": "0123456789abcdef0123456789abcdef",
-                                "public_key": "a94ae32be2584e0bbd7a4cbb95971fee"
-                            }
-                        });
-                        let payload = json!({
-                            "version": 2, "items": items,
-                            "ingest_settings": {"infer_user_agent": if infer {"auto"} else {"never"}}
-                        });
-                        let wire = format!(
-                            "{}\n{}\n{}\n",
-                            headers,
-                            json!({
-                                "type": ty, "content_type": content_type.as_str(), "item_count": 5
-                            }),
-                            payload
-                        );
-                        let output = match ty {
-                            ItemType::Log => process_user_agent_container(&logs, &wire, ctx).await,
-                            ItemType::Span => {
-                                process_user_agent_container(&spans, &wire, ctx).await
-                            }
-                            ItemType::TraceMetric => {
-                                process_user_agent_container(&metrics, &wire, ctx).await
-                            }
-                            _ => unreachable!(),
-                        };
-                        let items = output["items"].as_array().unwrap();
-                        assert_eq!(items.len(), 5, "{ty}");
-                        for (index, item) in items.iter().enumerate() {
-                            let attributes = &item["attributes"];
-                            let (name, version, original) = match index {
-                                0 => (Some("existing"), None, None),
-                                1 => (None, Some("existing"), None),
-                                _ => {
-                                    let (name, version) =
-                                        if infer && hints.is_some_and(|h| h.starts_with('"')) {
-                                            (Some("xxx"), Some("111"))
-                                        } else if index == 2 {
-                                            (Some("Fir"), Some("128"))
-                                        } else if infer && ua.is_some() {
-                                            (Some("Chr"), Some("131"))
-                                        } else {
-                                            (None, None)
-                                        };
-                                    (
-                                        name,
-                                        version,
-                                        if index == 2 {
-                                            Some(explicit)
-                                        } else if infer && ua.is_some() {
-                                            Some("Moz")
-                                        } else {
-                                            None
-                                        },
-                                    )
-                                }
-                            };
-                            for (key, expected) in [
-                                ("browser.name", name),
-                                ("browser.version", version),
-                                ("user_agent.original", original),
-                            ] {
-                                assert_eq!(
-                                    attributes[key]["value"].as_str(),
-                                    expected,
-                                    "{ty}, item={index}, infer={infer}, ua={}, hints={hints:?}, key={key}",
-                                    ua.is_some()
-                                );
-                            }
-                        }
-                    }
+                    // Skipped items must not prevent later items from using the shared cache.
+                    let (explicit, transport) = if infer {
+                        (*explicit, *transport)
+                    } else {
+                        (&firefox, &empty)
+                    };
+                    assert_eq!(
+                        json!(actual),
+                        json!([
+                            ["existing", null, null],
+                            [null, "existing", null],
+                            explicit,
+                            transport,
+                            transport
+                        ]),
+                        "{ty}, case={case}, infer={infer}"
+                    );
                 }
             }
         }
