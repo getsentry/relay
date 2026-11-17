@@ -367,7 +367,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             config.max_tag_value_length,
             config.span_allowed_hosts,
         );
-        extract_segment_name_from_event(event);
+        extract_segment_name_from_event(event, config.max_tag_value_length);
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {

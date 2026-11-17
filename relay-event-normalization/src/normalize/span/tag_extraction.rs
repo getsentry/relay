@@ -64,7 +64,7 @@ impl std::fmt::Display for RenderBlockingStatus {
 
 /// Extracts the `transaction` field and writes it into child spans
 /// as `data.segment_name`.
-pub(crate) fn extract_segment_name_from_event(event: &mut Event) {
+pub(crate) fn extract_segment_name_from_event(event: &mut Event, max_tag_value_size: usize) {
     let Some(transaction) = event.transaction.value() else {
         return;
     };
@@ -72,6 +72,8 @@ pub(crate) fn extract_segment_name_from_event(event: &mut Event) {
     let Some(spans) = event.spans.value_mut() else {
         return;
     };
+
+    let transaction = truncate_string(transaction.clone(), max_tag_value_size);
 
     for span in spans {
         let Some(span) = span.value_mut() else {
@@ -85,7 +87,10 @@ pub(crate) fn extract_segment_name_from_event(event: &mut Event) {
             .get(SENTRY__SEGMENT__NAME)
             .is_none_or(Empty::is_empty)
         {
-            data.insert_value(SENTRY__SEGMENT__NAME, transaction.clone());
+            data.insert(
+                SENTRY__SEGMENT__NAME,
+                transaction.clone().map_value(Value::String),
+            );
         }
     }
 }
