@@ -1110,6 +1110,8 @@ mod tests {
 
     use super::*;
 
+    const CHROME_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
     fn mock_dsc(transaction: Option<&str>) -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
@@ -1579,7 +1581,7 @@ mod tests {
     }
 
     #[test]
-    fn user_agent_enrichment_bounds_every_copy() {
+    fn test_normalize_user_agent_bounds() {
         for transport in [None, Some("Mozilla/5.0 ".repeat(1000))] {
             for maximum in [0, 1, 3, 256] {
                 let name = "🦀browser".repeat(1024);
@@ -1617,8 +1619,6 @@ mod tests {
             }
         }
     }
-
-    const CHROME_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     #[test]
     fn test_normalize_user_agent_precedence() {

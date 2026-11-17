@@ -60,7 +60,7 @@ mod tests {
     use crate::processing::{Forward, QuotaRateLimiter};
 
     #[tokio::test]
-    async fn user_agent_uses_configured_limit_and_inference_setting() {
+    async fn test_user_agent_limit_and_inference() {
         let config = relay_config::Config::from_json_value(json!({
             "relay": {"mode": "proxy"},
             "aggregator": {"max_tag_value_length": 100},
