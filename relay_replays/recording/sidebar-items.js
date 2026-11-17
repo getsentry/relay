@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ParseRecordingError"],"struct":["RecordingScrubber"]};
+window.SIDEBAR_ITEMS = {"enum":["ParseRecordingError"],"fn":["check_recording_size"],"struct":["RecordingScrubber"]};
