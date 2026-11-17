@@ -63,7 +63,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@0a73d6eb01c0201c8fc84847d0f4425b704ad66d # v6
+      - uses: astral-sh/setup-uv@de938e707d6c238b34e29b5770a011e3155e2a3c # v6
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
@@ -261,7 +261,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@0a73d6eb01c0201c8fc84847d0f4425b704ad66d # v6
+      - uses: astral-sh/setup-uv@de938e707d6c238b34e29b5770a011e3155e2a3c # v6
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
@@ -811,7 +811,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: astral-sh/setup-uv@0a73d6eb01c0201c8fc84847d0f4425b704ad66d # v6
+      - uses: astral-sh/setup-uv@de938e707d6c238b34e29b5770a011e3155e2a3c # v6
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
