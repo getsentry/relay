@@ -1,8 +1,10 @@
 use crate::managed::Counted;
 use relay_quotas::DataCategory;
+use serde_json::json;
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
+use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
 use crate::integrations::LogsIntegration;
 use crate::integrations::OtelFormat;
 
@@ -477,9 +479,6 @@ fn test_item_headers_unknown() {
 
 #[test]
 fn attachment_type_defaults_preserve_wire_headers() {
-    use super::*;
-    use serde_json::json;
-
     for (declared, expected, unknown) in [
         (None, AttachmentType::Attachment, false),
         (
@@ -514,8 +513,6 @@ fn attachment_type_defaults_preserve_wire_headers() {
 
 #[test]
 fn attachment_type_defaults_preserve_nintendo_detection() {
-    use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
-
     for (declared, expected) in [
         (None, AttachmentType::NintendoSwitchDyingMessage),
         (
