@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use rdkafka::message::Header;
@@ -166,6 +166,20 @@ struct TopicProducer {
     pub rate_limiter: Option<KafkaRateLimits>,
 }
 
+impl Drop for TopicProducer {
+    fn drop(&mut self) {
+        // Wait until all messages have been delivered.
+        //
+        // Note that configuring kafka with `delivery.report.only.error=true` will break this
+        // mechanism, as it relies on receiving a delivery callback for every message.
+        let mut backoff = Duration::from_millis(100);
+        while self.producer.context().inflight().load(Ordering::Relaxed) > 0 {
+            std::thread::sleep(backoff);
+            backoff = (2 * backoff).min(Duration::from_secs(1));
+        }
+    }
+}
+
 /// Where producers take their initial Kafka config from, and how they reload it.
 #[derive(Debug, Clone, Copy)]
 pub struct KafkaConfigSource<'a> {
@@ -295,9 +309,18 @@ impl Producer {
         });
 
         producer
+            .context()
+            .inflight()
+            .fetch_add(1, Ordering::Relaxed);
+
+        producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
             .inspect_err(|_| {
+                producer
+                    .context()
+                    .inflight()
+                    .fetch_sub(1, Ordering::Relaxed);
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
                     variant = variant,
@@ -442,6 +465,7 @@ pub struct KafkaClientBuilder {
     /// shared by logical topics that produce to that same physical topic.
     reused_producers: BTreeMap<String, Arc<ReloadingKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
+    inflight: Arc<AtomicUsize>,
 }
 
 impl KafkaClientBuilder {
@@ -502,7 +526,7 @@ impl KafkaClientBuilder {
                     source.blob,
                     ProducerSelector::new(topic_name.clone(), source.app),
                     reload_config(source.jitter),
-                    Context::new(producer_name),
+                    Context::new(producer_name, Arc::clone(&self.inflight)),
                 )?);
 
                 self.reused_producers
@@ -598,6 +622,35 @@ mod tests {
             .iter()
             .map(|tp| &tp.producer)
             .collect()
+    }
+
+    #[test]
+    fn test_drop_waits_for_inflight_messages() {
+        let cluster = MockCluster::new(1).unwrap();
+        cluster
+            .broker_round_trip_time(1, Duration::from_millis(100))
+            .unwrap();
+        let servers = cluster.bootstrap_servers();
+        let blob = blob(&servers, &["ingest-events"]);
+        let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let assignment = TopicAssignment::from("ingest-events".to_owned());
+        let configs = assignment.kafka_configs(&params, &secondary).unwrap();
+        let client = KafkaClient::builder()
+            .add_kafka_topic_config(KafkaTopic::Events, &configs, false, &source(&blob))
+            .unwrap()
+            .build();
+
+        // Keep the underlying producer alive so its own drop cannot drain the message.
+        let producer = Arc::clone(producers(&client, KafkaTopic::Events)[0]);
+        client
+            .send(KafkaTopic::Events, None, None, "event", b"payload")
+            .unwrap();
+        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 1);
+
+        drop(client);
+
+        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 0);
     }
 
     /// Every shard needs its own producer, since each is a separate physical
