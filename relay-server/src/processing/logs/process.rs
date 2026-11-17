@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_log_client_hint_browser_length() {
+    fn test_normalize_log_client_hint_browser_name_and_version_length() {
         let ctx = Context::for_test();
         let max_tag_value_length = ctx
             .config
