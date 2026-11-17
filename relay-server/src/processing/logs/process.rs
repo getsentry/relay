@@ -1,3 +1,4 @@
+use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
@@ -51,21 +52,16 @@ pub fn expand(
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     let settings = logs.settings;
+    let user_agent = utils::normalize::user_agent(ctx);
 
-    logs.modify(|logs, records| {
-        let headers = &logs.headers;
-        let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
-        logs.logs.retain_mut(|log| {
-            match normalize_log_with_user_agent(log, headers, settings, &user_agent, ctx) {
-                Ok(()) => true,
-                Err(err) => {
-                    relay_log::debug!("failed to normalize log: {err}");
-                    records.reject_err(err, &*log);
-                    false
-                }
-            }
-        });
-    });
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, &logs.headers),
+        |log, headers, _| {
+            normalize_log(log, headers, settings, &user_agent, ctx).inspect_err(|err| {
+                relay_log::debug!("failed to normalize log: {err}");
+            })
+        },
+    );
 }
 
 /// Applies PII scrubbing to individual log entries.
@@ -156,23 +152,11 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-// Single-item entry point for tests; containers share the same normalizer across all items.
-#[cfg(test)]
 fn normalize_log(
     log: &mut Annotated<OurLog>,
     headers: &EnvelopeHeaders,
     settings: Settings,
-    ctx: Context<'_>,
-) -> Result<()> {
-    let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
-    normalize_log_with_user_agent(log, headers, settings, &user_agent, ctx)
-}
-
-fn normalize_log_with_user_agent(
-    log: &mut Annotated<OurLog>,
-    headers: &EnvelopeHeaders,
-    settings: Settings,
-    user_agent: &eap::UserAgentNormalizer<'_>,
+    user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -183,6 +167,11 @@ fn normalize_log_with_user_agent(
     )?;
 
     if let Some(log) = log.value_mut() {
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
+
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);
         eap::normalize_received(&mut log.attributes, meta.received_at());
@@ -190,7 +179,7 @@ fn normalize_log_with_user_agent(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut log.attributes, user_agent);
+        eap::normalize_user_agent(&mut log.attributes, client_ua_info, user_agent);
     }
 
     if let Annotated(None, meta) = log {
@@ -243,6 +232,16 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    fn normalize_log(
+        log: &mut Annotated<OurLog>,
+        headers: &EnvelopeHeaders,
+        settings: Settings,
+        ctx: Context<'_>,
+    ) -> Result<()> {
+        let user_agent = utils::normalize::user_agent(ctx);
+        super::normalize_log(log, headers, settings, &user_agent, ctx)
+    }
 
     #[test]
     fn test_normalize_log_client_hint_browser_name_length() {

@@ -9,16 +9,8 @@ use crate::processing::Context;
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
 
 /// Creates a lazy enrichment cache for one container using the span tag limit.
-pub fn user_agent<'a>(
-    headers: &'a EnvelopeHeaders,
-    infer: bool,
-    ctx: Context<'_>,
-) -> eap::UserAgentNormalizer<'a> {
+pub fn user_agent(ctx: Context<'_>) -> eap::UserAgentNormalizer {
     eap::UserAgentNormalizer::new(
-        infer.then(|| eap::ClientUserAgentInfo {
-            user_agent: headers.meta().user_agent(),
-            hints: headers.meta().client_hints(),
-        }),
         ctx.config
             .aggregator_config_for(relay_metrics::MetricNamespace::Spans)
             .max_tag_value_length,
@@ -86,10 +78,14 @@ mod tests {
         }))
         .unwrap();
         for infer in [false, true] {
-            let normalizer = user_agent(&headers, infer, ctx);
+            let normalizer = user_agent(ctx);
+            let client_info = infer.then(|| eap::ClientUserAgentInfo {
+                user_agent: headers.meta().user_agent(),
+                hints: headers.meta().client_hints(),
+            });
             for _ in 0..3 {
                 let mut attributes = Annotated::default();
-                eap::normalize_user_agent(&mut attributes, &normalizer);
+                eap::normalize_user_agent(&mut attributes, client_info, &normalizer);
                 let attributes = attributes.value().unwrap();
                 for (key, expected) in [
                     (BROWSER__NAME, "Chr"),

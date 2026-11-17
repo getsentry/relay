@@ -348,12 +348,12 @@ impl FromUserAgentInfo for BrowserContext {
 
         // Normalize "Google Chrome" to just "Chrome"
         if browser == "Google Chrome" {
-            browser = "Chrome".to_owned();
+            browser = "Chrome";
         }
 
         Some(Self {
-            name: Annotated::new(browser),
-            version: Annotated::new(version),
+            name: Annotated::new(browser.to_owned()),
+            version: Annotated::new(version.to_owned()),
             ..Default::default()
         })
     }
@@ -385,14 +385,8 @@ impl FromUserAgentInfo for BrowserContext {
 /// It tries to detect the "not a brand" item and the browser engine, if it's neither its assumed
 /// to be a browser and gets returned as such.
 ///
-/// Returns None if no browser field detected.
-pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
-    browser_from_client_hints_borrowed(s)
-        .map(|(browser, version)| (browser.to_owned(), version.to_owned()))
-}
-
-/// Parses borrowed values so callers can limit them before allocating copies.
-pub(crate) fn browser_from_client_hints_borrowed(s: &str) -> Option<(&str, &str)> {
+/// Returns borrowed values so callers can bound them before copying, or None if no browser is detected.
+pub fn browser_from_client_hints(s: &str) -> Option<(&str, &str)> {
     static UA_RE: OnceLock<Regex> = OnceLock::new();
     let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
     for item in s.split(',') {

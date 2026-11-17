@@ -346,19 +346,17 @@ pub struct ClientUserAgentInfo<'a> {
 ///
 /// Transport parsing, including unsuccessful parses, happens at most once. Strings
 /// are bounded before being copied into items; explicit item user agents remain local.
-pub struct UserAgentNormalizer<'a> {
-    client_info: ClientUserAgentInfo<'a>,
+pub struct UserAgentNormalizer {
     max_chars: usize,
     hints: OnceCell<Option<BrowserContext>>,
     user_agent: OnceCell<Option<BrowserContext>>,
-    original: OnceCell<&'a str>,
+    original: OnceCell<String>,
 }
 
-impl<'a> UserAgentNormalizer<'a> {
-    /// Creates a normalizer without parsing headers. Omit unreliable transport information.
-    pub fn new(client_info: Option<ClientUserAgentInfo<'a>>, max_tag_value_length: usize) -> Self {
+impl UserAgentNormalizer {
+    /// Creates an empty cache. Use one normalizer per container with the same transport headers.
+    pub fn new(max_tag_value_length: usize) -> Self {
         Self {
-            client_info: client_info.unwrap_or_default(),
             max_chars: max_tag_value_length,
             hints: OnceCell::new(),
             user_agent: OnceCell::new(),
@@ -366,10 +364,8 @@ impl<'a> UserAgentNormalizer<'a> {
         }
     }
 
-    fn parse_hints(&self) -> Option<BrowserContext> {
-        let (name, version) = crate::normalize::user_agent::browser_from_client_hints_borrowed(
-            self.client_info.hints.sec_ch_ua?,
-        )?;
+    fn parse_hints(&self, hints: ClientHints<&str>) -> Option<BrowserContext> {
+        let (name, version) = crate::browser_from_client_hints(hints.sec_ch_ua?)?;
         let name = if name == "Google Chrome" {
             "Chrome"
         } else {
@@ -406,14 +402,18 @@ fn char_prefix(value: &str, max_chars: usize) -> &str {
 /// Share the normalizer across a container to avoid reparsing transport headers for every item.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    normalizer: &UserAgentNormalizer<'_>,
+    client_info: Option<ClientUserAgentInfo<'_>>,
+    normalizer: &UserAgentNormalizer,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
     if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
         return;
     }
 
-    let hints = normalizer.hints.get_or_init(|| normalizer.parse_hints());
+    let client_info = client_info.unwrap_or_default();
+    let hints = normalizer
+        .hints
+        .get_or_init(|| normalizer.parse_hints(client_info.hints));
     let explicit_browser;
     let browser = if hints.is_some() {
         hints.as_ref()
@@ -428,20 +428,19 @@ pub fn normalize_user_agent(
         normalizer
             .user_agent
             .get_or_init(|| {
-                normalizer
-                    .client_info
+                client_info
                     .user_agent
                     .and_then(|ua| normalizer.parse_user_agent(ua))
             })
             .as_ref()
     };
 
-    if let Some(ua) = normalizer.client_info.user_agent {
+    if let Some(ua) = client_info.user_agent {
         attributes.insert_if_missing(USER_AGENT__ORIGINAL, || {
             normalizer
                 .original
-                .get_or_init(|| char_prefix(ua, normalizer.max_chars))
-                .to_string()
+                .get_or_init(|| char_prefix(ua, normalizer.max_chars).to_owned())
+                .clone()
         });
     }
     if let Some(browser) = browser {
@@ -1582,20 +1581,18 @@ mod tests {
                 let name = "🦀browser".repeat(1024);
                 let version = "é123".repeat(1024);
                 let hints = format!(r#""{name}";v="{version}""#);
-                let normalizer = UserAgentNormalizer::new(
-                    Some(ClientUserAgentInfo {
-                        user_agent: transport.as_deref(),
-                        hints: ClientHints {
-                            sec_ch_ua: Some(&hints),
-                            ..Default::default()
-                        },
-                    }),
-                    maximum,
-                );
+                let client_info = Some(ClientUserAgentInfo {
+                    user_agent: transport.as_deref(),
+                    hints: ClientHints {
+                        sec_ch_ua: Some(&hints),
+                        ..Default::default()
+                    },
+                });
+                let normalizer = UserAgentNormalizer::new(maximum);
                 assert!(normalizer.hints.get().is_none());
                 for _ in 0..32 {
                     let mut attributes = Annotated::default();
-                    normalize_user_agent(&mut attributes, &normalizer);
+                    normalize_user_agent(&mut attributes, client_info, &normalizer);
                     let attributes = attributes.value().unwrap();
                     for (key, source) in [
                         (BROWSER__NAME, Some(name.as_str())),
@@ -1627,20 +1624,18 @@ mod tests {
             (None, "Fir", "128"),
             (Some(r#""Google Chrome";v="123456""#), "Chr", "123"),
         ] {
-            let normalizer = UserAgentNormalizer::new(
-                Some(ClientUserAgentInfo {
-                    user_agent: Some(CHROME_USER_AGENT),
-                    hints: ClientHints {
-                        sec_ch_ua: hints,
-                        ..Default::default()
-                    },
-                }),
-                3,
-            );
+            let client_info = Some(ClientUserAgentInfo {
+                user_agent: Some(CHROME_USER_AGENT),
+                hints: ClientHints {
+                    sec_ch_ua: hints,
+                    ..Default::default()
+                },
+            });
+            let normalizer = UserAgentNormalizer::new(3);
             let mut attributes = Attributes::default();
             attributes.insert(USER_AGENT__ORIGINAL, FIREFOX.to_owned());
             let mut attributes = Annotated::new(attributes);
-            normalize_user_agent(&mut attributes, &normalizer);
+            normalize_user_agent(&mut attributes, client_info, &normalizer);
             let attributes = attributes.value().unwrap();
             // Hints win over the item UA, which wins over the transport UA.
             // Google Chrome is normalized before bounding, yielding Chr rather than Goo.
@@ -1666,13 +1661,11 @@ mod tests {
             (256, "Chrome", "131.0.0", CHROME_USER_AGENT),
             (4, "Chro", "131.", "Mozi"),
         ] {
-            let normalizer = UserAgentNormalizer::new(
-                Some(ClientUserAgentInfo {
-                    user_agent: Some(CHROME_USER_AGENT),
-                    ..Default::default()
-                }),
-                maximum,
-            );
+            let client_info = Some(ClientUserAgentInfo {
+                user_agent: Some(CHROME_USER_AGENT),
+                ..Default::default()
+            });
+            let normalizer = UserAgentNormalizer::new(maximum);
             assert!(normalizer.hints.get().is_none());
             assert!(normalizer.user_agent.get().is_none());
             assert!(normalizer.original.get().is_none());
@@ -1688,25 +1681,26 @@ mod tests {
             let expected = Annotated::new(expected);
             for _ in 0..3 {
                 let mut attributes = Annotated::default();
-                normalize_user_agent(&mut attributes, &normalizer);
+                normalize_user_agent(&mut attributes, client_info, &normalizer);
                 // Parse the full transport UA even when its stored copy is truncated.
                 assert_eq!(attributes, expected);
             }
             assert!(normalizer.hints.get().unwrap().is_none());
             assert!(normalizer.user_agent.get().unwrap().is_some());
-            assert_eq!(normalizer.original.get().copied(), Some(original));
+            assert_eq!(
+                normalizer.original.get().map(String::as_str),
+                Some(original)
+            );
         }
     }
 
     #[test]
     fn test_normalize_user_agent_existing() {
-        let normalizer = UserAgentNormalizer::new(
-            Some(ClientUserAgentInfo {
-                user_agent: Some(CHROME_USER_AGENT),
-                ..Default::default()
-            }),
-            4,
-        );
+        let client_info = Some(ClientUserAgentInfo {
+            user_agent: Some(CHROME_USER_AGENT),
+            ..Default::default()
+        });
+        let normalizer = UserAgentNormalizer::new(4);
         for fields in [
             &[(BROWSER__NAME, "Very Special")][..],
             &[(BROWSER__VERSION, "13.3.7")][..],
@@ -1721,7 +1715,7 @@ mod tests {
             }
             let mut attributes = Annotated::new(attributes);
             let expected = attributes.clone();
-            normalize_user_agent(&mut attributes, &normalizer);
+            normalize_user_agent(&mut attributes, client_info, &normalizer);
             assert_eq!(attributes, expected);
             assert!(normalizer.hints.get().is_none());
             assert!(normalizer.user_agent.get().is_none());

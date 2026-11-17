@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
-use relay_event_normalization::eap::{Ingress, Pipeline};
+use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
@@ -217,13 +217,13 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     let settings = spans.settings;
+    let user_agent = utils::normalize::user_agent(ctx);
     let ingress = spans.ingress.clone();
 
-    spans.modify(|spans, records| {
-        let headers = &spans.headers;
-        let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
-        spans.spans.retain_mut(|span| {
-            match normalize_span_with_user_agent(
+    spans.retain_with_context(
+        |spans| (&mut spans.spans, &spans.headers),
+        |span, headers, _| {
+            normalize_span(
                 &mut span.span,
                 ingress.as_ref(),
                 settings,
@@ -231,47 +231,21 @@ pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, c
                 geo_lookup,
                 &user_agent,
                 ctx,
-            ) {
-                Ok(()) => true,
-                Err(err) => {
-                    relay_log::debug!("failed to normalize span: {err}");
-                    records.reject_err(err, &*span);
-                    false
-                }
-            }
-        });
-    });
+            )
+            .inspect_err(|err| {
+                relay_log::debug!("failed to normalize span: {err}");
+            })
+        },
+    );
 }
 
-// Single-item entry point for tests; containers share the same normalizer across all items.
-#[cfg(test)]
 fn normalize_span(
     span: &mut Annotated<SpanV2>,
     ingress: Option<&Ingress>,
     settings: Settings,
     headers: &EnvelopeHeaders,
     geo_lookup: &GeoIpLookup,
-    ctx: Context<'_>,
-) -> Result<()> {
-    let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
-    normalize_span_with_user_agent(
-        span,
-        ingress,
-        settings,
-        headers,
-        geo_lookup,
-        &user_agent,
-        ctx,
-    )
-}
-
-fn normalize_span_with_user_agent(
-    span: &mut Annotated<SpanV2>,
-    ingress: Option<&Ingress>,
-    settings: Settings,
-    headers: &EnvelopeHeaders,
-    geo_lookup: &GeoIpLookup,
-    user_agent: &eap::UserAgentNormalizer<'_>,
+    user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -285,6 +259,10 @@ fn normalize_span_with_user_agent(
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
         let performance_score = ctx.project_info.config().performance_score.as_ref();
         let tx_name_rules = &ctx.project_info.config.tx_name_rules;
 
@@ -310,7 +288,7 @@ fn normalize_span_with_user_agent(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut span.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut span.attributes, user_agent);
+        eap::normalize_user_agent(&mut span.attributes, client_ua_info, user_agent);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
@@ -504,6 +482,26 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    fn normalize_span(
+        span: &mut Annotated<SpanV2>,
+        ingress: Option<&Ingress>,
+        settings: Settings,
+        headers: &EnvelopeHeaders,
+        geo_lookup: &GeoIpLookup,
+        ctx: Context<'_>,
+    ) -> Result<()> {
+        let user_agent = utils::normalize::user_agent(ctx);
+        super::normalize_span(
+            span,
+            ingress,
+            settings,
+            headers,
+            geo_lookup,
+            &user_agent,
+            ctx,
+        )
+    }
 
     #[test]
     fn test_expand_span_container_operations_limit() {
