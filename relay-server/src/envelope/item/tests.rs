@@ -477,7 +477,7 @@ fn test_item_headers_unknown() {
 }
 
 #[test]
-fn attachment_type_defaults_preserve_wire_headers() {
+fn test_attachment_type_default_wire_headers() {
     for (declared, expected, unknown) in [
         (None, AttachmentType::Attachment, false),
         (
@@ -511,7 +511,7 @@ fn attachment_type_defaults_preserve_wire_headers() {
 }
 
 #[test]
-fn attachment_type_defaults_preserve_nintendo_detection() {
+fn test_attachment_type_default_nintendo_detection() {
     for (declared, expected) in [
         (None, AttachmentType::NintendoSwitchDyingMessage),
         (

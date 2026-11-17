@@ -445,7 +445,7 @@ mod tests {
     use crate::extractors::RequestMeta;
 
     #[test]
-    fn attachment_type_defaults_count_attachment_bytes() {
+    fn test_finalize_attachment_bytes_defaults() {
         let config = Config::from_json_value(json!({"processing": {"enabled": true}})).unwrap();
         let meta = RequestMeta::new(
             "https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42"
