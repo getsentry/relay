@@ -1620,38 +1620,60 @@ mod tests {
     fn test_normalize_user_agent_precedence() {
         const FIREFOX: &str =
             "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0";
-        for (hints, name, version) in [
-            (None, "Fir", "128"),
-            (Some(r#""Google Chrome";v="123456""#), "Chr", "123"),
-        ] {
-            let client_info = Some(ClientUserAgentInfo {
-                user_agent: Some(CHROME_USER_AGENT),
-                hints: ClientHints {
-                    sec_ch_ua: hints,
-                    ..Default::default()
-                },
-            });
-            let normalizer = UserAgentNormalizer::new(3);
-            let mut attributes = Attributes::default();
-            attributes.insert(USER_AGENT__ORIGINAL, FIREFOX.to_owned());
-            let mut attributes = Annotated::new(attributes);
-            normalize_user_agent(&mut attributes, client_info, &normalizer);
-            let attributes = attributes.value().unwrap();
-            // Hints win over the item UA, which wins over the transport UA.
-            // Google Chrome is normalized before bounding, yielding Chr rather than Goo.
-            for (key, expected) in [
-                (BROWSER__NAME, name),
-                (BROWSER__VERSION, version),
-                (USER_AGENT__ORIGINAL, FIREFOX),
+        for transport in [None, Some(CHROME_USER_AGENT)] {
+            let fallback_version = transport.map(|_| "131");
+            for (hints, name, version, fallback_version) in [
+                (None, "Fir", "128", fallback_version),
+                (Some("invalid hints"), "Fir", "128", fallback_version),
+                (
+                    Some(r#""Google Chrome";v="123456""#),
+                    "Chr",
+                    "123",
+                    Some("123"),
+                ),
             ] {
-                assert_eq!(
-                    attributes.get_value(key).and_then(Value::as_str),
-                    Some(expected)
-                );
+                let client_info = Some(ClientUserAgentInfo {
+                    user_agent: transport,
+                    hints: ClientHints {
+                        sec_ch_ua: hints,
+                        ..Default::default()
+                    },
+                });
+                let normalizer = UserAgentNormalizer::new(3);
+                let mut attributes = Attributes::default();
+                attributes.insert(USER_AGENT__ORIGINAL, FIREFOX.to_owned());
+                let mut attributes = Annotated::new(attributes);
+                normalize_user_agent(&mut attributes, client_info, &normalizer);
+                let attributes = attributes.value().unwrap();
+                // Hints win over the item UA, which wins over the transport UA.
+                // Google Chrome is normalized before bounding, yielding Chr rather than Goo.
+                for (key, expected) in [
+                    (BROWSER__NAME, name),
+                    (BROWSER__VERSION, version),
+                    (USER_AGENT__ORIGINAL, FIREFOX),
+                ] {
+                    assert_eq!(
+                        attributes.get_value(key).and_then(Value::as_str),
+                        Some(expected)
+                    );
+                }
+                assert!(normalizer.user_agent.get().is_none());
+                assert!(normalizer.original.get().is_none());
+
+                // The explicit item UA must not populate the transport cache for later items.
+                for _ in 0..2 {
+                    let mut attributes = Annotated::default();
+                    normalize_user_agent(&mut attributes, client_info, &normalizer);
+                    let attributes = attributes.value().unwrap();
+                    for (key, expected) in [
+                        (BROWSER__NAME, fallback_version.map(|_| "Chr")),
+                        (BROWSER__VERSION, fallback_version),
+                        (USER_AGENT__ORIGINAL, transport.map(|_| "Moz")),
+                    ] {
+                        assert_eq!(attributes.get_value(key).and_then(Value::as_str), expected);
+                    }
+                }
             }
-            assert_eq!(normalizer.hints.get().unwrap().is_some(), hints.is_some());
-            assert!(normalizer.user_agent.get().is_none());
-            assert!(normalizer.original.get().is_none());
         }
     }
 
@@ -1784,6 +1806,24 @@ mod tests {
         assert!(normalizer.hints.get().is_none());
         assert!(normalizer.user_agent.get().is_none());
         assert!(normalizer.original.get().is_none());
+
+        let mut missing = Annotated::default();
+        normalize_user_agent(
+            &mut missing,
+            Some(ClientUserAgentInfo {
+                user_agent: Some(CHROME_USER_AGENT),
+                ..Default::default()
+            }),
+            &normalizer,
+        );
+        assert_eq!(
+            missing
+                .value()
+                .unwrap()
+                .get_value(BROWSER__NAME)
+                .and_then(Value::as_str),
+            Some("Chro")
+        );
     }
 
     #[test]

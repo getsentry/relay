@@ -93,86 +93,51 @@ mod tests {
         let timestamp = chrono::Utc::now().timestamp() as f64;
         let ua = format!("Mozilla/5.0 Chrome/131.0.0.0 {}", "x".repeat(4096));
         let hints = format!(r#""{}";v="{}""#, "x".repeat(4096), "1".repeat(4096));
-        let explicit = "Mozilla/5.0 Firefox/128.0";
-
-        let empty = json!([null, null, null]);
-        let firefox = json!(["Fir", "128", explicit]);
-        let chrome = json!(["Chr", "131", "Moz"]);
-        let hinted = json!(["xxx", "111", null]);
-        let hinted_ua = json!(["xxx", "111", "Moz"]);
-        let hinted_explicit = json!(["xxx", "111", explicit]);
-        // Header inputs, expected explicit-UA item, expected transport-only item.
-        let cases = [
-            (None, None, &firefox, &empty),
-            (Some(ua.as_str()), None, &firefox, &chrome),
-            (None, Some(hints.as_str()), &hinted_explicit, &hinted),
-            (
-                Some(ua.as_str()),
-                Some(hints.as_str()),
-                &hinted_explicit,
-                &hinted_ua,
-            ),
-            (None, Some("invalid hints"), &firefox, &empty),
-            (Some(ua.as_str()), Some("invalid hints"), &firefox, &chrome),
-        ];
-        let item_attributes = [
-            json!({"browser.name": {"type": "string", "value": "existing"}}),
-            json!({"browser.version": {"type": "string", "value": "existing"}}),
-            json!({"user_agent.original": {"type": "string", "value": explicit}}),
-            json!({}),
-            json!({}),
-        ];
+        let log = json!({"timestamp": timestamp, "level": "info", "body": "test"});
+        let span = json!({
+            "start_timestamp": timestamp, "end_timestamp": timestamp + 0.5,
+            "name": "test", "status": "ok"
+        });
+        let metric = json!({
+            "timestamp": timestamp, "name": "test.metric", "type": "counter", "value": 1.0
+        });
+        let mut headers = json!({
+            "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
+            "client_hints": {"sec_ch_ua": hints},
+            "trace": {
+                "trace_id": "0123456789abcdef0123456789abcdef",
+                "public_key": "a94ae32be2584e0bbd7a4cbb95971fee"
+            }
+        });
 
         for (ty, content_type, item) in [
-            (
-                ItemType::Log,
-                ContentType::LogContainer,
-                json!({
-                    "timestamp": timestamp, "level": "info", "body": "test"
-                }),
-            ),
-            (
-                ItemType::Span,
-                ContentType::SpanV2Container,
-                json!({
-                    "start_timestamp": timestamp, "end_timestamp": timestamp + 0.5,
-                    "name": "test", "status": "ok"
-                }),
-            ),
+            (ItemType::Log, ContentType::LogContainer, log),
+            (ItemType::Span, ContentType::SpanV2Container, span),
             (
                 ItemType::TraceMetric,
                 ContentType::TraceMetricContainer,
-                json!({
-                    "timestamp": timestamp, "name": "test.metric", "type": "counter", "value": 1.0
-                }),
+                metric,
             ),
         ] {
-            let items: Vec<_> = item_attributes
-                .iter()
-                .enumerate()
-                .map(|(index, attributes)| {
+            let items: Vec<_> = (1..=3)
+                .map(|index| {
                     let mut item = item.clone();
                     item["trace_id"] = json!("0123456789abcdef0123456789abcdef");
                     if ty == ItemType::Span {
-                        item["span_id"] = json!(format!("{:016x}", index + 1));
+                        item["span_id"] = json!(format!("{index:016x}"));
                     }
-                    item["attributes"] = attributes.clone();
                     item
                 })
                 .collect();
-            for (case, (ua, hints, explicit, transport)) in cases.iter().enumerate() {
-                for infer in [false, true] {
-                    let headers = json!({
-                        "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
-                        "user_agent": ua, "client_hints": {"sec_ch_ua": hints},
-                        "trace": {
-                            "trace_id": "0123456789abcdef0123456789abcdef",
-                            "public_key": "a94ae32be2584e0bbd7a4cbb95971fee"
-                        }
-                    });
+            for ua in [None, Some(ua.as_str())] {
+                headers["user_agent"] = json!(ua);
+                for (infer, expected) in [
+                    ("never", json!([null, null, null])),
+                    ("auto", json!(["xxx", "111", ua.map(|_| "Moz")])),
+                ] {
                     let payload = json!({
                         "version": 2, "items": items,
-                        "ingest_settings": {"infer_user_agent": if infer {"auto"} else {"never"}}
+                        "ingest_settings": {"infer_user_agent": infer}
                     });
                     let wire = format!(
                         "{}\n{}\n{}\n",
@@ -199,22 +164,10 @@ mod tests {
                                 .map(|key| item["attributes"][key]["value"].clone())
                         })
                         .collect();
-                    // Skipped items must not prevent later items from using the shared cache.
-                    let (explicit, transport) = if infer {
-                        (*explicit, *transport)
-                    } else {
-                        (&firefox, &empty)
-                    };
                     assert_eq!(
                         json!(actual),
-                        json!([
-                            ["existing", null, null],
-                            [null, "existing", null],
-                            explicit,
-                            transport,
-                            transport
-                        ]),
-                        "{ty}, case={case}, infer={infer}"
+                        json!([expected, expected, expected]),
+                        "{ty}, infer={infer}"
                     );
                 }
             }
