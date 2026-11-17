@@ -86,11 +86,11 @@ pub struct Context {
     /// Delegate statistics to Arroyo.
     arroyo_statistics: ArroyoProducerContext,
     /// Counts the number of in-flight messages.
-    inflight: Arc<AtomicUsize>,
+    inflight: InflightCounter,
 }
 
 impl Context {
-    pub fn new(producer_name: String, inflight: Arc<AtomicUsize>) -> Self {
+    pub fn new(producer_name: String, inflight: InflightCounter) -> Self {
         Self {
             arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
@@ -102,7 +102,7 @@ impl Context {
         &self.producer_name
     }
 
-    pub fn inflight(&self) -> &AtomicUsize {
+    pub fn inflight(&self) -> &InflightCounter {
         &self.inflight
     }
 }
@@ -125,7 +125,7 @@ impl ProducerContext for Context {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
 
-        self.inflight.fetch_sub(1, Ordering::Relaxed);
+        self.inflight.decrement();
 
         match result {
             Ok(message) => {
@@ -158,20 +158,34 @@ impl ProducerContext for Context {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct InflightCounter(Arc<AtomicUsize>);
+
+impl InflightCounter {
+    pub fn get(&self) -> usize {
+        self.0.load(Ordering::Relaxed)
+    }
+    pub fn increment(&self) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn decrement(&self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::AtomicUsize;
-
     use rdkafka::ClientContext;
     use rdkafka::statistics::{Broker, Statistics};
     use relay_statsd::with_capturing_test_client;
+
+    use crate::producer::utils::InflightCounter;
 
     use super::Context;
 
     #[test]
     fn test_statistics_backend() {
-        let context = Context::new("test-producer".to_owned(), Arc::new(AtomicUsize::new(0)));
+        let context = Context::new("test-producer".to_owned(), InflightCounter::default());
         let statistics = Statistics {
             msg_cnt: 42,
             brokers: [(

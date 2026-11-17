@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use rdkafka::message::Header;
@@ -22,7 +22,7 @@ use crate::KafkaTopicConfig;
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
-use crate::producer::utils::KafkaHeaders;
+use crate::producer::utils::{InflightCounter, KafkaHeaders};
 use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
 
 mod utils;
@@ -173,7 +173,7 @@ impl Drop for TopicProducer {
         // Note that configuring kafka with `delivery.report.only.error=true` will break this
         // mechanism, as it relies on receiving a delivery callback for every message.
         let mut backoff = Duration::from_millis(100);
-        while self.producer.context().inflight().load(Ordering::Relaxed) > 0 {
+        while self.producer.context().inflight().get() > 0 {
             std::thread::sleep(backoff);
             backoff = (2 * backoff).min(Duration::from_secs(1));
         }
@@ -308,19 +308,15 @@ impl Producer {
             );
         });
 
-        producer
-            .context()
-            .inflight()
-            .fetch_add(1, Ordering::Relaxed);
+        // In theory the delivery callback can run before `produce_record` returns, so increment
+        // the reference counter before:
+        producer.context().inflight().increment();
 
         producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
             .inspect_err(|_| {
-                producer
-                    .context()
-                    .inflight()
-                    .fetch_sub(1, Ordering::Relaxed);
+                producer.context().inflight().decrement();
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
                     variant = variant,
@@ -465,7 +461,7 @@ pub struct KafkaClientBuilder {
     /// shared by logical topics that produce to that same physical topic.
     reused_producers: BTreeMap<String, Arc<ReloadingKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
-    inflight: Arc<AtomicUsize>,
+    inflight: InflightCounter,
 }
 
 impl KafkaClientBuilder {
@@ -526,7 +522,7 @@ impl KafkaClientBuilder {
                     source.blob,
                     ProducerSelector::new(topic_name.clone(), source.app),
                     reload_config(source.jitter),
-                    Context::new(producer_name, Arc::clone(&self.inflight)),
+                    Context::new(producer_name, self.inflight.clone()),
                 )?);
 
                 self.reused_producers
@@ -646,11 +642,11 @@ mod tests {
         client
             .send(KafkaTopic::Events, None, None, "event", b"payload")
             .unwrap();
-        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 1);
+        assert_eq!(producer.context().inflight().get(), 1);
 
         drop(client);
 
-        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 0);
+        assert_eq!(producer.context().inflight().get(), 0);
     }
 
     /// Every shard needs its own producer, since each is a separate physical
