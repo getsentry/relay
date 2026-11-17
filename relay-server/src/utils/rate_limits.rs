@@ -331,9 +331,6 @@ impl EnvelopeSummary {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::envelope::MetricBucketsItem;
-
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
@@ -341,6 +338,7 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
+    use crate::envelope::MetricBucketsItem;
     use crate::envelope::SourceQuantities;
     use crate::extractors::RequestMeta;
 
