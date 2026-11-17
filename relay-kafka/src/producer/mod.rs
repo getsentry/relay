@@ -616,6 +616,35 @@ mod tests {
             .collect()
     }
 
+    #[test]
+    fn test_drop_waits_for_inflight_messages() {
+        let cluster = MockCluster::new(1).unwrap();
+        cluster
+            .broker_round_trip_time(1, Duration::from_millis(100))
+            .unwrap();
+        let servers = cluster.bootstrap_servers();
+        let blob = blob(&servers, &["ingest-events"]);
+        let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let assignment = TopicAssignment::from("ingest-events".to_owned());
+        let configs = assignment.kafka_configs(&params, &secondary).unwrap();
+        let client = KafkaClient::builder()
+            .add_kafka_topic_config(KafkaTopic::Events, &configs, false, &source(&blob))
+            .unwrap()
+            .build();
+
+        // Keep the underlying producer alive so its own drop cannot drain the message.
+        let producer = Arc::clone(producers(&client, KafkaTopic::Events)[0]);
+        client
+            .send(KafkaTopic::Events, None, None, "event", b"payload")
+            .unwrap();
+        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 1);
+
+        drop(client);
+
+        assert_eq!(producer.context().inflight().load(Ordering::Relaxed), 0);
+    }
+
     /// Every shard needs its own producer, since each is a separate physical
     /// topic with its own entry in the blob.
     #[test]
