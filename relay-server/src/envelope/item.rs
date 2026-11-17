@@ -77,6 +77,180 @@ impl ItemData {
     pub fn len(&self) -> usize {
         self.payload.len()
     }
+
+    /// Returns `true` if this item's payload is empty.
+    pub fn is_empty(&self) -> bool {
+        self.payload.is_empty()
+    }
+
+    /// Returns the content type of this item's payload.
+    pub fn content_type(&self) -> Option<ContentType> {
+        self.headers.get(ItemHeaderKey::ContentType)
+    }
+
+    /// Returns the raw (unparsed) content type, as specified by the SDK.
+    pub fn raw_content_type(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::ContentType)
+    }
+
+    /// Sets the raw content type, overriding the one specified by the SDK.
+    pub fn set_raw_content_type<S>(&mut self, content_type: S)
+    where
+        S: Into<String>,
+    {
+        self.headers
+            .set(ItemHeaderKey::ContentType, content_type.into());
+    }
+
+    /// Sets the content type of this item's payload without changing the payload.
+    ///
+    /// Unlike [`Self::set_payload`], this does not update the length header.
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
+    }
+
+    /// Sets the content type if there isn't already one set.
+    pub fn set_default_content_type(&mut self, content_type: ContentType) {
+        if !self.headers.contains(ItemHeaderKey::ContentType) {
+            self.headers.set(ItemHeaderKey::ContentType, content_type);
+        }
+    }
+
+    /// Returns the payload of this item.
+    ///
+    /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
+    /// cannot be used to mutate data in this envelope. In order to change data, use `set_payload`.
+    pub fn payload(&self) -> Bytes {
+        self.payload.clone()
+    }
+
+    /// Sets the payload of this envelope item without specifying a content-type.
+    /// Use `set_payload` if you want to define a content-type for the payload.
+    pub fn set_payload_without_content_type<B>(&mut self, payload: B)
+    where
+        B: Into<Bytes>,
+    {
+        let mut payload = payload.into();
+
+        let length = std::cmp::min(u32::MAX as usize, payload.len());
+        payload.truncate(length);
+
+        self.headers.set(ItemHeaderKey::Length, length);
+        self.payload = payload;
+    }
+
+    /// Sets the payload and content-type of this envelope item. Use
+    /// `set_payload_without_content_type` if you need to set the payload without a content-type.
+    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    where
+        B: Into<Bytes>,
+    {
+        self.headers.set(ItemHeaderKey::ContentType, content_type);
+        self.set_payload_without_content_type(payload);
+    }
+
+    /// Sets the payload, content-type and item count of this envelope item.
+    fn set_payload_with_item_count<B>(
+        &mut self,
+        content_type: ContentType,
+        payload: B,
+        item_count: u32,
+    ) where
+        B: Into<Bytes>,
+    {
+        self.headers
+            .set(ItemHeaderKey::ContentType, content_type)
+            .set(ItemHeaderKey::ItemCount, item_count);
+        self.set_payload_without_content_type(payload);
+    }
+
+    /// Returns the routing_hint of this item.
+    pub fn routing_hint(&self) -> Option<Uuid> {
+        self.headers.routing_hint
+    }
+
+    /// Set the routing_hint of this item.
+    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
+        self.headers.routing_hint = Some(routing_hint);
+    }
+
+    /// Returns whether this item should be rate limited.
+    pub fn rate_limited(&self) -> bool {
+        self.headers.rate_limited
+    }
+
+    /// Sets whether this item should be rate limited.
+    pub fn set_rate_limited(&mut self, rate_limited: bool) {
+        self.headers.rate_limited = rate_limited;
+    }
+
+    /// Returns the contained source quantities.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.headers.source_quantities
+    }
+
+    /// Sets new source quantities.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.headers.source_quantities = Some(source_quantities);
+    }
+
+    /// Returns the fully normalized flag.
+    pub fn fully_normalized(&self) -> bool {
+        self.headers
+            .get(ItemHeaderKey::FullyNormalized)
+            .unwrap_or_default()
+    }
+
+    /// Sets the fully normalized flag.
+    pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
+        self.headers
+            .set(ItemHeaderKey::FullyNormalized, fully_normalized);
+    }
+
+    /// Retrieves the sentry release from an item header.
+    pub fn sentry_release(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::SentryRelease)
+    }
+
+    /// Sets the sentry release on an item header.
+    pub fn set_sentry_release(&mut self, release: String) {
+        self.headers.set(ItemHeaderKey::SentryRelease, release);
+    }
+
+    /// Retrieves the sentry environment from an item header.
+    pub fn sentry_environment(&self) -> Option<&str> {
+        self.headers.get(ItemHeaderKey::SentryEnvironment)
+    }
+
+    /// Sets the sentry environment on an item header.
+    pub fn set_sentry_environment(&mut self, environment: String) {
+        self.headers
+            .set(ItemHeaderKey::SentryEnvironment, environment);
+    }
+
+    /// Whether the content-type header names a container format.
+    pub fn is_container(&self) -> bool {
+        self.content_type().is_some_and(ContentType::is_container)
+    }
+
+    /// Sets arbitrary headers for tests, including invalid and misplaced values.
+    #[cfg(test)]
+    pub(crate) fn set_test_header<T: Serialize>(&mut self, key: ItemHeaderKey, value: Option<T>) {
+        self.headers.set_or_remove(key, value);
+    }
+
+    fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: &ItemType) -> fmt::Result {
+        f.debug_struct("Item")
+            .field(
+                "headers",
+                &ItemHeadersRef {
+                    ty,
+                    data: &self.headers,
+                },
+            )
+            .field("payload", &DebugBytes(&self.payload))
+            .finish()
+    }
 }
 
 impl Item {
@@ -139,12 +313,89 @@ impl Item {
 
         Ok((item, payload_end + 1))
     }
-}
 
-impl ItemData {
-    /// Returns `true` if this item's payload is empty.
-    pub fn is_empty(&self) -> bool {
-        self.payload.is_empty()
+    /// Returns `true` if this item contains a payload which is unknown to this version of Relay.
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            Self::Unknown(_) => true,
+            Self::Attachment(item) => item
+                .data()
+                .headers
+                .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
+                .is_err(),
+            _ => false,
+        }
+    }
+
+    /// Whether this item contains data used to build an event.
+    pub fn carries_event_payload(&self) -> bool {
+        match self {
+            Self::Event(_)
+            | Self::Transaction(_)
+            | Self::Security(_)
+            | Self::RawSecurity(_)
+            | Self::UnrealReport(_)
+            | Self::UserReportV2(_) => true,
+            Self::Attachment(item) => item.carries_event_payload(),
+            Self::Integration(item) => {
+                matches!(item.integration_header(), Some(Integration::Errors(_)))
+            }
+            Self::FormData(_)
+            | Self::UserReport(_)
+            | Self::Session(_)
+            | Self::Sessions(_)
+            | Self::MetricBuckets(_)
+            | Self::ClientReport(_)
+            | Self::Profile(_)
+            | Self::ReplayEvent(_)
+            | Self::ReplayRecording(_)
+            | Self::ReplayVideo(_)
+            | Self::CheckIn(_)
+            | Self::Log(_)
+            | Self::TraceMetric(_)
+            | Self::Span(_)
+            | Self::ProfileChunk(_)
+            | Self::Unknown(_) => false,
+        }
+    }
+
+    /// Whether error processing receives this item if earlier processors leave it behind.
+    pub fn routes_with_event(&self) -> bool {
+        match self {
+            Self::Event(_)
+            | Self::Transaction(_)
+            | Self::Security(_)
+            | Self::Attachment(_)
+            | Self::RawSecurity(_)
+            | Self::UnrealReport(_)
+            | Self::UserReportV2(_)
+            | Self::FormData(_)
+            | Self::UserReport(_)
+            | Self::Profile(_)
+            | Self::ReplayEvent(_) => true,
+            Self::Integration(item) => {
+                matches!(item.integration_header(), Some(Integration::Errors(_)))
+            }
+            Self::Session(_)
+            | Self::Sessions(_)
+            | Self::MetricBuckets(_)
+            | Self::ClientReport(_)
+            | Self::ReplayRecording(_)
+            | Self::ReplayVideo(_)
+            | Self::CheckIn(_)
+            | Self::Log(_)
+            | Self::TraceMetric(_)
+            | Self::Span(_)
+            | Self::ProfileChunk(_)
+            | Self::Unknown(_) => false,
+        }
+    }
+
+    pub(super) fn wire_headers(&self) -> ItemHeadersRef<'_> {
+        ItemHeadersRef {
+            ty: self.ty(),
+            data: &self.data().headers,
+        }
     }
 }
 
@@ -177,41 +428,6 @@ impl TransactionItem {
         self.data_mut()
             .headers
             .set_or_remove(ItemHeaderKey::SpanCount, value);
-    }
-}
-
-impl ItemData {
-    /// Returns the content type of this item's payload.
-    pub fn content_type(&self) -> Option<ContentType> {
-        self.headers.get(ItemHeaderKey::ContentType)
-    }
-
-    /// Returns the raw (unparsed) content type, as specified by the SDK.
-    pub fn raw_content_type(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::ContentType)
-    }
-
-    /// Sets the raw content type, overriding the one specified by the SDK.
-    pub fn set_raw_content_type<S>(&mut self, content_type: S)
-    where
-        S: Into<String>,
-    {
-        self.headers
-            .set(ItemHeaderKey::ContentType, content_type.into());
-    }
-
-    /// Sets the content type of this item's payload without changing the payload.
-    ///
-    /// Unlike [`Self::set_payload`], this does not update the length header.
-    pub fn set_content_type(&mut self, content_type: ContentType) {
-        self.headers.set(ItemHeaderKey::ContentType, content_type);
-    }
-
-    /// Sets the content type if there isn't already one set.
-    pub fn set_default_content_type(&mut self, content_type: ContentType) {
-        if !self.headers.contains(ItemHeaderKey::ContentType) {
-            self.headers.set(ItemHeaderKey::ContentType, content_type);
-        }
     }
 }
 
@@ -262,59 +478,7 @@ impl AttachmentItem {
             .headers
             .set(ItemHeaderKey::AttachmentType, attachment_type);
     }
-}
 
-impl ItemData {
-    /// Returns the payload of this item.
-    ///
-    /// Envelope payloads are ref-counted. The bytes object is a reference to the original data, but
-    /// cannot be used to mutate data in this envelope. In order to change data, use `set_payload`.
-    pub fn payload(&self) -> Bytes {
-        self.payload.clone()
-    }
-
-    /// Sets the payload of this envelope item without specifying a content-type.
-    /// Use `set_payload` if you want to define a content-type for the payload.
-    pub fn set_payload_without_content_type<B>(&mut self, payload: B)
-    where
-        B: Into<Bytes>,
-    {
-        let mut payload = payload.into();
-
-        let length = std::cmp::min(u32::MAX as usize, payload.len());
-        payload.truncate(length);
-
-        self.headers.set(ItemHeaderKey::Length, length);
-        self.payload = payload;
-    }
-
-    /// Sets the payload and content-type of this envelope item. Use
-    /// `set_payload_without_content_type` if you need to set the payload without a content-type.
-    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
-    where
-        B: Into<Bytes>,
-    {
-        self.headers.set(ItemHeaderKey::ContentType, content_type);
-        self.set_payload_without_content_type(payload);
-    }
-
-    /// Sets the payload, content-type and item count of this envelope item.
-    fn set_payload_with_item_count<B>(
-        &mut self,
-        content_type: ContentType,
-        payload: B,
-        item_count: u32,
-    ) where
-        B: Into<Bytes>,
-    {
-        self.headers
-            .set(ItemHeaderKey::ContentType, content_type)
-            .set(ItemHeaderKey::ItemCount, item_count);
-        self.set_payload_without_content_type(payload);
-    }
-}
-
-impl AttachmentItem {
     /// Returns the attachment file name.
     pub fn filename(&self) -> Option<&str> {
         self.data().headers.get(ItemHeaderKey::Filename)
@@ -339,110 +503,7 @@ impl AttachmentItem {
     pub fn set_stored_key(&mut self, stored_key: String) {
         self.data_mut().headers.stored_key = Some(stored_key);
     }
-}
 
-impl ItemData {
-    /// Returns the routing_hint of this item.
-    pub fn routing_hint(&self) -> Option<Uuid> {
-        self.headers.routing_hint
-    }
-
-    /// Set the routing_hint of this item.
-    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
-        self.headers.routing_hint = Some(routing_hint);
-    }
-
-    /// Returns whether this item should be rate limited.
-    pub fn rate_limited(&self) -> bool {
-        self.headers.rate_limited
-    }
-
-    /// Sets whether this item should be rate limited.
-    pub fn set_rate_limited(&mut self, rate_limited: bool) {
-        self.headers.rate_limited = rate_limited;
-    }
-
-    /// Returns the contained source quantities.
-    pub fn source_quantities(&self) -> Option<SourceQuantities> {
-        self.headers.source_quantities
-    }
-
-    /// Sets new source quantities.
-    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
-        self.headers.source_quantities = Some(source_quantities);
-    }
-
-    /// Returns the fully normalized flag.
-    pub fn fully_normalized(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::FullyNormalized)
-            .unwrap_or_default()
-    }
-
-    /// Sets the fully normalized flag.
-    pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
-        self.headers
-            .set(ItemHeaderKey::FullyNormalized, fully_normalized);
-    }
-}
-
-impl ProfileItem {
-    /// Returns the associated platform.
-    pub fn platform(&self) -> Option<&str> {
-        self.data().headers.get(ItemHeaderKey::Platform)
-    }
-
-    /// Set the associated platform.
-    pub fn set_platform(&mut self, platform: String) {
-        self.data_mut()
-            .headers
-            .set(ItemHeaderKey::Platform, platform);
-    }
-
-    /// Infers the [`ProfileType`] from [`Self::platform`].
-    pub fn profile_type(&self) -> Option<ProfileType> {
-        self.platform().map(ProfileType::from_platform)
-    }
-
-    /// Gets the profile sampling flag.
-    pub fn sampled(&self) -> bool {
-        self.data()
-            .headers
-            .get(ItemHeaderKey::Sampled)
-            .unwrap_or(true)
-    }
-
-    /// Sets the `sampled` flag.
-    pub fn set_sampled(&mut self, sampled: bool) {
-        self.data_mut().headers.set(ItemHeaderKey::Sampled, sampled);
-    }
-}
-
-impl ProfileChunkItem {
-    /// Returns the associated platform.
-    pub fn platform(&self) -> Option<&str> {
-        self.data().headers.get(ItemHeaderKey::Platform)
-    }
-
-    /// Set the associated platform.
-    pub fn set_platform(&mut self, platform: String) {
-        self.data_mut()
-            .headers
-            .set(ItemHeaderKey::Platform, platform);
-    }
-
-    /// Infers the [`ProfileType`] from [`Self::platform`].
-    pub fn profile_type(&self) -> Option<ProfileType> {
-        self.platform().map(ProfileType::from_platform)
-    }
-
-    /// Returns the length of the metadata segment for a Perfetto profile chunk.
-    pub fn meta_length(&self) -> Option<u32> {
-        self.data().headers.get(ItemHeaderKey::MetaLength)
-    }
-}
-
-impl AttachmentItem {
     /// Returns the length of the optional attachment metadata segment.
     pub fn meta_length(&self) -> Option<u32> {
         self.data().headers.get(ItemHeaderKey::MetaLength)
@@ -462,32 +523,7 @@ impl AttachmentItem {
             .headers
             .set(ItemHeaderKey::AttachmentLength, original_length);
     }
-}
 
-impl ItemData {
-    /// Retrieves the sentry release from an item header.
-    pub fn sentry_release(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::SentryRelease)
-    }
-
-    /// Sets the sentry release on an item header.
-    pub fn set_sentry_release(&mut self, release: String) {
-        self.headers.set(ItemHeaderKey::SentryRelease, release);
-    }
-
-    /// Retrieves the sentry environment from an item header.
-    pub fn sentry_environment(&self) -> Option<&str> {
-        self.headers.get(ItemHeaderKey::SentryEnvironment)
-    }
-
-    /// Sets the sentry environment on an item header.
-    pub fn set_sentry_environment(&mut self, environment: String) {
-        self.headers
-            .set(ItemHeaderKey::SentryEnvironment, environment);
-    }
-}
-
-impl AttachmentItem {
     /// Returns the parent entity associated with this attachment, if any.
     pub fn parent_id(&self) -> Option<ParentId> {
         // Currently only `span_id` supported in `ParentId`.
@@ -596,108 +632,59 @@ impl AttachmentItem {
     }
 }
 
-impl Item {
-    /// Returns `true` if this item contains a payload which is unknown to this version of Relay.
-    pub fn is_unknown(&self) -> bool {
-        match self {
-            Self::Unknown(_) => true,
-            Self::Attachment(item) => item
-                .data()
-                .headers
-                .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
-                .is_err(),
-            _ => false,
-        }
+impl ProfileItem {
+    /// Returns the associated platform.
+    pub fn platform(&self) -> Option<&str> {
+        self.data().headers.get(ItemHeaderKey::Platform)
     }
 
-    /// Whether this item contains data used to build an event.
-    pub fn carries_event_payload(&self) -> bool {
-        match self {
-            Self::Event(_)
-            | Self::Transaction(_)
-            | Self::Security(_)
-            | Self::RawSecurity(_)
-            | Self::UnrealReport(_)
-            | Self::UserReportV2(_) => true,
-            Self::Attachment(item) => item.carries_event_payload(),
-            Self::Integration(item) => {
-                matches!(item.integration_header(), Some(Integration::Errors(_)))
-            }
-            Self::FormData(_)
-            | Self::UserReport(_)
-            | Self::Session(_)
-            | Self::Sessions(_)
-            | Self::MetricBuckets(_)
-            | Self::ClientReport(_)
-            | Self::Profile(_)
-            | Self::ReplayEvent(_)
-            | Self::ReplayRecording(_)
-            | Self::ReplayVideo(_)
-            | Self::CheckIn(_)
-            | Self::Log(_)
-            | Self::TraceMetric(_)
-            | Self::Span(_)
-            | Self::ProfileChunk(_)
-            | Self::Unknown(_) => false,
-        }
+    /// Set the associated platform.
+    pub fn set_platform(&mut self, platform: String) {
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::Platform, platform);
     }
 
-    /// Whether error processing receives this item if earlier processors leave it behind.
-    pub fn routes_with_event(&self) -> bool {
-        match self {
-            Self::Event(_)
-            | Self::Transaction(_)
-            | Self::Security(_)
-            | Self::Attachment(_)
-            | Self::RawSecurity(_)
-            | Self::UnrealReport(_)
-            | Self::UserReportV2(_)
-            | Self::FormData(_)
-            | Self::UserReport(_)
-            | Self::Profile(_)
-            | Self::ReplayEvent(_) => true,
-            Self::Integration(item) => {
-                matches!(item.integration_header(), Some(Integration::Errors(_)))
-            }
-            Self::Session(_)
-            | Self::Sessions(_)
-            | Self::MetricBuckets(_)
-            | Self::ClientReport(_)
-            | Self::ReplayRecording(_)
-            | Self::ReplayVideo(_)
-            | Self::CheckIn(_)
-            | Self::Log(_)
-            | Self::TraceMetric(_)
-            | Self::Span(_)
-            | Self::ProfileChunk(_)
-            | Self::Unknown(_) => false,
-        }
+    /// Infers the [`ProfileType`] from [`Self::platform`].
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.platform().map(ProfileType::from_platform)
+    }
+
+    /// Gets the profile sampling flag.
+    pub fn sampled(&self) -> bool {
+        self.data()
+            .headers
+            .get(ItemHeaderKey::Sampled)
+            .unwrap_or(true)
+    }
+
+    /// Sets the `sampled` flag.
+    pub fn set_sampled(&mut self, sampled: bool) {
+        self.data_mut().headers.set(ItemHeaderKey::Sampled, sampled);
     }
 }
 
-impl ItemData {
-    /// Whether the content-type header names a container format.
-    pub fn is_container(&self) -> bool {
-        self.content_type().is_some_and(ContentType::is_container)
+impl ProfileChunkItem {
+    /// Returns the associated platform.
+    pub fn platform(&self) -> Option<&str> {
+        self.data().headers.get(ItemHeaderKey::Platform)
     }
 
-    /// Sets arbitrary headers for tests, including invalid and misplaced values.
-    #[cfg(test)]
-    pub(crate) fn set_test_header<T: Serialize>(&mut self, key: ItemHeaderKey, value: Option<T>) {
-        self.headers.set_or_remove(key, value);
+    /// Set the associated platform.
+    pub fn set_platform(&mut self, platform: String) {
+        self.data_mut()
+            .headers
+            .set(ItemHeaderKey::Platform, platform);
     }
 
-    fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: &ItemType) -> fmt::Result {
-        f.debug_struct("Item")
-            .field(
-                "headers",
-                &ItemHeadersRef {
-                    ty,
-                    data: &self.headers,
-                },
-            )
-            .field("payload", &DebugBytes(&self.payload))
-            .finish()
+    /// Infers the [`ProfileType`] from [`Self::platform`].
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.platform().map(ProfileType::from_platform)
+    }
+
+    /// Returns the length of the metadata segment for a Perfetto profile chunk.
+    pub fn meta_length(&self) -> Option<u32> {
+        self.data().headers.get(ItemHeaderKey::MetaLength)
     }
 }
 
@@ -1052,15 +1039,6 @@ impl fmt::Debug for ItemHeadersRef<'_> {
         self.data.debug_with_type(f, Some(self.ty))
     }
 }
-impl Item {
-    pub(super) fn wire_headers(&self) -> ItemHeadersRef<'_> {
-        ItemHeadersRef {
-            ty: self.ty(),
-            data: &self.data().headers,
-        }
-    }
-}
-
 impl CommonItemHeaders {
     fn contains(&self, key: ItemHeaderKey) -> bool {
         self.inner.contains_key(&MaybeKnown::Known(key))
@@ -1106,14 +1084,7 @@ impl CommonItemHeaders {
         }
         self
     }
-}
 
-impl fmt::Debug for CommonItemHeaders {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.debug_with_type(f, None)
-    }
-}
-impl CommonItemHeaders {
     fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: Option<&ItemType>) -> fmt::Result {
         let Self {
             stored_key,
@@ -1169,6 +1140,11 @@ impl CommonItemHeaders {
     }
 }
 
+impl fmt::Debug for CommonItemHeaders {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.debug_with_type(f, None)
+    }
+}
 /// An item key which is potentially known to Relay.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(untagged)]
