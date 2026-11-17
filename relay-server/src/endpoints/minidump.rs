@@ -712,9 +712,8 @@ pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{ContentType, Item};
-    use crate::managed::Counted;
-    use crate::utils::FormDataIter;
+    use std::io::Write;
+
     use axum::body::Body;
     use bzip2::Compression as BzCompression;
     use bzip2::write::BzEncoder;
@@ -722,10 +721,12 @@ mod tests {
     use flate2::write::GzEncoder;
     use liblzma::write::XzEncoder;
     use relay_config::Config;
-    use std::io::Write;
     use zstd::stream::Encoder as ZstdEncoder;
 
     use super::*;
+    use crate::envelope::{ContentType, Item};
+    use crate::managed::Counted;
+    use crate::utils::FormDataIter;
 
     #[test]
     fn test_validate_minidump() {
