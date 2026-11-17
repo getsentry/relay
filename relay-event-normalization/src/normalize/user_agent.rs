@@ -387,6 +387,12 @@ impl FromUserAgentInfo for BrowserContext {
 ///
 /// Returns None if no browser field detected.
 pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
+    browser_from_client_hints_borrowed(s)
+        .map(|(browser, version)| (browser.to_owned(), version.to_owned()))
+}
+
+/// Parses borrowed values so callers can limit them before allocating copies.
+pub(crate) fn browser_from_client_hints_borrowed(s: &str) -> Option<(&str, &str)> {
     static UA_RE: OnceLock<Regex> = OnceLock::new();
     let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
     for item in s.split(',') {
@@ -402,8 +408,8 @@ pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
 
         let captures = regex.captures(item)?;
 
-        let browser = captures.get(1)?.as_str().to_owned();
-        let version = captures.get(2)?.as_str().to_owned();
+        let browser = captures.get(1)?.as_str();
+        let version = captures.get(2)?.as_str();
 
         if browser.trim().is_empty() || version.trim().is_empty() {
             return None;

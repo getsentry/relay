@@ -1,4 +1,3 @@
-use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
@@ -53,14 +52,20 @@ pub fn expand(
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     let settings = logs.settings;
 
-    logs.retain_with_context(
-        |logs| (&mut logs.logs, &logs.headers),
-        |log, headers, _| {
-            normalize_log(log, headers, settings, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to normalize log: {err}");
-            })
-        },
-    );
+    logs.modify(|logs, records| {
+        let headers = &logs.headers;
+        let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
+        logs.logs.retain_mut(|log| {
+            match normalize_log_with_user_agent(log, headers, settings, &user_agent, ctx) {
+                Ok(()) => true,
+                Err(err) => {
+                    relay_log::debug!("failed to normalize log: {err}");
+                    records.reject_err(err, &*log);
+                    false
+                }
+            }
+        });
+    });
 }
 
 /// Applies PII scrubbing to individual log entries.
@@ -151,10 +156,23 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
+// Single-item entry point for tests; containers share the same normalizer across all items.
+#[cfg(test)]
 fn normalize_log(
     log: &mut Annotated<OurLog>,
     headers: &EnvelopeHeaders,
     settings: Settings,
+    ctx: Context<'_>,
+) -> Result<()> {
+    let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
+    normalize_log_with_user_agent(log, headers, settings, &user_agent, ctx)
+}
+
+fn normalize_log_with_user_agent(
+    log: &mut Annotated<OurLog>,
+    headers: &EnvelopeHeaders,
+    settings: Settings,
+    user_agent: &eap::UserAgentNormalizer<'_>,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -165,11 +183,6 @@ fn normalize_log(
     )?;
 
     if let Some(log) = log.value_mut() {
-        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
-            user_agent: meta.user_agent(),
-            hints: meta.client_hints(),
-        });
-
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);
         eap::normalize_received(&mut log.attributes, meta.received_at());
@@ -177,7 +190,7 @@ fn normalize_log(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut log.attributes, client_ua_info);
+        eap::normalize_user_agent(&mut log.attributes, user_agent);
     }
 
     if let Annotated(None, meta) = log {
@@ -230,6 +243,82 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    #[test]
+    fn test_normalize_log_client_hint_browser_name_length() {
+        assert_client_hint_browser_length("browser.name");
+    }
+
+    #[test]
+    fn test_normalize_log_client_hint_browser_version_length() {
+        assert_client_hint_browser_length("browser.version");
+    }
+
+    fn assert_client_hint_browser_length(long_attribute: &str) {
+        let ctx = Context::for_test();
+        let max_tag_value_length = ctx
+            .config
+            .aggregator_config_for(relay_metrics::MetricNamespace::Spans)
+            .max_tag_value_length;
+
+        for length in [max_tag_value_length - 1, max_tag_value_length, 4096] {
+            let browser = if long_attribute == "browser.name" {
+                "x".repeat(length)
+            } else {
+                "TestBrowser".to_owned()
+            };
+            let version = if long_attribute == "browser.version" {
+                "1".repeat(length)
+            } else {
+                "123".to_owned()
+            };
+            let headers: EnvelopeHeaders = serde_json::from_value(serde_json::json!({
+                "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
+                "client_hints": {
+                    "sec_ch_ua": format!(r#""{browser}";v="{version}""#),
+                },
+            }))
+            .unwrap();
+            assert!(headers.meta().user_agent().is_none());
+
+            let log = Annotated::<OurLog>::from_json(
+                &serde_json::json!({
+                    "timestamp": chrono::Utc::now().timestamp(),
+                    "level": "info",
+                    "body": "test",
+                })
+                .to_string(),
+            )
+            .unwrap();
+            let mut logs = vec![log; 3];
+            let settings = Settings {
+                infer_user_agent: true,
+                ..Default::default()
+            };
+
+            // A container shares one request header across all its items. Check immediately
+            // after normalization: later trimming cannot prevent these copies from allocating.
+            for log in &mut logs {
+                normalize_log(log, &headers, settings, ctx).unwrap();
+            }
+
+            for (index, log) in logs.iter().enumerate() {
+                let attributes = log.value().unwrap().attributes.value().unwrap();
+                assert!(!attributes.contains_key("user_agent.original"));
+                for (key, original) in [("browser.name", &browser), ("browser.version", &version)] {
+                    let value = attributes.get_value(key).and_then(|v| v.as_str()).unwrap();
+                    assert_eq!(
+                        value.len(),
+                        original.len().min(max_tag_value_length),
+                        "log {index}: {key} from Sec-CH-UA must respect max_tag_value_length",
+                    );
+                    if original.len() <= max_tag_value_length {
+                        assert_eq!(value, original);
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_expand_log_container_operations_limit() {

@@ -3,6 +3,7 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::fmt;
 use std::net::IpAddr;
 
@@ -24,10 +25,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{
-    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
-    normalize_transaction_name,
-};
+use crate::{ClientHints, FromUserAgentInfo as _, TransactionNameRule, normalize_transaction_name};
 
 mod ai;
 mod attribute_like;
@@ -344,41 +342,112 @@ pub struct ClientUserAgentInfo<'a> {
     pub hints: ClientHints<&'a str>,
 }
 
-/// Normalizes the user agent/client information into [`Attributes`].
+/// Lazy browser enrichment shared by the items in one container.
 ///
-/// Does not modify the attributes if there is already browser information present,
-/// to preserve original values.
-///
-/// The `client_info` should be omitted for cases where the info is unreliable or incorrect, for
-/// example when the client is a backend SDK or another Relay.
+/// Transport parsing, including unsuccessful parses, happens at most once. Strings
+/// are bounded before being copied into items; explicit item user agents remain local.
+pub struct UserAgentNormalizer<'a> {
+    client_info: ClientUserAgentInfo<'a>,
+    max_chars: usize,
+    hints: OnceCell<Option<BrowserContext>>,
+    user_agent: OnceCell<Option<BrowserContext>>,
+    original: OnceCell<&'a str>,
+}
+
+impl<'a> UserAgentNormalizer<'a> {
+    /// Creates a normalizer without parsing headers. Omit unreliable transport information.
+    pub fn new(client_info: Option<ClientUserAgentInfo<'a>>, max_tag_value_length: usize) -> Self {
+        Self {
+            client_info: client_info.unwrap_or_default(),
+            max_chars: max_tag_value_length,
+            hints: OnceCell::new(),
+            user_agent: OnceCell::new(),
+            original: OnceCell::new(),
+        }
+    }
+
+    fn parse_hints(&self) -> Option<BrowserContext> {
+        let (name, version) = crate::normalize::user_agent::browser_from_client_hints_borrowed(
+            self.client_info.hints.sec_ch_ua?,
+        )?;
+        let name = if name == "Google Chrome" {
+            "Chrome"
+        } else {
+            name
+        };
+        Some(BrowserContext {
+            name: Annotated::new(char_prefix(name, self.max_chars).to_owned()),
+            version: Annotated::new(char_prefix(version, self.max_chars).to_owned()),
+            ..Default::default()
+        })
+    }
+
+    fn parse_user_agent(&self, user_agent: &str) -> Option<BrowserContext> {
+        // Parse the full input: truncating it first could change browser detection.
+        let mut browser = BrowserContext::parse_user_agent(user_agent)?;
+        for field in [&mut browser.name, &mut browser.version] {
+            if let Some(value) = field.value_mut() {
+                value.truncate(char_prefix(value, self.max_chars).len());
+            }
+        }
+        Some(browser)
+    }
+}
+
+fn char_prefix(value: &str, max_chars: usize) -> &str {
+    let end = value
+        .char_indices()
+        .nth(max_chars)
+        .map_or(value.len(), |(i, _)| i);
+    &value[..end]
+}
+
+/// Normalizes browser information, preserving existing browser attributes and explicit user agents.
+/// Share the normalizer across a container to avoid reparsing transport headers for every item.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    client_info: Option<ClientUserAgentInfo<'_>>,
+    normalizer: &UserAgentNormalizer<'_>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
-
     if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
         return;
     }
 
-    // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
-    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
-        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
-    }
-
-    let user_agent = attributes
-        .get_value(USER_AGENT__ORIGINAL)
-        .and_then(|v| v.as_str());
-
-    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-        user_agent,
-        client_hints: client_info.map(|ci| ci.hints).unwrap_or_default(),
-    }) else {
-        return;
+    let hints = normalizer.hints.get_or_init(|| normalizer.parse_hints());
+    let explicit_browser;
+    let browser = if hints.is_some() {
+        hints.as_ref()
+    } else if attributes.contains_key(USER_AGENT__ORIGINAL) {
+        // Even an invalid explicit attribute prevents the transport fallback.
+        explicit_browser = attributes
+            .get_value(USER_AGENT__ORIGINAL)
+            .and_then(Value::as_str)
+            .and_then(|ua| normalizer.parse_user_agent(ua));
+        explicit_browser.as_ref()
+    } else {
+        normalizer
+            .user_agent
+            .get_or_init(|| {
+                normalizer
+                    .client_info
+                    .user_agent
+                    .and_then(|ua| normalizer.parse_user_agent(ua))
+            })
+            .as_ref()
     };
 
-    attributes.insert_if_missing(BROWSER__NAME, || context.name);
-    attributes.insert_if_missing(BROWSER__VERSION, || context.version);
+    if let Some(ua) = normalizer.client_info.user_agent {
+        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || {
+            normalizer
+                .original
+                .get_or_init(|| char_prefix(ua, normalizer.max_chars))
+                .to_string()
+        });
+    }
+    if let Some(browser) = browser {
+        attributes.insert_if_missing(BROWSER__NAME, || browser.name.clone());
+        attributes.insert_if_missing(BROWSER__VERSION, || browser.version.clone());
+    }
 }
 
 /// Normalizes the client address into [`Attributes`].
@@ -1507,16 +1576,152 @@ mod tests {
     }
 
     #[test]
+    fn user_agent_enrichment_bounds_every_copy() {
+        for transport in [None, Some("Mozilla/5.0 ".repeat(1000))] {
+            for maximum in [0, 1, 3, 256] {
+                let name = "🦀browser".repeat(1024);
+                let version = "é123".repeat(1024);
+                let hints = format!(r#""{name}";v="{version}""#);
+                let normalizer = UserAgentNormalizer::new(
+                    Some(ClientUserAgentInfo {
+                        user_agent: transport.as_deref(),
+                        hints: ClientHints {
+                            sec_ch_ua: Some(&hints),
+                            ..Default::default()
+                        },
+                    }),
+                    maximum,
+                );
+                assert!(normalizer.hints.get().is_none());
+                for _ in 0..32 {
+                    let mut attributes = Annotated::default();
+                    normalize_user_agent(&mut attributes, &normalizer);
+                    let attributes = attributes.value().unwrap();
+                    for (key, source) in [
+                        (BROWSER__NAME, Some(name.as_str())),
+                        (BROWSER__VERSION, Some(version.as_str())),
+                        (USER_AGENT__ORIGINAL, transport.as_deref()),
+                    ] {
+                        let expected = source.map(|s| s.chars().take(maximum).collect::<String>());
+                        // Empty attribute strings are omitted, including when the limit is zero.
+                        assert_eq!(
+                            attributes.get_value(key).and_then(Value::as_str),
+                            expected.as_deref().filter(|s| !s.is_empty()),
+                            "{key}, limit={maximum}"
+                        );
+                    }
+                }
+                assert!(normalizer.hints.get().unwrap().is_some());
+                assert!(normalizer.user_agent.get().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn user_agent_enrichment_preserves_precedence_and_laziness() {
+        const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        const FIREFOX: &str =
+            "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0";
+        let normalizer = UserAgentNormalizer::new(
+            Some(ClientUserAgentInfo {
+                user_agent: Some(CHROME),
+                ..Default::default()
+            }),
+            4,
+        );
+        for key in [BROWSER__NAME, BROWSER__VERSION] {
+            let mut attributes = Attributes::default();
+            attributes.insert(key, "existing".to_owned());
+            let mut attributes = Annotated::new(attributes);
+            let expected = attributes.clone();
+            normalize_user_agent(&mut attributes, &normalizer);
+            assert_eq!(attributes, expected);
+        }
+        assert!(normalizer.hints.get().is_none());
+        assert!(normalizer.user_agent.get().is_none());
+        assert!(normalizer.original.get().is_none());
+
+        let mut attributes = Attributes::default();
+        attributes.insert(USER_AGENT__ORIGINAL, FIREFOX.to_owned());
+        let mut attributes = Annotated::new(attributes);
+        normalize_user_agent(&mut attributes, &normalizer);
+        let attributes = attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get_value(USER_AGENT__ORIGINAL)
+                .and_then(Value::as_str),
+            Some(FIREFOX)
+        );
+        assert_eq!(
+            attributes.get_value(BROWSER__NAME).and_then(Value::as_str),
+            Some("Fire")
+        );
+        assert!(normalizer.hints.get().unwrap().is_none());
+        assert!(normalizer.user_agent.get().is_none());
+        assert!(normalizer.original.get().is_none());
+
+        for _ in 0..3 {
+            let mut attributes = Annotated::default();
+            normalize_user_agent(&mut attributes, &normalizer);
+            let attributes = attributes.value().unwrap();
+            // Detection uses the full UA, although its stored prefix is only four characters.
+            for (key, expected) in [
+                (USER_AGENT__ORIGINAL, "Mozi"),
+                (BROWSER__NAME, "Chro"),
+                (BROWSER__VERSION, "131."),
+            ] {
+                assert_eq!(
+                    attributes.get_value(key).and_then(Value::as_str),
+                    Some(expected)
+                );
+            }
+        }
+        assert!(normalizer.user_agent.get().unwrap().is_some());
+    }
+
+    #[test]
+    fn user_agent_hints_override_item_ua_and_normalize_before_bounding() {
+        let normalizer = UserAgentNormalizer::new(
+            Some(ClientUserAgentInfo {
+                hints: ClientHints {
+                    sec_ch_ua: Some(r#""Google Chrome";v="123456""#),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            3,
+        );
+        let mut attributes = Attributes::default();
+        attributes.insert(USER_AGENT__ORIGINAL, "unrecognized".to_owned());
+        let mut attributes = Annotated::new(attributes);
+        normalize_user_agent(&mut attributes, &normalizer);
+        let attributes = attributes.value().unwrap();
+        for (key, expected) in [
+            (BROWSER__NAME, "Chr"),
+            (BROWSER__VERSION, "123"),
+            (USER_AGENT__ORIGINAL, "unrecognized"),
+        ] {
+            assert_eq!(
+                attributes.get_value(key).and_then(Value::as_str),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
     fn test_normalize_user_agent_none() {
         let mut attributes = Default::default();
         normalize_user_agent(
             &mut attributes,
-            Some(ClientUserAgentInfo {
-                user_agent: Some(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                ),
-                ..Default::default()
-            }),
+            &UserAgentNormalizer::new(
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    ),
+                    ..Default::default()
+                }),
+                256,
+            ),
         );
 
         assert_annotated_snapshot!(attributes, @r###"
@@ -1555,12 +1760,15 @@ mod tests {
 
         normalize_user_agent(
             &mut attributes,
-            Some(ClientUserAgentInfo {
-                user_agent: Some(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                ),
-                ..Default::default()
-            }),
+            &UserAgentNormalizer::new(
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    ),
+                    ..Default::default()
+                }),
+                256,
+            ),
         );
 
         assert_annotated_snapshot!(attributes, @r#"

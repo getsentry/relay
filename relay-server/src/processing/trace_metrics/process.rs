@@ -1,4 +1,3 @@
-use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
@@ -54,14 +53,26 @@ pub fn expand(
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     let settings = metrics.settings;
 
-    metrics.retain_with_context(
-        |metrics| (&mut metrics.metrics, &metrics.headers),
-        |metric, headers, _| {
-            normalize_trace_metric(metric, headers, settings, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to normalize trace metric: {err}");
-            })
-        },
-    );
+    metrics.modify(|metrics, records| {
+        let headers = &metrics.headers;
+        let user_agent = utils::normalize::user_agent(headers, settings.infer_user_agent, ctx);
+        metrics.metrics.retain_mut(|metric| {
+            match normalize_trace_metric_with_user_agent(
+                metric,
+                headers,
+                settings,
+                &user_agent,
+                ctx,
+            ) {
+                Ok(()) => true,
+                Err(err) => {
+                    relay_log::debug!("failed to normalize trace metric: {err}");
+                    records.reject_err(err, &*metric);
+                    false
+                }
+            }
+        });
+    });
 }
 
 /// Applies PII scrubbing to individual trace metric entries.
@@ -147,10 +158,11 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 }
 
 /// Normalizes an individual trace metric entry.
-fn normalize_trace_metric(
+fn normalize_trace_metric_with_user_agent(
     metric: &mut Annotated<TraceMetric>,
     headers: &EnvelopeHeaders,
     settings: Settings,
+    user_agent: &eap::UserAgentNormalizer<'_>,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -161,11 +173,6 @@ fn normalize_trace_metric(
     )?;
 
     if let Some(metric_value) = metric.value_mut() {
-        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
-            user_agent: meta.user_agent(),
-            hints: meta.client_hints(),
-        });
-
         eap::trace_metric::normalize_metric_name(metric_value)?;
         if ctx.is_processing() {
             eap::trace_metric::normalize_metric_unit(metric_value);
@@ -177,7 +184,7 @@ fn normalize_trace_metric(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
+        eap::normalize_user_agent(&mut metric_value.attributes, user_agent);
     };
 
     if let Annotated(None, meta) = metric {
