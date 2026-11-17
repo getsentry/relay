@@ -5,7 +5,7 @@
 **Internal**:
 
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
-- Support duplicating Redis write commands to a second Redis with a multi write `configs` list, to ease migrations between Redis deployments. ([#6294](https://github.com/getsentry/relay/pull/6294))
+- Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 
 ## 26.11.0
 
