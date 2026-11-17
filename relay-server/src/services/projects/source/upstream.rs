@@ -733,7 +733,7 @@ mod tests {
             let config = Arc::new(Config::default());
             let service = UpstreamProjectSourceService::new(Arc::clone(&config), upstream);
             let (addr, rx) = relay_system::channel(UpstreamProjectSourceService::name());
-            let task = tokio::spawn(service.run(rx));
+            let task = relay_system::spawn!(service.run(rx));
             let project_key = ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap();
             let response = addr.send(FetchProjectState {
                 project_key,
