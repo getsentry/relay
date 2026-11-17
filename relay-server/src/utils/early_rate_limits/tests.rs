@@ -1,14 +1,15 @@
-use super::*;
 use std::collections::BTreeMap;
 
-use crate::envelope::{
-    AttachmentItem, IntegrationItem, ParentId, ProfileChunkItem, SourceQuantities,
-};
-use crate::integrations::ErrorsIntegration;
 use relay_base_schema::project::ProjectId;
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 use relay_system::Addr;
 use smallvec::smallvec;
+
+use super::*;
+use crate::envelope::{
+    AttachmentItem, IntegrationItem, ParentId, ProfileChunkItem, SourceQuantities,
+};
+use crate::integrations::ErrorsIntegration;
 
 struct RateLimitTestCase {
     name: &'static str,
