@@ -170,7 +170,10 @@ fn process_recordings(
             // run the same decompression only to check the size. Other malformed recordings
             // are left to the consumer.
             if ctx.is_processing()
-                && let Err(ParseRecordingError::TooLarge) = check_recording_size(payload, limit)
+                && let Err(ParseRecordingError::TooLarge) =
+                    metric!(timer(RelayTimers::ReplayRecordingSizeCheck), {
+                        check_recording_size(payload, limit)
+                    })
             {
                 relay_log::debug!("replay recording over maximum uncompressed size");
                 return Err(Error::TooLarge);
@@ -192,7 +195,9 @@ fn process_recordings(
             );
             match error {
                 ParseRecordingError::TooLarge => Error::TooLarge,
-                _ => Error::InvalidReplayRecordingEvent,
+                ParseRecordingError::Parse(_)
+                | ParseRecordingError::Compression(_)
+                | ParseRecordingError::Message(_) => Error::InvalidReplayRecordingEvent,
             }
         })?;
         Ok(())
