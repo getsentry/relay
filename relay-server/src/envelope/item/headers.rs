@@ -84,19 +84,19 @@ pub enum ItemHeaderKey {
 /// The value of an item header.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ItemHeaderValue(serde_json::Value);
+struct ItemHeaderValue(serde_json::Value);
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 pub struct CommonItemHeaders {
     /// If this is an attachment item, this may contain the storage key in case it is uploaded to objectstore.
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    pub(super) stored_key: Option<String>,
+    stored_key: Option<String>,
     /// The routing_hint may be used to specify how the envelpope should be routed in when
     /// published to Kafka.
     #[serde(default, skip)]
-    pub(super) routing_hint: Option<Uuid>,
+    routing_hint: Option<Uuid>,
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,
@@ -106,7 +106,7 @@ pub struct CommonItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    pub(super) rate_limited: bool,
+    rate_limited: bool,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -117,21 +117,34 @@ pub struct CommonItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    pub(super) source_quantities: Option<SourceQuantities>,
+    source_quantities: Option<SourceQuantities>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
-    pub(super) inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
+    inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
 }
 
 /// Wire headers used while parsing, before the tag selects an owning variant.
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ItemHeaders {
     #[serde(rename = "type")]
-    pub(super) ty: ItemType,
+    ty: ItemType,
     #[serde(flatten)]
-    pub(super) data: CommonItemHeaders,
+    data: CommonItemHeaders,
 }
+impl ItemHeaders {
+    /// Returns the wire tag of this item.
+    #[cfg(test)]
+    pub fn ty(&self) -> &ItemType {
+        &self.ty
+    }
+
+    /// Separates the wire tag from the shared headers.
+    pub fn into_parts(self) -> (ItemType, CommonItemHeaders) {
+        (self.ty, self.data)
+    }
+}
+
 impl std::ops::Deref for ItemHeaders {
     type Target = CommonItemHeaders;
     fn deref(&self) -> &Self::Target {
@@ -144,23 +157,70 @@ impl std::ops::DerefMut for ItemHeaders {
     }
 }
 #[derive(Serialize)]
-pub(in crate::envelope) struct ItemHeadersRef<'a> {
+pub struct ItemHeadersRef<'a> {
     #[serde(rename = "type")]
-    pub(super) ty: &'a ItemType,
+    ty: &'a ItemType,
     #[serde(flatten)]
-    pub(super) data: &'a CommonItemHeaders,
+    data: &'a CommonItemHeaders,
 }
+impl<'a> ItemHeadersRef<'a> {
+    /// Borrows the wire tag and shared headers for serialization.
+    pub fn new(ty: &'a ItemType, data: &'a CommonItemHeaders) -> Self {
+        Self { ty, data }
+    }
+}
+
 impl fmt::Debug for ItemHeadersRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.data.debug_with_type(f, Some(self.ty))
     }
 }
 impl CommonItemHeaders {
-    pub(super) fn contains(&self, key: ItemHeaderKey) -> bool {
+    /// Returns the internal objectstore key, if present.
+    pub fn stored_key(&self) -> Option<&str> {
+        self.stored_key.as_deref()
+    }
+
+    /// Records the internal objectstore key.
+    pub fn set_stored_key(&mut self, stored_key: String) {
+        self.stored_key = Some(stored_key);
+    }
+
+    /// Returns the internal `routing_hint` value.
+    pub fn routing_hint(&self) -> Option<Uuid> {
+        self.routing_hint
+    }
+
+    /// Sets the internal `routing_hint` value.
+    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
+        self.routing_hint = Some(routing_hint);
+    }
+
+    /// Returns the internal `rate_limited` value.
+    pub fn rate_limited(&self) -> bool {
+        self.rate_limited
+    }
+
+    /// Sets the internal `rate_limited` value.
+    pub fn set_rate_limited(&mut self, rate_limited: bool) {
+        self.rate_limited = rate_limited;
+    }
+
+    /// Returns the internal `source_quantities` value.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.source_quantities
+    }
+
+    /// Sets the internal `source_quantities` value.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.source_quantities = Some(source_quantities);
+    }
+
+    pub fn contains(&self, key: ItemHeaderKey) -> bool {
         self.inner.contains_key(&MaybeKnown::Known(key))
     }
 
-    pub(super) fn get<'a, T>(&'a self, key: ItemHeaderKey) -> Option<T>
+    pub fn get<'a, T>(&'a self, key: ItemHeaderKey) -> Option<T>
     where
         T: Deserialize<'a>,
     {
@@ -169,10 +229,7 @@ impl CommonItemHeaders {
             .and_then(|v| T::deserialize(&v.0).ok())
     }
 
-    pub(super) fn try_get<'a, T>(
-        &'a self,
-        key: ItemHeaderKey,
-    ) -> Result<Option<T>, serde_json::Error>
+    pub fn try_get<'a, T>(&'a self, key: ItemHeaderKey) -> Result<Option<T>, serde_json::Error>
     where
         T: Deserialize<'a>,
     {
@@ -182,7 +239,7 @@ impl CommonItemHeaders {
             .transpose()
     }
 
-    pub(super) fn set<T>(&mut self, key: ItemHeaderKey, value: T) -> &mut Self
+    pub fn set<T>(&mut self, key: ItemHeaderKey, value: T) -> &mut Self
     where
         T: Serialize,
     {
@@ -192,7 +249,7 @@ impl CommonItemHeaders {
         self
     }
 
-    pub(super) fn set_or_remove<T>(&mut self, key: ItemHeaderKey, value: Option<T>) -> &mut Self
+    pub fn set_or_remove<T>(&mut self, key: ItemHeaderKey, value: Option<T>) -> &mut Self
     where
         T: Serialize,
     {
@@ -267,7 +324,7 @@ impl fmt::Debug for CommonItemHeaders {
 /// An item key which is potentially known to Relay.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum MaybeKnown<T> {
+enum MaybeKnown<T> {
     /// An item known to this Relay.
     Known(T),
     /// An unknown item.

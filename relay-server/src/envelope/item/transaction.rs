@@ -9,7 +9,7 @@ use smallvec::smallvec;
 impl TransactionItem {
     /// Returns the declared number of embedded spans, or `None` for an absent or invalid header.
     pub fn span_count(&self) -> Option<u32> {
-        self.data().headers.get(ItemHeaderKey::SpanCount)
+        self.data().headers().get(ItemHeaderKey::SpanCount)
     }
 
     /// Counts embedded spans using the header, falling back to scanning the `spans` payload array.
@@ -33,7 +33,7 @@ impl TransactionItem {
     /// Sets the number of spans in the transaction payload.
     pub fn set_span_count(&mut self, value: Option<u32>) {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set_or_remove(ItemHeaderKey::SpanCount, value);
     }
 }

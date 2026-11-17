@@ -42,8 +42,8 @@ mod tests;
 
 pub use self::attachment::{AttachmentParentType, ParentId};
 pub use self::data::{ItemData, SourceQuantities};
-pub(super) use self::headers::ItemHeadersRef;
-pub use self::headers::*;
+pub use self::headers::ItemHeaderKey;
+use self::headers::{ItemHeaders, ItemHeadersRef};
 
 /// A concrete variant of the serialized [`Item`] enum.
 ///
@@ -61,7 +61,10 @@ pub trait TypedItem: TryFrom<Item, Error = Item> {
 
 /// Typed items that support the `item_count` header.
 pub trait ItemCount: TypedItem {
-    /// Returns the declared count, or `None` if the header is absent or invalid.
+    /// Returns the declared item count, or `None` if the header is absent or invalid.
+    ///
+    /// Preserves the distinction between an explicitly declared count and an
+    /// unspecified count; callers decide whether to apply a default.
     fn item_count(&self) -> Option<u32>;
 }
 
@@ -131,8 +134,8 @@ impl Item {
         };
 
         let payload = bytes.slice(payload_start..payload_end);
-        let ItemHeaders { ty, data: headers } = headers;
-        let item = Item::from_parts(ty, ItemData { headers, payload });
+        let (ty, headers) = headers.into_parts();
+        let item = Item::from_parts(ty, ItemData::from_parts(headers, payload));
 
         Ok((item, payload_end + 1))
     }
@@ -143,7 +146,7 @@ impl Item {
             Self::Unknown(_) => true,
             Self::Attachment(item) => item
                 .data()
-                .headers
+                .headers()
                 .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
                 .is_err(),
             _ => false,
@@ -214,11 +217,8 @@ impl Item {
         }
     }
 
-    pub(super) fn wire_headers(&self) -> ItemHeadersRef<'_> {
-        ItemHeadersRef {
-            ty: self.ty(),
-            data: &self.data().headers,
-        }
+    pub fn wire_headers(&self) -> ItemHeadersRef<'_> {
+        ItemHeadersRef::new(self.ty(), self.data().headers())
     }
 }
 
@@ -226,7 +226,7 @@ impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Item")
             .field("headers", &self.wire_headers())
-            .field("payload", &DebugBytes(&self.data().payload))
+            .field("payload", &DebugBytes(self.data().payload_ref()))
             .finish()
     }
 }

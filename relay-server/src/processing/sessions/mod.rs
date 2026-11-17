@@ -152,14 +152,8 @@ pub struct SerializedSessions {
 impl SerializedSessions {
     fn serialize_envelope(self) -> Box<Envelope> {
         let mut items = Items::with_capacity(self.updates.len() + self.aggregates.len());
-        // Preserve the previous longer-collection-first wire order.
-        if self.updates.len() > self.aggregates.len() {
-            items.extend(self.updates.into_iter().map(Item::from));
-            items.extend(self.aggregates.into_iter().map(Item::from));
-        } else {
-            items.extend(self.aggregates.into_iter().map(Item::from));
-            items.extend(self.updates.into_iter().map(Item::from));
-        }
+        items.extend(self.updates.into_iter().map(Item::from));
+        items.extend(self.aggregates.into_iter().map(Item::from));
         Envelope::from_parts(self.headers, items)
     }
 }

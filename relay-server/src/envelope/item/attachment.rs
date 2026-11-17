@@ -10,7 +10,7 @@ use smallvec::smallvec;
 impl AttachmentItem {
     /// Returns the attachment type.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
-        if let Some(ty) = self.data().headers.get(ItemHeaderKey::AttachmentType) {
+        if let Some(ty) = self.data().headers().get(ItemHeaderKey::AttachmentType) {
             return Some(ty);
         }
 
@@ -19,7 +19,7 @@ impl AttachmentItem {
         if self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
             && self
                 .data()
-                .payload
+                .payload_ref()
                 .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
         {
             return Some(AttachmentType::NintendoSwitchDyingMessage);
@@ -31,13 +31,13 @@ impl AttachmentItem {
     /// Sets the attachment type of this item.
     pub fn set_attachment_type(&mut self, attachment_type: AttachmentType) {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::AttachmentType, attachment_type);
     }
 
     /// Returns the attachment file name.
     pub fn filename(&self) -> Option<&str> {
-        self.data().headers.get(ItemHeaderKey::Filename)
+        self.data().headers().get(ItemHeaderKey::Filename)
     }
 
     /// Sets the file name of this item.
@@ -46,29 +46,29 @@ impl AttachmentItem {
         S: Into<String>,
     {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::Filename, filename.into());
     }
 
     /// Returns the objectstore key for a stored attachment.
     pub fn stored_key(&self) -> Option<&str> {
-        self.data().headers.stored_key.as_deref()
+        self.data().headers().stored_key()
     }
 
     /// Sets the objectstore key of this attachment item.
     pub fn set_stored_key(&mut self, stored_key: String) {
-        self.data_mut().headers.stored_key = Some(stored_key);
+        self.data_mut().headers_mut().set_stored_key(stored_key);
     }
 
     /// Returns the length of the optional attachment metadata segment.
     pub fn meta_length(&self) -> Option<u32> {
-        self.data().headers.get(ItemHeaderKey::MetaLength)
+        self.data().headers().get(ItemHeaderKey::MetaLength)
     }
 
     /// Sets the length of the optional meta segment.
     pub fn set_meta_length(&mut self, meta_length: u32) {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::MetaLength, meta_length);
     }
 
@@ -76,14 +76,14 @@ impl AttachmentItem {
     pub fn set_attachment_length(&mut self, original_length: usize) {
         debug_assert!(self.is_attachment_ref());
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::AttachmentLength, original_length);
     }
 
     /// Returns the parent entity associated with this attachment, if any.
     pub fn parent_id(&self) -> Option<ParentId> {
         // Currently only `span_id` supported in `ParentId`.
-        let span_id = self.data().headers.get(ItemHeaderKey::SpanId)?;
+        let span_id = self.data().headers().get(ItemHeaderKey::SpanId)?;
         Some(ParentId::SpanId(span_id))
     }
 
@@ -93,7 +93,7 @@ impl AttachmentItem {
             ParentId::SpanId(span_id) => span_id,
         });
         self.data_mut()
-            .headers
+            .headers_mut()
             .set_or_remove(ItemHeaderKey::SpanId, span_id);
     }
 
@@ -148,7 +148,7 @@ impl AttachmentItem {
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
         } else if self.is_attachment_ref() {
             self.data()
-                .headers
+                .headers()
                 .get(ItemHeaderKey::AttachmentLength)
                 .unwrap_or(0)
         } else {

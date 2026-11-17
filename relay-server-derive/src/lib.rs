@@ -48,6 +48,11 @@ fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
                 match ty { #(#from_data),* }
             }
             pub fn ty(&self) -> &ItemType { match self { #(#tags),* } }
+            /// Returns the declared item count, or `None` if the header is unsupported,
+            /// absent, or invalid.
+            ///
+            /// Preserves the distinction between an explicitly declared count and an
+            /// unspecified count; callers decide whether to apply a default.
             pub fn item_count(&self) -> Option<u32> {
                 match self { #(#counts),* }
             }
@@ -86,7 +91,7 @@ impl ItemCountSupport {
             Self::Read | Self::ReadWrite => quote! {
                 impl ItemCount for #payload {
                     fn item_count(&self) -> Option<u32> {
-                        self.data.headers.get(ItemHeaderKey::ItemCount)
+                        self.data.headers().get(ItemHeaderKey::ItemCount)
                     }
                 }
             },

@@ -10,13 +10,13 @@ use smallvec::smallvec;
 impl ProfileItem {
     /// Returns the associated platform.
     pub fn platform(&self) -> Option<&str> {
-        self.data().headers.get(ItemHeaderKey::Platform)
+        self.data().headers().get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
     pub fn set_platform(&mut self, platform: String) {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::Platform, platform);
     }
 
@@ -28,14 +28,16 @@ impl ProfileItem {
     /// Gets the profile sampling flag.
     pub fn sampled(&self) -> bool {
         self.data()
-            .headers
+            .headers()
             .get(ItemHeaderKey::Sampled)
             .unwrap_or(true)
     }
 
     /// Sets the `sampled` flag.
     pub fn set_sampled(&mut self, sampled: bool) {
-        self.data_mut().headers.set(ItemHeaderKey::Sampled, sampled);
+        self.data_mut()
+            .headers_mut()
+            .set(ItemHeaderKey::Sampled, sampled);
     }
 }
 
