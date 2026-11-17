@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Pooled Redis and Redis cluster abstraction for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.10.1"
+version = "26.11.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -28,9 +28,13 @@ serde = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 thiserror = { workspace = true }
 
+relay-log = { workspace = true, optional = true }
 relay-statsd = { workspace = true, optional = true }
 relay-system = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
 [features]
 default = []
-impl = ["dep:deadpool", "dep:relay-statsd", "dep:redis"]
+impl = ["dep:deadpool", "dep:relay-log", "dep:relay-statsd", "dep:redis"]

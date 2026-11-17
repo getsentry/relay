@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
+- Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
+
+## 26.11.0
+
 **Features**:
 
 - Add a stack trace from the crash context to Unreal crash reports without a minidump, such as those from Linux, if its frames have names or the event has debug images. This is behind the `projects:relay-unreal-crash-context-stacktrace` feature. ([#6581](https://github.com/getsentry/relay/pull/6581))
@@ -47,6 +54,7 @@
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 - Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
 - Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
+- Allow the event type as a field prefix in rule conditions, such as `transaction.` for transactions and `replay.` for replays, in addition to `event.`. ([#6680](https://github.com/getsentry/relay/pull/6680))
 
 **Bug Fixes**:
 
