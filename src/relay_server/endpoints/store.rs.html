@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>    // event type. The processing queue expects those in an explicit item.
 <a href=#88 id=88 data-nosnippet>88</a>    </span><span class="kw">let </span>item_type = ItemType::from_event_type(minimal.ty);
 <a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">let </span><span class="kw-2">mut </span>event_item = Item::new(item_type);
-<a href=#90 id=90 data-nosnippet>90</a>    event_item.set_payload(ContentType::Json, body);
+<a href=#90 id=90 data-nosnippet>90</a>    event_item.data_mut().set_payload(ContentType::Json, body);
 <a href=#91 id=91 data-nosnippet>91</a>
 <a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">let </span>event_id = minimal.id.unwrap_or_else(EventId::new);
 <a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);

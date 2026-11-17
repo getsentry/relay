@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_cogs::{AppFeature, FeatureWeights};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_quotas::RateLimits;
 <a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{EnvelopeHeaders, Item, ItemType};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{EnvelopeHeaders, UserReportItem};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::managed::{
 <a href=#8 id=8 data-nosnippet>8</a>    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 <a href=#9 id=9 data-nosnippet>9</a>};
@@ -74,10 +74,10 @@
 <a href=#74 id=74 data-nosnippet>74</a>
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">fn </span>prepare_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, envelope: <span class="kw-2">&amp;mut </span>ManagedEnvelope) -&gt; <span class="prelude-ty">Option</span>&lt;Managed&lt;<span class="self">Self</span>::Input&gt;&gt; {
 <a href=#76 id=76 data-nosnippet>76</a>        <span class="kw">let </span>headers = envelope.envelope().headers().clone();
-<a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">let </span>reports: Vec&lt;Item&gt; = envelope
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">let </span>reports: Vec&lt;UserReportItem&gt; = envelope
 <a href=#78 id=78 data-nosnippet>78</a>            .envelope_mut()
-<a href=#79 id=79 data-nosnippet>79</a>            .take_items_by(|item| <span class="macro">matches!</span>(item.ty(), ItemType::UserReport))
-<a href=#80 id=80 data-nosnippet>80</a>            .into_vec();
+<a href=#79 id=79 data-nosnippet>79</a>            .drain_items::&lt;UserReportItem&gt;()
+<a href=#80 id=80 data-nosnippet>80</a>            .collect();
 <a href=#81 id=81 data-nosnippet>81</a>
 <a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">if </span>reports.is_empty() {
 <a href=#83 id=83 data-nosnippet>83</a>            <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -107,7 +107,7 @@
 <a href=#107 id=107 data-nosnippet>107</a>    <span class="doccomment">/// Original envelope headers.
 <a href=#108 id=108 data-nosnippet>108</a>    </span>headers: EnvelopeHeaders,
 <a href=#109 id=109 data-nosnippet>109</a>    <span class="doccomment">/// A list of reports.
-<a href=#110 id=110 data-nosnippet>110</a>    </span>reports: Vec&lt;Item&gt;,
+<a href=#110 id=110 data-nosnippet>110</a>    </span>reports: Vec&lt;UserReportItem&gt;,
 <a href=#111 id=111 data-nosnippet>111</a>}
 <a href=#112 id=112 data-nosnippet>112</a>
 <a href=#113 id=113 data-nosnippet>113</a><span class="kw">impl </span>Counted <span class="kw">for </span>SerializedUserReports {

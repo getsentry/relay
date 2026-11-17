@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">if </span>ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
 <a href=#18 id=18 data-nosnippet>18</a>        items.retain(
 <a href=#19 id=19 data-nosnippet>19</a>            |items| <span class="kw-2">&amp;mut </span>items.profile_chunks,
-<a href=#20 id=20 data-nosnippet>20</a>            |pc, <span class="kw">_</span>| <span class="kw">match </span>pc.content_type() {
+<a href=#20 id=20 data-nosnippet>20</a>            |pc, <span class="kw">_</span>| <span class="kw">match </span>pc.data().content_type() {
 <a href=#21 id=21 data-nosnippet>21</a>                <span class="prelude-val">Some</span>(ContentType::PerfettoTrace) =&gt; <span class="prelude-val">Err</span>(Error::FilterFeatureFlag),
 <a href=#22 id=22 data-nosnippet>22</a>                <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
 <a href=#23 id=23 data-nosnippet>23</a>            },

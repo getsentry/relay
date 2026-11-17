@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>relay_system::Addr;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>zstd::stream::Encoder <span class="kw">as </span>ZstdEncoder;
 <a href=#22 id=22 data-nosnippet>22</a>
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ClientReportItem, ContentType, Envelope, EnvelopeError};
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricsLimiter};
@@ -138,8 +138,8 @@
 <a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">for </span>client_report <span class="kw">in </span>client_reports {
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">match </span>client_report.serialize() {
 <a href=#140 id=140 data-nosnippet>140</a>            <span class="prelude-val">Ok</span>(payload) =&gt; {
-<a href=#141 id=141 data-nosnippet>141</a>                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ClientReport);
-<a href=#142 id=142 data-nosnippet>142</a>                item.set_payload(ContentType::Json, payload);
+<a href=#141 id=141 data-nosnippet>141</a>                <span class="kw">let </span><span class="kw-2">mut </span>item = ClientReportItem::new();
+<a href=#142 id=142 data-nosnippet>142</a>                item.data_mut().set_payload(ContentType::Json, payload);
 <a href=#143 id=143 data-nosnippet>143</a>                envelope.add_item(item);
 <a href=#144 id=144 data-nosnippet>144</a>            }
 <a href=#145 id=145 data-nosnippet>145</a>            <span class="prelude-val">Err</span>(error) =&gt; {

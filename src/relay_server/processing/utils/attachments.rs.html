@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#9 id=9 data-nosnippet>9</a></span><span class="kw">use </span><span class="kw">crate</span>::envelope::AttachmentPlaceholder;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Item, ItemType};
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentItem, AttachmentType, ContentType};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Managed, RecordKeeper, RetainMut};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::processing::Context;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingError;
@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#25 id=25 data-nosnippet>25</a>) <span class="kw">where
 <a href=#26 id=26 data-nosnippet>26</a>    </span>T: Counted,
-<a href=#27 id=27 data-nosnippet>27</a>    V: RetainMut&lt;Item&gt;,
+<a href=#27 id=27 data-nosnippet>27</a>    V: RetainMut&lt;AttachmentItem&gt;,
 <a href=#28 id=28 data-nosnippet>28</a>{
 <a href=#29 id=29 data-nosnippet>29</a>    managed.retain(select, |attachment, r| {
 <a href=#30 id=30 data-nosnippet>30</a>        <span class="kw">if </span>ctx.is_processing() {
@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>}
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused_variables))]
-<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">fn </span>validate(item: <span class="kw-2">&amp;mut </span>Item, config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">fn </span>validate(item: <span class="kw-2">&amp;mut </span>AttachmentItem, config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="attr">#[cfg(not(feature = <span class="string">"processing"</span>))]
 <a href=#42 id=42 data-nosnippet>42</a>    </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#43 id=43 data-nosnippet>43</a>
@@ -49,7 +49,7 @@
 <a href=#49 id=49 data-nosnippet>49</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#50 id=50 data-nosnippet>50</a>        }
 <a href=#51 id=51 data-nosnippet>51</a>
-<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>payload = item.payload();
+<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>payload = item.data().payload();
 <a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">let </span>payload: AttachmentPlaceholder =
 <a href=#54 id=54 data-nosnippet>54</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>payload).map_err(|<span class="kw">_</span>| ProcessingError::InvalidAttachmentRef)<span class="question-mark">?</span>;
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">let </span>signed_location: SignedLocation&lt;Final&gt; = SignedLocation::try_from_str(payload.location)
@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>/// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
 <a href=#77 id=77 data-nosnippet>77</a>/// modifies the attachment quantity.
 <a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub fn </span>scrub&lt;<span class="lifetime">'a</span>&gt;(
-<a href=#79 id=79 data-nosnippet>79</a>    attachments: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Item&gt;,
+<a href=#79 id=79 data-nosnippet>79</a>    attachments: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>AttachmentItem&gt;,
 <a href=#80 id=80 data-nosnippet>80</a>    project_info: <span class="kw-2">&amp;</span>ProjectInfo,
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="kw-2">mut </span>record_keeper: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>RecordKeeper&gt;,
 <a href=#82 id=82 data-nosnippet>82</a>) {
@@ -87,92 +87,92 @@
 <a href=#87 id=87 data-nosnippet>87</a>            .features
 <a href=#88 id=88 data-nosnippet>88</a>            .has(Feature::ViewHierarchyScrubbing);
 <a href=#89 id=89 data-nosnippet>89</a>        <span class="kw">for </span>item <span class="kw">in </span>attachments {
-<a href=#90 id=90 data-nosnippet>90</a>            <span class="macro">debug_assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#91 id=91 data-nosnippet>91</a>            <span class="kw">if </span>item.is_attachment_ref() {
-<a href=#92 id=92 data-nosnippet>92</a>                <span class="macro">relay_log::trace!</span>(<span class="string">"Skip attachment scrubbing for placeholder"</span>);
-<a href=#93 id=93 data-nosnippet>93</a>                <span class="kw">continue</span>;
-<a href=#94 id=94 data-nosnippet>94</a>            } <span class="kw">else if </span>view_hierarchy_scrubbing_enabled
-<a href=#95 id=95 data-nosnippet>95</a>                &amp;&amp; item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::ViewHierarchy)
-<a href=#96 id=96 data-nosnippet>96</a>            {
-<a href=#97 id=97 data-nosnippet>97</a>                <span class="kw">let </span>old_size = item.payload().len();
-<a href=#98 id=98 data-nosnippet>98</a>                scrub_view_hierarchy(item, config);
-<a href=#99 id=99 data-nosnippet>99</a>                <span class="kw">let </span>new_size = item.payload().len();
-<a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(record_keeper) = record_keeper.as_mut() {
-<a href=#102 id=102 data-nosnippet>102</a>                    record_keeper.modify_by(
-<a href=#103 id=103 data-nosnippet>103</a>                        relay_quotas::DataCategory::Attachment,
-<a href=#104 id=104 data-nosnippet>104</a>                        new_size <span class="kw">as </span>isize - old_size <span class="kw">as </span>isize,
-<a href=#105 id=105 data-nosnippet>105</a>                    );
-<a href=#106 id=106 data-nosnippet>106</a>                }
-<a href=#107 id=107 data-nosnippet>107</a>            } <span class="kw">else if </span>item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump) {
-<a href=#108 id=108 data-nosnippet>108</a>                scrub_minidump(project_info, item, config)
-<a href=#109 id=109 data-nosnippet>109</a>            } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment &amp;&amp; has_simple_attachment_selector(config) {
-<a href=#110 id=110 data-nosnippet>110</a>                <span class="comment">// We temporarily only scrub attachments to projects that have at least one simple attachment rule,
-<a href=#111 id=111 data-nosnippet>111</a>                // such as `$attachments.'foo.txt'`.
-<a href=#112 id=112 data-nosnippet>112</a>                // After we have assessed the impact on performance we can relax this condition.
-<a href=#113 id=113 data-nosnippet>113</a>                </span>scrub_attachment(project_info, item, config)
-<a href=#114 id=114 data-nosnippet>114</a>            }
-<a href=#115 id=115 data-nosnippet>115</a>        }
-<a href=#116 id=116 data-nosnippet>116</a>    }
-<a href=#117 id=117 data-nosnippet>117</a>}
-<a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a><span class="kw">fn </span>scrub_minidump(project_info: <span class="kw-2">&amp;</span>ProjectInfo, item: <span class="kw-2">&amp;mut </span>Item, config: <span class="kw-2">&amp;</span>PiiConfig) {
-<a href=#120 id=120 data-nosnippet>120</a>    <span class="macro">debug_assert_eq!</span>(item.attachment_type(), <span class="prelude-val">Some</span>(AttachmentType::Minidump));
-<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span>filename = item.filename().unwrap_or_default();
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload().to_vec();
-<a href=#123 id=123 data-nosnippet>123</a>
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
-<a href=#125 id=125 data-nosnippet>125</a>
-<a href=#126 id=126 data-nosnippet>126</a>    <span class="comment">// Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-<a href=#127 id=127 data-nosnippet>127</a>    // must be conservative and treat it as a plain attachment. Under extreme
-<a href=#128 id=128 data-nosnippet>128</a>    // conditions, this could destroy stack memory.
-<a href=#129 id=129 data-nosnippet>129</a>    </span><span class="kw">let </span>start = Instant::now();
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">match </span>processor.scrub_minidump(filename, <span class="kw-2">&amp;mut </span>payload) {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="prelude-val">Ok</span>(modified) =&gt; {
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="macro">metric!</span>(
-<a href=#133 id=133 data-nosnippet>133</a>                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-<a href=#134 id=134 data-nosnippet>134</a>                status = <span class="kw">if </span>modified { <span class="string">"ok" </span>} <span class="kw">else </span>{ <span class="string">"n/a" </span>},
-<a href=#135 id=135 data-nosnippet>135</a>            );
-<a href=#136 id=136 data-nosnippet>136</a>            <span class="kw">if </span>modified &amp;&amp; sample(<span class="number">0.1</span>).is_keep() {
-<a href=#137 id=137 data-nosnippet>137</a>                <span class="macro">relay_log::info!</span>(
-<a href=#138 id=138 data-nosnippet>138</a>                    sentry_project = <span class="question-mark">?</span>project_info.project_id,
-<a href=#139 id=139 data-nosnippet>139</a>                    <span class="string">"Minidump changed by scrubbing rules"</span>,
-<a href=#140 id=140 data-nosnippet>140</a>                );
-<a href=#141 id=141 data-nosnippet>141</a>            }
-<a href=#142 id=142 data-nosnippet>142</a>        }
-<a href=#143 id=143 data-nosnippet>143</a>        <span class="prelude-val">Err</span>(scrub_error) =&gt; {
-<a href=#144 id=144 data-nosnippet>144</a>            <span class="macro">metric!</span>(
-<a href=#145 id=145 data-nosnippet>145</a>                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-<a href=#146 id=146 data-nosnippet>146</a>                status = <span class="string">"error"
-<a href=#147 id=147 data-nosnippet>147</a>            </span>);
-<a href=#148 id=148 data-nosnippet>148</a>            <span class="macro">relay_log::debug!</span>(
-<a href=#149 id=149 data-nosnippet>149</a>                error = <span class="kw-2">&amp;</span>scrub_error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-<a href=#150 id=150 data-nosnippet>150</a>                <span class="string">"failed to scrub minidump"</span>,
-<a href=#151 id=151 data-nosnippet>151</a>            );
-<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span>start = Instant::now();
-<a href=#153 id=153 data-nosnippet>153</a>            <span class="kw">let </span>modified = processor.scrub_attachment(filename, <span class="kw-2">&amp;mut </span>payload);
-<a href=#154 id=154 data-nosnippet>154</a>            <span class="macro">metric!</span>(
-<a href=#155 id=155 data-nosnippet>155</a>                timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
-<a href=#156 id=156 data-nosnippet>156</a>                attachment_type = <span class="string">"minidump"</span>,
-<a href=#157 id=157 data-nosnippet>157</a>                status = <span class="kw">if </span>modified { <span class="string">"ok" </span>} <span class="kw">else </span>{ <span class="string">"n/a" </span>},
-<a href=#158 id=158 data-nosnippet>158</a>            );
-<a href=#159 id=159 data-nosnippet>159</a>            <span class="kw">if </span>modified {
-<a href=#160 id=160 data-nosnippet>160</a>                <span class="macro">relay_log::info!</span>(
-<a href=#161 id=161 data-nosnippet>161</a>                    sentry_project = <span class="question-mark">?</span>project_info.project_id,
-<a href=#162 id=162 data-nosnippet>162</a>                    <span class="string">"Minidump changed by fallback rules"</span>,
-<a href=#163 id=163 data-nosnippet>163</a>                );
-<a href=#164 id=164 data-nosnippet>164</a>            }
-<a href=#165 id=165 data-nosnippet>165</a>        }
-<a href=#166 id=166 data-nosnippet>166</a>    }
-<a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>    item.set_default_content_type(ContentType::Minidump);
-<a href=#169 id=169 data-nosnippet>169</a>    item.set_payload_without_content_type(payload);
+<a href=#90 id=90 data-nosnippet>90</a>            <span class="kw">if </span>item.is_attachment_ref() {
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="macro">relay_log::trace!</span>(<span class="string">"Skip attachment scrubbing for placeholder"</span>);
+<a href=#92 id=92 data-nosnippet>92</a>                <span class="kw">continue</span>;
+<a href=#93 id=93 data-nosnippet>93</a>            } <span class="kw">else if </span>view_hierarchy_scrubbing_enabled
+<a href=#94 id=94 data-nosnippet>94</a>                &amp;&amp; item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::ViewHierarchy)
+<a href=#95 id=95 data-nosnippet>95</a>            {
+<a href=#96 id=96 data-nosnippet>96</a>                <span class="kw">let </span>old_size = item.data().payload().len();
+<a href=#97 id=97 data-nosnippet>97</a>                scrub_view_hierarchy(item, config);
+<a href=#98 id=98 data-nosnippet>98</a>                <span class="kw">let </span>new_size = item.data().payload().len();
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(record_keeper) = record_keeper.as_mut() {
+<a href=#101 id=101 data-nosnippet>101</a>                    record_keeper.modify_by(
+<a href=#102 id=102 data-nosnippet>102</a>                        relay_quotas::DataCategory::Attachment,
+<a href=#103 id=103 data-nosnippet>103</a>                        new_size <span class="kw">as </span>isize - old_size <span class="kw">as </span>isize,
+<a href=#104 id=104 data-nosnippet>104</a>                    );
+<a href=#105 id=105 data-nosnippet>105</a>                }
+<a href=#106 id=106 data-nosnippet>106</a>            } <span class="kw">else if </span>item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump) {
+<a href=#107 id=107 data-nosnippet>107</a>                scrub_minidump(project_info, item, config)
+<a href=#108 id=108 data-nosnippet>108</a>            } <span class="kw">else if </span>has_simple_attachment_selector(config) {
+<a href=#109 id=109 data-nosnippet>109</a>                <span class="comment">// We temporarily only scrub attachments to projects that have at least one simple attachment rule,
+<a href=#110 id=110 data-nosnippet>110</a>                // such as `$attachments.'foo.txt'`.
+<a href=#111 id=111 data-nosnippet>111</a>                // After we have assessed the impact on performance we can relax this condition.
+<a href=#112 id=112 data-nosnippet>112</a>                </span>scrub_attachment(project_info, item, config)
+<a href=#113 id=113 data-nosnippet>113</a>            }
+<a href=#114 id=114 data-nosnippet>114</a>        }
+<a href=#115 id=115 data-nosnippet>115</a>    }
+<a href=#116 id=116 data-nosnippet>116</a>}
+<a href=#117 id=117 data-nosnippet>117</a>
+<a href=#118 id=118 data-nosnippet>118</a><span class="kw">fn </span>scrub_minidump(project_info: <span class="kw-2">&amp;</span>ProjectInfo, item: <span class="kw-2">&amp;mut </span>AttachmentItem, config: <span class="kw-2">&amp;</span>PiiConfig) {
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="macro">debug_assert_eq!</span>(item.attachment_type(), <span class="prelude-val">Some</span>(AttachmentType::Minidump));
+<a href=#120 id=120 data-nosnippet>120</a>    <span class="kw">let </span>filename = item.filename().unwrap_or_default();
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">let </span><span class="kw-2">mut </span>payload = item.data().payload().to_vec();
+<a href=#122 id=122 data-nosnippet>122</a>
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
+<a href=#124 id=124 data-nosnippet>124</a>
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="comment">// Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
+<a href=#126 id=126 data-nosnippet>126</a>    // must be conservative and treat it as a plain attachment. Under extreme
+<a href=#127 id=127 data-nosnippet>127</a>    // conditions, this could destroy stack memory.
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">let </span>start = Instant::now();
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">match </span>processor.scrub_minidump(filename, <span class="kw-2">&amp;mut </span>payload) {
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="prelude-val">Ok</span>(modified) =&gt; {
+<a href=#131 id=131 data-nosnippet>131</a>            <span class="macro">metric!</span>(
+<a href=#132 id=132 data-nosnippet>132</a>                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+<a href=#133 id=133 data-nosnippet>133</a>                status = <span class="kw">if </span>modified { <span class="string">"ok" </span>} <span class="kw">else </span>{ <span class="string">"n/a" </span>},
+<a href=#134 id=134 data-nosnippet>134</a>            );
+<a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">if </span>modified &amp;&amp; sample(<span class="number">0.1</span>).is_keep() {
+<a href=#136 id=136 data-nosnippet>136</a>                <span class="macro">relay_log::info!</span>(
+<a href=#137 id=137 data-nosnippet>137</a>                    sentry_project = <span class="question-mark">?</span>project_info.project_id,
+<a href=#138 id=138 data-nosnippet>138</a>                    <span class="string">"Minidump changed by scrubbing rules"</span>,
+<a href=#139 id=139 data-nosnippet>139</a>                );
+<a href=#140 id=140 data-nosnippet>140</a>            }
+<a href=#141 id=141 data-nosnippet>141</a>        }
+<a href=#142 id=142 data-nosnippet>142</a>        <span class="prelude-val">Err</span>(scrub_error) =&gt; {
+<a href=#143 id=143 data-nosnippet>143</a>            <span class="macro">metric!</span>(
+<a href=#144 id=144 data-nosnippet>144</a>                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+<a href=#145 id=145 data-nosnippet>145</a>                status = <span class="string">"error"
+<a href=#146 id=146 data-nosnippet>146</a>            </span>);
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="macro">relay_log::debug!</span>(
+<a href=#148 id=148 data-nosnippet>148</a>                error = <span class="kw-2">&amp;</span>scrub_error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+<a href=#149 id=149 data-nosnippet>149</a>                <span class="string">"failed to scrub minidump"</span>,
+<a href=#150 id=150 data-nosnippet>150</a>            );
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span>start = Instant::now();
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span>modified = processor.scrub_attachment(filename, <span class="kw-2">&amp;mut </span>payload);
+<a href=#153 id=153 data-nosnippet>153</a>            <span class="macro">metric!</span>(
+<a href=#154 id=154 data-nosnippet>154</a>                timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
+<a href=#155 id=155 data-nosnippet>155</a>                attachment_type = <span class="string">"minidump"</span>,
+<a href=#156 id=156 data-nosnippet>156</a>                status = <span class="kw">if </span>modified { <span class="string">"ok" </span>} <span class="kw">else </span>{ <span class="string">"n/a" </span>},
+<a href=#157 id=157 data-nosnippet>157</a>            );
+<a href=#158 id=158 data-nosnippet>158</a>            <span class="kw">if </span>modified {
+<a href=#159 id=159 data-nosnippet>159</a>                <span class="macro">relay_log::info!</span>(
+<a href=#160 id=160 data-nosnippet>160</a>                    sentry_project = <span class="question-mark">?</span>project_info.project_id,
+<a href=#161 id=161 data-nosnippet>161</a>                    <span class="string">"Minidump changed by fallback rules"</span>,
+<a href=#162 id=162 data-nosnippet>162</a>                );
+<a href=#163 id=163 data-nosnippet>163</a>            }
+<a href=#164 id=164 data-nosnippet>164</a>        }
+<a href=#165 id=165 data-nosnippet>165</a>    }
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a>    item.data_mut()
+<a href=#168 id=168 data-nosnippet>168</a>        .set_default_content_type(ContentType::Minidump);
+<a href=#169 id=169 data-nosnippet>169</a>    item.data_mut().set_payload_without_content_type(payload);
 <a href=#170 id=170 data-nosnippet>170</a>}
 <a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a><span class="kw">fn </span>scrub_view_hierarchy(item: <span class="kw-2">&amp;mut </span>Item, config: <span class="kw-2">&amp;</span>PiiConfig) {
+<a href=#172 id=172 data-nosnippet>172</a><span class="kw">fn </span>scrub_view_hierarchy(item: <span class="kw-2">&amp;mut </span>AttachmentItem, config: <span class="kw-2">&amp;</span>PiiConfig) {
 <a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
 <a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">let </span>payload = item.payload();
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">let </span>payload = item.data().payload();
 <a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">let </span>start = Instant::now();
 <a href=#177 id=177 data-nosnippet>177</a>    <span class="kw">match </span>processor.scrub_json(<span class="kw-2">&amp;</span>payload) {
 <a href=#178 id=178 data-nosnippet>178</a>        <span class="prelude-val">Ok</span>(output) =&gt; {
@@ -180,8 +180,8 @@
 <a href=#180 id=180 data-nosnippet>180</a>                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
 <a href=#181 id=181 data-nosnippet>181</a>                status = <span class="kw">if </span>output != payload { <span class="string">"ok" </span>} <span class="kw">else </span>{ <span class="string">"n/a" </span>}
 <a href=#182 id=182 data-nosnippet>182</a>            );
-<a href=#183 id=183 data-nosnippet>183</a>            item.set_default_content_type(ContentType::Json);
-<a href=#184 id=184 data-nosnippet>184</a>            item.set_payload_without_content_type(output);
+<a href=#183 id=183 data-nosnippet>183</a>            item.data_mut().set_default_content_type(ContentType::Json);
+<a href=#184 id=184 data-nosnippet>184</a>            item.data_mut().set_payload_without_content_type(output);
 <a href=#185 id=185 data-nosnippet>185</a>        }
 <a href=#186 id=186 data-nosnippet>186</a>        <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#187 id=187 data-nosnippet>187</a>            <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to scrub view hierarchy"</span>,);
@@ -211,9 +211,9 @@
 <a href=#211 id=211 data-nosnippet>211</a>    <span class="bool-val">false
 <a href=#212 id=212 data-nosnippet>212</a></span>}
 <a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a><span class="kw">fn </span>scrub_attachment(project_info: <span class="kw-2">&amp;</span>ProjectInfo, item: <span class="kw-2">&amp;mut </span>Item, config: <span class="kw-2">&amp;</span>PiiConfig) {
+<a href=#214 id=214 data-nosnippet>214</a><span class="kw">fn </span>scrub_attachment(project_info: <span class="kw-2">&amp;</span>ProjectInfo, item: <span class="kw-2">&amp;mut </span>AttachmentItem, config: <span class="kw-2">&amp;</span>PiiConfig) {
 <a href=#215 id=215 data-nosnippet>215</a>    <span class="kw">let </span>filename = item.filename().unwrap_or_default();
-<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload().to_vec();
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">let </span><span class="kw-2">mut </span>payload = item.data().payload().to_vec();
 <a href=#217 id=217 data-nosnippet>217</a>
 <a href=#218 id=218 data-nosnippet>218</a>    <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
 <a href=#219 id=219 data-nosnippet>219</a>    <span class="kw">let </span>attachment_type_tag = <span class="kw">match </span>item.attachment_type() {
@@ -234,7 +234,7 @@
 <a href=#234 id=234 data-nosnippet>234</a>        );
 <a href=#235 id=235 data-nosnippet>235</a>    }
 <a href=#236 id=236 data-nosnippet>236</a>
-<a href=#237 id=237 data-nosnippet>237</a>    item.set_payload_without_content_type(payload);
+<a href=#237 id=237 data-nosnippet>237</a>    item.data_mut().set_payload_without_content_type(payload);
 <a href=#238 id=238 data-nosnippet>238</a>}
 <a href=#239 id=239 data-nosnippet>239</a>
 <a href=#240 id=240 data-nosnippet>240</a><span class="attr">#[cfg(test)]

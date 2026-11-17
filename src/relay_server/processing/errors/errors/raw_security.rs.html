@@ -1,12 +1,12 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/processing/errors/errors/raw_security.rs`."><title>raw_security.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/processing/errors/errors/</div>raw_security.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>relay_base_schema::events::EventType;
-<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
-<a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_protocol::Annotated;
-<a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_quotas::DataCategory;
-<a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Item, ItemType};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Quantities, RecordKeeper};
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::processing::ForwardContext;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/processing/errors/errors/raw_security.rs`."><title>raw_security.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0 (0ef1bc386 2026-11-09)" data-channel="1.100.0" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/processing/errors/errors/</div>raw_security.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">super</span>::ErrorPayload;
+<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>relay_base_schema::events::EventType;
+<a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
+<a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_protocol::Annotated;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_quotas::DataCategory;
+<a href=#6 id=6 data-nosnippet>6</a>
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentItem, Item, RawSecurityItem, UserReportItem};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Counted, Quantities, RecordKeeper};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::errors::{Context, Expansion, SentryError};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::{<span class="prelude-ty">Result</span>, utils};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingError;
@@ -21,7 +21,7 @@
 <a href=#21 id=21 data-nosnippet>21</a>    }
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a>    <span class="kw">fn </span>try_expand(items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Expansion&lt;<span class="self">Self</span>&gt;&gt;&gt; {
-<a href=#24 id=24 data-nosnippet>24</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(item) = utils::take_item_of_type(items, ItemType::RawSecurity) <span class="kw">else </span>{
+<a href=#24 id=24 data-nosnippet>24</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(item) = utils::take_item::&lt;RawSecurityItem&gt;(items) <span class="kw">else </span>{
 <a href=#25 id=25 data-nosnippet>25</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
 <a href=#26 id=26 data-nosnippet>26</a>        };
 <a href=#27 id=27 data-nosnippet>27</a>
@@ -33,9 +33,9 @@
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Expansion {
 <a href=#35 id=35 data-nosnippet>35</a>            event: Box::new(event),
-<a href=#36 id=36 data-nosnippet>36</a>            attachments: utils::take_items_of_type(items, ItemType::Attachment),
+<a href=#36 id=36 data-nosnippet>36</a>            attachments: utils::take_items::&lt;AttachmentItem&gt;(items).collect(),
 <a href=#37 id=37 data-nosnippet>37</a>            flamegraph: <span class="prelude-val">None</span>,
-<a href=#38 id=38 data-nosnippet>38</a>            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+<a href=#38 id=38 data-nosnippet>38</a>            user_reports: utils::take_items::&lt;UserReportItem&gt;(items).collect(),
 <a href=#39 id=39 data-nosnippet>39</a>            intermediates: <span class="macro">vec!</span>[],
 <a href=#40 id=40 data-nosnippet>40</a>            error: <span class="self">Self</span>,
 <a href=#41 id=41 data-nosnippet>41</a>            metrics,
@@ -52,11 +52,11 @@
 <a href=#52 id=52 data-nosnippet>52</a>        <span class="prelude-val">Ok</span>(())
 <a href=#53 id=53 data-nosnippet>53</a>    }
 <a href=#54 id=54 data-nosnippet>54</a>
-<a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">fn </span>serialize_into(<span class="self">self</span>, _items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, _ctx: ForwardContext&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#56 id=56 data-nosnippet>56</a>        <span class="prelude-val">Ok</span>(())
+<a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">fn </span>into_payload(<span class="self">self</span>) -&gt; ErrorPayload {
+<a href=#56 id=56 data-nosnippet>56</a>        ErrorPayload::default()
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>minidump_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Item&gt; {
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>minidump_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>AttachmentItem&gt; {
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="prelude-val">None
 <a href=#61 id=61 data-nosnippet>61</a>    </span>}
 <a href=#62 id=62 data-nosnippet>62</a>}
@@ -68,13 +68,13 @@
 <a href=#68 id=68 data-nosnippet>68</a>}
 <a href=#69 id=69 data-nosnippet>69</a>
 <a href=#70 id=70 data-nosnippet>70</a><span class="kw">fn </span>event_from_security_report(
-<a href=#71 id=71 data-nosnippet>71</a>    item: Item,
+<a href=#71 id=71 data-nosnippet>71</a>    item: RawSecurityItem,
 <a href=#72 id=72 data-nosnippet>72</a>    meta: <span class="kw-2">&amp;</span>RequestMeta,
 <a href=#73 id=73 data-nosnippet>73</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Annotated&lt;Event&gt;, usize), ProcessingError&gt; {
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span>len = item.len();
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span>len = item.data().len();
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
 <a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>bytes = item.payload();
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>bytes = item.data().payload();
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">let </span>data = <span class="kw-2">&amp;</span>bytes;
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(report_type) =
 <a href=#80 id=80 data-nosnippet>80</a>        SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)<span class="question-mark">?
@@ -97,11 +97,11 @@
 <a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidSecurityReport(json_error));
 <a href=#98 id=98 data-nosnippet>98</a>    }
 <a href=#99 id=99 data-nosnippet>99</a>
-<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = item.sentry_release() {
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = item.data().sentry_release() {
 <a href=#101 id=101 data-nosnippet>101</a>        event.release = Annotated::from(LenientString(release.to_owned()));
 <a href=#102 id=102 data-nosnippet>102</a>    }
 <a href=#103 id=103 data-nosnippet>103</a>
-<a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(env) = item.sentry_environment() {
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(env) = item.data().sentry_environment() {
 <a href=#105 id=105 data-nosnippet>105</a>        event.environment = Annotated::from(env.to_owned());
 <a href=#106 id=106 data-nosnippet>106</a>    }
 <a href=#107 id=107 data-nosnippet>107</a>
