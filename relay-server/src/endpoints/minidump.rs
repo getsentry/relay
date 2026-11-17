@@ -27,8 +27,8 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardRe
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ByteStream, ProjectContext, Upload};
 use crate::utils::{
-    self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
-    read_bytes_into_item, read_field_into_item,
+    self, AttachmentStrategy, MultipartItems, SizeSplit, find_error_source, is_length_limit_error,
+    peek_n, read_bytes_into_item, read_field_into_item,
 };
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -406,7 +406,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
     let config = state.config();
 
@@ -612,11 +612,11 @@ async fn items(
     meta: &RequestMeta,
     content_type: RawContentType,
     request: Request,
-) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         raw_minidump_to_item(request, meta, state, upload_context)
             .await?
-            .map(|item, _| utils::MultipartItems {
+            .map(|item, _| MultipartItems {
                 attachments: smallvec![item],
                 form_data: None,
             })
