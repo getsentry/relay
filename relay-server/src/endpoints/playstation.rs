@@ -21,7 +21,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ProjectContext, Upload};
-use crate::utils::{self, AttachmentStrategy, SizeSplit};
+use crate::utils::{self, AttachmentStrategy, MultipartItems, SizeSplit};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -198,7 +198,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<utils::MultipartItems>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
         &state.config(),
