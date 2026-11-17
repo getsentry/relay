@@ -1,6 +1,5 @@
 //! Shared headers and serialized payload storage.
 
-use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::AddAssign;
 
@@ -9,30 +8,41 @@ use bytes::Bytes;
 use serde::Serialize;
 use uuid::Uuid;
 
-use super::headers::ItemHeadersRef;
-use super::{CommonItemHeaders, ContentType, ItemHeaderKey, ItemType};
+use super::headers::{CommonItemHeaders, ItemHeadersRef};
+use super::{ContentType, ItemHeaderKey, ItemType};
 use crate::utils::DebugBytes;
 
 /// Raw headers and payload shared by all item types.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ItemData {
-    pub(super) headers: CommonItemHeaders,
-    pub(in crate::envelope) payload: Bytes,
+    headers: CommonItemHeaders,
+    payload: Bytes,
 }
 
 impl ItemData {
     /// Creates empty storage for a serialized item.
-    pub(super) fn new() -> Self {
-        Self {
-            headers: CommonItemHeaders {
-                stored_key: None,
-                rate_limited: false,
-                source_quantities: None,
-                routing_hint: None,
-                inner: BTreeMap::new(),
-            },
-            payload: Bytes::new(),
-        }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates storage from parsed headers and payload without modifying either.
+    pub fn from_parts(headers: CommonItemHeaders, payload: Bytes) -> Self {
+        Self { headers, payload }
+    }
+
+    /// Returns the shared item headers.
+    pub fn headers(&self) -> &CommonItemHeaders {
+        &self.headers
+    }
+
+    /// Returns mutable access to the shared item headers.
+    pub fn headers_mut(&mut self) -> &mut CommonItemHeaders {
+        &mut self.headers
+    }
+
+    /// Borrows the serialized payload without cloning its shared buffer.
+    pub fn payload_ref(&self) -> &[u8] {
+        &self.payload
     }
 
     /// Returns the length of this item's payload.
@@ -112,7 +122,7 @@ impl ItemData {
     }
 
     /// Sets the payload, content-type and item count of this envelope item.
-    pub(super) fn set_payload_with_item_count<B>(
+    pub fn set_payload_with_item_count<B>(
         &mut self,
         content_type: ContentType,
         payload: B,
@@ -128,32 +138,32 @@ impl ItemData {
 
     /// Returns the routing_hint of this item.
     pub fn routing_hint(&self) -> Option<Uuid> {
-        self.headers.routing_hint
+        self.headers.routing_hint()
     }
 
     /// Set the routing_hint of this item.
     pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
-        self.headers.routing_hint = Some(routing_hint);
+        self.headers.set_routing_hint(routing_hint);
     }
 
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
-        self.headers.rate_limited
+        self.headers.rate_limited()
     }
 
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
-        self.headers.rate_limited = rate_limited;
+        self.headers.set_rate_limited(rate_limited);
     }
 
     /// Returns the contained source quantities.
     pub fn source_quantities(&self) -> Option<SourceQuantities> {
-        self.headers.source_quantities
+        self.headers.source_quantities()
     }
 
     /// Sets new source quantities.
     pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
-        self.headers.source_quantities = Some(source_quantities);
+        self.headers.set_source_quantities(source_quantities);
     }
 
     /// Returns the fully normalized flag.
@@ -197,19 +207,13 @@ impl ItemData {
 
     /// Sets arbitrary headers for tests, including invalid and misplaced values.
     #[cfg(test)]
-    pub(crate) fn set_test_header<T: Serialize>(&mut self, key: ItemHeaderKey, value: Option<T>) {
+    pub fn set_test_header<T: Serialize>(&mut self, key: ItemHeaderKey, value: Option<T>) {
         self.headers.set_or_remove(key, value);
     }
 
-    pub(super) fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: &ItemType) -> fmt::Result {
+    pub fn debug_with_type(&self, f: &mut fmt::Formatter<'_>, ty: &ItemType) -> fmt::Result {
         f.debug_struct("Item")
-            .field(
-                "headers",
-                &ItemHeadersRef {
-                    ty,
-                    data: &self.headers,
-                },
-            )
+            .field("headers", &ItemHeadersRef::new(ty, &self.headers))
             .field("payload", &DebugBytes(&self.payload))
             .finish()
     }

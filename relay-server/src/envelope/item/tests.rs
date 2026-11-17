@@ -349,7 +349,7 @@ fn test_item_set_content_type() {
     assert_eq!(item.data().content_type(), Some(ContentType::OctetStream));
     assert_eq!(item.data().payload(), payload);
     assert_eq!(
-        item.data().headers.get::<usize>(ItemHeaderKey::Length),
+        item.data().headers().get::<usize>(ItemHeaderKey::Length),
         Some(payload.len())
     );
 }
@@ -432,7 +432,7 @@ fn test_item_headers() {
     )
     .unwrap();
 
-    assert_eq!(headers.ty, ItemType::Attachment);
+    assert_eq!(headers.ty(), &ItemType::Attachment);
     assert!(headers.contains(ItemHeaderKey::Length));
     assert_eq!(headers.get(ItemHeaderKey::Length), Some(42u32));
     assert_eq!(headers.get(ItemHeaderKey::Filename), Some("test.txt"));

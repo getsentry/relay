@@ -631,7 +631,7 @@ impl Envelope {
                 .map_err(EnvelopeError::HeaderIoFailed)?;
             self.write(&mut writer, b"\n")?;
 
-            self.write(&mut writer, &item.data().payload)?;
+            self.write(&mut writer, item.data().payload_ref())?;
             self.write(&mut writer, b"\n")?;
         }
 

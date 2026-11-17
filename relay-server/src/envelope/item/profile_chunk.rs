@@ -10,13 +10,13 @@ use smallvec::smallvec;
 impl ProfileChunkItem {
     /// Returns the associated platform.
     pub fn platform(&self) -> Option<&str> {
-        self.data().headers.get(ItemHeaderKey::Platform)
+        self.data().headers().get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
     pub fn set_platform(&mut self, platform: String) {
         self.data_mut()
-            .headers
+            .headers_mut()
             .set(ItemHeaderKey::Platform, platform);
     }
 
@@ -27,7 +27,7 @@ impl ProfileChunkItem {
 
     /// Returns the length of the metadata segment for a Perfetto profile chunk.
     pub fn meta_length(&self) -> Option<u32> {
-        self.data().headers.get(ItemHeaderKey::MetaLength)
+        self.data().headers().get(ItemHeaderKey::MetaLength)
     }
 }
 

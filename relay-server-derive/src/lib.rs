@@ -91,7 +91,7 @@ impl ItemCountSupport {
             Self::Read | Self::ReadWrite => quote! {
                 impl ItemCount for #payload {
                     fn item_count(&self) -> Option<u32> {
-                        self.data.headers.get(ItemHeaderKey::ItemCount)
+                        self.data.headers().get(ItemHeaderKey::ItemCount)
                     }
                 }
             },
