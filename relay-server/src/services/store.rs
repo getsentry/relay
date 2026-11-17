@@ -37,7 +37,10 @@ use relay_statsd::metric;
 use relay_system::{FromMessage, Interface, MessageHandler, NoResponse, Service};
 use relay_threading::{AsyncPoolService, ServicePool};
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
+use crate::envelope::{
+    AttachmentItem, AttachmentPlaceholder, AttachmentType, ContentType, Item, ProfileItem,
+    UserReportItem,
+};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 
@@ -126,9 +129,9 @@ pub struct StoreEvent {
     /// The event to be stored.
     pub event: Annotated<Event>,
     /// A list of attachments associated with the event.
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
     /// A list of user reports associated with the event.
-    pub user_reports: Vec<Item>,
+    pub user_reports: Vec<UserReportItem>,
     /// Event retention in days.
     pub retention_days: u16,
 }
@@ -252,7 +255,7 @@ pub struct StoreAttachment {
     /// The event ID.
     pub event_id: EventId,
     /// That attachment item.
-    pub attachment: Item,
+    pub attachment: AttachmentItem,
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
     /// Data retention in days for this attachment.
@@ -271,7 +274,7 @@ pub struct StoreUserReport {
     /// The event ID.
     pub event_id: EventId,
     /// The user report.
-    pub report: Item,
+    pub report: UserReportItem,
 }
 
 impl Counted for StoreUserReport {
@@ -286,7 +289,7 @@ pub struct StoreProfile {
     /// Number of days to retain.
     pub retention_days: u16,
     /// The profile.
-    pub profile: Item,
+    pub profile: ProfileItem,
     /// Outcome quantities associated with this profile.
     pub quantities: Quantities,
 }
@@ -828,7 +831,7 @@ impl StoreService {
                 project_id: scoping.project_id,
                 event_id: report.event_id,
                 start_time: safe_timestamp(received_at),
-                payload: report.report.payload(),
+                payload: report.report.data().payload(),
                 org_id: scoping.organization_id,
             });
             self.produce(KafkaTopic::Attachments, kafka_msg)
@@ -863,8 +866,8 @@ impl StoreService {
                 retention_days: check_in.retention_days,
                 start_time: safe_timestamp(received_at),
                 sdk: check_in.sdk,
-                payload: check_in.check_in.payload(),
-                routing_key_hint: check_in.check_in.routing_hint(),
+                payload: check_in.check_in.data().payload(),
+                routing_key_hint: check_in.check_in.data().routing_hint(),
             });
 
             self.produce(KafkaTopic::Monitors, message)
@@ -956,7 +959,7 @@ impl StoreService {
 
     fn chunked_attachment_from_placeholder(
         &self,
-        item: &Item,
+        item: &AttachmentItem,
         retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
         debug_assert!(
@@ -964,7 +967,7 @@ impl StoreService {
             "AttachmentRef should not have been uploaded to objectstore"
         );
 
-        let payload = item.payload();
+        let payload = item.data().payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
         let config = self.config.current();
@@ -978,7 +981,7 @@ impl StoreService {
         Ok(ChunkedAttachment {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
-            rate_limited: item.rate_limited(),
+            rate_limited: item.data().rate_limited(),
             content_type: placeholder.content_type,
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
@@ -992,14 +995,14 @@ impl StoreService {
         event_id: EventId,
         project_id: ProjectId,
         org_id: OrganizationId,
-        item: &Item,
+        item: &AttachmentItem,
         send_individual_attachments: bool,
         retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
-        let payload = item.payload();
-        let size = item.len();
+        let payload = item.data().payload();
+        let size = item.data().len();
         let max_chunk_size = self.config.current().attachment_chunk_size();
 
         let payload = if size == 0 {
@@ -1046,8 +1049,11 @@ impl StoreService {
                 Some(name) => name.to_owned(),
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
-            rate_limited: item.rate_limited(),
-            content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
+            rate_limited: item.data().rate_limited(),
+            content_type: item
+                .data()
+                .raw_content_type()
+                .map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             retention_days,
@@ -1071,7 +1077,7 @@ impl StoreService {
         event_id: EventId,
         project_id: ProjectId,
         org_id: OrganizationId,
-        item: &Item,
+        item: &AttachmentItem,
         send_individual_attachments: bool,
         retention_days: u16,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
@@ -1108,13 +1114,13 @@ impl StoreService {
         project_id: ProjectId,
         org_id: OrganizationId,
         received_at: DateTime<Utc>,
-        item: &Item,
+        item: &UserReportItem,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::UserReport(UserReportKafkaMessage {
             project_id,
             event_id,
             start_time: safe_timestamp(received_at),
-            payload: item.payload(),
+            payload: item.data().payload(),
             org_id,
         });
 
@@ -1202,7 +1208,7 @@ impl StoreService {
         key_id: Option<u64>,
         received_at: DateTime<Utc>,
         retention_days: u16,
-        item: &Item,
+        item: &ProfileItem,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
             organization_id,
@@ -1217,7 +1223,7 @@ impl StoreService {
                 ),
                 ("project_id".to_owned(), project_id.to_string()),
             ]),
-            payload: item.payload(),
+            payload: item.data().payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         Ok(())

@@ -1,20 +1,24 @@
+use crate::envelope::{AttachmentItem, AttachmentType};
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Breadcrumb, Event, Values};
 use relay_protocol::{Annotated, Array, Object};
 
-use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
 use crate::utils::rmp;
 
 pub fn event_from_attachments(
     config: &ConfigSnapshot,
-    event_item: Option<Item>,
-    breadcrumbs_item1: Option<Item>,
-    breadcrumbs_item2: Option<Item>,
+    event_item: Option<AttachmentItem>,
+    breadcrumbs_item1: Option<AttachmentItem>,
+    breadcrumbs_item2: Option<AttachmentItem>,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
-    let len = event_item.as_ref().map_or(0, |item| item.len())
-        + breadcrumbs_item1.as_ref().map_or(0, |item| item.len())
-        + breadcrumbs_item2.as_ref().map_or(0, |item| item.len());
+    let len = event_item.as_ref().map_or(0, |item| item.data().len())
+        + breadcrumbs_item1
+            .as_ref()
+            .map_or(0, |item| item.data().len())
+        + breadcrumbs_item2
+            .as_ref()
+            .map_or(0, |item| item.data().len());
 
     let mut event = extract_attached_event(config, event_item)?;
     let mut breadcrumbs1 = parse_msgpack_breadcrumbs(config, breadcrumbs_item1)?;
@@ -60,31 +64,35 @@ pub fn event_from_attachments(
 
 fn extract_attached_event(
     config: &ConfigSnapshot,
-    item: Option<Item>,
+    item: Option<AttachmentItem>,
 ) -> Result<Annotated<Event>, ProcessingError> {
     let item = match item {
-        Some(item) if !item.is_empty() => item,
+        Some(item) if !item.data().is_empty() => item,
         _ => return Ok(Annotated::new(Event::default())),
     };
 
     // Protect against blowing up during deserialization. Attachments can have a significantly
     // larger size than regular events and may cause significant processing delays.
-    if item.len() > config.max_event_size() {
-        return Err(ProcessingError::PayloadTooLarge((&item).into()));
+    if item.data().len() > config.max_event_size() {
+        return Err(ProcessingError::PayloadTooLarge(
+            item.attachment_type()
+                .unwrap_or(AttachmentType::Attachment)
+                .into(),
+        ));
     }
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let deserializer = &mut rmp::slice_deserializer(payload.as_ref());
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
 
 fn parse_msgpack_breadcrumbs(
     config: &ConfigSnapshot,
-    item: Option<Item>,
+    item: Option<AttachmentItem>,
 ) -> Result<Array<Breadcrumb>, ProcessingError> {
     let mut breadcrumbs = Array::new();
     let item = match item {
-        Some(item) if !item.is_empty() => item,
+        Some(item) if !item.data().is_empty() => item,
         _ => return Ok(breadcrumbs),
     };
 
@@ -92,11 +100,15 @@ fn parse_msgpack_breadcrumbs(
     // truncated to a maximum of 100 in event normalization, but this is to protect us from
     // blowing up during deserialization. As approximation, we use the maximum event payload
     // size as bound, which is roughly in the right ballpark.
-    if item.len() > config.max_event_size() {
-        return Err(ProcessingError::PayloadTooLarge((&item).into()));
+    if item.data().len() > config.max_event_size() {
+        return Err(ProcessingError::PayloadTooLarge(
+            item.attachment_type()
+                .unwrap_or(AttachmentType::Attachment)
+                .into(),
+        ));
     }
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut deserializer = rmp::stream_deserializer(&payload);
 
     while !deserializer.get_ref().is_empty() {
@@ -114,7 +126,7 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use relay_config::Config;
 
-    use crate::envelope::{ContentType, ItemType};
+    use crate::envelope::ContentType;
 
     use super::*;
 
@@ -122,7 +134,7 @@ mod tests {
         Config::default().current()
     }
 
-    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
+    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> AttachmentItem {
         let mut data = Vec::new();
 
         for (date, message) in breadcrumbs {
@@ -135,8 +147,8 @@ mod tests {
             rmp_serde::encode::write(&mut data, &breadcrumb).expect("write msgpack");
         }
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::MsgPack, data);
+        let mut item = AttachmentItem::new();
+        item.data_mut().set_payload(ContentType::MsgPack, data);
         item
     }
 
@@ -259,8 +271,8 @@ mod tests {
         let payload = deeply_nested_msgpack_event(200_000);
         assert!(payload.len() < config().max_event_size());
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::MsgPack, payload);
+        let mut item = AttachmentItem::new();
+        item.data_mut().set_payload(ContentType::MsgPack, payload);
 
         let result = extract_attached_event(&config(), Some(item));
 

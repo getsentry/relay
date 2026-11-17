@@ -285,7 +285,7 @@ impl MetricData {
 
         let mut buckets = Vec::new();
         for item in items {
-            let payload = item.payload();
+            let payload = item.data().payload();
             if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(parsed_buckets) => {
@@ -970,8 +970,8 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
         envelope.add_item({
-                let mut item = Item::new(ItemType::Event);
-                item.set_payload(
+                let mut item = crate::envelope::EventItem::new();
+                item.data_mut().set_payload(
                     ContentType::Json,
                     r#"
                     {
@@ -1017,7 +1017,7 @@ mod tests {
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+            Annotated::from_json_bytes(&event_item.data().payload()).unwrap();
         let event = annotated_event.into_value().unwrap();
         let headers = event
             .request
@@ -1061,8 +1061,8 @@ mod tests {
         }"#;
         envelope.set_dsc(serde_json::from_str(dsc).unwrap());
 
-        let mut item = Item::new(ItemType::Event);
-        item.set_payload(ContentType::Json, r#"{}"#);
+        let mut item = crate::envelope::EventItem::new();
+        item.data_mut().set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
         let outcome_aggregator = Addr::dummy();
@@ -1096,7 +1096,7 @@ mod tests {
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
-        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        let event = Annotated::<Event>::from_json_bytes(&event.data().payload()).unwrap();
         insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
         Object(
             {
@@ -1237,8 +1237,8 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(
+        let mut item = crate::envelope::MetricBucketsItem::new();
+        item.data_mut().set_payload(
             ContentType::Json,
             serde_json::json!([{
                 "timestamp": received_at.timestamp(),
@@ -1257,7 +1257,7 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessMetrics {
-                data: MetricData::Raw(vec![item.clone()]),
+                data: MetricData::Raw(vec![item.clone().into()]),
                 project_key,
                 source,
                 received_at,

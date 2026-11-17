@@ -1,3 +1,4 @@
+use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_ourlogs::VercelLog;
@@ -40,15 +41,12 @@ impl processing::Processor for VercelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let (item, format) =
-            envelope
-                .envelope_mut()
-                .take_item_by_map(|item| match item.integration() {
-                    Some(Integration::Logs(LogsIntegration::VercelDrainLog { format })) => {
-                        Some(format)
-                    }
-                    _ => None,
-                })?;
+        let (item, format) = envelope
+            .envelope_mut()
+            .take_item_by_map::<IntegrationItem, _>(|item| match item.integration() {
+                Some(Integration::Logs(LogsIntegration::VercelDrainLog { format })) => Some(format),
+                _ => None,
+            })?;
         let headers = envelope.envelope().headers().clone();
 
         let work =
@@ -92,7 +90,7 @@ pub fn expand(
 
     let mut count: i32 = 0;
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     match format {
         VercelLogDrainFormat::Json => {
             let logs = serde_json::from_slice::<Vec<VercelLog>>(&payload).map_err(|e| {

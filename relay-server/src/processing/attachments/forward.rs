@@ -1,4 +1,6 @@
 use crate::Envelope;
+#[cfg(feature = "processing")]
+use crate::managed::Counted;
 use crate::managed::{Managed, Rejected};
 use crate::processing::attachments::AttachmentsOutput;
 use crate::processing::{self, Forward};
@@ -10,7 +12,14 @@ impl Forward for AttachmentsOutput {
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(attachments) = self;
         Ok(attachments.map(|attachments, _| {
-            Envelope::from_parts(attachments.headers, attachments.attachments)
+            Envelope::from_parts(
+                attachments.headers,
+                attachments
+                    .attachments
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            )
         }))
     }
 

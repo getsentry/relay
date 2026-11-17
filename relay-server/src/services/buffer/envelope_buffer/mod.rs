@@ -14,7 +14,6 @@ use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
-use crate::envelope::Item;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -84,8 +83,11 @@ impl PolymorphicEnvelopeBuffer {
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopeBodySize) =
-                envelope.items().map(Item::len).sum::<usize>() as u64,
+            distribution(RelayDistributions::BufferEnvelopeBodySize) = envelope
+                .items()
+                .map(|item| item.data().len())
+                .sum::<usize>()
+                as u64,
             partition_id = self.partition_tag()
         );
 
@@ -737,24 +739,24 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use uuid::Uuid;
 
+    use super::*;
     use crate::SqliteEnvelopeStore;
-    use crate::envelope::{Item, ItemType};
+    use crate::envelope::TransactionItem;
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
-
-    use super::*;
 
     impl Peek {
         fn is_empty(&self) -> bool {
@@ -785,7 +787,7 @@ mod tests {
                 sampled: None,
                 other: Default::default(),
             });
-            envelope.add_item(Item::new(ItemType::Transaction));
+            envelope.add_item(TransactionItem::new());
         }
         if let Some(event_id) = event_id {
             envelope.set_event_id(event_id);

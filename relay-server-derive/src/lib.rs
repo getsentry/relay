@@ -1,0 +1,363 @@
+//! Generate concrete envelope item variants and their wire tags.
+
+#![warn(missing_docs)]
+
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+use syn::Result;
+
+/// Generate wire tags and variant helpers from the owning serialized Item enum.
+#[proc_macro_derive(TypedItems, attributes(typed_item))]
+pub fn typed_items(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    syn::parse::<syn::ItemEnum>(input)
+        .and_then(expand_typed_items)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn expand_typed_items(input: syn::ItemEnum) -> Result<TokenStream> {
+    if input.ident != "Item" || !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            input.ident,
+            "expected the non-generic owning Item enum",
+        ));
+    }
+    let variants = input
+        .variants
+        .into_iter()
+        .map(VariantCode::parse)
+        .collect::<Result<Vec<_>>>()?;
+    let wire_variants = variants.iter().map(|variant| &variant.wire_variant);
+    let structs = variants.iter().map(|variant| &variant.payload_struct);
+    let constructors = variants.iter().map(|variant| &variant.conversions);
+    let from_data = variants.iter().map(|variant| &variant.from_data);
+    let tags = variants.iter().map(|variant| &variant.tag);
+    let counts = variants.iter().map(|variant| &variant.count);
+    let refs = variants.iter().map(|variant| &variant.reference);
+    let muts = variants.iter().map(|variant| &variant.reference_mut);
+
+    Ok(quote! {
+        /// The wire tag of a serialized envelope item, generated from [`Item`].
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub enum ItemType { #(#wire_variants),* }
+        #(#structs)*
+        #(#constructors)*
+        impl Item {
+            pub fn new(ty: ItemType) -> Self { Self::from_parts(ty, ItemData::new()) }
+            fn from_parts(ty: ItemType, data: ItemData) -> Self {
+                match ty { #(#from_data),* }
+            }
+            pub fn ty(&self) -> &ItemType { match self { #(#tags),* } }
+            /// Returns the declared item count, or `None` if the header is unsupported,
+            /// absent, or invalid.
+            ///
+            /// Preserves the distinction between an explicitly declared count and an
+            /// unspecified count; callers decide whether to apply a default.
+            pub fn item_count(&self) -> Option<u32> {
+                match self { #(#counts),* }
+            }
+            /// Returns the shared headers and serialized payload.
+            pub fn data(&self) -> &ItemData { match self { #(#refs),* } }
+            /// Returns mutable access to the shared headers and serialized payload.
+            pub fn data_mut(&mut self) -> &mut ItemData { match self { #(#muts),* } }
+        }
+    })
+}
+
+/// Whether a variant supports reading `item_count` and writing the shared container format.
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+enum ItemCountSupport {
+    None,
+    Read,
+    ReadWrite,
+}
+
+impl ItemCountSupport {
+    fn from_attributes(attributes: &[syn::Attribute]) -> Result<Self> {
+        attributes
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("typed_item"))
+            .try_fold(Self::None, |support, attribute| {
+                let declared = attribute.parse_args_with(
+                    syn::punctuated::Punctuated::<Self, syn::Token![,]>::parse_terminated,
+                )?;
+                Ok(declared.into_iter().fold(support, std::cmp::max))
+            })
+    }
+
+    fn count_impl(self, payload: &syn::Ident) -> TokenStream {
+        match self {
+            Self::None => quote!(),
+            Self::Read | Self::ReadWrite => quote! {
+                impl ItemCount for #payload {
+                    fn item_count(&self) -> Option<u32> {
+                        self.data.headers.get(ItemHeaderKey::ItemCount)
+                    }
+                }
+            },
+        }
+    }
+
+    fn count_arm(self, name: &syn::Ident) -> TokenStream {
+        match self {
+            Self::None => quote!(Self::#name(_) => None),
+            Self::Read | Self::ReadWrite => quote!(Self::#name(item) => item.item_count()),
+        }
+    }
+
+    fn container_impl(self, payload: &syn::Ident) -> TokenStream {
+        match self {
+            Self::None | Self::Read => quote!(),
+            Self::ReadWrite => quote! {
+                impl ContainerPayload for #payload {
+                    fn set_payload_with_item_count(&mut self, content_type: ContentType, payload: impl Into<bytes::Bytes>, item_count: u32) {
+                        self.data.set_payload_with_item_count(content_type, payload, item_count);
+                    }
+                }
+            },
+        }
+    }
+}
+
+impl syn::parse::Parse for ItemCountSupport {
+    fn parse(input: syn::parse::ParseStream<'_>) -> Result<Self> {
+        let name: syn::Ident = input.parse()?;
+        match name.to_string().as_str() {
+            "item_count_header" => Ok(Self::Read),
+            "container" => Ok(Self::ReadWrite),
+            _ => Err(syn::Error::new_spanned(
+                name,
+                "expected item_count_header or container",
+            )),
+        }
+    }
+}
+
+/// All differences between a fixed wire tag and an unknown tag carrying its name.
+struct WireTag {
+    constructor_args: TokenStream,
+    wire_variant: TokenStream,
+    wire_pattern: TokenStream,
+    type_field: TokenStream,
+    payload_init: TokenStream,
+    debug_tag: TokenStream,
+    item_tag: TokenStream,
+}
+
+impl WireTag {
+    fn for_variant(name: &syn::Ident) -> Self {
+        match name.to_string().as_str() {
+            "Unknown" => Self {
+                constructor_args: quote!(name: String),
+                wire_variant: quote!(#name(String)),
+                wire_pattern: quote!(ItemType::Unknown(name)),
+                type_field: quote!(ty: ItemType,),
+                payload_init: quote!(ty: ItemType::Unknown(name),),
+                debug_tag: quote!(&self.ty),
+                item_tag: quote!(Self::Unknown(item) => &item.ty),
+            },
+            _ => Self {
+                constructor_args: quote!(),
+                wire_variant: quote!(#name),
+                wire_pattern: quote!(ItemType::#name),
+                type_field: quote!(),
+                payload_init: quote!(),
+                debug_tag: quote!(&ItemType::#name),
+                item_tag: quote!(Self::#name(_) => &ItemType::#name),
+            },
+        }
+    }
+}
+
+/// A variant's generated declarations and match arms, ready for interpolation.
+struct VariantCode {
+    wire_variant: TokenStream,
+    payload_struct: TokenStream,
+    conversions: TokenStream,
+    from_data: TokenStream,
+    tag: TokenStream,
+    count: TokenStream,
+    reference: TokenStream,
+    reference_mut: TokenStream,
+}
+
+impl VariantCode {
+    fn parse(variant: syn::Variant) -> Result<Self> {
+        let count_support = ItemCountSupport::from_attributes(&variant.attrs)?;
+        let name = &variant.ident;
+        let payload = format_ident!("{}Item", name);
+        let valid_field = match &variant.fields {
+            syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                matches!(&fields.unnamed[0].ty, syn::Type::Path(ty) if ty.path.is_ident(&payload))
+            }
+            _ => false,
+        };
+        if !valid_field {
+            return Err(syn::Error::new_spanned(
+                variant.fields,
+                format!("expected {name}({payload})"),
+            ));
+        }
+        let docs = variant
+            .attrs
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("doc"));
+        let WireTag {
+            constructor_args,
+            wire_variant,
+            wire_pattern,
+            type_field,
+            payload_init,
+            debug_tag,
+            item_tag,
+        } = WireTag::for_variant(name);
+        let container_impl = count_support.container_impl(&payload);
+        let count_impl = count_support.count_impl(&payload);
+
+        Ok(Self {
+            wire_variant: quote!(#(#docs)* #wire_variant),
+            payload_struct: quote! {
+                #count_impl
+                #container_impl
+                #[derive(Clone)]
+                pub struct #payload { data: ItemData, #type_field }
+                impl #payload {
+                    pub fn new(#constructor_args) -> Self { Self { data: ItemData::new(), #payload_init } }
+                    /// Returns the shared headers and serialized payload.
+                    pub fn data(&self) -> &ItemData { &self.data }
+                    /// Returns mutable access to the shared headers and serialized payload.
+                    pub fn data_mut(&mut self) -> &mut ItemData { &mut self.data }
+                }
+                impl std::fmt::Debug for #payload {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        self.data.debug_with_type(f, #debug_tag)
+                    }
+                }
+            },
+            conversions: quote! {
+                impl TypedItem for #payload {
+                    fn data(&self) -> &ItemData { self.data() }
+                    fn data_mut(&mut self) -> &mut ItemData { self.data_mut() }
+                    fn downcast_ref(item: &Item) -> Option<&Self> {
+                        match item { Item::#name(payload) => Some(payload), _ => None }
+                    }
+                }
+                impl TryFrom<Item> for #payload {
+                    type Error = Item;
+                    fn try_from(item: Item) -> Result<Self, Item> {
+                        match item { Item::#name(payload) => Ok(payload), other => Err(other) }
+                    }
+                }
+                impl From<#payload> for Item {
+                    fn from(item: #payload) -> Self { Self::#name(item) }
+                }
+            },
+            from_data: quote!(#wire_pattern => Self::#name(#payload { data, #payload_init })),
+            tag: item_tag,
+            count: count_support.count_arm(name),
+            reference: quote!(Self::#name(item) => &item.data),
+            reference_mut: quote!(Self::#name(item) => &mut item.data),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_typed_items_variant_tags() {
+        let input = syn::parse_quote!(
+            pub enum Item {
+                Transaction(TransactionItem),
+                Profile(ProfileItem),
+                Unknown(UnknownItem),
+            }
+        );
+        let generated = expand_typed_items(input).unwrap();
+        syn::parse2::<syn::File>(generated.clone()).unwrap();
+        let generated = generated.to_string();
+        assert!(generated.contains("enum ItemType { Transaction , Profile , Unknown (String) }"));
+        assert!(generated.contains("struct TransactionItem { data : ItemData"));
+        assert!(generated.contains("ItemType :: Unknown (name) => Self :: Unknown"));
+        assert!(!generated.contains("Box"));
+    }
+
+    #[test]
+    fn test_expand_typed_items_supported_traits() {
+        let generated = expand_typed_items(syn::parse_quote! {
+            pub enum Item {
+                Transaction(TransactionItem),
+                #[typed_item(item_count_header)]
+                Profile(ProfileItem),
+                #[typed_item(container)]
+                Log(LogItem),
+            }
+        })
+        .unwrap();
+        let file: syn::File = syn::parse2(generated).unwrap();
+        for (trait_name, expected) in [
+            (
+                "TypedItem",
+                vec!["TransactionItem", "ProfileItem", "LogItem"],
+            ),
+            ("ItemCount", vec!["ProfileItem", "LogItem"]),
+            ("ContainerPayload", vec!["LogItem"]),
+        ] {
+            let implementations: Vec<_> = file
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let syn::Item::Impl(item) = item else {
+                        return None;
+                    };
+                    let (_, implemented, _) = item.trait_.as_ref()?;
+                    implemented.is_ident(trait_name).then(|| {
+                        let ty = &item.self_ty;
+                        quote!(#ty).to_string()
+                    })
+                })
+                .collect();
+            assert_eq!(implementations, expected, "{trait_name}");
+        }
+    }
+
+    #[test]
+    fn test_expand_typed_items_unknown_attribute() {
+        assert_eq!(
+            expand_typed_items(syn::parse_quote! {
+                pub enum Item {
+                    #[typed_item(unsupported_option)]
+                    Log(LogItem),
+                }
+            })
+            .unwrap_err()
+            .to_string(),
+            "expected item_count_header or container",
+        );
+    }
+
+    #[test]
+    fn test_expand_typed_items_mismatched_payloads() {
+        for (input, expected) in [
+            (
+                syn::parse_quote!(
+                    pub enum Item {
+                        Transaction(ProfileItem),
+                    }
+                ),
+                "expected Transaction(TransactionItem)",
+            ),
+            (
+                syn::parse_quote!(
+                    pub enum Item {
+                        Profile,
+                    }
+                ),
+                "expected Profile(ProfileItem)",
+            ),
+        ] {
+            assert_eq!(expand_typed_items(input).unwrap_err().to_string(), expected,);
+        }
+    }
+}

@@ -5,7 +5,7 @@ use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, AssertEmpty, Service};
 
-use crate::envelope::{ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::envelope::{ClientReportItem, ContentType, Envelope, EnvelopeError};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -63,8 +63,8 @@ impl ProxyProcessorService {
         for client_report in client_reports {
             match client_report.serialize() {
                 Ok(payload) => {
-                    let mut item = Item::new(ItemType::ClientReport);
-                    item.set_payload(ContentType::Json, payload);
+                    let mut item = ClientReportItem::new();
+                    item.data_mut().set_payload(ContentType::Json, payload);
                     envelope.add_item(item);
                 }
                 Err(error) => {

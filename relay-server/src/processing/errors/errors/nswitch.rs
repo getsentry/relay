@@ -2,6 +2,8 @@
 //!
 //! These functions are included only in the processing mode.
 
+use super::ErrorPayload;
+
 use bytes::{Buf, Bytes};
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
@@ -12,9 +14,10 @@ use relay_quotas::DataCategory;
 
 use crate::Envelope;
 use crate::constants::NNSWITCH_SENTRY_MAGIC;
-use crate::envelope::{AttachmentType, EnvelopeError, Item, ItemType};
+use crate::envelope::{
+    AttachmentItem, AttachmentType, EnvelopeError, EventItem, Item, SessionItem, UserReportItem,
+};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Result, utils};
 use crate::services::outcome::DiscardItemType;
@@ -25,7 +28,7 @@ const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
 
 #[derive(Debug)]
 pub enum Nswitch {
-    Forward { dying_message: Item },
+    Forward { dying_message: AttachmentItem },
     Process,
 }
 
@@ -35,7 +38,7 @@ impl SentryError for Nswitch {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(dying_message) = utils::take_item_by(items, |item| {
+        let Some(dying_message) = utils::take_item_if::<AttachmentItem>(items, |item| {
             item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
         }) else {
             return Ok(None);
@@ -43,8 +46,8 @@ impl SentryError for Nswitch {
 
         let mut metrics = Default::default();
 
-        let attachments: Vec<_> = utils::take_items_of_type(items, ItemType::Attachment);
-        let user_reports = utils::take_items_of_type(items, ItemType::UserReport);
+        let attachments: Vec<_> = utils::take_items::<AttachmentItem>(items).collect();
+        let user_reports = utils::take_items::<UserReportItem>(items).collect();
 
         if !ctx.processing.is_processing() {
             return Ok(Some(Expansion {
@@ -63,9 +66,9 @@ impl SentryError for Nswitch {
             }));
         }
 
-        let event = utils::take_item_of_type(items, ItemType::Event);
+        let event = utils::take_item::<EventItem>(items);
 
-        let dying_message = expand_dying_message(dying_message.payload())
+        let dying_message = expand_dying_message(dying_message.data().payload())
             .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
 
         let mut attachments = attachments;
@@ -75,14 +78,14 @@ impl SentryError for Nswitch {
         let mut event = match (event, dying_message.event) {
             (Some(event), Some(dying_message)) => {
                 metrics.bytes_ingested_event =
-                    Annotated::new((event.len() + dying_message.len()) as u64);
+                    Annotated::new((event.data().len() + dying_message.data().len()) as u64);
                 merge_events(event, dying_message, ctx)?
             }
             (Some(event), None) => {
-                utils::event_from_json_payload(event, None, &mut metrics, ctx.processing)?
+                utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx.processing)?
             }
             (None, Some(event)) => {
-                utils::event_from_json_payload(event, None, &mut metrics, ctx.processing)?
+                utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx.processing)?
             }
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
@@ -106,7 +109,11 @@ impl SentryError for Nswitch {
             attachments,
             flamegraph: None,
             user_reports,
-            intermediates: dying_message.session_updates,
+            intermediates: dying_message
+                .session_updates
+                .into_iter()
+                .map(Item::from)
+                .collect(),
             error: Self::Process {},
             metrics,
             fully_normalized: false,
@@ -122,25 +129,26 @@ impl SentryError for Nswitch {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        match self {
-            Self::Forward { dying_message } => items.push(dying_message),
-            Self::Process => {}
-        }
-
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::Attachments(match self {
+            Self::Forward { dying_message } => smallvec::smallvec![dying_message],
+            Self::Process => Default::default(),
+        })
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }
 
 impl Counted for Nswitch {
     fn quantities(&self) -> Quantities {
-        // The dying message does not count as an attachment, because it will cease to exist and be
-        // fully merged into the error after processing.
-        Default::default()
+        match self {
+            // The item rules own the dying message's zero attachment contribution.
+            Self::Forward { dying_message } => dying_message.quantities(),
+            // Processing has already consumed the message into the event.
+            Self::Process => Quantities::new(),
+        }
     }
 }
 
@@ -160,11 +168,16 @@ pub enum SwitchProcessingError {
 }
 
 fn merge_events(
-    from_envelope: Item,
-    from_dying_messages: Item,
+    from_envelope: EventItem,
+    from_dying_messages: EventItem,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    if from_envelope.len().max(from_dying_messages.len()) > ctx.processing.config.max_event_size() {
+    if from_envelope
+        .data()
+        .len()
+        .max(from_dying_messages.data().len())
+        > ctx.processing.config.max_event_size()
+    {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
 
@@ -174,11 +187,11 @@ fn merge_events(
 }
 
 fn merge_events_inner(
-    from_envelope: Item,
-    from_dying_messages: Item,
+    from_envelope: EventItem,
+    from_dying_messages: EventItem,
 ) -> Result<Annotated<Event>, serde_json::Error> {
-    let from_envelope = serde_json::from_slice(&from_envelope.payload())?;
-    let mut from_dying_message = serde_json::from_slice(&from_dying_messages.payload())?;
+    let from_envelope = serde_json::from_slice(&from_envelope.data().payload())?;
+    let mut from_dying_message = serde_json::from_slice(&from_dying_messages.data().payload())?;
 
     // Uses the dying message as a base and fills it with values from the event.
     crate::utils::merge_values(&mut from_dying_message, from_envelope);
@@ -188,15 +201,15 @@ fn merge_events_inner(
 
 #[derive(Debug, Default)]
 struct ExpandedDyingMessage {
-    event: Option<Item>,
-    attachments: Vec<Item>,
-    session_updates: Vec<Item>,
+    event: Option<EventItem>,
+    attachments: Vec<AttachmentItem>,
+    session_updates: Vec<SessionItem>,
 }
 
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    // `Item::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
+    // `AttachmentItem::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
     // header, which bypasses the `starts_with(magic)` guard it applies when inferring the type.
     // Validate the magic here so a crafted short payload can't panic the `advance` below.
     if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
@@ -261,9 +274,9 @@ fn expand_dying_message_from_envelope_items(
         .map_err(SwitchProcessingError::EnvelopeParsing)?
         .into_vec();
 
-    let event = utils::take_item_of_type(&mut items, ItemType::Event);
-    let attachments = utils::take_items_of_type(&mut items, ItemType::Attachment);
-    let session_updates = utils::take_items_of_type(&mut items, ItemType::Session);
+    let event = utils::take_item::<EventItem>(&mut items);
+    let attachments = utils::take_items::<AttachmentItem>(&mut items).collect();
+    let session_updates = utils::take_items::<SessionItem>(&mut items).collect();
 
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.
@@ -420,9 +433,11 @@ mod tests {
             Hi\n",
         ));
 
-        assert_eq!(items[1].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
-        assert_eq!(items[1].payload().len(), 106);
+        let Item::Attachment(attachment) = &items[1] else {
+            panic!("expected an attachment");
+        };
+        assert_eq!(attachment.filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].data().payload().len(), 106);
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
@@ -440,9 +455,8 @@ mod tests {
         }
         "#);
         assert_eq!(parsed.attachments.len(), 1);
-        assert_eq!(parsed.attachments[0].ty(), &ItemType::Attachment);
         assert_eq!(parsed.attachments[0].filename(), None);
-        assert_eq!(parsed.attachments[0].payload(), "Hi".as_bytes());
+        assert_eq!(parsed.attachments[0].data().payload(), "Hi".as_bytes());
     }
 
     #[test]
@@ -467,9 +481,8 @@ mod tests {
         }
         "#);
         assert_eq!(parsed.attachments.len(), 1);
-        assert_eq!(parsed.attachments[0].ty(), &ItemType::Attachment);
         assert_eq!(parsed.attachments[0].filename(), None);
-        assert_eq!(parsed.attachments[0].payload(), "Hi".as_bytes());
+        assert_eq!(parsed.attachments[0].data().payload(), "Hi".as_bytes());
     }
 
     fn create_compressed_dying_message(encoding: u8) -> Vec<u8> {
@@ -546,8 +559,8 @@ mod tests {
 
     #[test]
     fn test_switch_crash_is_reshaped() {
-        let mut event = Item::new(ItemType::Event);
-        event.set_payload(
+        let mut event = EventItem::new();
+        event.data_mut().set_payload(
             ContentType::Json,
             include_bytes!(
                 "../../../../../tests/integration/fixtures/native/nnswitch_crportal_event.json"
@@ -555,10 +568,10 @@ mod tests {
             .as_slice(),
         );
 
-        let mut dying_message = Item::new(ItemType::Attachment);
+        let mut dying_message = AttachmentItem::new();
         dying_message.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
         dying_message.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
-        dying_message.set_payload(
+        dying_message.data_mut().set_payload(
             ContentType::OctetStream,
             include_bytes!(
                 "../../../../../tests/integration/fixtures/native/nnswitch_crportal_dying_message_raw.dat"
@@ -566,7 +579,7 @@ mod tests {
             .as_slice(),
         );
 
-        let mut items = vec![event, dying_message];
+        let mut items = vec![event.into(), dying_message.into()];
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
