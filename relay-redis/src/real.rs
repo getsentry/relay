@@ -1,10 +1,13 @@
 use deadpool::Runtime;
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
+use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
+use crate::multi_write::MultiWriteConnection;
 use crate::pool;
 
 pub use redis;
@@ -76,6 +79,15 @@ pub enum AsyncRedisClient {
     Cluster(pool::CustomClusterPool),
     /// Contains a connection pool to a single Redis instance.
     Single(pool::CustomSinglePool),
+    /// Sends commands to the primary and write commands to the secondaries.
+    ///
+    /// Only the primary's result is returned.
+    MultiWrite {
+        /// Client whose results are returned.
+        primary: Box<AsyncRedisClient>,
+        /// Best-effort clients, errors are only logged.
+        secondaries: Vec<AsyncRedisClient>,
+    },
 }
 
 impl AsyncRedisClient {
@@ -128,6 +140,16 @@ impl AsyncRedisClient {
         Ok(AsyncRedisClient::Single(pool))
     }
 
+    /// Creates a client which sends commands to `primary` and write commands to `secondaries`.
+    ///
+    /// Only the primary's result is returned, errors from the secondaries are only logged.
+    pub fn multi_write(primary: AsyncRedisClient, secondaries: Vec<AsyncRedisClient>) -> Self {
+        AsyncRedisClient::MultiWrite {
+            primary: Box::new(primary),
+            secondaries,
+        }
+    }
+
     /// Acquires a connection from the pool.
     ///
     /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
@@ -136,6 +158,33 @@ impl AsyncRedisClient {
         match self {
             Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
             Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => {
+                let primary = Box::pin(primary.get_connection()).await?;
+                let secondaries = secondaries
+                    .iter()
+                    .map(|secondary| Box::pin(secondary.get_connection()))
+                    .collect::<FuturesUnordered<_>>()
+                    .filter_map(async |result| match result {
+                        Ok(connection) => Some(connection),
+                        Err(error) => {
+                            relay_log::warn!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to acquire a secondary redis connection",
+                            );
+                            None
+                        }
+                    })
+                    .collect()
+                    .await;
+
+                Ok(AsyncRedisConnection::MultiWrite(MultiWriteConnection::new(
+                    primary,
+                    secondaries,
+                )))
+            }
         }
         .map_err(RedisError::Pool)
     }
@@ -148,6 +197,7 @@ impl AsyncRedisClient {
         let status = match self {
             Self::Cluster(pool) => pool.status(),
             Self::Single(pool) => pool.status(),
+            Self::MultiWrite { primary, .. } => return primary.stats(),
         };
 
         RedisClientStats {
@@ -168,6 +218,15 @@ impl AsyncRedisClient {
             }
             Self::Single(pool) => {
                 pool.retain(|_, metrics| predicate(metrics));
+            }
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => {
+                for client in std::iter::once(&**primary).chain(secondaries) {
+                    // A `dyn` predicate keeps the recursion from instantiating without end.
+                    client.retain(&mut predicate as &mut dyn FnMut(Metrics) -> bool);
+                }
             }
         }
     }
@@ -207,6 +266,7 @@ impl std::fmt::Debug for AsyncRedisClient {
         match self {
             AsyncRedisClient::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
             AsyncRedisClient::Single(_) => write!(f, "AsyncRedisPool::Single"),
+            AsyncRedisClient::MultiWrite { .. } => write!(f, "AsyncRedisPool::MultiWrite"),
         }
     }
 }
@@ -222,6 +282,8 @@ pub enum AsyncRedisConnection {
     Cluster(pool::CustomClusterConnection),
     /// A connection to a single Redis instance.
     Single(pool::CustomSingleConnection),
+    /// A connection to multiple Redis instances, of which only the first is read from.
+    MultiWrite(MultiWriteConnection),
 }
 
 impl std::fmt::Debug for AsyncRedisConnection {
@@ -229,6 +291,7 @@ impl std::fmt::Debug for AsyncRedisConnection {
         let name = match self {
             Self::Cluster(_) => "Cluster",
             Self::Single(_) => "Single",
+            Self::MultiWrite(_) => "MultiWrite",
         };
         f.debug_tuple(name).finish()
     }
@@ -239,6 +302,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),
             Self::Single(conn) => conn.req_packed_command(cmd),
+            Self::MultiWrite(conn) => conn.req_packed_command(cmd),
         }
     }
 
@@ -251,6 +315,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
             Self::Single(conn) => conn.req_packed_commands(cmd, offset, count),
+            Self::MultiWrite(conn) => conn.req_packed_commands(cmd, offset, count),
         }
     }
 
@@ -258,6 +323,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.get_db(),
             Self::Single(conn) => conn.get_db(),
+            Self::MultiWrite(conn) => conn.get_db(),
         }
     }
 }

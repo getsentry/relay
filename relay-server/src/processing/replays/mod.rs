@@ -71,8 +71,7 @@ pub enum Error {
     #[cfg(feature = "processing")]
     #[error("failed to serialize replay")]
     FailedToSerializeReplay,
-    /// Replay recording too large for the consumer.
-    #[cfg(feature = "processing")]
+    /// Replay recording too large, either once decompressed or for the consumer message.
     #[error("replay recording too large")]
     TooLarge,
     /// The envelope did not contain an event ID.
@@ -112,7 +111,6 @@ impl OutcomeError for Error {
             Self::Filtered(key) => Some(Outcome::Filtered(key.clone())),
             #[cfg(feature = "processing")]
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
-            #[cfg(feature = "processing")]
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
