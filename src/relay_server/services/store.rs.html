@@ -983,7 +983,7 @@
 <a href=#983 id=983 data-nosnippet>983</a>            name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
 <a href=#984 id=984 data-nosnippet>984</a>            rate_limited: item.data().rate_limited(),
 <a href=#985 id=985 data-nosnippet>985</a>            content_type: placeholder.content_type,
-<a href=#986 id=986 data-nosnippet>986</a>            attachment_type: item.attachment_type().unwrap_or_default(),
+<a href=#986 id=986 data-nosnippet>986</a>            attachment_type: item.attachment_type(),
 <a href=#987 id=987 data-nosnippet>987</a>            size: item.attachment_body_size(),
 <a href=#988 id=988 data-nosnippet>988</a>            retention_days,
 <a href=#989 id=989 data-nosnippet>989</a>            payload: AttachmentPayload::Stored(store_key),
@@ -1054,7 +1054,7 @@
 <a href=#1054 id=1054 data-nosnippet>1054</a>                .data()
 <a href=#1055 id=1055 data-nosnippet>1055</a>                .raw_content_type()
 <a href=#1056 id=1056 data-nosnippet>1056</a>                .map(|s| s.to_ascii_lowercase()),
-<a href=#1057 id=1057 data-nosnippet>1057</a>            attachment_type: item.attachment_type().unwrap_or_default(),
+<a href=#1057 id=1057 data-nosnippet>1057</a>            attachment_type: item.attachment_type(),
 <a href=#1058 id=1058 data-nosnippet>1058</a>            size,
 <a href=#1059 id=1059 data-nosnippet>1059</a>            retention_days,
 <a href=#1060 id=1060 data-nosnippet>1060</a>            payload,

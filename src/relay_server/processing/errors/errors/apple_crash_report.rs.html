@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">fn </span>try_expand(items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Expansion&lt;<span class="self">Self</span>&gt;&gt;&gt; {
 <a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(apple_crash_report) = utils::take_item_if::&lt;AttachmentItem&gt;(items, |item| {
-<a href=#19 id=19 data-nosnippet>19</a>            item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::AppleCrashReport)
+<a href=#19 id=19 data-nosnippet>19</a>            item.attachment_type() == AttachmentType::AppleCrashReport
 <a href=#20 id=20 data-nosnippet>20</a>        }) <span class="kw">else </span>{
 <a href=#21 id=21 data-nosnippet>21</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
 <a href=#22 id=22 data-nosnippet>22</a>        };

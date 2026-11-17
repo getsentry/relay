@@ -39,7 +39,7 @@
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">fn </span>try_expand(items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Expansion&lt;<span class="self">Self</span>&gt;&gt;&gt; {
 <a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(dying_message) = utils::take_item_if::&lt;AttachmentItem&gt;(items, |item| {
-<a href=#42 id=42 data-nosnippet>42</a>            item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::NintendoSwitchDyingMessage)
+<a href=#42 id=42 data-nosnippet>42</a>            item.attachment_type() == AttachmentType::NintendoSwitchDyingMessage
 <a href=#43 id=43 data-nosnippet>43</a>        }) <span class="kw">else </span>{
 <a href=#44 id=44 data-nosnippet>44</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
 <a href=#45 id=45 data-nosnippet>45</a>        };

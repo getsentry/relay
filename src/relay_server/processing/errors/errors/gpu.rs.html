@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>    <span class="kw">fn </span>try_expand(items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Expansion&lt;<span class="self">Self</span>&gt;&gt;&gt; {
 <a href=#25 id=25 data-nosnippet>25</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(dump) = utils::take_item_if::&lt;AttachmentItem&gt;(items, |item| {
-<a href=#26 id=26 data-nosnippet>26</a>            item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::NvGpuDump)
+<a href=#26 id=26 data-nosnippet>26</a>            item.attachment_type() == AttachmentType::NvGpuDump
 <a href=#27 id=27 data-nosnippet>27</a>        }) <span class="kw">else </span>{
 <a href=#28 id=28 data-nosnippet>28</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
 <a href=#29 id=29 data-nosnippet>29</a>        };

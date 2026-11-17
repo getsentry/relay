@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>
 <a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">if </span>!items
 <a href=#201 id=201 data-nosnippet>201</a>        .iter()
-<a href=#202 id=202 data-nosnippet>202</a>        .any(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::NvGpuDump))
+<a href=#202 id=202 data-nosnippet>202</a>        .any(|item| item.attachment_type() == AttachmentType::NvGpuDump)
 <a href=#203 id=203 data-nosnippet>203</a>    {
 <a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#205 id=205 data-nosnippet>205</a>    }
@@ -218,49 +218,46 @@
 <a href=#218 id=218 data-nosnippet>218</a><span class="kw">fn </span>is_cpu_dump_item(item: <span class="kw-2">&amp;</span>AttachmentItem) -&gt; bool {
 <a href=#219 id=219 data-nosnippet>219</a>    <span class="comment">// Keep exhaustive so new crash formats require an explicit splitting decision.
 <a href=#220 id=220 data-nosnippet>220</a>    </span><span class="kw">match </span>item.attachment_type() {
-<a href=#221 id=221 data-nosnippet>221</a>        <span class="prelude-val">Some</span>(AttachmentType::Minidump | AttachmentType::AppleCrashReport) =&gt; <span class="bool-val">true</span>,
-<a href=#222 id=222 data-nosnippet>222</a>        <span class="prelude-val">Some</span>(
-<a href=#223 id=223 data-nosnippet>223</a>            AttachmentType::Attachment
-<a href=#224 id=224 data-nosnippet>224</a>            | AttachmentType::EventPayload
-<a href=#225 id=225 data-nosnippet>225</a>            | AttachmentType::Breadcrumbs
-<a href=#226 id=226 data-nosnippet>226</a>            | AttachmentType::Prosperodump
-<a href=#227 id=227 data-nosnippet>227</a>            | AttachmentType::NintendoSwitchDyingMessage
-<a href=#228 id=228 data-nosnippet>228</a>            | AttachmentType::UnrealContext
-<a href=#229 id=229 data-nosnippet>229</a>            | AttachmentType::UnrealLogs
-<a href=#230 id=230 data-nosnippet>230</a>            | AttachmentType::ViewHierarchy
-<a href=#231 id=231 data-nosnippet>231</a>            | AttachmentType::Flamegraph
-<a href=#232 id=232 data-nosnippet>232</a>            | AttachmentType::NvGpuDump
-<a href=#233 id=233 data-nosnippet>233</a>            | AttachmentType::NvShaderDebug
-<a href=#234 id=234 data-nosnippet>234</a>            | AttachmentType::CompiledShader,
-<a href=#235 id=235 data-nosnippet>235</a>        )
-<a href=#236 id=236 data-nosnippet>236</a>        | <span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
-<a href=#237 id=237 data-nosnippet>237</a>    }
-<a href=#238 id=238 data-nosnippet>238</a>}
-<a href=#239 id=239 data-nosnippet>239</a>
-<a href=#240 id=240 data-nosnippet>240</a><span class="doccomment">/// Adds a [`DynamicSamplingContext`] to `envelope`.
-<a href=#241 id=241 data-nosnippet>241</a>///
-<a href=#242 id=242 data-nosnippet>242</a>/// The dynamic sampling context is used to connect a CPU crash to the same GPU crash,
-<a href=#243 id=243 data-nosnippet>243</a>/// as it is later used in event normalization to create a trace context in each event.
-<a href=#244 id=244 data-nosnippet>244</a></span><span class="kw">fn </span>add_dsc(envelope: <span class="kw-2">&amp;mut </span>Envelope, trace_id: TraceId, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="comment">// This is a dead check, a valid project config must always contain a public key.
-<a href=#246 id=246 data-nosnippet>246</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(public_key) = ctx.project_info.get_public_key_config() <span class="kw">else </span>{
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">return</span>;
-<a href=#248 id=248 data-nosnippet>248</a>    };
-<a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">let </span>dsc = DynamicSamplingContext {
-<a href=#251 id=251 data-nosnippet>251</a>        trace_id,
-<a href=#252 id=252 data-nosnippet>252</a>        public_key: public_key.public_key,
-<a href=#253 id=253 data-nosnippet>253</a>        project_id: Default::default(),
-<a href=#254 id=254 data-nosnippet>254</a>        release: Default::default(),
-<a href=#255 id=255 data-nosnippet>255</a>        environment: Default::default(),
-<a href=#256 id=256 data-nosnippet>256</a>        transaction: Default::default(),
-<a href=#257 id=257 data-nosnippet>257</a>        sample_rate: Default::default(),
-<a href=#258 id=258 data-nosnippet>258</a>        user: Default::default(),
-<a href=#259 id=259 data-nosnippet>259</a>        replay_id: Default::default(),
-<a href=#260 id=260 data-nosnippet>260</a>        sampled: Default::default(),
-<a href=#261 id=261 data-nosnippet>261</a>        other: Default::default(),
-<a href=#262 id=262 data-nosnippet>262</a>    };
-<a href=#263 id=263 data-nosnippet>263</a>
-<a href=#264 id=264 data-nosnippet>264</a>    envelope.set_dsc(dsc);
-<a href=#265 id=265 data-nosnippet>265</a>}
+<a href=#221 id=221 data-nosnippet>221</a>        AttachmentType::Minidump | AttachmentType::AppleCrashReport =&gt; <span class="bool-val">true</span>,
+<a href=#222 id=222 data-nosnippet>222</a>        AttachmentType::Attachment
+<a href=#223 id=223 data-nosnippet>223</a>        | AttachmentType::EventPayload
+<a href=#224 id=224 data-nosnippet>224</a>        | AttachmentType::Breadcrumbs
+<a href=#225 id=225 data-nosnippet>225</a>        | AttachmentType::Prosperodump
+<a href=#226 id=226 data-nosnippet>226</a>        | AttachmentType::NintendoSwitchDyingMessage
+<a href=#227 id=227 data-nosnippet>227</a>        | AttachmentType::UnrealContext
+<a href=#228 id=228 data-nosnippet>228</a>        | AttachmentType::UnrealLogs
+<a href=#229 id=229 data-nosnippet>229</a>        | AttachmentType::ViewHierarchy
+<a href=#230 id=230 data-nosnippet>230</a>        | AttachmentType::Flamegraph
+<a href=#231 id=231 data-nosnippet>231</a>        | AttachmentType::NvGpuDump
+<a href=#232 id=232 data-nosnippet>232</a>        | AttachmentType::NvShaderDebug
+<a href=#233 id=233 data-nosnippet>233</a>        | AttachmentType::CompiledShader =&gt; <span class="bool-val">false</span>,
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// Adds a [`DynamicSamplingContext`] to `envelope`.
+<a href=#238 id=238 data-nosnippet>238</a>///
+<a href=#239 id=239 data-nosnippet>239</a>/// The dynamic sampling context is used to connect a CPU crash to the same GPU crash,
+<a href=#240 id=240 data-nosnippet>240</a>/// as it is later used in event normalization to create a trace context in each event.
+<a href=#241 id=241 data-nosnippet>241</a></span><span class="kw">fn </span>add_dsc(envelope: <span class="kw-2">&amp;mut </span>Envelope, trace_id: TraceId, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
+<a href=#242 id=242 data-nosnippet>242</a>    <span class="comment">// This is a dead check, a valid project config must always contain a public key.
+<a href=#243 id=243 data-nosnippet>243</a>    </span><span class="kw">let </span><span class="prelude-val">Some</span>(public_key) = ctx.project_info.get_public_key_config() <span class="kw">else </span>{
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">return</span>;
+<a href=#245 id=245 data-nosnippet>245</a>    };
+<a href=#246 id=246 data-nosnippet>246</a>
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">let </span>dsc = DynamicSamplingContext {
+<a href=#248 id=248 data-nosnippet>248</a>        trace_id,
+<a href=#249 id=249 data-nosnippet>249</a>        public_key: public_key.public_key,
+<a href=#250 id=250 data-nosnippet>250</a>        project_id: Default::default(),
+<a href=#251 id=251 data-nosnippet>251</a>        release: Default::default(),
+<a href=#252 id=252 data-nosnippet>252</a>        environment: Default::default(),
+<a href=#253 id=253 data-nosnippet>253</a>        transaction: Default::default(),
+<a href=#254 id=254 data-nosnippet>254</a>        sample_rate: Default::default(),
+<a href=#255 id=255 data-nosnippet>255</a>        user: Default::default(),
+<a href=#256 id=256 data-nosnippet>256</a>        replay_id: Default::default(),
+<a href=#257 id=257 data-nosnippet>257</a>        sampled: Default::default(),
+<a href=#258 id=258 data-nosnippet>258</a>        other: Default::default(),
+<a href=#259 id=259 data-nosnippet>259</a>    };
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a>    envelope.set_dsc(dsc);
+<a href=#262 id=262 data-nosnippet>262</a>}
 </code></pre></div></section></main></body></html>

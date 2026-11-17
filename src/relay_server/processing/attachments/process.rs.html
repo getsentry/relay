@@ -24,7 +24,7 @@
 <a href=#24 id=24 data-nosnippet>24</a>    managed.retain(
 <a href=#25 id=25 data-nosnippet>25</a>        |managed| <span class="kw-2">&amp;mut </span>managed.attachments,
 <a href=#26 id=26 data-nosnippet>26</a>        |attachment, <span class="kw">_</span>| <span class="kw">match </span>attachment.attachment_type() {
-<a href=#27 id=27 data-nosnippet>27</a>            <span class="prelude-val">Some</span>(AttachmentType::Flamegraph) =&gt; <span class="prelude-val">Err</span>(ProcessingError::InvalidFlamegraph),
+<a href=#27 id=27 data-nosnippet>27</a>            AttachmentType::Flamegraph =&gt; <span class="prelude-val">Err</span>(ProcessingError::InvalidFlamegraph),
 <a href=#28 id=28 data-nosnippet>28</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
 <a href=#29 id=29 data-nosnippet>29</a>        },
 <a href=#30 id=30 data-nosnippet>30</a>    );
