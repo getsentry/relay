@@ -601,9 +601,9 @@ impl ServiceState {
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
-    const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
-    const QUOTA_REDIS_CLIENT: &str = "quotas";
-    const UNIFIED_REDIS_CLIENT: &str = "unified";
+    const PROJECT_CONFIG_REDIS_CLIENT: (&str, &str) = ("projectconfig", "projectconfig_secondary");
+    const QUOTA_REDIS_CLIENT: (&str, &str) = ("quotas", "quotas_secondary");
+    const UNIFIED_REDIS_CLIENT: (&str, &str) = ("unified", "unified_secondary");
 
     match configs {
         RedisConfigsRef::Unified(unified) => {
@@ -632,14 +632,27 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 
 #[cfg(feature = "processing")]
 fn create_async_redis_client(
-    name: &'static str,
+    names: (&'static str, &'static str),
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
+    let (name, secondary_name) = names;
+
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
         } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::MultiWrite { configs } => {
+            let mut configs = configs.iter();
+            let primary = configs.next().ok_or(RedisError::Configuration)?;
+            let primary = create_async_redis_client(names, primary)?;
+            // Client names must be static, all secondaries share one.
+            let secondaries = configs
+                .map(|config| create_async_redis_client((secondary_name, secondary_name), config))
+                .collect::<Result<_, _>>()?;
+
+            Ok(AsyncRedisClient::multi_write(primary, secondaries))
+        }
         RedisConfigRef::Single { server, options } => {
             AsyncRedisClient::single(name, server, options)
         }
