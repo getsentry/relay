@@ -13,7 +13,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope, Item, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -21,7 +21,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ProjectContext, Upload};
-use crate::utils::{self, AttachmentStrategy, SizeSplit};
+use crate::utils::{self, AttachmentStrategy, MultipartItems, SizeSplit};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -198,7 +198,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
         &state.config(),
@@ -210,11 +210,9 @@ async fn multipart_to_items(
 
     items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
         let prosperodump = inner
+            .attachments
             .iter_mut()
-            .find(|item| {
-                matches!(item, Item::Attachment(attachment)
-                    if attachment.attachment_type() == Some(AttachmentType::Prosperodump))
-            })
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         validate_prosperodump(&prosperodump.data().payload())?;
         prosperodump
@@ -247,6 +245,7 @@ async fn handle(
         .await
         .reject(&managed_err)?;
     let envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let items = items.into_items();
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta)
             .with_items(items)

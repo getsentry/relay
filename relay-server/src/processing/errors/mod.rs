@@ -377,37 +377,35 @@ impl Forward for ErrorOutput {
 
         let ErrorOutput(event) = self;
 
-        let event = event
-            .try_map(|errors, _| -> Result<_> {
-                let ExpandedError {
-                    headers: _,
-                    fully_normalized: _,
-                    metrics: _,
-                    event,
-                    mut attachments,
-                    flamegraph,
-                    user_reports,
-                    data,
-                    other,
-                } = errors;
+        let event = event.map(|errors, _| {
+            let ExpandedError {
+                headers: _,
+                fully_normalized: _,
+                metrics: _,
+                event,
+                mut attachments,
+                flamegraph,
+                user_reports,
+                data,
+                other,
+            } = errors;
 
-                // A processing Relay must know about all item types in use, unknown items are
-                // already discarded during expansion.
-                debug_assert!(other.is_empty());
+            // A processing Relay must know about all item types in use, unknown items are
+            // already discarded during expansion.
+            debug_assert!(other.is_empty());
 
-                let event_category = data.event_category();
-                data.into_payload().append_to_store(&mut attachments)?;
-                attachments.extend(flamegraph);
+            let event_category = data.event_category();
+            data.into_payload().append_to_store(&mut attachments);
+            attachments.extend(flamegraph);
 
-                Ok(Box::new(StoreEvent {
-                    event_category,
-                    event: *event,
-                    attachments,
-                    user_reports,
-                    retention_days: ctx.event_retention().standard,
-                }))
+            Box::new(StoreEvent {
+                event_category,
+                event: *event,
+                attachments,
+                user_reports,
+                retention_days: ctx.event_retention().standard,
             })
-            .map_err(|err| err.map(|_| ()))?;
+        });
 
         s.send_event(event);
 

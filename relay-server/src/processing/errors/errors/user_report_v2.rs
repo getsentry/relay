@@ -56,7 +56,7 @@ impl SentryError for UserReportV2 {
     }
 
     fn into_payload(self) -> ErrorPayload {
-        ErrorPayload::Attachments(Default::default())
+        ErrorPayload::default()
     }
 
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
