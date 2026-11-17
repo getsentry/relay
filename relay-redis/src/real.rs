@@ -1,5 +1,7 @@
 use deadpool::Runtime;
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
+use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
@@ -154,38 +156,37 @@ impl AsyncRedisClient {
     /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
         match self {
-            Self::Cluster(pool) => pool
-                .get()
-                .await
-                .map(AsyncRedisConnection::Cluster)
-                .map_err(RedisError::Pool),
-            Self::Single(pool) => pool
-                .get()
-                .await
-                .map(AsyncRedisConnection::Single)
-                .map_err(RedisError::Pool),
+            Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
+            Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
             Self::MultiWrite {
                 primary,
                 secondaries,
             } => {
                 let primary = Box::pin(primary.get_connection()).await?;
-                let mut connections = Vec::with_capacity(secondaries.len());
-                for secondary in secondaries {
-                    match Box::pin(secondary.get_connection()).await {
-                        Ok(connection) => connections.push(connection),
-                        Err(error) => relay_log::warn!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to acquire a secondary redis connection",
-                        ),
-                    }
-                }
+                let secondaries = secondaries
+                    .iter()
+                    .map(|secondary| Box::pin(secondary.get_connection()))
+                    .collect::<FuturesUnordered<_>>()
+                    .filter_map(async |result| match result {
+                        Ok(connection) => Some(connection),
+                        Err(error) => {
+                            relay_log::warn!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to acquire a secondary redis connection",
+                            );
+                            None
+                        }
+                    })
+                    .collect()
+                    .await;
 
                 Ok(AsyncRedisConnection::MultiWrite(MultiWriteConnection::new(
                     primary,
-                    connections,
+                    secondaries,
                 )))
             }
         }
+        .map_err(RedisError::Pool)
     }
 
     /// Returns statistics about the current state of the connection pool.
