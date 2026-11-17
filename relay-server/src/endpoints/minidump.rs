@@ -239,7 +239,15 @@ impl UploadContext<'_> {
             | AttachmentType::NvGpuDump
             | AttachmentType::NvShaderDebug
             | AttachmentType::CompiledShader => &self.upload_minidumps,
-            _ => &UploadDecision::Inline,
+            AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph => &UploadDecision::Inline,
         }
     }
 }
