@@ -471,19 +471,17 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::ContainerPayload;
     use chrono::DateTime;
-
     use relay_conventions::attributes::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
     use relay_protocol::{SerializableAnnotated, assert_annotated_snapshot};
 
+    use super::*;
     use crate::Envelope;
+    use crate::envelope::ContainerPayload;
     use crate::extractors::RequestMeta;
     use crate::services::projects::project::ProjectInfo;
-
-    use super::*;
 
     #[test]
     fn test_expand_span_container_operations_limit() {

@@ -1,17 +1,16 @@
-use crate::managed::Counted;
 use relay_quotas::DataCategory;
 use serde_json::json;
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
+use super::*;
 use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
 use crate::integrations::LogsIntegration;
 use crate::integrations::OtelFormat;
-
-use super::*;
+use crate::managed::Counted;
 
 #[test]
-fn misplaced_attachment_headers_do_not_change_item_classification() {
+fn test_item_parse_misplaced_attachment_headers() {
     for ty in ["event", "user_report", "profile"] {
         for attachment_type in ["event.minidump", "future_attachment"] {
             let header = serde_json::json!({
@@ -32,7 +31,7 @@ fn misplaced_attachment_headers_do_not_change_item_classification() {
 }
 
 #[test]
-fn payload_classification_and_routing_are_separate_facts() {
+fn test_item_payload_classification_and_routing() {
     // These are the pre-refactor routing/classification contracts. ReplayEvent's
     // routing is intentionally preserved even though its quota is independent.
     for (ty, payload, routed) in [
@@ -87,7 +86,7 @@ fn payload_classification_and_routing_are_separate_facts() {
 }
 
 #[test]
-fn typed_items_preserve_wire_headers_and_variant_identity() {
+fn test_item_parse_preserves_headers_and_type() {
     // Preserve unknown tags and misplaced or invalid headers for forwarding.
     for tag in ["transaction", "profile", "attachment", "future_item"] {
         let header = serde_json::json!({
@@ -126,7 +125,7 @@ fn typed_items_preserve_wire_headers_and_variant_identity() {
 }
 
 #[test]
-fn item_count_headers_are_only_read_by_supported_variants() {
+fn test_item_count_supported_variants() {
     for (tag, supported) in [
         ("transaction", false),
         ("event", false),
@@ -154,7 +153,7 @@ fn item_count_headers_are_only_read_by_supported_variants() {
 }
 
 #[test]
-fn concrete_accounting_preserves_container_counts() {
+fn test_item_quantities_container_counts() {
     let (profile, _) = Item::parse(Bytes::from_static(
         b"{\"type\":\"profile\",\"platform\":\"python\",\"item_count\":3}\n{}\n",
     ))

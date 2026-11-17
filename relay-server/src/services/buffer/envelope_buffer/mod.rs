@@ -739,25 +739,24 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::TransactionItem;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use uuid::Uuid;
 
+    use super::*;
     use crate::SqliteEnvelopeStore;
-
+    use crate::envelope::TransactionItem;
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
-
-    use super::*;
 
     impl Peek {
         fn is_empty(&self) -> bool {

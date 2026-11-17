@@ -697,9 +697,13 @@ fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError>
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+
+    use super::*;
     use crate::envelope::EventItem;
+
     #[test]
-    fn typed_extraction_preserves_unselected_items_and_drain_order() {
+    fn test_drain_items_if_preserves_order() {
         let mut envelope = Envelope::from_request(None, request_meta());
         envelope.add_item(ProfileItem::new());
         for name in ["a", "b", "c"] {
@@ -723,10 +727,6 @@ mod tests {
         assert!(matches!(envelope.items().next(), Some(Item::Profile(_))));
         assert_eq!(envelope.len(), 1);
     }
-
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-
-    use super::*;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
