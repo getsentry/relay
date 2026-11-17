@@ -1657,70 +1657,133 @@ mod tests {
 
     #[test]
     fn test_normalize_user_agent_none() {
-        for (maximum, name, version, original) in [
-            (256, "Chrome", "131.0.0", CHROME_USER_AGENT),
-            (4, "Chro", "131.", "Mozi"),
-        ] {
-            let client_info = Some(ClientUserAgentInfo {
-                user_agent: Some(CHROME_USER_AGENT),
+        let normalizer = UserAgentNormalizer::new(256);
+        let mut attributes = Default::default();
+        normalize_user_agent(
+            &mut attributes,
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
                 ..Default::default()
-            });
-            let normalizer = UserAgentNormalizer::new(maximum);
-            assert!(normalizer.hints.get().is_none());
-            assert!(normalizer.user_agent.get().is_none());
-            assert!(normalizer.original.get().is_none());
+            }),
+            &normalizer,
+        );
 
-            let mut expected = Attributes::default();
-            for (key, value) in [
-                (BROWSER__NAME, name),
-                (BROWSER__VERSION, version),
-                (USER_AGENT__ORIGINAL, original),
-            ] {
-                expected.insert(key, value.to_owned());
-            }
-            let expected = Annotated::new(expected);
-            for _ in 0..3 {
-                let mut attributes = Annotated::default();
-                normalize_user_agent(&mut attributes, client_info, &normalizer);
-                // Parse the full transport UA even when its stored copy is truncated.
-                assert_eq!(attributes, expected);
-            }
-            assert!(normalizer.hints.get().unwrap().is_none());
-            assert!(normalizer.user_agent.get().unwrap().is_some());
-            assert_eq!(
-                normalizer.original.get().map(String::as_str),
-                Some(original)
-            );
+        assert_annotated_snapshot!(attributes, @r###"
+        {
+          "browser.name": {
+            "type": "string",
+            "value": "Chrome"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "131.0.0"
+          },
+          "user_agent.original": {
+            "type": "string",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+          }
         }
+        "###);
+
+        // A short stored prefix must not change detection from the full transport UA.
+        let normalizer = UserAgentNormalizer::new(4);
+        for _ in 0..3 {
+            let mut attributes = Annotated::default();
+            normalize_user_agent(
+                &mut attributes,
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(CHROME_USER_AGENT),
+                    ..Default::default()
+                }),
+                &normalizer,
+            );
+            let attributes = attributes.value().unwrap();
+            for (key, expected) in [
+                (BROWSER__NAME, "Chro"),
+                (BROWSER__VERSION, "131."),
+                (USER_AGENT__ORIGINAL, "Mozi"),
+            ] {
+                assert_eq!(
+                    attributes.get_value(key).and_then(Value::as_str),
+                    Some(expected)
+                );
+            }
+        }
+        assert!(normalizer.hints.get().unwrap().is_none());
+        assert!(normalizer.user_agent.get().unwrap().is_some());
+        assert_eq!(normalizer.original.get().map(String::as_str), Some("Mozi"));
     }
 
     #[test]
     fn test_normalize_user_agent_existing() {
-        let client_info = Some(ClientUserAgentInfo {
-            user_agent: Some(CHROME_USER_AGENT),
-            ..Default::default()
-        });
         let normalizer = UserAgentNormalizer::new(4);
-        for fields in [
-            &[(BROWSER__NAME, "Very Special")][..],
-            &[(BROWSER__VERSION, "13.3.7")][..],
-            &[
-                (BROWSER__NAME, "Very Special"),
-                (BROWSER__VERSION, "13.3.7"),
-            ][..],
-        ] {
-            let mut attributes = Attributes::default();
-            for &(key, value) in fields {
-                attributes.insert(key, value.to_owned());
-            }
-            let mut attributes = Annotated::new(attributes);
-            let expected = attributes.clone();
-            normalize_user_agent(&mut attributes, client_info, &normalizer);
-            assert_eq!(attributes, expected);
-            assert!(normalizer.hints.get().is_none());
-            assert!(normalizer.user_agent.get().is_none());
-            assert!(normalizer.original.get().is_none());
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_user_agent(
+            &mut attributes,
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                ..Default::default()
+            }),
+            &normalizer,
+        );
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          }
         }
+        "#
+        );
+
+        // Either prefilled browser field prevents enrichment on its own.
+        for (key, other, expected) in [
+            (BROWSER__NAME, BROWSER__VERSION, "Very Special"),
+            (BROWSER__VERSION, BROWSER__NAME, "13.3.7"),
+        ] {
+            let mut partial = attributes.clone();
+            partial.value_mut().as_mut().unwrap().remove(other);
+            normalize_user_agent(
+                &mut partial,
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(CHROME_USER_AGENT),
+                    ..Default::default()
+                }),
+                &normalizer,
+            );
+            let partial = partial.value().unwrap();
+            assert_eq!(
+                partial.get_value(key).and_then(Value::as_str),
+                Some(expected)
+            );
+            assert!(!partial.contains_key(other));
+            assert!(!partial.contains_key(USER_AGENT__ORIGINAL));
+        }
+        assert!(normalizer.hints.get().is_none());
+        assert!(normalizer.user_agent.get().is_none());
+        assert!(normalizer.original.get().is_none());
     }
 
     #[test]
