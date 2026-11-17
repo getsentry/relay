@@ -47,19 +47,20 @@ fn retention_days_to_duration(days: u16) -> Duration {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use serde_json::json;
+
     use super::*;
+    use crate::envelope::{ContentType, ItemType};
+    use crate::managed::ManagedEnvelope;
+    use crate::processing::logs::LogsProcessor;
+    use crate::processing::spans::SpansProcessor;
+    use crate::processing::trace_metrics::TraceMetricsProcessor;
+    use crate::processing::{Forward, QuotaRateLimiter};
 
     #[tokio::test]
     async fn user_agent_uses_configured_limit_and_inference_setting() {
-        use std::sync::Arc;
-
-        use crate::envelope::{ContentType, ItemType};
-        use crate::processing::QuotaRateLimiter;
-        use crate::processing::logs::LogsProcessor;
-        use crate::processing::spans::SpansProcessor;
-        use crate::processing::trace_metrics::TraceMetricsProcessor;
-        use serde_json::json;
-
         let config = relay_config::Config::from_json_value(json!({
             "relay": {"mode": "proxy"},
             "aggregator": {"max_tag_value_length": 100},
@@ -225,9 +226,6 @@ mod tests {
         wire: &str,
         ctx: Context<'_>,
     ) -> serde_json::Value {
-        use crate::managed::ManagedEnvelope;
-        use crate::processing::Forward;
-
         let (outcomes, _received) = relay_system::Addr::custom();
         let envelope = crate::Envelope::parse_bytes(wire.to_owned().into()).unwrap();
         let mut envelope = ManagedEnvelope::new(envelope, outcomes);
