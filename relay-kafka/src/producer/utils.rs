@@ -90,11 +90,11 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(producer_name: String, inflight: InflightCounter) -> Self {
+    pub fn new(producer_name: String) -> Self {
         Self {
             arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
-            inflight,
+            inflight: InflightCounter::default(),
         }
     }
 
@@ -179,13 +179,11 @@ mod tests {
     use rdkafka::statistics::{Broker, Statistics};
     use relay_statsd::with_capturing_test_client;
 
-    use crate::producer::utils::InflightCounter;
-
     use super::Context;
 
     #[test]
     fn test_statistics_backend() {
-        let context = Context::new("test-producer".to_owned(), InflightCounter::default());
+        let context = Context::new("test-producer".to_owned());
         let statistics = Statistics {
             msg_cnt: 42,
             brokers: [(

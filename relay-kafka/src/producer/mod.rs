@@ -22,7 +22,7 @@ use crate::KafkaTopicConfig;
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
-use crate::producer::utils::{InflightCounter, KafkaHeaders};
+use crate::producer::utils::KafkaHeaders;
 use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
 
 mod utils;
@@ -461,7 +461,6 @@ pub struct KafkaClientBuilder {
     /// shared by logical topics that produce to that same physical topic.
     reused_producers: BTreeMap<String, Arc<ReloadingKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
-    inflight: InflightCounter,
 }
 
 impl KafkaClientBuilder {
@@ -522,7 +521,7 @@ impl KafkaClientBuilder {
                     source.blob,
                     ProducerSelector::new(topic_name.clone(), source.app),
                     reload_config(source.jitter),
-                    Context::new(producer_name, self.inflight.clone()),
+                    Context::new(producer_name),
                 )?);
 
                 self.reused_producers
