@@ -1,7 +1,7 @@
-use opentelemetry_proto::tonic::logs::v1::LogsData;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
+use relay_otel::otel_logs::LogsData;
 use relay_quotas::DataCategory;
 
 use crate::envelope::WithHeader;
@@ -145,8 +145,8 @@ mod tests {
     use opentelemetry_proto::tonic::common::v1::{
         AnyValue, ArrayValue, InstrumentationScope, KeyValue,
     };
-    use opentelemetry_proto::tonic::logs::v1::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
     use opentelemetry_proto::tonic::resource::v1::Resource;
+    use relay_otel::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
     use prost::Message;
 

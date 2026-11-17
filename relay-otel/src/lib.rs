@@ -14,6 +14,8 @@ mod logs;
 
 pub use self::logs::otel_to_sentry_log;
 
+pub use opentelemetry_proto::tonic::logs::v1 as otel_logs;
+
 use opentelemetry_proto::tonic::common::v1::ArrayValue as OtelArrayValue;
 use opentelemetry_proto::tonic::common::v1::KeyValueList;
 use opentelemetry_proto::tonic::common::v1::any_value;
