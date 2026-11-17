@@ -402,7 +402,14 @@ fn char_prefix(value: &str, max_chars: usize) -> &str {
     &value[..end]
 }
 
-/// Normalizes browser information, preserving existing browser attributes and explicit user agents.
+/// Normalizes the user agent/client information into [`Attributes`].
+///
+/// Does not modify the attributes if there is already browser information present,
+/// to preserve original values. Explicit user agents take precedence over the transport user agent.
+///
+/// The `client_info` should be omitted for cases where the info is unreliable or incorrect, for
+/// example when the client is a backend SDK or another Relay.
+///
 /// Share the normalizer across a container to avoid reparsing transport headers for every item.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
