@@ -1,7 +1,10 @@
 use super::*;
 use std::collections::BTreeMap;
 
-use crate::envelope::{AttachmentItem, ParentId, ProfileChunkItem, SourceQuantities};
+use crate::envelope::{
+    AttachmentItem, IntegrationItem, ParentId, ProfileChunkItem, SourceQuantities,
+};
+use crate::integrations::ErrorsIntegration;
 use relay_base_schema::project::ProjectId;
 use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
 use relay_system::Addr;
@@ -1193,9 +1196,6 @@ fn test_integration_items_use_native_limits() {
 
 #[test]
 fn test_unreal_integration_with_event_counts_one_logical_error() {
-    use crate::envelope::IntegrationItem;
-    use crate::integrations::ErrorsIntegration;
-
     let mut envelope = envelope![Event];
     let mut item = IntegrationItem::new();
     item.data_mut().set_payload(
