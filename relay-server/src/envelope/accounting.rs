@@ -9,7 +9,7 @@ use crate::managed::{Counted, Quantities};
 /// Per-item rejection accounting, excluding the logical event recorded once per envelope.
 /// Call only after deciding to reject an item that has not already been rate limited:
 /// transaction rejection may discover embedded spans by parsing the payload.
-pub(crate) trait RejectionQuantities: Counted {
+pub trait RejectionQuantities: Counted {
     fn rejected_quantities(&self) -> Quantities {
         self.quantities()
     }
