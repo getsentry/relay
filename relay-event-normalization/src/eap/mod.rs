@@ -391,6 +391,10 @@ impl UserAgentNormalizer {
 }
 
 fn char_prefix(value: &str, max_chars: usize) -> &str {
+    // A string that fits in bytes also fits in characters.
+    if value.len() <= max_chars {
+        return value;
+    }
     let end = value
         .char_indices()
         .nth(max_chars)
@@ -414,16 +418,15 @@ pub fn normalize_user_agent(
     let hints = normalizer
         .hints
         .get_or_init(|| normalizer.parse_hints(client_info.hints));
-    let explicit_browser;
-    let browser = if hints.is_some() {
-        hints.as_ref()
+    let browser = if let Some(browser) = hints {
+        Some((browser.name.clone(), browser.version.clone()))
     } else if attributes.contains_key(USER_AGENT__ORIGINAL) {
         // Even an invalid explicit attribute prevents the transport fallback.
-        explicit_browser = attributes
+        attributes
             .get_value(USER_AGENT__ORIGINAL)
             .and_then(Value::as_str)
-            .and_then(|ua| normalizer.parse_user_agent(ua));
-        explicit_browser.as_ref()
+            .and_then(|ua| normalizer.parse_user_agent(ua))
+            .map(|browser| (browser.name, browser.version))
     } else {
         normalizer
             .user_agent
@@ -433,6 +436,7 @@ pub fn normalize_user_agent(
                     .and_then(|ua| normalizer.parse_user_agent(ua))
             })
             .as_ref()
+            .map(|browser| (browser.name.clone(), browser.version.clone()))
     };
 
     if let Some(ua) = client_info.user_agent {
@@ -443,9 +447,9 @@ pub fn normalize_user_agent(
                 .clone()
         });
     }
-    if let Some(browser) = browser {
-        attributes.insert_if_missing(BROWSER__NAME, || browser.name.clone());
-        attributes.insert_if_missing(BROWSER__VERSION, || browser.version.clone());
+    if let Some((name, version)) = browser {
+        attributes.insert_if_missing(BROWSER__NAME, || name);
+        attributes.insert_if_missing(BROWSER__VERSION, || version);
     }
 }
 
