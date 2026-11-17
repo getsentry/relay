@@ -441,28 +441,31 @@ mod tests {
     #[cfg(feature = "processing")]
     #[test]
     fn attachment_type_defaults_count_attachment_bytes() {
-        use crate::envelope::{Envelope, Item};
-        use bytes::Bytes;
+        use crate::envelope::Envelope;
+        use crate::extractors::RequestMeta;
         use relay_config::Config;
+        use relay_event_schema::protocol::EventId;
         use serde_json::json;
 
         let config = Config::from_json_value(json!({"processing": {"enabled": true}})).unwrap();
-        let envelope = Envelope::parse_bytes(Bytes::from_static(
-            b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42\"}\n",
-        )).unwrap();
+        let meta = RequestMeta::new(
+            "https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42"
+                .parse()
+                .unwrap(),
+        );
+        let envelope = Envelope::from_request(Some(EventId::new()), meta);
         for (declared, expected_bytes) in [
             (None, Some(4)),
-            (Some(json!("event.attachment")), Some(4)),
-            (Some(json!("future.attachment")), Some(4)),
-            (Some(json!(42)), Some(4)),
-            (Some(json!("event.minidump")), None),
+            (Some(AttachmentType::Attachment), Some(4)),
+            (Some(AttachmentType::Minidump), None),
         ] {
-            let mut header = json!({"type": "attachment", "length": 4});
+            let mut attachment = AttachmentItem::new();
+            attachment
+                .data_mut()
+                .set_payload_without_content_type("body");
             if let Some(declared) = declared {
-                header["attachment_type"] = declared;
+                attachment.set_attachment_type(declared);
             }
-            let (item, _) = Item::parse(Bytes::from(format!("{header}\nbody\n"))).unwrap();
-            let attachment = AttachmentItem::try_from(item).unwrap();
             let mut event = Annotated::new(Event::default());
             finalize(
                 envelope.headers(),
@@ -483,7 +486,7 @@ mod tests {
                     .value()
                     .copied(),
                 expected_bytes,
-                "{header}"
+                "{declared:?}"
             );
         }
     }

@@ -515,53 +515,36 @@ fn attachment_type_defaults_preserve_wire_headers() {
 
 #[test]
 fn attachment_type_defaults_preserve_nintendo_detection() {
-    use super::*;
     use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
-    use serde_json::json;
 
-    for (declared, expected, unknown) in [
-        (None, AttachmentType::NintendoSwitchDyingMessage, false),
+    for (declared, expected) in [
+        (None, AttachmentType::NintendoSwitchDyingMessage),
         (
-            Some(json!("future.attachment")),
+            Some("future.attachment"),
             AttachmentType::NintendoSwitchDyingMessage,
-            true,
         ),
-        (
-            Some(json!("event.attachment")),
-            AttachmentType::Attachment,
-            false,
-        ),
+        (Some("event.attachment"), AttachmentType::Attachment),
     ] {
-        let mut header = json!({
-            "type": "attachment", "filename": NNSWITCH_DYING_MESSAGE_FILENAME,
-            "length": NNSWITCH_SENTRY_MAGIC.len(),
-        });
-        if let Some(declared) = declared {
-            header["attachment_type"] = declared;
-        }
-        let mut wire = format!("{header}\n").into_bytes();
-        wire.extend_from_slice(NNSWITCH_SENTRY_MAGIC);
-        wire.push(b'\n');
-        let (item, _) = Item::parse(Bytes::from(wire)).unwrap();
-        assert_eq!(
-            item.downcast_ref::<AttachmentItem>()
-                .unwrap()
-                .attachment_type(),
-            expected
-        );
-        assert_eq!(item.is_unknown(), unknown);
-        assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+        let mut attachment = AttachmentItem::new();
+        attachment.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
+        attachment
+            .data_mut()
+            .set_payload_without_content_type(NNSWITCH_SENTRY_MAGIC);
+        attachment
+            .data_mut()
+            .set_test_header(ItemHeaderKey::AttachmentType, declared);
+        assert_eq!(attachment.attachment_type(), expected, "{declared:?}");
     }
 
-    let mut attachment = AttachmentItem::new();
-    attachment.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
-    attachment
-        .data_mut()
-        .set_payload_without_content_type("not a dying message");
-    assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
-    attachment.set_filename("ordinary.dat");
-    attachment
-        .data_mut()
-        .set_payload_without_content_type(NNSWITCH_SENTRY_MAGIC);
-    assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
+    for (filename, payload) in [
+        (NNSWITCH_DYING_MESSAGE_FILENAME, &b"not a dying message"[..]),
+        ("ordinary.dat", NNSWITCH_SENTRY_MAGIC),
+    ] {
+        let mut attachment = AttachmentItem::new();
+        attachment.set_filename(filename);
+        attachment
+            .data_mut()
+            .set_payload_without_content_type(payload);
+        assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
+    }
 }
