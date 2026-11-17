@@ -24,7 +24,7 @@ pub fn remove_illegal_attachments(managed: &mut Managed<SerializedAttachments>) 
     managed.retain(
         |managed| &mut managed.attachments,
         |attachment, _| match attachment.attachment_type() {
-            Some(AttachmentType::Flamegraph) => Err(ProcessingError::InvalidFlamegraph),
+            AttachmentType::Flamegraph => Err(ProcessingError::InvalidFlamegraph),
             _ => Ok(()),
         },
     );

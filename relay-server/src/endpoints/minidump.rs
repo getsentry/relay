@@ -230,18 +230,24 @@ struct UploadContext<'a> {
 }
 
 impl UploadContext<'_> {
-    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
+    fn upload_decision(&self, attachment_type: AttachmentType) -> &UploadDecision {
         match attachment_type {
-            Some(AttachmentType::Attachment) => &self.upload_attachments,
+            AttachmentType::Attachment => &self.upload_attachments,
             // GPU dumps are smaller than minidumps. We still stream them under the same
             // decision instead of inlining them into the envelope.
-            Some(
-                AttachmentType::Minidump
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            ) => &self.upload_minidumps,
-            _ => &UploadDecision::Inline,
+            AttachmentType::Minidump
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => &self.upload_minidumps,
+            AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph => &UploadDecision::Inline,
         }
     }
 }
@@ -261,7 +267,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         config: &ConfigSnapshot,
     ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
         let read_inline = async |field: Field<'static>, item: Managed<AttachmentItem>| {
-            let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+            let is_minidump = matches!(item.attachment_type(), AttachmentType::Minidump);
             match read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
                 Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
@@ -278,7 +284,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Upload => {
                 let content_type = field.content_type().map(|ct| ct.as_ref().to_owned());
-                let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+                let is_minidump = matches!(item.attachment_type(), AttachmentType::Minidump);
 
                 match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
                     SizeSplit::Small(bytes) => Ok(Some(read_bytes_into_item(
@@ -357,7 +363,7 @@ where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
-    if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
+    if !matches!(item.attachment_type(), AttachmentType::Minidump) {
         return upload_stream(
             stream,
             content_type,
@@ -423,7 +429,7 @@ async fn multipart_to_items(
         .attachments
         .iter()
         .enumerate()
-        .find(|(_, item)| item.attachment_type() == Some(AttachmentType::Minidump))
+        .find(|(_, item)| item.attachment_type() == AttachmentType::Minidump)
         .ok_or(BadStoreRequest::MissingMinidump)
         .reject(&items)?;
 
@@ -939,7 +945,7 @@ mod tests {
         let item = &items.attachments[0];
         assert_eq!(item.filename().unwrap(), "config.json");
         assert!(item.data().content_type().is_none());
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
+        assert_eq!(item.attachment_type(), AttachmentType::Attachment);
         assert_eq!(item.data().payload().len(), 95);
 
         // the first breadcrumb buffer
@@ -949,7 +955,7 @@ mod tests {
             item.data().content_type().unwrap(),
             ContentType::OctetStream
         );
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+        assert_eq!(item.attachment_type(), AttachmentType::Breadcrumbs);
         assert_eq!(item.data().payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
@@ -959,7 +965,7 @@ mod tests {
             item.data().content_type().unwrap(),
             ContentType::OctetStream
         );
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+        assert_eq!(item.attachment_type(), AttachmentType::Breadcrumbs);
         assert_eq!(item.data().payload().len(), 0);
 
         // the msg-pack encoded event file
@@ -969,20 +975,14 @@ mod tests {
             item.data().content_type().unwrap(),
             ContentType::OctetStream
         );
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            AttachmentType::EventPayload
-        );
+        assert_eq!(item.attachment_type(), AttachmentType::EventPayload);
         assert_eq!(item.data().payload().len(), 29);
 
         // the next item is the view-hierarchy file
         let item = &items.attachments[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
         assert_eq!(item.data().content_type().unwrap(), ContentType::Json);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            AttachmentType::ViewHierarchy
-        );
+        assert_eq!(item.attachment_type(), AttachmentType::ViewHierarchy);
         assert_eq!(item.data().payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`

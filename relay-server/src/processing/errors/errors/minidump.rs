@@ -16,7 +16,7 @@ impl SentryError for Minidump {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(minidump) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == Some(AttachmentType::Minidump)
+            item.attachment_type() == AttachmentType::Minidump
         }) else {
             return Ok(None);
         };

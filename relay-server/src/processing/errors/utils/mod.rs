@@ -129,13 +129,13 @@ pub fn take_event_from_attachments(
     ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     let ev = take_item_if::<AttachmentItem>(items, |item| {
-        item.attachment_type() == Some(AttachmentType::EventPayload)
+        item.attachment_type() == AttachmentType::EventPayload
     });
     let b1 = take_item_if::<AttachmentItem>(items, |item| {
-        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+        item.attachment_type() == AttachmentType::Breadcrumbs
     });
     let b2 = take_item_if::<AttachmentItem>(items, |item| {
-        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+        item.attachment_type() == AttachmentType::Breadcrumbs
     });
 
     if ev.is_none() && b1.is_none() {
@@ -154,13 +154,13 @@ pub fn take_event_from_typed_attachments(
     ctx: processing::Context<'_>,
 ) -> Result<Annotated<Event>> {
     let ev = take_item_by(items, |item| {
-        item.attachment_type() == Some(AttachmentType::EventPayload)
+        item.attachment_type() == AttachmentType::EventPayload
     });
     let b1 = take_item_by(items, |item| {
-        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+        item.attachment_type() == AttachmentType::Breadcrumbs
     });
     let b2 = take_item_by(items, |item| {
-        item.attachment_type() == Some(AttachmentType::Breadcrumbs)
+        item.attachment_type() == AttachmentType::Breadcrumbs
     });
 
     if ev.is_none() && b1.is_none() {
@@ -218,7 +218,7 @@ pub fn take_event_from_crash_items(
                 Item::FormData(_) => true,
                 Item::Attachment(attachment) => matches!(
                     attachment.attachment_type(),
-                    Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
+                    AttachmentType::EventPayload | AttachmentType::Breadcrumbs
                 ),
                 _ => false,
             })

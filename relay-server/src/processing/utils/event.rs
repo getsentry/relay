@@ -100,7 +100,7 @@ pub fn finalize<'a>(
         let mut metrics = std::mem::take(metrics);
 
         let attachment_size = attachments
-            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+            .filter(|item| item.attachment_type() == AttachmentType::Attachment)
             .map(|item| item.attachment_body_size() as u64)
             .sum::<u64>();
 
@@ -436,7 +436,59 @@ pub fn scrub(
 #[cfg(feature = "processing")]
 #[cfg(test)]
 mod tests {
+    use relay_config::Config;
+    use relay_event_schema::protocol::EventId;
+    use serde_json::json;
+
     use super::*;
+    use crate::envelope::Envelope;
+    use crate::extractors::RequestMeta;
+
+    #[test]
+    fn test_finalize_attachment_bytes_defaults() {
+        let config = Config::from_json_value(json!({"processing": {"enabled": true}})).unwrap();
+        let meta = RequestMeta::new(
+            "https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42"
+                .parse()
+                .unwrap(),
+        );
+        let envelope = Envelope::from_request(Some(EventId::new()), meta);
+        for (declared, expected_bytes) in [
+            (None, Some(4)),
+            (Some(AttachmentType::Attachment), Some(4)),
+            (Some(AttachmentType::Minidump), None),
+        ] {
+            let mut attachment = AttachmentItem::new();
+            attachment
+                .data_mut()
+                .set_payload_without_content_type("body");
+            if let Some(declared) = declared {
+                attachment.set_attachment_type(declared);
+            }
+            let mut event = Annotated::new(Event::default());
+            finalize(
+                envelope.headers(),
+                &mut event,
+                std::iter::once(&attachment),
+                &mut Metrics::default(),
+                &config.current(),
+            )
+            .unwrap();
+            assert_eq!(
+                event
+                    .value()
+                    .unwrap()
+                    ._metrics
+                    .value()
+                    .unwrap()
+                    .bytes_ingested_event_attachment
+                    .value()
+                    .copied(),
+                expected_bytes,
+                "{declared:?}"
+            );
+        }
+    }
 
     #[test]
     fn test_unprintable_fields() {
