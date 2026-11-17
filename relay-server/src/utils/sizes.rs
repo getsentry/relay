@@ -233,7 +233,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn size_limits_only_average_supported_container_counts() {
+    fn test_check_envelope_size_limits_container_counts() {
         let config = Config::from_json_value(json!({
             "limits": {
                 "max_event_size": 4,

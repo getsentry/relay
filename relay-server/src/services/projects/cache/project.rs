@@ -89,12 +89,8 @@ impl<'a> Project<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::TransactionItem;
     use std::collections::BTreeMap;
 
-    use crate::envelope::{ContentType, Envelope, Item};
-    use crate::extractors::RequestMeta;
-    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
     use relay_quotas::{DataCategory, ReasonCode};
@@ -102,6 +98,10 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
+    use crate::envelope::TransactionItem;
+    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::extractors::RequestMeta;
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
 
     fn create_project(config: ConfigSnapshot, data: Option<serde_json::Value>) -> Project<'static> {
         let mut project_info = ProjectInfo {

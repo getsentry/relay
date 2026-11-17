@@ -141,10 +141,10 @@ pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::EventItem;
     use relay_system::Addr;
 
     use super::*;
+    use crate::envelope::EventItem;
     use crate::extractors::RequestMeta;
 
     fn attachment(ty: AttachmentType) -> AttachmentItem {
