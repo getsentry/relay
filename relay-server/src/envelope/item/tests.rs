@@ -475,3 +475,93 @@ fn test_item_headers_unknown() {
     let s = serde_json::to_string(&item.wire_headers()).unwrap();
     insta::assert_snapshot!(s, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
 }
+
+#[test]
+fn attachment_type_defaults_preserve_wire_headers() {
+    use super::*;
+    use serde_json::json;
+
+    for (declared, expected, unknown) in [
+        (None, AttachmentType::Attachment, false),
+        (
+            Some(json!("event.attachment")),
+            AttachmentType::Attachment,
+            false,
+        ),
+        (
+            Some(json!("event.minidump")),
+            AttachmentType::Minidump,
+            false,
+        ),
+        (
+            Some(json!("future.attachment")),
+            AttachmentType::Attachment,
+            true,
+        ),
+        (Some(json!(42)), AttachmentType::Attachment, true),
+        (Some(json!(null)), AttachmentType::Attachment, true),
+    ] {
+        let mut header = json!({"type": "attachment", "length": 4});
+        if let Some(declared) = declared {
+            header["attachment_type"] = declared;
+        }
+        let (item, _) = Item::parse(Bytes::from(format!("{header}\nbody\n"))).unwrap();
+        let attachment = item.downcast_ref::<AttachmentItem>().unwrap();
+        assert_eq!(attachment.attachment_type(), expected, "{header}");
+        assert_eq!(item.is_unknown(), unknown, "{header}");
+        assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+    }
+}
+
+#[test]
+fn attachment_type_defaults_preserve_nintendo_detection() {
+    use super::*;
+    use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
+    use serde_json::json;
+
+    for (declared, expected, unknown) in [
+        (None, AttachmentType::NintendoSwitchDyingMessage, false),
+        (
+            Some(json!("future.attachment")),
+            AttachmentType::NintendoSwitchDyingMessage,
+            true,
+        ),
+        (
+            Some(json!("event.attachment")),
+            AttachmentType::Attachment,
+            false,
+        ),
+    ] {
+        let mut header = json!({
+            "type": "attachment", "filename": NNSWITCH_DYING_MESSAGE_FILENAME,
+            "length": NNSWITCH_SENTRY_MAGIC.len(),
+        });
+        if let Some(declared) = declared {
+            header["attachment_type"] = declared;
+        }
+        let mut wire = format!("{header}\n").into_bytes();
+        wire.extend_from_slice(NNSWITCH_SENTRY_MAGIC);
+        wire.push(b'\n');
+        let (item, _) = Item::parse(Bytes::from(wire)).unwrap();
+        assert_eq!(
+            item.downcast_ref::<AttachmentItem>()
+                .unwrap()
+                .attachment_type(),
+            expected
+        );
+        assert_eq!(item.is_unknown(), unknown);
+        assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+    }
+
+    let mut attachment = AttachmentItem::new();
+    attachment.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
+    attachment
+        .data_mut()
+        .set_payload_without_content_type("not a dying message");
+    assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
+    attachment.set_filename("ordinary.dat");
+    attachment
+        .data_mut()
+        .set_payload_without_content_type(NNSWITCH_SENTRY_MAGIC);
+    assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
+}

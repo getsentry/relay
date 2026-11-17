@@ -67,7 +67,7 @@ fn test_generic_expansion_keeps_only_one_flamegraph() {
     let retained_flamegraphs = expanded
         .attachments
         .iter()
-        .filter(|item| item.attachment_type() == Some(AttachmentType::Flamegraph))
+        .filter(|item| item.attachment_type() == AttachmentType::Flamegraph)
         .count();
     assert_eq!(retained_flamegraphs, 0);
     // Removing the event swaps the last item into its slot before attachments are extracted.
@@ -100,7 +100,7 @@ fn test_minidump_expansion_keeps_flamegraphs_as_attachments() {
         expanded
             .attachments
             .iter()
-            .all(|item| { item.attachment_type() == Some(AttachmentType::Flamegraph) })
+            .all(|item| { item.attachment_type() == AttachmentType::Flamegraph })
     );
 }
 
@@ -131,7 +131,7 @@ fn test_forwarding_retains_separate_flamegraph() {
         let graphs: Vec<_> = envelope
             .items()
             .filter_map(Item::downcast_ref::<AttachmentItem>)
-            .filter(|item| item.attachment_type() == Some(AttachmentType::Flamegraph))
+            .filter(|item| item.attachment_type() == AttachmentType::Flamegraph)
             .collect();
         assert_eq!(graphs.len(), 1);
         assert_eq!(graphs[0].data().payload().as_ref(), b"graph");

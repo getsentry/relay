@@ -1,4 +1,4 @@
-use crate::envelope::{AttachmentItem, AttachmentType};
+use crate::envelope::AttachmentItem;
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Breadcrumb, Event, Values};
 use relay_protocol::{Annotated, Array, Object};
@@ -75,9 +75,7 @@ fn extract_attached_event(
     // larger size than regular events and may cause significant processing delays.
     if item.data().len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
-            item.attachment_type()
-                .unwrap_or(AttachmentType::Attachment)
-                .into(),
+            item.attachment_type().into(),
         ));
     }
 
@@ -102,9 +100,7 @@ fn parse_msgpack_breadcrumbs(
     // size as bound, which is roughly in the right ballpark.
     if item.data().len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
-            item.attachment_type()
-                .unwrap_or(AttachmentType::Attachment)
-                .into(),
+            item.attachment_type().into(),
         ));
     }
 

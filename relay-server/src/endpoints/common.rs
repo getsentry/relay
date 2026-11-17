@@ -22,7 +22,7 @@ use crate::envelope::{
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{
     Create, CreateResult, ProjectContext, Stream, StreamResult, StreamSource, Upload, UploadMode,
@@ -344,7 +344,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items.iter().find(|item| {
         matches!(item, Item::Attachment(attachment)
-            if attachment.attachment_type() == Some(AttachmentType::EventPayload))
+            if attachment.attachment_type() == AttachmentType::EventPayload)
     }) && let Some(event_id) = event_id_from_msgpack(&item.data().payload())?
     {
         return Ok(Some(event_id));
@@ -612,7 +612,7 @@ where
         .send(Create {
             project: project.clone(),
             length: None,
-            attachment_type: item.attachment_type(),
+            attachment_type: Some(item.attachment_type()),
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?
@@ -647,8 +647,7 @@ where
         .map_err(|_| {
             if byte_counter.get() > config.max_upload_size() {
                 BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
-                    item.attachment_type()
-                        .map_or(DiscardAttachmentType::Attachment, Into::into),
+                    item.attachment_type().into(),
                 ))
             } else {
                 BadStoreRequest::UploadFailed

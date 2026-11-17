@@ -91,7 +91,7 @@ pub fn expand_unreal(
 
     let mut context = items
         .iter()
-        .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
+        .find(|&item| matches!(item.attachment_type(), AttachmentType::UnrealContext))
         .map(|item| Unreal4Context::parse(&item.data().payload()))
         .transpose()?;
 
@@ -685,7 +685,7 @@ pub fn process_unreal(
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
     let mut logs_items = attachments
         .iter()
-        .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
+        .filter(|item| item.attachment_type() == AttachmentType::UnrealLogs)
         .map(|item| item.data().payload())
         .peekable();
 
@@ -714,7 +714,7 @@ pub fn process_unreal(
         let has_native_crash = attachments.iter().any(|item| {
             matches!(
                 item.attachment_type(),
-                Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
+                AttachmentType::Minidump | AttachmentType::AppleCrashReport
             )
         });
 

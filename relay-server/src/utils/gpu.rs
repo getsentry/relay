@@ -65,22 +65,19 @@ fn is_scope_item(item: &Item) -> bool {
     match item {
         Item::Event(_) => true,
         Item::Attachment(attachment) => match attachment.attachment_type() {
-            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs) => true,
-            Some(
-                AttachmentType::Attachment
-                | AttachmentType::Minidump
-                | AttachmentType::AppleCrashReport
-                | AttachmentType::Prosperodump
-                | AttachmentType::NintendoSwitchDyingMessage
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs
-                | AttachmentType::ViewHierarchy
-                | AttachmentType::Flamegraph
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            )
-            | None => false,
+            AttachmentType::EventPayload | AttachmentType::Breadcrumbs => true,
+            AttachmentType::Attachment
+            | AttachmentType::Minidump
+            | AttachmentType::AppleCrashReport
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => false,
         },
         Item::Transaction(_)
         | Item::Security(_)
@@ -110,32 +107,27 @@ fn is_scope_item(item: &Item) -> bool {
 /// The GPU crash dump whose presence triggers the split.
 pub fn is_gpu_dump_item(item: &Item) -> bool {
     matches!(item, Item::Attachment(attachment)
-        if attachment.attachment_type() == Some(AttachmentType::NvGpuDump))
+        if attachment.attachment_type() == AttachmentType::NvGpuDump)
 }
 
 /// The dump plus the debug info moved onto the GPU envelope alongside it.
 pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
     // New attachment subtypes must explicitly opt into or out of the GPU envelope.
     match item.attachment_type() {
-        Some(
-            AttachmentType::NvGpuDump
-            | AttachmentType::NvShaderDebug
-            | AttachmentType::CompiledShader,
-        ) => true,
-        Some(
-            AttachmentType::Attachment
-            | AttachmentType::Minidump
-            | AttachmentType::AppleCrashReport
-            | AttachmentType::EventPayload
-            | AttachmentType::Breadcrumbs
-            | AttachmentType::Prosperodump
-            | AttachmentType::NintendoSwitchDyingMessage
-            | AttachmentType::UnrealContext
-            | AttachmentType::UnrealLogs
-            | AttachmentType::ViewHierarchy
-            | AttachmentType::Flamegraph,
-        )
-        | None => false,
+        AttachmentType::NvGpuDump
+        | AttachmentType::NvShaderDebug
+        | AttachmentType::CompiledShader => true,
+        AttachmentType::Attachment
+        | AttachmentType::Minidump
+        | AttachmentType::AppleCrashReport
+        | AttachmentType::EventPayload
+        | AttachmentType::Breadcrumbs
+        | AttachmentType::Prosperodump
+        | AttachmentType::NintendoSwitchDyingMessage
+        | AttachmentType::UnrealContext
+        | AttachmentType::UnrealLogs
+        | AttachmentType::ViewHierarchy
+        | AttachmentType::Flamegraph => false,
     }
 }
 
@@ -170,7 +162,7 @@ mod tests {
         envelope
             .items()
             .map(|item| match item {
-                Item::Attachment(attachment) => attachment.attachment_type(),
+                Item::Attachment(attachment) => Some(attachment.attachment_type()),
                 _ => None,
             })
             .collect()

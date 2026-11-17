@@ -23,7 +23,7 @@ impl SentryError for GpuCrash {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(dump) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == Some(AttachmentType::NvGpuDump)
+            item.attachment_type() == AttachmentType::NvGpuDump
         }) else {
             return Ok(None);
         };

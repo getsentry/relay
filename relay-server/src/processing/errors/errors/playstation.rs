@@ -46,7 +46,7 @@ impl SentryError for Playstation {
         let mut metrics = Metrics::default();
 
         let Some(prosperodump) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == Some(AttachmentType::Prosperodump)
+            item.attachment_type() == AttachmentType::Prosperodump
         }) else {
             return Ok(None);
         };

@@ -233,6 +233,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn attachment_type_defaults_preserve_unknown_item_policy_and_forwarding() {
+        use crate::envelope::{AttachmentItem, AttachmentType};
+        use relay_system::Addr;
+
+        for accept_unknown_items in [false, true] {
+            let config = Config::from_json_value(json!({
+                "routing": { "accept_unknown_items": accept_unknown_items },
+            }))
+            .unwrap();
+            for (declared, unknown) in [
+                (None, false),
+                (Some(json!("event.attachment")), false),
+                (Some(json!("future.attachment")), true),
+                (Some(json!(42)), true),
+                (Some(json!(null)), true),
+            ] {
+                let mut header = json!({"type": "attachment", "length": 4});
+                if let Some(declared) = declared {
+                    header["attachment_type"] = declared;
+                }
+                let envelope = Envelope::parse_bytes(
+                    format!("{{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b@sentry.io/42\"}}\n{header}\nbody\n").into(),
+                ).unwrap();
+                let item = envelope.items().next().unwrap();
+                assert_eq!(
+                    item.downcast_ref::<AttachmentItem>()
+                        .unwrap()
+                        .attachment_type(),
+                    AttachmentType::Attachment
+                );
+                let mut envelope = Managed::from_envelope(envelope, Addr::dummy());
+                remove_unknown_items(&config.current(), &mut envelope);
+                let retained = accept_unknown_items || !unknown;
+                assert_eq!(envelope.len(), usize::from(retained));
+                if retained {
+                    let serialized = envelope.to_vec().unwrap();
+                    let forwarded_header: serde_json::Value =
+                        serde_json::from_slice(serialized.split(|b| *b == b'\n').nth(1).unwrap())
+                            .unwrap();
+                    assert_eq!(forwarded_header, header);
+                    let forwarded = Envelope::parse_bytes(serialized.into()).unwrap();
+                    let item = forwarded.items().next().unwrap();
+                    assert_eq!(item.is_unknown(), unknown);
+                    assert_eq!(item.data().payload().as_ref(), b"body");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn size_limits_only_average_supported_container_counts() {
         let config = Config::from_json_value(json!({
             "limits": {

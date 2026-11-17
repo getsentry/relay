@@ -983,7 +983,7 @@ impl StoreService {
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
             rate_limited: item.data().rate_limited(),
             content_type: placeholder.content_type,
-            attachment_type: item.attachment_type().unwrap_or_default(),
+            attachment_type: item.attachment_type(),
             size: item.attachment_body_size(),
             retention_days,
             payload: AttachmentPayload::Stored(store_key),
@@ -1054,7 +1054,7 @@ impl StoreService {
                 .data()
                 .raw_content_type()
                 .map(|s| s.to_ascii_lowercase()),
-            attachment_type: item.attachment_type().unwrap_or_default(),
+            attachment_type: item.attachment_type(),
             size,
             retention_days,
             payload,

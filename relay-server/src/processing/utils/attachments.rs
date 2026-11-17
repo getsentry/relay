@@ -91,7 +91,7 @@ pub fn scrub<'a>(
                 relay_log::trace!("Skip attachment scrubbing for placeholder");
                 continue;
             } else if view_hierarchy_scrubbing_enabled
-                && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
+                && item.attachment_type() == AttachmentType::ViewHierarchy
             {
                 let old_size = item.data().payload().len();
                 scrub_view_hierarchy(item, config);
@@ -103,7 +103,7 @@ pub fn scrub<'a>(
                         new_size as isize - old_size as isize,
                     );
                 }
-            } else if item.attachment_type() == Some(AttachmentType::Minidump) {
+            } else if item.attachment_type() == AttachmentType::Minidump {
                 scrub_minidump(project_info, item, config)
             } else if has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
@@ -116,7 +116,7 @@ pub fn scrub<'a>(
 }
 
 fn scrub_minidump(project_info: &ProjectInfo, item: &mut AttachmentItem, config: &PiiConfig) {
-    debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
+    debug_assert_eq!(item.attachment_type(), AttachmentType::Minidump);
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.data().payload().to_vec();
 
@@ -216,10 +216,7 @@ fn scrub_attachment(project_info: &ProjectInfo, item: &mut AttachmentItem, confi
     let mut payload = item.data().payload().to_vec();
 
     let processor = PiiAttachmentsProcessor::new(config.compiled());
-    let attachment_type_tag = match item.attachment_type() {
-        Some(t) => t.to_string(),
-        None => "".to_owned(),
-    };
+    let attachment_type_tag = item.attachment_type().to_string();
     let start = Instant::now();
     let modified = processor.scrub_attachment(filename, &mut payload);
     metric!(

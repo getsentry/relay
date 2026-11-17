@@ -304,8 +304,7 @@ impl EnvelopeSummary {
                     let parent = item.attachment_parent_type();
                     // Event-parent dying messages contribute only to the event.
                     if !rate_limited
-                        && !(item.attachment_type()
-                            == Some(AttachmentType::NintendoSwitchDyingMessage)
+                        && !(item.attachment_type() == AttachmentType::NintendoSwitchDyingMessage
                             && matches!(parent, AttachmentParentType::Event))
                     {
                         summary.attachment_count += 1;

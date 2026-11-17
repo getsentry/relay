@@ -577,7 +577,7 @@ fn test_enforce_nintendo_dying_message_with_attachment_limit() {
     };
     assert_eq!(
         attachment.attachment_type(),
-        Some(AttachmentType::NintendoSwitchDyingMessage)
+        AttachmentType::NintendoSwitchDyingMessage
     );
     assert_eq!(
         outcomes,
@@ -806,7 +806,7 @@ fn test_enforce_skip_rate_limited_minidump() {
     let Some(Item::Attachment(minidump)) = envelope.items().next() else {
         panic!("expected an attachment");
     };
-    assert_eq!(minidump.attachment_type(), Some(AttachmentType::Minidump));
+    assert_eq!(minidump.attachment_type(), AttachmentType::Minidump);
     assert!(minidump.data().rate_limited());
     // A new attachment limit must not emit another outcome for the retained minidump.
     assert_eq!(
