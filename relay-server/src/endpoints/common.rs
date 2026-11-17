@@ -342,13 +342,9 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
         return Ok(Some(event_id));
     }
 
-    if let Some(item) = items.iter().find_map(|item| match item {
-        Item::Attachment(attachment)
-            if attachment.attachment_type() == Some(AttachmentType::EventPayload) =>
-        {
-            Some(attachment)
-        }
-        _ => None,
+    if let Some(item) = items.iter().find(|item| {
+        matches!(item, Item::Attachment(attachment)
+            if attachment.attachment_type() == Some(AttachmentType::EventPayload))
     }) && let Some(event_id) = event_id_from_msgpack(&item.data().payload())?
     {
         return Ok(Some(event_id));

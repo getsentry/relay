@@ -33,7 +33,10 @@ pub trait TypedItem: TryFrom<Item, Error = Item> {
 
 /// Typed items that support the `item_count` header.
 pub trait ItemCount: TypedItem {
-    /// Returns the declared count, or `None` if the header is absent or invalid.
+    /// Returns the declared item count, or `None` if the header is absent or invalid.
+    ///
+    /// Preserves the distinction between an explicitly declared count and an
+    /// unspecified count; callers decide whether to apply a default.
     fn item_count(&self) -> Option<u32>;
 }
 

@@ -211,13 +211,9 @@ async fn multipart_to_items(
     items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
         let prosperodump = inner
             .iter_mut()
-            .find_map(|item| match item {
-                Item::Attachment(attachment)
-                    if attachment.attachment_type() == Some(AttachmentType::Prosperodump) =>
-                {
-                    Some(attachment)
-                }
-                _ => None,
+            .find(|item| {
+                matches!(item, Item::Attachment(attachment)
+                    if attachment.attachment_type() == Some(AttachmentType::Prosperodump))
             })
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         validate_prosperodump(&prosperodump.data().payload())?;

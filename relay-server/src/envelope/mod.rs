@@ -58,7 +58,7 @@ mod content_type;
 mod item;
 mod meta;
 
-pub(crate) use self::accounting::RejectionQuantities;
+pub use self::accounting::RejectionQuantities;
 pub use self::attachment::*;
 pub use self::container::*;
 pub use self::content_type::*;
