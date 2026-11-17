@@ -168,6 +168,10 @@ struct TopicProducer {
 
 impl Drop for TopicProducer {
     fn drop(&mut self) {
+        // Wait until all messages have been delivered.
+        //
+        // Note that configuring kafka with `delivery.report.only.error=true` will break this
+        // mechanism, as it relies on receiving a delivery callback for every message.
         let mut backoff = Duration::from_millis(100);
         while self.producer.context().inflight().load(Ordering::Relaxed) > 0 {
             std::thread::sleep(backoff);
