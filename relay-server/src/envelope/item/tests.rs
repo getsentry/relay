@@ -3,9 +3,13 @@ use relay_quotas::DataCategory;
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
+use crate::integrations::LogsIntegration;
+use crate::integrations::OtelFormat;
+
+use super::*;
+
 #[test]
 fn misplaced_attachment_headers_do_not_change_item_classification() {
-    use super::*;
     for ty in ["event", "user_report", "profile"] {
         for attachment_type in ["event.minidump", "future_attachment"] {
             let header = serde_json::json!({
@@ -24,11 +28,6 @@ fn misplaced_attachment_headers_do_not_change_item_classification() {
     .unwrap();
     assert!(attachment.is_unknown());
 }
-
-use crate::integrations::LogsIntegration;
-use crate::integrations::OtelFormat;
-
-use super::*;
 
 #[test]
 fn payload_classification_and_routing_are_separate_facts() {
