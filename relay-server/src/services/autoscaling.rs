@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use relay_system::{
-    AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
+    AsyncResponse, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };
 use relay_threading::ServicePool;
 use tokio::time::Instant;
@@ -20,8 +20,6 @@ pub struct AutoscalingMetricService {
     runtime_metrics: RuntimeMetrics,
     /// The last time the runtime utilization was checked.
     last_runtime_check: Instant,
-    /// This will always report `1` unless the instance is shutting down.
-    up: u8,
     /// Gives access to AsyncPool metrics.
     async_pool: ServicePool,
 }
@@ -41,7 +39,6 @@ impl AutoscalingMetricService {
             runtime_metrics,
             last_runtime_check: Instant::now(),
             async_pool,
-            up: 1,
         }
     }
 }
@@ -50,41 +47,32 @@ impl Service for AutoscalingMetricService {
     type Interface = AutoscalingMetrics;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown = Controller::shutdown_handle();
-        loop {
-            tokio::select! {
-                _ = shutdown.notified() => {
-                    self.up = 0;
-                },
-                signal = rx.recv() => match signal {
-                    Some(message) => match message {
-                        AutoscalingMetrics::Check(sender) => {
-                            let memory_usage = self.memory_stat.memory();
-                            let metrics = self.handle
-                                .current_services_metrics()
-                                .iter()
-                                .map(|(id, metric)| ServiceUtilization {
-                                    name: id.name(),
-                                    instance_id: id.instance_id(),
-                                    utilization: metric.utilization
-                                }
-                            )
-                                .collect();
-                            let worker_pool_utilization = self.async_pool.metrics().total_utilization();
-                            let runtime_utilization = self.runtime_utilization();
+        while let Some(message) = rx.recv().await {
+            match message {
+                AutoscalingMetrics::Check(sender) => {
+                    let memory_usage = self.memory_stat.memory();
+                    let metrics = self
+                        .handle
+                        .current_services_metrics()
+                        .iter()
+                        .map(|(id, metric)| ServiceUtilization {
+                            name: id.name(),
+                            instance_id: id.instance_id(),
+                            utilization: metric.utilization,
+                        })
+                        .collect();
+                    let worker_pool_utilization = self.async_pool.metrics().total_utilization();
+                    let runtime_utilization = self.runtime_utilization();
 
-                            sender.send(AutoscalingData {
-                                memory_usage: memory_usage.used_percent(),
-                                up: self.up,
-                                total_size: self.envelope_buffer.total_storage_size(),
-                                item_count: self.envelope_buffer.item_count(),
-                                services_metrics: metrics,
-                                worker_pool_utilization,
-                                runtime_utilization
-                            });
-                        }
-                    }
-                    None => break
+                    sender.send(AutoscalingData {
+                        memory_usage: memory_usage.used_percent(),
+
+                        total_size: self.envelope_buffer.total_storage_size(),
+                        item_count: self.envelope_buffer.item_count(),
+                        services_metrics: metrics,
+                        worker_pool_utilization,
+                        runtime_utilization,
+                    });
                 }
             }
         }
@@ -139,8 +127,6 @@ impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
 pub struct AutoscalingData {
     /// Memory usage of relay.
     pub memory_usage: f32,
-    /// Is `1` if relay is running, `0` if it's shutting down.
-    pub up: u8,
     /// The total number of bytes used by the spooler.
     pub total_size: u64,
     /// The total number of envelopes in the spooler.

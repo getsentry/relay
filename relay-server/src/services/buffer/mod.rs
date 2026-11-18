@@ -1,8 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::error::Error;
 use std::num::{NonZeroU8, NonZeroU32};
-use std::ops::ControlFlow;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::sync::{Arc, LazyLock};
@@ -17,9 +15,9 @@ use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use relay_system::{Controller, Shutdown};
+
 use tokio::sync::watch;
-use tokio::time::{Instant, timeout};
+use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -165,11 +163,6 @@ impl PartitionedEnvelopeBuffer {
 
     pub fn item_count(&self) -> u64 {
         self.buffers.iter().map(|buffer| buffer.item_count()).sum()
-    }
-
-    /// Returns `true` if all buffers are empty, in memory and on disk.
-    pub fn is_empty(&self) -> bool {
-        self.buffers.iter().all(|buffer| buffer.is_empty())
     }
 
     pub fn total_storage_size(&self) -> u64 {
@@ -518,31 +511,6 @@ impl EnvelopeBufferService {
         };
     }
 
-    async fn handle_shutdown(
-        buffer: &mut PolymorphicEnvelopeBuffer,
-        message: Shutdown,
-    ) -> ControlFlow<()> {
-        // We gracefully shut down only if the shutdown has a timeout.
-        if let Some(shutdown_timeout) = message.timeout {
-            relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
-
-            let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
-            match shutdown_result {
-                Ok(shutdown_result) => {
-                    return shutdown_result;
-                }
-                Err(error) => {
-                    relay_log::error!(
-                        error = &error as &dyn Error,
-                        "the envelope buffer didn't shut down in time, some envelopes might be lost",
-                    );
-                }
-            }
-        }
-
-        ControlFlow::Continue(())
-    }
-
     async fn push(
         buffer: &mut PolymorphicEnvelopeBuffer,
         envelope: Box<Envelope>,
@@ -660,7 +628,6 @@ impl Service for EnvelopeBufferService {
         // We convert the partition id to string to use it as a tag for all the metrics.
         let partition_tag = self.partition_id.to_string();
 
-        let mut shutdown = Controller::shutdown_handle();
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
@@ -734,12 +701,6 @@ impl Service for EnvelopeBufferService {
                         }
                     }
                     sleep = Duration::ZERO;
-                }
-                shutdown = shutdown.notified() => {
-                    // Flushing persistent buffers completes their shutdown.
-                    if Self::handle_shutdown(&mut buffer, shutdown).await.is_break() {
-                        break;
-                    }
                 }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
@@ -1023,7 +984,7 @@ mod tests {
         addr.send(EnvelopeBuffer::Push(envelope));
         drop(addr);
 
-        timeout(Duration::from_secs(5), service.run(rx))
+        tokio::time::timeout(Duration::from_secs(5), service.run(rx))
             .await
             .expect("persistent buffer should flush and stop");
         assert!(envelope_processor_rx.try_recv().is_err());

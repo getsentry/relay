@@ -80,9 +80,6 @@ impl Service for ConfigReloadService {
     type Interface = ();
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        #[cfg(not(test))]
-        let mut shutdown_handle = relay_system::Controller::shutdown_handle();
-
         let Some(interval) = self.config.current().config_reload_interval() else {
             // No interval -> nothing to do.
             return;
@@ -90,18 +87,10 @@ impl Service for ConfigReloadService {
 
         relay_log::info!("watching for configuration changes every {interval:?}");
 
-        // Other tests may set the shutdown handle and never reset it.
-        #[cfg(not(test))]
-        let shutdown = shutdown_handle.notified();
-        #[cfg(test)]
-        let shutdown = std::future::pending::<()>();
-        tokio::pin!(shutdown);
-
         loop {
             tokio::select! {
-                _ = &mut shutdown => break,
-                None = rx.recv() => break,
                 _ = tokio::time::sleep(interval) => self.handle_reload().await,
+                None = rx.recv() => break,
             }
         }
     }
