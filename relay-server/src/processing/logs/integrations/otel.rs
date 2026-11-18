@@ -12,7 +12,7 @@ use crate::processing::logs::integrations::{
     Error, SerializedLogsIntegration, create_intermediates,
 };
 use crate::processing::{self, Intermediates, Nothing, Output};
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardItemType, DiscardReason};
 
 #[derive(Debug)]
 pub struct SerializedOtelLogsIntegration(SerializedLogsIntegration, OtelFormat);
@@ -61,7 +61,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
         ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let intermediates = work.try_map(|work, records| {
-            expand(work, records, ctx.config.max_expanded_log_operations())
+            expand(
+                work,
+                records,
+                ctx.config.max_expanded_log_operations(),
+                ctx.config.max_envelope_size(),
+            )
         })?;
         Ok(Output::intermediates(intermediates))
     }
@@ -73,6 +78,7 @@ pub fn expand(
     SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
     max_ops: usize,
+    max_size: usize,
 ) -> Result<Intermediates, Error> {
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
@@ -80,6 +86,7 @@ pub fn expand(
 
     let payload = item.data().payload();
     let mut logs = Vec::new();
+    let mut expanded_size = 0;
     let parsed = parse_logs_data(format, &payload, max_ops)?;
 
     for resource_logs in parsed.resource_logs {
@@ -88,9 +95,14 @@ pub fn expand(
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
-                // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
-                // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
+
+                expanded_size += byte_size as usize;
+                if expanded_size > max_size {
+                    return Err(Error::Invalid(DiscardReason::ItemTooLarge(
+                        DiscardItemType::Log,
+                    )));
+                }
 
                 records.add([
                     (DataCategory::LogItem, 1),
@@ -149,11 +161,18 @@ mod tests {
     use relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
     use prost::Message;
+    use relay_quotas::DataCategory;
 
-    use crate::integrations::OtelFormat;
-    use crate::processing::logs::integrations::Error;
-    use crate::processing::logs::integrations::otel::parse_logs_data;
-    use crate::services::outcome::DiscardReason;
+    use crate::Envelope;
+    use crate::envelope::IntegrationItem;
+    use crate::extractors::RequestMeta;
+    use crate::integrations::{Integration, LogsIntegration, OtelFormat};
+    use crate::managed::{Managed, Rejected};
+    use crate::processing::logs::integrations::otel::{
+        SerializedOtelLogsIntegration, expand, parse_logs_data,
+    };
+    use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
+    use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
     fn logs_with_records(n: usize) -> LogsData {
         LogsData {
@@ -165,6 +184,79 @@ mod tests {
                 ..Default::default()
             }],
         }
+    }
+
+    fn logs_with_large_resource(n: usize) -> LogsData {
+        LogsData {
+            resource_logs: vec![ResourceLogs {
+                resource: Some(Resource {
+                    attributes: vec![KeyValue {
+                        key: "large".to_owned(),
+                        value: Some(AnyValue {
+                            value: Some(Value::StringValue("x".repeat(1_000))),
+                        }),
+                        key_strindex: 0,
+                    }],
+                    ..Default::default()
+                }),
+                scope_logs: vec![ScopeLogs {
+                    log_records: vec![LogRecord::default(); n],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        }
+    }
+
+    fn otel_logs_integration(payload: Vec<u8>) -> SerializedOtelLogsIntegration {
+        let format = OtelFormat::Protobuf;
+
+        let mut item = IntegrationItem::new();
+        item.data_mut().set_payload(
+            Integration::Logs(LogsIntegration::OtelV1 { format }).into(),
+            payload,
+        );
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let headers = Envelope::from_request(None, RequestMeta::new(dsn))
+            .headers()
+            .clone();
+
+        SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format)
+    }
+
+    #[test]
+    fn test_expanded_size_exceeds_limit() {
+        let payload = logs_with_large_resource(100).encode_to_vec();
+        let payload_len = payload.len() as u64;
+
+        let (work, mut handle) = Managed::for_test(otel_logs_integration(payload)).build();
+        let result = work.try_map(|work, records| expand(work, records, usize::MAX, 10_000));
+
+        assert!(matches!(
+            result.map_err(Rejected::into_inner),
+            Err(Error::Invalid(DiscardReason::ItemTooLarge(
+                DiscardItemType::Log
+            )))
+        ));
+
+        let outcome = Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Log));
+        handle.assert_outcome(&outcome, DataCategory::LogItem, 1);
+        handle.assert_outcome(&outcome, DataCategory::LogByte, payload_len);
+    }
+
+    #[test]
+    fn test_expanded_size_within_limit() {
+        let payload = logs_with_large_resource(100).encode_to_vec();
+
+        let (work, _handle) = Managed::for_test(otel_logs_integration(payload)).build();
+        let intermediates = work
+            .try_map(|work, records| expand(work, records, usize::MAX, 1_000_000))
+            .unwrap();
+
+        intermediates.accept(|_| ());
     }
 
     #[test]
