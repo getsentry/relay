@@ -9,7 +9,7 @@ env:
   CARGO_TERM_COLOR: always
   RELAY_CARGO_ARGS: "--locked"
   RUSTFLAGS: "--cfg sentry --cfg tokio_unstable"
-  SSH_PRIVATE_KEY: ${{ secrets.HORATIO_SSH_PRIVATE_KEY }}
+  SSH_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
 jobs:
   test-all:
