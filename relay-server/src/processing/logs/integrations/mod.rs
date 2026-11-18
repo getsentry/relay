@@ -1,4 +1,5 @@
 use relay_event_schema::protocol::ourlog::container::{ContainerMetadata, IngestSettings};
+use relay_filter::FilterStatKey;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
@@ -24,6 +25,9 @@ pub enum Error {
     /// The log is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
+    /// The log was dropped by a filter of the integration.
+    #[error("filtered: {0}")]
+    Filtered(FilterStatKey),
 }
 
 impl OutcomeError for Error {
@@ -32,6 +36,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match self {
             Self::Invalid(discard_reason) => Some(Outcome::Invalid(discard_reason)),
+            Self::Filtered(ref key) => Some(Outcome::Filtered(key.clone())),
         };
 
         (outcome, self)

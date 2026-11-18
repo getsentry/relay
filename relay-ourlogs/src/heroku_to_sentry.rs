@@ -40,6 +40,59 @@ const HEROKU_SOURCE: &str = "heroku";
 /// The syslog `PROCID` Heroku uses for messages emitted by the HTTP router.
 const ROUTER_DYNO: &str = "router";
 
+/// Envelope header carrying the `filter` query parameter of the drain URL.
+pub const HEROKU_DRAIN_FILTER_HEADER: &str = "heroku_drain_filter";
+
+/// Which Logplex lines a drain keeps, set with the `filter` query parameter of the drain URL.
+///
+/// Heroku cannot filter what a drain sends, lines dropped here never count towards quota.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LogplexFilter {
+    /// Keep every line.
+    #[default]
+    All,
+    /// Keep only lines emitted by the Heroku platform and router, drop application output.
+    Platform,
+    /// Keep only lines with a Heroku error code, such as `H12` or `R14`.
+    Errors,
+}
+
+impl LogplexFilter {
+    /// Whether a log converted with [`logplex_message_to_sentry_log`] passes the filter.
+    pub fn keeps(self, log: &OurLog) -> bool {
+        let attribute = |name| {
+            log.attributes
+                .value()
+                .and_then(|attributes| attributes.get_value(name))
+                .and_then(|value| value.as_str())
+        };
+
+        match self {
+            Self::All => true,
+            Self::Platform => attribute(HEROKU__SOURCE) == Some(HEROKU_SOURCE),
+            Self::Errors => attribute(HEROKU__ERROR__CODE).is_some(),
+        }
+    }
+}
+
+/// An unknown value of the `filter` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("unknown Heroku drain filter")]
+pub struct UnknownLogplexFilter;
+
+impl std::str::FromStr for LogplexFilter {
+    type Err = UnknownLogplexFilter;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(match value {
+            "all" => Self::All,
+            "platform" => Self::Platform,
+            "errors" => Self::Errors,
+            _ => return Err(UnknownLogplexFilter),
+        })
+    }
+}
+
 /// An error while parsing a Logplex payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum LogplexError {
@@ -404,6 +457,35 @@ fn parse_host(value: &str) -> Option<(&str, Option<u16>)> {
     Some((address, port))
 }
 
+/// Removes every `field=value` pair from a logfmt message.
+///
+/// Used to keep values out of the log body that are stored in an attribute with its own
+/// scrubbing rules, such as the client IP in the router's `fwd` field.
+fn remove_logfmt_field<'a>(msg: &'a str, field: &str) -> Cow<'a, str> {
+    let mut logfmt = Logfmt(msg);
+    let mut result = String::new();
+    let mut copied = 0;
+
+    while let Some((key, _)) = logfmt.next() {
+        if key != field {
+            continue;
+        }
+
+        // Keys are slices of `msg`, the rest of the iterator starts after the value.
+        let start = key.as_ptr() as usize - msg.as_ptr() as usize;
+        let end = msg.len() - logfmt.0.len();
+        result.push_str(msg[copied..start].trim_end_matches(' '));
+        copied = end;
+    }
+
+    if copied == 0 {
+        return Cow::Borrowed(msg);
+    }
+
+    result.push_str(&msg[copied..]);
+    Cow::Owned(result.trim_start_matches(' ').to_owned())
+}
+
 /// Whether a Logplex process ID names an application dyno rather than a platform component.
 fn is_dyno_name(value: &str) -> bool {
     value.rsplit_once('.').is_some_and(|(process, number)| {
@@ -577,10 +659,12 @@ pub fn logplex_message_to_sentry_log(
 
     attributes.insert(SENTRY__ORIGIN, "auto.log_drain.heroku".to_owned());
     attributes.insert(CLOUD__PROVIDER, "heroku".to_owned());
+    add_optional_attribute!(HEROKU__SOURCE, source);
     add_optional_attribute!(HEROKU__DYNO__NAME, dyno.filter(|dyno| is_dyno_name(dyno)));
     add_optional_attribute!(HEROKU__LOGPLEX__DRAIN_TOKEN, drain_token);
 
     let mut level = map_syslog_severity_to_level(severity);
+    let mut body = Cow::Borrowed(msg);
 
     // Only messages emitted by the Heroku platform contain router fields and error codes,
     // application output is kept as is.
@@ -589,6 +673,9 @@ pub fn logplex_message_to_sentry_log(
             if let Some(router_level) = add_router_attributes(&mut attributes, msg) {
                 level = router_level;
             }
+            // The client IP is kept in `client.address` only, where IP scrubbing and the
+            // organization's "Prevent Storing of IP Addresses" setting apply to it.
+            body = remove_logfmt_field(msg, "fwd");
         } else if let Some((code, description)) = parse_error_code(msg) {
             attributes.insert(HEROKU__ERROR__CODE, code.to_owned());
             add_optional_attribute!(HEROKU__ERROR__DESCRIPTION, description);
@@ -616,7 +703,7 @@ pub fn logplex_message_to_sentry_log(
         timestamp,
         trace_id,
         level: Annotated::new(level),
-        body: Annotated::new(msg.to_owned()),
+        body: Annotated::new(body.into_owned()),
         attributes: Annotated::new(attributes),
         ..Default::default()
     }
@@ -892,6 +979,10 @@ mod tests {
               "type": "string",
               "value": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "app"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -958,7 +1049,7 @@ mod tests {
         {
           "timestamp": 1714150712.943253,
           "level": "info",
-          "body": "at=info method=GET path=/ host=my-app.example.com request_id=6903a168-b79b-ec27-03c8-b8f64d8d8792 fwd=\"138.68.186.89\" dyno=web.1 connect=0ms service=0ms status=200 bytes=0 protocol=http2.0 tls=true tls_version=tls1.3",
+          "body": "at=info method=GET path=/ host=my-app.example.com request_id=6903a168-b79b-ec27-03c8-b8f64d8d8792 dyno=web.1 connect=0ms service=0ms status=200 bytes=0 protocol=http2.0 tls=true tls_version=tls1.3",
           "attributes": {
             "client.address": {
               "type": "string",
@@ -983,6 +1074,10 @@ mod tests {
             "heroku.router.service": {
               "type": "double",
               "value": 0.0
+            },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
             },
             "http.request.method": {
               "type": "string",
@@ -1040,7 +1135,7 @@ mod tests {
         {
           "timestamp": 1286427097.0,
           "level": "error",
-          "body": "at=error code=H12 desc=\"Request timeout\" method=GET path=\"/\" host=example-app-1234567890ab.herokuapp.com fwd=17.17.17.17 dyno=web.1 connect=6ms service=30001ms status=503 bytes=0",
+          "body": "at=error code=H12 desc=\"Request timeout\" method=GET path=\"/\" host=example-app-1234567890ab.herokuapp.com dyno=web.1 connect=6ms service=30001ms status=503 bytes=0",
           "attributes": {
             "client.address": {
               "type": "string",
@@ -1069,6 +1164,10 @@ mod tests {
             "heroku.router.service": {
               "type": "double",
               "value": 30001.0
+            },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
             },
             "http.request.method": {
               "type": "string",
@@ -1125,7 +1224,10 @@ mod tests {
 
         let attributes = log.value().unwrap().attributes.value().unwrap();
         let keys: Vec<_> = attributes.0.keys().collect();
-        assert_eq!(keys, vec!["cloud.provider", "sentry.origin"]);
+        assert_eq!(
+            keys,
+            vec!["cloud.provider", "heroku.source", "sentry.origin"]
+        );
     }
 
     fn attribute<'a>(log: &'a Annotated<OurLog>, key: &str) -> Option<&'a Value> {
@@ -1151,12 +1253,11 @@ mod tests {
                 expected,
                 "{source} {process}"
             );
-            for key in [
-                "heroku.source",
-                "heroku.dyno",
-                "heroku.router.dyno",
-                SERVICE__NAME,
-            ] {
+            assert_eq!(
+                attribute(&log, HEROKU__SOURCE).and_then(|value| value.as_str()),
+                Some(source)
+            );
+            for key in ["heroku.dyno", "heroku.router.dyno", SERVICE__NAME] {
                 assert_eq!(attribute(&log, key), None, "{key}");
             }
         }
@@ -1595,6 +1696,10 @@ mod tests {
               "type": "string",
               "value": "Memory quota exceeded"
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -1691,5 +1796,108 @@ mod tests {
         let log = log.value().unwrap();
         assert!(log.timestamp.value().is_some());
         assert!(!log.timestamp.meta().is_empty());
+    }
+
+    fn body(log: &Annotated<OurLog>) -> &str {
+        log.value().unwrap().body.as_str().unwrap()
+    }
+
+    #[test]
+    fn test_source_attribute() {
+        let app = to_log("<190>1 2024-04-26T16:58:32+00:00 host app web.1 - Started GET /");
+        let platform = to_log(
+            "<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - State changed from starting to up",
+        );
+
+        assert_eq!(
+            attribute(&app, HEROKU__SOURCE).and_then(|v| v.as_str()),
+            Some("app")
+        );
+        assert_eq!(
+            attribute(&platform, HEROKU__SOURCE).and_then(|v| v.as_str()),
+            Some("heroku")
+        );
+        // Both lines name the same dyno, only the source tells them apart.
+        assert_eq!(
+            attribute(&app, HEROKU__DYNO__NAME),
+            attribute(&platform, HEROKU__DYNO__NAME)
+        );
+    }
+
+    #[test]
+    fn test_router_body_without_fwd() {
+        let log = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/a?key=secret" host=a.example.com request_id=r1 fwd="203.0.113.7, 10.0.0.1" dyno=web.1 connect=0ms service=5ms status=200 bytes=10"#,
+        );
+
+        assert_eq!(
+            body(&log),
+            r#"at=info method=GET path="/a?key=secret" host=a.example.com request_id=r1 dyno=web.1 connect=0ms service=5ms status=200 bytes=10"#
+        );
+        // The address is still available, where IP scrubbing applies.
+        assert_eq!(
+            attribute(&log, CLIENT__ADDRESS).and_then(|v| v.as_str()),
+            Some("10.0.0.1")
+        );
+    }
+
+    #[test]
+    fn test_remove_logfmt_field() {
+        assert_eq!(remove_logfmt_field("a=1 fwd=1.2.3.4 b=2", "fwd"), "a=1 b=2");
+        assert_eq!(remove_logfmt_field(r#"fwd="1.2.3.4" b=2"#, "fwd"), "b=2");
+        assert_eq!(remove_logfmt_field(r#"a=1 fwd="1.2.3.4""#, "fwd"), "a=1");
+        assert_eq!(remove_logfmt_field("a=1 fwd= b=2", "fwd"), "a=1 b=2");
+        assert_eq!(remove_logfmt_field("fwd=1 a=1 fwd=2", "fwd"), "a=1");
+        assert_eq!(
+            remove_logfmt_field("a=1 xfwd=1 b=2", "fwd"),
+            "a=1 xfwd=1 b=2"
+        );
+        assert_eq!(
+            remove_logfmt_field("no fields here", "fwd"),
+            "no fields here"
+        );
+        assert!(matches!(
+            remove_logfmt_field("a=1 b=2", "fwd"),
+            Cow::Borrowed(_)
+        ));
+    }
+
+    #[test]
+    fn test_filter() {
+        let app = to_log(
+            "<190>1 2024-04-26T16:58:32+00:00 host app web.1 - Error H12 is not from heroku",
+        );
+        let platform = to_log(
+            "<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - State changed from starting to up",
+        );
+        let platform_error = to_log(
+            "<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - Error R14 (Memory quota exceeded)",
+        );
+        let router = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/" status=200"#,
+        );
+        let router_error = to_log(
+            r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=error code=H12 desc="Request timeout" method=GET path="/" status=503"#,
+        );
+
+        let kept = |filter: LogplexFilter| {
+            [&app, &platform, &platform_error, &router, &router_error]
+                .map(|log| filter.keeps(log.value().unwrap()))
+        };
+
+        assert_eq!(kept(LogplexFilter::All), [true; 5]);
+        assert_eq!(
+            kept(LogplexFilter::Platform),
+            [false, true, true, true, true]
+        );
+        assert_eq!(
+            kept(LogplexFilter::Errors),
+            [false, false, true, false, true]
+        );
+
+        assert_eq!("errors".parse(), Ok(LogplexFilter::Errors));
+        assert_eq!("platform".parse(), Ok(LogplexFilter::Platform));
+        assert_eq!("all".parse(), Ok(LogplexFilter::All));
+        assert_eq!("Errors".parse::<LogplexFilter>(), Err(UnknownLogplexFilter));
     }
 }

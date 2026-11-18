@@ -4,7 +4,11 @@ use crate::envelope::IntegrationItem;
 
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
-use relay_ourlogs::{HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT};
+use relay_filter::FilterStatKey;
+use relay_ourlogs::{
+    HEROKU_DRAIN_FILTER_HEADER, HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT,
+    LogplexFilter,
+};
 use relay_quotas::DataCategory;
 
 use crate::envelope::WithHeader;
@@ -24,6 +28,9 @@ const MAX_MESSAGES: u32 = 10_000;
 
 /// Maximum size/length of the drain token which is added to all logs.
 const MAX_DRAIN_TOKEN: usize = 256;
+
+/// Filter id reported in outcomes for lines dropped by the drain's `filter` query parameter.
+const DRAIN_FILTER_ID: &str = "heroku-drain-filter";
 
 /// A processor for Heroku log integrations.
 ///
@@ -86,8 +93,16 @@ pub fn expand(
         .and_then(|h| h.as_str())
         .filter(|h| h.len() < MAX_DRAIN_TOKEN);
 
+    let filter = headers
+        .get_header(HEROKU_DRAIN_FILTER_HEADER)
+        .and_then(|h| h.as_str())
+        .and_then(|h| h.parse::<LogplexFilter>().ok())
+        .unwrap_or_default();
+
     let mut count: u32 = 0;
     let mut logs = Vec::new();
+    let mut filtered_count = 0;
+    let mut filtered_bytes = 0;
 
     for frame in relay_ourlogs::parse_logplex_frames(&payload) {
         count += 1;
@@ -123,12 +138,28 @@ pub fn expand(
         records.modify_by(DataCategory::LogItem, 1);
         records.modify_by(DataCategory::LogByte, byte_size as isize);
 
+        if !filter.keeps(&log) {
+            filtered_count += 1;
+            filtered_bytes += byte_size as usize;
+            continue;
+        }
+
         logs.push(WithHeader::just(log.into()));
     }
 
     if msg_count.is_some_and(|expected| expected != count) {
         relay_log::debug!("Parsed message count differs from Logplex-Msg-Count");
         return Err(Error::Invalid(DiscardReason::InvalidLog));
+    }
+
+    if filtered_count > 0 {
+        records.reject_err(
+            Error::Filtered(FilterStatKey::GenericFilter(DRAIN_FILTER_ID.to_owned())),
+            [
+                (DataCategory::LogItem, filtered_count),
+                (DataCategory::LogByte, filtered_bytes),
+            ],
+        );
     }
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
