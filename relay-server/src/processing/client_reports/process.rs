@@ -28,7 +28,7 @@ pub fn expand(reports: Managed<SerializedClientReports>) -> Managed<ClientOutcom
             UnixTimestamp::from_secs(headers.meta().received_at().timestamp() as u64);
 
         for report in reports {
-            match ClientReport::parse(&report.payload()) {
+            match ClientReport::parse(&report.data().payload()) {
                 Ok(client_report) => expand_report(client_report, default_timestamp, &mut outcomes),
                 Err(err) => {
                     relay_log::debug!(

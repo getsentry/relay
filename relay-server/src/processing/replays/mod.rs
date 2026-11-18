@@ -12,7 +12,7 @@ use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{EnvelopeHeaders, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, ReplayEventItem, ReplayRecordingItem, ReplayVideoItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -71,8 +71,7 @@ pub enum Error {
     #[cfg(feature = "processing")]
     #[error("failed to serialize replay")]
     FailedToSerializeReplay,
-    /// Replay recording too large for the consumer.
-    #[cfg(feature = "processing")]
+    /// Replay recording too large, either once decompressed or for the consumer message.
     #[error("replay recording too large")]
     TooLarge,
     /// The envelope did not contain an event ID.
@@ -112,7 +111,6 @@ impl OutcomeError for Error {
             Self::Filtered(key) => Some(Outcome::Filtered(key.clone())),
             #[cfg(feature = "processing")]
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
-            #[cfg(feature = "processing")]
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
@@ -155,17 +153,20 @@ impl processing::Processor for ReplaysProcessor {
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
-        let events = envelope
+        let events: smallvec::SmallVec<[_; 3]> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayEvent));
+            .drain_items::<ReplayEventItem>()
+            .collect();
 
-        let recordings = envelope
+        let recordings: smallvec::SmallVec<[_; 3]> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayRecording));
+            .drain_items::<ReplayRecordingItem>()
+            .collect();
 
-        let videos = envelope
+        let videos: smallvec::SmallVec<[_; 3]> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ReplayVideo));
+            .drain_items::<ReplayVideoItem>()
+            .collect();
 
         // If there are no events, recordings or videos there is nothing for us to do.
         if events.is_empty() && recordings.is_empty() && videos.is_empty() {
@@ -208,11 +209,11 @@ pub struct SerializedReplays {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of replay events.
-    events: Items,
+    events: smallvec::SmallVec<[ReplayEventItem; 3]>,
     /// A list of replay recordings.
-    recordings: Items,
+    recordings: smallvec::SmallVec<[ReplayRecordingItem; 3]>,
     /// A list of replay videos.
-    videos: Items,
+    videos: smallvec::SmallVec<[ReplayVideoItem; 3]>,
 }
 
 impl Counted for SerializedReplays {

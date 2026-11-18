@@ -1,3 +1,5 @@
+use crate::envelope::{AttachmentItem, Envelope, TransactionItem};
+
 use bytes::Bytes;
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::EventId;
@@ -5,7 +7,6 @@ use relay_event_schema::protocol::EventId;
 use relay_sampling::DynamicSamplingContext;
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item, ItemType};
 use crate::managed::ManagedEnvelope;
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
@@ -51,13 +52,13 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
 
-    let item1 = Item::new(ItemType::Transaction);
+    let item1 = TransactionItem::new();
     envelope.add_item(item1);
 
-    let item2 = Item::new(ItemType::Attachment);
+    let item2 = AttachmentItem::new();
     envelope.add_item(item2);
 
-    let item3 = Item::new(ItemType::Attachment);
+    let item3 = AttachmentItem::new();
     envelope.add_item(item3);
 
     envelope

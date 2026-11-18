@@ -20,7 +20,7 @@ use relay_quotas::{RateLimits, Scoping};
 use relay_system::Addr;
 use zstd::stream::Encoder as ZstdEncoder;
 
-use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::envelope::{self, ClientReportItem, ContentType, Envelope, EnvelopeError};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
@@ -138,8 +138,8 @@ pub fn submit_client_reports(
     for client_report in client_reports {
         match client_report.serialize() {
             Ok(payload) => {
-                let mut item = Item::new(ItemType::ClientReport);
-                item.set_payload(ContentType::Json, payload);
+                let mut item = ClientReportItem::new();
+                item.data_mut().set_payload(ContentType::Json, payload);
                 envelope.add_item(item);
             }
             Err(error) => {

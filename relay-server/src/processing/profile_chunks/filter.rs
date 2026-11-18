@@ -17,7 +17,7 @@ pub fn feature_flag(items: &mut Managed<SerializedProfileChunks>, ctx: Context<'
     if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
         items.retain(
             |items| &mut items.profile_chunks,
-            |pc, _| match pc.content_type() {
+            |pc, _| match pc.data().content_type() {
                 Some(ContentType::PerfettoTrace) => Err(Error::FilterFeatureFlag),
                 _ => Ok(()),
             },

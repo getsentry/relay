@@ -36,7 +36,7 @@ fn expand_profile(
         return Err(ProfileError::InvalidStandalone.into());
     }
 
-    let meta = relay_profiling::parse_metadata(&profile.payload())?;
+    let meta = relay_profiling::parse_metadata(&profile.data().payload())?;
     let profile_type = meta.profile_type();
 
     // If the profile type is new information, we now count the profile in an additional data category.

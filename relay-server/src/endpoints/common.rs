@@ -16,13 +16,13 @@ use relay_system::Addr;
 use serde::Deserialize;
 
 use crate::envelope::{
-    AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
-    Items,
+    AttachmentItem, AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError,
+    Item, ItemType, Items, MetricBucketsItem,
 };
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{
     Create, CreateResult, ProjectContext, Stream, StreamResult, StreamSource, Upload, UploadMode,
@@ -337,15 +337,15 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
 pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event)
-        && let Some(event_id) = event_id_from_json(&item.payload())?
+        && let Some(event_id) = event_id_from_json(&item.data().payload())?
     {
         return Ok(Some(event_id));
     }
 
-    if let Some(item) = items
-        .iter()
-        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
-        && let Some(event_id) = event_id_from_msgpack(&item.payload())?
+    if let Some(item) = items.iter().find(|item| {
+        matches!(item, Item::Attachment(attachment)
+            if attachment.attachment_type() == AttachmentType::EventPayload)
+    }) && let Some(event_id) = event_id_from_msgpack(&item.data().payload())?
     {
         return Ok(Some(event_id));
     }
@@ -353,7 +353,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::FormData) {
         // Swallow all other errors here since it is quite common to receive invalid secondary
         // payloads. `EnvelopeProcessor` also retains events in such cases.
-        if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
+        if let Ok(Some(event_id)) = event_id_from_formdata(&item.data().payload()) {
             return Ok(Some(event_id));
         }
     }
@@ -382,11 +382,11 @@ fn queue_envelope(
     if state.config().relay_mode() != RelayMode::Proxy {
         // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
         // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::MetricBuckets);
-
         let metrics;
         (envelope, metrics) = envelope.split_once(|mut envelope, _| {
-            let metrics = envelope.take_items_by(is_metric).into_vec();
+            let metrics = envelope
+                .drain_items::<MetricBucketsItem>()
+                .collect::<Vec<_>>();
             (envelope, metrics)
         });
 
@@ -531,10 +531,14 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     let client_name = utils::client_name_tag(envelope.meta().client_name());
     for item in envelope.items() {
         let item_type = item.ty().name();
-        let is_container = if item.is_container() { "true" } else { "false" };
+        let is_container = if item.data().is_container() {
+            "true"
+        } else {
+            "false"
+        };
 
         metric!(
-            distribution(RelayDistributions::EnvelopeItemSize) = item.payload().len() as u64,
+            distribution(RelayDistributions::EnvelopeItemSize) = item.data().payload().len() as u64,
             item_type = item_type,
             is_container = is_container,
         );
@@ -545,7 +549,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             sdk = client_name,
         );
         metric!(
-            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
+            counter(RelayCounters::EnvelopeItemBytes) += item.data().payload().len() as u64,
             item_type = item_type,
             is_container = is_container,
             sdk = client_name,
@@ -558,12 +562,12 @@ fn emit_envelope_metrics(envelope: &Envelope) {
 pub async fn upload_stream<S, E>(
     stream: S,
     content_type: Option<String>,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, Rejected<BadStoreRequest>>
+) -> Result<Managed<AttachmentItem>, Rejected<BadStoreRequest>>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -587,7 +591,7 @@ where
 async fn upload_stream_inner<S, E>(
     stream: S,
     content_type: Option<String>,
-    item: &mut Managed<Item>,
+    item: &mut Managed<AttachmentItem>,
     config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
@@ -608,7 +612,7 @@ where
         .send(Create {
             project: project.clone(),
             length: None,
-            attachment_type: item.attachment_type(),
+            attachment_type: Some(item.attachment_type()),
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?
@@ -643,8 +647,7 @@ where
         .map_err(|_| {
             if byte_counter.get() > config.max_upload_size() {
                 BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
-                    item.attachment_type()
-                        .map_or(DiscardAttachmentType::Attachment, Into::into),
+                    item.attachment_type().into(),
                 ))
             } else {
                 BadStoreRequest::UploadFailed
@@ -667,7 +670,9 @@ where
     .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     item.modify(|inner, records| {
-        inner.set_payload(ContentType::AttachmentRef, placeholder);
+        inner
+            .data_mut()
+            .set_payload(ContentType::AttachmentRef, placeholder);
         inner.set_attachment_length(byte_counter.get());
         records.lenient(DataCategory::Attachment); // item was empty before
     });

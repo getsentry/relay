@@ -1,14 +1,14 @@
+use crate::envelope::ReplayVideoItem;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, eap, replay};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
-use relay_replays::recording::RecordingScrubber;
+use relay_replays::recording::{ParseRecordingError, RecordingScrubber, check_recording_size};
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
 use crate::processing::replays::{
     Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, Result, SerializedReplays,
@@ -17,8 +17,8 @@ use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
 use crate::utils::rmp;
 
-fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
-    let payload = item.payload();
+fn expand_video(item: &ReplayVideoItem) -> Result<ReplayPayload, Error> {
+    let payload = item.data().payload();
     let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {
         replay_event: event,
@@ -58,14 +58,14 @@ pub fn expand(
 
         match (events.as_slice(), recordings.as_slice(), videos.as_slice()) {
             ([event], [recording], []) => {
-                let event_bytes = event.payload();
+                let event_bytes = event.data().payload();
                 let event = Annotated::<Replay>::from_json_bytes(&event_bytes)?;
 
                 Ok(ExpandedReplay {
                     headers,
                     payload: ReplayPayload::WebReplay {
                         event,
-                        recording: recording.payload(),
+                        recording: recording.data().payload(),
                     },
                 })
             }
@@ -77,7 +77,7 @@ pub fn expand(
             ([], [recording], []) => Ok(ExpandedReplay {
                 headers,
                 payload: ReplayPayload::StandaloneRecording {
-                    recording: recording.payload(),
+                    recording: recording.data().payload(),
                 },
             }),
             ([], [], [video]) => {
@@ -136,11 +136,13 @@ fn scrub_event(event: &mut Annotated<Replay>, ctx: Context<'_>) -> Result<(), Er
     Ok(())
 }
 
-fn scrub_recordings(
+/// Scrubs a replay recording if configured and enforces its maximum uncompressed size.
+fn process_recordings(
     replay: &mut Managed<ExpandedReplay>,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let event_id = replay.headers.event_id();
+    let limit = ctx.config.max_replay_uncompressed_size();
     let pii_config = ctx
         .project_info
         .config
@@ -148,18 +150,37 @@ fn scrub_recordings(
         .pii_config()
         .as_ref();
 
-    let mut scrubber = RecordingScrubber::new(
-        ctx.config.max_replay_uncompressed_size(),
-        ctx.project_info.config.pii_config.as_ref(),
-        pii_config,
-    );
-
-    if scrubber.is_empty() {
-        return Ok(());
-    }
+    let mut scrubber = ctx
+        .project_info
+        .has_feature(Feature::SessionReplayRecordingScrubbing)
+        .then(|| {
+            RecordingScrubber::new(
+                limit,
+                ctx.project_info.config.pii_config.as_ref(),
+                pii_config,
+            )
+        })
+        .filter(|scrubber| !scrubber.is_empty());
 
     replay.try_modify(|replay, _| {
         let payload = replay.payload.recording_mut();
+
+        let Some(scrubber) = scrubber.as_mut() else {
+            // Scrubbing enforces the limit while decompressing. Without it, processing Relays
+            // run the same decompression only to check the size. Other malformed recordings
+            // are left to the consumer.
+            if ctx.is_processing()
+                && let Err(ParseRecordingError::TooLarge) =
+                    metric!(timer(RelayTimers::ReplayRecordingSizeCheck), {
+                        check_recording_size(payload, limit)
+                    })
+            {
+                relay_log::debug!("replay recording over maximum uncompressed size");
+                return Err(Error::TooLarge);
+            }
+            return Ok(());
+        };
+
         *payload = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
             scrubber.process_recording(payload)
         })
@@ -172,15 +193,20 @@ fn scrub_recordings(
                 organization_id = ctx.project_info.organization_id.map(|o| o.value()),
                 "invalid replay recording"
             );
-            Error::InvalidReplayRecordingEvent
+            match error {
+                ParseRecordingError::TooLarge => Error::TooLarge,
+                ParseRecordingError::Parse(_)
+                | ParseRecordingError::Compression(_)
+                | ParseRecordingError::Message(_) => Error::InvalidReplayRecordingEvent,
+            }
         })?;
-        Ok::<(), Error>(())
+        Ok(())
     })
 }
 
 /// Applies PII scrubbing to a replay event and recording.
 ///
-/// Will reject if the scrubbing fails.
+/// Will reject if the scrubbing fails, or if the recording exceeds the maximum uncompressed size.
 pub fn scrub(
     replay: &mut Managed<ExpandedReplay>,
     ctx: Context<'_>,
@@ -194,12 +220,5 @@ pub fn scrub(
         }
     })?;
 
-    if ctx
-        .project_info
-        .has_feature(Feature::SessionReplayRecordingScrubbing)
-    {
-        scrub_recordings(replay, ctx)
-    } else {
-        Ok(())
-    }
+    process_recordings(replay, ctx)
 }

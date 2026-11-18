@@ -549,6 +549,11 @@ pub enum RelayTimers {
     TimestampDelay,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    /// Time in milliseconds spent decompressing replay recordings to check their size.
+    ///
+    /// Processing Relays measure this for recordings which are not scrubbed. Scrubbed recordings
+    /// are checked while scrubbing, which [`Self::ReplayRecordingProcessing`] measures.
+    ReplayRecordingSizeCheck,
     /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
     /// Timing in milliseconds for processing a message in the internal CPU pool.
@@ -682,6 +687,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::ReplayRecordingSizeCheck => "replay.recording.size_check",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",

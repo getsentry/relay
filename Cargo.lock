@@ -5096,6 +5096,7 @@ dependencies = [
  "deadpool",
  "futures",
  "redis",
+ "relay-log",
  "relay-statsd",
  "relay-system",
  "serde",
@@ -5224,6 +5225,7 @@ dependencies = [
  "relay-replays",
  "relay-sampling",
  "relay-serialization",
+ "relay-server-derive",
  "relay-spans",
  "relay-statsd",
  "relay-system",
@@ -5256,6 +5258,15 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "relay-server-derive"
+version = "26.10.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
