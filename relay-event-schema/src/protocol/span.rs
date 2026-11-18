@@ -189,10 +189,30 @@ impl Getter for Span {
         // for a span.
         let event_prefix = path.strip_prefix("event.")?;
         Some(match event_prefix {
-            "release" => self.data.value()?.get_str(SENTRY__RELEASE)?.into(),
-            "environment" => self.data.value()?.get_str(SENTRY__ENVIRONMENT)?.into(),
-            "transaction" => self.data.value()?.get_str(SENTRY__SEGMENT__NAME)?.into(),
-            "contexts.browser.name" => self.data.value()?.get_str(BROWSER__NAME)?.into(),
+            "release" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__RELEASE)?
+                .as_str()?
+                .into(),
+            "environment" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__ENVIRONMENT)?
+                .as_str()?
+                .into(),
+            "transaction" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(SENTRY__SEGMENT__NAME)?
+                .as_str()?
+                .into(),
+            "contexts.browser.name" => self
+                .data
+                .value()?
+                .get_value_with_deprecations(BROWSER__NAME)?
+                .as_str()?
+                .into(),
             // TODO: we might want to add additional fields once they are added to the span.
             _ => return None,
         })
@@ -488,6 +508,10 @@ impl SpanData {
         self.get(key).and_then(Annotated::value)
     }
 
+    pub fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
+        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+    }
+
     /// Returns a string attribute from span data.
     pub fn get_str(&self, key: &str) -> Option<&str> {
         self.get_value(key)?.as_str()
@@ -523,7 +547,7 @@ impl Getter for SpanData {
         let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
         let root = path.next()?;
 
-        let mut val = self.get(&root)?.value()?;
+        let mut val = self.get_value_with_deprecations(&root)?;
         for part in path {
             // While there is path segments left, `val` has to be an Object.
             let relay_protocol::Value::Object(map) = val else {
@@ -883,6 +907,54 @@ mod tests {
             span.get_value("span.measurements.some.value"),
             Some(Val::F64(100.0))
         );
+    }
+
+    #[test]
+    fn test_span_fields_as_event_with_deprecated_attributes() {
+        for (path, deprecated) in [
+            ("event.release", "release"),
+            ("event.environment", "environment"),
+            ("event.transaction", "sentry.transaction"),
+            ("event.contexts.browser.name", "sentry.browser.name"),
+        ] {
+            let mut data = SpanData::default();
+            data.insert_value(deprecated, "value".to_owned());
+            let span = Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            };
+            assert!(RuleCondition::eq(path, "value").matches(&span));
+        }
+    }
+
+    #[test]
+    fn test_getter_span_data_deprecations_preserve_nested_paths_and_tag_fallback() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "data": {
+                    "custom": {"nested": "nested"},
+                    "http.method": "GET"
+                },
+                "tags": {"custom.tag": "tag"}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(
+            span.get_value(r"span.data.http\.request\.method"),
+            Some(Val::String("GET"))
+        );
+        assert_eq!(
+            span.get_value("span.data.custom.tag"),
+            Some(Val::String("tag"))
+        );
+        assert_eq!(
+            span.get_value("span.data.custom.nested"),
+            Some(Val::String("nested"))
+        );
+        assert_eq!(span.get_value("span.data.http.request.method"), None);
     }
 
     #[test]

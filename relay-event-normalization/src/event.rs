@@ -1070,14 +1070,16 @@ fn normalize_trace_context_tags(event: &mut Event) {
         && let Some(trace_context) = contexts.get::<TraceContext>()
         && let Some(data) = trace_context.data.value()
     {
-        if let Some(lcp_element) = data.get_str(BROWSER__WEB_VITAL__LCP__ELEMENT)
+        if let Some(lcp_element) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__ELEMENT)
+            .and_then(Value::as_str)
             && !tags.contains("lcp.element")
         {
             let tag_name = "lcp.element".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_element.to_owned()));
         }
         if let Some(lcp_size) = data
-            .get_value(BROWSER__WEB_VITAL__LCP__SIZE)
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__SIZE)
             .and_then(|value| match value {
                 Value::U64(value) => Some(*value),
                 Value::I64(value) => u64::try_from(*value).ok(),
@@ -1088,13 +1090,19 @@ fn normalize_trace_context_tags(event: &mut Event) {
             let tag_name = "lcp.size".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
         }
-        if let Some(lcp_id) = data.get_str(BROWSER__WEB_VITAL__LCP__ID) {
+        if let Some(lcp_id) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__ID)
+            .and_then(Value::as_str)
+        {
             let tag_name = "lcp.id".to_owned();
             if !tags.contains("lcp.id") {
                 tags.insert(tag_name, Annotated::new(lcp_id.to_owned()));
             }
         }
-        if let Some(lcp_url) = data.get_str(BROWSER__WEB_VITAL__LCP__URL) {
+        if let Some(lcp_url) = data
+            .get_value_with_deprecations(BROWSER__WEB_VITAL__LCP__URL)
+            .and_then(Value::as_str)
+        {
             let tag_name = "lcp.url".to_owned();
             if !tags.contains("lcp.url") {
                 tags.insert(tag_name, Annotated::new(lcp_url.to_owned()));
@@ -6106,6 +6114,48 @@ mod tests {
             },
         );
         assert!(get_value!(event.spans[0].exclusive_time).is_some());
+    }
+
+    #[test]
+    fn trace_context_lcp_tags_resolve_aliases_without_overwriting_existing_tags() {
+        for existing_tags in [false, true] {
+            let data = json!({
+                "lcp.element": "alias element",
+                "lcp.size": 123,
+                "lcp.id": "alias id",
+                "lcp.url": "https://example.com/alias.png"
+            });
+            let mut json = json!({"contexts": {"trace": {"data": data}}});
+            if existing_tags {
+                json["tags"] = json!({"lcp.element": "existing", "lcp.size": "existing", "lcp.id": "existing", "lcp.url": "existing"});
+            }
+            let mut event = Annotated::<Event>::from_json(&json.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            let original_contexts = event.contexts.clone();
+            normalize_trace_context_tags(&mut event);
+            let tags = event.tags.value().unwrap();
+            for (key, alias_value) in [
+                ("lcp.element", "alias element"),
+                ("lcp.size", "123"),
+                ("lcp.id", "alias id"),
+                ("lcp.url", "https://example.com/alias.png"),
+            ] {
+                assert_eq!(
+                    tags.get(key),
+                    Some(if existing_tags {
+                        "existing"
+                    } else {
+                        alias_value
+                    })
+                );
+            }
+            assert_eq!(event.contexts, original_contexts);
+            let normalized = event.clone();
+            normalize_trace_context_tags(&mut event);
+            assert_eq!(event, normalized);
+        }
     }
 
     #[test]

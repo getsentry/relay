@@ -55,7 +55,9 @@ pub(crate) fn scrub_span_description(
 
     let data = span.data.value();
 
-    let db_system = data.and_then(|data| data.get_str(DB__SYSTEM__NAME));
+    let db_system = data
+        .and_then(|data| data.get_value_with_deprecations(DB__SYSTEM__NAME))
+        .and_then(|value| value.as_str());
     let span_origin = span.origin.as_str();
 
     let mut parsed_sql = None;
@@ -70,9 +72,13 @@ pub(crate) fn scrub_span_description(
             }
             ("cache", _) => scrub_redis_keys(description),
             ("db", sub) => {
-                let db_operation = data.and_then(|data| data.get_str(DB__OPERATION__NAME));
+                let db_operation = data
+                    .and_then(|data| data.get_value_with_deprecations(DB__OPERATION__NAME))
+                    .and_then(|value| value.as_str());
 
-                let collection_name = data.and_then(|data| data.get_str(DB__COLLECTION__NAME));
+                let collection_name = data
+                    .and_then(|data| data.get_value_with_deprecations(DB__COLLECTION__NAME))
+                    .and_then(|value| value.as_str());
 
                 let (scrubbed, parsed_sql_statement) = scrub_db_query(
                     description,
@@ -1254,6 +1260,21 @@ mod tests {
         "function",
         "symbolicator_native::symbolication::*::symbolicate"
     );
+
+    #[test]
+    fn db_scrubbing_uses_deprecated_attributes() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "op": "db",
+                "description": "{\"find\":\"documents\",\"foo\":\"bar\"}",
+                "data": {"db.system": "mongodb", "db.operation": "find", "db.mongodb.collection": "documents"}
+            }"#,
+        ).unwrap().into_value().unwrap();
+        assert_eq!(
+            scrub_span_description(&span, &[]).0.as_deref(),
+            Some(r#"{"find":"documents","foo":"?"}"#)
+        );
+    }
 
     #[test]
     fn informed_sql_parser() {
