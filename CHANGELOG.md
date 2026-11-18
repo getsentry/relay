@@ -6,6 +6,7 @@
 
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
+- Delay shutdown until kafka messages have been drained. ([#6700](https://github.com/getsentry/relay/pull/6700))
 
 ## 26.11.0
 
