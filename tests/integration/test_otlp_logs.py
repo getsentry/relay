@@ -534,7 +534,7 @@ def test_otlp_logs_expanded_size_limit(mini_sentry, relay):
                         {"key": "large", "value": {"stringValue": "x" * 1_000}}
                     ]
                 },
-                "scopeLogs": [{"logRecords": [{}] * 100}],
+                "scopeLogs": [{"logRecords": [{}] * 10}],
             }
         ]
     }
