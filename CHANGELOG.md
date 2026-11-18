@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `heroku.logplex.source` and `heroku.logplex.dyno` to Heroku log drain logs, the `source[dyno]` label of each Logplex line.
+
 **Bug Fixes**:
 
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))

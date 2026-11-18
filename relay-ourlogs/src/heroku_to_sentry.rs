@@ -577,6 +577,10 @@ pub fn logplex_message_to_sentry_log(
 
     attributes.insert(SENTRY__ORIGIN, "auto.log_drain.heroku".to_owned());
     attributes.insert(CLOUD__PROVIDER, "heroku".to_owned());
+    // The raw `source[dyno]` label of the line, which `heroku logs --source` and `--dyno` filter
+    // on. `heroku.dyno.name` only keeps dyno names and, on router lines, the serving dyno.
+    add_optional_attribute!(HEROKU__LOGPLEX__SOURCE, source);
+    add_optional_attribute!(HEROKU__LOGPLEX__DYNO, dyno);
     add_optional_attribute!(HEROKU__DYNO__NAME, dyno.filter(|dyno| is_dyno_name(dyno)));
     add_optional_attribute!(HEROKU__LOGPLEX__DRAIN_TOKEN, drain_token);
 
@@ -892,6 +896,14 @@ mod tests {
               "type": "string",
               "value": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
             },
+            "heroku.logplex.dyno": {
+              "type": "string",
+              "value": "web.1"
+            },
+            "heroku.logplex.source": {
+              "type": "string",
+              "value": "app"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -971,6 +983,14 @@ mod tests {
             "heroku.dyno.name": {
               "type": "string",
               "value": "web.1"
+            },
+            "heroku.logplex.dyno": {
+              "type": "string",
+              "value": "router"
+            },
+            "heroku.logplex.source": {
+              "type": "string",
+              "value": "heroku"
             },
             "heroku.router.connect": {
               "type": "double",
@@ -1062,6 +1082,14 @@ mod tests {
               "type": "string",
               "value": "Request timeout"
             },
+            "heroku.logplex.dyno": {
+              "type": "string",
+              "value": "router"
+            },
+            "heroku.logplex.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "heroku.router.connect": {
               "type": "double",
               "value": 6.0
@@ -1125,7 +1153,15 @@ mod tests {
 
         let attributes = log.value().unwrap().attributes.value().unwrap();
         let keys: Vec<_> = attributes.0.keys().collect();
-        assert_eq!(keys, vec!["cloud.provider", "sentry.origin"]);
+        assert_eq!(
+            keys,
+            vec![
+                "cloud.provider",
+                "heroku.logplex.dyno",
+                "heroku.logplex.source",
+                "sentry.origin"
+            ]
+        );
     }
 
     fn attribute<'a>(log: &'a Annotated<OurLog>, key: &str) -> Option<&'a Value> {
@@ -1150,6 +1186,14 @@ mod tests {
                 attribute(&log, HEROKU__DYNO__NAME).and_then(|value| value.as_str()),
                 expected,
                 "{source} {process}"
+            );
+            assert_eq!(
+                attribute(&log, HEROKU__LOGPLEX__SOURCE).and_then(|value| value.as_str()),
+                Some(source)
+            );
+            assert_eq!(
+                attribute(&log, HEROKU__LOGPLEX__DYNO).and_then(|value| value.as_str()),
+                (process != "-").then_some(process)
             );
             for key in [
                 "heroku.source",
@@ -1595,6 +1639,14 @@ mod tests {
               "type": "string",
               "value": "Memory quota exceeded"
             },
+            "heroku.logplex.dyno": {
+              "type": "string",
+              "value": "worker.1"
+            },
+            "heroku.logplex.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -1691,5 +1743,54 @@ mod tests {
         let log = log.value().unwrap();
         assert!(log.timestamp.value().is_some());
         assert!(!log.timestamp.meta().is_empty());
+    }
+
+    #[test]
+    fn test_logplex_source_and_dyno_tell_lines_apart() {
+        let label = |line: &str| {
+            let log = to_log(line);
+            let get = |key| {
+                attribute(&log, key)
+                    .and_then(|value| value.as_str())
+                    .map(str::to_owned)
+            };
+            (
+                get(HEROKU__LOGPLEX__SOURCE),
+                get(HEROKU__LOGPLEX__DYNO),
+                get(HEROKU__DYNO__NAME),
+            )
+        };
+        let owned = |source: &str, dyno: &str, name: Option<&str>| {
+            (
+                Some(source.to_owned()),
+                Some(dyno.to_owned()),
+                name.map(str::to_owned),
+            )
+        };
+
+        // All three lines concern web.1, only the Logplex label tells them apart.
+        assert_eq!(
+            label("<190>1 2024-04-26T16:58:32+00:00 host app web.1 - Completed 200 OK"),
+            owned("app", "web.1", Some("web.1"))
+        );
+        assert_eq!(
+            label(
+                "<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - Error R14 (Memory quota exceeded)"
+            ),
+            owned("heroku", "web.1", Some("web.1"))
+        );
+        assert_eq!(
+            label(
+                r#"<158>1 2024-04-26T16:58:32+00:00 host heroku router - at=info method=GET path="/" dyno=web.1 status=200"#
+            ),
+            owned("heroku", "router", Some("web.1"))
+        );
+        // Platform API lines use the source app, without a dyno name.
+        assert_eq!(
+            label(
+                "<190>1 2024-04-26T16:58:32+00:00 host app api - Release v6 created by user@example.com"
+            ),
+            owned("app", "api", None)
+        );
     }
 }

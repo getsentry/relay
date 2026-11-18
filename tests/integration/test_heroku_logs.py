@@ -96,6 +96,8 @@ def expected_items():
             "Completed 200 OK in 12ms",
             {
                 "sentry.severity_text": {"stringValue": "info"},
+                "heroku.logplex.source": {"stringValue": "app"},
+                "heroku.logplex.dyno": {"stringValue": "web.1"},
                 "heroku.dyno.name": {"stringValue": "web.1"},
             },
         ),
@@ -103,6 +105,8 @@ def expected_items():
             'at=error code=H12 desc="Request timeout" method=GET path="/forecast?x=1" host=example.herokuapp.com:443 request_id=8601b555-6a83-4c12-8269-97c8e32cdb22 fwd="198.51.100.8, 203.0.113.7" dyno=web.1 connect=1.25ms service=30001.5ms status=503 bytes=0 protocol=http1.1 tls=true tls_version=tls1.3',
             {
                 "sentry.severity_text": {"stringValue": "error"},
+                "heroku.logplex.source": {"stringValue": "heroku"},
+                "heroku.logplex.dyno": {"stringValue": "router"},
                 "heroku.dyno.name": {"stringValue": "web.1"},
                 "heroku.error.code": {"stringValue": "H12"},
                 "heroku.error.description": {"stringValue": "Request timeout"},
@@ -130,6 +134,8 @@ def expected_items():
             "Error R14 (Memory quota exceeded)",
             {
                 "sentry.severity_text": {"stringValue": "error"},
+                "heroku.logplex.source": {"stringValue": "heroku"},
+                "heroku.logplex.dyno": {"stringValue": "web.1"},
                 "heroku.dyno.name": {"stringValue": "web.1"},
                 "heroku.error.code": {"stringValue": "R14"},
                 "heroku.error.description": {"stringValue": "Memory quota exceeded"},
