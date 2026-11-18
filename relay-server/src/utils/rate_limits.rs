@@ -298,6 +298,12 @@ impl EnvelopeSummary {
                             summary.log_byte_quantity += item.data().len().max(1);
                         }
                     }
+                    Some(Integration::TraceMetrics(_)) => {
+                        summary.trace_metric_quantity += count;
+                        if !rate_limited {
+                            summary.trace_metric_byte_quantity += item.data().len().max(1);
+                        }
+                    }
                     _ => {}
                 },
                 Item::Attachment(item) => {

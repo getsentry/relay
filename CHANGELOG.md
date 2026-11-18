@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add the OTLP `/v1/metrics` endpoint for trace metrics, supporting gauges and delta sums and histograms. This is behind the `organizations:relay-otel-metrics-endpoint` feature.
+
 **Bug Fixes**:
 
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))

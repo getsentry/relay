@@ -1,0 +1,155 @@
+import json
+from datetime import datetime, timezone
+
+from sentry_relay.consts import DataCategory
+
+from .consts import Outcome
+
+
+def metrics_project(mini_sentry, features=True):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+    if features:
+        project_config["config"]["features"].append(
+            "organizations:relay-otel-metrics-endpoint"
+        )
+    return project_id
+
+
+def metrics_payload():
+    ts_nanos = str(int(datetime.now(timezone.utc).timestamp() * 1e9))
+    return json.dumps(
+        {
+            "resourceMetrics": [
+                {
+                    "scopeMetrics": [
+                        {
+                            "metrics": [
+                                {
+                                    "name": "http.requests",
+                                    "sum": {
+                                        "aggregationTemporality": 1,
+                                        "isMonotonic": True,
+                                        "dataPoints": [
+                                            {"timeUnixNano": ts_nanos, "asInt": "3"}
+                                        ],
+                                    },
+                                },
+                                {
+                                    "name": "http.requests.cumulative",
+                                    "sum": {
+                                        "aggregationTemporality": 2,
+                                        "isMonotonic": True,
+                                        "dataPoints": [
+                                            {"timeUnixNano": ts_nanos, "asInt": "3"}
+                                        ],
+                                    },
+                                },
+                                {
+                                    "name": "http.server.duration",
+                                    "unit": "ms",
+                                    "histogram": {
+                                        "aggregationTemporality": 1,
+                                        "dataPoints": [
+                                            {
+                                                "timeUnixNano": ts_nanos,
+                                                "count": "3",
+                                                "sum": 30.0,
+                                                "bucketCounts": ["1", "2"],
+                                                "explicitBounds": [10.0],
+                                                "min": 5.0,
+                                                "max": 15.0,
+                                                "exemplars": [
+                                                    {
+                                                        "timeUnixNano": ts_nanos,
+                                                        "asDouble": 12.0,
+                                                        "traceId": "5b8efff798038103d269b633813fc60c",
+                                                    }
+                                                ],
+                                            }
+                                        ],
+                                    },
+                                },
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+
+
+def test_otlp_metrics(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    relay_credentials,
+    items_consumer,
+    outcomes_consumer,
+):
+    items_consumer = items_consumer()
+    outcomes_consumer = outcomes_consumer()
+    project_id = metrics_project(mini_sentry)
+
+    credentials = relay_credentials()
+    relay = relay(
+        relay_with_processing(static_credentials=credentials),
+        credentials=credentials,
+    )
+
+    relay.send_otel_metrics(project_id, data=metrics_payload())
+
+    items = items_consumer.get_items(n=4)
+
+    def row(item):
+        attributes = item["attributes"]
+        return (
+            attributes["sentry.metric_name"]["stringValue"],
+            attributes["sentry.metric_type"]["stringValue"],
+            attributes["sentry._internal.row_kind"]["stringValue"],
+            attributes["sentry.value"]["doubleValue"],
+        )
+
+    assert sorted(map(row, items)) == [
+        ("http.requests", "counter", "point", 3.0),
+        ("http.server.duration", "histogram", "bucket", 7.5),
+        ("http.server.duration", "histogram", "bucket", 12.5),
+        ("http.server.duration", "histogram", "exemplar", 12.0),
+    ]
+
+    assert outcomes_consumer.get_aggregated_outcomes(n=1) == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_trace_metric",
+        },
+    ]
+
+
+def test_otlp_metrics_requires_feature(mini_sentry, relay):
+    project_id = metrics_project(mini_sentry, features=False)
+    payload = metrics_payload()
+
+    relay = relay(mini_sentry)
+    relay.send_otel_metrics(project_id, data=payload)
+
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.INVALID,
+            "reason": "feature_disabled",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.INVALID,
+            "reason": "feature_disabled",
+            "quantity": len(payload),
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()

@@ -60,20 +60,29 @@ pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 /// Validates the semantic validity of a trace metric.
 pub fn validate(metrics: &mut Managed<ExpandedTraceMetrics>) {
     let client_name = client_name_tag(metrics.headers.meta().client_name());
+    // Histograms forwarded by a trusted Relay have already been validated by that Relay.
+    let histograms =
+        metrics.settings.histograms || metrics.headers.meta().request_trust().is_trusted();
+
     metrics.retain(
         |metrics| &mut metrics.metrics,
         |metric, _| {
-            validate_trace_metric(metric, client_name).inspect_err(|err| {
+            validate_trace_metric(metric, client_name, histograms).inspect_err(|err| {
                 relay_log::debug!("failed to validate trace metric: {err}");
             })
         },
     );
 }
 
-fn validate_trace_metric(metric: &Annotated<TraceMetric>, client_name: &str) -> Result<()> {
+fn validate_trace_metric(
+    metric: &Annotated<TraceMetric>,
+    client_name: &str,
+    histograms: bool,
+) -> Result<()> {
     match metric.value().and_then(|m| m.ty.value()) {
         Some(MetricType::Gauge | MetricType::Distribution | MetricType::Counter) => {}
-        Some(MetricType::Unknown(_)) | None => {
+        Some(MetricType::Histogram) if histograms => {}
+        Some(MetricType::Histogram | MetricType::Unknown(_)) | None => {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }
     }
@@ -110,6 +119,13 @@ mod tests {
             let size = calculate_size(&metric);
             assert_eq!(size, $expected, "metric: {json}");
         }};
+    }
+
+    #[test]
+    fn test_validate_histogram() {
+        let metric = Annotated::<TraceMetric>::from_json(r#"{"type":"histogram"}"#).unwrap();
+        assert!(validate_trace_metric(&metric, "test", false).is_err());
+        assert!(validate_trace_metric(&metric, "test", true).is_ok());
     }
 
     #[test]

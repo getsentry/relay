@@ -278,6 +278,10 @@ fn filter(
                     RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
                     item,
                 ),
+                Some(ContentType::Integration(Integration::TraceMetrics(_))) => apply_retention(
+                    RetentionAction::drop_on_rejection(enforcement.trace_metrics.as_mut()),
+                    item,
+                ),
                 _ => true,
             },
             Item::Transaction(item) => {

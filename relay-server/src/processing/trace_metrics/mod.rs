@@ -9,14 +9,16 @@ use std::sync::Arc;
 
 use crate::Envelope;
 use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemCount, Items,
-    TraceMetricItem,
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, IntegrationItem, Item, ItemContainer,
+    ItemCount, Items, TraceMetricItem,
 };
+use crate::integrations::Integration;
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
 mod filter;
+mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
@@ -100,7 +102,7 @@ impl crate::managed::OutcomeError for Error {
 
 /// A processor for trace metrics.
 ///
-/// It processes items of type: [`TraceMetricItem`].
+/// It processes items of type: [`TraceMetricItem`] and trace metric integrations.
 #[derive(Debug)]
 pub struct TraceMetricsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -125,7 +127,16 @@ impl processing::Processor for TraceMetricsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let item = envelope.envelope_mut().take_item::<TraceMetricItem>()?;
+        let item = match envelope.envelope_mut().take_item::<TraceMetricItem>() {
+            Some(container) => TraceMetricItems::Container(container),
+            None => TraceMetricItems::Integration(
+                envelope
+                    .envelope_mut()
+                    .take_item_if::<IntegrationItem>(|item| {
+                        matches!(item.integration(), Some(Integration::TraceMetrics(_)))
+                    })?,
+            ),
+        };
 
         // Duplicates which are not allowed to be in the envelope.
         let invalid = envelope
@@ -218,31 +229,47 @@ impl Forward for TraceMetricOutput {
     }
 }
 
+/// Different trace metric items which can be expanded into trace metrics.
+#[derive(Debug)]
+enum TraceMetricItems {
+    /// A trace metric item container.
+    Container(TraceMetricItem),
+    /// Trace metrics received from an integration.
+    Integration(IntegrationItem),
+}
+
 /// Serialized trace metrics extracted from an envelope.
 #[derive(Debug)]
 pub struct SerializedTraceMetrics {
     /// Original envelope headers.
     pub headers: EnvelopeHeaders,
-    /// Trace metric item container.
-    item: TraceMetricItem,
+    /// Trace metric item container or integration.
+    item: TraceMetricItems,
     /// Invalid trace metric items which are not allowed to be in the envelope.
     invalid: Vec<TraceMetricItem>,
 }
 
-impl SerializedTraceMetrics {
-    fn all_items(&self) -> impl Iterator<Item = &TraceMetricItem> {
-        std::iter::once(&self.item).chain(self.invalid.iter())
-    }
-}
-
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        let count = self
-            .all_items()
-            .map(|item| item.item_count().unwrap_or(1) as usize)
-            .sum();
+        let (count, bytes) = match &self.item {
+            TraceMetricItems::Container(item) => {
+                (item.item_count().unwrap_or(1) as usize, item.data().len())
+            }
+            TraceMetricItems::Integration(item) => (1, item.data().len().max(1)),
+        };
 
-        let bytes = self.all_items().map(|item| item.data().len()).sum();
+        let count = count
+            + self
+                .invalid
+                .iter()
+                .map(|item| item.item_count().unwrap_or(1) as usize)
+                .sum::<usize>();
+        let bytes = bytes
+            + self
+                .invalid
+                .iter()
+                .map(|item| item.data().len())
+                .sum::<usize>();
 
         smallvec![
             (DataCategory::TraceMetric, count),
@@ -266,6 +293,10 @@ struct Settings {
     infer_ip: bool,
     /// Whether the user agent/browser should inferred from client headers.
     infer_user_agent: bool,
+    /// Whether pre-aggregated histograms are allowed.
+    ///
+    /// Histograms can only be produced by integrations.
+    histograms: bool,
 }
 
 /// Trace metrics which have been parsed and expanded from their serialized state.
