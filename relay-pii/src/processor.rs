@@ -6,12 +6,12 @@ use std::sync::OnceLock;
 use regex::Regex;
 use relay_event_schema::processor::{
     self, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType, enum_set, process_value,
+    ProcessingState, Processor, ValueType, process_value,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
 };
-use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
@@ -35,6 +35,8 @@ pub struct PiiProcessor<'a> {
     /// Controls how rules are applied to attributes.
     attribute_mode: AttributeMode,
     compiled_config: &'a CompiledPiiConfig,
+    attribute_key_depth: Option<usize>,
+    span_link_attributes_depth: Option<usize>,
 }
 
 impl<'a> PiiProcessor<'a> {
@@ -45,6 +47,8 @@ impl<'a> PiiProcessor<'a> {
         PiiProcessor {
             compiled_config,
             attribute_mode: AttributeMode::Object,
+            attribute_key_depth: None,
+            span_link_attributes_depth: None,
         }
     }
 
@@ -52,6 +56,17 @@ impl<'a> PiiProcessor<'a> {
     pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
         self.attribute_mode = attribute_mode;
         self
+    }
+
+    fn with_attribute_key_depth(
+        &mut self,
+        depth: Option<usize>,
+        process: impl FnOnce(&mut Self) -> ProcessingResult,
+    ) -> ProcessingResult {
+        let previous = mem::replace(&mut self.attribute_key_depth, depth);
+        let result = process(self);
+        self.attribute_key_depth = previous;
+        result
     }
 
     fn apply_all_rules(
@@ -66,7 +81,9 @@ impl<'a> PiiProcessor<'a> {
         }
 
         for (selector, rules) in self.compiled_config.applications.iter() {
-            if selector.matches_path(&state.path()) {
+            if selector
+                .matches_path_with_attribute_key_depth(&state.path(), self.attribute_key_depth)
+            {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
@@ -90,21 +107,23 @@ impl Processor for PiiProcessor<'_> {
             // Also apply pii scrubbing to the original value (set by normalization or other processors),
             // such that we do not leak sensitive data through meta. Deletes `original_value` if an Error
             // value is returned.
-            if let Some(parent) = state.iter().next() {
-                let path = state.path();
-                let new_state = parent.enter_borrowed(
-                    path.key().unwrap_or(""),
-                    Some(Cow::Borrowed(state.attrs())),
-                    enum_set!(ValueType::String),
-                );
+            let parent = state
+                .iter()
+                .find(|parent| parent.depth() < state.depth())
+                .unwrap_or(state);
+            let path = state.path();
+            let attrs = Some(Cow::Borrowed(state.attrs()));
+            let new_state = match path.index() {
+                Some(index) => parent.enter_index(index, attrs, [ValueType::String]),
+                None => parent.enter_borrowed(path.key().unwrap_or(""), attrs, [ValueType::String]),
+            };
 
-                if self
-                    .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
-                    .is_err()
-                {
-                    // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
-                    meta.set_original_value(Option::<String>::None);
-                }
+            if self
+                .apply_all_rules(&mut Meta::default(), &new_state, Some(original_value))
+                .is_err()
+            {
+                // `apply_all_rules` returned `DeleteValueHard` or `DeleteValueSoft`, so delete the original as well.
+                meta.set_original_value(Option::<String>::None);
             }
         }
 
@@ -231,32 +250,80 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        match self.attribute_mode {
-            // Treat each attribute as an object and just process them field by field.
-            AttributeMode::Object => value.process_child_values(self, state),
-            // Identify each attribute with its `value` and only process that.
-            AttributeMode::ValueOnly => {
-                for (key, attribute) in value.0.iter_mut() {
-                    let Some(attribute) = attribute.value_mut() else {
-                        continue;
-                    };
+        self.with_attribute_key_depth(Some(state.depth() + 1), |processor| {
+            match processor.attribute_mode {
+                // Treat each attribute as an object and just process them field by field.
+                AttributeMode::Object => value.process_child_values(processor, state),
+                // Identify each attribute with its `value` and only process that.
+                AttributeMode::ValueOnly => {
+                    for (key, attribute) in value.0.iter_mut() {
+                        let Some(attribute) = attribute.value_mut() else {
+                            continue;
+                        };
 
-                    // We need some manual state management here because we're bypassing all the
-                    // intermediate structures and pointing at the value directly. This essentially
-                    // mimics the attributes and value type that the metastructure derivation would
-                    // produce for the attribute vaue.
-                    let attrs = FieldAttrs::new()
-                        .pii_dynamic(relay_event_schema::protocol::attribute_pii_from_conventions);
-                    let inner_value = &mut attribute.value.value;
-                    let inner_value_type = ValueType::for_field(inner_value);
-                    let entered =
-                        state.enter_borrowed(key, Some(Cow::Borrowed(&attrs)), inner_value_type);
+                        // We need some manual state management here because we're bypassing all the
+                        // intermediate structures and pointing at the value directly. This essentially
+                        // mimics the attributes and value type that the metastructure derivation would
+                        // produce for the attribute vaue.
+                        let attrs = FieldAttrs::new().pii_dynamic(
+                            relay_event_schema::protocol::attribute_pii_from_conventions,
+                        );
+                        let inner_value = &mut attribute.value.value;
+                        let inner_value_type = ValueType::for_field(inner_value);
+                        let entered = state.enter_borrowed(
+                            key,
+                            Some(Cow::Borrowed(&attrs)),
+                            inner_value_type,
+                        );
 
-                    processor::process_value(inner_value, self, &entered)?;
-                    self.process_other(&mut attribute.other, state)?;
+                        processor::process_value(inner_value, processor, &entered)?;
+                        processor.with_attribute_key_depth(None, |processor| {
+                            processor.process_other(&mut attribute.other, state)
+                        })?;
+                    }
+                    Ok(())
                 }
-                Ok(())
             }
+        })
+    }
+
+    fn process_span_data(
+        &mut self,
+        value: &mut relay_event_schema::protocol::SpanData,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        self.with_attribute_key_depth(Some(state.depth() + 1), |processor| {
+            value.process_child_values(processor, state)
+        })
+    }
+
+    fn process_span_link(
+        &mut self,
+        value: &mut relay_event_schema::protocol::SpanLink,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        let previous = self.span_link_attributes_depth.replace(state.depth() + 1);
+        let result = value.process_child_values(self, state);
+        self.span_link_attributes_depth = previous;
+        result
+    }
+
+    fn process_object<T: ProcessValue>(
+        &mut self,
+        value: &mut Object<T>,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if self.span_link_attributes_depth == Some(state.depth())
+            && state.path().key() == Some("attributes")
+        {
+            self.with_attribute_key_depth(Some(state.depth() + 1), |processor| {
+                value.process_child_values(processor, state)
+            })
+        } else {
+            value.process_child_values(self, state)
         }
     }
 
@@ -647,6 +714,45 @@ mod tests {
             assert_eq!(&roundtrip, config);
         }
         rv
+    }
+
+    #[test]
+    fn attribute_scope_is_restored_after_nested_processing_and_errors() {
+        let config = PiiConfig::default();
+        let mut processor = PiiProcessor::new(config.compiled());
+        let result = processor.with_attribute_key_depth(Some(2), |processor| {
+            assert_eq!(processor.attribute_key_depth, Some(2));
+            let result = processor.with_attribute_key_depth(Some(5), |processor| {
+                assert_eq!(processor.attribute_key_depth, Some(5));
+                Err(ProcessingAction::DeleteValueHard)
+            });
+            assert_eq!(processor.attribute_key_depth, Some(2));
+            result
+        });
+        assert_eq!(result, Err(ProcessingAction::DeleteValueHard));
+        assert_eq!(processor.attribute_key_depth, None);
+    }
+
+    #[test]
+    fn root_original_value_is_still_scrubbed() {
+        let config: PiiConfig = serde_json::from_value(json!({
+            "rules": {"redact": {"type": "anything", "redaction": {"method": "replace", "text": "[scrubbed]"}}},
+            "applications": {"$string": ["redact"]}
+        })).unwrap();
+        let mut value = Annotated::new("secret".to_owned());
+        value
+            .meta_mut()
+            .set_original_value(Some("original secret".to_owned()));
+        let root = ProcessingState::root_builder()
+            .pii(Pii::True)
+            .value_type([ValueType::String].into_iter().collect())
+            .build();
+        process_value(&mut value, &mut PiiProcessor::new(config.compiled()), &root).unwrap();
+        assert_eq!(value.as_str(), Some("secret"));
+        assert_eq!(
+            value.meta().original_value().and_then(Value::as_str),
+            Some("[scrubbed]")
+        );
     }
 
     #[test]
