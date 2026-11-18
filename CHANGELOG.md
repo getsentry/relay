@@ -4,7 +4,6 @@
 
 **Bug Fixes**:
 
-- Apply `max_tag_value_length` to header-derived browser fields and `user_agent.original` on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 
 **Internal**:
