@@ -239,7 +239,7 @@ pub async fn read_field_into_item(
     });
 
     if n_bytes > limit {
-        let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
+        let attachment_type = item.attachment_type();
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
 

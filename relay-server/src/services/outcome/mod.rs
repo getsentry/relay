@@ -647,10 +647,7 @@ impl From<ItemType> for DiscardItemType {
 impl From<&Item> for DiscardItemType {
     fn from(item: &Item) -> Self {
         match item {
-            Item::Attachment(attachment) => attachment
-                .attachment_type()
-                .map(Self::from)
-                .unwrap_or_else(|| item.ty().into()),
+            Item::Attachment(attachment) => attachment.attachment_type().into(),
             Item::Integration(integration) => match integration.integration() {
                 Some(Integration::Errors(ErrorsIntegration::Unreal)) => Self::UnrealReport,
                 Some(Integration::Logs(_)) => Self::Log,

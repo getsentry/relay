@@ -8,10 +8,14 @@ use relay_quotas::DataCategory;
 use smallvec::smallvec;
 
 impl AttachmentItem {
-    /// Returns the attachment type.
-    pub fn attachment_type(&self) -> Option<AttachmentType> {
+    /// Returns the effective attachment type, defaulting to [`AttachmentType::Attachment`].
+    ///
+    /// Missing, invalid, and unknown headers use the default unless the payload is recognized
+    /// as a Nintendo Switch dying message. The original header is preserved for forwarding
+    /// and [`super::Item::is_unknown`].
+    pub fn attachment_type(&self) -> AttachmentType {
         if let Some(ty) = self.data().headers().get(ItemHeaderKey::AttachmentType) {
-            return Some(ty);
+            return ty;
         }
 
         // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
@@ -22,10 +26,10 @@ impl AttachmentItem {
                 .payload_ref()
                 .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
         {
-            return Some(AttachmentType::NintendoSwitchDyingMessage);
+            return AttachmentType::NintendoSwitchDyingMessage;
         }
 
-        None
+        AttachmentType::Attachment
     }
 
     /// Sets the attachment type of this item.
@@ -165,25 +169,20 @@ impl AttachmentItem {
             return false;
         }
         match self.attachment_type() {
-            Some(
-                AttachmentType::Minidump
-                | AttachmentType::AppleCrashReport
-                | AttachmentType::EventPayload
-                | AttachmentType::Prosperodump
-                | AttachmentType::Breadcrumbs
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NintendoSwitchDyingMessage,
-            ) => true,
-            Some(
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs
-                | AttachmentType::ViewHierarchy
-                | AttachmentType::Flamegraph
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            )
-            | None => false,
+            AttachmentType::Minidump
+            | AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Prosperodump
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NintendoSwitchDyingMessage => true,
+            AttachmentType::Attachment
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => false,
         }
     }
 }
@@ -196,28 +195,25 @@ impl Counted for AttachmentItem {
 
         // New attachment types require an explicit accounting decision.
         match self.attachment_type() {
-            Some(AttachmentType::NintendoSwitchDyingMessage) => {
+            AttachmentType::NintendoSwitchDyingMessage => {
                 // Event-parent dying messages are merged into event data.
                 if matches!(self.attachment_parent_type(), AttachmentParentType::Event) {
                     return Quantities::new();
                 }
             }
-            Some(
-                AttachmentType::Attachment
-                | AttachmentType::Minidump
-                | AttachmentType::AppleCrashReport
-                | AttachmentType::EventPayload
-                | AttachmentType::Breadcrumbs
-                | AttachmentType::Prosperodump
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs
-                | AttachmentType::ViewHierarchy
-                | AttachmentType::Flamegraph
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            )
-            | None => {}
+            AttachmentType::Attachment
+            | AttachmentType::Minidump
+            | AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => {}
         }
 
         smallvec![

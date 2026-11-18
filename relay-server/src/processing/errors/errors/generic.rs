@@ -38,7 +38,7 @@ impl SentryError for Generic {
         // Separate the first flamegraph from the event's attachments and drop additional graphs.
         let flamegraph = attachments
             .extract_if(.., |item| {
-                item.attachment_type() == Some(AttachmentType::Flamegraph)
+                item.attachment_type() == AttachmentType::Flamegraph
             })
             .fold(None, |first, item| first.or(Some(item)));
 

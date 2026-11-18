@@ -39,7 +39,7 @@ impl SentryError for Nswitch {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(dying_message) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == Some(AttachmentType::NintendoSwitchDyingMessage)
+            item.attachment_type() == AttachmentType::NintendoSwitchDyingMessage
         }) else {
             return Ok(None);
         };

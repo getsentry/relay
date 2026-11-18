@@ -212,7 +212,7 @@ async fn multipart_to_items(
         let prosperodump = inner
             .attachments
             .iter_mut()
-            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .find(|item| item.attachment_type() == AttachmentType::Prosperodump)
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         validate_prosperodump(&prosperodump.data().payload())?;
         prosperodump

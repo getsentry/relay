@@ -16,7 +16,7 @@ impl SentryError for AppleCrashReport {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(apple_crash_report) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == Some(AttachmentType::AppleCrashReport)
+            item.attachment_type() == AttachmentType::AppleCrashReport
         }) else {
             return Ok(None);
         };

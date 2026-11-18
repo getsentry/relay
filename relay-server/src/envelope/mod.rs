@@ -1029,10 +1029,7 @@ mod tests {
         let Item::Attachment(attachment) = items[0] else {
             panic!("expected an attachment");
         };
-        assert_eq!(
-            attachment.attachment_type(),
-            Some(AttachmentType::ViewHierarchy)
-        );
+        assert_eq!(attachment.attachment_type(), AttachmentType::ViewHierarchy);
     }
 
     #[test]
@@ -1050,10 +1047,7 @@ mod tests {
         let Item::Attachment(attachment) = item else {
             panic!("expected an attachment");
         };
-        assert_eq!(
-            attachment.attachment_type(),
-            Some(AttachmentType::Flamegraph)
-        );
+        assert_eq!(attachment.attachment_type(), AttachmentType::Flamegraph);
         assert_eq!(attachment.filename(), Some("flamegraph.json"));
         assert_eq!(item.data().content_type(), Some(ContentType::Json));
         assert!(!item.carries_event_payload());
@@ -1067,10 +1061,7 @@ mod tests {
         let Item::Attachment(attachment) = item else {
             panic!("expected an attachment");
         };
-        assert_eq!(
-            attachment.attachment_type(),
-            Some(AttachmentType::Flamegraph)
-        );
+        assert_eq!(attachment.attachment_type(), AttachmentType::Flamegraph);
         assert_eq!(attachment.filename(), Some("flamegraph.json"));
         assert_eq!(item.data().content_type(), Some(ContentType::Json));
         assert_eq!(item.data().payload().as_ref(), payload.as_bytes());
