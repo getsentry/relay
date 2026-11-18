@@ -35,7 +35,9 @@ impl UsedTokens {
     pub fn from_span_data(data: &SpanData) -> Self {
         macro_rules! get_value {
             ($e:expr) => {
-                data.get_value($e).and_then(|v| v.as_f64()).unwrap_or(0.0)
+                data.get_value_with_deprecations($e)
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0)
             };
         }
 
@@ -154,7 +156,12 @@ pub fn calculate_costs(
 pub fn default_ai_operation_type(attributes: &impl AttributesLike) -> &'static str {
     if [GEN_AI__REQUEST__MODEL, GEN_AI__RESPONSE__MODEL]
         .iter()
-        .any(|key| attributes.get_value(key).and_then(Value::as_str).is_some())
+        .any(|key| {
+            attributes
+                .get_value_with_deprecations(key)
+                .and_then(Value::as_str)
+                .is_some()
+        })
     {
         "ai_client"
     } else {
@@ -217,7 +224,7 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
 /// Returns whether a valid total cost is attached.
 pub fn has_valid_total_cost(attributes: &impl AttributesLike) -> bool {
     attributes
-        .get_value(GEN_AI__COST__TOTAL_TOKENS)
+        .get_value_with_deprecations(GEN_AI__COST__TOTAL_TOKENS)
         .and_then(Value::as_f64)
         .is_some()
 }
@@ -295,34 +302,32 @@ fn map_ai_measurements_to_data(data: &mut SpanData, measurements: Option<&Measur
         }
     };
 
-    set_field_from_measurement(
-        data.other
-            .entry(GEN_AI__USAGE__TOTAL_TOKENS.to_owned())
-            .or_default(),
-        "ai_total_tokens_used",
-    );
-    set_field_from_measurement(
-        data.other
-            .entry(GEN_AI__USAGE__INPUT_TOKENS.to_owned())
-            .or_default(),
-        "ai_prompt_tokens_used",
-    );
-    set_field_from_measurement(
-        data.other
-            .entry(GEN_AI__USAGE__OUTPUT_TOKENS.to_owned())
-            .or_default(),
-        "ai_completion_tokens_used",
-    );
+    for (key, measurement_key) in [
+        (GEN_AI__USAGE__TOTAL_TOKENS, "ai_total_tokens_used"),
+        (GEN_AI__USAGE__INPUT_TOKENS, "ai_prompt_tokens_used"),
+        (GEN_AI__USAGE__OUTPUT_TOKENS, "ai_completion_tokens_used"),
+    ] {
+        if data.get_value_with_deprecations(key).is_some() {
+            continue;
+        }
+        set_field_from_measurement(
+            data.other.entry(key.to_owned()).or_default(),
+            measurement_key,
+        );
+    }
 }
 
 fn set_total_tokens(data: &mut SpanData) {
     // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if data.get_value(GEN_AI__USAGE__TOTAL_TOKENS).is_none() {
+    if data
+        .get_value_with_deprecations(GEN_AI__USAGE__TOTAL_TOKENS)
+        .is_none()
+    {
         let input_tokens = data
-            .get_value(GEN_AI__USAGE__INPUT_TOKENS)
+            .get_value_with_deprecations(GEN_AI__USAGE__INPUT_TOKENS)
             .and_then(Value::as_f64);
         let output_tokens = data
-            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
+            .get_value_with_deprecations(GEN_AI__USAGE__OUTPUT_TOKENS)
             .and_then(Value::as_f64);
 
         if input_tokens.is_none() && output_tokens.is_none() {
@@ -341,7 +346,9 @@ fn set_total_tokens(data: &mut SpanData) {
 
 /// Sets the context window size and utilization for the model.
 fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetadata) {
-    let model_id = data.get_str(GEN_AI__RESPONSE__MODEL);
+    let model_id = data
+        .get_value_with_deprecations(GEN_AI__RESPONSE__MODEL)
+        .and_then(Value::as_str);
 
     let context_size = model_id.and_then(|id| model_metadata.context_size(id));
 
@@ -355,7 +362,7 @@ fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetada
         .set_value(Value::U64(context_size).into());
 
     let total_tokens = data
-        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
+        .get_value_with_deprecations(GEN_AI__USAGE__TOTAL_TOKENS)
         .and_then(Value::as_f64);
 
     if let Some(total_tokens) = total_tokens {
@@ -380,7 +387,7 @@ fn extract_ai_data(
         .is_none()
         && duration > 0.0
         && let Some(output_tokens) = data
-            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
+            .get_value_with_deprecations(GEN_AI__USAGE__OUTPUT_TOKENS)
             .and_then(Value::as_f64)
     {
         data.other
@@ -392,7 +399,10 @@ fn extract_ai_data(
     extract_context_utilization(data, model_metadata);
 
     // Extracts the total cost of the AI model used
-    if let Some(model_id) = data.get_str(GEN_AI__RESPONSE__MODEL) {
+    if let Some(model_id) = data
+        .get_value_with_deprecations(GEN_AI__RESPONSE__MODEL)
+        .and_then(Value::as_str)
+    {
         extract_ai_model_cost_data(
             model_metadata.cost_per_token(model_id),
             data,
@@ -430,8 +440,12 @@ fn enrich_ai_span_data(
     set_total_tokens(data);
 
     // Default response model to request model if not set.
-    if data.get_value(GEN_AI__RESPONSE__MODEL).is_none()
-        && let Some(request_model) = data.get_value(GEN_AI__REQUEST__MODEL).cloned()
+    if data
+        .get_value_with_deprecations(GEN_AI__RESPONSE__MODEL)
+        .is_none()
+        && let Some(request_model) = data
+            .get_value_with_deprecations(GEN_AI__REQUEST__MODEL)
+            .cloned()
     {
         data.other
             .entry(GEN_AI__RESPONSE__MODEL.to_owned())
@@ -569,6 +583,7 @@ fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) 
 mod tests {
     use std::collections::HashMap;
 
+    use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use serde_json::json;
 
@@ -580,6 +595,254 @@ mod tests {
             op: "gen_ai.test".to_owned().into(),
             data: SpanData::from_value(data.into()),
             ..Default::default()
+        }
+    }
+
+    fn enrich_both_ai_pipelines(data: serde_json::Value) -> [SpanData; 2] {
+        let mut span = ai_span_with_data(data);
+        let mut attributes = Annotated::new(Attributes::from_iter(
+            span.data.value().unwrap().other.iter().map(|(key, value)| {
+                let value = value.value().unwrap().clone();
+                let ty = match value {
+                    Value::String(_) => AttributeType::String,
+                    Value::I64(_) | Value::U64(_) => AttributeType::Integer,
+                    Value::F64(_) => AttributeType::Double,
+                    _ => panic!("unsupported test attribute"),
+                };
+                (key.clone(), Annotated::new(Attribute::new(ty, value)))
+            }),
+        ));
+        let metadata = ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                "claude-2.1".parse().unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
+                        input_per_token: 1.0,
+                        output_per_token: 2.0,
+                        output_reasoning_per_token: 3.0,
+                        input_cached_per_token: 0.5,
+                        input_cache_write_per_token: 0.75,
+                    }),
+                    context_size: Some(1000),
+                },
+            )]),
+        };
+        enrich_ai_span_data(
+            &mut span.data,
+            &span.op,
+            &span.measurements,
+            1000.0,
+            Some(&metadata),
+            None,
+            None,
+        );
+        crate::eap::normalize_ai(
+            &mut attributes,
+            Some(std::time::Duration::from_secs(1)),
+            Some(&metadata),
+        );
+        let modern = SpanData {
+            other: attributes
+                .into_value()
+                .unwrap()
+                .into_iter()
+                .map(|(key, attribute)| {
+                    (
+                        key,
+                        attribute
+                            .map_value(|attribute| attribute.value.value.into_value().unwrap()),
+                    )
+                })
+                .collect(),
+        };
+        [span.data.into_value().unwrap(), modern]
+    }
+
+    fn ai_token_fixture() -> serde_json::Value {
+        json!({
+            "gen_ai.operation.name": "embeddings",
+            "gen_ai.request.model": "claude-2.1",
+            "gen_ai.usage.input_tokens": 100.0,
+            "gen_ai.usage.output_tokens": 50.0,
+            "gen_ai.usage.cache_read.input_tokens": 20.0,
+            "gen_ai.usage.cache_creation.input_tokens": 30.0,
+            "gen_ai.usage.reasoning.output_tokens": 10.0,
+        })
+    }
+
+    fn assert_ai_token_enrichment(data: &SpanData) {
+        assert_eq!(data.get_str(GEN_AI__OPERATION__TYPE), Some("ai_client"));
+        for (key, expected) in [
+            (GEN_AI__USAGE__TOTAL_TOKENS, 150.0),
+            (GEN_AI__RESPONSE__TOKENS_PER_SECOND, 50.0),
+            (GEN_AI__CONTEXT__WINDOW_SIZE, 1000.0),
+            (GEN_AI__CONTEXT__UTILIZATION, 0.15),
+            (GEN_AI__COST__INPUT_TOKENS, 82.5),
+            (GEN_AI__COST__OUTPUT_TOKENS, 110.0),
+            (GEN_AI__COST__CACHE_READ__INPUT_TOKENS, 10.0),
+            (GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS, 22.5),
+            (GEN_AI__COST__REASONING__OUTPUT_TOKENS, 30.0),
+            (GEN_AI__COST__TOTAL_TOKENS, 192.5),
+        ] {
+            assert_eq!(
+                data.get_value(key).and_then(Value::as_f64),
+                Some(expected),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn ai_token_and_request_model_aliases_enrich_both_pipelines() {
+        let mut fixture = ai_token_fixture();
+        for (current, alias) in [
+            (GEN_AI__REQUEST__MODEL, "ai.model_id"),
+            (GEN_AI__USAGE__INPUT_TOKENS, "ai.prompt_tokens.used"),
+            (GEN_AI__USAGE__OUTPUT_TOKENS, "ai.completion_tokens.used"),
+            (
+                GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS,
+                "gen_ai.usage.input_tokens.cached",
+            ),
+            (
+                GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS,
+                "gen_ai.usage.input_tokens.cache_write",
+            ),
+            (
+                GEN_AI__USAGE__REASONING__OUTPUT_TOKENS,
+                "gen_ai.usage.output_tokens.reasoning",
+            ),
+        ] {
+            let value = fixture.as_object_mut().unwrap().remove(current).unwrap();
+            fixture[alias] = value;
+        }
+        for data in enrich_both_ai_pipelines(fixture) {
+            assert_ai_token_enrichment(&data);
+            assert_eq!(data.get_str(GEN_AI__RESPONSE__MODEL), Some("claude-2.1"));
+            assert_eq!(data.get_str("ai.model_id"), Some("claude-2.1"));
+            assert!(!data.contains(GEN_AI__REQUEST__MODEL));
+            assert!(!data.contains(GEN_AI__USAGE__INPUT_TOKENS));
+        }
+    }
+
+    #[test]
+    fn ai_response_model_alias_prevents_request_model_defaulting() {
+        let mut fixture = ai_token_fixture();
+        fixture[GEN_AI__REQUEST__MODEL] = json!("unknown-request-model");
+        fixture["ai.response.model"] = json!("claude-2.1");
+        for data in enrich_both_ai_pipelines(fixture) {
+            assert_ai_token_enrichment(&data);
+            assert!(!data.contains(GEN_AI__RESPONSE__MODEL));
+            assert_eq!(data.get_str("ai.response.model"), Some("claude-2.1"));
+        }
+    }
+
+    #[test]
+    fn ai_total_token_alias_supplies_utilization_without_reconstruction() {
+        let fixture = json!({
+            "gen_ai.operation.name": "embeddings",
+            "gen_ai.request.model": "claude-2.1",
+            "ai.usage.tokens": 150.0,
+        });
+        for data in enrich_both_ai_pipelines(fixture) {
+            assert_eq!(
+                data.get_value(GEN_AI__CONTEXT__UTILIZATION)
+                    .and_then(Value::as_f64),
+                Some(0.15)
+            );
+            assert!(data.get_value(GEN_AI__USAGE__TOTAL_TOKENS).is_none());
+            assert_eq!(
+                data.get_value("ai.usage.tokens").and_then(Value::as_f64),
+                Some(150.0)
+            );
+        }
+    }
+
+    #[test]
+    fn ai_total_cost_alias_is_preserved() {
+        for cost in [0.0, 123.0] {
+            let mut fixture = ai_token_fixture();
+            fixture["ai.total_cost"] = json!(cost);
+            fixture[GEN_AI__COST__INPUT_TOKENS] = json!(99.0);
+            for data in enrich_both_ai_pipelines(fixture) {
+                assert_eq!(
+                    data.get_value("ai.total_cost").and_then(Value::as_f64),
+                    Some(cost)
+                );
+                assert_eq!(
+                    data.get_value(GEN_AI__COST__INPUT_TOKENS)
+                        .and_then(Value::as_f64),
+                    Some(99.0)
+                );
+                assert!(data.get_value(GEN_AI__COST__TOTAL_TOKENS).is_none());
+                assert!(data.get_value(GEN_AI__COST__OUTPUT_TOKENS).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn ai_invalid_total_cost_alias_does_not_prevent_calculation() {
+        let mut fixture = ai_token_fixture();
+        fixture["ai.total_cost"] = json!("invalid cost");
+        for data in enrich_both_ai_pipelines(fixture) {
+            assert_ai_token_enrichment(&data);
+            assert_eq!(data.get_str("ai.total_cost"), Some("invalid cost"));
+        }
+    }
+
+    #[test]
+    fn ai_total_token_reconstruction_preserves_pipeline_behavior() {
+        let alias = "ai.usage.tokens";
+        let mut fixture = ai_token_fixture();
+        fixture[alias] = json!(999.0);
+        let [legacy, modern] = enrich_both_ai_pipelines(fixture);
+        assert!(legacy.get_value(GEN_AI__USAGE__TOTAL_TOKENS).is_none());
+        assert_eq!(
+            legacy
+                .get_value(GEN_AI__CONTEXT__UTILIZATION)
+                .and_then(Value::as_f64),
+            Some(0.999)
+        );
+        assert_ai_token_enrichment(&modern);
+        for data in [legacy, modern] {
+            assert_eq!(data.get_value(alias).and_then(Value::as_f64), Some(999.0));
+        }
+    }
+
+    #[test]
+    fn ai_legacy_measurements_do_not_shadow_explicit_aliases() {
+        let measurements = Annotated::<Measurements>::from_json(
+            r#"{
+                "ai_total_tokens_used": {"value": 999.0},
+                "ai_prompt_tokens_used": {"value": 999.0},
+                "ai_completion_tokens_used": {"value": 999.0}
+            }"#,
+        )
+        .unwrap();
+        let mut span = ai_span_with_data(json!({
+            "ai.usage.tokens": 150.0,
+            "ai.prompt_tokens.used": 100.0,
+            "ai.completion_tokens.used": 50.0,
+        }));
+        map_ai_measurements_to_data(
+            span.data.value_mut().as_mut().unwrap(),
+            measurements.value(),
+        );
+        let data = span.data.value().unwrap();
+        for (current, alias, expected) in [
+            (GEN_AI__USAGE__TOTAL_TOKENS, "ai.usage.tokens", 150.0),
+            (GEN_AI__USAGE__INPUT_TOKENS, "ai.prompt_tokens.used", 100.0),
+            (
+                GEN_AI__USAGE__OUTPUT_TOKENS,
+                "ai.completion_tokens.used",
+                50.0,
+            ),
+        ] {
+            assert!(data.get_value(current).is_none());
+            assert_eq!(
+                data.get_value(alias).and_then(Value::as_f64),
+                Some(expected)
+            );
         }
     }
 

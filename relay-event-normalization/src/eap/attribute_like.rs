@@ -25,6 +25,11 @@ pub trait AttributesLike {
             .and_then(AttributeLike::as_value)
     }
 
+    /// Returns an attribute value, preferring its current name over deprecated names.
+    fn get_value_with_deprecations(&self, key: &str) -> Option<&Value> {
+        relay_conventions::attribute_names(key).find_map(|name| self.get_value(name.as_ref()))
+    }
+
     /// Checks whether this collection contains an attribute with the given `key`.
     fn contains_key(&self, key: &str) -> bool {
         self.as_object().contains_key(key)
@@ -97,5 +102,133 @@ impl AttributeLike for Value {
 impl AttributeLike for Attribute {
     fn as_value(&self) -> Option<&Value> {
         self.value.value.value()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_lookup<T: AttributesLike + Default>(
+        pairs: &[(&str, &str)],
+        key: &str,
+        expected: Option<&str>,
+    ) {
+        let mut attributes = T::default();
+        for (key, value) in pairs {
+            attributes.insert(
+                (*key).to_owned(),
+                Annotated::new(T::Value::from((*value).to_owned())),
+            );
+        }
+        assert_eq!(
+            attributes
+                .get_value_with_deprecations(key)
+                .and_then(Value::as_str),
+            expected
+        );
+    }
+
+    fn assert_both(pairs: &[(&str, &str)], key: &str, expected: Option<&str>) {
+        assert_lookup::<Attributes>(pairs, key, expected);
+        assert_lookup::<SpanData>(pairs, key, expected);
+    }
+
+    #[test]
+    fn lookup_prefers_current_then_ordered_aliases() {
+        let pairs = [
+            ("http.request.method", "current"),
+            ("http.method", "first"),
+            ("http.request_method", "second"),
+            ("method", "third"),
+        ];
+        for offset in 0..pairs.len() {
+            for (key, _) in pairs {
+                assert_both(&pairs[offset..], key, Some(pairs[offset].1));
+            }
+        }
+        assert_both(&[], "http.request.method", None);
+    }
+
+    #[test]
+    fn lookup_handles_dynamic_unknown_and_no_status_names() {
+        assert_both(
+            &[("url.path.params.id", "123")],
+            "url.path.parameter.id",
+            Some("123"),
+        );
+        assert_both(
+            &[("custom.attribute", "custom")],
+            "custom.attribute",
+            Some("custom"),
+        );
+        assert_both(&[], "custom.attribute", None);
+        assert_both(&[("route", "/users")], "http.route", Some("/users"));
+    }
+
+    #[test]
+    fn lookup_excludes_transforms_and_incompatible_replacements() {
+        for (old, current) in [
+            ("gen_ai.request.messages", "gen_ai.input.messages"),
+            ("hardwareConcurrency", "device.processor_count"),
+            ("db.sql.bindings", "db.query.parameter.id"),
+        ] {
+            assert_both(&[(old, "old")], current, None);
+            assert_both(&[(current, "current")], old, None);
+        }
+    }
+
+    fn check_missing_and_present_values<T: AttributesLike + Default>() {
+        let mut attributes = T::default();
+        attributes.insert(
+            "http.method".to_owned(),
+            Annotated::new(T::Value::from("POST".to_owned())),
+        );
+        attributes.insert("http.request.method".to_owned(), Annotated::empty());
+        assert_eq!(
+            attributes
+                .get_value_with_deprecations("http.request.method")
+                .and_then(Value::as_str),
+            Some("POST")
+        );
+        attributes.insert(
+            "http.request.method".to_owned(),
+            Annotated::new(T::Value::from(String::new())),
+        );
+        assert_eq!(
+            attributes
+                .get_value_with_deprecations("http.request.method")
+                .and_then(Value::as_str),
+            Some("")
+        );
+        attributes.insert(
+            "http.request.method".to_owned(),
+            Annotated::new(T::Value::from(42_i64)),
+        );
+        assert_eq!(
+            attributes.get_value_with_deprecations("http.request.method"),
+            Some(&Value::I64(42))
+        );
+    }
+
+    #[test]
+    fn lookup_skips_missing_but_not_present_empty_or_invalid_values() {
+        check_missing_and_present_values::<Attributes>();
+        check_missing_and_present_values::<SpanData>();
+        let attributes = Attributes::from([
+            (
+                "http.request.method".to_owned(),
+                Annotated::new(Attribute::from(Annotated::<String>::empty())),
+            ),
+            (
+                "http.method".to_owned(),
+                Annotated::new(Attribute::from("POST")),
+            ),
+        ]);
+        assert_eq!(
+            AttributesLike::get_value_with_deprecations(&attributes, "http.request.method")
+                .and_then(Value::as_str),
+            Some("POST")
+        );
     }
 }
