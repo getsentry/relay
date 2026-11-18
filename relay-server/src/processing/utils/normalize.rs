@@ -192,7 +192,7 @@ mod tests {
             .serialize_envelope(ctx.to_forward())
             .unwrap();
         envelope.accept(|envelope| {
-            serde_json::from_slice(&envelope.items().next().unwrap().payload()).unwrap()
+            serde_json::from_slice(envelope.items().next().unwrap().data().payload_ref()).unwrap()
         })
     }
 

@@ -3,7 +3,7 @@ use relay_common::time::UnixTimestamp;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 
-use crate::envelope::{EnvelopeHeaders, ItemType, Items};
+use crate::envelope::{ClientReportItem, EnvelopeHeaders};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Nothing, Output};
 use crate::services::outcome::{Outcome, TrackOutcome};
@@ -77,7 +77,8 @@ impl processing::Processor for ClientReportsProcessor {
         let headers = envelope.envelope().headers().clone();
         let reports = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::ClientReport));
+            .drain_items::<ClientReportItem>()
+            .collect::<smallvec::SmallVec<_>>();
 
         if reports.is_empty() {
             return None;
@@ -108,7 +109,7 @@ pub struct SerializedClientReports {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// A list of client reports.
-    reports: Items,
+    reports: smallvec::SmallVec<[ClientReportItem; 3]>,
 }
 
 impl Counted for SerializedClientReports {

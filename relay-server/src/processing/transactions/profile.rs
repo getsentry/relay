@@ -10,7 +10,7 @@ use relay_profiling::{ProfileId, ProfileType};
 use relay_protocol::{Annotated, Empty};
 use relay_protocol::{Getter, Remark, RemarkType};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, ProfileItem};
 use crate::processing::Context;
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -95,12 +95,11 @@ pub fn remove_context_if_rate_limited(
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
-    profile: &mut Item,
+    profile: &mut ProfileItem,
     client_ip: Option<IpAddr>,
     event: Option<&Event>,
     ctx: &Context,
 ) -> Result<ProfileId, Outcome> {
-    debug_assert_eq!(profile.ty(), &ItemType::Profile);
     let filter_settings = &ctx.project_info.config.filter_settings;
 
     let Some(event) = event else {
@@ -146,7 +145,7 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
 
 /// Transfers transaction metadata to profile and check its size.
 fn expand_profile(
-    item: &mut Item,
+    item: &mut ProfileItem,
     event: &Event,
     config: &ConfigSnapshot,
     client_ip: Option<IpAddr>,
@@ -154,7 +153,7 @@ fn expand_profile(
     global_config: &GlobalConfig,
 ) -> Result<ProfileId, Outcome> {
     match relay_profiling::expand_profile(
-        &item.payload(),
+        &item.data().payload(),
         event,
         client_ip,
         filter_settings,
@@ -162,7 +161,7 @@ fn expand_profile(
     ) {
         Ok((id, payload)) => {
             if payload.len() <= config.max_profile_size() {
-                item.set_payload(ContentType::Json, payload);
+                item.data_mut().set_payload(ContentType::Json, payload);
                 Ok(id)
             } else {
                 Err(Outcome::Invalid(DiscardReason::Profiling(

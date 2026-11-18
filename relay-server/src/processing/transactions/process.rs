@@ -1,3 +1,4 @@
+use crate::envelope::ProfileItem;
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Event;
@@ -8,6 +9,7 @@ use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
+#[cfg(test)]
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
@@ -41,14 +43,14 @@ pub fn expand(
             profiles,
         } = work;
         let mut event = metric!(timer(RelayTimers::EventProcessingDeserialize), {
-            Annotated::<Event>::from_json_bytes(&transaction_item.payload())
+            Annotated::<Event>::from_json_bytes(&transaction_item.data().payload())
         })?;
         if let Some(event) = event.value_mut() {
             event.ty = EventType::Transaction.into();
         }
         let flags = Flags {
             fully_normalized: headers.meta().request_trust().is_trusted()
-                && transaction_item.fully_normalized(),
+                && transaction_item.data().fully_normalized(),
         };
 
         let profile = expand_profile(profiles, record_keeper);
@@ -76,7 +78,7 @@ pub fn expand(
 }
 
 fn expand_profile(
-    profiles: Vec<Item>,
+    profiles: Vec<ProfileItem>,
     record_keeper: &mut RecordKeeper<'_>,
 ) -> Option<ExpandedProfile> {
     let mut profiles = profiles.into_iter();
@@ -92,7 +94,7 @@ fn expand_profile(
         );
     }
 
-    let meta = match relay_profiling::parse_metadata(&profile.payload()) {
+    let meta = match relay_profiling::parse_metadata(&profile.data().payload()) {
         Ok(meta) => meta,
         Err(err) => {
             record_keeper.reject_err(
@@ -501,7 +503,9 @@ mod tests {
             "{{\"type\":\"transaction\",\"length\":{}{span_count}}}\n{payload}\n",
             payload.len()
         );
-        let (event, _) = Item::parse(bytes.into()).unwrap();
+        let (Item::Transaction(event), _) = Item::parse(bytes.into()).unwrap() else {
+            unreachable!()
+        };
 
         Managed::for_test(SerializedTransaction {
             headers: envelope.headers().clone(),

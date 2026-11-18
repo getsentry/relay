@@ -1,6 +1,6 @@
 use relay_event_schema::protocol::SpanV2;
 
-use crate::envelope::{ContainerItems, Item, WithHeader};
+use crate::envelope::{ContainerItems, IntegrationItem, WithHeader};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::spans::Settings;
@@ -12,7 +12,7 @@ mod otel;
 /// The function expects *only* span item integrations.
 pub fn expand(
     records: &mut RecordKeeper<'_>,
-    items: &[Item],
+    items: &[IntegrationItem],
 ) -> (Settings, ContainerItems<SpanV2>) {
     let mut result = Vec::new();
 
@@ -31,7 +31,7 @@ pub fn expand(
             result.push(span);
         };
 
-        let payload = item.payload();
+        let payload = item.data().payload();
 
         let result = match integration {
             SpansIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
