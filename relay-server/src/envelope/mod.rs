@@ -51,12 +51,14 @@ use smallvec::SmallVec;
 use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
 
+mod accounting;
 mod attachment;
 mod container;
 mod content_type;
 mod item;
 mod meta;
 
+pub use self::accounting::RejectionQuantities;
 pub use self::attachment::*;
 pub use self::container::*;
 pub use self::content_type::*;
@@ -280,7 +282,7 @@ impl Envelope {
 
         let serialized = Annotated::new(event).to_json()?;
         let mut item = Item::new(ItemType::from_event_type(event_type));
-        item.set_payload(ContentType::Json, serialized);
+        item.data_mut().set_payload(ContentType::Json, serialized);
 
         Ok(Self::from_parts(headers, smallvec::smallvec![item]))
     }
@@ -330,7 +332,7 @@ impl Envelope {
 
         // Event-related envelopes *must* contain an event id.
         let items = Self::parse_items(&bytes, offset)?;
-        if items.iter().any(Item::creates_event) {
+        if items.iter().any(Item::carries_event_payload) {
             headers.event_id.get_or_insert_with(EventId::new);
         }
 
@@ -525,32 +527,59 @@ impl Envelope {
         self.items_mut().find(|item| pred(item))
     }
 
-    /// Removes and returns the first item that matches the given condition.
-    pub fn take_item_by<F>(&mut self, cond: F) -> Option<Item>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        let index = self.items.iter().position(cond);
-        index.map(|index| self.items.swap_remove(index))
+    /// Takes the first item of type `T`. Removal may reorder the remaining items.
+    pub fn take_item<T: TypedItem>(&mut self) -> Option<T> {
+        self.take_item_if(|_| true)
     }
 
-    /// Removes and returns the first item for which `cond` returns `Some`.
+    /// Takes the first item of type `T` matching the predicate. Removal may reorder items.
+    pub fn take_item_if<T: TypedItem>(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> bool,
+    ) -> Option<T> {
+        let index = self
+            .items
+            .iter()
+            .position(|item| item.downcast_ref::<T>().is_some_and(&mut predicate))?;
+        Some(
+            T::try_from(self.items.swap_remove(index))
+                .unwrap_or_else(|_| unreachable!("selected payload type")),
+        )
+    }
+
+    /// Removes all items of type `T`, preserving their order.
+    pub fn drain_items<T: TypedItem>(&mut self) -> impl Iterator<Item = T> {
+        self.drain_items_if(|_| true)
+    }
+
+    /// Removes items of type `T` matching the predicate, preserving their order.
+    pub fn drain_items_if<T: TypedItem>(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> bool,
+    ) -> impl Iterator<Item = T> {
+        self.items
+            .drain_filter(move |item| item.downcast_ref::<T>().is_some_and(&mut predicate))
+            .map(|item| T::try_from(item).unwrap_or_else(|_| unreachable!("selected payload type")))
+    }
+
+    /// Takes the first payload of type `T` for which `predicate` returns `Some`.
     ///
-    /// The data returned by `cond` is returned along with the item.
-    pub fn take_item_by_map<F, R>(&mut self, mut cond: F) -> Option<(Item, R)>
-    where
-        F: FnMut(&Item) -> Option<R>,
-    {
+    /// Returns the payload together with the mapped value. Removal may reorder items.
+    pub fn take_item_by_map<T: TypedItem, R>(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> Option<R>,
+    ) -> Option<(T, R)> {
         let (index, result) = self
             .items
             .iter()
             .enumerate()
-            .find_map(|(idx, item)| Some((idx, cond(item)?)))?;
-        let item = self.items.swap_remove(index);
+            .find_map(|(index, item)| Some((index, predicate(item.downcast_ref::<T>()?)?)))?;
+        let item = T::try_from(self.items.swap_remove(index))
+            .unwrap_or_else(|_| unreachable!("selected payload type"));
         Some((item, result))
     }
 
-    /// Removes and returns the all items that match the given condition.
+    /// Removes and returns all items that match the given condition.
     pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
     where
         F: FnMut(&Item) -> bool,
@@ -559,7 +588,8 @@ impl Envelope {
     }
 
     /// Adds a new item to this envelope.
-    pub fn add_item(&mut self, item: Item) {
+    pub fn add_item(&mut self, item: impl Into<Item>) {
+        let item = item.into();
         self.items.push(item)
     }
 
@@ -597,11 +627,11 @@ impl Envelope {
         self.write(&mut writer, b"\n")?;
 
         for item in &self.items {
-            serde_json::to_writer(&mut writer, &item.headers)
+            serde_json::to_writer(&mut writer, &item.wire_headers())
                 .map_err(EnvelopeError::HeaderIoFailed)?;
             self.write(&mut writer, b"\n")?;
 
-            self.write(&mut writer, &item.payload)?;
+            self.write(&mut writer, item.data().payload_ref())?;
             self.write(&mut writer, b"\n")?;
         }
 
@@ -670,6 +700,33 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
 
     use super::*;
+    use crate::envelope::EventItem;
+
+    #[test]
+    fn test_drain_items_if_preserves_order() {
+        let mut envelope = Envelope::from_request(None, request_meta());
+        envelope.add_item(ProfileItem::new());
+        for name in ["a", "b", "c"] {
+            let mut attachment = AttachmentItem::new();
+            attachment.set_filename(name);
+            envelope.add_item(attachment);
+        }
+        assert!(envelope.take_item::<TransactionItem>().is_none());
+        let selected: Vec<AttachmentItem> = envelope
+            .drain_items_if(|item: &AttachmentItem| item.filename() != Some("b"))
+            .collect();
+        assert_eq!(
+            selected
+                .iter()
+                .map(AttachmentItem::filename)
+                .collect::<Vec<_>>(),
+            [Some("a"), Some("c")]
+        );
+        let remaining = envelope.take_item::<AttachmentItem>().unwrap();
+        assert_eq!(remaining.filename(), Some("b"));
+        assert!(matches!(envelope.items().next(), Some(Item::Profile(_))));
+        assert_eq!(envelope.len(), 1);
+    }
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -695,7 +752,7 @@ mod tests {
     fn test_envelope_add_item() {
         let event_id = EventId::new();
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
-        envelope.add_item(Item::new(ItemType::Attachment));
+        envelope.add_item(AttachmentItem::new());
 
         assert_eq!(envelope.len(), 1);
         assert!(!envelope.is_empty());
@@ -710,25 +767,21 @@ mod tests {
         let event_id = EventId::new();
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
-        let mut item1 = Item::new(ItemType::Attachment);
+        let mut item1 = AttachmentItem::new();
         item1.set_filename("item1");
         envelope.add_item(item1);
 
-        let mut item2 = Item::new(ItemType::Attachment);
+        let mut item2 = AttachmentItem::new();
         item2.set_filename("item2");
         envelope.add_item(item2);
 
         let taken = envelope
-            .take_item_by(|item| item.ty() == &ItemType::Attachment)
+            .take_item::<AttachmentItem>()
             .expect("should return some item");
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(
-            envelope
-                .take_item_by(|item| item.ty() == &ItemType::Event)
-                .is_none()
-        );
+        assert!(envelope.take_item::<EventItem>().is_none());
     }
 
     #[test]
@@ -795,8 +848,8 @@ mod tests {
         assert_eq!(envelope.len(), 2);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
-        assert_eq!(items[1].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
+        assert_eq!(items[1].data().len(), 0);
     }
 
     #[test]
@@ -815,8 +868,8 @@ mod tests {
         assert_eq!(envelope.len(), 2);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
-        assert_eq!(items[1].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
+        assert_eq!(items[1].data().len(), 0);
     }
 
     #[test]
@@ -834,7 +887,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -852,7 +905,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -870,7 +923,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 0);
+        assert_eq!(items[0].data().len(), 0);
     }
 
     #[test]
@@ -890,21 +943,24 @@ mod tests {
         let items: Vec<_> = envelope.items().collect();
 
         assert_eq!(items[0].ty(), &ItemType::Attachment);
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
         assert_eq!(
-            items[0].payload(),
+            items[0].data().payload(),
             Bytes::from(&b"\xef\xbb\xbfHello\r\n"[..])
         );
-        assert_eq!(items[0].content_type(), Some(ContentType::Text));
+        assert_eq!(items[0].data().content_type(), Some(ContentType::Text));
 
         assert_eq!(items[1].ty(), &ItemType::Event);
-        assert_eq!(items[1].len(), 41);
+        assert_eq!(items[1].data().len(), 41);
         assert_eq!(
-            items[1].payload(),
+            items[1].data().payload(),
             Bytes::from("{\"message\":\"hello world\",\"level\":\"error\"}")
         );
-        assert_eq!(items[1].content_type(), Some(ContentType::Json));
-        assert_eq!(items[1].filename(), Some("application.log"));
+        assert_eq!(items[1].data().content_type(), Some(ContentType::Json));
+        assert_eq!(
+            serde_json::to_value(items[1].wire_headers()).unwrap()["filename"],
+            "application.log"
+        );
     }
 
     #[test]
@@ -922,7 +978,7 @@ mod tests {
         assert_eq!(envelope.len(), 1);
 
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
     }
 
     #[test]
@@ -970,11 +1026,10 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[0].ty(), &ItemType::Attachment);
-        assert_eq!(
-            items[0].attachment_type(),
-            Some(AttachmentType::ViewHierarchy)
-        );
+        let Item::Attachment(attachment) = items[0] else {
+            panic!("expected an attachment");
+        };
+        assert_eq!(attachment.attachment_type(), AttachmentType::ViewHierarchy);
     }
 
     #[test]
@@ -989,22 +1044,27 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let item = envelope.items().next().unwrap();
-        assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
-        assert_eq!(item.filename(), Some("flamegraph.json"));
-        assert_eq!(item.content_type(), Some(ContentType::Json));
-        assert!(!item.creates_event());
-        assert!(item.requires_event());
-        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+        let Item::Attachment(attachment) = item else {
+            panic!("expected an attachment");
+        };
+        assert_eq!(attachment.attachment_type(), AttachmentType::Flamegraph);
+        assert_eq!(attachment.filename(), Some("flamegraph.json"));
+        assert_eq!(item.data().content_type(), Some(ContentType::Json));
+        assert!(!item.carries_event_payload());
+        assert!(item.routes_with_event());
+        assert_eq!(item.data().payload().as_ref(), payload.as_bytes());
 
         let mut serialized = Vec::new();
         envelope.serialize(&mut serialized).unwrap();
         let roundtrip = Envelope::parse_bytes(Bytes::from(serialized)).unwrap();
         let item = roundtrip.items().next().unwrap();
-        assert_eq!(item.attachment_type(), Some(AttachmentType::Flamegraph));
-        assert_eq!(item.filename(), Some("flamegraph.json"));
-        assert_eq!(item.content_type(), Some(ContentType::Json));
-        assert_eq!(item.payload().as_ref(), payload.as_bytes());
+        let Item::Attachment(attachment) = item else {
+            panic!("expected an attachment");
+        };
+        assert_eq!(attachment.attachment_type(), AttachmentType::Flamegraph);
+        assert_eq!(attachment.filename(), Some("flamegraph.json"));
+        assert_eq!(item.data().content_type(), Some(ContentType::Json));
+        assert_eq!(item.data().payload().as_ref(), payload.as_bytes());
     }
 
     #[test]
@@ -1028,9 +1088,9 @@ mod tests {
         // Without terminating newline after header
         let items = Envelope::parse_items_bytes(bytes).unwrap();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].data().len(), 10);
         assert_eq!(items[0].ty(), &ItemType::Attachment);
-        assert_eq!(items[1].len(), 10);
+        assert_eq!(items[1].data().len(), 10);
         assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
@@ -1162,15 +1222,16 @@ mod tests {
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
-        let mut item = Item::new(ItemType::Event);
-        item.set_payload(
+        let mut item = EventItem::new();
+        item.data_mut().set_payload(
             ContentType::Json,
             "{\"message\":\"hello world\",\"level\":\"error\"}",
         );
         envelope.add_item(item);
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::Text, &b"Hello\r\n"[..]);
+        let mut item = AttachmentItem::new();
+        item.data_mut()
+            .set_payload(ContentType::Text, &b"Hello\r\n"[..]);
         item.set_filename("application.log");
         envelope.add_item(item);
 

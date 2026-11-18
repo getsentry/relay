@@ -1,9 +1,9 @@
+use super::ErrorPayload;
 use relay_base_schema::events::EventType;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentItem, Item, UserReportV2Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Result, utils};
 use crate::statsd::RelayCounters;
@@ -17,21 +17,21 @@ impl SentryError for UserReportV2 {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(ev) = utils::take_item_of_type(items, ItemType::UserReportV2) else {
+        let Some(ev) = utils::take_item::<UserReportV2Item>(items) else {
             return Ok(None);
         };
 
         let mut metrics = Default::default();
 
-        let attachments: Vec<Item> = utils::take_items_of_type(items, ItemType::Attachment);
+        let attachments: Vec<AttachmentItem> = utils::take_items::<AttachmentItem>(items).collect();
 
         relay_statsd::metric!(
             counter(RelayCounters::FeedbackAttachments) += attachments.len() as u64
         );
 
         Ok(Some(Expansion {
-            event: Box::new(utils::event_from_json_payload(
-                ev,
+            event: Box::new(utils::event_from_json(
+                &ev.data().payload(),
                 EventType::UserReportV2,
                 &mut metrics,
                 ctx.processing,
@@ -55,11 +55,11 @@ impl SentryError for UserReportV2 {
         Ok(())
     }
 
-    fn serialize_into(self, _items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::default()
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }

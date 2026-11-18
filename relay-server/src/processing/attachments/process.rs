@@ -24,7 +24,7 @@ pub fn remove_illegal_attachments(managed: &mut Managed<SerializedAttachments>) 
     managed.retain(
         |managed| &mut managed.attachments,
         |attachment, _| match attachment.attachment_type() {
-            Some(AttachmentType::Flamegraph) => Err(ProcessingError::InvalidFlamegraph),
+            AttachmentType::Flamegraph => Err(ProcessingError::InvalidFlamegraph),
             _ => Ok(()),
         },
     );
@@ -35,7 +35,7 @@ fn test_flamegraph_requires_explicit_event() {
     use relay_event_schema::protocol::EventId;
     use smallvec::smallvec;
 
-    use crate::envelope::{ContentType, Envelope, Item, ItemType};
+    use crate::envelope::{AttachmentItem, ContentType, Envelope};
     use crate::extractors::RequestMeta;
 
     let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
@@ -43,12 +43,14 @@ fn test_flamegraph_requires_explicit_event() {
         .unwrap();
     let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
 
-    let mut flamegraph = Item::new(ItemType::Attachment);
+    let mut flamegraph = AttachmentItem::new();
     flamegraph.set_attachment_type(AttachmentType::Flamegraph);
     let rejected_size = flamegraph.attachment_body_size() as u64;
 
-    let mut ordinary = Item::new(ItemType::Attachment);
-    ordinary.set_payload(ContentType::Text, "keep me");
+    let mut ordinary = AttachmentItem::new();
+    ordinary
+        .data_mut()
+        .set_payload(ContentType::Text, "keep me");
     let (mut attachments, mut handle) = Managed::for_test(SerializedAttachments {
         headers: envelope.headers().clone(),
         attachments: smallvec![flamegraph, ordinary],
@@ -58,7 +60,10 @@ fn test_flamegraph_requires_explicit_event() {
     remove_illegal_attachments(&mut attachments);
 
     assert_eq!(attachments.attachments.len(), 1);
-    assert_eq!(attachments.attachments[0].payload().as_ref(), b"keep me");
+    assert_eq!(
+        attachments.attachments[0].data().payload().as_ref(),
+        b"keep me"
+    );
     attachments.accept(|_| ());
     let outcome = crate::services::outcome::Outcome::Invalid(
         crate::services::outcome::DiscardReason::InvalidFlamegraph,

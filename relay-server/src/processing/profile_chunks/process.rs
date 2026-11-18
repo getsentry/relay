@@ -5,8 +5,7 @@ use relay_quotas::DataCategory;
 
 use relay_profiling::ProfileType;
 
-use crate::envelope::ContentType;
-use crate::envelope::Item;
+use crate::envelope::{ContentType, ProfileChunkItem};
 use crate::managed::RecordKeeper;
 use crate::processing::Managed;
 use crate::processing::profile_chunks::Error;
@@ -54,11 +53,11 @@ pub fn normalize(profile_chunks: &mut Managed<ExpandedProfileChunks>) {
 }
 
 fn expand_profile_chunk(
-    item: &mut Item,
+    item: &mut ProfileChunkItem,
     sdk: &str,
     records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
-    let profile_chunk = match item.content_type() {
+    let profile_chunk = match item.data().content_type() {
         Some(ContentType::PerfettoTrace) => expand_perfetto_profile_chunk(item),
         _ => expand_json_item(item, sdk, records),
     }?;
@@ -78,7 +77,7 @@ fn expand_profile_chunk(
 }
 
 fn expand_json_item(
-    item: &mut Item,
+    item: &mut ProfileChunkItem,
     sdk: &str,
     records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
@@ -86,7 +85,7 @@ fn expand_json_item(
         return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
     }
 
-    let pc = AndroidOrV2ProfileChunk::parse(&item.payload())?;
+    let pc = AndroidOrV2ProfileChunk::parse(&item.data().payload())?;
 
     // Validate the item inferred profile type with the one from the payload.
     //
@@ -122,13 +121,13 @@ fn expand_json_item(
     Ok(ExpandedProfileChunk(pc.into()))
 }
 
-fn expand_perfetto_profile_chunk(item: &Item) -> Result<ExpandedProfileChunk> {
+fn expand_perfetto_profile_chunk(item: &ProfileChunkItem) -> Result<ExpandedProfileChunk> {
     let meta_length =
         item.meta_length()
             .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;
 
     let (v2, perfetto) = {
-        let mut v2 = item.payload();
+        let mut v2 = item.data().payload();
         // Split off panics on out of bounds -> validate the split off length.
         //
         // Both parts (v2 metadata and Perfetto profile) are required and must be length > 0.

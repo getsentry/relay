@@ -1,7 +1,7 @@
 use relay_cogs::{AppFeature, FeatureWeights};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, UnknownItem};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, Forward, Output};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -41,10 +41,10 @@ impl processing::Processor for ForwardUnknownProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let unknown_items = envelope
+        let unknown_items: Vec<_> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Unknown(_)))
-            .into_vec();
+            .drain_items::<UnknownItem>()
+            .collect();
 
         if unknown_items.is_empty() {
             return None;
@@ -82,7 +82,12 @@ impl Forward for ForwardUnknownOutput {
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(ui) = self;
-        Ok(ui.map(|ui, _| Envelope::from_parts(ui.headers, Items::from_vec(ui.unknown_items))))
+        Ok(ui.map(|ui, _| {
+            Envelope::from_parts(
+                ui.headers,
+                ui.unknown_items.into_iter().map(Into::into).collect(),
+            )
+        }))
     }
 
     #[cfg(feature = "processing")]
@@ -101,7 +106,7 @@ pub struct UnknownItems {
     /// Original envelope headers.
     pub headers: EnvelopeHeaders,
     /// List of unknown envelope items.
-    pub unknown_items: Vec<Item>,
+    pub unknown_items: Vec<UnknownItem>,
 }
 
 impl Counted for UnknownItems {
