@@ -9,7 +9,7 @@ use tempfile::tempdir;
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
-    println!("cargo:rerun-if-changed=horatio.version");
+    println!("cargo:rerun-if-changed=relay-private.version");
 
     // Remove sources left behind by the former `relay-prosperoconv` package since git sadly
     // does not remove them.
@@ -24,12 +24,12 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let desired_version = fs::read_to_string("horatio.version")
-        .context("Failed to read horatio.version file")?
+    let desired_version = fs::read_to_string("relay-private.version")
+        .context("Failed to read relay-private.version file")?
         .trim()
         .to_owned();
 
-    let current_version = fs::read_to_string("src/horatio.version").ok();
+    let current_version = fs::read_to_string("src/relay-private.version").ok();
 
     if let Some(current_version) = current_version
         && current_version.trim() == desired_version
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
     if !Command::new("git")
         .args([
             "clone",
-            "git@github.com:getsentry/horatio.git",
+            "git@github.com:getsentry/relay-private.git",
             &temp_dir_str,
             &format!("--revision={desired_version}"),
             "--depth=1",
@@ -57,13 +57,13 @@ fn main() -> anyhow::Result<()> {
         Command::new("git")
             .args([
                 "clone",
-                "https://github.com/getsentry/horatio.git",
+                "https://github.com/getsentry/relay-private.git",
                 &temp_dir_str,
                 &format!("--revision={desired_version}"),
                 "--depth=1",
             ])
             .status()
-            .context("Failed to clone horatio revision")?;
+            .context("Failed to clone relay-private revision")?;
     }
 
     CopyBuilder::new(temp_dir_path.join("src"), "src")
@@ -78,8 +78,8 @@ fn main() -> anyhow::Result<()> {
         .status()
         .context("Failed to skip worktree")?;
 
-    std::fs::copy("horatio.version", "src/horatio.version")
-        .context("Failed to copy horatio.version")?;
+    std::fs::copy("relay-private.version", "src/relay-private.version")
+        .context("Failed to copy relay-private.version")?;
 
     Ok(())
 }

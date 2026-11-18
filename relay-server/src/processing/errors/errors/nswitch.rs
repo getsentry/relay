@@ -165,7 +165,7 @@ pub enum SwitchProcessingError {
     #[error("envelope parsing failed")]
     EnvelopeParsing(#[from] crate::envelope::EnvelopeError),
     #[error("invalid dying message")]
-    DyingMessage(#[from] relay_horatio::nintendo::Error),
+    DyingMessage(#[from] relay_private::nintendo::Error),
 }
 
 #[cfg(sentry)]
@@ -215,7 +215,7 @@ struct ExpandedDyingMessage {
 /// Parses DyingMessage contents and updates the envelope.
 #[cfg(sentry)]
 fn expand_dying_message(payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    let data = relay_horatio::nintendo::expand_dying_message(payload)?;
+    let data = relay_private::nintendo::expand_dying_message(payload)?;
     expand_dying_message_from_envelope_items(data)
 }
 

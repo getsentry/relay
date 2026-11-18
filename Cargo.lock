@@ -4836,23 +4836,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-horatio"
-version = "26.11.0"
-dependencies = [
- "anyhow",
- "bytes",
- "dircpy",
- "minidump-writer",
- "object 0.37.3",
- "rmpv",
- "tempfile",
- "thiserror 2.0.21",
- "tracing",
- "watto",
- "zstd",
-]
-
-[[package]]
 name = "relay-kafka"
 version = "26.11.0"
 dependencies = [
@@ -5006,6 +4989,23 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.21",
  "utf16string",
+]
+
+[[package]]
+name = "relay-private"
+version = "26.11.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "dircpy",
+ "minidump-writer",
+ "object 0.37.3",
+ "rmpv",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+ "watto",
+ "zstd",
 ]
 
 [[package]]
@@ -5209,7 +5209,6 @@ dependencies = [
  "relay-event-normalization",
  "relay-event-schema",
  "relay-filter",
- "relay-horatio",
  "relay-kafka",
  "relay-log",
  "relay-metrics",
@@ -5217,6 +5216,7 @@ dependencies = [
  "relay-otel",
  "relay-ourlogs",
  "relay-pii",
+ "relay-private",
  "relay-profiling",
  "relay-protocol",
  "relay-quotas",

@@ -1,5 +1,5 @@
 [package]
-name = "relay-horatio"
+name = "relay-private"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"

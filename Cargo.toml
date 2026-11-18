@@ -1,7 +1,7 @@
 [workspace]
 members = ["relay", "relay-*", "relay-*/fuzz/", "tools/*"]
-# Leftover directory of the package that was renamed to `relay-horatio`, for local development it
-# might still contain untracked sources `relay-horatio/build.rs` removes it on the first build.
+# Leftover directory of the package that was renamed to `relay-private`, for local development it
+# might still contain untracked sources `relay-private/build.rs` removes it on the first build.
 exclude = ["relay-prosperoconv"]
 default-members = ["relay"]
 resolver = "2"
@@ -57,7 +57,6 @@ relay-event-schema = { path = "relay-event-schema" }
 relay-ffi = { path = "relay-ffi" }
 relay-ffi-macros = { path = "relay-ffi-macros" }
 relay-filter = { path = "relay-filter" }
-relay-horatio = { path = "relay-horatio" }
 relay-kafka = { path = "relay-kafka" }
 relay-log = { path = "relay-log" }
 relay-metrics = { path = "relay-metrics" }
@@ -66,6 +65,7 @@ relay-otel = { path = "relay-otel" }
 relay-ourlogs = { path = "relay-ourlogs" }
 relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
+relay-private = { path = "relay-private" }
 relay-profiling = { path = "relay-profiling" }
 relay-protocol = { path = "relay-protocol" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
