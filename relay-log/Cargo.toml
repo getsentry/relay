@@ -25,7 +25,7 @@ relay-common = { workspace = true }
 
 console = { workspace = true, optional = true }
 # Disable trace and debug logs from dependencies using `log`:
-log = { workspace = "true", features = ["release_max_level_info"] }
+log = { workspace = true, features = ["release_max_level_info"] }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
