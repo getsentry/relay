@@ -161,18 +161,11 @@ mod tests {
     use relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
     use prost::Message;
-    use relay_quotas::DataCategory;
 
-    use crate::Envelope;
-    use crate::envelope::IntegrationItem;
-    use crate::extractors::RequestMeta;
-    use crate::integrations::{Integration, LogsIntegration, OtelFormat};
-    use crate::managed::{Managed, Rejected};
-    use crate::processing::logs::integrations::otel::{
-        SerializedOtelLogsIntegration, expand, parse_logs_data,
-    };
-    use crate::processing::logs::integrations::{Error, SerializedLogsIntegration};
-    use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+    use crate::integrations::OtelFormat;
+    use crate::processing::logs::integrations::Error;
+    use crate::processing::logs::integrations::otel::parse_logs_data;
+    use crate::services::outcome::DiscardReason;
 
     fn logs_with_records(n: usize) -> LogsData {
         LogsData {
@@ -184,79 +177,6 @@ mod tests {
                 ..Default::default()
             }],
         }
-    }
-
-    fn logs_with_large_resource(n: usize) -> LogsData {
-        LogsData {
-            resource_logs: vec![ResourceLogs {
-                resource: Some(Resource {
-                    attributes: vec![KeyValue {
-                        key: "large".to_owned(),
-                        value: Some(AnyValue {
-                            value: Some(Value::StringValue("x".repeat(1_000))),
-                        }),
-                        key_strindex: 0,
-                    }],
-                    ..Default::default()
-                }),
-                scope_logs: vec![ScopeLogs {
-                    log_records: vec![LogRecord::default(); n],
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }],
-        }
-    }
-
-    fn otel_logs_integration(payload: Vec<u8>) -> SerializedOtelLogsIntegration {
-        let format = OtelFormat::Protobuf;
-
-        let mut item = IntegrationItem::new();
-        item.data_mut().set_payload(
-            Integration::Logs(LogsIntegration::OtelV1 { format }).into(),
-            payload,
-        );
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-        let headers = Envelope::from_request(None, RequestMeta::new(dsn))
-            .headers()
-            .clone();
-
-        SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format)
-    }
-
-    #[test]
-    fn test_expanded_size_exceeds_limit() {
-        let payload = logs_with_large_resource(100).encode_to_vec();
-        let payload_len = payload.len() as u64;
-
-        let (work, mut handle) = Managed::for_test(otel_logs_integration(payload)).build();
-        let result = work.try_map(|work, records| expand(work, records, usize::MAX, 10_000));
-
-        assert!(matches!(
-            result.map_err(Rejected::into_inner),
-            Err(Error::Invalid(DiscardReason::ItemTooLarge(
-                DiscardItemType::Log
-            )))
-        ));
-
-        let outcome = Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Log));
-        handle.assert_outcome(&outcome, DataCategory::LogItem, 1);
-        handle.assert_outcome(&outcome, DataCategory::LogByte, payload_len);
-    }
-
-    #[test]
-    fn test_expanded_size_within_limit() {
-        let payload = logs_with_large_resource(100).encode_to_vec();
-
-        let (work, _handle) = Managed::for_test(otel_logs_integration(payload)).build();
-        let intermediates = work
-            .try_map(|work, records| expand(work, records, usize::MAX, 1_000_000))
-            .unwrap();
-
-        intermediates.accept(|_| ());
     }
 
     #[test]

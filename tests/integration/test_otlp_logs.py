@@ -517,6 +517,52 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     ]
 
 
+def test_otlp_logs_expanded_size_limit(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay(mini_sentry, options={"limits": {"max_envelope_size": 10_000}})
+
+    otel_logs_payload = {
+        "resourceLogs": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "large", "value": {"stringValue": "x" * 1_000}}
+                    ]
+                },
+                "scopeLogs": [{"logRecords": [{}] * 100}],
+            }
+        ]
+    }
+    body = json.dumps(otel_logs_payload).encode()
+
+    relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json"},
+        bytes=body,
+    )
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.INVALID,
+            "quantity": 1,
+            "reason": "too_large:log",
+        },
+        {
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.INVALID,
+            "quantity": len(body),
+            "reason": "too_large:log",
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()
+
+
 @pytest.mark.parametrize("relay_mode", ["managed", "proxy"])
 def test_otlp_logs_without_body(mini_sentry, relay, relay_mode):
     """OTel makes the log body optional, such logs must not be dropped."""
