@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
-use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
+use relay_event_normalization::eap::{Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
@@ -221,7 +221,8 @@ fn parse_and_validate_span_attachment(
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     let settings = spans.settings;
-    let user_agent = utils::normalize::user_agent(ctx);
+    let user_agent =
+        utils::normalize::user_agent(ctx, spans.headers.meta(), settings.infer_user_agent);
     let ingress = spans.ingress.clone();
 
     spans.retain_with_context(
@@ -263,10 +264,6 @@ fn normalize_span(
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
-        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
-            user_agent: meta.user_agent(),
-            hints: meta.client_hints(),
-        });
         let performance_score = ctx.project_info.config().performance_score.as_ref();
         let tx_name_rules = &ctx.project_info.config.tx_name_rules;
 
@@ -292,7 +289,7 @@ fn normalize_span(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut span.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut span.attributes, client_ua_info, user_agent);
+        user_agent.normalize(&mut span.attributes);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
@@ -494,7 +491,8 @@ mod tests {
         geo_lookup: &GeoIpLookup,
         ctx: Context<'_>,
     ) -> Result<()> {
-        let user_agent = utils::normalize::user_agent(ctx);
+        let user_agent =
+            utils::normalize::user_agent(ctx, headers.meta(), settings.infer_user_agent);
         super::normalize_span(
             span,
             ingress,

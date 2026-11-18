@@ -40,7 +40,7 @@ pub use self::attribute_like::AttributesLike;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
-pub use self::user_agent::{ClientUserAgentInfo, UserAgentNormalizer, normalize_user_agent};
+pub use self::user_agent::UserAgentNormalizer;
 
 /// How an EAP item entered Relay.
 #[derive(Debug, Clone)]

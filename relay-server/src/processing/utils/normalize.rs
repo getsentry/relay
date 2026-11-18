@@ -5,12 +5,15 @@ use relay_event_normalization::eap;
 use relay_event_normalization::eap::time::TimeEnforcement;
 
 use crate::envelope::EnvelopeHeaders;
+use crate::extractors::RequestMeta;
 use crate::processing::Context;
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
 
 /// Creates a lazy enrichment cache for one container using the span tag limit.
-pub fn user_agent(ctx: Context<'_>) -> eap::UserAgentNormalizer {
+pub fn user_agent(ctx: Context<'_>, meta: &RequestMeta, infer: bool) -> eap::UserAgentNormalizer {
     eap::UserAgentNormalizer::new(
+        infer.then(|| meta.user_agent()).flatten(),
+        infer.then(|| meta.client_hints().sec_ch_ua).flatten(),
         ctx.config
             .aggregator_config_for(relay_metrics::MetricNamespace::Spans)
             .max_tag_value_length,

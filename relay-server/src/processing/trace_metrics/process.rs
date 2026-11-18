@@ -1,4 +1,3 @@
-use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
@@ -55,7 +54,8 @@ pub fn expand(
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     let settings = metrics.settings;
-    let user_agent = utils::normalize::user_agent(ctx);
+    let user_agent =
+        utils::normalize::user_agent(ctx, metrics.headers.meta(), settings.infer_user_agent);
 
     metrics.retain_with_context(
         |metrics| (&mut metrics.metrics, &metrics.headers),
@@ -165,11 +165,6 @@ fn normalize_trace_metric(
     )?;
 
     if let Some(metric_value) = metric.value_mut() {
-        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
-            user_agent: meta.user_agent(),
-            hints: meta.client_hints(),
-        });
-
         eap::trace_metric::normalize_metric_name(metric_value)?;
         if ctx.is_processing() {
             eap::trace_metric::normalize_metric_unit(metric_value);
@@ -181,7 +176,7 @@ fn normalize_trace_metric(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info, user_agent);
+        user_agent.normalize(&mut metric_value.attributes);
     };
 
     if let Annotated(None, meta) = metric {
