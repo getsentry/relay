@@ -221,8 +221,7 @@ fn parse_and_validate_span_attachment(
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     let settings = spans.settings;
-    let user_agent =
-        utils::normalize::user_agent(ctx, spans.headers.meta(), settings.infer_user_agent);
+    let user_agent = utils::normalize::user_agent(spans.headers.meta(), settings.infer_user_agent);
     let ingress = spans.ingress.clone();
 
     spans.retain_with_context(
@@ -491,8 +490,7 @@ mod tests {
         geo_lookup: &GeoIpLookup,
         ctx: Context<'_>,
     ) -> Result<()> {
-        let user_agent =
-            utils::normalize::user_agent(ctx, headers.meta(), settings.infer_user_agent);
+        let user_agent = utils::normalize::user_agent(headers.meta(), settings.infer_user_agent);
         super::normalize_span(
             span,
             ingress,

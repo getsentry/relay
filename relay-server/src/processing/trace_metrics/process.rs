@@ -55,7 +55,7 @@ pub fn expand(
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     let settings = metrics.settings;
     let user_agent =
-        utils::normalize::user_agent(ctx, metrics.headers.meta(), settings.infer_user_agent);
+        utils::normalize::user_agent(metrics.headers.meta(), settings.infer_user_agent);
 
     metrics.retain_with_context(
         |metrics| (&mut metrics.metrics, &metrics.headers),

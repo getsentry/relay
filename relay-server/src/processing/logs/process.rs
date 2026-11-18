@@ -55,8 +55,7 @@ pub fn expand(
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     let settings = logs.settings;
-    let user_agent =
-        utils::normalize::user_agent(ctx, logs.headers.meta(), settings.infer_user_agent);
+    let user_agent = utils::normalize::user_agent(logs.headers.meta(), settings.infer_user_agent);
 
     logs.retain_with_context(
         |logs| (&mut logs.logs, &logs.headers),
@@ -231,81 +230,6 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
-
-    fn normalize_log(
-        log: &mut Annotated<OurLog>,
-        headers: &EnvelopeHeaders,
-        settings: Settings,
-        ctx: Context<'_>,
-    ) -> Result<()> {
-        let user_agent =
-            utils::normalize::user_agent(ctx, headers.meta(), settings.infer_user_agent);
-        super::normalize_log(log, headers, settings, &user_agent, ctx)
-    }
-
-    #[test]
-    fn test_normalize_log_client_hint_browser_name_and_version_length() {
-        let ctx = Context::for_test();
-        let max_tag_value_length = ctx
-            .config
-            .aggregator_config_for(relay_metrics::MetricNamespace::Spans)
-            .max_tag_value_length;
-
-        for length in [max_tag_value_length - 1, max_tag_value_length, 4096] {
-            for (browser, version) in [
-                ("x".repeat(length), "123".to_owned()),
-                ("TestBrowser".to_owned(), "1".repeat(length)),
-            ] {
-                let headers: EnvelopeHeaders = serde_json::from_value(serde_json::json!({
-                    "dsn": "https://a94ae32be2584e0bbd7a4cbb95971fee@sentry.io/42",
-                    "client_hints": {
-                        "sec_ch_ua": format!(r#""{browser}";v="{version}""#),
-                    },
-                }))
-                .unwrap();
-                assert!(headers.meta().user_agent().is_none());
-
-                let log = Annotated::<OurLog>::from_json(
-                    &serde_json::json!({
-                        "timestamp": chrono::Utc::now().timestamp(),
-                        "level": "info",
-                        "body": "test",
-                    })
-                    .to_string(),
-                )
-                .unwrap();
-                let mut logs = vec![log; 3];
-                let settings = Settings {
-                    infer_user_agent: true,
-                    ..Default::default()
-                };
-
-                // A container shares one request header across all its items. Check immediately
-                // after normalization: later trimming cannot prevent these copies from allocating.
-                for log in &mut logs {
-                    normalize_log(log, &headers, settings, ctx).unwrap();
-                }
-
-                for (index, log) in logs.iter().enumerate() {
-                    let attributes = log.value().unwrap().attributes.value().unwrap();
-                    assert!(!attributes.contains_key("user_agent.original"));
-                    for (key, original) in
-                        [("browser.name", &browser), ("browser.version", &version)]
-                    {
-                        let value = attributes.get_value(key).and_then(|v| v.as_str()).unwrap();
-                        assert_eq!(
-                            value.len(),
-                            original.len().min(max_tag_value_length),
-                            "log {index}: {key} from Sec-CH-UA must respect max_tag_value_length",
-                        );
-                        if original.len() <= max_tag_value_length {
-                            assert_eq!(value, original);
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     #[test]
     fn test_expand_log_container_operations_limit() {
