@@ -10,6 +10,7 @@
 
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
+- Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
 
 ## 26.11.0
 
@@ -40,7 +41,6 @@
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
 - Limit the size of the culprit derived from CSP reports. ([#6675](https://github.com/getsentry/relay/pull/6675))
 - Correctly truncate shared tags during span tag extraction. ([#6637](https://github.com/getsentry/relay/pull/6637))
-
 
 **Internal**:
 
