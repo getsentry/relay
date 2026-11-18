@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>relay_cogs::AppFeature;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_otel::descriptors::Decodable;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_ourlogs::otel_logs::LogsData;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_otel::otel_logs::LogsData;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_quotas::DataCategory;
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::envelope::WithHeader;
@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">for </span>scope_logs <span class="kw">in </span>resource_logs.scope_logs {
 <a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">let </span>scope = scope_logs.scope.as_ref();
 <a href=#89 id=89 data-nosnippet>89</a>            <span class="kw">for </span>log_record <span class="kw">in </span>scope_logs.log_records {
-<a href=#90 id=90 data-nosnippet>90</a>                <span class="kw">let </span>log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
+<a href=#90 id=90 data-nosnippet>90</a>                <span class="kw">let </span>log = relay_otel::otel_to_sentry_log(log_record, resource, scope);
 <a href=#91 id=91 data-nosnippet>91</a>                <span class="comment">// https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
 <a href=#92 id=92 data-nosnippet>92</a>                // the logs back into an envelope fails. Consider removing it.
 <a href=#93 id=93 data-nosnippet>93</a>                </span><span class="kw">let </span>byte_size = relay_ourlogs::calculate_size(<span class="kw-2">&amp;</span>log);
@@ -146,7 +146,7 @@
 <a href=#146 id=146 data-nosnippet>146</a>        AnyValue, ArrayValue, InstrumentationScope, KeyValue,
 <a href=#147 id=147 data-nosnippet>147</a>    };
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">use </span>opentelemetry_proto::tonic::resource::v1::Resource;
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">use </span>relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">use </span>relay_otel::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 <a href=#150 id=150 data-nosnippet>150</a>
 <a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">use </span>prost::Message;
 <a href=#152 id=152 data-nosnippet>152</a>
