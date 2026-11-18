@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 
 use relay_conventions::attributes::{BROWSER__NAME, BROWSER__VERSION, USER_AGENT__ORIGINAL};
 use relay_event_schema::protocol::{Attributes, BrowserContext};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Value};
 
 use crate::{ClientHints, FromUserAgentInfo as _};
 
@@ -36,36 +36,33 @@ impl UserAgentNormalizer {
     /// Normalizes the user agent/client information into [`Attributes`].
     ///
     /// Does not modify the attributes if there is already browser information present,
-    /// to preserve original values. Explicit user agents take precedence over the transport user agent.
+    /// to preserve original values. An explicit user agent takes precedence over both transport
+    /// headers.
     pub fn normalize(&self, attributes: &mut Annotated<Attributes>) {
         let attributes = attributes.get_or_insert_with(Default::default);
         if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
             return;
         }
 
-        if let Some(browser) = self.browser_for_item(attributes) {
+        let browser = if attributes.contains_key(USER_AGENT__ORIGINAL) {
+            // Even an invalid explicit attribute prevents transport inference.
+            attributes
+                .get_value(USER_AGENT__ORIGINAL)
+                .and_then(Value::as_str)
+                .and_then(Browser::from_user_agent)
+        } else {
+            if let Some(original) = &self.transport_user_agent {
+                attributes.insert(USER_AGENT__ORIGINAL, original.clone());
+            }
+            self.browser_from_hints()
+                .or_else(|| self.browser_from_transport())
+                .cloned()
+        };
+
+        if let Some(browser) = browser {
             attributes.insert(BROWSER__NAME, browser.name);
             attributes.insert(BROWSER__VERSION, browser.version);
         }
-        if !attributes.contains_key(USER_AGENT__ORIGINAL)
-            && let Some(original) = &self.transport_user_agent
-        {
-            attributes.insert(USER_AGENT__ORIGINAL, original.clone());
-        }
-    }
-
-    fn browser_for_item(&self, attributes: &Attributes) -> Option<Browser> {
-        if let Some(browser) = self.browser_from_hints() {
-            return Some(browser.clone());
-        }
-
-        // Even an invalid explicit attribute prevents the transport fallback.
-        if attributes.contains_key(USER_AGENT__ORIGINAL) {
-            let ua = attributes.get_value(USER_AGENT__ORIGINAL)?.as_str()?;
-            return Browser::from_user_agent(ua);
-        }
-
-        self.browser_from_transport().cloned()
     }
 
     fn browser_from_hints(&self) -> Option<&Browser> {
@@ -128,7 +125,7 @@ fn browser_fields_fit(name: Option<&str>, version: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Value, assert_annotated_snapshot};
+    use relay_protocol::assert_annotated_snapshot;
 
     use super::*;
 
@@ -198,7 +195,8 @@ mod tests {
     #[test]
     fn test_normalize_user_agent_prefers_item_ua_over_transport() {
         let firefox = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0";
-        let normalizer = UserAgentNormalizer::new(Some(CHROME_USER_AGENT), None);
+        let normalizer =
+            UserAgentNormalizer::new(Some(CHROME_USER_AGENT), Some(r#""Edge";v="131""#));
         let mut attributes = Attributes::default();
         attributes.insert(USER_AGENT__ORIGINAL, firefox);
         let mut attributes = Annotated::new(attributes);
@@ -215,6 +213,12 @@ mod tests {
             attributes.get_value(BROWSER__NAME).and_then(Value::as_str),
             Some("Firefox")
         );
+        assert_eq!(
+            attributes
+                .get_value(BROWSER__VERSION)
+                .and_then(Value::as_str),
+            Some("128.0")
+        );
 
         let mut next = Annotated::default();
         normalizer.normalize(&mut next);
@@ -223,7 +227,7 @@ mod tests {
                 .unwrap()
                 .get_value(BROWSER__NAME)
                 .and_then(Value::as_str),
-            Some("Chrome")
+            Some("Edge")
         );
     }
 
