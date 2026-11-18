@@ -4842,7 +4842,6 @@ dependencies = [
  "anyhow",
  "bytes",
  "dircpy",
- "lz4_flex",
  "minidump-writer",
  "object 0.37.3",
  "rmpv",
