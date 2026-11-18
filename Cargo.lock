@@ -4920,6 +4920,7 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "prost 0.14.4",
  "proto-descriptors",
+ "relay-base-schema",
  "relay-conventions",
  "relay-event-schema",
  "relay-protocol",

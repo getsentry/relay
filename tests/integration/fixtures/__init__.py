@@ -290,6 +290,30 @@ class SentryLike:
             response.raise_for_status()
         return response
 
+    def send_otel_metrics(
+        self,
+        project_id,
+        data=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/integration/otlp/v1/metrics?sentry_key={dsn_key}"
+
+        headers = {
+            "Content-Type": "application/json",
+            **(headers or {}),
+        }
+
+        response = self.post(url, headers=headers, data=data)
+
+        response.raise_for_status()
+        return response
+
     def send_vercel_logs(
         self,
         project_id,

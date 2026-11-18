@@ -10,7 +10,9 @@ use crate::envelope::{
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
-use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
+use crate::processing::trace_metrics::{
+    ExpandedTraceMetrics, SerializedTraceMetrics, TraceMetricItems, integrations,
+};
 use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
 
@@ -20,6 +22,7 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(
     metrics: Managed<SerializedTraceMetrics>,
     max_ops: usize,
+    max_size: Option<usize>,
 ) -> Managed<ExpandedTraceMetrics> {
     let trust = metrics.headers.meta().request_trust();
 
@@ -37,8 +40,15 @@ pub fn expand(
             invalid: _,
         } = metrics;
 
-        let expanded = expand_trace_metric_container(&item, trust, max_ops);
-        let (settings, metrics) = records.or_default(expanded, item);
+        let (settings, metrics) = match item {
+            TraceMetricItems::Container(item) => {
+                let expanded = expand_trace_metric_container(&item, trust, max_ops);
+                records.or_default(expanded, item)
+            }
+            TraceMetricItems::Integration(item) => {
+                integrations::expand(records, item, max_ops, max_size)
+            }
+        };
 
         ExpandedTraceMetrics {
             headers,
@@ -125,6 +135,7 @@ fn expand_trace_metric_container(
                     infer_user_agent: is
                         .and_then(|is| is.infer_user_agent)
                         .is_some_and(|infer| infer.is_auto()),
+                    histograms: false,
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),

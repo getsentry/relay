@@ -15,6 +15,7 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
+relay-base-schema = { workspace = true }
 relay-serialization = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
     "gen-tonic",
@@ -22,6 +23,7 @@ opentelemetry-proto = { workspace = true, features = [
     "trace",
     "file-descriptors",
     "logs",
+    "metrics",
 ] }
 opentelemetry-semantic-conventions = { workspace = true }
 relay-conventions = { workspace = true }
@@ -40,5 +42,6 @@ opentelemetry-proto = { workspace = true, features = [
     "with-serde",
     "trace",
     "logs",
+    "metrics",
     "file-descriptors",
 ] }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add the OTLP `/v1/metrics` endpoint for trace metrics, supporting gauges, monotonic delta sums and delta histograms. This is behind the `organizations:relay-otel-metrics-endpoint` feature.
+
 **Bug Fixes**:
 
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))

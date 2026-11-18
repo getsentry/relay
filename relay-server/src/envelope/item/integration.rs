@@ -39,6 +39,10 @@ impl Counted for IntegrationItem {
             Some(Integration::Spans(_)) => {
                 smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
             }
+            Some(Integration::TraceMetrics(_)) => smallvec![
+                (DataCategory::TraceMetric, 1),
+                (DataCategory::TraceMetricByte, self.data().len().max(1)),
+            ],
         }
     }
 }

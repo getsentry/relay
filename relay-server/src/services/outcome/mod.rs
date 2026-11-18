@@ -652,6 +652,7 @@ impl From<&Item> for DiscardItemType {
                 Some(Integration::Errors(ErrorsIntegration::Unreal)) => Self::UnrealReport,
                 Some(Integration::Logs(_)) => Self::Log,
                 Some(Integration::Spans(_)) => Self::Span,
+                Some(Integration::TraceMetrics(_)) => Self::TraceMetric,
                 None => item.ty().into(),
             },
             _ => item.ty().into(),

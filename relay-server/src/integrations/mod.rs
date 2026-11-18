@@ -43,6 +43,8 @@ define_integrations!(
     "application/vnd.sentry.integration.heroku.logs+logplex" => Integration::Logs(LogsIntegration::HerokuLogDrain),
     "application/vnd.sentry.integration.otel.logs+json" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.logs+protobuf" => Integration::Logs(LogsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
+    "application/vnd.sentry.integration.otel.metrics+json" => Integration::TraceMetrics(TraceMetricsIntegration::OtelV1 { format: OtelFormat::Json }),
+    "application/vnd.sentry.integration.otel.metrics+protobuf" => Integration::TraceMetrics(TraceMetricsIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.otel.spans+json" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Json }),
     "application/vnd.sentry.integration.otel.spans+protobuf" => Integration::Spans(SpansIntegration::OtelV1 { format: OtelFormat::Protobuf }),
     "application/vnd.sentry.integration.vercel.logs+json" => Integration::Logs(LogsIntegration::VercelDrainLog { format: VercelLogDrainFormat::Json }),
@@ -61,6 +63,8 @@ pub enum Integration {
     Logs(LogsIntegration),
     /// All tracing/spans integrations.
     Spans(SpansIntegration),
+    /// All trace metric integrations.
+    TraceMetrics(TraceMetricsIntegration),
 }
 
 impl From<ErrorsIntegration> for Integration {
@@ -78,6 +82,12 @@ impl From<LogsIntegration> for Integration {
 impl From<SpansIntegration> for Integration {
     fn from(value: SpansIntegration) -> Self {
         Self::Spans(value)
+    }
+}
+
+impl From<TraceMetricsIntegration> for Integration {
+    fn from(value: TraceMetricsIntegration) -> Self {
+        Self::TraceMetrics(value)
     }
 }
 
@@ -117,6 +127,15 @@ pub enum SpansIntegration {
     /// The OTeL traces integration.
     ///
     /// Supports OTeL's [`TracesData`](opentelemetry_proto::tonic::trace::v1::TracesData).
+    OtelV1 { format: OtelFormat },
+}
+
+/// All trace metric integrations supported by Relay.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum TraceMetricsIntegration {
+    /// The OTeL metrics integration.
+    ///
+    /// Supports OTeL's [`MetricsData`](opentelemetry_proto::tonic::metrics::v1::MetricsData).
     OtelV1 { format: OtelFormat },
 }
 
