@@ -95,7 +95,7 @@ struct Browser {
 impl Browser {
     fn from_hints(hints: ClientHints<&str>) -> Option<Self> {
         let (name, version) = hints.browser()?;
-        if name.len() > MAX_BROWSER_FIELD_BYTES || version.len() > MAX_BROWSER_FIELD_BYTES {
+        if !browser_fields_fit(Some(name), Some(version)) {
             return None;
         }
         Some(Self {
@@ -106,11 +106,10 @@ impl Browser {
 
     fn from_user_agent(user_agent: &str) -> Option<Self> {
         let browser = BrowserContext::parse_user_agent(user_agent)?;
-        if [&browser.name, &browser.version].iter().any(|field| {
-            field
-                .value()
-                .is_some_and(|value| value.len() > MAX_BROWSER_FIELD_BYTES)
-        }) {
+        if !browser_fields_fit(
+            browser.name.value().map(String::as_str),
+            browser.version.value().map(String::as_str),
+        ) {
             return None;
         }
         Some(Self {
@@ -118,6 +117,13 @@ impl Browser {
             version: browser.version,
         })
     }
+}
+
+fn browser_fields_fit(name: Option<&str>, version: Option<&str>) -> bool {
+    [name, version]
+        .into_iter()
+        .flatten()
+        .all(|value| value.len() <= MAX_BROWSER_FIELD_BYTES)
 }
 
 #[cfg(test)]
