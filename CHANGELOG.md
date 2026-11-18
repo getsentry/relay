@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
+- Reject OTLP log requests whose converted logs exceed `max_envelope_size` with an `ItemTooLarge` outcome. ([#6713](https://github.com/getsentry/relay/pull/6713))
 
 **Internal**:
 
