@@ -297,6 +297,11 @@ pub fn make_app() -> Command {
                 ),
         )
         .subcommand(
+            Command::new("build-info")
+                .hide(true)
+                .about("Print the capabilities this binary was compiled with"),
+        )
+        .subcommand(
             Command::new("generate-completions")
                 .about("Generate shell completion file")
                 .after_help(

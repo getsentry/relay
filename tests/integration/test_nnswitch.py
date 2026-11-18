@@ -42,7 +42,7 @@ def make_dying_message(*items) -> bytes:
 def test_nnswitch(
     mini_sentry,
     relay,
-    relay_with_processing,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
     events_consumer,
@@ -53,7 +53,7 @@ def test_nnswitch(
     events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay(relay_with_processing())
+    relay = relay(relay_processing_with_proprietary())
 
     dying_message_path = os.path.join(
         os.path.dirname(__file__),
@@ -95,7 +95,7 @@ def test_nnswitch(
 def test_nnswitch_with_session(
     mini_sentry,
     relay,
-    relay_with_processing,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
     events_consumer,
@@ -107,7 +107,7 @@ def test_nnswitch_with_session(
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     metrics_consumer = metrics_consumer()
-    relay = relay(relay_with_processing())
+    relay = relay(relay_processing_with_proprietary())
 
     started = datetime.now(tz=timezone.utc) - timedelta(hours=1)
 

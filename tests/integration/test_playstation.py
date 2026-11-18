@@ -223,13 +223,13 @@ def attachments(
 
 
 def test_playstation_no_feature_flag(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     with pytest.raises(requests.exceptions.HTTPError) as exc_info:
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
@@ -275,13 +275,13 @@ def test_playstation_no_feature_flag(
 
 
 def test_playstation_invalid_prosperodump(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("unreal_crash")
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, raise_for_status=False
@@ -326,14 +326,14 @@ def test_playstation_invalid_prosperodump(
 
 
 def test_playstation_missing_prosperodump(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     video_content = b"yo"
     prosperodump = None
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     response = relay.send_playstation_request(
         PROJECT_ID, prosperodump, video_content, raise_for_status=False
@@ -378,13 +378,13 @@ def test_playstation_missing_prosperodump(
 
 
 def test_playstation_max_attachments_size_exceeded(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation(
+    relay = relay_processing_with_proprietary(
         {
             "limits": {
                 "max_attachment_size": 1000 * 1024 * 1024,
@@ -436,13 +436,13 @@ def test_playstation_max_attachments_size_exceeded(
 
 
 def test_playstation_max_attachment_size_exceeded(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation(
+    relay = relay_processing_with_proprietary(
         {
             "limits": {
                 "max_attachment_size": len(playstation_dump) - 1,
@@ -493,12 +493,12 @@ def test_playstation_max_attachment_size_exceeded(
 
 
 def test_playstation_max_stream_size_exceeded(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     stream_size_limit = len(playstation_dump) - 100
-    relay = relay_processing_with_playstation(
+    relay = relay_processing_with_proprietary(
         {
             "limits": {
                 "max_upload_size": int(stream_size_limit / 2),
@@ -519,12 +519,12 @@ def test_playstation_max_stream_size_exceeded(
 
 
 def test_playstation_max_stream_size_exceeded_chunked(
-    mini_sentry, relay_with_playstation
+    mini_sentry, relay_with_proprietary
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     stream_size_limit = len(playstation_dump) - 100
-    relay = relay_with_playstation(
+    relay = relay_with_proprietary(
         mini_sentry,
         {
             "limits": {
@@ -561,7 +561,7 @@ def test_playstation_max_stream_size_exceeded_chunked(
 def test_playstation_with_feature_flag(
     mini_sentry,
     relay,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
     num_intermediate_relays,
@@ -573,7 +573,7 @@ def test_playstation_with_feature_flag(
     attachments_consumer = attachments_consumer()
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_processing_with_playstation()
+    upstream = relay_processing_with_proprietary()
     # Build chain of relays
     for _ in range(num_intermediate_relays):
         upstream = relay(upstream)
@@ -597,7 +597,7 @@ def test_playstation_with_feature_flag(
 def test_playstation_user_data_extraction(
     mini_sentry,
     relay,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -606,7 +606,7 @@ def test_playstation_user_data_extraction(
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
 
@@ -633,7 +633,7 @@ def session_relay_options():
 
 def test_playstation_with_session(
     mini_sentry,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
     metrics_consumer,
@@ -646,7 +646,7 @@ def test_playstation_with_session(
     attachments_consumer = attachments_consumer()
     metrics_consumer = metrics_consumer()
 
-    relay = relay_processing_with_playstation(options=session_relay_options())
+    relay = relay_processing_with_proprietary(options=session_relay_options())
 
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
@@ -682,7 +682,7 @@ def test_playstation_with_session(
 
 def test_playstation_without_session(
     mini_sentry,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     attachments_consumer,
     metrics_consumer,
 ):
@@ -693,7 +693,7 @@ def test_playstation_without_session(
     attachments_consumer = attachments_consumer()
     metrics_consumer = metrics_consumer()
 
-    relay = relay_processing_with_playstation(options=session_relay_options())
+    relay = relay_processing_with_proprietary(options=session_relay_options())
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
 
@@ -704,8 +704,8 @@ def test_playstation_without_session(
 @pytest.mark.parametrize("use_pop_relay", [True, False])
 def test_playstation_upload_attachments(
     mini_sentry,
-    relay_with_playstation,
-    relay_processing_with_playstation,
+    relay_with_proprietary,
+    relay_processing_with_proprietary,
     relay_credentials,
     objectstore,
     outcomes_consumer,
@@ -718,9 +718,9 @@ def test_playstation_upload_attachments(
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     credentials = relay_credentials()
-    relay = relay_processing_with_playstation(static_credentials=credentials)
+    relay = relay_processing_with_proprietary(static_credentials=credentials)
     if use_pop_relay:
-        relay = relay_with_playstation(relay, credentials=credentials)
+        relay = relay_with_proprietary(relay, credentials=credentials)
 
     video_content = "video content"
     response = relay.send_playstation_request(
@@ -748,14 +748,14 @@ def test_playstation_upload_attachments(
 
 def test_playstation_ignore_large_attachments_when_uploading_disabled(
     mini_sentry,
-    relay_with_playstation,
+    relay_with_proprietary,
 ):
     PROJECT_ID = 42
     config = playstation_project_config()
     config["config"]["features"].remove("projects:relay-playstation-uploads")
     mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
     playstation_dump = load_dump_file("user_data.prosperodmp")
-    relay = relay_with_playstation(
+    relay = relay_with_proprietary(
         mini_sentry,
         {
             "limits": {
@@ -778,7 +778,7 @@ def test_playstation_ignore_large_attachments_when_uploading_disabled(
 
 def test_playstation_attachment(
     mini_sentry,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -787,7 +787,7 @@ def test_playstation_attachment(
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -835,7 +835,7 @@ def test_playstation_attachment(
 
 def test_playstation_attachment_no_feature_flag(
     mini_sentry,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -844,7 +844,7 @@ def test_playstation_attachment_no_feature_flag(
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -909,10 +909,10 @@ def test_playstation_attachment_no_feature_flag(
     )
 
 
-def test_data_request(mini_sentry, relay_processing_with_playstation):
+def test_data_request(mini_sentry, relay_processing_with_proprietary):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
     response = relay.send_playstation_data_request(PROJECT_ID)
 
     expected_response = {
@@ -929,7 +929,7 @@ def test_data_request(mini_sentry, relay_processing_with_playstation):
 
 def test_event_merging(
     mini_sentry,
-    relay_processing_with_playstation,
+    relay_processing_with_proprietary,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -938,7 +938,7 @@ def test_event_merging(
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     tempest_event = {
         "event_id": "123-123-123",
@@ -1074,8 +1074,8 @@ def test_event_merging(
 @pytest.mark.parametrize("use_pop_relay", [True, False])
 def test_playstation_rate_limited(
     mini_sentry,
-    relay_with_playstation,
-    relay_processing_with_playstation,
+    relay_with_proprietary,
+    relay_processing_with_proprietary,
     relay_credentials,
     use_pop_relay,
     rate_limits,
@@ -1088,9 +1088,9 @@ def test_playstation_rate_limited(
     ]
     mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
     credentials = relay_credentials()
-    relay = relay_processing_with_playstation(static_credentials=credentials)
+    relay = relay_processing_with_proprietary(static_credentials=credentials)
     if use_pop_relay:
-        relay = relay_with_playstation(relay, credentials=credentials)
+        relay = relay_with_proprietary(relay, credentials=credentials)
 
     # Playstation never returns 429
     relay.send_playstation_request(PROJECT_ID, playstation_dump)
@@ -1099,14 +1099,14 @@ def test_playstation_rate_limited(
 
 
 def test_playstation_unknown_project(
-    relay_processing_with_playstation, outcomes_consumer
+    relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     # Deliberately do NOT register the project, so it resolves as Disabled upstream.
     # mini_sentry.add_full_project_config(project_id)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation()
+    relay = relay_processing_with_proprietary()
 
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, raise_for_status=False
@@ -1117,7 +1117,7 @@ def test_playstation_unknown_project(
 
 
 def test_playstation_project_unavailable(
-    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_proprietary, outcomes_consumer
 ):
     PROJECT_ID = 42
     # Force the upstream to keep returning the project as pending so `ready()` times out.
@@ -1125,7 +1125,7 @@ def test_playstation_project_unavailable(
     mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
     outcomes_consumer = outcomes_consumer()
-    relay = relay_processing_with_playstation(
+    relay = relay_processing_with_proprietary(
         {"limits": {"query_timeout": 1}, "cache": {"batch_interval": 500}}
     )
     playstation_dump = load_dump_file("playstation.prosperodmp")
@@ -1141,7 +1141,7 @@ def test_playstation_project_unavailable(
 def test_playstation_attachment_inline_limit(
     mini_sentry,
     dummy_upload,
-    relay_with_playstation,
+    relay_with_proprietary,
 ):
     project_id = 42
     prosperodump = load_dump_file("playstation.prosperodmp")
@@ -1150,7 +1150,7 @@ def test_playstation_attachment_inline_limit(
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
     mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 16
 
-    relay = relay_with_playstation(mini_sentry)
+    relay = relay_with_proprietary(mini_sentry)
 
     # Video smaller than the limit should be inlined.
     small_video = b"small video"

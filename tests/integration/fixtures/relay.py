@@ -77,6 +77,12 @@ class Relay(SentryLike):
         self.process.send_signal(signal)
 
 
+@pytest.fixture(scope="session")
+def relay_build_features():
+    output = subprocess.check_output(RELAY_BIN + ["build-info"], text=True)
+    return frozenset(output.strip().split(","))
+
+
 @pytest.fixture
 def get_relay_binary():
     def inner(version="latest"):

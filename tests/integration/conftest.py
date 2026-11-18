@@ -19,6 +19,7 @@ from .fixtures.relay import (  # noqa
     relay_credentials,
     get_relay_binary,
     latest_relay_version,
+    relay_build_features,
 )
 from .fixtures.pii import (  # noqa
     scrubbing_rule,
@@ -30,8 +31,8 @@ from .fixtures.processing import (  # noqa
     get_topic_name,
     processing_config,
     relay_with_processing,
-    relay_with_playstation,
-    relay_processing_with_playstation,
+    relay_with_proprietary,
+    relay_processing_with_proprietary,
     consumer_fixture,
     events_consumer,
     outcomes_consumer,
