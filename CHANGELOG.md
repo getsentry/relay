@@ -8,6 +8,7 @@
 
 **Internal**:
 
+- Truncate header-derived `browser.name`, `browser.version`, and `user_agent.original` to `max_tag_value_length` on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 
