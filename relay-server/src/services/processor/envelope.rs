@@ -27,6 +27,7 @@ use crate::extractors::{RequestMeta, RequestTrust};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::MetricOutcomes;
 use crate::metrics_extraction::ExtractedMetrics;
+#[cfg(sentry)]
 use crate::processing::errors::SwitchProcessingError;
 use crate::processing::relay::RelayProcessor;
 use crate::processing::{self, Forward as _, Output, Outputs, QuotaRateLimiter};
@@ -100,6 +101,7 @@ pub enum ProcessingError {
     #[error("failed to apply quotas")]
     QuotasFailed(#[from] RateLimitingError),
 
+    #[cfg(sentry)]
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 
@@ -134,6 +136,7 @@ impl ProcessingError {
             Self::InvalidFlamegraph => Some(Outcome::Invalid(DiscardReason::InvalidFlamegraph)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            #[cfg(sentry)]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),

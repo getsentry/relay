@@ -4840,14 +4840,17 @@ name = "relay-horatio"
 version = "26.11.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "dircpy",
  "lz4_flex",
  "minidump-writer",
  "object 0.37.3",
  "rmpv",
  "tempfile",
+ "thiserror 2.0.21",
  "tracing",
  "watto",
+ "zstd",
 ]
 
 [[package]]
