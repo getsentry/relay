@@ -174,7 +174,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     }
 
     // Try to derive category from sentry.op.
-    if let Some(op_value) = attributes_val.get_value(SENTRY__OP)
+    if let Some(op_value) = attributes_val.get_value_with_deprecations(SENTRY__OP)
         && let Some(op_str) = op_value.as_str()
     {
         let op_lowercase = op_str.to_lowercase();
@@ -195,7 +195,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     } else if attribute_is_nonempty_string(attributes_val, RESOURCE__RENDER_BLOCKING_STATUS) {
         Some("resource")
     } else if attributes_val
-        .get_value(SENTRY__ORIGIN)
+        .get_value_with_deprecations(SENTRY__ORIGIN)
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
@@ -213,7 +213,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
 
 fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
     attributes
-        .get_value(key)
+        .get_value_with_deprecations(key)
         .and_then(|v| v.as_str())
         .is_some_and(|s| !s.is_empty())
 }
@@ -357,17 +357,21 @@ pub fn normalize_user_agent(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
+    if attributes.contains_key_with_deprecations(BROWSER__NAME)
+        || attributes.contains_key_with_deprecations(BROWSER__VERSION)
+    {
         return;
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
-    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
-        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
+    if !attributes.contains_key_with_deprecations(USER_AGENT__ORIGINAL)
+        && let Some(ua) = client_info.and_then(|ci| ci.user_agent)
+    {
+        attributes.insert(USER_AGENT__ORIGINAL, ua.to_owned());
     }
 
     let user_agent = attributes
-        .get_value(USER_AGENT__ORIGINAL)
+        .get_value_with_deprecations(USER_AGENT__ORIGINAL)
         .and_then(|v| v.as_str());
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
@@ -393,14 +397,19 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
         return;
     };
 
-    let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
-        .and_then(|v| v.as_str());
+    let key = relay_conventions::attribute_names(CLIENT__ADDRESS)
+        .find(|name| attributes.get_value(name.as_ref()).is_some());
 
-    if client_address == Some("{{auto}}") {
-        match client_ip {
-            Some(client_ip) => attributes.insert(CLIENT__ADDRESS, client_ip.to_string()),
-            None => drop(attributes.remove(CLIENT__ADDRESS)),
+    if let Some(key) = key
+        && attributes.get_value(key.as_ref()).and_then(Value::as_str) == Some("{{auto}}")
+    {
+        for name in relay_conventions::attribute_names(CLIENT__ADDRESS) {
+            if attributes.get_value(name.as_ref()).and_then(Value::as_str) == Some("{{auto}}") {
+                match client_ip {
+                    Some(client_ip) => attributes.insert(name, client_ip.to_string()),
+                    None => drop(attributes.remove(name.as_ref())),
+                }
+            }
         }
     }
 }
@@ -417,7 +426,9 @@ pub fn normalize_inject_client_address(
     };
 
     let attributes = attributes.get_or_insert_with(Default::default);
-    attributes.insert_if_missing(CLIENT__ADDRESS, || client_ip.to_string());
+    if !attributes.contains_key_with_deprecations(CLIENT__ADDRESS) {
+        attributes.insert(CLIENT__ADDRESS, client_ip.to_string());
+    }
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
@@ -442,13 +453,13 @@ pub fn normalize_user_geo(
         USER__GEO__REGION,
     ]
     .into_iter()
-    .any(|a| attributes.contains_key(a))
+    .any(|a| attributes.contains_key_with_deprecations(a))
     {
         return;
     }
 
     let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
+        .get_value_with_deprecations(CLIENT__ADDRESS)
         .and_then(|v| v.as_str())
         .and_then(|v| v.parse().ok());
 
@@ -747,7 +758,7 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .unwrap_or_default();
 
     let raw_query = attributes
-        .get_value(DB__QUERY__TEXT)
+        .get_value_with_deprecations(DB__QUERY__TEXT)
         .or_else(|| {
             if op == "db" {
                 attributes.get_value(SENTRY__DESCRIPTION)
@@ -758,15 +769,15 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .and_then(|v| v.as_str());
 
     let db_system = attributes
-        .get_value(DB__SYSTEM__NAME)
+        .get_value_with_deprecations(DB__SYSTEM__NAME)
         .and_then(|v| v.as_str());
 
     let db_operation = attributes
-        .get_value(DB__OPERATION__NAME)
+        .get_value_with_deprecations(DB__OPERATION__NAME)
         .and_then(|v| v.as_str());
 
     let collection_name = attributes
-        .get_value(DB__COLLECTION__NAME)
+        .get_value_with_deprecations(DB__COLLECTION__NAME)
         .and_then(|v| v.as_str());
 
     let span_origin = attributes
@@ -879,19 +890,21 @@ fn normalize_http_attributes(
     };
 
     let method = attributes
-        .get_value(HTTP__REQUEST__METHOD)
+        .get_value_with_deprecations(HTTP__REQUEST__METHOD)
         .and_then(|v| v.as_str())
         .or(description_method);
 
     let server_address = attributes
-        .get_value(SERVER__ADDRESS)
+        .get_value_with_deprecations(SERVER__ADDRESS)
         .and_then(|v| v.as_str());
 
     let url: Option<&str> = attributes
-        .get_value(URL__FULL)
+        .get_value_with_deprecations(URL__FULL)
         .and_then(|v| v.as_str())
         .or(description_url);
-    let url_scheme = attributes.get_value(URL__SCHEME).and_then(|v| v.as_str());
+    let url_scheme = attributes
+        .get_value_with_deprecations(URL__SCHEME)
+        .and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
     // extract a normalized domain to be stored in the "server.address" attribute.
@@ -943,7 +956,9 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
     {
         span.is_segment = None.into();
         span.parent_span_id = None.into();
-        attributes.remove(SENTRY__SEGMENT__ID);
+        for key in relay_conventions::attribute_names(SENTRY__SEGMENT__ID) {
+            attributes.remove(key.as_ref());
+        }
     }
 }
 
@@ -959,7 +974,12 @@ pub fn normalize_segment_name(
         return;
     };
 
-    let Some(attr_value) = attributes.get_annotated_value_mut(SENTRY__SEGMENT__NAME) else {
+    let Some(key) = relay_conventions::attribute_names(SENTRY__SEGMENT__NAME)
+        .find(|key| attributes.get_value(key.as_ref()).is_some())
+    else {
+        return;
+    };
+    let Some(attr_value) = attributes.get_annotated_value_mut(key.as_ref()) else {
         return;
     };
 
@@ -1002,7 +1022,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             continue;
         }
 
-        let Some(attr) = attributes.get_attribute(current_attribute) else {
+        let Some(attr) = attributes.get_attribute_with_deprecations(current_attribute) else {
             continue;
         };
 
@@ -1011,7 +1031,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
     if !attributes.contains_key(SENTRY__DOMAIN)
         && let Some(db_domain) = attributes
-            .get_value(DB__COLLECTION__NAME)
+            .get_value_with_deprecations(DB__COLLECTION__NAME)
             .and_then(|value| value.as_str())
             .map(|collection_name| collection_name.to_owned())
     {
@@ -1033,10 +1053,72 @@ mod tests {
     use std::time::Duration;
 
     use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::SpanId;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
     use relay_sampling::DynamicSamplingContext;
 
     use super::*;
+
+    #[test]
+    fn alias_based_name_and_description_inference_preserves_explicit_values() {
+        for explicit in [false, true] {
+            let mut attributes = Attributes::new();
+            attributes.insert(SENTRY__OP, "function");
+            attributes.insert("django.function_name", "inferred handler");
+            if explicit {
+                attributes.insert(SENTRY__DESCRIPTION, "explicit description");
+            }
+            let mut span = SpanV2 {
+                name: if explicit {
+                    Annotated::new("explicit name".to_owned())
+                } else {
+                    Annotated::empty()
+                },
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            };
+            normalize_span_name(&mut span);
+            normalize_sentry_description(&mut span.attributes, &span.name);
+            assert_eq!(
+                span.name.as_str(),
+                Some(if explicit {
+                    "explicit name"
+                } else {
+                    "inferred handler"
+                })
+            );
+            let attributes = span.attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__DESCRIPTION)
+                    .and_then(Value::as_str),
+                Some(if explicit {
+                    "explicit description"
+                } else {
+                    "inferred handler"
+                })
+            );
+            assert!(!attributes.contains_key("code.function.name"));
+            let normalized = span.clone();
+            normalize_span_name(&mut span);
+            normalize_sentry_description(&mut span.attributes, &span.name);
+            assert_eq!(span, normalized);
+        }
+        let mut attributes = enrichment_attributes(&[
+            (SENTRY__OP, "function"),
+            (SENTRY__ORIGIN, "manual"),
+            ("django.function_name", "inferred handler"),
+        ]);
+        normalize_sentry_description(&mut attributes, &Annotated::new("manual name".to_owned()));
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value(SENTRY__DESCRIPTION)
+                .and_then(Value::as_str),
+            Some("manual name")
+        );
+    }
 
     fn mock_dsc(transaction: Option<&str>) -> DynamicSamplingContext {
         DynamicSamplingContext {
@@ -1507,6 +1589,345 @@ mod tests {
     }
 
     #[test]
+    fn web_vital_segment_cleanup_removes_all_segment_id_names() {
+        for op in ["ui.interaction.click", "ui.webvital.lcp", "http.client"] {
+            for keys in [
+                vec![SENTRY__SEGMENT__ID],
+                vec!["sentry.segment_id"],
+                vec![SENTRY__SEGMENT__ID, "sentry.segment_id"],
+            ] {
+                let mut attributes = Attributes::new();
+                attributes.insert(SENTRY__OP, op);
+                for key in &keys {
+                    attributes.insert(*key, "0123456789abcdef");
+                }
+                let mut span = SpanV2 {
+                    attributes: Annotated::new(attributes),
+                    is_segment: true.into(),
+                    parent_span_id: "fedcba9876543210".parse::<SpanId>().unwrap().into(),
+                    ..Default::default()
+                };
+                let original = span.clone();
+                normalize_web_vital_span_segment(&mut span);
+                if op == "http.client" {
+                    assert_eq!(span, original);
+                } else {
+                    assert!(span.is_segment.value().is_none());
+                    assert!(span.parent_span_id.value().is_none());
+                    let attributes = span.attributes.value().unwrap();
+                    for key in keys {
+                        assert!(!attributes.contains_key(key));
+                    }
+                    assert_eq!(
+                        attributes.get_value(SENTRY__OP).and_then(Value::as_str),
+                        Some(op)
+                    );
+                }
+                let normalized = span.clone();
+                normalize_web_vital_span_segment(&mut span);
+                assert_eq!(span, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn segment_name_aliases_normalize_in_place_with_metadata() {
+        let rule: TransactionNameRule = serde_json::from_value(serde_json::json!({
+            "pattern": "/projects/*/**",
+            "expiry": "2099-01-01T00:00:00Z",
+            "redaction": {"method": "replace", "substitution": "*"}
+        }))
+        .unwrap();
+        for rules in [vec![], vec![rule]] {
+            let mut expected =
+                enrichment_attributes(&[(SENTRY__SEGMENT__NAME, "/projects/alice/1234")]);
+            expected
+                .value_mut()
+                .as_mut()
+                .unwrap()
+                .get_annotated_value_mut(SENTRY__SEGMENT__NAME)
+                .unwrap()
+                .meta_mut()
+                .add_remark(Remark::new(RemarkType::Substituted, "test"));
+            normalize_segment_name(&mut expected, &rules);
+            let expected = expected
+                .value()
+                .unwrap()
+                .get_annotated_value(SENTRY__SEGMENT__NAME)
+                .unwrap();
+            assert_ne!(
+                expected.value().and_then(Value::as_str),
+                Some("/projects/alice/1234")
+            );
+            for key in [SENTRY__SEGMENT__NAME, "transaction", "sentry.transaction"] {
+                let mut attributes = enrichment_attributes(&[(key, "/projects/alice/1234")]);
+                attributes
+                    .value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .get_annotated_value_mut(key)
+                    .unwrap()
+                    .meta_mut()
+                    .add_remark(Remark::new(RemarkType::Substituted, "test"));
+                normalize_segment_name(&mut attributes, &rules);
+                let result = attributes.value().unwrap();
+                assert_eq!(result.get_annotated_value(key), Some(expected));
+                assert_eq!(result.0.len(), 1);
+                let normalized = attributes.clone();
+                normalize_segment_name(&mut attributes, &rules);
+                assert_eq!(attributes, normalized);
+            }
+        }
+    }
+
+    #[test]
+    fn segment_name_normalization_prefers_current_name_then_ordered_aliases() {
+        for current in [false, true] {
+            let mut attributes = enrichment_attributes(&[
+                ("transaction", "/ignored/1234"),
+                ("sentry.transaction", "/selected/1234"),
+            ]);
+            if current {
+                attributes
+                    .value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .insert(SENTRY__SEGMENT__NAME, "/current/1234");
+            }
+            normalize_segment_name(&mut attributes, &[]);
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result.get_value("transaction").and_then(Value::as_str),
+                Some("/ignored/1234")
+            );
+            assert_eq!(
+                result
+                    .get_value("sentry.transaction")
+                    .and_then(Value::as_str),
+                Some(if current {
+                    "/selected/1234"
+                } else {
+                    "/selected/*"
+                })
+            );
+            assert_eq!(
+                result
+                    .get_value(SENTRY__SEGMENT__NAME)
+                    .and_then(Value::as_str),
+                current.then_some("/current/*")
+            );
+        }
+        let mut attributes = enrichment_attributes(&[("transaction", "/ignored/1234")]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .insert(SENTRY__SEGMENT__NAME, 42_i64);
+        let original = attributes.clone();
+        normalize_segment_name(&mut attributes, &[]);
+        assert_eq!(attributes, original);
+    }
+
+    fn enrichment_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(pairs.iter().map(|(key, value)| {
+            ((*key).to_owned(), Annotated::new((*value).into()))
+        })))
+    }
+
+    const ENRICHMENT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+    #[test]
+    fn user_agent_alias_is_preferred_over_transport_without_renaming() {
+        for transport in [None, Some("invalid transport user agent")] {
+            let mut attributes =
+                enrichment_attributes(&[("http.user_agent", ENRICHMENT_USER_AGENT)]);
+            let original = attributes
+                .value()
+                .unwrap()
+                .get_attribute("http.user_agent")
+                .cloned();
+            normalize_user_agent(
+                &mut attributes,
+                transport.map(|user_agent| ClientUserAgentInfo {
+                    user_agent: Some(user_agent),
+                    ..Default::default()
+                }),
+            );
+            let result = attributes.value().unwrap();
+            assert_eq!(result.get_attribute("http.user_agent"), original.as_ref());
+            assert!(!result.contains_key(USER_AGENT__ORIGINAL));
+            assert_eq!(
+                result.get_value(BROWSER__NAME).and_then(Value::as_str),
+                Some("Chrome")
+            );
+            assert_eq!(
+                result.get_value(BROWSER__VERSION).and_then(Value::as_str),
+                Some("131.0.0")
+            );
+            let normalized = attributes.clone();
+            normalize_user_agent(&mut attributes, None);
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn browser_aliases_prevent_inference() {
+        for key in ["sentry.browser.name", "sentry.browser.version"] {
+            let mut attributes = enrichment_attributes(&[(key, "SDK supplied")]);
+            let original = attributes.clone();
+            normalize_user_agent(
+                &mut attributes,
+                Some(ClientUserAgentInfo {
+                    user_agent: Some(ENRICHMENT_USER_AGENT),
+                    ..Default::default()
+                }),
+            );
+            assert_eq!(attributes, original);
+        }
+    }
+
+    #[test]
+    fn geo_aliases_prevent_enrichment() {
+        for key in [
+            "sentry.user.geo.city",
+            "sentry.user.geo.country_code",
+            "sentry.user.geo.region",
+            "sentry.user.geo.subdivision",
+        ] {
+            let mut attributes =
+                enrichment_attributes(&[(CLIENT__ADDRESS, "192.168.2.1"), (key, "SDK supplied")]);
+            let original = attributes.clone();
+            normalize_user_geo(&mut attributes, |_| unreachable!());
+            assert_eq!(attributes, original);
+        }
+    }
+
+    #[test]
+    fn geo_enrichment_reads_client_address_alias() {
+        let mut attributes = enrichment_attributes(&[("http.client_ip", "192.168.2.1")]);
+        normalize_user_geo(&mut attributes, |addr| {
+            assert_eq!(addr, "192.168.2.1".parse::<IpAddr>().unwrap());
+            Some(Geo {
+                country_code: "XY".to_owned().into(),
+                ..Default::default()
+            })
+        });
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result
+                .get_value(USER__GEO__COUNTRY_CODE)
+                .and_then(Value::as_str),
+            Some("XY")
+        );
+        assert!(!result.contains_key(CLIENT__ADDRESS));
+    }
+
+    #[test]
+    fn client_address_alias_auto_is_resolved_in_place() {
+        for ip in [None, Some("192.168.1.1"), Some("2001:db8::1")] {
+            let mut attributes = enrichment_attributes(&[("http.client_ip", "{{auto}}")]);
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+            let result = attributes.value().unwrap();
+            assert_eq!(
+                result.get_value("http.client_ip").and_then(Value::as_str),
+                ip
+            );
+            assert!(!result.contains_key(CLIENT__ADDRESS));
+            let normalized = attributes.clone();
+            normalize_client_address(&mut attributes, Some("192.168.2.1".parse().unwrap()));
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn client_address_auto_resolves_backfilled_aliases() {
+        for ip in [None, Some("192.168.1.1"), Some("2001:db8::1")] {
+            let mut attributes = enrichment_attributes(&[("http.client_ip", "{{auto}}")]);
+            normalize_attribute_types(&mut attributes);
+            normalize_attribute_names(&mut attributes);
+            assert_eq!(
+                attributes
+                    .value()
+                    .unwrap()
+                    .get_value(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                Some("{{auto}}")
+            );
+
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+
+            let result = attributes.value().unwrap();
+            for key in [CLIENT__ADDRESS, "http.client_ip"] {
+                assert_eq!(result.contains_key(key), ip.is_some());
+                assert_eq!(result.get_value(key).and_then(Value::as_str), ip);
+            }
+            assert_eq!(
+                result
+                    .get_value_with_deprecations(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                ip
+            );
+
+            let normalized = attributes.clone();
+            normalize_attribute_names(&mut attributes);
+            normalize_client_address(&mut attributes, Some("192.168.2.1".parse().unwrap()));
+            assert_eq!(attributes, normalized);
+        }
+    }
+
+    #[test]
+    fn client_address_auto_preserves_explicit_alias() {
+        for ip in [None, Some("192.168.2.1")] {
+            let mut attributes = enrichment_attributes(&[
+                (CLIENT__ADDRESS, "{{auto}}"),
+                ("http.client_ip", "192.168.1.1"),
+            ]);
+            normalize_attribute_types(&mut attributes);
+            normalize_attribute_names(&mut attributes);
+
+            normalize_client_address(&mut attributes, ip.map(|ip| ip.parse().unwrap()));
+
+            let result = attributes.value().unwrap();
+            assert_eq!(result.contains_key(CLIENT__ADDRESS), ip.is_some());
+            assert_eq!(
+                result.get_value(CLIENT__ADDRESS).and_then(Value::as_str),
+                ip
+            );
+            assert_eq!(
+                result.get_value("http.client_ip").and_then(Value::as_str),
+                Some("192.168.1.1")
+            );
+            assert_eq!(
+                result
+                    .get_value_with_deprecations(CLIENT__ADDRESS)
+                    .and_then(Value::as_str),
+                Some(ip.unwrap_or("192.168.1.1"))
+            );
+        }
+    }
+
+    #[test]
+    fn client_address_alias_prevents_transport_injection() {
+        for pairs in [
+            vec![("http.client_ip", "192.168.2.1")],
+            vec![("http.client_ip", "{{auto}}")],
+            vec![
+                (CLIENT__ADDRESS, "192.168.2.1"),
+                ("http.client_ip", "{{auto}}"),
+            ],
+        ] {
+            let mut attributes = enrichment_attributes(&pairs);
+            let original = attributes.clone();
+            normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+            assert_eq!(attributes, original);
+            if pairs.len() == 2 || pairs[0].1 != "{{auto}}" {
+                normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+                assert_eq!(attributes, original);
+            }
+        }
+    }
+
+    #[test]
     fn test_normalize_user_agent_none() {
         let mut attributes = Default::default();
         normalize_user_agent(
@@ -1923,6 +2344,111 @@ mod tests {
         "#);
     }
 
+    fn db_test_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(pairs.iter().map(|(key, value)| {
+            ((*key).to_owned(), Annotated::new(Attribute::from(*value)))
+        })))
+    }
+
+    #[test]
+    fn db_query_alias_is_normalized_without_renaming() {
+        let mut attributes = db_test_attributes(&[
+            ("db.system", "mysql"),
+            ("db.statement", "SELECT \"not an identifier\""),
+        ]);
+        normalize_sentry_op(&mut attributes);
+        normalize_db_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_value(SENTRY__OP).and_then(Value::as_str),
+            Some("db")
+        );
+        assert_eq!(
+            result
+                .get_value(SENTRY__NORMALIZED_DB_QUERY)
+                .and_then(Value::as_str),
+            Some("SELECT %s")
+        );
+        assert_eq!(
+            result.get_value("db.statement").and_then(Value::as_str),
+            Some("SELECT \"not an identifier\"")
+        );
+        assert!(!result.contains_key(DB__QUERY__TEXT));
+    }
+
+    #[test]
+    fn db_operation_and_collection_aliases_are_read() {
+        let mut attributes = db_test_attributes(&[
+            ("db.system", "mongodb"),
+            ("db.statement", r#"{"find":"documents","foo":"bar"}"#),
+            ("db.operation", "find"),
+            ("db.mongodb.collection", "documents"),
+        ]);
+        normalize_sentry_op(&mut attributes);
+        normalize_db_attributes(&mut attributes);
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_value(SENTRY__ACTION).and_then(Value::as_str),
+            Some("FIND")
+        );
+        assert_eq!(
+            result.get_value(SENTRY__DOMAIN).and_then(Value::as_str),
+            Some(",documents,")
+        );
+        assert_eq!(
+            result
+                .get_value(SENTRY__NORMALIZED_DB_QUERY)
+                .and_then(Value::as_str),
+            Some(r#"{"find":"documents","foo":"?"}"#)
+        );
+    }
+
+    #[test]
+    fn db_legacy_attributes_use_aliases_even_when_already_normalized() {
+        let mut attributes = db_test_attributes(&[
+            (SENTRY__NORMALIZED_DB_QUERY, "already normalized"),
+            ("db.operation", "FIND"),
+            ("db.mongodb.collection", "documents"),
+        ]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_annotated_value_mut("db.operation")
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        let original = attributes.clone();
+        normalize_db_attributes(&mut attributes);
+        assert_eq!(attributes, original);
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_attribute(SENTRY__ACTION).unwrap().value,
+            result.get_attribute("db.operation").unwrap().value,
+        );
+        assert_eq!(
+            result.get_value(SENTRY__DOMAIN).and_then(Value::as_str),
+            Some(",documents,")
+        );
+        assert_eq!(
+            result
+                .get_value(SENTRY__NORMALIZED_DESCRIPTION)
+                .and_then(Value::as_str),
+            Some("already normalized")
+        );
+        assert!(!result.contains_key(DB__OPERATION__NAME));
+        assert!(!result.contains_key(DB__COLLECTION__NAME));
+        let attributes = attributes.value_mut().as_mut().unwrap();
+        attributes.insert(SENTRY__ACTION, "existing action");
+        attributes.insert(SENTRY__DOMAIN, "existing domain");
+        let original = attributes.clone();
+        let mut attributes = Annotated::new(original.clone());
+        write_legacy_attributes(&mut attributes);
+        assert_eq!(attributes.value(), Some(&original));
+    }
+
     #[test]
     fn test_normalize_attribute_values_mysql_db_query_attributes() {
         let mut attributes = Annotated::<Attributes>::from_json(
@@ -2159,6 +2685,98 @@ mod tests {
           }
         }
         "#);
+    }
+
+    fn http_test_attributes(pairs: &[(&str, &str)]) -> Annotated<Attributes> {
+        Annotated::new(Attributes::from_iter(
+            [(SENTRY__CATEGORY, "http"), (SENTRY__OP, "http.client")]
+                .into_iter()
+                .chain(pairs.iter().copied())
+                .map(|(key, value)| (key.to_owned(), Annotated::new(value.into()))),
+        ))
+    }
+
+    #[test]
+    fn http_aliases_normalize_without_renaming() {
+        let mut attributes = http_test_attributes(&[
+            ("http.method", "get"),
+            ("http.url", "https://subdomain.example.com/users/123"),
+            ("http.status_code", "201"),
+        ]);
+        normalize_http_attributes(&mut attributes, &[]);
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        for (key, expected) in [
+            (HTTP__REQUEST__METHOD, "GET"),
+            (SERVER__ADDRESS, "*.example.com"),
+            (URL__FULL, "https://subdomain.example.com/users/123"),
+            (SENTRY__STATUS_CODE, "201"),
+            ("http.method", "get"),
+            ("http.url", "https://subdomain.example.com/users/123"),
+        ] {
+            assert_eq!(
+                result.get_value(key).and_then(Value::as_str),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn http_server_address_and_scheme_aliases_are_read() {
+        let mut attributes = http_test_attributes(&[
+            ("http.method", "GET"),
+            ("server_name", "subdomain.example.com:5688"),
+            ("http.scheme", "https"),
+        ]);
+        normalize_http_attributes(&mut attributes, &[]);
+        let result = attributes.value().unwrap();
+        assert_eq!(
+            result.get_value(SERVER__ADDRESS).and_then(Value::as_str),
+            Some("*.example.com:5688")
+        );
+        assert_eq!(
+            result.get_value(URL__FULL).and_then(Value::as_str),
+            Some("https://subdomain.example.com:5688")
+        );
+    }
+
+    #[test]
+    fn http_legacy_attributes_use_aliases_without_normalization() {
+        let mut attributes = http_test_attributes(&[
+            ("http.method", "GET"),
+            ("server_name", "example.com"),
+            ("http.status_code", "201"),
+        ]);
+        attributes
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_annotated_value_mut("http.status_code")
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        write_legacy_attributes(&mut attributes);
+        let result = attributes.value().unwrap();
+        for (source, target) in [
+            ("http.method", SENTRY__ACTION),
+            ("server_name", SENTRY__DOMAIN),
+            ("http.status_code", SENTRY__STATUS_CODE),
+        ] {
+            assert_eq!(
+                result.get_attribute(source).unwrap().value,
+                result.get_attribute(target).unwrap().value
+            );
+        }
+        for key in [
+            HTTP__REQUEST__METHOD,
+            SERVER__ADDRESS,
+            HTTP__RESPONSE__STATUS_CODE,
+        ] {
+            assert!(!result.contains_key(key));
+        }
+        let normalized = attributes.clone();
+        write_legacy_attributes(&mut attributes);
+        assert_eq!(attributes, normalized);
     }
 
     #[test]
@@ -2589,6 +3207,30 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn span_category_from_deprecated_attributes_without_renaming() {
+        for (key, value, category) in [
+            ("db.system", "postgresql", "db"),
+            ("http.method", "GET", "http"),
+        ] {
+            let mut attributes = Annotated::new(Attributes::from([(
+                key.to_owned(),
+                Annotated::new(Attribute::from(value)),
+            )]));
+            let original = attributes.value().unwrap().get_attribute(key).cloned();
+            normalize_span_category(&mut attributes);
+            let attributes = attributes.value().unwrap();
+            assert_eq!(
+                attributes
+                    .get_value(SENTRY__CATEGORY)
+                    .and_then(Value::as_str),
+                Some(category)
+            );
+            assert_eq!(attributes.get_attribute(key), original.as_ref());
+            assert_eq!(attributes.0.len(), 2);
+        }
     }
 
     #[test]

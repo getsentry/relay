@@ -16,13 +16,21 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return op;
     };
 
-    if attributes.contains_key(HTTP__REQUEST__METHOD) {
-        let kind = attributes.get_value(SENTRY__KIND).and_then(|v| v.as_str());
+    if attributes
+        .get_value_with_deprecations(HTTP__REQUEST__METHOD)
+        .is_some()
+    {
+        let kind = attributes
+            .get_value_with_deprecations(SENTRY__KIND)
+            .and_then(|v| v.as_str());
         return match kind {
             Some(kind) if kind == SpanKind::Client.as_str() => String::from("http.client"),
             Some(kind) if kind == SpanKind::Server.as_str() => String::from("http.server"),
             _ => {
-                if attributes.contains_key(SENTRY__HTTP__PREFETCH) {
+                if attributes
+                    .get_value_with_deprecations(SENTRY__HTTP__PREFETCH)
+                    .is_some()
+                {
                     String::from("http.prefetch")
                 } else {
                     String::from("http")
@@ -31,26 +39,38 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         };
     }
 
-    if attributes.contains_key(DB__SYSTEM__NAME) {
+    if attributes
+        .get_value_with_deprecations(DB__SYSTEM__NAME)
+        .is_some()
+    {
         return String::from("db");
     }
 
     if let Some(operation) = attributes
-        .get_value(GEN_AI__OPERATION__NAME)
+        .get_value_with_deprecations(GEN_AI__OPERATION__NAME)
         .and_then(|v| v.as_str())
     {
         return format!("gen_ai.{operation}");
     }
 
-    if attributes.contains_key(RPC__SERVICE) {
+    if attributes
+        .get_value_with_deprecations(RPC__SERVICE)
+        .is_some()
+    {
         return String::from("rpc");
     }
 
-    if attributes.contains_key(MESSAGING__SYSTEM) {
+    if attributes
+        .get_value_with_deprecations(MESSAGING__SYSTEM)
+        .is_some()
+    {
         return String::from("message");
     }
 
-    if let Some(faas_trigger) = attributes.get_value(FAAS__TRIGGER).and_then(|v| v.as_str()) {
+    if let Some(faas_trigger) = attributes
+        .get_value_with_deprecations(FAAS__TRIGGER)
+        .and_then(|v| v.as_str())
+    {
         return faas_trigger.to_owned();
     }
 
@@ -68,6 +88,19 @@ mod tests {
                 .map(|(k, v)| ((*k).to_owned(), Annotated::new((*v).to_owned().into()))),
         );
         derive_op_for_v2_span(&Annotated::new(attributes))
+    }
+
+    #[test]
+    fn infers_http_op_from_deprecated_method_and_kind() {
+        assert_eq!(
+            op_for(&[("http.method", "GET"), ("otel.kind", "client")]),
+            "http.client"
+        );
+    }
+
+    #[test]
+    fn infers_db_op_from_deprecated_system_without_renaming() {
+        assert_eq!(op_for(&[("db.system", "postgresql")]), "db");
     }
 
     #[test]

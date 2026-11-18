@@ -58,11 +58,11 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
 
 /// Normalizes the [`GEN_AI__RESPONSE__MODEL`] attribute by defaulting to the [`GEN_AI__REQUEST__MODEL`] if it is missing.
 fn normalize_model(attributes: &mut Attributes) {
-    if attributes.contains_key(GEN_AI__RESPONSE__MODEL) {
+    if attributes.contains_key_with_deprecations(GEN_AI__RESPONSE__MODEL) {
         return;
     }
     let Some(model) = attributes
-        .get_value(GEN_AI__REQUEST__MODEL)
+        .get_value_with_deprecations(GEN_AI__REQUEST__MODEL)
         .and_then(|v| v.as_str())
     else {
         return;
@@ -85,11 +85,11 @@ fn normalize_ai_type(attributes: &mut Attributes) {
 /// Calculates the [`GEN_AI__USAGE__TOTAL_TOKENS`] attribute.
 fn normalize_total_tokens(attributes: &mut Attributes) {
     let input_tokens = attributes
-        .get_value(GEN_AI__USAGE__INPUT_TOKENS)
+        .get_value_with_deprecations(GEN_AI__USAGE__INPUT_TOKENS)
         .and_then(|v| v.as_f64());
 
     let output_tokens = attributes
-        .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
+        .get_value_with_deprecations(GEN_AI__USAGE__OUTPUT_TOKENS)
         .and_then(|v| v.as_f64());
 
     if input_tokens.is_none() && output_tokens.is_none() {
@@ -107,7 +107,7 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
     };
 
     let output_tokens = attributes
-        .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
+        .get_value_with_deprecations(GEN_AI__USAGE__OUTPUT_TOKENS)
         .and_then(|v| v.as_f64())
         .filter(|v| *v > 0.0);
 
@@ -123,7 +123,7 @@ fn normalize_context_utilization(
     model_metadata: Option<&ModelMetadata>,
 ) {
     let model_id = attributes
-        .get_value(GEN_AI__RESPONSE__MODEL)
+        .get_value_with_deprecations(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str());
 
     let context_size = model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id)));
@@ -135,7 +135,7 @@ fn normalize_context_utilization(
     attributes.insert(GEN_AI__CONTEXT__WINDOW_SIZE, context_size as i64);
 
     let total_tokens = attributes
-        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
+        .get_value_with_deprecations(GEN_AI__USAGE__TOTAL_TOKENS)
         .and_then(|v| v.as_f64());
 
     if let Some(total_tokens) = total_tokens {
@@ -161,7 +161,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
     let platform_tag = platform_tag(platform);
 
     let Some(model_id) = attributes
-        .get_value(GEN_AI__RESPONSE__MODEL)
+        .get_value_with_deprecations(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str())
     else {
         relay_statsd::metric!(
@@ -185,7 +185,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
 
     let get_tokens = |key| {
         attributes
-            .get_value(key)
+            .get_value_with_deprecations(key)
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0)
     };

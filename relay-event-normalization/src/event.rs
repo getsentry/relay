@@ -898,12 +898,12 @@ impl MeasurementsLike for Measurements {
 
 impl MeasurementsLike for Attributes {
     fn contains_measurement(&self, key: &str) -> bool {
-        self.0
-            .contains_key(relay_conventions::canonical(key).unwrap_or(key))
+        self.contains_key_with_deprecations(relay_conventions::canonical(key).unwrap_or(key))
     }
 
     fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
-        let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
+        let value =
+            self.get_value_with_deprecations(relay_conventions::canonical(key).unwrap_or(key))?;
         match value {
             Value::F64(v) => FiniteF64::new(*v),
             Value::U64(v) => FiniteF64::new(*v as f64),
@@ -3760,6 +3760,94 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn performance_scores_resolve_required_and_optional_vital_aliases() {
+        for canonical_config in [false, true] {
+            let fcp = if canonical_config {
+                "browser.web_vital.fcp.value"
+            } else {
+                "fcp"
+            };
+            let lcp = if canonical_config {
+                "browser.web_vital.lcp.value"
+            } else {
+                "lcp"
+            };
+            let config: PerformanceScoreConfig = serde_json::from_value(json!({
+                "profiles": [{
+                    "name": "test",
+                    "version": "test-version",
+                    "condition": {"op": "and", "inner": []},
+                    "scoreComponents": [
+                        {"measurement": fcp, "weight": 1.0, "p10": 900, "p50": 1600},
+                        {"measurement": lcp, "weight": 1.0, "p10": 1200, "p50": 2400, "optional": true},
+                        {"measurement": "cls", "weight": 1.0, "p10": 0.1, "p50": 0.25, "optional": true}
+                    ]
+                }]
+            })).unwrap();
+            let mut canonical_attributes = Attributes::new();
+            canonical_attributes.insert("browser.web_vital.fcp.value", 1237.0);
+            canonical_attributes.insert("browser.web_vital.lcp.value", 6596.0);
+            let mut expected = SpanV2 {
+                attributes: Annotated::new(canonical_attributes),
+                ..Default::default()
+            };
+            assert_eq!(
+                normalize_performance_score(&mut expected, Some(&config)).as_deref(),
+                Some("test-version")
+            );
+            let mut attributes = Attributes::new();
+            for (alias, value) in [("fcp", 1237.0), ("lcp", 6596.0)] {
+                attributes.insert(alias, value);
+            }
+            let original = attributes.clone();
+            let mut span = SpanV2 {
+                attributes: Annotated::new(attributes),
+                ..Default::default()
+            };
+            assert_eq!(
+                normalize_performance_score(&mut span, Some(&config)).as_deref(),
+                Some("test-version")
+            );
+            let result = span.attributes.value().unwrap();
+            for (key, value) in &expected.attributes.value().unwrap().0 {
+                if key.starts_with("score.") {
+                    assert_eq!(result.0.get(key), Some(value), "{key}");
+                }
+            }
+            for (key, value) in &original.0 {
+                assert_eq!(result.0.get(key), Some(value));
+            }
+            assert!(!result.contains_key("browser.web_vital.lcp.value"));
+            assert_eq!(
+                result
+                    .get_value(&format!("score.weight.{lcp}"))
+                    .and_then(Value::as_f64),
+                Some(0.5)
+            );
+            assert_eq!(
+                result.get_value("score.weight.cls").and_then(Value::as_f64),
+                Some(0.0)
+            );
+            let normalized = span.clone();
+            normalize_performance_score(&mut span, Some(&config));
+            assert_eq!(span, normalized);
+        }
+    }
+
+    #[test]
+    fn performance_measurement_access_resolves_aliases() {
+        let mut attributes = Attributes::new();
+        attributes.insert("lcp", 100_i64);
+        for key in ["lcp", "browser.web_vital.lcp.value"] {
+            assert!(attributes.contains_measurement(key));
+            assert_eq!(
+                attributes.get_measurement_value(key).map(FiniteF64::to_f64),
+                Some(100.0)
+            );
+        }
     }
 
     /// A version of `test_computed_performance_score_transaction` for
