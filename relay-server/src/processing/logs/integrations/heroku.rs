@@ -29,6 +29,9 @@ const MAX_MESSAGES: u32 = 10_000;
 /// Maximum size/length of the drain token which is added to all logs.
 const MAX_DRAIN_TOKEN: usize = 256;
 
+/// DO NOT MERGE: marks every log from this test build, bumped on every push.
+const TEST_BUILD: &str = "junior/heroku-drain-feedback@v1";
+
 /// Filter id reported in outcomes for lines dropped by the drain's `filter` query parameter.
 const DRAIN_FILTER_ID: &str = "heroku-drain-filter";
 
@@ -132,7 +135,10 @@ pub fn expand(
             })
             .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
 
-        let log = relay_ourlogs::logplex_message_to_sentry_log(message, drain_token);
+        let mut log = relay_ourlogs::logplex_message_to_sentry_log(message, drain_token);
+        if let Some(attributes) = log.attributes.value_mut() {
+            attributes.insert("heroku_drain.test_build", TEST_BUILD.to_owned());
+        }
         let byte_size = relay_ourlogs::calculate_size(&log);
 
         records.modify_by(DataCategory::LogItem, 1);
