@@ -24,10 +24,11 @@ sentry = ["dep:sentry"]
 relay-common = { workspace = true }
 
 console = { workspace = true, optional = true }
+log = { workspace = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
-    "logs"
+    "logs",
 ], optional = true }
 sentry-core = { workspace = true }
 serde = { workspace = true, optional = true }
