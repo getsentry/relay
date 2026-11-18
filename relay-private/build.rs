@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    println!("cargo:warning=Setting up proprietary source");
+    println!("cargo:warning=Setting up private source");
     let temp_dir = tempdir().context("Failed to make temp_dir")?;
     let temp_dir_path = temp_dir.path();
     let temp_dir_str = temp_dir_path.to_string_lossy().to_string();

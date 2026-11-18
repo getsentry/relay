@@ -78,9 +78,9 @@ class Relay(SentryLike):
 
 
 @pytest.fixture(scope="session")
-def relay_build_features():
-    output = subprocess.check_output(RELAY_BIN + ["build-info"], text=True)
-    return frozenset(output.strip().split(","))
+def relay_has_private():
+    output = subprocess.check_output(RELAY_BIN + ["--version"], text=True)
+    return "[sentry]" in output
 
 
 @pytest.fixture
@@ -252,8 +252,7 @@ def latest_relay_version(get_relay_binary):
     version_str = subprocess.check_output(
         get_relay_binary() + ["--version"], text=True
     ).strip()
-    _the_word_relay, version = version_str.split(" ", 1)
-    return version
+    return version_str.split(" ")[1]
 
 
 def get_internal_address(options, server_address):

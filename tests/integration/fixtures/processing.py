@@ -109,24 +109,24 @@ def relay_with_processing(relay, mini_sentry, processing_config):
 
 
 @pytest.fixture
-def relay_processing_with_proprietary(relay_with_processing, relay_build_features):
+def relay_processing_with_private(relay_with_processing, relay_has_private):
     """
-    Skips the test if Relay is not compiled with the proprietary sources (`--cfg sentry`) else
+    Skips the test if Relay is not compiled with the private sources (`--cfg sentry`) else
     behaves like `relay_with_processing`
     """
-    if "sentry" not in relay_build_features:
-        pytest.skip("Test requires Relay compiled with the proprietary sources")
+    if not relay_has_private:
+        pytest.skip("Test requires Relay compiled with the private sources")
     return relay_with_processing
 
 
 @pytest.fixture
-def relay_with_proprietary(relay, relay_build_features):
+def relay_with_private(relay, relay_has_private):
     """
-    Skips the test if Relay is not compiled with the proprietary sources (`--cfg sentry`) else
+    Skips the test if Relay is not compiled with the private sources (`--cfg sentry`) else
     behaves like `relay`
     """
-    if "sentry" not in relay_build_features:
-        pytest.skip("Test requires Relay compiled with the proprietary sources")
+    if not relay_has_private:
+        pytest.skip("Test requires Relay compiled with the private sources")
     return relay
 
 

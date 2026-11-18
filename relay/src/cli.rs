@@ -46,8 +46,6 @@ pub fn execute() -> Result<()> {
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(matches);
-    } else if matches.subcommand_matches("build-info").is_some() {
-        return build_info();
     }
 
     // Commands that need a loaded config:
@@ -336,17 +334,6 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
         println!("All done!");
     } else {
         println!("Nothing to do.");
-    }
-
-    Ok(())
-}
-
-/// Outputs the capabilities this binary was compiled with.
-///
-/// Used by integration tests to skip test that require specific capabilities.
-pub fn build_info() -> Result<()> {
-    if cfg!(sentry) {
-        println!("sentry");
     }
 
     Ok(())
