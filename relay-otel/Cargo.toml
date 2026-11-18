@@ -14,6 +14,7 @@ build = "build.rs"
 workspace = true
 
 [dependencies]
+chrono = { workspace = true }
 relay-serialization = { workspace = true }
 opentelemetry-proto = { workspace = true, features = [
     "gen-tonic",
@@ -23,6 +24,7 @@ opentelemetry-proto = { workspace = true, features = [
     "logs",
 ] }
 opentelemetry-semantic-conventions = { workspace = true }
+relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-protocol = { workspace = true }
 serde_json = { workspace = true }
