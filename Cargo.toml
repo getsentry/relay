@@ -154,8 +154,7 @@ json-forensics = "0.1"
 leb128 = "0.2.7"
 libc = "0.2"
 liblzma = "0.4"
-# Disable trace and debug logs from dependencies using `log`:
-log = { version = "0.4", features = ["release_max_level_info"] }
+log = { version = "0.4" }
 lz4_flex = "0.13.1"
 maxminddb = "0.27"
 md5 = "0.8"
