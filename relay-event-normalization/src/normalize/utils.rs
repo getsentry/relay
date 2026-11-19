@@ -104,9 +104,19 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
     None
 }
 
-/// Compute the transaction event's "user" tag as close as possible to how users are determined in
-/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
-/// column in Discover for Transactions, barring:
+/// Computes the transaction event's "user" tag from the event's user.
+pub fn get_event_user_tag(user: &User) -> Option<String> {
+    format_user_tag(
+        user.id.as_str(),
+        user.username.as_str(),
+        user.email.as_str(),
+        user.ip_address.as_str(),
+    )
+}
+
+/// Formats the "user" tag from the first available user identifier, as close as possible to how
+/// users are determined in the transactions dataset in Snuba. This should produce the exact same
+/// user counts as the `user` column in Discover for Transactions, barring:
 ///
 /// * imprecision caused by HLL sketching in Snuba, which we don't have in events
 /// * hash collisions in `BucketValue::set_from_display`, which we don't have in events
@@ -133,20 +143,25 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
 /// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
 /// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
 /// If its order is changed, this function needs to be changed.
-pub fn get_event_user_tag(user: &User) -> Option<String> {
-    if let Some(id) = user.id.as_str() {
+pub(crate) fn format_user_tag(
+    id: Option<&str>,
+    username: Option<&str>,
+    email: Option<&str>,
+    ip_address: Option<&str>,
+) -> Option<String> {
+    if let Some(id) = id {
         return Some(format!("id:{id}"));
     }
 
-    if let Some(username) = user.username.as_str() {
+    if let Some(username) = username {
         return Some(format!("username:{username}"));
     }
 
-    if let Some(email) = user.email.as_str() {
+    if let Some(email) = email {
         return Some(format!("email:{email}"));
     }
 
-    if let Some(ip_address) = user.ip_address.as_str() {
+    if let Some(ip_address) = ip_address {
         return Some(format!("ip:{ip_address}"));
     }
 

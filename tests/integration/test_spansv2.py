@@ -1330,6 +1330,85 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
     }
 
 
+SCRUB_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:replace"]}}}
+SCRUB_IP = {
+    "datascrubbingSettings": {
+        "scrubData": False,
+        "scrubDefaults": False,
+        "scrubIpAddresses": True,
+    }
+}
+
+
+@pytest.mark.parametrize(
+    "user_attributes,config,expected",
+    [
+        (
+            {"user.id": "abc123", "user.name": "jane", "user.ip_address": "127.0.0.1"},
+            {},
+            "id:abc123",
+        ),
+        (
+            {"user.name": "jane", "user.email": "jane@example.com"},
+            {},
+            "username:jane",
+        ),
+        ({"user.email": "jane@example.com"}, SCRUB_EMAIL, "email:[email]"),
+        ({"user.ip_address": "127.0.0.1"}, {}, "ip:127.0.0.1"),
+        ({"user.ip_address": "127.0.0.1"}, SCRUB_IP, None),
+        ({"user.id": "abc123", "user.ip_address": "127.0.0.1"}, SCRUB_IP, "id:abc123"),
+        ({}, {}, None),
+    ],
+    ids=[
+        "id",
+        "username",
+        "scrubbed_email",
+        "ip_address",
+        "scrubbed_ip_address",
+        "id_with_scrubbed_ip_address",
+        "none",
+    ],
+)
+def test_spansv2_sentry_user(mini_sentry, relay, user_attributes, config, expected):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].update(config)
+
+    relay = relay(mini_sentry)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "Test span",
+            "status": "ok",
+            "is_segment": False,
+            "attributes": {
+                key: {"value": value, "type": "string"}
+                for key, value in user_attributes.items()
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    attributes = item_payload["items"][0]["attributes"]
+
+    if expected is None:
+        assert "sentry.user" not in attributes
+    else:
+        assert attributes["sentry.user"] == {"type": "string", "value": expected}
+
+
 def test_spansv2_attribute_normalization(
     mini_sentry,
     relay,

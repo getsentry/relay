@@ -64,6 +64,9 @@ pub mod attributes {
     mod not_yet_defined {
         pub const SENTRY__EVENT__SERIALIZED_REQUEST: &str = "sentry.event.serialized_request";
 
+        // TODO: Remove once `sentry.user` is defined in sentry-conventions.
+        pub const SENTRY__USER: &str = "sentry.user";
+
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";

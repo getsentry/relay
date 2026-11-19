@@ -8,6 +8,10 @@ expression: data
       "type": "string",
       "value": null
     },
+    "user.ip_address": {
+      "type": "string",
+      "value": null
+    },
     "user.name": {
       "type": "string",
       "value": "[ip]"
@@ -16,6 +20,18 @@ expression: data
   "_meta": {
     "attributes": {
       "client.address": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:remove",
+                "x"
+              ]
+            ]
+          }
+        }
+      },
+      "user.ip_address": {
         "value": {
           "": {
             "rem": [
