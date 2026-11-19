@@ -4,6 +4,7 @@ use regex::Regex;
 use smallvec::{SmallVec, smallvec};
 
 use crate::config::RuleType;
+use crate::regex::{ScrubbingRegex, ScrubbingRegexRef};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PatternType {
@@ -50,67 +51,83 @@ impl ReplaceBehavior {
 /// Return a list of regexes to apply for the given rule type.
 pub fn get_regex_for_rule_type(
     ty: &RuleType,
-) -> SmallVec<[(PatternType, &Regex, ReplaceBehavior); 2]> {
+) -> SmallVec<[(PatternType, ScrubbingRegexRef<'_>, ReplaceBehavior); 2]> {
     let v = PatternType::Value;
     let k = PatternType::Key;
     let kv = PatternType::KeyValue;
+    let replace_match = ReplaceBehavior::replace_match;
+    let replace_value = ReplaceBehavior::replace_value;
+    let replace_group = ReplaceBehavior::replace_group;
 
     match ty {
         RuleType::RedactPair(redact_pair) => {
             if let Ok(pattern) = redact_pair.key_pattern.compiled() {
-                smallvec![(kv, pattern, ReplaceBehavior::replace_value())]
+                smallvec![(kv, ScrubbingRegex::new(pattern), replace_value())]
             } else {
                 smallvec![]
             }
         }
-        RuleType::Bearer => {
-            smallvec![(v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())]
-        }
+        RuleType::Bearer => smallvec![(v, BEARER_TOKEN_REGEX.as_ref(), replace_match())],
         RuleType::Password => {
             smallvec![
                 // Bearer token was moved to its own regest and type out of the passwords, but we
                 // still keep it here for backwards compatibility.
-                (v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
-                (k, &*TOKEN_KEY_REGEX, ReplaceBehavior::replace_value()),
-                (kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value()),
+                (v, BEARER_TOKEN_REGEX.as_ref(), replace_match()),
+                (k, TOKEN_KEY_REGEX.as_ref(), replace_value()),
+                (kv, PASSWORD_KEY_REGEX.as_ref(), replace_value()),
             ]
         }
-        RuleType::Anything => smallvec![(v, &*ANYTHING_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Anything => smallvec![(v, ANYTHING_REGEX.as_ref(), replace_match())],
         RuleType::Pattern(r) => {
             let replace_behavior = match r.replace_groups {
                 Some(ref groups) => {
                     ReplaceBehavior::replace_groups(groups.iter().copied().collect())
                 }
-                None => ReplaceBehavior::replace_match(),
+                None => replace_match(),
             };
             if let Ok(pattern) = r.pattern.compiled() {
-                smallvec![(v, pattern, replace_behavior)]
+                smallvec![(v, ScrubbingRegex::new(pattern), replace_behavior)]
             } else {
                 smallvec![]
             }
         }
 
-        RuleType::Imei => smallvec![(v, &*IMEI_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Mac => smallvec![(v, &*MAC_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Uuid => smallvec![(v, &*UUID_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Email => smallvec![(v, &*EMAIL_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Iban => smallvec![(v, &*IBAN_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Imei => smallvec![(v, IMEI_REGEX.as_ref(), replace_match())],
+        RuleType::Mac => smallvec![(v, MAC_REGEX.as_ref(), replace_match())],
+        RuleType::Uuid => smallvec![(v, UUID_REGEX.as_ref(), replace_match())],
+        RuleType::Email => smallvec![(v, EMAIL_REGEX.as_ref(), replace_match())],
+        RuleType::Iban => smallvec![(v, IBAN_REGEX.as_ref(), replace_match())],
         RuleType::Ip => smallvec![
-            (v, &*IPV4_REGEX, ReplaceBehavior::replace_match()),
-            (v, &*IPV6_REGEX, ReplaceBehavior::replace_group(1)),
+            (v, IPV4_REGEX.as_ref(), replace_match()),
+            (v, IPV6_REGEX.as_ref(), replace_group(1)),
         ],
-        RuleType::Creditcard => {
-            smallvec![(v, &*CREDITCARD_REGEX, ReplaceBehavior::replace_match())]
-        }
-        RuleType::Pemkey => smallvec![(v, &*PEM_KEY_REGEX, ReplaceBehavior::replace_group(1))],
-        RuleType::UrlAuth => smallvec![(v, &*URL_AUTH_REGEX, ReplaceBehavior::replace_group(1))],
-        RuleType::UsSsn => smallvec![(v, &*US_SSN_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Userpath => smallvec![(v, &*PATH_REGEX, ReplaceBehavior::replace_group(1))],
-        RuleType::Cookies => smallvec![(kv, &*COOKIE_REGEX, ReplaceBehavior::replace_group(1))],
+        RuleType::Creditcard => smallvec![(v, CREDITCARD_REGEX.as_ref(), replace_match())],
+        RuleType::Pemkey => smallvec![(v, PEM_KEY_REGEX.as_ref(), replace_group(1))],
+        RuleType::UrlAuth => smallvec![(v, URL_AUTH_REGEX.as_ref(), replace_group(1))],
+        RuleType::UsSsn => smallvec![(v, US_SSN_REGEX.as_ref(), replace_match())],
+        RuleType::Userpath => smallvec![(v, PATH_REGEX.as_ref(), replace_group(1))],
+        RuleType::Cookies => smallvec![(kv, COOKIE_REGEX.as_ref(), replace_group(1))],
 
         // These ought to have been resolved in CompiledConfig
         RuleType::Alias(_) | RuleType::Multiple(_) | RuleType::Unknown(_) => smallvec![],
     }
+}
+
+/// Validates the Luhn checksum of all ASCII digits in `s`, ignoring separators.
+fn is_luhn_valid(s: &[u8]) -> bool {
+    let digits = s.iter().rev().filter(|b| b.is_ascii_digit());
+    let sum: u32 = digits
+        .enumerate()
+        .map(|(i, b)| {
+            let d = u32::from(b - b'0');
+            match i % 2 {
+                0 => d,
+                _ if d > 4 => d * 2 - 9,
+                _ => d * 2,
+            }
+        })
+        .sum();
+    sum.is_multiple_of(10)
 }
 
 #[rustfmt::skip]
@@ -121,29 +138,25 @@ macro_rules! ip {
 }
 
 macro_rules! regex {
-    ($name:ident, $rule:expr) => {
+    ($name:ident, $rule:expr $(, $validator:expr)?) => {
         #[allow(non_snake_case)]
         mod $name {
             use super::*;
-            pub static $name: LazyLock<Regex> = LazyLock::new(|| Regex::new($rule).unwrap());
+            pub static $name: LazyLock<ScrubbingRegex> = LazyLock::new(|| {
+                ScrubbingRegex::new(Regex::new($rule).unwrap())$(.with_validator($validator))?
+            });
 
             #[test]
             fn supports_byte_mode() {
-                assert!(
-                    regex::bytes::RegexBuilder::new($name.as_str())
-                        .unicode(false)
-                        .multi_line(false)
-                        .dot_matches_new_line(true)
-                        .build()
-                        .is_ok()
-                );
+                assert!($name.as_ref().to_bytes().is_ok());
             }
         }
         use $name::$name;
     };
 }
 
-pub static ANYTHING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(".*").unwrap());
+pub(crate) static ANYTHING_REGEX: LazyLock<ScrubbingRegex> =
+    LazyLock::new(|| ScrubbingRegex::new(Regex::new(".*").unwrap()));
 
 pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
     // Common session cookie names for popular web frameworks
@@ -177,10 +190,10 @@ pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
     "_iris_csrf",
 ];
 
-static COOKIE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+static COOKIE_REGEX: LazyLock<ScrubbingRegex> = LazyLock::new(|| {
     let variants = SENSITIVE_COOKIE_NAMES.join("|").replace('.', "\\.");
     let r = format!("(?i)\\b(?:(?:{variants})(?:__\\d+)?)=([^;]+)");
-    Regex::new(&r).unwrap()
+    ScrubbingRegex::new(Regex::new(&r).unwrap())
 });
 
 regex!(
@@ -315,7 +328,8 @@ regex!(
         # "wildcard" remainder (allowing dashes in every position because of variable length)
         ([-\s]?\d){12}
     )\b
-    "#
+    "#,
+    is_luhn_valid
 );
 
 regex!(
@@ -390,15 +404,17 @@ mod tests {
 
     #[test]
     fn test_userpath_utf8_bytes() {
-        // This mimicks `apply_regex_to_utf8_bytes`, which is used in minidump scrubbing.
-        // Ideally we would not compile a regex on the fly for every minidump
-        // (either add another lazy static or remove the distinction entirely).
-        let regex = regex::bytes::RegexBuilder::new(PATH_REGEX.as_str())
-            .unicode(false)
-            .multi_line(false)
-            .dot_matches_new_line(true)
-            .build()
-            .unwrap();
-        assert!(regex.is_match(br"C:\\Users\jane\somefile"));
+        let regex = PATH_REGEX.as_ref().to_bytes().unwrap();
+        let mut matches = regex.captures_iter(br"C:\\Users\jane\somefile");
+        assert!(matches.next().is_some());
+    }
+
+    #[test]
+    fn test_luhn() {
+        assert!(is_luhn_valid(b"4111111111111111"));
+        assert!(is_luhn_valid(b"4111-1111 1111-1111"));
+        assert!(is_luhn_valid(b"378282246310005"));
+        assert!(!is_luhn_valid(b"4111111111111112"));
+        assert!(!is_luhn_valid(b"4510944073809921"));
     }
 }
