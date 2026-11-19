@@ -4,19 +4,19 @@
 //! the same `sentry._internal.point_id`:
 //!
 //!  - Gauge and monotonic delta Sum data points are converted into a single `point` trace metric.
-//!  - Delta Histogram data points are converted into a single `point` trace metric, which carries
-//!    the non-empty buckets as arrays.
+//!  - Delta Histogram and ExponentialHistogram data points are converted into a single `point`
+//!    trace metric, which carries the non-empty buckets as arrays.
 //!  - Every exemplar of a histogram is converted into an additional `exemplar` trace metric.
 //!    Exemplars of gauges and sums are ignored.
 //!
-//! Cumulative temporality, non-monotonic sums, exponential histograms and summaries are not
-//! supported.
+//! Cumulative temporality, non-monotonic sums and summaries are not supported.
 
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::common::v1::{InstrumentationScope, KeyValue};
 use opentelemetry_proto::tonic::metrics::v1::{
-    AggregationTemporality, Exemplar, HistogramDataPoint, Metric as OtelMetric, NumberDataPoint,
-    exemplar, metric, number_data_point,
+    AggregationTemporality, Exemplar, ExponentialHistogramDataPoint, HistogramDataPoint,
+    Metric as OtelMetric, NumberDataPoint, exemplar, exponential_histogram_data_point, metric,
+    number_data_point,
 };
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
@@ -45,6 +45,12 @@ const HISTOGRAM_MAX: &str = "sentry._internal.histogram_max";
 /// Every non-empty bucket is stored on the trace metric, data points with more buckets are
 /// rejected.
 const MAX_HISTOGRAM_BUCKETS: usize = 160;
+
+/// The maximum amount of non-empty buckets on each side of an exponential histogram.
+///
+/// Exponential histograms are downscaled until they fit, which keeps them, including the zero
+/// bucket, within [`MAX_HISTOGRAM_BUCKETS`].
+const MAX_EXPONENTIAL_BUCKETS: usize = 64;
 
 /// Transforms an OpenTelemetry metric into Sentry trace metrics.
 ///
@@ -101,6 +107,15 @@ where
                 .data_points
                 .into_iter()
                 .map(|point| histogram_point(&metric, point, &mut produce))
+                .sum()
+        }
+        Some(metric::Data::ExponentialHistogram(histogram))
+            if is_delta(histogram.aggregation_temporality) =>
+        {
+            histogram
+                .data_points
+                .into_iter()
+                .map(|point| exponential_histogram_point(&metric, point, &mut produce))
                 .sum()
         }
         Some(metric::Data::Sum(sum)) => sum.data_points.len(),
@@ -300,6 +315,104 @@ where
         return 1;
     };
 
+    let histogram = Histogram {
+        attributes,
+        time_unix_nano,
+        count,
+        sum,
+        min,
+        max,
+        exemplars,
+    };
+    histogram_buckets_point(metric, histogram, buckets, produce)
+}
+
+/// Converts an exponential histogram data point and returns the amount of dropped data.
+fn exponential_histogram_point<F>(
+    metric: &Metric,
+    point: ExponentialHistogramDataPoint,
+    produce: &mut F,
+) -> usize
+where
+    F: FnMut(TraceMetric),
+{
+    let ExponentialHistogramDataPoint {
+        attributes,
+        start_time_unix_nano: _,
+        time_unix_nano,
+        count,
+        sum,
+        scale,
+        zero_count,
+        positive,
+        negative,
+        flags: _,
+        exemplars,
+        min,
+        max,
+        zero_threshold,
+    } = point;
+
+    // A histogram without observations has nothing to record.
+    if count == 0 {
+        return 0;
+    }
+
+    let Some(buckets) = exponential_buckets(
+        sum,
+        min,
+        max,
+        scale,
+        (zero_count, zero_threshold),
+        positive.unwrap_or_default(),
+        negative.unwrap_or_default(),
+    ) else {
+        return 1;
+    };
+
+    let histogram = Histogram {
+        attributes,
+        time_unix_nano,
+        count,
+        sum,
+        min,
+        max,
+        exemplars,
+    };
+    histogram_buckets_point(metric, histogram, buckets, produce)
+}
+
+/// The bucket independent information of a histogram data point.
+struct Histogram {
+    attributes: Vec<KeyValue>,
+    time_unix_nano: u64,
+    count: u64,
+    sum: Option<f64>,
+    min: Option<f64>,
+    max: Option<f64>,
+    exemplars: Vec<Exemplar>,
+}
+
+/// Converts a histogram with its non-empty buckets and returns the amount of dropped data.
+fn histogram_buckets_point<F>(
+    metric: &Metric,
+    histogram: Histogram,
+    buckets: Vec<Bucket>,
+    produce: &mut F,
+) -> usize
+where
+    F: FnMut(TraceMetric),
+{
+    let Histogram {
+        attributes,
+        time_unix_nano,
+        count,
+        sum,
+        min,
+        max,
+        exemplars,
+    } = histogram;
+
     let point = Point::new(metric, MetricType::Histogram, time_unix_nano, attributes);
 
     let mut attributes = point.attributes.clone();
@@ -444,6 +557,103 @@ fn histogram_buckets(
 
     (!buckets.is_empty() && buckets.iter().all(|bucket| bucket.mid().is_finite()))
         .then_some(buckets)
+}
+
+/// Returns all non-empty buckets of an exponential histogram, `None` if the histogram is invalid
+/// or has no non-empty buckets.
+///
+/// Negative buckets are mirrored onto the positive bucket boundaries and the zero bucket spans
+/// from the negative to the positive zero threshold. The lowest and highest non-empty bucket are
+/// bounded by the minimum and maximum of the histogram, if they are within the bucket.
+fn exponential_buckets(
+    sum: Option<f64>,
+    min: Option<f64>,
+    max: Option<f64>,
+    scale: i32,
+    (zero_count, zero_threshold): (u64, f64),
+    positive: exponential_histogram_data_point::Buckets,
+    negative: exponential_histogram_data_point::Buckets,
+) -> Option<Vec<Bucket>> {
+    // Like explicit histograms, the buckets are only bounded if both bounds are known.
+    let (min, max) = min.zip(max).unzip();
+
+    if [sum, min, max, Some(zero_threshold)]
+        .into_iter()
+        .flatten()
+        .any(|v| !v.is_finite())
+    {
+        return None;
+    }
+
+    let mut buckets: Vec<_> = exponential_side(scale, negative)
+        .into_iter()
+        .rev()
+        .map(|bucket| Bucket {
+            lower: -bucket.upper,
+            upper: -bucket.lower,
+            count: bucket.count,
+        })
+        .collect();
+    if zero_count > 0 {
+        buckets.push(Bucket {
+            lower: -zero_threshold.abs(),
+            upper: zero_threshold.abs(),
+            count: zero_count,
+        });
+    }
+    buckets.extend(exponential_side(scale, positive));
+
+    if let Some(first) = buckets.first_mut()
+        && let Some(min) = min.filter(|&min| first.lower <= min && min <= first.upper)
+    {
+        first.lower = min;
+    }
+    if let Some(last) = buckets.last_mut()
+        && let Some(max) = max.filter(|&max| last.lower <= max && max <= last.upper)
+    {
+        last.upper = max;
+    }
+
+    (!buckets.is_empty() && buckets.iter().all(|bucket| bucket.mid().is_finite()))
+        .then_some(buckets)
+}
+
+/// Returns the non-empty buckets of one side of an exponential histogram with positive bounds.
+///
+/// The buckets are downscaled until there are at most [`MAX_EXPONENTIAL_BUCKETS`], every step
+/// merges two neighbouring buckets.
+fn exponential_side(scale: i32, buckets: exponential_histogram_data_point::Buckets) -> Vec<Bucket> {
+    let exponential_histogram_data_point::Buckets {
+        offset,
+        bucket_counts,
+    } = buckets;
+
+    let buckets: Vec<_> = bucket_counts
+        .into_iter()
+        .enumerate()
+        .filter(|(_, count)| *count > 0)
+        .map(|(i, count)| (i64::from(offset) + i as i64, count))
+        .collect();
+
+    let downscaled = |shift: u32| buckets.chunk_by(move |a, b| a.0 >> shift == b.0 >> shift);
+    let shift = (0..63)
+        .find(|&shift| downscaled(shift).count() <= MAX_EXPONENTIAL_BUCKETS)
+        .unwrap_or(63);
+
+    // Bucket `index` covers `(base^index, base^(index + 1)]` with `base = 2^(2^-scale)`.
+    let factor = 2f64.powf(f64::from(shift) - f64::from(scale));
+    downscaled(shift)
+        .map(|chunk| {
+            let index = (chunk[0].0 >> shift) as f64;
+            Bucket {
+                lower: 2f64.powf(index * factor),
+                upper: 2f64.powf((index + 1.0) * factor),
+                count: chunk
+                    .iter()
+                    .fold(0, |sum, (_, count)| sum.saturating_add(*count)),
+            }
+        })
+        .collect()
 }
 
 fn otel_attributes_into(attributes: &mut Attributes, otel_attributes: Vec<KeyValue>) {
@@ -840,5 +1050,67 @@ mod tests {
 
         let buckets = histogram_buckets(1, None, Some(12.0), None, &[0, 1], &[10.0]).unwrap();
         assert_eq!((buckets[0].lower, buckets[0].upper), (10.0, 10.0));
+    }
+
+    #[test]
+    fn test_exponential_histogram() {
+        let (metrics, dropped) = convert(
+            r#"{
+              "name": "http.server.duration",
+              "exponentialHistogram": {
+                "aggregationTemporality": 1,
+                "dataPoints": [{
+                  "count": "7",
+                  "sum": 5.0,
+                  "scale": 0,
+                  "zeroCount": "1",
+                  "zeroThreshold": 0.5,
+                  "positive": {"offset": 0, "bucketCounts": ["1", "2"]},
+                  "negative": {"offset": 1, "bucketCounts": ["3"]},
+                  "min": -3.0,
+                  "max": 3.5
+                }]
+              }
+            }"#,
+        );
+
+        assert_eq!(dropped, 0);
+        let attributes = metrics[0].value().unwrap().attributes.value().unwrap();
+        let array = |values: &[f64]| {
+            Some(Value::Array(
+                values
+                    .iter()
+                    .map(|&v| Annotated::new(Value::F64(v)))
+                    .collect(),
+            ))
+        };
+        assert_eq!(
+            attributes.get_value(BUCKET_LOWERS),
+            array(&[-3.0, -0.5, 1.0, 2.0]).as_ref()
+        );
+        assert_eq!(
+            attributes.get_value(BUCKET_UPPERS),
+            array(&[-2.0, 0.5, 2.0, 3.5]).as_ref()
+        );
+        assert_eq!(metrics.len(), 1);
+    }
+
+    #[test]
+    fn test_exponential_histogram_downscale() {
+        let buckets = exponential_side(
+            0,
+            exponential_histogram_data_point::Buckets {
+                offset: -10,
+                bucket_counts: vec![1; 100],
+            },
+        );
+
+        // Downscaled once to scale -1, which merges every two buckets.
+        assert_eq!(buckets.len(), 50);
+        assert!(buckets.iter().all(|bucket| bucket.count == 2));
+        assert_eq!(
+            (buckets[0].lower, buckets[0].upper),
+            (2f64.powi(-10), 2f64.powi(-8))
+        );
     }
 }
