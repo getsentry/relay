@@ -802,7 +802,9 @@ impl VisitorMut for MaxDepthVisitor {
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
-            *expr = Expr::Value(Value::Placeholder("..".to_owned()).into());
+            let mut swapped = Expr::Value(Value::Placeholder("..".to_owned()).into());
+            std::mem::swap(expr, &mut swapped);
+            let _ = (&mut swapped).visit(&mut DropVisitor);
             return ControlFlow::Continue(());
         }
         self.current_expr_depth += 1;
@@ -811,6 +813,17 @@ impl VisitorMut for MaxDepthVisitor {
 
     fn post_visit_expr(&mut self, _expr: &mut Expr) -> ControlFlow<Self::Break> {
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
+        ControlFlow::Continue(())
+    }
+}
+
+struct DropVisitor;
+
+impl VisitorMut for DropVisitor {
+    type Break = ();
+
+    fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+        take_expr(expr);
         ControlFlow::Continue(())
     }
 }
@@ -894,6 +907,18 @@ mod tests {
         let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
         assert_eq!(
             normalize_parsed_queries(None, query).unwrap().0,
+            "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
+        );
+    }
+
+    #[test]
+    fn parse_overflowing_expression() {
+        let mut query = "SELECT 1".to_owned();
+        for _ in 0..60_000 {
+            query += "+1";
+        }
+        assert_eq!(
+            normalize_parsed_queries(None, &query).unwrap().0,
             "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
         );
     }
