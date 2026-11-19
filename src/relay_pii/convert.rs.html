@@ -857,7 +857,7 @@
 <a href=#857 id=857 data-nosnippet>857</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
 <a href=#858 id=858 data-nosnippet>858</a>            <span class="macro">serde_json::json!</span>({
 <a href=#859 id=859 data-nosnippet>859</a>                <span class="string">"extra"</span>: {
-<a href=#860 id=860 data-nosnippet>860</a>                    <span class="string">"foo"</span>: <span class="string">"4571234567890111"
+<a href=#860 id=860 data-nosnippet>860</a>                    <span class="string">"foo"</span>: <span class="string">"4571234567890112"
 <a href=#861 id=861 data-nosnippet>861</a>                </span>}
 <a href=#862 id=862 data-nosnippet>862</a>            })
 <a href=#863 id=863 data-nosnippet>863</a>            .into(),
@@ -958,12 +958,12 @@
 <a href=#958 id=958 data-nosnippet>958</a>
 <a href=#959 id=959 data-nosnippet>959</a>    <span class="attr">#[test]
 <a href=#960 id=960 data-nosnippet>960</a>    </span><span class="kw">fn </span>test_sanitize_credit_card_within_value_1() {
-<a href=#961 id=961 data-nosnippet>961</a>        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"'4571234567890111'"</span>);
+<a href=#961 id=961 data-nosnippet>961</a>        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"'4571234567890112'"</span>);
 <a href=#962 id=962 data-nosnippet>962</a>    }
 <a href=#963 id=963 data-nosnippet>963</a>
 <a href=#964 id=964 data-nosnippet>964</a>    <span class="attr">#[test]
 <a href=#965 id=965 data-nosnippet>965</a>    </span><span class="kw">fn </span>test_sanitize_credit_card_within_value_2() {
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"foo 4571234567890111"</span>);
+<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"foo 4571234567890112"</span>);
 <a href=#967 id=967 data-nosnippet>967</a>    }
 <a href=#968 id=968 data-nosnippet>968</a>
 <a href=#969 id=969 data-nosnippet>969</a>    <span class="attr">#[test]
@@ -1407,7 +1407,7 @@
 <a href=#1407 id=1407 data-nosnippet>1407</a>    </span><span class="kw">fn </span>test_csp_blocked_uri() {
 <a href=#1408 id=1408 data-nosnippet>1408</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
 <a href=#1409 id=1409 data-nosnippet>1409</a>            <span class="macro">serde_json::json!</span>({
-<a href=#1410 id=1410 data-nosnippet>1410</a>                <span class="string">"csp"</span>: {<span class="string">"blocked_uri"</span>: <span class="string">"https://example.com/?foo=4571234567890111&amp;bar=baz"</span>}
+<a href=#1410 id=1410 data-nosnippet>1410</a>                <span class="string">"csp"</span>: {<span class="string">"blocked_uri"</span>: <span class="string">"https://example.com/?foo=4571234567890112&amp;bar=baz"</span>}
 <a href=#1411 id=1411 data-nosnippet>1411</a>            })
 <a href=#1412 id=1412 data-nosnippet>1412</a>            .into(),
 <a href=#1413 id=1413 data-nosnippet>1413</a>        );
