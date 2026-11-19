@@ -710,6 +710,7 @@ def test_ai_spans_example_transaction(
                     "value": "https://api.openai.com/v1/responses",
                 },
                 "url.path": {"type": "string", "value": "/v1/responses"},
+                "url.query": {"type": "string", "value": ""},
                 "url.scheme": {"type": "string", "value": "https"},
                 "user_agent.original": {
                     "type": "string",
@@ -1273,6 +1274,7 @@ def test_ai_spans_example_transaction(
                     "value": "https://api.openai.com/v1/responses",
                 },
                 "url.path": {"type": "string", "value": "/v1/responses"},
+                "url.query": {"type": "string", "value": ""},
                 "url.scheme": {"type": "string", "value": "https"},
                 "user_agent.original": {
                     "type": "string",
