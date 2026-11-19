@@ -6,8 +6,8 @@
 
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
-- Derive the `sentry.user` attribute for streamed spans from the user attributes, like for transaction spans. ([#TBD](https://github.com/getsentry/relay/pull/TBD))
-- Remove the `user.ip_address` attribute from spans, logs and trace metrics when IP address scrubbing is enabled, like for events. ([#TBD](https://github.com/getsentry/relay/pull/TBD))
+- Derive the `sentry.user` attribute for streamed spans from the user attributes, like for transaction spans. ([#6719](https://github.com/getsentry/relay/pull/6719))
+- Remove the `user.ip_address` attribute from spans, logs and trace metrics when IP address scrubbing is enabled, like for events. ([#6719](https://github.com/getsentry/relay/pull/6719))
 
 **Internal**:
 
