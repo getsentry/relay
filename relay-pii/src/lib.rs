@@ -36,4 +36,5 @@ pub use self::legacy::*;
 pub use self::minidumps::*;
 pub use self::processor::*;
 pub use self::redactions::*;
+pub use self::regex::PiiRegex;
 pub use self::selector::*;

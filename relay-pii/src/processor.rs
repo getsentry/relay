@@ -1,9 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
-use std::sync::OnceLock;
 
-use regex::Regex;
 use relay_event_schema::processor::{
     self, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingAction, ProcessingResult,
     ProcessingState, Processor, ValueType, enum_set, process_value,
@@ -536,19 +534,13 @@ fn apply_regex_to_chunks<'a>(
         // ALERT: This logic assumes that `regex` doesn't match a capture
         // group starting on a null byte. If you get an error in debug mode
         // about `replacement_chunks` not being empty, check the regex.
-        static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
-        let regex = NULL_SPLIT_RE.get_or_init(|| {
-            #[allow(clippy::trivial_regex)]
-            Regex::new("\x00").unwrap()
-        });
-
         let mut pos = 0;
-        for piece in regex.find_iter(text) {
+        for (start, null) in text.match_indices('\x00') {
             rv.push(Chunk::Text {
-                text: Cow::Owned(text[pos..piece.start()].to_string()),
+                text: Cow::Owned(text[pos..start].to_string()),
             });
             rv.push(replacement_chunks.pop().unwrap());
-            pos = piece.end();
+            pos = start + null.len();
         }
 
         rv.push(Chunk::Text {
@@ -571,7 +563,7 @@ fn apply_regex_to_chunks<'a>(
                             &mut rv,
                             &mut replacement_chunks,
                         );
-                        insert_replacement_chunks(rule, g.as_str(), &mut rv);
+                        insert_replacement_chunks(rule, &search_string[g.range()], &mut rv);
                         pos = g.end();
                     }
                 }

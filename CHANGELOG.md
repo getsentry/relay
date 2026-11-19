@@ -10,6 +10,7 @@
 
 **Internal**:
 
+- Use byte-based regexes for all PII scrubbing and compile the variant for attachments once per pattern, with the same case sensitivity and size limit as for events. ([#PR](https://github.com/getsentry/relay/pull/PR))
 - Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))

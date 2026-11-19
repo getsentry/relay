@@ -1,8 +1,8 @@
-use regex::Match;
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::iter::FusedIterator;
+use std::ops::Range;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
@@ -25,22 +25,8 @@ fn apply_regex_to_utf8_bytes(
 ) -> SmallVec<[(usize, usize); 1]> {
     let mut matches = SmallVec::<[(usize, usize); 1]>::new();
 
-    let regex = match regex.to_bytes() {
-        Ok(x) => x,
-        Err(e) => {
-            // XXX: This is not going to fly long-term
-            // Idea: Disable unicode support for regexes entirely, that drastically increases the
-            // likelihood this conversion will never fail.
-
-            // If we see this error in production, it means we need to add more regex validation
-            // to `validate_pii_config` (which is called sentry-side).
-            relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                pattern = regex.as_str(),
-                "Regex failed to compile in non-unicode mode",
-            );
-            return matches;
-        }
+    let Some(regex) = regex.ascii() else {
+        return matches;
     };
 
     for captures in regex.captures_iter(data) {
@@ -86,7 +72,8 @@ fn apply_regex_to_utf16le_bytes(
                     .filter_map(|captures| captures.get(0));
                 for re_match in matches {
                     changed = true;
-                    let match_wstr = get_wstr_match(&segment.decoded, re_match, segment.encoded);
+                    let match_wstr =
+                        get_wstr_match(&segment.decoded, re_match.range(), segment.encoded);
                     match_wstr.apply_redaction(&rule.redaction);
                 }
             }
@@ -96,7 +83,7 @@ fn apply_regex_to_utf16le_bytes(
                         if let Some(re_match) = captures.get(*group_idx as usize) {
                             changed = true;
                             let match_wstr =
-                                get_wstr_match(&segment.decoded, re_match, segment.encoded);
+                                get_wstr_match(&segment.decoded, re_match.range(), segment.encoded);
                             match_wstr.apply_redaction(&rule.redaction);
                         }
                     }
@@ -110,7 +97,7 @@ fn apply_regex_to_utf16le_bytes(
 /// Extract the matching encoded slice from the encoded string.
 fn get_wstr_match<'a>(
     all_text: &str,
-    re_match: Match,
+    re_match: Range<usize>,
     all_encoded: &'a mut WStr<LittleEndian>,
 ) -> &'a mut WStr<LittleEndian> {
     let mut encoded_start = 0;
@@ -118,10 +105,10 @@ fn get_wstr_match<'a>(
 
     let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
     for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
-        if text_offset == re_match.start() {
+        if text_offset == re_match.start {
             encoded_start = encoded_offset;
         }
-        if text_offset == re_match.end() {
+        if text_offset == re_match.end {
             encoded_end = encoded_offset;
             break;
         }
@@ -529,7 +516,6 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use regex::Regex;
 
     use super::*;
     use crate::PiiConfig;
@@ -999,22 +985,17 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::trivial_regex)]
     fn test_get_wstr_match() {
         let s = "hello there";
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"[..]);
         let w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
 
         // Partial match
-        let re = Regex::new("hello").unwrap();
-        let re_match = re.find(s).unwrap();
-        let m = get_wstr_match(s, re_match, w);
+        let m = get_wstr_match(s, 0..5, w);
         assert_eq!(m.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
 
         // Full match
-        let re = Regex::new(".*").unwrap();
-        let re_match = re.find(s).unwrap();
-        let m = get_wstr_match(s, re_match, w);
+        let m = get_wstr_match(s, 0..s.len(), w);
         assert_eq!(
             m.as_bytes(),
             b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"

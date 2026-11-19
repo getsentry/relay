@@ -2,10 +2,9 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
-use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{CompiledPiiConfig, Redaction, SelectorSpec};
+use crate::{CompiledPiiConfig, PiiRegex, Redaction, SelectorSpec};
 
 const COMPILED_PATTERN_MAX_SIZE: usize = 262_144;
 
@@ -31,7 +30,7 @@ pub enum PiiConfigError {
 pub struct LazyPattern {
     raw: Cow<'static, str>,
     case_insensitive: bool,
-    pattern: OnceLock<Result<Regex, PiiConfigError>>,
+    pattern: OnceLock<Result<PiiRegex, PiiConfigError>>,
 }
 
 impl PartialEq for LazyPattern {
@@ -64,14 +63,15 @@ impl LazyPattern {
     }
 
     /// Compiles the regex from the internal raw string.
-    pub fn compiled(&self) -> Result<&Regex, &PiiConfigError> {
+    pub fn compiled(&self) -> Result<&PiiRegex, &PiiConfigError> {
         self.pattern
             .get_or_init(|| {
-                let regex_result = RegexBuilder::new(&self.raw)
-                    .size_limit(COMPILED_PATTERN_MAX_SIZE)
-                    .case_insensitive(self.case_insensitive)
-                    .build()
-                    .map_err(PiiConfigError::RegexError);
+                let regex_result = PiiRegex::build(
+                    &self.raw,
+                    self.case_insensitive,
+                    Some(COMPILED_PATTERN_MAX_SIZE),
+                )
+                .map_err(PiiConfigError::RegexError);
 
                 if let Err(ref error) = regex_result {
                     relay_log::error!(
