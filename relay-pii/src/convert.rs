@@ -857,7 +857,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
-                    "foo": "4571234567890111"
+                    "foo": "4571234567890112"
                 }
             })
             .into(),
@@ -958,12 +958,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_sanitize_credit_card_within_value_1() {
-        sanitize_credit_card_within_value_test!("'4571234567890111'");
+        sanitize_credit_card_within_value_test!("'4571234567890112'");
     }
 
     #[test]
     fn test_sanitize_credit_card_within_value_2() {
-        sanitize_credit_card_within_value_test!("foo 4571234567890111");
+        sanitize_credit_card_within_value_test!("foo 4571234567890112");
     }
 
     #[test]
@@ -1407,7 +1407,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_csp_blocked_uri() {
         let mut data = Event::from_value(
             serde_json::json!({
-                "csp": {"blocked_uri": "https://example.com/?foo=4571234567890111&bar=baz"}
+                "csp": {"blocked_uri": "https://example.com/?foo=4571234567890112&bar=baz"}
             })
             .into(),
         );
