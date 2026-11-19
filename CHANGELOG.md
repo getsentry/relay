@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart.
+- Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart. ([#6717](https://github.com/getsentry/relay/pull/6717))
 
 **Bug Fixes**:
 
