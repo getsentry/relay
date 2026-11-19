@@ -9,6 +9,7 @@
 
 **Internal**:
 
+- Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 - Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))

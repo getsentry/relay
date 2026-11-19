@@ -5,8 +5,17 @@ use relay_event_normalization::eap;
 use relay_event_normalization::eap::time::TimeEnforcement;
 
 use crate::envelope::EnvelopeHeaders;
+use crate::extractors::RequestMeta;
 use crate::processing::Context;
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;
+
+/// Creates a lazy enrichment cache for one container from the transport headers.
+pub fn user_agent(meta: &RequestMeta, infer: bool) -> eap::UserAgentNormalizer {
+    eap::UserAgentNormalizer::new(
+        infer.then(|| meta.user_agent()).flatten(),
+        infer.then(|| meta.client_hints().sec_ch_ua).flatten(),
+    )
+}
 
 /// Utility to create an [`eap::time::Config`].
 pub fn time_config<F>(headers: &EnvelopeHeaders, f: F, ctx: Context<'_>) -> eap::time::Config
