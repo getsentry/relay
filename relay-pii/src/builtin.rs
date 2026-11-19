@@ -934,6 +934,14 @@ mod tests {
             ];
         );
         assert_text_rule!(
+            rule = "@iban";
+            input = "some iban: DE89 3704 0044 0532 0130 00!";
+            output = "some iban: [iban]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@iban", (11, 17)),
+            ];
+        );
+        assert_text_rule!(
             rule = "@iban:mask";
             input = "some iban: DE89370400440532013000!";
             output = "some iban: **********************!";
@@ -1022,6 +1030,18 @@ mod tests {
         assert_rule_not_applied!(
             rule = "@iban";
             input = &format!("some iban: {invalid_norwegian_iban}!");
+        );
+
+        // Same for the print format.
+        assert_text_rule!(
+            rule = "@iban";
+            input = "some iban: NO93 8601 1117 945!";
+            output = "some iban: [iban]!";
+            remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
+        );
+        assert_rule_not_applied!(
+            rule = "@iban";
+            input = "some iban: NO93 8601 1117 94!";
         );
 
         let mut valid_russian_iban = "RU0204452560040702810412345678901".to_owned();
