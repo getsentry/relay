@@ -14,6 +14,7 @@
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 - Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
 - Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
+- Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
 
 ## 26.11.0
 
