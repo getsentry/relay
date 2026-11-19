@@ -7,6 +7,7 @@
 //! consumer.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::sync::LazyLock;
 
 use ua_parser::{Extractor, Regexes};
@@ -108,6 +109,33 @@ pub fn init_parser() {
 ///
 /// Defaults to an empty user agent.
 pub fn parse_user_agent(user_agent: &str) -> UserAgent<'_> {
+    // The same user agent is often parsed many times in a row: once for every log, span or trace
+    // metric in a container, and once more by inbound filters after normalization. Each thread
+    // remembers its last result.
+    thread_local! {
+        static LAST: RefCell<Option<(String, UserAgent<'static>)>> = const { RefCell::new(None) };
+    }
+
+    LAST.with_borrow_mut(|last| {
+        if let Some((raw, parsed)) = last
+            && raw == user_agent
+        {
+            return parsed.clone();
+        }
+
+        let parsed = extract_user_agent(user_agent);
+        let owned = UserAgent {
+            family: Cow::Owned(parsed.family.into_owned()),
+            major: parsed.major.map(|v| Cow::Owned(v.into_owned())),
+            minor: parsed.minor.map(|v| Cow::Owned(v.into_owned())),
+            patch: parsed.patch.map(|v| Cow::Owned(v.into_owned())),
+        };
+        *last = Some((user_agent.to_owned(), owned.clone()));
+        owned
+    })
+}
+
+fn extract_user_agent(user_agent: &str) -> UserAgent<'_> {
     let Some(value) = UA_PARSER.ua.extract(user_agent) else {
         return UserAgent::default();
     };
@@ -287,5 +315,24 @@ mod tests {
             model: None,
         }
         "#);
+    }
+
+    #[test]
+    fn test_parse_user_agent_repeated() {
+        for ua in [
+            IPHONE,
+            IPHONE,
+            FIREFOX_ON_MAC,
+            IPHONE,
+            "",
+            "",
+            FIREFOX_ON_MAC,
+        ] {
+            assert_eq!(
+                parse_user_agent(ua),
+                extract_user_agent(ua),
+                "input: {ua:?}"
+            );
+        }
     }
 }
