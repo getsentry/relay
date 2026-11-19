@@ -333,7 +333,6 @@ fn add_rate_limited_attachments(event: &mut Annotated<Event>, error: &errors::Er
                 reason_code: Annotated::from(
                     data.rate_limit_reason().map(|c| c.as_str().to_owned()),
                 ),
-                other: Default::default(),
             }));
     }
 }

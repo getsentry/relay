@@ -6,11 +6,10 @@ use crate::processor::ProcessValue;
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AttachmentsContext {
     /// Attachments that Relay rate limited.
-    #[metastructure(pii = "false")]
     pub rate_limited: Annotated<Array<RateLimitedAttachment>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "false")]
+    #[metastructure(additional_properties, retain = true)]
     pub other: Object<Value>,
 }
 
@@ -18,16 +17,11 @@ pub struct AttachmentsContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct RateLimitedAttachment {
     /// The attachment type, for example `event.minidump`.
-    #[metastructure(field = "type", pii = "false")]
+    #[metastructure(field = "type")]
     pub ty: Annotated<String>,
 
     /// The reason code of the quota that rate limited the attachment.
-    #[metastructure(pii = "false")]
     pub reason_code: Annotated<String>,
-
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "false")]
-    pub other: Object<Value>,
 }
 
 impl super::DefaultContext for AttachmentsContext {
@@ -81,7 +75,6 @@ mod tests {
             rate_limited: Annotated::new(vec![Annotated::new(RateLimitedAttachment {
                 ty: Annotated::new("event.minidump".to_owned()),
                 reason_code: Annotated::new("attachment_usage_exceeded".to_owned()),
-                other: Object::new(),
             })]),
             other: Object::new(),
         })));
