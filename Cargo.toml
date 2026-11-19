@@ -1,5 +1,8 @@
 [workspace]
 members = ["relay", "relay-*", "relay-*/fuzz/", "tools/*"]
+# Leftover directory of the package that was renamed to `relay-private`, for local development it
+# might still contain untracked sources `relay-private/build.rs` removes it on the first build.
+exclude = ["relay-prosperoconv"]
 default-members = ["relay"]
 resolver = "2"
 
@@ -62,8 +65,8 @@ relay-otel = { path = "relay-otel" }
 relay-ourlogs = { path = "relay-ourlogs" }
 relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
+relay-private = { path = "relay-private" }
 relay-profiling = { path = "relay-profiling" }
-relay-prosperoconv = { path = "relay-prosperoconv" }
 relay-protocol = { path = "relay-protocol" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
 relay-quotas = { path = "relay-quotas" }

@@ -88,8 +88,8 @@ relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
 relay-ourlogs = { workspace = true }
 relay-pii = { workspace = true }
+relay-private = { workspace = true }
 relay-profiling = { workspace = true }
-relay-prosperoconv = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-redis = { workspace = true }

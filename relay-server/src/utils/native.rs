@@ -326,6 +326,7 @@ pub fn process_gpu_crash(event: &mut Event) {
 ///
 /// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
 /// subtitle.
+#[cfg(sentry)]
 pub fn reshape_switch_crash(event: &mut Event) {
     // Sentry derives the issue title from the last exception in the list (see `_get_exception`
     // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.

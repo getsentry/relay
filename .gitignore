@@ -33,4 +33,5 @@ gocd/generated-pipelines/
 credentials.json
 
 # Internal code
+relay-private/src/**
 relay-prosperoconv/src/**

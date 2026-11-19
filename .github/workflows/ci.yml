@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     steps:
       - name: Install libcurl-dev
@@ -151,7 +151,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -188,7 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY:  ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -451,7 +451,7 @@ jobs:
 
       - uses: webfactory/ssh-agent@v0.10.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
       - name: Compile
         run: |
@@ -745,7 +745,7 @@ jobs:
     timeout-minutes: 30
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY:  ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
       PYTEST_SENTRY_DSN: ${{ secrets.SENTRY_TESTS_DSN }}
       PYTEST_SENTRY_ALWAYS_REPORT: 1
       PYTEST_SENTRY_TRACES_SAMPLE_RATE: 1
