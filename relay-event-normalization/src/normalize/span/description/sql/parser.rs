@@ -5,7 +5,9 @@ use std::ops::ControlFlow;
 use itertools::Itertools;
 use sqlparser::ast::*;
 use sqlparser::dialect::{Dialect, GenericDialect};
-use sqlparser::tokenizer::Span;
+use sqlparser::keywords::Keyword;
+use sqlparser::parser::ParserError;
+use sqlparser::tokenizer::{Span, Token, TokenWithSpan, Tokenizer};
 
 use crate::span::TABLE_NAME_REGEX;
 
@@ -15,6 +17,11 @@ use crate::span::TABLE_NAME_REGEX;
 /// Note that the expression depth does not fully cover the depth of complex SQL statements,
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
+
+/// Conservative per-statement budgets for recursive AST structures that sqlparser's
+/// parser recursion limit and expression visitor do not cover.
+const MAX_SET_OPERATIONS: usize = 64;
+const MAX_TYPE_COMPLEXITY: usize = 64;
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -47,7 +54,62 @@ fn parse_query_inner(
         .unwrap_or_else(|| Box::new(GenericDialect {}));
     let dialect = DialectWithParameters(dialect);
 
-    sqlparser::parser::Parser::parse_sql(&dialect, query)
+    let tokens = Tokenizer::new(&dialect, query).tokenize_with_location()?;
+    check_ast_complexity(&tokens)?;
+    sqlparser::parser::Parser::new(&dialect)
+        .with_tokens_with_locations(tokens)
+        .parse_statements()
+}
+
+/// Reject potentially deep set-operation and data-type trees before allocating the AST.
+///
+/// sqlparser builds set-operation chains and postfix array types in loops, so its parser
+/// recursion limit does not bound their AST depth. Nested type parsing also lacks a recursion
+/// guard in 0.62. Checking after parsing would be too late for parser-error cleanup, and neither
+/// `SetExpr` nor `DataType` exposes visitor hooks for safe disposal of arbitrary trees.
+///
+/// Count tokens conservatively instead of duplicating the SQL grammar. This also counts shallow
+/// uses (e.g. array literals or subscripts); unusually complex statements use the regex fallback.
+/// Strings, quoted identifiers, and comments do not contribute. Tokenization is reused by the parser.
+fn check_ast_complexity(tokens: &[TokenWithSpan]) -> Result<(), ParserError> {
+    let mut set_operations = 0;
+    let mut type_complexity = 0;
+    for token in tokens {
+        match &token.token {
+            Token::SemiColon => {
+                set_operations = 0;
+                type_complexity = 0;
+            }
+            Token::LBracket => type_complexity += 1,
+            Token::Word(word) if word.quote_style.is_none() => {
+                if matches!(
+                    word.keyword,
+                    Keyword::UNION | Keyword::EXCEPT | Keyword::INTERSECT | Keyword::MINUS
+                ) {
+                    set_operations += 1;
+                }
+                if matches!(
+                    word.keyword,
+                    Keyword::ARRAY
+                        | Keyword::MAP
+                        | Keyword::STRUCT
+                        | Keyword::UNION
+                        | Keyword::NULLABLE
+                        | Keyword::LOWCARDINALITY
+                        | Keyword::NESTED
+                        | Keyword::TUPLE
+                        | Keyword::TABLE
+                ) {
+                    type_complexity += 1;
+                }
+            }
+            _ => {}
+        }
+        if set_operations > MAX_SET_OPERATIONS || type_complexity > MAX_TYPE_COMPLEXITY {
+            return Err(ParserError::RecursionLimitExceeded);
+        }
+    }
+    Ok(())
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.
@@ -130,7 +192,7 @@ impl NormalizeVisitor {
             let item = match item {
                 SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
                 SelectItem::QualifiedWildcard(qualifier, options) => {
-                    drop_ast(qualifier);
+                    safe_drop(qualifier);
                     SelectItem::Wildcard(options)
                 }
                 _ => item,
@@ -165,7 +227,7 @@ impl NormalizeVisitor {
     fn simplify_object_name(parts: &mut Vec<ObjectNamePart>) {
         if let Some(mut last) = parts.pop() {
             Self::scrub_object_name_part(&mut last);
-            replace_ast(parts, vec![last]);
+            safe_replace(parts, vec![last]);
         }
     }
 
@@ -272,7 +334,7 @@ impl VisitorMut for NormalizeVisitor {
                         }
                         JsonTableColumn::ForOrdinality(ident) => Self::scrub_name(ident),
                         JsonTableColumn::Nested(JsonTableNestedColumn { path: _, columns }) => {
-                            drop_ast(std::mem::take(columns)); // bit aggressive, might revisit later.
+                            safe_drop(std::mem::take(columns)); // bit aggressive, might revisit later.
                         }
                     }
                 }
@@ -307,7 +369,7 @@ impl VisitorMut for NormalizeVisitor {
             Expr::Value(x) => *x = Self::placeholder(),
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => {
-                replace_ast(list, vec![Expr::Value(Self::placeholder())]);
+                safe_replace(list, vec![Expr::Value(Self::placeholder())]);
             }
             // `"table"."col"` is replaced by `col`.
             Expr::CompoundIdentifier(parts) => {
@@ -336,15 +398,15 @@ impl VisitorMut for NormalizeVisitor {
                 case_token: _,
                 end_token: _,
             } => {
-                drop_ast(operand.take());
-                replace_ast(
+                safe_drop(operand.take());
+                safe_replace(
                     conditions,
                     vec![CaseWhen {
                         condition: Expr::Identifier(Self::ellipsis()),
                         result: Expr::Identifier(Self::ellipsis()),
                     }],
                 );
-                drop_ast(else_result.take());
+                safe_drop(else_result.take());
             }
             _ => {}
         }
@@ -357,7 +419,7 @@ impl VisitorMut for NormalizeVisitor {
         match expr {
             Expr::Cast { expr: inner, .. } => {
                 let replacement = take_expr(inner);
-                replace_ast(expr, replacement);
+                safe_replace(expr, replacement);
             }
             Expr::BinaryOp {
                 left,
@@ -373,7 +435,7 @@ impl VisitorMut for NormalizeVisitor {
                     //  /  \
                     // A    A
                     let replacement = take_expr(left);
-                    replace_ast(expr, replacement);
+                    safe_replace(expr, replacement);
                 } else {
                     //     /\
                     //    /  \
@@ -389,7 +451,7 @@ impl VisitorMut for NormalizeVisitor {
                         && left_right == right
                     {
                         let replacement = take_expr(left_left);
-                        replace_ast(left.as_mut(), replacement);
+                        safe_replace(left.as_mut(), replacement);
                     }
                 }
             }
@@ -412,11 +474,11 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Insert(Insert {
                 columns, source, ..
             }) => {
-                replace_ast(columns, vec![Self::ellipsis().into()]);
+                safe_replace(columns, vec![Self::ellipsis().into()]);
                 if let Some(source) = source.as_mut()
                     && let SetExpr::Values(v) = &mut *source.body
                 {
-                    replace_ast(
+                    safe_replace(
                         &mut v.rows,
                         vec![Parens::with_empty_span(vec![Expr::Value(
                             Self::placeholder(),
@@ -430,7 +492,7 @@ impl VisitorMut for NormalizeVisitor {
                         .iter()
                         .all(|a| matches!(a.value, Expr::Value(_)))
                 {
-                    replace_ast(
+                    safe_replace(
                         assignments,
                         vec![Assignment {
                             target: AssignmentTarget::ColumnName(ObjectName(vec![
@@ -465,7 +527,7 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Fetch { name, into, .. } => {
                 Self::erase_name(name);
                 if let Some(into) = into {
-                    replace_ast(
+                    safe_replace(
                         &mut into.0,
                         vec![ObjectNamePart::Identifier(Ident {
                             value: "%s".into(),
@@ -822,7 +884,7 @@ impl VisitorMut for MaxDepthVisitor {
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
-            replace_ast(
+            safe_replace(
                 expr,
                 Expr::Value(Value::Placeholder("..".to_owned()).into()),
             );
@@ -838,9 +900,9 @@ impl VisitorMut for MaxDepthVisitor {
     }
 }
 
-/// Replaces an AST node, dropping the previous value with [`drop_ast`].
-fn replace_ast<T: VisitMut>(ast: &mut T, replacement: T) {
-    drop_ast(std::mem::replace(ast, replacement));
+/// Replaces an AST node, dropping the previous value with [`safe_drop`].
+fn safe_replace<T: VisitMut>(ast: &mut T, replacement: T) {
+    safe_drop(std::mem::replace(ast, replacement));
 }
 
 /// Drops expressions in an AST bottom-up, including those inside collections and options.
@@ -848,7 +910,9 @@ fn replace_ast<T: VisitMut>(ast: &mut T, replacement: T) {
 /// This relies on sqlparser's `recursive-protection` feature to grow the visitor's stack.
 /// Each expression is dropped after its children have been replaced by NULL. Recursive
 /// non-expression structures, such as `SetExpr` and `DataType`, still use their normal drop glue.
-fn drop_ast(mut ast: impl VisitMut) {
+/// Their complexity is bounded separately before parsing SQL; this helper alone cannot safely
+/// dispose of arbitrarily deep, programmatically constructed trees of those types.
+fn safe_drop(mut ast: impl VisitMut) {
     let _ = ast.visit(&mut DropVisitor);
 }
 
@@ -936,6 +1000,169 @@ mod tests {
     use sqlparser::ast::{Visit, Visitor};
 
     use super::*;
+
+    fn assert_complexity_rejected(query: &str) {
+        assert!(matches!(
+            parse_query_inner(None, query),
+            Err(sqlparser::parser::ParserError::RecursionLimitExceeded)
+        ));
+    }
+
+    #[test]
+    fn reject_overflowing_set_operations() {
+        for operator in ["UNION", "EXCEPT", "INTERSECT", "MINUS"] {
+            let chain = format!("SELECT 1{}", format!(" {operator} SELECT 1").repeat(60_000));
+            assert_complexity_rejected(&chain);
+            // Also protect parser error cleanup and subqueries discarded by normalization.
+            assert_complexity_rejected(&format!("{chain} {operator}"));
+            assert_complexity_rejected(&format!("SELECT 1 IN ({chain})"));
+        }
+    }
+
+    #[test]
+    fn set_operation_limit_and_fallback() {
+        let query = format!("SELECT 1{}", " UNION SELECT 2".repeat(MAX_SET_OPERATIONS));
+        let (normalized, _) = normalize_parsed_queries(None, &query).unwrap();
+        assert_eq!(normalized.matches("UNION").count(), MAX_SET_OPERATIONS);
+
+        let excessive = format!("{query} UNION SELECT 3");
+        assert_complexity_rejected(&excessive);
+        let (scrubbed, mode) = super::super::scrub_queries_inner(None, &excessive);
+        assert!(matches!(mode, super::super::Mode::Regex));
+        assert!(scrubbed.is_some());
+
+        let two_statements = format!("{query}; {query}");
+        assert_eq!(parse_query_inner(None, &two_statements).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn reject_overflowing_data_types() {
+        let types = [
+            format!("INT{}", "[]".repeat(120_000)),
+            format!("{}INT{}", "Nullable(".repeat(5_000), ")".repeat(5_000)),
+            format!("{}INT{}", "ARRAY<".repeat(5_000), ">".repeat(5_000)),
+        ];
+        for data_type in types {
+            for query in [
+                format!("CREATE TABLE t (a {data_type})"),
+                format!("SELECT CAST(1 AS {data_type})"),
+                format!("SELECT CONVERT(1, {data_type})"),
+                format!("SELECT 1 IN (CAST(1 AS {data_type}))"),
+                format!("SELECT CASE WHEN TRUE THEN CAST(1 AS {data_type}) END"),
+            ] {
+                assert_complexity_rejected(&query);
+                // Missing closing syntax must also be rejected before constructing a deep AST.
+                assert_complexity_rejected(&query[..query.len() - 1]);
+            }
+        }
+    }
+
+    #[test]
+    fn reject_deep_recursive_data_type_families() {
+        for (dialect, prefix, suffix) in [
+            (None, "Map(INT, ", ")"),
+            (None, "Tuple(", ")"),
+            (Some("duckdb"), "STRUCT(f ", ")"),
+            (None, "UNION(f ", ")"),
+            (None, "Nested(f ", ")"),
+            (None, "TABLE(f ", ")"),
+            (None, "LowCardinality(", ")"),
+            (Some("clickhouse"), "Array(", ")"),
+        ] {
+            let small = format!("SELECT CONVERT(1, {prefix}INT{suffix})");
+            assert!(normalize_parsed_queries(dialect, &small).is_ok(), "{small}");
+
+            let deep = format!(
+                "SELECT CONVERT(1, {}INT{})",
+                prefix.repeat(MAX_TYPE_COMPLEXITY + 1),
+                suffix.repeat(MAX_TYPE_COMPLEXITY + 1),
+            );
+            assert!(matches!(
+                parse_query_inner(dialect, &deep),
+                Err(sqlparser::parser::ParserError::RecursionLimitExceeded)
+            ));
+        }
+    }
+
+    #[test]
+    fn normalize_nested_data_types_at_limit() {
+        for (prefix, suffix) in [
+            ("Nullable(", ")"),
+            ("LowCardinality(", ")"),
+            ("ARRAY<", ">"),
+        ] {
+            let data_type = format!(
+                "{}INT{}",
+                prefix.repeat(MAX_TYPE_COMPLEXITY),
+                suffix.repeat(MAX_TYPE_COMPLEXITY),
+            );
+            // CONVERT retains its type, exercising formatting and destruction as well as parsing.
+            let query = format!("SELECT CONVERT(1, {data_type})");
+            assert_eq!(
+                normalize_parsed_queries(None, &query).unwrap().0,
+                format!("SELECT CONVERT(%s, {data_type})"),
+            );
+        }
+    }
+
+    #[test]
+    fn data_type_limit_counts_combined_nesting() {
+        let data_type = format!("INT{}", "[]".repeat(MAX_TYPE_COMPLEXITY));
+        let query = format!("SELECT CONVERT(1, {data_type})");
+        // DialectWithParameters does not forward supports_array_typedef_with_brackets.
+        // Exercise the preflight with the underlying dialect, retaining the type for formatting.
+        for count in [1, 2] {
+            let sql = vec![query.as_str(); count].join("; ");
+            let dialect = GenericDialect {};
+            let tokens = Tokenizer::new(&dialect, &sql)
+                .tokenize_with_location()
+                .unwrap();
+            check_ast_complexity(&tokens).unwrap();
+            let mut statements = sqlparser::parser::Parser::new(&dialect)
+                .with_tokens_with_locations(tokens)
+                .parse_statements()
+                .unwrap();
+            let _ = VisitMut::visit(&mut statements, &mut NormalizeVisitor);
+            assert_eq!(statements.len(), count);
+            for statement in statements {
+                assert_eq!(
+                    statement.to_string(),
+                    format!("SELECT CONVERT(%s, {data_type})")
+                );
+            }
+        }
+        assert_complexity_rejected(&format!("SELECT CAST(1 AS {data_type}[])"));
+
+        let nested = MAX_TYPE_COMPLEXITY / 2;
+        let mixed = format!(
+            "{}INT{}{}",
+            "Nullable(".repeat(nested),
+            ")".repeat(nested),
+            "[]".repeat(MAX_TYPE_COMPLEXITY - nested + 1),
+        );
+        assert_complexity_rejected(&format!("SELECT CAST(1 AS {mixed})"));
+    }
+
+    #[test]
+    fn complexity_ignores_comments_literals_and_quoted_identifiers() {
+        let text = "UNION EXCEPT INTERSECT MINUS ARRAY MAP STRUCT NULLABLE [] ; ".repeat(100);
+        let columns = ["\"UNION\"", "\"ARRAY\"", "\"TABLE\""]
+            .repeat(100)
+            .join(", ");
+        let query = format!("SELECT '{text}', {columns} /* {text} */ -- {text}\n");
+        assert_eq!(
+            normalize_parsed_queries(None, &query).unwrap().0,
+            "SELECT .."
+        );
+
+        // A semicolon inside a literal or comment must not reset the statement's budget.
+        let data_type = format!("INT{}", "[]".repeat(MAX_TYPE_COMPLEXITY / 2 + 1));
+        for separator in ["';',", "/* ; */", "-- ;\n"] {
+            assert_complexity_rejected(&format!(
+                "SELECT CAST(1 AS {data_type}), {separator} CAST(2 AS {data_type})"
+            ));
+        }
+    }
 
     #[test]
     fn parse_deep_expression() {
