@@ -166,7 +166,7 @@ mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
 mime_guess = "2.0.5"
 minidump = "0.26"
-multer = "3"
+multra = "=1.3.0"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 metrics-util = { version = "0.20", default-features = false }
