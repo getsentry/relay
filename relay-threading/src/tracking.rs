@@ -22,6 +22,7 @@ impl<F> TrackingPool<F>
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    /// Creates a new tracking view of the given shared pool.
     pub fn new(pool: AsyncPool<Tracked<F>>) -> Self {
         // Initialize semaphore with the highest number that can be acquired at once.
         let size = Semaphore::MAX_PERMITS.min(u32::MAX as usize);
@@ -34,6 +35,9 @@ where
         }
     }
 
+    /// Spawns a [`Tracked`] future on the underlying [`AsyncPool`].
+    ///
+    /// [`Self::finish`] will not return until all tasks spawned through this method have finished.
     pub async fn spawn_async(&self, future: F) {
         let permit = self
             .semaphore

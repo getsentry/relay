@@ -37,10 +37,7 @@ impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T>
 
             self.pool
                 .spawn_async(Box::pin(
-                    async move {
-                        handler.handle_message(message).await;
-                    }
-                    .bind_hub(hub),
+                    async move { handler.handle_message(message).await }.bind_hub(hub),
                 ))
                 .await;
         }
@@ -57,30 +54,14 @@ impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T>
 mod tests {
     use std::sync::Arc;
 
-    use relay_system::{FromMessage, Interface, NoResponse};
-
     use super::*;
 
     #[derive(Clone)]
     struct TestHandler;
     impl MessageHandler for TestHandler {
-        type Interface = TestMessage;
+        type Interface = ();
 
-        async fn handle_message(&self, message: Self::Interface) {
-            message.0.await;
-        }
-    }
-
-    struct TestMessage(BoxFuture<'static, ()>);
-
-    impl Interface for TestMessage {}
-
-    impl FromMessage<Self> for TestMessage {
-        type Response = NoResponse;
-
-        fn from_message(message: Self, _: ()) -> Self {
-            message
-        }
+        async fn handle_message(&self, _: Self::Interface) {}
     }
 
     #[test]
