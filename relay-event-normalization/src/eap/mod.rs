@@ -361,19 +361,23 @@ pub fn normalize_user_agent(
         return;
     }
 
-    // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
-    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
-        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
-    }
-
-    let user_agent = attributes
-        .get_value(USER_AGENT__ORIGINAL)
-        .and_then(|v| v.as_str());
-
-    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-        user_agent,
-        client_hints: client_info.map(|ci| ci.hints).unwrap_or_default(),
-    }) else {
+    // Prefer an explicit user agent over both transport headers.
+    let context = if attributes.contains_key(USER_AGENT__ORIGINAL) {
+        attributes
+            .get_value(USER_AGENT__ORIGINAL)
+            .and_then(Value::as_str)
+            .and_then(BrowserContext::parse_user_agent)
+    } else {
+        let client_info = client_info.unwrap_or_default();
+        if let Some(ua) = client_info.user_agent {
+            attributes.insert(USER_AGENT__ORIGINAL, ua);
+        }
+        BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+            user_agent: client_info.user_agent,
+            client_hints: client_info.hints,
+        })
+    };
+    let Some(context) = context else {
         return;
     };
 
@@ -1535,6 +1539,31 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_normalize_user_agent_prefers_explicit_ua_over_hints() {
+        let user_agent = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0";
+        let mut attributes = Attributes::default();
+        attributes.insert(USER_AGENT__ORIGINAL, user_agent);
+        let mut attributes = Annotated::new(attributes);
+
+        normalize_user_agent(
+            &mut attributes,
+            Some(ClientUserAgentInfo {
+                hints: ClientHints {
+                    sec_ch_ua: Some(r#""Google Chrome";v="131""#),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        );
+
+        let attributes = attributes.value().unwrap();
+        let get = |key: &str| attributes.get_value(key).and_then(Value::as_str);
+        assert_eq!(get(BROWSER__NAME), Some("Firefox"));
+        assert_eq!(get(BROWSER__VERSION), Some("128.0"));
+        assert_eq!(get(USER_AGENT__ORIGINAL), Some(user_agent));
     }
 
     #[test]

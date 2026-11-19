@@ -4994,6 +4994,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-private"
+version = "26.11.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "dircpy",
+ "minidump-writer",
+ "object 0.37.3",
+ "rmpv",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+ "watto",
+ "zstd",
+]
+
+[[package]]
 name = "relay-profiling"
 version = "26.11.0"
 dependencies = [
@@ -5018,21 +5035,6 @@ dependencies = [
  "thiserror 2.0.21",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "relay-prosperoconv"
-version = "26.11.0"
-dependencies = [
- "anyhow",
- "dircpy",
- "lz4_flex",
- "minidump-writer",
- "object 0.37.3",
- "rmpv",
- "tempfile",
- "tracing",
- "watto",
 ]
 
 [[package]]
@@ -5216,8 +5218,8 @@ dependencies = [
  "relay-otel",
  "relay-ourlogs",
  "relay-pii",
+ "relay-private",
  "relay-profiling",
- "relay-prosperoconv",
  "relay-protocol",
  "relay-quotas",
  "relay-redis",
