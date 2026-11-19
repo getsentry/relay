@@ -69,10 +69,10 @@
 <a href=#69 id=69 data-nosnippet>69</a>                prosperodump.data().payload(),
 <a href=#70 id=70 data-nosnippet>70</a>                ctx.processing.config.max_attachment_size(),
 <a href=#71 id=71 data-nosnippet>71</a>            ).map_err(ProcessingError::from)<span class="question-mark">?</span>;
-<a href=#72 id=72 data-nosnippet>72</a>            <span class="kw">let </span>prospero_dump = relay_prosperoconv::ProsperoDump::parse(<span class="kw-2">&amp;</span>data).map_err(|err| {
+<a href=#72 id=72 data-nosnippet>72</a>            <span class="kw">let </span>prospero_dump = relay_private::playstation::ProsperoDump::parse(<span class="kw-2">&amp;</span>data).map_err(|err| {
 <a href=#73 id=73 data-nosnippet>73</a>                ProcessingError::InvalidPlaystationDump(<span class="macro">format!</span>(<span class="string">"Failed to parse dump: {err}"</span>))
 <a href=#74 id=74 data-nosnippet>74</a>            })<span class="question-mark">?</span>;
-<a href=#75 id=75 data-nosnippet>75</a>            <span class="kw">let </span>minidump_buffer = relay_prosperoconv::write_dump(<span class="kw-2">&amp;</span>prospero_dump).map_err(|err| {
+<a href=#75 id=75 data-nosnippet>75</a>            <span class="kw">let </span>minidump_buffer = relay_private::playstation::write_dump(<span class="kw-2">&amp;</span>prospero_dump).map_err(|err| {
 <a href=#76 id=76 data-nosnippet>76</a>                ProcessingError::InvalidPlaystationDump(<span class="macro">format!</span>(<span class="string">"Failed to create minidump: {err}"</span>))
 <a href=#77 id=77 data-nosnippet>77</a>            })<span class="question-mark">?</span>;
 <a href=#78 id=78 data-nosnippet>78</a>
