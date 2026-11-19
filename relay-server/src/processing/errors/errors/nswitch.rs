@@ -142,6 +142,13 @@ impl SentryError for Nswitch {
         })
     }
 
+    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
+        match self {
+            Self::Forward { dying_message } => smallvec::smallvec![dying_message],
+            Self::Process => Default::default(),
+        }
+    }
+
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }

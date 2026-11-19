@@ -308,6 +308,36 @@ impl processing::RateLimited for Managed<ExpandedError> {
     }
 }
 
+#[cfg(feature = "processing")]
+fn add_rate_limited_attachments(event: &mut Annotated<Event>, error: &errors::ErrorKind) {
+    use relay_event_schema::protocol::{AttachmentsContext, Contexts, RateLimitedAttachment};
+
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    for attachment in error.payload_attachments() {
+        let data = attachment.data();
+        if !data.rate_limited() {
+            continue;
+        }
+
+        event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::<AttachmentsContext>()
+            .rate_limited
+            .get_or_insert_with(Vec::new)
+            .push(Annotated::new(RateLimitedAttachment {
+                ty: Annotated::new(attachment.attachment_type().to_string()),
+                reason_code: Annotated::from(
+                    data.rate_limit_reason().map(|c| c.as_str().to_owned()),
+                ),
+                other: Default::default(),
+            }));
+    }
+}
+
 #[derive(Debug)]
 pub struct ErrorOutput(Managed<ExpandedError>);
 
@@ -383,7 +413,7 @@ impl Forward for ErrorOutput {
                 headers: _,
                 fully_normalized: _,
                 metrics: _,
-                event,
+                mut event,
                 mut attachments,
                 flamegraph,
                 user_reports,
@@ -394,6 +424,8 @@ impl Forward for ErrorOutput {
             // A processing Relay must know about all item types in use, unknown items are
             // already discarded during expansion.
             debug_assert!(other.is_empty());
+
+            add_rate_limited_attachments(&mut event, &data);
 
             let event_category = data.event_category();
             data.into_payload().append_to_store(&mut attachments);

@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use relay_quotas::ReasonCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -107,6 +108,11 @@ pub struct CommonItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
+    /// The reason code of the rate limit that marked this item as `rate_limited`.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    rate_limit_reason: Option<ReasonCode>,
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -206,6 +212,16 @@ impl CommonItemHeaders {
         self.rate_limited = rate_limited;
     }
 
+    /// Returns the internal `rate_limit_reason` value.
+    pub fn rate_limit_reason(&self) -> Option<&ReasonCode> {
+        self.rate_limit_reason.as_ref()
+    }
+
+    /// Sets the internal `rate_limit_reason` value.
+    pub fn set_rate_limit_reason(&mut self, rate_limit_reason: Option<ReasonCode>) {
+        self.rate_limit_reason = rate_limit_reason;
+    }
+
     /// Returns the internal `source_quantities` value.
     pub fn source_quantities(&self) -> Option<SourceQuantities> {
         self.source_quantities
@@ -266,6 +282,7 @@ impl CommonItemHeaders {
             stored_key,
             routing_hint,
             rate_limited,
+            rate_limit_reason,
             source_quantities,
             inner,
         } = self;
@@ -283,6 +300,9 @@ impl CommonItemHeaders {
         }
         if *rate_limited {
             map.entry(&"rate_limited", rate_limited);
+        }
+        if let Some(rate_limit_reason) = rate_limit_reason {
+            map.entry(&"rate_limit_reason", rate_limit_reason);
         }
         if let Some(source_quantities) = source_quantities {
             map.entry(&"source_quantities", source_quantities);

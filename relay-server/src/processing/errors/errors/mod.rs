@@ -98,6 +98,10 @@ pub trait SentryError: Counted {
     where
         Self: Sized;
 
+    /// Returns the attachments that [`Self::into_payload`] serializes.
+    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
+    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]>;
+
     /// Returns a minidump item if this error holds a minidump.
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem>;
 }
@@ -160,6 +164,10 @@ macro_rules! gen_error_kind {
 
             fn into_payload(self) -> ErrorPayload {
                 match self { $(Self::$name(error) => error.into_payload(),)* }
+            }
+
+            fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
+                match self { $(Self::$name(error) => error.payload_attachments(),)* }
             }
 
             fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {

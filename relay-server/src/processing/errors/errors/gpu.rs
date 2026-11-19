@@ -55,8 +55,10 @@ impl SentryError for GpuCrash {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.data().rate_limited() {
+            let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             records.reject_err(Error::RateLimited(limits), &self.0);
             self.0.data_mut().set_rate_limited(true);
+            self.0.data_mut().set_rate_limit_reason(reason_code);
         }
 
         Ok(())
@@ -64,6 +66,10 @@ impl SentryError for GpuCrash {
 
     fn into_payload(self) -> ErrorPayload {
         ErrorPayload(smallvec::smallvec![self.0])
+    }
+
+    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
+        smallvec::smallvec![&self.0]
     }
 
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {

@@ -1,4 +1,5 @@
 mod app;
+mod attachments;
 mod browser;
 mod chromium_stability_report;
 mod cloud_resource;
@@ -23,6 +24,7 @@ mod trace;
 mod unity;
 mod user_report_v2;
 pub use app::*;
+pub use attachments::*;
 pub use browser::*;
 pub use chromium_stability_report::*;
 pub use cloud_resource::*;
@@ -96,6 +98,9 @@ pub enum Context {
     /// Auxilliary information for reprocessing.
     #[metastructure(omit_from_schema)]
     Reprocessing(#[metastructure(max_bytes = 8192)] Box<ReprocessingContext>),
+    /// Information about attachments that were not stored.
+    #[metastructure(omit_from_schema)]
+    Attachments(#[metastructure(max_bytes = 8192)] Box<AttachmentsContext>),
     /// Response information.
     Response(#[metastructure(max_bytes = 8192)] Box<ResponseContext>),
     /// OpenTelemetry information.
