@@ -98,7 +98,7 @@ pub enum Context {
     /// Auxilliary information for reprocessing.
     #[metastructure(omit_from_schema)]
     Reprocessing(#[metastructure(max_bytes = 8192)] Box<ReprocessingContext>),
-    /// Information about attachments that were not stored.
+    /// Information about attachments of the event.
     #[metastructure(omit_from_schema)]
     Attachments(#[metastructure(max_bytes = 8192)] Box<AttachmentsContext>),
     /// Response information.

@@ -2,7 +2,7 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Valu
 
 use crate::processor::ProcessValue;
 
-/// Information about attachments of the event that were not stored.
+/// Information about attachments of the event.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AttachmentsContext {
     /// Attachments that Relay rate limited.
