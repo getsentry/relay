@@ -7,7 +7,9 @@ use std::iter::FusedIterator;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
-use crate::regexes::{ReplaceBehavior, get_regex_for_rule_type};
+use crate::regexes::{
+    ReplaceBehavior, get_regex_for_rule_type, valid_captures, valid_captures_bytes,
+};
 use crate::{CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction, transform, utils};
 
 /// The minimum length a string needs to be in a binary blob.
@@ -49,7 +51,7 @@ fn apply_regex_to_utf8_bytes(
         }
     };
 
-    for captures in regex.captures_iter(data) {
+    for captures in valid_captures_bytes(&rule.ty, &regex, data) {
         for (idx, group) in captures.iter().enumerate() {
             if let Some(group) = group {
                 if group.start() == group.end() {
@@ -87,14 +89,16 @@ fn apply_regex_to_utf16le_bytes(
     for segment in WStrSegmentIter::new(data) {
         match replace_behavior {
             ReplaceBehavior::Value => {
-                for re_match in regex.find_iter(&segment.decoded) {
+                let matches = valid_captures(&rule.ty, regex, &segment.decoded)
+                    .filter_map(|captures| captures.get(0));
+                for re_match in matches {
                     changed = true;
                     let match_wstr = get_wstr_match(&segment.decoded, re_match, segment.encoded);
                     match_wstr.apply_redaction(&rule.redaction);
                 }
             }
             ReplaceBehavior::Groups(replace_groups) => {
-                for captures in regex.captures_iter(&segment.decoded) {
+                for captures in valid_captures(&rule.ty, regex, &segment.decoded) {
                     for group_idx in replace_groups.iter() {
                         if let Some(re_match) = captures.get(*group_idx as usize) {
                             changed = true;
@@ -743,6 +747,34 @@ mod tests {
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
             output: utf16le("before ********* after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_creditcard_checksum() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@creditcard:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: b"a 4510944073809921 b 5100 4111 1111 1111 1111 c",
+            output: b"a 4510944073809921 b 5100 ******************* c",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_creditcard_checksum_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@creditcard:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("a 4510944073809921 b 5100 4111 1111 1111 1111 c").as_slice(),
+            output: utf16le("a 4510944073809921 b 5100 ******************* c").as_slice(),
             changed: true,
         }
         .run();

@@ -510,7 +510,7 @@ fn apply_regex_to_chunks<'a>(
     }
 
     // Early exit if this regex does not match and return the original chunks.
-    let mut captures_iter = regex.captures_iter(&search_string).peekable();
+    let mut captures_iter = regexes::valid_captures(&rule.ty, regex, &search_string).peekable();
     if captures_iter.peek().is_none() {
         return chunks;
     }
@@ -657,7 +657,7 @@ mod tests {
                     "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
                     "ip_address": "is this an ip address? 73.133.27.120", //  <--------
                 },
-                "extra":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
+                "extra":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890112 ",
             })
             .into(),
         );

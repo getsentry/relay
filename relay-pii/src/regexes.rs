@@ -1,6 +1,8 @@
 use std::sync::LazyLock;
 
-use regex::Regex;
+use either::Either;
+use regex::bytes::{Captures as BytesCaptures, Regex as BytesRegex};
+use regex::{Captures, Regex};
 use smallvec::{SmallVec, smallvec};
 
 use crate::config::RuleType;
@@ -111,6 +113,90 @@ pub fn get_regex_for_rule_type(
         // These ought to have been resolved in CompiledConfig
         RuleType::Alias(_) | RuleType::Multiple(_) | RuleType::Unknown(_) => smallvec![],
     }
+}
+
+/// Returns the check that matches of the given rule type must pass, if any.
+///
+/// Rule types with a validator must use regexes that never match an empty string.
+fn match_validator(ty: &RuleType) -> Option<fn(&[u8]) -> bool> {
+    match ty {
+        RuleType::Creditcard => Some(is_luhn_valid),
+        _ => None,
+    }
+}
+
+/// Validates the Luhn checksum of all ASCII digits in `s`, ignoring separators.
+fn is_luhn_valid(s: &[u8]) -> bool {
+    let digits = s.iter().rev().filter(|b| b.is_ascii_digit());
+    let sum: u32 = digits
+        .enumerate()
+        .map(|(i, b)| {
+            let d = u32::from(b - b'0');
+            match i % 2 {
+                0 => d,
+                _ if d > 4 => d * 2 - 9,
+                _ => d * 2,
+            }
+        })
+        .sum();
+    sum.is_multiple_of(10)
+}
+
+/// Iterates over the captures of `regex` in `haystack` that pass the validator of the rule type.
+///
+/// After a match fails validation, the search continues one character after its start, so that
+/// a rejected match cannot hide a valid match overlapping it.
+pub fn valid_captures<'r, 'h>(
+    ty: &RuleType,
+    regex: &'r Regex,
+    haystack: &'h str,
+) -> impl Iterator<Item = Captures<'h>> + use<'r, 'h> {
+    let Some(validate) = match_validator(ty) else {
+        return Either::Left(regex.captures_iter(haystack));
+    };
+
+    let mut start = 0;
+    Either::Right(std::iter::from_fn(move || {
+        while start < haystack.len() {
+            let captures = regex.captures_at(haystack, start)?;
+            let m = captures.get(0)?;
+            if validate(m.as_str().as_bytes()) {
+                start = m.end();
+                return Some(captures);
+            }
+            start = m.start()
+                + haystack[m.start()..]
+                    .chars()
+                    .next()
+                    .map_or(1, char::len_utf8);
+        }
+        None
+    }))
+}
+
+/// Same as [`valid_captures`], but for byte regexes.
+pub fn valid_captures_bytes<'r, 'h>(
+    ty: &RuleType,
+    regex: &'r BytesRegex,
+    haystack: &'h [u8],
+) -> impl Iterator<Item = BytesCaptures<'h>> + use<'r, 'h> {
+    let Some(validate) = match_validator(ty) else {
+        return Either::Left(regex.captures_iter(haystack));
+    };
+
+    let mut start = 0;
+    Either::Right(std::iter::from_fn(move || {
+        while start < haystack.len() {
+            let captures = regex.captures_at(haystack, start)?;
+            let m = captures.get(0)?;
+            if validate(m.as_bytes()) {
+                start = m.end();
+                return Some(captures);
+            }
+            start = m.start() + 1;
+        }
+        None
+    }))
 }
 
 #[rustfmt::skip]
@@ -400,5 +486,14 @@ mod tests {
             .build()
             .unwrap();
         assert!(regex.is_match(br"C:\\Users\jane\somefile"));
+    }
+
+    #[test]
+    fn test_luhn() {
+        assert!(is_luhn_valid(b"4111111111111111"));
+        assert!(is_luhn_valid(b"4111-1111 1111-1111"));
+        assert!(is_luhn_valid(b"378282246310005"));
+        assert!(!is_luhn_valid(b"4111111111111112"));
+        assert!(!is_luhn_valid(b"4510944073809921"));
     }
 }
