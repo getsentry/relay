@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 flume = { workspace = true, features = ["async"] }
 futures = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 pin-project-lite = { workspace = true }
 
 relay-log = { workspace = true, features = ["sentry"] }

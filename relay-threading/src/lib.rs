@@ -54,6 +54,7 @@ mod metrics;
 mod multiplexing;
 mod pool;
 mod service;
+mod tracking;
 
 pub use self::builder::*;
 pub use self::metrics::*;
