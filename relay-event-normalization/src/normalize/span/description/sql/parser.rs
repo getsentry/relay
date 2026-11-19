@@ -129,7 +129,10 @@ impl NormalizeVisitor {
             // Normalize aliases.
             let item = match item {
                 SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
-                SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
+                SelectItem::QualifiedWildcard(qualifier, options) => {
+                    drop_ast(qualifier);
+                    SelectItem::Wildcard(options)
+                }
                 _ => item,
             };
             if Self::is_collapsible(&item) {
@@ -162,7 +165,7 @@ impl NormalizeVisitor {
     fn simplify_object_name(parts: &mut Vec<ObjectNamePart>) {
         if let Some(mut last) = parts.pop() {
             Self::scrub_object_name_part(&mut last);
-            *parts = vec![last];
+            replace_ast(parts, vec![last]);
         }
     }
 
@@ -269,7 +272,7 @@ impl VisitorMut for NormalizeVisitor {
                         }
                         JsonTableColumn::ForOrdinality(ident) => Self::scrub_name(ident),
                         JsonTableColumn::Nested(JsonTableNestedColumn { path: _, columns }) => {
-                            columns.clear(); // bit aggressive, might revisit later.
+                            drop_ast(std::mem::take(columns)); // bit aggressive, might revisit later.
                         }
                     }
                 }
@@ -303,7 +306,9 @@ impl VisitorMut for NormalizeVisitor {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
-            Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
+            Expr::InList { list, .. } => {
+                replace_ast(list, vec![Expr::Value(Self::placeholder())]);
+            }
             // `"table"."col"` is replaced by `col`.
             Expr::CompoundIdentifier(parts) => {
                 Self::simplify_compound_identifier(parts);
@@ -331,12 +336,15 @@ impl VisitorMut for NormalizeVisitor {
                 case_token: _,
                 end_token: _,
             } => {
-                operand.take();
-                *conditions = vec![CaseWhen {
-                    condition: Expr::Identifier(Self::ellipsis()),
-                    result: Expr::Identifier(Self::ellipsis()),
-                }];
-                else_result.take();
+                drop_ast(operand.take());
+                replace_ast(
+                    conditions,
+                    vec![CaseWhen {
+                        condition: Expr::Identifier(Self::ellipsis()),
+                        result: Expr::Identifier(Self::ellipsis()),
+                    }],
+                );
+                drop_ast(else_result.take());
             }
             _ => {}
         }
@@ -348,7 +356,8 @@ impl VisitorMut for NormalizeVisitor {
         // the replacement has to occur *after* visiting its children.
         match expr {
             Expr::Cast { expr: inner, .. } => {
-                *expr = take_expr(inner);
+                let replacement = take_expr(inner);
+                replace_ast(expr, replacement);
             }
             Expr::BinaryOp {
                 left,
@@ -363,7 +372,8 @@ impl VisitorMut for NormalizeVisitor {
                     //   /\   B
                     //  /  \
                     // A    A
-                    *expr = take_expr(left);
+                    let replacement = take_expr(left);
+                    replace_ast(expr, replacement);
                 } else {
                     //     /\
                     //    /  \
@@ -378,7 +388,8 @@ impl VisitorMut for NormalizeVisitor {
                         && left_op == op
                         && left_right == right
                     {
-                        **left = take_expr(left_left);
+                        let replacement = take_expr(left_left);
+                        replace_ast(left.as_mut(), replacement);
                     }
                 }
             }
@@ -401,13 +412,16 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Insert(Insert {
                 columns, source, ..
             }) => {
-                *columns = vec![Self::ellipsis().into()];
+                replace_ast(columns, vec![Self::ellipsis().into()]);
                 if let Some(source) = source.as_mut()
                     && let SetExpr::Values(v) = &mut *source.body
                 {
-                    v.rows = vec![Parens::with_empty_span(vec![Expr::Value(
-                        Self::placeholder(),
-                    )])];
+                    replace_ast(
+                        &mut v.rows,
+                        vec![Parens::with_empty_span(vec![Expr::Value(
+                            Self::placeholder(),
+                        )])],
+                    );
                 }
             }
             Statement::Update(Update { assignments, .. }) => {
@@ -416,12 +430,15 @@ impl VisitorMut for NormalizeVisitor {
                         .iter()
                         .all(|a| matches!(a.value, Expr::Value(_)))
                 {
-                    *assignments = vec![Assignment {
-                        target: AssignmentTarget::ColumnName(ObjectName(vec![
-                            ObjectNamePart::Identifier(Ident::new("___UPDATE_LHS___")),
-                        ])),
-                        value: Expr::Value(Value::Null.into()),
-                    }]
+                    replace_ast(
+                        assignments,
+                        vec![Assignment {
+                            target: AssignmentTarget::ColumnName(ObjectName(vec![
+                                ObjectNamePart::Identifier(Ident::new("___UPDATE_LHS___")),
+                            ])),
+                            value: Expr::Value(Value::Null.into()),
+                        }],
+                    );
                 } else {
                     for assignment in assignments.iter_mut() {
                         if let AssignmentTarget::ColumnName(target) = &mut assignment.target {
@@ -448,11 +465,14 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Fetch { name, into, .. } => {
                 Self::erase_name(name);
                 if let Some(into) = into {
-                    into.0 = vec![ObjectNamePart::Identifier(Ident {
-                        value: "%s".into(),
-                        quote_style: None,
-                        span: Span::empty(),
-                    })];
+                    replace_ast(
+                        &mut into.0,
+                        vec![ObjectNamePart::Identifier(Ident {
+                            value: "%s".into(),
+                            quote_style: None,
+                            span: Span::empty(),
+                        })],
+                    );
                 }
             }
             Statement::Close { cursor } => match cursor {
@@ -802,9 +822,10 @@ impl VisitorMut for MaxDepthVisitor {
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
-            let mut swapped = Expr::Value(Value::Placeholder("..".to_owned()).into());
-            std::mem::swap(expr, &mut swapped);
-            let _ = (&mut swapped).visit(&mut DropVisitor);
+            replace_ast(
+                expr,
+                Expr::Value(Value::Placeholder("..".to_owned()).into()),
+            );
             return ControlFlow::Continue(());
         }
         self.current_expr_depth += 1;
@@ -815,6 +836,20 @@ impl VisitorMut for MaxDepthVisitor {
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }
+}
+
+/// Replaces an AST node, dropping the previous value with [`drop_ast`].
+fn replace_ast<T: VisitMut>(ast: &mut T, replacement: T) {
+    drop_ast(std::mem::replace(ast, replacement));
+}
+
+/// Drops expressions in an AST bottom-up, including those inside collections and options.
+///
+/// This relies on sqlparser's `recursive-protection` feature to grow the visitor's stack.
+/// Each expression is dropped after its children have been replaced by NULL. Recursive
+/// non-expression structures, such as `SetExpr` and `DataType`, still use their normal drop glue.
+fn drop_ast(mut ast: impl VisitMut) {
+    let _ = ast.visit(&mut DropVisitor);
 }
 
 struct DropVisitor;
@@ -921,6 +956,47 @@ mod tests {
             normalize_parsed_queries(None, &query).unwrap().0,
             "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
         );
+    }
+
+    #[test]
+    fn normalize_overflowing_discarded_expressions() {
+        let expression = format!("1{}", "+1".repeat(60_000));
+        for (query, expected) in [
+            (format!("SELECT 1 IN ({expression})"), "SELECT %s IN (%s)"),
+            (
+                format!(
+                    "SELECT CASE {expression} WHEN {expression} THEN {expression} ELSE {expression} END"
+                ),
+                "SELECT CASE WHEN .. THEN .. END",
+            ),
+            (
+                format!("INSERT INTO t (a) VALUES ({expression})"),
+                "INSERT INTO t (..) VALUES (%s)",
+            ),
+        ] {
+            assert_eq!(normalize_parsed_queries(None, &query).unwrap().0, expected);
+        }
+    }
+
+    #[test]
+    fn normalize_overflowing_wildcard_and_object_name() {
+        let expression = format!("1{}", "+1".repeat(60_000));
+        // Parse directly: DialectWithParameters does not forward these Snowflake capabilities.
+        for (query, expected) in [
+            (format!("SELECT ({expression}).*"), "SELECT *"),
+            (
+                format!("SELECT * FROM IDENTIFIER({expression}).t"),
+                "SELECT * FROM t",
+            ),
+        ] {
+            let mut statements = sqlparser::parser::Parser::parse_sql(
+                &sqlparser::dialect::SnowflakeDialect {},
+                &query,
+            )
+            .unwrap();
+            let _ = VisitMut::visit(&mut statements, &mut NormalizeVisitor);
+            assert_eq!(statements[0].to_string(), expected);
+        }
     }
 
     #[test]
