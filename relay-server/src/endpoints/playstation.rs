@@ -4,7 +4,7 @@
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_quotas::DataCategory;
@@ -169,7 +169,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             _ => match utils::read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
-                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                Err(multra::Error::FieldSizeExceeded { .. }) => Ok(None),
                 r => Ok(Some(r?)),
             },
         }

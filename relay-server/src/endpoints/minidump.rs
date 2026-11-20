@@ -3,7 +3,7 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use futures::{self, Stream, StreamExt, TryStreamExt};
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
@@ -270,7 +270,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             let is_minidump = matches!(item.attachment_type(), AttachmentType::Minidump);
             match read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
-                Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                Err(multra::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
                 r => Ok(Some(r?)),
             }
         };

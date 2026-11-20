@@ -300,11 +300,11 @@ mod tests {
               },
               "credit_card": {
                   "type": "string",
-                  "value": "4571234567890111"
+                  "value": "4571234567890112"
               },
               "visa_card": {
                   "type": "string",
-                  "value": "4571 2345 6789 0111"
+                  "value": "4571 2345 6789 0112"
               },
               "bank_account": {
                   "type": "string",

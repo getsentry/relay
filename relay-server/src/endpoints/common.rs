@@ -75,7 +75,7 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(#[source] multer::Error),
+    InvalidMultipart(#[source] multra::Error),
 
     #[error("invalid minidump")]
     InvalidMinidump,
@@ -174,11 +174,11 @@ impl From<BytesRejection> for BadStoreRequest {
     }
 }
 
-impl From<multer::Error> for BadStoreRequest {
-    fn from(value: multer::Error) -> Self {
+impl From<multra::Error> for BadStoreRequest {
+    fn from(value: multra::Error) -> Self {
         match value {
-            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::RequestTooLarge,
-            multer::Error::StreamReadFailed(error)
+            multra::Error::StreamSizeExceeded { .. } => BadStoreRequest::RequestTooLarge,
+            multra::Error::StreamReadFailed(error)
                 if find_error_source(error.as_ref(), is_length_limit_error).is_some() =>
             {
                 // This happens when the stream suddenly stops because `RequestBodyLimit` capped
@@ -232,7 +232,7 @@ impl IntoResponse for BadStoreRequest {
             BadStoreRequest::UploadFailed => {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
-            BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) => {
+            BadStoreRequest::InvalidMultipart(multra::Error::LockFailure) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             _ => {

@@ -8,14 +8,10 @@
 
 mod browser_report_to_sentry;
 mod heroku_to_sentry;
-mod otel_to_sentry;
 mod size;
 mod vercel_to_sentry;
 
 pub use self::browser_report_to_sentry::browser_report_to_sentry_log;
 pub use self::heroku_to_sentry::*;
-pub use self::otel_to_sentry::otel_to_sentry_log;
 pub use self::size::calculate_size;
 pub use self::vercel_to_sentry::{VercelLog, vercel_log_to_sentry_log};
-
-pub use opentelemetry_proto::tonic::logs::v1 as otel_logs;

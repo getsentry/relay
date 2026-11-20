@@ -286,6 +286,12 @@ impl ClientHints<String> {
 }
 
 impl ClientHints<&str> {
+    /// Returns the normalized browser name and version from the client hints.
+    pub fn browser(&self) -> Option<(&str, &str)> {
+        let (name, version) = browser_from_client_hints(self.sec_ch_ua?)?;
+        Some((normalize_browser_name(name), version))
+    }
+
     /// Creates owned [`ClientHints`].
     pub fn to_owned(&self) -> ClientHints<String> {
         ClientHints {
@@ -342,36 +348,33 @@ impl FromUserAgentInfo for DeviceContext {
     }
 }
 
+fn normalize_browser_name(name: &str) -> &str {
+    match name {
+        "Google Chrome" => "Chrome",
+        _ => name,
+    }
+}
+
 impl FromUserAgentInfo for BrowserContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let (mut browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
-
-        // Normalize "Google Chrome" to just "Chrome"
-        if browser == "Google Chrome" {
-            browser = "Chrome".to_owned();
-        }
+        let (browser, version) = client_hints.browser()?;
 
         Some(Self {
-            name: Annotated::new(browser),
-            version: Annotated::new(version),
+            name: Annotated::new(browser.to_owned()),
+            version: Annotated::new(version.to_owned()),
             ..Default::default()
         })
     }
 
     fn parse_user_agent(user_agent: &str) -> Option<Self> {
-        let mut browser = relay_ua::parse_user_agent(user_agent);
+        let browser = relay_ua::parse_user_agent(user_agent);
 
         if !is_known(&browser.family) {
             return None;
         }
 
-        // Normalize "Google Chrome" to just "Chrome"
-        if browser.family == "Google Chrome" {
-            browser.family = "Chrome".into();
-        }
-
         Some(Self {
-            name: Annotated::from(browser.family.into_owned()),
+            name: Annotated::from(normalize_browser_name(&browser.family).to_owned()),
             version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
             ..BrowserContext::default()
         })
@@ -385,8 +388,8 @@ impl FromUserAgentInfo for BrowserContext {
 /// It tries to detect the "not a brand" item and the browser engine, if it's neither its assumed
 /// to be a browser and gets returned as such.
 ///
-/// Returns None if no browser field detected.
-pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
+/// Returns borrowed values so callers can bound them before copying, or None if no browser is detected.
+pub fn browser_from_client_hints(s: &str) -> Option<(&str, &str)> {
     static UA_RE: OnceLock<Regex> = OnceLock::new();
     let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
     for item in s.split(',') {
@@ -402,8 +405,8 @@ pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
 
         let captures = regex.captures(item)?;
 
-        let browser = captures.get(1)?.as_str().to_owned();
-        let version = captures.get(2)?.as_str().to_owned();
+        let browser = captures.get(1)?.as_str();
+        let version = captures.get(2)?.as_str();
 
         if browser.trim().is_empty() || version.trim().is_empty() {
             return None;
