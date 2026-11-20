@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use rdkafka::message::Header;
@@ -166,16 +166,6 @@ struct TopicProducer {
     pub rate_limiter: Option<KafkaRateLimits>,
 }
 
-impl Drop for TopicProducer {
-    fn drop(&mut self) {
-        let mut backoff = Duration::from_millis(100);
-        while self.producer.context().inflight().load(Ordering::Relaxed) > 0 {
-            std::thread::sleep(backoff);
-            backoff = (2 * backoff).min(Duration::from_secs(1));
-        }
-    }
-}
-
 /// Where producers take their initial Kafka config from, and how they reload it.
 #[derive(Debug, Clone, Copy)]
 pub struct KafkaConfigSource<'a> {
@@ -316,11 +306,6 @@ impl Producer {
                 );
             })?;
 
-        producer
-            .context()
-            .inflight()
-            .fetch_add(1, Ordering::Relaxed);
-
         Ok(topic_name)
     }
 
@@ -457,7 +442,6 @@ pub struct KafkaClientBuilder {
     /// shared by logical topics that produce to that same physical topic.
     reused_producers: BTreeMap<String, Arc<ReloadingKafkaProducer<Context>>>,
     producers: HashMap<KafkaTopic, Producer>,
-    inflight: Arc<AtomicUsize>,
 }
 
 impl KafkaClientBuilder {
@@ -518,7 +502,7 @@ impl KafkaClientBuilder {
                     source.blob,
                     ProducerSelector::new(topic_name.clone(), source.app),
                     reload_config(source.jitter),
-                    Context::new(producer_name, Arc::clone(&self.inflight)),
+                    Context::new(producer_name),
                 )?);
 
                 self.reused_producers
