@@ -1260,6 +1260,15 @@ impl MessageHandler for StoreService {
             }
         })
     }
+
+    async fn on_exit(&self) {
+        // Wait for kafka client to drain all messages:
+        let timeout = self.config.current().shutdown_timeout();
+        let result = tokio::time::timeout(timeout, self.kafka_client.empty()).await;
+        if result.is_err() {
+            relay_log::warn!("timeout, some kafka messages might be lost");
+        }
+    }
 }
 
 /// This signifies how the attachment payload is being transfered.
