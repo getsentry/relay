@@ -19,6 +19,7 @@ num-traits = { workspace = true }
 pest = { workspace = true }
 pest_derive = { workspace = true }
 regex = { workspace = true }
+regex-syntax = { workspace = true }
 relay-common = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }

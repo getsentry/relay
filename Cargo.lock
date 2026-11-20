@@ -4993,6 +4993,7 @@ dependencies = [
  "pest_derive",
  "pretty-hex",
  "regex",
+ "regex-syntax",
  "relay-common",
  "relay-event-schema",
  "relay-log",

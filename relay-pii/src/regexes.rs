@@ -1,10 +1,9 @@
 use std::sync::LazyLock;
 
-use regex::Regex;
 use smallvec::{SmallVec, smallvec};
 
 use crate::config::RuleType;
-use crate::regex::{ScrubbingRegex, ScrubbingRegexRef};
+use crate::regex::{PiiRegex, ScrubbingRegex, ScrubbingRegexRef};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PatternType {
@@ -143,12 +142,12 @@ macro_rules! regex {
         mod $name {
             use super::*;
             pub static $name: LazyLock<ScrubbingRegex> = LazyLock::new(|| {
-                ScrubbingRegex::new(Regex::new($rule).unwrap())$(.with_validator($validator))?
+                ScrubbingRegex::new(PiiRegex::new($rule).unwrap())$(.with_validator($validator))?
             });
 
             #[test]
             fn supports_byte_mode() {
-                assert!($name.as_ref().to_bytes().is_ok());
+                assert!($name.as_ref().ascii().is_some());
             }
         }
         use $name::$name;
@@ -156,7 +155,7 @@ macro_rules! regex {
 }
 
 pub(crate) static ANYTHING_REGEX: LazyLock<ScrubbingRegex> =
-    LazyLock::new(|| ScrubbingRegex::new(Regex::new(".*").unwrap()));
+    LazyLock::new(|| ScrubbingRegex::new(PiiRegex::new(".*").unwrap()));
 
 pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
     // Common session cookie names for popular web frameworks
@@ -193,7 +192,7 @@ pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
 static COOKIE_REGEX: LazyLock<ScrubbingRegex> = LazyLock::new(|| {
     let variants = SENSITIVE_COOKIE_NAMES.join("|").replace('.', "\\.");
     let r = format!("(?i)\\b(?:(?:{variants})(?:__\\d+)?)=([^;]+)");
-    ScrubbingRegex::new(Regex::new(&r).unwrap())
+    ScrubbingRegex::new(PiiRegex::new(&r).unwrap())
 });
 
 regex!(
@@ -404,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_userpath_utf8_bytes() {
-        let regex = PATH_REGEX.as_ref().to_bytes().unwrap();
+        let regex = PATH_REGEX.as_ref().ascii().unwrap();
         let mut matches = regex.captures_iter(br"C:\\Users\jane\somefile");
         assert!(matches.next().is_some());
     }
