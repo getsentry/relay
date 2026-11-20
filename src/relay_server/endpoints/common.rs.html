@@ -75,7 +75,7 @@
 <a href=#75 id=75 data-nosnippet>75</a>    </span>InvalidEnvelope(<span class="attr">#[from] </span>EnvelopeError),
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a>    <span class="attr">#[error(<span class="string">"invalid multipart data"</span>)]
-<a href=#78 id=78 data-nosnippet>78</a>    </span>InvalidMultipart(<span class="attr">#[source] </span>multer::Error),
+<a href=#78 id=78 data-nosnippet>78</a>    </span>InvalidMultipart(<span class="attr">#[source] </span>multra::Error),
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="attr">#[error(<span class="string">"invalid minidump"</span>)]
 <a href=#81 id=81 data-nosnippet>81</a>    </span>InvalidMinidump,
@@ -174,11 +174,11 @@
 <a href=#174 id=174 data-nosnippet>174</a>    }
 <a href=#175 id=175 data-nosnippet>175</a>}
 <a href=#176 id=176 data-nosnippet>176</a>
-<a href=#177 id=177 data-nosnippet>177</a><span class="kw">impl </span>From&lt;multer::Error&gt; <span class="kw">for </span>BadStoreRequest {
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">fn </span>from(value: multer::Error) -&gt; <span class="self">Self </span>{
+<a href=#177 id=177 data-nosnippet>177</a><span class="kw">impl </span>From&lt;multra::Error&gt; <span class="kw">for </span>BadStoreRequest {
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">fn </span>from(value: multra::Error) -&gt; <span class="self">Self </span>{
 <a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">match </span>value {
-<a href=#180 id=180 data-nosnippet>180</a>            multer::Error::StreamSizeExceeded { .. } =&gt; BadStoreRequest::RequestTooLarge,
-<a href=#181 id=181 data-nosnippet>181</a>            multer::Error::StreamReadFailed(error)
+<a href=#180 id=180 data-nosnippet>180</a>            multra::Error::StreamSizeExceeded { .. } =&gt; BadStoreRequest::RequestTooLarge,
+<a href=#181 id=181 data-nosnippet>181</a>            multra::Error::StreamReadFailed(error)
 <a href=#182 id=182 data-nosnippet>182</a>                <span class="kw">if </span>find_error_source(error.as_ref(), is_length_limit_error).is_some() =&gt;
 <a href=#183 id=183 data-nosnippet>183</a>            {
 <a href=#184 id=184 data-nosnippet>184</a>                <span class="comment">// This happens when the stream suddenly stops because `RequestBodyLimit` capped
@@ -232,7 +232,7 @@
 <a href=#232 id=232 data-nosnippet>232</a>            BadStoreRequest::UploadFailed =&gt; {
 <a href=#233 id=233 data-nosnippet>233</a>                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
 <a href=#234 id=234 data-nosnippet>234</a>            }
-<a href=#235 id=235 data-nosnippet>235</a>            BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) =&gt; {
+<a href=#235 id=235 data-nosnippet>235</a>            BadStoreRequest::InvalidMultipart(multra::Error::LockFailure) =&gt; {
 <a href=#236 id=236 data-nosnippet>236</a>                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
 <a href=#237 id=237 data-nosnippet>237</a>            }
 <a href=#238 id=238 data-nosnippet>238</a>            <span class="kw">_ </span>=&gt; {
