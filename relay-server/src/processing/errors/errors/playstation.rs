@@ -213,12 +213,6 @@ impl SentryError for Playstation {
         ErrorPayload(attachments)
     }
 
-    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
-        let mut attachments = smallvec::smallvec![&self.prosperodump];
-        attachments.extend(self.minidump.as_ref());
-        attachments
-    }
-
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         self.minidump.as_mut()
     }

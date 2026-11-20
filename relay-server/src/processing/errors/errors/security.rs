@@ -64,10 +64,6 @@ impl SentryError for Security {
         ErrorPayload::default()
     }
 
-    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
-        Default::default()
-    }
-
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }

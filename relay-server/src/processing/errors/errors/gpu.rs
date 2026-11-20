@@ -68,10 +68,6 @@ impl SentryError for GpuCrash {
         ErrorPayload(smallvec::smallvec![self.0])
     }
 
-    fn payload_attachments(&self) -> smallvec::SmallVec<[&AttachmentItem; 2]> {
-        smallvec::smallvec![&self.0]
-    }
-
     fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }

@@ -309,14 +309,14 @@ impl processing::RateLimited for Managed<ExpandedError> {
 }
 
 #[cfg(feature = "processing")]
-fn add_rate_limited_attachments(event: &mut Annotated<Event>, error: &errors::ErrorKind) {
+fn add_rate_limited_attachments(event: &mut Annotated<Event>, attachments: &[AttachmentItem]) {
     use relay_event_schema::protocol::{AttachmentsContext, Contexts, RateLimitedAttachment};
 
     let Some(event) = event.value_mut() else {
         return;
     };
 
-    for attachment in error.payload_attachments() {
+    for attachment in attachments {
         let data = attachment.data();
         if !data.rate_limited() {
             continue;
@@ -424,11 +424,11 @@ impl Forward for ErrorOutput {
             // already discarded during expansion.
             debug_assert!(other.is_empty());
 
-            add_rate_limited_attachments(&mut event, &data);
-
             let event_category = data.event_category();
             data.into_payload().append_to_store(&mut attachments);
             attachments.extend(flamegraph);
+
+            add_rate_limited_attachments(&mut event, &attachments);
 
             Box::new(StoreEvent {
                 event_category,
