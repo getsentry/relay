@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart. ([#6717](https://github.com/getsentry/relay/pull/6717))
+
 **Bug Fixes**:
 
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
