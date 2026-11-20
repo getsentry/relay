@@ -9,6 +9,10 @@
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 
+**Features**:
+
+- Update sqlparser library to 0.64. ([#6729](https://github.com/getsentry/relay/pull/6729))
+
 **Internal**:
 
 - Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
