@@ -86,7 +86,7 @@ pub struct Context {
     /// Delegate statistics to Arroyo.
     arroyo_statistics: ArroyoProducerContext,
     /// Counts the number of in-flight messages.
-    inflight: InflightCounter,
+    inflight: Arc<InflightCounter>,
 }
 
 impl Context {
@@ -94,7 +94,7 @@ impl Context {
         Self {
             arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
-            inflight: InflightCounter::default(),
+            inflight: InflightCounter::default().into(),
         }
     }
 
@@ -158,18 +158,33 @@ impl ProducerContext for Context {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct InflightCounter(Arc<AtomicUsize>);
+#[derive(Default)]
+pub struct InflightCounter {
+    count: AtomicUsize,
+    notify: tokio::sync::Notify,
+}
 
 impl InflightCounter {
     pub fn get(&self) -> usize {
-        self.0.load(Ordering::Relaxed)
+        self.count.load(Ordering::Relaxed)
     }
+
     pub fn increment(&self) {
-        self.0.fetch_add(1, Ordering::Relaxed);
+        self.count.fetch_add(1, Ordering::Relaxed);
     }
+
     pub fn decrement(&self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
+        let previous = self.count.fetch_sub(1, Ordering::Relaxed);
+        if previous <= 1 {
+            self.notify.notify_waiters();
+        }
+    }
+
+    /// Awaits until the counter is zero.
+    pub async fn empty(&self) {
+        while self.get() > 0 {
+            self.notify.notified().await;
+        }
     }
 }
 

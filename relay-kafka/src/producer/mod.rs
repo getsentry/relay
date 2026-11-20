@@ -166,17 +166,9 @@ struct TopicProducer {
     pub rate_limiter: Option<KafkaRateLimits>,
 }
 
-impl Drop for TopicProducer {
-    fn drop(&mut self) {
-        // Wait until all messages have been delivered.
-        //
-        // Note that configuring kafka with `delivery.report.only.error=true` will break this
-        // mechanism, as it relies on receiving a delivery callback for every message.
-        let mut backoff = Duration::from_millis(100);
-        while self.producer.context().inflight().get() > 0 {
-            std::thread::sleep(backoff);
-            backoff = (2 * backoff).min(Duration::from_secs(1));
-        }
+impl TopicProducer {
+    async fn empty(&self) {
+        self.producer.context().inflight().empty().await
     }
 }
 
@@ -395,6 +387,15 @@ impl KafkaClient {
             message.variant(),
             serialized.as_bytes(),
         )
+    }
+
+    /// Await until all messages have been delivered.
+    pub async fn empty(&self) {
+        for producer in self.producers.values() {
+            for topic_producer in &producer.topic_producers.producers {
+                topic_producer.empty().await;
+            }
+        }
     }
 
     /// Sends the payload to the correct producer for the current topic.
@@ -619,8 +620,8 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn test_drop_waits_for_inflight_messages() {
+    #[tokio::test]
+    async fn test_waits_for_inflight_messages() {
         let cluster = MockCluster::new(1).unwrap();
         cluster
             .broker_round_trip_time(1, Duration::from_millis(100))
@@ -643,7 +644,7 @@ mod tests {
             .unwrap();
         assert_eq!(producer.context().inflight().get(), 1);
 
-        drop(client);
+        producer.context().inflight().empty().await;
 
         assert_eq!(producer.context().inflight().get(), 0);
     }

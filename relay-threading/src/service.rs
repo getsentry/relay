@@ -41,6 +41,7 @@ impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T>
                 ))
                 .await;
         }
+        self.handler.on_exit().await;
 
         self.pool.finish().await;
     }
