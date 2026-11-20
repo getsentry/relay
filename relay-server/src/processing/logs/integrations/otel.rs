@@ -12,7 +12,7 @@ use crate::processing::logs::integrations::{
     Error, SerializedLogsIntegration, create_intermediates,
 };
 use crate::processing::{self, Intermediates, Nothing, Output};
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardItemType, DiscardReason};
 
 #[derive(Debug)]
 pub struct SerializedOtelLogsIntegration(SerializedLogsIntegration, OtelFormat);
@@ -61,7 +61,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
         ctx: processing::Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let intermediates = work.try_map(|work, records| {
-            expand(work, records, ctx.config.max_expanded_log_operations())
+            expand(
+                work,
+                records,
+                ctx.config.max_expanded_log_operations(),
+                ctx.config.max_envelope_size(),
+            )
         })?;
         Ok(Output::intermediates(intermediates))
     }
@@ -73,6 +78,7 @@ pub fn expand(
     SerializedOtelLogsIntegration(SerializedLogsIntegration { headers, item }, format): SerializedOtelLogsIntegration,
     records: &mut RecordKeeper,
     max_ops: usize,
+    max_size: usize,
 ) -> Result<Intermediates, Error> {
     // Log byte counts will change here as we go from an estimated count based on the body, to
     // accurately counted bytes.
@@ -80,6 +86,7 @@ pub fn expand(
 
     let payload = item.data().payload();
     let mut logs = Vec::new();
+    let mut expanded_size = 0;
     let parsed = parse_logs_data(format, &payload, max_ops)?;
 
     for resource_logs in parsed.resource_logs {
@@ -91,6 +98,13 @@ pub fn expand(
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
+
+                expanded_size += byte_size as usize;
+                if expanded_size > max_size {
+                    return Err(Error::Invalid(DiscardReason::ItemTooLarge(
+                        DiscardItemType::Log,
+                    )));
+                }
 
                 records.add([
                     (DataCategory::LogItem, 1),
