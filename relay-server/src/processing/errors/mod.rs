@@ -329,10 +329,8 @@ fn add_rate_limited_attachments(event: &mut Annotated<Event>, attachments: &[Att
             .rate_limited
             .get_or_insert_with(Vec::new)
             .push(Annotated::new(RateLimitedAttachment {
-                ty: Annotated::new(attachment.attachment_type().to_string()),
-                reason_code: Annotated::from(
-                    data.rate_limit_reason().map(|c| c.as_str().to_owned()),
-                ),
+                ty: attachment.attachment_type().to_string().into(),
+                reason_code: data.rate_limit_reason().map(ToString::to_string).into(),
             }));
     }
 }
