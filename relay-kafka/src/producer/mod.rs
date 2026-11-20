@@ -305,18 +305,9 @@ impl Producer {
         });
 
         producer
-            .context()
-            .inflight()
-            .fetch_add(1, Ordering::Relaxed);
-
-        producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
             .inspect_err(|_| {
-                producer
-                    .context()
-                    .inflight()
-                    .fetch_sub(1, Ordering::Relaxed);
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
                     variant = variant,
@@ -324,6 +315,11 @@ impl Producer {
                     producer_name = producer_name
                 );
             })?;
+
+        producer
+            .context()
+            .inflight()
+            .fetch_add(1, Ordering::Relaxed);
 
         Ok(topic_name)
     }
