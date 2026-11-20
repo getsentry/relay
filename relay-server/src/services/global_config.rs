@@ -366,16 +366,18 @@ impl Service for GlobalConfigService {
             }
         };
 
+        let mut expects_input = true;
         loop {
             tokio::select! {
                 biased;
 
                 () = &mut self.fetch_handle => self.request_global_config(),
                 Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                signal = rx.recv() => match signal {
+                signal = rx.recv(), if expects_input => match signal {
                     Some(message) => self.handle_message(message),
-                    None => break, // all requests have been answered, stop immediately.
-                }
+                    None => expects_input = false
+                },
+                _ = self.global_config_watch.closed(), if !expects_input => break
             }
         }
         relay_log::info!("global config service stopped");
@@ -408,8 +410,10 @@ mod tests {
         assert!(config_rx.borrow_and_update().is_ready());
 
         drop(addr);
+        assert!(futures::poll!(&mut run).is_pending());
+
+        drop(config_rx);
         assert!(futures::poll!(&mut run).is_ready());
-        assert!(config_rx.changed().await.is_err());
     }
 
     #[tokio::test]
