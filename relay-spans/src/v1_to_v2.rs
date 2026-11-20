@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
 };
-use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
+use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, SkipSerialization, Value};
 
 use crate::name::name_for_attributes;
 
@@ -214,8 +214,13 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
         return Annotated(None, meta);
     };
 
+    // `IntoValue` emits every known field of `SpanData`, including unset ones. Only skip those,
+    // empty strings and collections are valid attribute values.
     Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
-        |(key, value)| (!value.is_empty()).then_some((key, attribute_from_value(value))),
+        |(key, value)| {
+            (!value.skip_serialization(SkipSerialization::Null(false)))
+                .then_some((key, attribute_from_value(value)))
+        },
     )))
 }
 
@@ -921,6 +926,27 @@ mod tests {
         assert_eq!(
             &serialized,
             r#"{"status":"ok","end_timestamp":123.0,"attributes":{}}"#
+        );
+    }
+
+    #[test]
+    fn empty_data_values() {
+        let json = r#"{
+            "data": {
+                "http.request.method": "",
+                "my.empty.string": "",
+                "my.empty.array": [],
+                "my.empty.object": {},
+                "my.null": null
+            }
+        }"#;
+        let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
+
+        let serialized = Annotated::from(span_v2).payload_to_json().unwrap();
+        assert_eq!(
+            &serialized,
+            r#"{"status":"ok","attributes":{"http.request.method":{"type":"string","value":""},"my.empty.array":{"type":"string","value":"[]"},"my.empty.object":{"type":"string","value":"{}"},"my.empty.string":{"type":"string","value":""}}}"#
         );
     }
 }

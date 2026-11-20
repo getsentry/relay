@@ -44,7 +44,7 @@ fn expand_check_in(
     for extra in check_ins {
         record_keeper.reject_err(Outcome::Invalid(DiscardReason::DuplicateItem), extra);
     }
-    let check_in = serde_json::from_slice(&item.payload())
+    let check_in = serde_json::from_slice(&item.data().payload())
         .map_err(ProcessCheckInError::from)
         .map_err(Error::from)?;
 

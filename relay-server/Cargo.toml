@@ -60,7 +60,7 @@ matchit = { workspace = true }
 mime = { workspace = true }
 mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
-multer = { workspace = true }
+multra = { workspace = true }
 objectstore-client = { workspace = true }
 objectstore-types = { workspace = true }
 opentelemetry-proto = { workspace = true }
@@ -88,8 +88,8 @@ relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
 relay-ourlogs = { workspace = true }
 relay-pii = { workspace = true }
+relay-private = { workspace = true }
 relay-profiling = { workspace = true }
-relay-prosperoconv = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-redis = { workspace = true }
@@ -97,6 +97,7 @@ relay-replays = { workspace = true }
 relay-conventions = { workspace = true }
 relay-sampling = { workspace = true }
 relay-serialization = { workspace = true }
+relay-server-derive = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }

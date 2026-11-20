@@ -22,11 +22,12 @@ use relay_threading::{AsyncPoolService, ServicePool};
 use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 
 use super::common::{self, SubmitClientReports};
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{ItemType, MetricBucketsItem};
 use crate::extractors::{RequestMeta, RequestTrust};
 use crate::managed::ManagedEnvelope;
 use crate::metrics::MetricOutcomes;
 use crate::metrics_extraction::ExtractedMetrics;
+#[cfg(sentry)]
 use crate::processing::errors::SwitchProcessingError;
 use crate::processing::relay::RelayProcessor;
 use crate::processing::{self, Forward as _, Output, Outputs, QuotaRateLimiter};
@@ -100,6 +101,7 @@ pub enum ProcessingError {
     #[error("failed to apply quotas")]
     QuotasFailed(#[from] RateLimitingError),
 
+    #[cfg(sentry)]
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 
@@ -134,6 +136,7 @@ impl ProcessingError {
             Self::InvalidFlamegraph => Some(Outcome::Invalid(DiscardReason::InvalidFlamegraph)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            #[cfg(sentry)]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
@@ -267,8 +270,8 @@ pub struct ProcessMetrics {
 /// Raw unparsed metric data.
 #[derive(Debug)]
 pub enum MetricData {
-    /// Raw data, unparsed envelope items.
-    Raw(Vec<Item>),
+    /// Raw data, unparsed metric bucket items.
+    Raw(Vec<MetricBucketsItem>),
     /// Already parsed buckets but unprocessed.
     Parsed(Vec<Bucket>),
 }
@@ -285,30 +288,23 @@ impl MetricData {
 
         let mut buckets = Vec::new();
         for item in items {
-            let payload = item.payload();
-            if item.ty() == &ItemType::MetricBuckets {
-                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(parsed_buckets) => {
-                        // Re-use the allocation of `b` if possible.
-                        if buckets.is_empty() {
-                            buckets = parsed_buckets;
-                        } else {
-                            buckets.extend(parsed_buckets);
-                        }
-                    }
-                    Err(error) => {
-                        relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket",
-                        );
-                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+            let payload = item.data().payload();
+            match serde_json::from_slice::<Vec<Bucket>>(&payload) {
+                Ok(parsed_buckets) => {
+                    // Re-use the allocation of `b` if possible.
+                    if buckets.is_empty() {
+                        buckets = parsed_buckets;
+                    } else {
+                        buckets.extend(parsed_buckets);
                     }
                 }
-            } else {
-                relay_log::error!(
-                    "invalid item of type {} passed to ProcessMetrics",
-                    item.ty()
-                );
+                Err(error) => {
+                    relay_log::debug!(
+                        error = &error as &dyn Error,
+                        "failed to parse metric bucket",
+                    );
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                }
             }
         }
         buckets
@@ -970,8 +966,8 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
         envelope.add_item({
-                let mut item = Item::new(ItemType::Event);
-                item.set_payload(
+                let mut item = crate::envelope::EventItem::new();
+                item.data_mut().set_payload(
                     ContentType::Json,
                     r#"
                     {
@@ -1017,7 +1013,7 @@ mod tests {
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
-            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+            Annotated::from_json_bytes(&event_item.data().payload()).unwrap();
         let event = annotated_event.into_value().unwrap();
         let headers = event
             .request
@@ -1061,8 +1057,8 @@ mod tests {
         }"#;
         envelope.set_dsc(serde_json::from_str(dsc).unwrap());
 
-        let mut item = Item::new(ItemType::Event);
-        item.set_payload(ContentType::Json, r#"{}"#);
+        let mut item = crate::envelope::EventItem::new();
+        item.data_mut().set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
         let outcome_aggregator = Addr::dummy();
@@ -1096,7 +1092,7 @@ mod tests {
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
-        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        let event = Annotated::<Event>::from_json_bytes(&event.data().payload()).unwrap();
         insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
         Object(
             {
@@ -1237,8 +1233,8 @@ mod tests {
         )
         .await;
 
-        let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(
+        let mut item = crate::envelope::MetricBucketsItem::new();
+        item.data_mut().set_payload(
             ContentType::Json,
             serde_json::json!([{
                 "timestamp": received_at.timestamp(),

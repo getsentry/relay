@@ -1147,10 +1147,40 @@ mod tests {
     }
 
     #[test]
+    fn test_creditcard_invalid_checksum() {
+        // Sentry project ID, matches the Visa prefix but fails the Luhn check.
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "project 4510944073809921 failed";
+            output = "project 4510944073809921 failed";
+            remarks = vec![];
+        );
+        // Only the number with a valid checksum is scrubbed.
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "John Appleseed 4571 2345 6789 0111 and 4571 2345 6789 0112!";
+            output = "John Appleseed 4571 2345 6789 0111 and [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard", (39, 51)),
+            ];
+        );
+    }
+
+    #[test]
+    fn test_creditcard_does_not_retry_rejected_matches() {
+        assert_text_rule!(
+            rule = "@creditcard";
+            input = "x 5100 4111 1111 1111 1111 y";
+            output = "x 5100 4111 1111 1111 1111 y";
+            remarks = vec![];
+        );
+    }
+
+    #[test]
     fn test_creditcard() {
         assert_text_rule!(
             rule = "@creditcard";
-            input = "John Appleseed 4571234567890111!";
+            input = "John Appleseed 4571234567890112!";
             output = "John Appleseed [creditcard]!";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
@@ -1158,7 +1188,7 @@ mod tests {
         );
         assert_text_rule!(
             rule = "@creditcard";
-            input = "John Appleseed 4571 2345 6789 0111!";
+            input = "John Appleseed 4571 2345 6789 0112!";
             output = "John Appleseed [creditcard]!";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
@@ -1166,7 +1196,7 @@ mod tests {
         );
         assert_text_rule!(
             rule = "@creditcard:mask";
-            input = "John Appleseed 4571234567890111!";
+            input = "John Appleseed 4571234567890112!";
             output = "John Appleseed ****************!";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
@@ -1174,7 +1204,7 @@ mod tests {
         );
         assert_custom_rulespec!(
             rule = "@creditcard:mask";
-            input = "John Appleseed 4571234567890111!";
+            input = "John Appleseed 4571234567890112!";
             output = "John Appleseed ****************!";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "0", (15, 31)),
@@ -1182,7 +1212,7 @@ mod tests {
         );
         assert_text_rule!(
             rule = "@creditcard:replace";
-            input = "John Appleseed 4571234567890111!";
+            input = "John Appleseed 4571234567890112!";
             output = "John Appleseed [creditcard]!";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "@creditcard:replace", (15, 27)),
@@ -1190,7 +1220,7 @@ mod tests {
         );
         assert_custom_rulespec!(
             rule = "@creditcard:replace";
-            input = "John Appleseed 4571234567890111!";
+            input = "John Appleseed 4571234567890112!";
             output = "John Appleseed [Filtered]!";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "0", (15, 25)),
@@ -1198,16 +1228,16 @@ mod tests {
         );
         assert_text_rule!(
             rule = "@creditcard:hash";
-            input = "John Appleseed 4571234567890111!";
-            output = "John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!";
+            input = "John Appleseed 4571234567890112!";
+            output = "John Appleseed 8D65352680908F8AD1BCD7062E9F7257806385FA!";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@creditcard:hash", (15, 55)),
             ];
         );
         assert_custom_rulespec!(
             rule = "@creditcard:hash";
-            input = "John Appleseed 4571234567890111!";
-            output = "John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!";
+            input = "John Appleseed 4571234567890112!";
+            output = "John Appleseed 8D65352680908F8AD1BCD7062E9F7257806385FA!";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "0", (15, 55)),
             ];

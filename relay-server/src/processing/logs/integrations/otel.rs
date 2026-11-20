@@ -1,7 +1,8 @@
+use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_otel::descriptors::Decodable;
-use relay_ourlogs::otel_logs::LogsData;
+use relay_otel::otel_logs::LogsData;
 use relay_quotas::DataCategory;
 
 use crate::envelope::WithHeader;
@@ -41,13 +42,12 @@ impl processing::Processor for OtelLogsIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let (item, format) =
-            envelope
-                .envelope_mut()
-                .take_item_by_map(|item| match item.integration() {
-                    Some(Integration::Logs(LogsIntegration::OtelV1 { format })) => Some(format),
-                    _ => None,
-                })?;
+        let (item, format) = envelope
+            .envelope_mut()
+            .take_item_by_map::<IntegrationItem, _>(|item| match item.integration() {
+                Some(Integration::Logs(LogsIntegration::OtelV1 { format })) => Some(format),
+                _ => None,
+            })?;
         let headers = envelope.envelope().headers().clone();
 
         let work =
@@ -78,7 +78,7 @@ pub fn expand(
     // accurately counted bytes.
     records.lenient(DataCategory::LogByte);
 
-    let payload = item.payload();
+    let payload = item.data().payload();
     let mut logs = Vec::new();
     let parsed = parse_logs_data(format, &payload, max_ops)?;
 
@@ -87,7 +87,7 @@ pub fn expand(
         for scope_logs in resource_logs.scope_logs {
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
-                let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
+                let log = relay_otel::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
                 let byte_size = relay_ourlogs::calculate_size(&log);
@@ -146,7 +146,7 @@ mod tests {
         AnyValue, ArrayValue, InstrumentationScope, KeyValue,
     };
     use opentelemetry_proto::tonic::resource::v1::Resource;
-    use relay_ourlogs::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
+    use relay_otel::otel_logs::{LogRecord, LogsData, ResourceLogs, ScopeLogs};
 
     use prost::Message;
 

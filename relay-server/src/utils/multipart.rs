@@ -4,7 +4,7 @@ use std::io;
 use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
@@ -13,9 +13,9 @@ use tokio::io::AsyncReadExt;
 use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, FormDataItem, Item, Items};
 use crate::extractors::RequestMeta;
-use crate::managed::Managed;
+use crate::managed::{Counted, Managed, Quantities};
 use crate::services::outcome::{
     DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
 };
@@ -185,21 +185,21 @@ pub trait AttachmentStrategy {
     fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
+    ) -> impl Future<Output = Result<Option<Managed<AttachmentItem>>, BadStoreRequest>> + Send;
 }
 
 pub fn read_bytes_into_item(
     bytes: Bytes,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     content_type: Option<ContentType>,
-) -> Managed<Item> {
+) -> Managed<AttachmentItem> {
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
-            inner.set_payload(content_type, bytes);
+            inner.data_mut().set_payload(content_type, bytes);
         } else {
-            inner.set_payload_without_content_type(bytes);
+            inner.data_mut().set_payload_without_content_type(bytes);
         };
         records.lenient(DataCategory::Attachment);
     });
@@ -207,21 +207,21 @@ pub fn read_bytes_into_item(
     item
 }
 
-async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
+async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multra::Error> {
     let mut buf = Vec::new();
     StreamReader::new(field.map_err(io::Error::other))
         .take((limit) as u64)
         .read_to_end(&mut buf)
         .await
-        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+        .map_err(|e| multra::Error::StreamReadFailed(Box::new(e)))?;
     Ok(buf)
 }
 
 pub async fn read_field_into_item(
     field: Field<'static>,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
-) -> Result<Managed<Item>, multer::Error> {
+) -> Result<Managed<AttachmentItem>, multra::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
@@ -231,24 +231,50 @@ pub async fn read_field_into_item(
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
-            inner.set_payload(content_type, bytes);
+            inner.data_mut().set_payload(content_type, bytes);
         } else {
-            inner.set_payload_without_content_type(bytes);
+            inner.data_mut().set_payload_without_content_type(bytes);
         };
         records.lenient(DataCategory::Attachment);
     });
 
     if n_bytes > limit {
-        let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
+        let attachment_type = item.attachment_type();
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
 
-        Err(multer::Error::FieldSizeExceeded {
+        Err(multra::Error::FieldSizeExceeded {
             limit: limit as u64,
             field_name,
         })
     } else {
         Ok(item)
+    }
+}
+
+/// Attachments and form data parsed from a multipart request.
+#[derive(Debug, Default)]
+pub struct MultipartItems {
+    /// Uploaded files in their original order.
+    pub attachments: smallvec::SmallVec<[AttachmentItem; 3]>,
+    /// Plain form fields collected into a single item, if present.
+    pub form_data: Option<FormDataItem>,
+}
+
+impl MultipartItems {
+    /// Converts the parsed parts to envelope items, with form data last.
+    pub fn into_items(self) -> Items {
+        self.attachments
+            .into_iter()
+            .map(Item::from)
+            .chain(self.form_data.map(Item::from))
+            .collect()
+    }
+}
+
+impl Counted for MultipartItems {
+    fn quantities(&self) -> Quantities {
+        (&self.attachments, &self.form_data).quantities()
     }
 }
 
@@ -258,15 +284,18 @@ pub async fn multipart_items(
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
-) -> Result<Managed<Items>, BadStoreRequest> {
-    let mut items =
-        Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, Items::new());
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
+    let mut items = Managed::with_meta_from_request_meta(
+        request_meta,
+        outcome_aggregator,
+        MultipartItems::default(),
+    );
     let mut form_data = FormDataWriter::new();
     let mut attachments_size = 0;
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
-            let mut item = Item::new(ItemType::Attachment);
+            let mut item = AttachmentItem::new();
             let attachment_type = attachment_strategy.infer_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
@@ -277,7 +306,7 @@ pub async fn multipart_items(
                 .inspect_err(|e| {
                     if matches!(
                         e,
-                        BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+                        BadStoreRequest::InvalidMultipart(multra::Error::FieldSizeExceeded { .. })
                     ) {
                         let attachment_type = DiscardAttachmentType::from(attachment_type);
                         let item_type = DiscardItemType::Attachment(attachment_type);
@@ -289,8 +318,8 @@ pub async fn multipart_items(
                 // This increases the attachments byte count even if the item is an attachment ref.
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
-                attachments_size += item.len();
-                items.merge_with(item, |items, item, _| items.push(item));
+                attachments_size += item.data().len();
+                items.merge_with(item, |items, item, _| items.attachments.push(item));
                 if attachments_size > config.max_attachments_size() {
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
                     let _ =
@@ -320,11 +349,13 @@ pub async fn multipart_items(
 
     let form_data = form_data.into_inner();
     if !form_data.is_empty() {
-        let mut item = Item::new(ItemType::FormData);
+        let mut item = FormDataItem::new();
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
-        item.set_payload(ContentType::Text, form_data);
-        items.merge_with(items.wrap(item), |items, item, _| items.push(item));
+        item.data_mut().set_payload(ContentType::Text, form_data);
+        items.merge_with(items.wrap(item), |items, item, _| {
+            items.form_data = Some(item)
+        });
     }
 
     Ok(items)
@@ -337,7 +368,7 @@ pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, Ba
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     let boundary =
-        multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
+        multra::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
     Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
@@ -454,9 +485,9 @@ mod tests {
             async fn add_to_item(
                 &self,
                 field: Field<'static>,
-                item: Managed<Item>,
+                item: Managed<AttachmentItem>,
                 config: &ConfigSnapshot,
-            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+            ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
 
@@ -475,7 +506,7 @@ mod tests {
         .await;
         assert!(res.is_err_and(|x| matches!(
             x,
-            BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+            BadStoreRequest::InvalidMultipart(multra::Error::FieldSizeExceeded { .. })
         )));
     }
 
@@ -510,9 +541,9 @@ mod tests {
             async fn add_to_item(
                 &self,
                 field: Field<'static>,
-                item: Managed<Item>,
+                item: Managed<AttachmentItem>,
                 config: &ConfigSnapshot,
-            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+            ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
 

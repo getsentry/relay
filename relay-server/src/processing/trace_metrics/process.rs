@@ -1,11 +1,12 @@
-use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, ContainerParseError, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{
+    ContainerItems, ContainerParseError, EnvelopeHeaders, ItemContainer, TraceMetricItem,
+};
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
 use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
@@ -53,11 +54,13 @@ pub fn expand(
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
     let settings = metrics.settings;
+    let user_agent =
+        utils::normalize::user_agent(metrics.headers.meta(), settings.infer_user_agent);
 
     metrics.retain_with_context(
         |metrics| (&mut metrics.metrics, &metrics.headers),
         |metric, headers, _| {
-            normalize_trace_metric(metric, headers, settings, ctx).inspect_err(|err| {
+            normalize_trace_metric(metric, headers, settings, &user_agent, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize trace metric: {err}");
             })
         },
@@ -78,7 +81,7 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 
 /// Parses a trace metric container into its [`ContainerItems<TraceMetric>`] representation.
 fn expand_trace_metric_container(
-    item: &Item,
+    item: &TraceMetricItem,
     trust: RequestTrust,
     max_ops: usize,
 ) -> Result<(Settings, ContainerItems<TraceMetric>)> {
@@ -151,6 +154,7 @@ fn normalize_trace_metric(
     metric: &mut Annotated<TraceMetric>,
     headers: &EnvelopeHeaders,
     settings: Settings,
+    user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -161,11 +165,6 @@ fn normalize_trace_metric(
     )?;
 
     if let Some(metric_value) = metric.value_mut() {
-        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
-            user_agent: meta.user_agent(),
-            hints: meta.client_hints(),
-        });
-
         eap::trace_metric::normalize_metric_name(metric_value)?;
         if ctx.is_processing() {
             eap::trace_metric::normalize_metric_unit(metric_value);
@@ -177,7 +176,7 @@ fn normalize_trace_metric(
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
         }
-        eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
+        user_agent.normalize(&mut metric_value.attributes);
     };
 
     if let Annotated(None, meta) = metric {
@@ -227,15 +226,15 @@ mod tests {
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
-    use crate::services::projects::project::ProjectInfo;
-
     use super::*;
+    use crate::envelope::ContainerPayload;
+    use crate::services::projects::project::ProjectInfo;
 
     #[test]
     fn test_expand_trace_metric_container_operations_limit() {
         let payload = r#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","name":"test.metric","type":"counter","value":1.0,"attributes":{}}]}"#;
 
-        let mut item = Item::new(crate::envelope::ItemType::TraceMetric);
+        let mut item = TraceMetricItem::new();
         item.set_payload_with_item_count(
             crate::envelope::ContentType::TraceMetricContainer,
             payload,

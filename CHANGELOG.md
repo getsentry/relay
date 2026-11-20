@@ -2,11 +2,22 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
+- Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
+- Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
+- Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
+
 **Internal**:
 
+- Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 - Delay shutdown until kafka messages have been drained. ([#6700](https://github.com/getsentry/relay/pull/6700))
+- Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
+- Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
+- Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
 
 ## 26.11.0
 
@@ -37,7 +48,6 @@
 - Write a placeholder exception for GPU crashes, so that dumps sent without an event are no longer dropped. ([#6650](https://github.com/getsentry/relay/pull/6650))
 - Limit the size of the culprit derived from CSP reports. ([#6675](https://github.com/getsentry/relay/pull/6675))
 - Correctly truncate shared tags during span tag extraction. ([#6637](https://github.com/getsentry/relay/pull/6637))
-
 
 **Internal**:
 

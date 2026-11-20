@@ -4,7 +4,7 @@
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_quotas::DataCategory;
@@ -13,7 +13,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -21,7 +21,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ProjectContext, Upload};
-use crate::utils::{self, AttachmentStrategy, SizeSplit};
+use crate::utils::{self, AttachmentStrategy, MultipartItems, SizeSplit};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -140,9 +140,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+    ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
@@ -169,7 +169,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             _ => match utils::read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
-                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                Err(multra::Error::FieldSizeExceeded { .. }) => Ok(None),
                 r => Ok(Some(r?)),
             },
         }
@@ -198,7 +198,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
         &state.config(),
@@ -210,11 +210,14 @@ async fn multipart_to_items(
 
     items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
         let prosperodump = inner
+            .attachments
             .iter_mut()
-            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .find(|item| item.attachment_type() == AttachmentType::Prosperodump)
             .ok_or(BadStoreRequest::MissingProsperodump)?;
-        validate_prosperodump(&prosperodump.payload())?;
-        prosperodump.set_content_type(ContentType::OctetStream);
+        validate_prosperodump(&prosperodump.data().payload())?;
+        prosperodump
+            .data_mut()
+            .set_content_type(ContentType::OctetStream);
         Ok(())
     })?;
     Ok(items)
@@ -242,6 +245,7 @@ async fn handle(
         .await
         .reject(&managed_err)?;
     let envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let items = items.into_items();
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta)
             .with_items(items)

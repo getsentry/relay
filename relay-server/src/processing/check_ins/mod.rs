@@ -5,7 +5,7 @@ use relay_monitors::{CheckIn, ProcessCheckInError};
 use relay_quotas::{DataCategory, DimensionMap, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{CheckInItem, ContentType, EnvelopeHeaders};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -79,10 +79,10 @@ impl processing::Processor for CheckInsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let check_ins = envelope
+        let check_ins: Vec<_> = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
-            .into_vec();
+            .drain_items::<CheckInItem>()
+            .collect();
 
         if check_ins.is_empty() {
             return None;
@@ -117,14 +117,17 @@ impl Forward for CheckInsOutput {
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let envelope = self.0.try_map(|ExpandedCheckIn { headers, check_in }, _| {
-            let mut item = Item::new(ItemType::CheckIn);
-            item.set_payload(
+            let mut item = CheckInItem::new();
+            item.data_mut().set_payload(
                 ContentType::Json,
                 serde_json::to_vec(&check_in)
                     .map_err(ProcessCheckInError::from)
                     .map_err(Error::from)?,
             );
-            Ok::<Box<Envelope>, Error>(Envelope::from_parts(headers, smallvec::smallvec![item]))
+            Ok::<Box<Envelope>, Error>(Envelope::from_parts(
+                headers,
+                smallvec::smallvec![item.into()],
+            ))
         });
 
         envelope.map_err(|e| e.map(|_| ()))
@@ -147,17 +150,17 @@ impl Forward for CheckInsOutput {
                 .try_map(|expanded_check_in, _| {
                     let routing_hint =
                         relay_monitors::routing_hint(&expanded_check_in.check_in, &project_id);
-                    let mut item = Item::new(ItemType::CheckIn);
-                    item.set_payload(
+                    let mut item = CheckInItem::new();
+                    item.data_mut().set_payload(
                         ContentType::Json,
                         serde_json::to_vec(&expanded_check_in.check_in)
                             .map_err(ProcessCheckInError::from)
                             .map_err(Error::from)?,
                     );
 
-                    item.set_routing_hint(routing_hint);
+                    item.data_mut().set_routing_hint(routing_hint);
                     Ok::<StoreCheckIn, Error>(StoreCheckIn {
-                        check_in: item,
+                        check_in: item.into(),
                         sdk: sdk.clone(),
                         retention_days,
                     })
@@ -176,9 +179,7 @@ pub struct SerializedCheckIns {
     headers: EnvelopeHeaders,
 
     /// A list of check-ins waiting to be processed.
-    ///
-    /// All items contained here must be check-ins.
-    check_ins: Vec<Item>,
+    check_ins: Vec<CheckInItem>,
 }
 
 impl Counted for SerializedCheckIns {
@@ -230,8 +231,9 @@ mod tests {
             .unwrap();
         let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
 
-        let mut item = Item::new(ItemType::CheckIn);
-        item.set_payload(ContentType::Json, payload.to_owned());
+        let mut item = CheckInItem::new();
+        item.data_mut()
+            .set_payload(ContentType::Json, payload.to_owned());
 
         let check_in = ExpandedCheckIn {
             headers: envelope.headers().to_owned(),

@@ -1,5 +1,4 @@
-use regex::bytes::RegexBuilder as BytesRegexBuilder;
-use regex::{Match, Regex};
+use regex::Match;
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -7,6 +6,7 @@ use std::iter::FusedIterator;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
+use crate::regex::ScrubbingRegexRef;
 use crate::regexes::{ReplaceBehavior, get_regex_for_rule_type};
 use crate::{CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction, transform, utils};
 
@@ -20,18 +20,12 @@ const MIN_STRING_LEN: usize = 5;
 fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
     rule: &RuleRef,
-    regex: &Regex,
+    regex: ScrubbingRegexRef<'_>,
     replace_behavior: &ReplaceBehavior,
 ) -> SmallVec<[(usize, usize); 1]> {
     let mut matches = SmallVec::<[(usize, usize); 1]>::new();
 
-    let regex = match BytesRegexBuilder::new(regex.as_str())
-        // https://github.com/rust-lang/regex/issues/697
-        .unicode(false)
-        .multi_line(false)
-        .dot_matches_new_line(true)
-        .build()
-    {
+    let regex = match regex.to_bytes() {
         Ok(x) => x,
         Err(e) => {
             // XXX: This is not going to fly long-term
@@ -80,14 +74,17 @@ fn apply_regex_to_utf8_bytes(
 fn apply_regex_to_utf16le_bytes(
     data: &mut [u8],
     rule: &RuleRef,
-    regex: &Regex,
+    regex: ScrubbingRegexRef<'_>,
     replace_behavior: &ReplaceBehavior,
 ) -> bool {
     let mut changed = false;
     for segment in WStrSegmentIter::new(data) {
         match replace_behavior {
             ReplaceBehavior::Value => {
-                for re_match in regex.find_iter(&segment.decoded) {
+                let matches = regex
+                    .captures_iter(&segment.decoded)
+                    .filter_map(|captures| captures.get(0));
+                for re_match in matches {
                     changed = true;
                     let match_wstr = get_wstr_match(&segment.decoded, re_match, segment.encoded);
                     match_wstr.apply_redaction(&rule.redaction);
@@ -532,6 +529,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
+    use regex::Regex;
 
     use super::*;
     use crate::PiiConfig;
@@ -743,6 +741,38 @@ mod tests {
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
             output: utf16le("before ********* after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_creditcard_checksum() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@creditcard:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: b"a 4510944073809921 b 5100 4111 1111 1111 1111 c 4111 1111 1111 1111 d",
+            output: b"a 4510944073809921 b 5100 4111 1111 1111 1111 c ******************* d",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_creditcard_checksum_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@creditcard:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("a 4510944073809921 b 5100 4111 1111 1111 1111 c 4111 1111 1111 1111 d")
+                .as_slice(),
+            output: utf16le(
+                "a 4510944073809921 b 5100 4111 1111 1111 1111 c ******************* d",
+            )
+            .as_slice(),
             changed: true,
         }
         .run();

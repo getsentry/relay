@@ -11,7 +11,7 @@ use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{
-    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
+    Attribute, AttributeType, Attributes, Geo, SpanV2, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -24,10 +24,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{
-    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
-    normalize_transaction_name,
-};
+use crate::{TransactionNameRule, normalize_transaction_name};
 
 mod ai;
 mod attribute_like;
@@ -36,12 +33,14 @@ mod size;
 pub mod time;
 pub mod trace_metric;
 mod trimming;
+mod user_agent;
 
 pub use self::ai::normalize_ai;
 pub use self::attribute_like::AttributesLike;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
+pub use self::user_agent::UserAgentNormalizer;
 
 /// How an EAP item entered Relay.
 #[derive(Debug, Clone)]
@@ -331,54 +330,6 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
                 .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
                 .to_string()
         });
-}
-
-/// Client user agent information.
-///
-/// This is information which is extracted from the client's request.
-#[derive(Debug, Copy, Clone, Default)]
-pub struct ClientUserAgentInfo<'a> {
-    /// The user agent extracted from the client request.
-    pub user_agent: Option<&'a str>,
-    /// Client hints extracted from the client request.
-    pub hints: ClientHints<&'a str>,
-}
-
-/// Normalizes the user agent/client information into [`Attributes`].
-///
-/// Does not modify the attributes if there is already browser information present,
-/// to preserve original values.
-///
-/// The `client_info` should be omitted for cases where the info is unreliable or incorrect, for
-/// example when the client is a backend SDK or another Relay.
-pub fn normalize_user_agent(
-    attributes: &mut Annotated<Attributes>,
-    client_info: Option<ClientUserAgentInfo<'_>>,
-) {
-    let attributes = attributes.get_or_insert_with(Default::default);
-
-    if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
-        return;
-    }
-
-    // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
-    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
-        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
-    }
-
-    let user_agent = attributes
-        .get_value(USER_AGENT__ORIGINAL)
-        .and_then(|v| v.as_str());
-
-    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-        user_agent,
-        client_hints: client_info.map(|ci| ci.hints).unwrap_or_default(),
-    }) else {
-        return;
-    };
-
-    attributes.insert_if_missing(BROWSER__NAME, || context.name);
-    attributes.insert_if_missing(BROWSER__VERSION, || context.version);
 }
 
 /// Normalizes the client address into [`Attributes`].
@@ -1504,78 +1455,6 @@ mod tests {
           }
         }
         "#);
-    }
-
-    #[test]
-    fn test_normalize_user_agent_none() {
-        let mut attributes = Default::default();
-        normalize_user_agent(
-            &mut attributes,
-            Some(ClientUserAgentInfo {
-                user_agent: Some(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                ),
-                ..Default::default()
-            }),
-        );
-
-        assert_annotated_snapshot!(attributes, @r###"
-        {
-          "browser.name": {
-            "type": "string",
-            "value": "Chrome"
-          },
-          "browser.version": {
-            "type": "string",
-            "value": "131.0.0"
-          },
-          "user_agent.original": {
-            "type": "string",
-            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-          }
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_normalize_user_agent_existing() {
-        let mut attributes = Annotated::from_json(
-            r#"{
-          "browser.name": {
-            "type": "string",
-            "value": "Very Special"
-          },
-          "browser.version": {
-            "type": "string",
-            "value": "13.3.7"
-          }
-        }"#,
-        )
-        .unwrap();
-
-        normalize_user_agent(
-            &mut attributes,
-            Some(ClientUserAgentInfo {
-                user_agent: Some(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                ),
-                ..Default::default()
-            }),
-        );
-
-        assert_annotated_snapshot!(attributes, @r#"
-        {
-          "browser.name": {
-            "type": "string",
-            "value": "Very Special"
-          },
-          "browser.version": {
-            "type": "string",
-            "value": "13.3.7"
-          }
-        }
-        "#
-        );
     }
 
     #[test]
