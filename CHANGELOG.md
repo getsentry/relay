@@ -8,6 +8,8 @@
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
+- Derive the `sentry.user` attribute for streamed spans from the user attributes, like for transaction spans. ([#6719](https://github.com/getsentry/relay/pull/6719))
+- Remove the `user.ip_address` attribute from spans, logs and trace metrics when IP address scrubbing is enabled, like for events. ([#6719](https://github.com/getsentry/relay/pull/6719))
 
 **Internal**:
 
@@ -18,6 +20,7 @@
 - Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
 - Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
 - Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
+- Update sentry-conventions to 0.34.0. Adds `sentry.user`, `page.server_rendering.age`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728))
 
 ## 26.11.0
 
