@@ -280,9 +280,10 @@ pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 mod testutils;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
-use relay_system::{ServiceSpawnExt as _, shutdown};
+use relay_system::ServiceSpawnExt as _;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -310,22 +311,12 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let state = ServiceState::start(&handle, &services, config.clone()).await?;
         services.start(HttpServer::new(config, state)?);
 
-        // Wait for first shutdown signal. This is redundant because the HTTP server also does it.
-        // Here we use it so we can listen for an optional second signal that kills the process
-        // immediately.
-        let _ = shutdown().await?;
-
-        relay_log::debug!("shutting down...");
-
         tokio::select! {
-            _ = services.join() => {
-                relay_log::info!("all services have stopped");
-            }
-            _ = shutdown() => {
-                relay_log::warn!("shutdown interrupted, data loss may occur");
-                std::process::exit(-1);
-            }
-        };
+            biased;
+
+            () = services.join() => {},
+            result = log_shutdown_progress(&handle) => result?,
+        }
 
         anyhow::Ok(())
     })?;
@@ -334,4 +325,27 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     relay_log::info!("relay shutdown complete");
     Ok(())
+}
+
+/// Logs the remaining services during graceful shutdown, at most once per second.
+async fn log_shutdown_progress(handle: &relay_system::Handle) -> std::io::Result<()> {
+    relay_system::shutdown().await?;
+
+    let mut previous = Vec::new();
+    loop {
+        // Delay the first log and avoid bursts if the runtime falls behind.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let mut services: Vec<_> = handle
+            .current_services_metrics()
+            .iter()
+            .map(|(id, _)| id.name())
+            .collect();
+        services.sort_unstable();
+
+        if !services.is_empty() && services != previous {
+            relay_log::info!(services = ?services, "waiting for services to stop");
+        }
+        previous = services;
+    }
 }
