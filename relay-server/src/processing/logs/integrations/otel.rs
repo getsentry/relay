@@ -14,6 +14,8 @@ use crate::processing::logs::integrations::{
 use crate::processing::{self, Intermediates, Nothing, Output};
 use crate::services::outcome::{DiscardItemType, DiscardReason};
 
+const MAX_LOGS: usize = 100_000;
+
 #[derive(Debug)]
 pub struct SerializedOtelLogsIntegration(SerializedLogsIntegration, OtelFormat);
 
@@ -88,6 +90,18 @@ pub fn expand(
     let mut logs = Vec::new();
     let mut expanded_size = 0;
     let parsed = parse_logs_data(format, &payload, max_ops)?;
+
+    let log_count: usize = parsed
+        .resource_logs
+        .iter()
+        .flat_map(|resource_logs| &resource_logs.scope_logs)
+        .map(|scope_logs| scope_logs.log_records.len())
+        .sum();
+    if log_count > MAX_LOGS {
+        return Err(Error::Invalid(DiscardReason::ItemTooLarge(
+            DiscardItemType::Log,
+        )));
+    }
 
     for resource_logs in parsed.resource_logs {
         let resource = resource_logs.resource.as_ref();
