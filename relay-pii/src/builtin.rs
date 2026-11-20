@@ -1202,6 +1202,9 @@ mod tests {
         );
         assert_eq!(scrub("-0.4111111111111111"), "-0.4111111111111111");
         assert_eq!(scrub("..4111111111111111"), "..4111111111111111");
+        // The integer part of a number is not scrubbed.
+        assert_eq!(scrub("4111111111111111.5"), "4111111111111111.5");
+        assert_eq!(scrub("4111111111111111."), "[creditcard].");
         // Numbers directly after a word character are not scrubbed.
         assert_eq!(scrub("x4111111111111111"), "x4111111111111111");
         assert_eq!(scrub("_4111111111111111"), "_4111111111111111");
