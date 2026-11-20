@@ -194,6 +194,12 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
         // stall produce for no benefit.
         ignore_key_ordering: true,
         jitter,
+        // A drain timeout drops the old producer during a config reload, dropping its messages
+        // without sending a delivery callback. This leaves the InflightCounter hanging.
+        //
+        // Allow one day for draining to make this unlikely. Duration::MAX would overflow
+        // Arroyo's deadline calculation.
+        drain_timeout: Duration::from_secs(24 * 60 * 60),
         ..ReloadConfig::default()
     }
 }
