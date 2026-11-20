@@ -348,6 +348,7 @@ fn normalize_span_derived(
             eap::normalize_span_name(span);
         }
         eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        eap::normalize_sentry_user(&mut span.attributes);
     }
 
     // Set a max_bytes value on the root state if it's defined in the project config.
