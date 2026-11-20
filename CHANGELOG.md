@@ -7,6 +7,7 @@
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
+- Scrub IBANs written in the print format with spaces between groups of four characters, such as `DE89 3704 0044 0532 0130 00`. ([#6727](https://github.com/getsentry/relay/pull/6727))
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 
 **Internal**:
