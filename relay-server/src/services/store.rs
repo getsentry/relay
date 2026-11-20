@@ -1260,6 +1260,10 @@ impl MessageHandler for StoreService {
             }
         })
     }
+
+    async fn on_exit(&self) {
+        self.kafka_client.empty().await
+    }
 }
 
 /// This signifies how the attachment payload is being transfered.
