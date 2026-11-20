@@ -1201,7 +1201,6 @@ mod tests {
             "score:1.5330946046173146"
         );
         assert_eq!(scrub("-0.4111111111111111"), "-0.4111111111111111");
-        assert_eq!(scrub("..4111111111111111"), "..4111111111111111");
         // The integer part of a number is not scrubbed.
         assert_eq!(scrub("4111111111111111.5"), "4111111111111111.5");
         assert_eq!(scrub("4111111111111111."), "[creditcard].");
@@ -1212,6 +1211,7 @@ mod tests {
         assert_eq!(scrub("a.4111111111111111"), "a.[creditcard]");
         assert_eq!(scrub("no.4111111111111111"), "no.[creditcard]");
         assert_eq!(scrub(".4111111111111111"), ".[creditcard]");
+        assert_eq!(scrub("..4111111111111111"), "..[creditcard]");
         // The character before the number is kept.
         assert_eq!(scrub("x 4111111111111111"), "x [creditcard]");
         assert_eq!(scrub("4111111111111111"), "[creditcard]");

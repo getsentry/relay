@@ -101,7 +101,7 @@ pub fn get_regex_for_rule_type(
             (v, IPV4_REGEX.as_ref(), replace_match()),
             (v, IPV6_REGEX.as_ref(), replace_group(1)),
         ],
-        RuleType::Creditcard => smallvec![(v, CREDITCARD_REGEX.as_ref(), replace_group(1))],
+        RuleType::Creditcard => smallvec![(v, CREDITCARD_REGEX.as_ref(), replace_match())],
         RuleType::Pemkey => smallvec![(v, PEM_KEY_REGEX.as_ref(), replace_group(1))],
         RuleType::UrlAuth => smallvec![(v, URL_AUTH_REGEX.as_ref(), replace_group(1))],
         RuleType::UsSsn => smallvec![(v, US_SSN_REGEX.as_ref(), replace_match())],
@@ -132,13 +132,19 @@ fn is_luhn_valid(s: &[u8]) -> bool {
 
 /// Validates a credit card number match.
 ///
-/// Rejects the integer part of a decimal number, such as `4111111111111111.5`, and numbers
-/// with an invalid Luhn checksum.
+/// Rejects parts of a decimal number, such as `1.4111111111111111` or `4111111111111111.5`, and
+/// numbers with an invalid Luhn checksum.
 fn is_creditcard(m: Match<'_>) -> bool {
+    let before = &m.haystack[..m.range.start];
+    if matches!(before, [.., d, b'.'] if d.is_ascii_digit()) {
+        return false;
+    }
+
     let after = &m.haystack[m.range.end..];
     if matches!(after, [b'.', d, ..] if d.is_ascii_digit()) {
         return false;
     }
+
     is_luhn_valid(m.as_bytes())
 }
 
@@ -325,15 +331,10 @@ regex!(
 //
 // Why so complicated? Because creditcard numbers are variable length and we do not want to
 // strip any number that just happens to have the same length.
-//
-// The regex crate has no lookbehind, so the prefix consumes the character before the number
-// and only group 1 is replaced. It skips numbers right after a decimal point (`\d.`), such as
-// the fractional digits of `0.5330946046173146`.
 regex!(
     CREDITCARD_REGEX,
     r#"(?x)
-    (?:^|[^\d.])\.?\b  # not preceded by a word character or a decimal point
-    (
+    \b(
         (?:  # vendor specific prefixes
                 3[47]\d      # amex (no 13-digit version) (length: 15)
             | 4\d{3}       # visa (16-digit version only)
