@@ -147,6 +147,7 @@ def test_spansv2_basic(
                 "type": "string",
                 "value": "127.0.0.1",
             },
+            "sentry.user": {"type": "string", "value": "ip:127.0.0.1"},
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},
@@ -1331,6 +1332,11 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
 
 
 SCRUB_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:replace"]}}}
+SCRUB_SENTRY_USER = {
+    "piiConfig": {
+        "applications": {"attributes.'sentry.user'.value": ["@anything:replace"]}
+    }
+}
 SCRUB_IP = {
     "datascrubbingSettings": {
         "scrubData": False,
@@ -1353,6 +1359,7 @@ SCRUB_IP = {
             {},
             "username:jane",
         ),
+        ({"user.id": "alice"}, SCRUB_SENTRY_USER, "[Filtered]"),
         ({"user.email": "jane@example.com"}, SCRUB_EMAIL, "email:[email]"),
         ({"user.ip_address": "127.0.0.1"}, {}, "ip:127.0.0.1"),
         ({"user.ip_address": "127.0.0.1"}, SCRUB_IP, None),
@@ -1362,6 +1369,7 @@ SCRUB_IP = {
     ids=[
         "id",
         "username",
+        "scrubbed_sentry_user",
         "scrubbed_email",
         "ip_address",
         "scrubbed_ip_address",
