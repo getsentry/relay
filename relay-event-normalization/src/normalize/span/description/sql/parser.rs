@@ -244,9 +244,7 @@ impl VisitorMut for NormalizeVisitor {
                 ..
             } => {
                 Self::simplify_table_alias(alias);
-                if let Some(ident) = with_offset_alias {
-                    Self::scrub_name(ident);
-                }
+                with_offset_alias.as_mut().map(Self::scrub_name);
             }
             TableFactor::NestedJoin { alias, .. } => {
                 Self::simplify_table_alias(alias);
@@ -283,11 +281,17 @@ impl VisitorMut for NormalizeVisitor {
             } => {
                 Self::scrub_name(name);
                 for ExprWithAlias { expr: _, alias } in columns {
-                    if let Some(alias) = alias {
-                        Self::scrub_name(alias);
-                    }
+                    alias.as_mut().map(Self::scrub_name);
                 }
                 Self::simplify_table_alias(alias);
+            }
+            TableFactor::UnpivotExpr {
+                expression: _, // Visited separately by the derived visitor.
+                value_alias,
+                attribute_alias,
+            } => {
+                Self::scrub_name(value_alias);
+                attribute_alias.as_mut().map(Self::scrub_name);
             }
             // Not altering the following directly, might revisit later:
             TableFactor::OpenJsonTable { .. } => {}
@@ -303,7 +307,10 @@ impl VisitorMut for NormalizeVisitor {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
-            Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
+            Expr::In {
+                target: InTarget::List(list),
+                ..
+            } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
             Expr::CompoundIdentifier(parts) => {
                 Self::simplify_compound_identifier(parts);
@@ -432,7 +439,10 @@ impl VisitorMut for NormalizeVisitor {
             }
             Statement::Savepoint { name } => Self::erase_name(name),
             Statement::ReleaseSavepoint { name } => Self::erase_name(name),
-            Statement::Declare { stmts } => {
+            Statement::Declare {
+                stmts,
+                separator: _,
+            } => {
                 for Declare {
                     names, for_query, ..
                 } in stmts
@@ -470,9 +480,7 @@ impl VisitorMut for NormalizeVisitor {
                             not_valid: _,
                         } => match constraint {
                             TableConstraint::Unique(UniqueConstraint { name, .. }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
                             }
                             TableConstraint::ForeignKey(ForeignKeyConstraint {
                                 name,
@@ -480,9 +488,7 @@ impl VisitorMut for NormalizeVisitor {
                                 referred_columns,
                                 ..
                             }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
                                 for column in columns {
                                     Self::scrub_name(column);
                                 }
@@ -491,34 +497,24 @@ impl VisitorMut for NormalizeVisitor {
                                 }
                             }
                             TableConstraint::Check(CheckConstraint { name, .. }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
                             }
                             TableConstraint::Index(IndexConstraint { name, .. }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
                             }
                             TableConstraint::FulltextOrSpatial(FullTextOrSpatialConstraint {
                                 opt_index_name,
                                 ..
                             }) => {
-                                if let Some(name) = opt_index_name {
-                                    Self::scrub_name(name);
-                                }
+                                opt_index_name.as_mut().map(Self::scrub_name);
                             }
                             TableConstraint::PrimaryKey(PrimaryKeyConstraint {
                                 name,
                                 index_name,
                                 ..
                             }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
-                                if let Some(name) = index_name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
+                                index_name.as_mut().map(Self::scrub_name);
                             }
                             TableConstraint::PrimaryKeyUsingIndex(ConstraintUsingIndex {
                                 name,
@@ -530,10 +526,30 @@ impl VisitorMut for NormalizeVisitor {
                                 index_name,
                                 characteristics: _,
                             }) => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
+                                name.as_mut().map(Self::scrub_name);
                                 Self::scrub_name(index_name);
+                            }
+                            TableConstraint::Exclude(ExcludeConstraint {
+                                name,
+                                index_method,
+                                elements,
+                                include,
+                                where_clause: _, // Already visited by the derived visitor.
+                                characteristics: _,
+                            }) => {
+                                name.as_mut().map(Self::scrub_name);
+                                index_method.as_mut().map(Self::scrub_name);
+                                for element in elements {
+                                    // The column expression was already visited, but the operator
+                                    // class is not annotated with `visit_relation`.
+                                    if let Some(operator_class) = &mut element.column.operator_class
+                                    {
+                                        Self::simplify_object_name(&mut operator_class.0);
+                                    }
+                                }
+                                for column in include {
+                                    Self::scrub_name(column);
+                                }
                             }
                         },
                         AlterTableOperation::AddColumn { column_def, .. } => {
@@ -579,11 +595,15 @@ impl VisitorMut for NormalizeVisitor {
                 "%s".clone_into(path);
             }
             Statement::Call(_) => {}
-            Statement::Copy { source, values, .. } => {
+            Statement::Copy {
+                source, payload, ..
+            } => {
                 if let CopySource::Table { columns, .. } = source {
                     Self::simplify_compound_identifier(columns);
                 }
-                *values = vec![Some("..".into())];
+                if let Some(payload) = payload {
+                    "..\n".clone_into(&mut payload.data);
+                }
             }
             Statement::CopyIntoSnowflake {
                 files,
@@ -735,9 +755,7 @@ impl VisitorMut for NormalizeVisitor {
                         lock_type: _,
                     } = table;
                     Self::scrub_name(table);
-                    if let Some(alias) = alias {
-                        Self::scrub_name(alias);
-                    }
+                    alias.as_mut().map(Self::scrub_name);
                 }
             }
             Statement::UnlockTables => {}
@@ -850,6 +868,22 @@ impl Dialect for DialectWithParameters {
 
     fn supports_group_by_expr(&self) -> bool {
         self.0.supports_group_by_expr()
+    }
+
+    fn supports_unpivot_expr(&self) -> bool {
+        self.0.supports_unpivot_expr()
+    }
+
+    fn supports_exclude_constraint(&self) -> bool {
+        self.0.supports_exclude_constraint()
+    }
+
+    fn supports_in_table_expression(&self) -> bool {
+        self.0.supports_in_table_expression()
+    }
+
+    fn supports_copy_from_stdin_data(&self) -> bool {
+        self.0.supports_copy_from_stdin_data()
     }
 
     fn parse_prefix(

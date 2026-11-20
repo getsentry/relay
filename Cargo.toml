@@ -236,7 +236,7 @@ sha2 = "0.10"
 similar-asserts = "1"
 smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
-sqlparser = "0.62"
+sqlparser = "0.64"
 sqlx = { version = "0.8", default-features = false }
 symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "14336dce13a8300e9787ad9046bb0317ddc0cc99", default-features = false }
 symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "14336dce13a8300e9787ad9046bb0317ddc0cc99", default-features = false }
