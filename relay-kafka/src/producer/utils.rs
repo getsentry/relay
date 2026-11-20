@@ -182,8 +182,13 @@ impl InflightCounter {
 
     /// Awaits until the counter is zero.
     pub async fn empty(&self) {
-        while self.get() > 0 {
-            self.notify.notified().await;
+        loop {
+            // Create future first so that it cannot miss any notifications.
+            let future = self.notify.notified();
+            if self.get() == 0 {
+                break;
+            }
+            future.await;
         }
     }
 }
