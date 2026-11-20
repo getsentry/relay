@@ -483,7 +483,7 @@ mod tests {
         // title is removed. `value` remains as the issue subtitle.
         assert_eq!(
             exception.ty.value().map(String::as_str),
-            Some("2168-0002 ResultAccessViolationData")
+            Some("2168-0002 SyntheticTestResult")
         );
     }
 }
