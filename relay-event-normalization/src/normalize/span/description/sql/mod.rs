@@ -194,21 +194,23 @@ mod tests {
     use super::*;
 
     macro_rules! scrub_sql_test {
-        ($name:ident, $description_in:expr, $output:literal) => {
+        ($name:ident, $description_in:expr, $output:literal $(, $mode:pat)?) => {
             #[test]
             fn $name() {
                 let description_in = $description_in;
                 let (scrubbed, _mode) = scrub_queries(None, description_in);
+                $(assert!(matches!(_mode, $mode), "unexpected scrubbing mode: {_mode:?}");)?
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
     }
 
     macro_rules! scrub_sql_test_with_dialect {
-        ($name:ident, $db_system:literal, $description_in:literal, $output:literal) => {
+        ($name:ident, $db_system:literal, $description_in:literal, $output:literal $(, $mode:pat)?) => {
             #[test]
             fn $name() {
                 let (scrubbed, _mode) = scrub_queries(Some($db_system), $description_in);
+                $(assert!(matches!(_mode, $mode), "unexpected scrubbing mode: {_mode:?}");)?
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -1007,6 +1009,62 @@ mod tests {
         r#"ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT"#
     );
 
+    scrub_sql_test!(
+        table_alias_columns,
+        r#"SELECT * FROM "table123" AS "alias456" ("col123", "col456")"#,
+        "SELECT * FROM table{%s} AS alias{%s} (col{%s}, col{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        derived_table_alias_columns,
+        r#"SELECT * FROM (SELECT "col123", "col456" FROM "table789") AS "derived123" ("out456", "out789")"#,
+        "SELECT * FROM (SELECT .. FROM table{%s}) AS derived{%s} (out{%s}, out{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        unnest_offset_alias,
+        r#"SELECT * FROM UNNEST([123, 456]) AS "value123" WITH OFFSET AS "offset456""#,
+        "SELECT * FROM UNNEST([%s, %s]) AS value{%s} WITH OFFSET offset{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        table_function_alias,
+        r#"SELECT * FROM TABLE(generate_series(123, 456)) AS "series789""#,
+        "SELECT * FROM TABLE(generate_series(%s, %s)) AS series{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        lateral_function_named_arguments,
+        r#"SELECT * FROM LATERAL "schema123"."function456"("arg123" => 'secret', 456) AS "result789""#,
+        "SELECT * FROM LATERAL function{%s}(arg{%s} => %s, %s) AS result{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        nested_join_alias,
+        r#"SELECT * FROM ("left123" JOIN "right456" ON "left123"."id789" = "right456"."id789") AS "joined123""#,
+        "SELECT * FROM (left{%s} JOIN right{%s} ON id{%s} = id{%s}) AS joined{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        pivot_alias,
+        r#"SELECT * FROM "sales123" PIVOT(sum("amount456") FOR "month789" IN ('jan', 'feb')) AS "pivot123""#,
+        "SELECT * FROM sales{%s} PIVOT(sum(amount{%s}) FOR month{%s} IN (%s, %s)) AS pivot{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        json_table_columns,
+        r#"SELECT * FROM JSON_TABLE('{"secret": 123}', '$' COLUMNS ("value123" INT PATH '$.secret', "ordinal456" FOR ORDINALITY, NESTED PATH '$.items[*]' COLUMNS ("hidden789" INT PATH '$'))) AS "json123""#,
+        "SELECT * FROM JSON_TABLE(%s, %s COLUMNS(value{%s} INT PATH %s, ordinal{%s} FOR ORDINALITY, NESTED PATH %s COLUMNS ())) AS json{%s}",
+        Mode::Parsed(_)
+    );
+
     scrub_sql_test_with_dialect!(
         unpivot_expression,
         "redshift",
@@ -1038,6 +1096,105 @@ mod tests {
         "postgresql",
         r#"ALTER TABLE "bookings123" ADD EXCLUDE (("room456" + 123) WITH =, (coalesce("during789", 'secret')) WITH &&)"#,
         "ALTER TABLE bookings{%s} ADD EXCLUDE ((room{%s} + %s) WITH =, (coalesce(during{%s}, %s)) WITH &&)"
+    );
+
+    scrub_sql_test!(
+        add_unique_constraint,
+        r#"ALTER TABLE "table123" ADD CONSTRAINT "unique456" UNIQUE ("col789")"#,
+        "ALTER TABLE table{%s} ADD CONSTRAINT unique{%s} UNIQUE (col{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_foreign_key_constraint,
+        r#"ALTER TABLE "table123" ADD CONSTRAINT "fk456" FOREIGN KEY ("col123", "col456") REFERENCES parent ("ref123", "ref456")"#,
+        "ALTER TABLE table{%s} ADD CONSTRAINT fk{%s} FOREIGN KEY (col{%s}, col{%s}) REFERENCES parent(ref{%s}, ref{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_check_constraint,
+        r#"ALTER TABLE "table123" ADD CONSTRAINT "check456" CHECK ("col789" > 123)"#,
+        "ALTER TABLE table{%s} ADD CONSTRAINT check{%s} CHECK (col{%s} > %s)",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_index_constraint,
+        r#"ALTER TABLE "table123" ADD INDEX "index456" ("col789")"#,
+        "ALTER TABLE table{%s} ADD INDEX index{%s} (col{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_fulltext_constraint,
+        r#"ALTER TABLE "table123" ADD FULLTEXT INDEX "index456" ("col789")"#,
+        "ALTER TABLE table{%s} ADD FULLTEXT INDEX index{%s} (col{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_primary_key_constraint,
+        r#"ALTER TABLE "table123" ADD CONSTRAINT "pk456" PRIMARY KEY "index789" ("col123")"#,
+        "ALTER TABLE table{%s} ADD CONSTRAINT pk{%s} PRIMARY KEY index{%s} (col{%s})",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_primary_key_using_index,
+        r#"ALTER TABLE "table123" ADD CONSTRAINT "pk456" PRIMARY KEY USING INDEX "index789" DEFERRABLE"#,
+        "ALTER TABLE table{%s} ADD CONSTRAINT pk{%s} PRIMARY KEY USING INDEX index{%s} DEFERRABLE",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        add_unique_using_index,
+        r#"ALTER TABLE "table123" ADD UNIQUE USING INDEX "index789""#,
+        "ALTER TABLE table{%s} ADD UNIQUE USING INDEX index{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        drop_constraint,
+        r#"ALTER TABLE "table123" DROP CONSTRAINT "constraint456""#,
+        "ALTER TABLE table{%s} DROP CONSTRAINT constraint{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        drop_column,
+        r#"ALTER TABLE "table123" DROP COLUMN "col456""#,
+        "ALTER TABLE table{%s} DROP COLUMN col{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        rename_column,
+        r#"ALTER TABLE "table123" RENAME COLUMN "old456" TO "new789""#,
+        "ALTER TABLE table{%s} RENAME COLUMN old{%s} TO new{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        change_column,
+        r#"ALTER TABLE "table123" CHANGE COLUMN "old456" "new789" INT"#,
+        "ALTER TABLE table{%s} CHANGE COLUMN old{%s} new{%s} INT",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test_with_dialect!(
+        rename_constraint,
+        "postgresql",
+        r#"ALTER TABLE "table123" RENAME CONSTRAINT "old456" TO "new789""#,
+        "ALTER TABLE table{%s} RENAME CONSTRAINT old{%s} TO new{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        alter_column_default,
+        r#"ALTER TABLE "table123" ALTER COLUMN "col456" SET DEFAULT 789"#,
+        "ALTER TABLE table{%s} ALTER COLUMN col{%s} SET DEFAULT %s",
+        Mode::Parsed(_)
     );
 
     scrub_sql_test!(
@@ -1117,6 +1274,91 @@ mod tests {
         alter_index_hex,
         "ALTER INDEX name_0123456789abcdef0123456789abcdef RENAME TO new_name_0123456789abcdef0123456789abcdef",
         "ALTER INDEX name_{%s} RENAME TO new_name_{%s}"
+    );
+
+    scrub_sql_test!(
+        show_functions_like,
+        "SHOW FUNCTIONS LIKE 'secret%'",
+        "SHOW FUNCTIONS LIKE '%s'",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        show_functions_ilike,
+        "SHOW FUNCTIONS ILIKE 'secret%'",
+        "SHOW FUNCTIONS ILIKE %s",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        show_functions_literal,
+        "SHOW FUNCTIONS 'secret'",
+        "SHOW FUNCTIONS '%s'",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        show_functions_without_filter,
+        "SHOW FUNCTIONS",
+        "SHOW FUNCTIONS",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        show_variables_where,
+        r#"SHOW VARIABLES WHERE "name123" = 'secret'"#,
+        "SHOW VARIABLES WHERE name{%s} = %s",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        show_collation_like,
+        "SHOW COLLATION LIKE 'secret%'",
+        "SHOW COLLATION LIKE '%s'",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        grant_grantees,
+        r#"GRANT SELECT ON items TO "schema123"."user456", PUBLIC GRANTED BY "owner789""#,
+        "GRANT SELECT ON items TO user{%s}, PUBLIC",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        revoke_grantees,
+        r#"REVOKE SELECT ON items FROM "schema123"."user456", PUBLIC GRANTED BY "owner789" CASCADE"#,
+        "REVOKE SELECT ON items FROM user{%s}, PUBLIC CASCADE",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        prepare_statement,
+        r#"PREPARE "statement123" AS SELECT * FROM "items456" WHERE "col789" = 123"#,
+        "PREPARE statement{%s} AS SELECT * FROM items{%s} WHERE col{%s} = %s",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        execute_statement,
+        r#"EXECUTE "schema123"."statement456"(123, 'secret')"#,
+        "EXECUTE statement{%s}(%s, %s)",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test!(
+        deallocate_statement,
+        r#"DEALLOCATE PREPARE "statement123""#,
+        "DEALLOCATE PREPARE statement{%s}",
+        Mode::Parsed(_)
+    );
+
+    scrub_sql_test_with_dialect!(
+        lock_tables_alias,
+        "mysql",
+        r#"LOCK TABLES "table123" AS "alias456" READ, "other789" WRITE"#,
+        "LOCK TABLES table{%s} AS alias{%s} READ, other{%s} WRITE",
+        Mode::Parsed(_)
     );
 
     scrub_sql_test!(
