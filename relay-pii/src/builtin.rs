@@ -1177,6 +1177,53 @@ mod tests {
     }
 
     #[test]
+    fn test_creditcard_after_decimal_point() {
+        let scrub = |input: &str| {
+            let config = PiiConfig {
+                applications: {
+                    let mut map = BTreeMap::new();
+                    map.insert(ValueType::String.into(), vec!["@creditcard".to_owned()]);
+                    map
+                },
+                ..PiiConfig::default()
+            };
+            let compiled = config.compiled();
+            let mut processor = PiiProcessor::new(compiled);
+            let mut root = Annotated::new(input.to_owned());
+            process_value(&mut root, &mut processor, &processing_state()).unwrap();
+            root.into_value().unwrap()
+        };
+
+        // Fractional digits of a number are not scrubbed.
+        assert_eq!(scrub("1.4111111111111111"), "1.4111111111111111");
+        assert_eq!(
+            scrub("score:1.5330946046173146"),
+            "score:1.5330946046173146"
+        );
+        assert_eq!(scrub("-0.4111111111111111"), "-0.4111111111111111");
+        assert_eq!(scrub("..4111111111111111"), "..4111111111111111");
+        // Numbers directly after a word character are not scrubbed.
+        assert_eq!(scrub("x4111111111111111"), "x4111111111111111");
+        assert_eq!(scrub("_4111111111111111"), "_4111111111111111");
+        // A dot that is not a decimal point does not prevent scrubbing.
+        assert_eq!(scrub("a.4111111111111111"), "a.[creditcard]");
+        assert_eq!(scrub("no.4111111111111111"), "no.[creditcard]");
+        assert_eq!(scrub(".4111111111111111"), ".[creditcard]");
+        // The character before the number is kept.
+        assert_eq!(scrub("x 4111111111111111"), "x [creditcard]");
+        assert_eq!(scrub("4111111111111111"), "[creditcard]");
+        assert_eq!(scrub("(4111111111111111)"), "([creditcard])");
+        assert_eq!(
+            scrub("a 4111111111111111 4111111111111111"),
+            "a [creditcard] [creditcard]"
+        );
+        assert_eq!(
+            scrub("4111-1111-1111-1111 and 378282246310005"),
+            "[creditcard] and [creditcard]"
+        );
+    }
+
+    #[test]
     fn test_creditcard() {
         assert_text_rule!(
             rule = "@creditcard";
