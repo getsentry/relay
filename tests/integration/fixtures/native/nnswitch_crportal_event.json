@@ -7,8 +7,8 @@
   "exception": {
     "values": [
       {
-        "type": "2168-0002 ResultAccessViolationData",
-        "value": "Data access to an invalid memory region was performed. (2: Access Violation Data)",
+        "type": "2168-0002 SyntheticTestResult",
+        "value": "Synthetic test description. (2: Synthetic Test Code)",
         "mechanism": {
           "type": "2168-0002",
           "handled": false
@@ -36,7 +36,7 @@
                 "current_core": 0,
                 "exception_address": "0x0000000000000000",
                 "exception_code": 2,
-                "exception_code_description": "Access Violation Data",
+                "exception_code_description": "Synthetic Test Code",
                 "exception_thread": "8440",
                 "ideal_core": 0,
                 "lr_called": true,
