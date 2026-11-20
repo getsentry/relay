@@ -129,6 +129,7 @@ impl SentryError for Playstation {
                 item.set_attachment_type(AttachmentType::Minidump);
                 // If the original prosperodump is already rate limited, so will be the minidump.
                 item.data_mut().set_rate_limited(prosperodump.data().rate_limited());
+                item.data_mut().set_rate_limit_reason(prosperodump.data().rate_limit_reason().cloned());
 
                 crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item);
 
@@ -185,9 +186,14 @@ impl SentryError for Playstation {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
+        let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+
         if !self.prosperodump.data().rate_limited() {
             records.reject_err(Error::RateLimited(limits.clone()), &self.prosperodump);
             self.prosperodump.data_mut().set_rate_limited(true);
+            self.prosperodump
+                .data_mut()
+                .set_rate_limit_reason(reason_code.clone());
         }
 
         if let Some(minidump) = self.minidump.as_mut()
@@ -195,6 +201,7 @@ impl SentryError for Playstation {
         {
             records.reject_err(Error::RateLimited(limits), &*minidump);
             minidump.data_mut().set_rate_limited(true);
+            minidump.data_mut().set_rate_limit_reason(reason_code);
         }
 
         Ok(())

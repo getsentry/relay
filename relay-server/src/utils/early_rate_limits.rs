@@ -515,6 +515,9 @@ where
     }
     if keep {
         item.data_mut().set_rate_limited(true);
+        if let Some(Outcome::RateLimited(reason_code)) = &rejection.outcome {
+            item.data_mut().set_rate_limit_reason(reason_code.clone());
+        }
     }
     keep
 }

@@ -50,8 +50,10 @@ impl SentryError for AppleCrashReport {
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
         if !self.0.data().rate_limited() {
+            let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             records.reject_err(Error::RateLimited(limits), &self.0);
             self.0.data_mut().set_rate_limited(true);
+            self.0.data_mut().set_rate_limit_reason(reason_code);
         }
 
         Ok(())

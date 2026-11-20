@@ -8,7 +8,7 @@ import queue
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from urllib3.filepost import encode_multipart_formdata
 
@@ -830,6 +830,51 @@ def test_minidump_ratelimit(
     outcomes_consumer.assert_rate_limited(
         "static_disabled_quota", categories=["error", "attachment", "attachment_item"]
     )
+
+
+@pytest.mark.parametrize(
+    "quota",
+    [
+        None,
+        {"limit": 0},
+        {"id": f"test_rate_limiting_{uuid4().hex}", "limit": 1, "window": 3600},
+    ],
+    ids=["not_rate_limited", "zero_quota", "counted_quota"],
+)
+def test_minidump_rate_limited_attachments_context(
+    mini_sentry, relay_with_processing, attachments_consumer, quota
+):
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if quota is not None:
+        project_config["config"]["quotas"] = [
+            {
+                **quota,
+                "categories": ["attachment"],
+                "reasonCode": "attachment_usage_exceeded",
+            }
+        ]
+
+    attachments_consumer = attachments_consumer()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+    relay.send_minidump(project_id=project_id, files=attachments)
+
+    rate_limited = quota is not None
+    event, message = attachments_consumer.get_event()
+    (attachment,) = message["attachments"]
+    assert attachment["rate_limited"] is rate_limited
+
+    if rate_limited:
+        assert event["contexts"]["attachments"] == {
+            "type": "attachments",
+            "rate_limited": [
+                {"type": "event.minidump", "reason_code": "attachment_usage_exceeded"}
+            ],
+        }
+    else:
+        assert "attachments" not in event["contexts"]
 
 
 def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_consumer):
