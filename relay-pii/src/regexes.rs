@@ -101,7 +101,7 @@ pub fn get_regex_for_rule_type(
             (v, IPV4_REGEX.as_ref(), replace_match()),
             (v, IPV6_REGEX.as_ref(), replace_group(1)),
         ],
-        RuleType::Creditcard => smallvec![(v, CREDITCARD_REGEX.as_ref(), replace_match())],
+        RuleType::Creditcard => smallvec![(v, CREDITCARD_REGEX.as_ref(), replace_group(1))],
         RuleType::Pemkey => smallvec![(v, PEM_KEY_REGEX.as_ref(), replace_group(1))],
         RuleType::UrlAuth => smallvec![(v, URL_AUTH_REGEX.as_ref(), replace_group(1))],
         RuleType::UsSsn => smallvec![(v, US_SSN_REGEX.as_ref(), replace_match())],
@@ -313,10 +313,15 @@ regex!(
 //
 // Why so complicated? Because creditcard numbers are variable length and we do not want to
 // strip any number that just happens to have the same length.
+//
+// The regex crate has no lookbehind, so the prefix consumes the character before the number
+// and only group 1 is replaced. It skips numbers right after a decimal point (`\d.`), such as
+// the fractional digits of `0.5330946046173146`.
 regex!(
     CREDITCARD_REGEX,
     r#"(?x)
-    \b(
+    (?:^|[^\d.])\.?\b  # not preceded by a word character or a decimal point
+    (
         (?:  # vendor specific prefixes
                 3[47]\d      # amex (no 13-digit version) (length: 15)
             | 4\d{3}       # visa (16-digit version only)
@@ -416,5 +421,40 @@ mod tests {
         assert!(is_luhn_valid(b"378282246310005"));
         assert!(!is_luhn_valid(b"4111111111111112"));
         assert!(!is_luhn_valid(b"4510944073809921"));
+    }
+
+    #[test]
+    fn test_creditcard_after_decimal_point() {
+        let cases: &[(&str, &[&str])] = &[
+            ("1.4111111111111111", &[]),
+            ("score:1.5330946046173146", &[]),
+            ("-0.4111111111111111", &[]),
+            ("..4111111111111111", &[]),
+            ("x4111111111111111", &[]),
+            ("_4111111111111111", &[]),
+            ("a.4111111111111111", &["4111111111111111"]),
+            ("no.4111111111111111", &["4111111111111111"]),
+            (".4111111111111111", &["4111111111111111"]),
+            ("x 4111111111111111", &["4111111111111111"]),
+            ("4111111111111111", &["4111111111111111"]),
+            ("(4111111111111111)", &["4111111111111111"]),
+            (
+                "a 4111111111111111 4111111111111111",
+                &["4111111111111111", "4111111111111111"],
+            ),
+            (
+                "4111-1111-1111-1111 and 378282246310005",
+                &["4111-1111-1111-1111", "378282246310005"],
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let matches: Vec<_> = CREDITCARD_REGEX
+                .as_ref()
+                .captures_iter(input)
+                .map(|captures| captures.get(1).unwrap().as_str())
+                .collect();
+            assert_eq!(matches, *expected, "input: {input:?}");
+        }
     }
 }
