@@ -60,7 +60,7 @@ matchit = { workspace = true }
 mime = { workspace = true }
 mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
-multer = { workspace = true }
+multra = { workspace = true }
 objectstore-client = { workspace = true }
 objectstore-types = { workspace = true }
 opentelemetry-proto = { workspace = true }

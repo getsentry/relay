@@ -2,7 +2,7 @@ use axum::extract::{DefaultBodyLimit, Path, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;

@@ -16,6 +16,7 @@ use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
 use crate::redactions::Redaction;
+use crate::regex::ScrubbingRegexRef;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
 
@@ -469,7 +470,7 @@ fn apply_rule_to_value(
             if value.is_some() && should_redact_chunks {
                 // If we're given a string value here, redact the value like we would with
                 // @anything.
-                apply_regex!(&ANYTHING_REGEX, replace_behavior);
+                apply_regex!(ANYTHING_REGEX.as_ref(), replace_behavior);
             } else {
                 meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
                 return Err(ProcessingAction::DeleteValueHard);
@@ -485,7 +486,7 @@ fn apply_rule_to_value(
 fn apply_regex_to_chunks<'a>(
     chunks: Vec<Chunk<'a>>,
     rule: &RuleRef,
-    regex: &Regex,
+    regex: ScrubbingRegexRef<'_>,
     replace_behavior: ReplaceBehavior,
 ) -> Vec<Chunk<'a>> {
     // NB: This function allocates the entire string and all chunks a second time. This means it
@@ -657,7 +658,7 @@ mod tests {
                     "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
                     "ip_address": "is this an ip address? 73.133.27.120", //  <--------
                 },
-                "extra":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 ",
+                "extra":"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890112 ",
             })
             .into(),
         );
@@ -1610,7 +1611,7 @@ mod tests {
         let res = apply_regex_to_chunks(
             chunks.clone(),
             &rule,
-            &Regex::new(r#".*"#).unwrap(),
+            ANYTHING_REGEX.as_ref(),
             ReplaceBehavior::Value,
         );
         assert_eq!(chunks, res);
@@ -1634,7 +1635,7 @@ mod tests {
         let res = apply_regex_to_chunks(
             chunks.clone(),
             &rule,
-            &Regex::new(r#".*"#).unwrap(),
+            ANYTHING_REGEX.as_ref(),
             ReplaceBehavior::Groups(smallvec::smallvec![0]),
         );
         assert_eq!(chunks, res);
