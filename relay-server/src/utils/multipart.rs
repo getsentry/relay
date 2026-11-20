@@ -4,7 +4,7 @@ use std::io;
 use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
@@ -207,13 +207,13 @@ pub fn read_bytes_into_item(
     item
 }
 
-async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
+async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multra::Error> {
     let mut buf = Vec::new();
     StreamReader::new(field.map_err(io::Error::other))
         .take((limit) as u64)
         .read_to_end(&mut buf)
         .await
-        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+        .map_err(|e| multra::Error::StreamReadFailed(Box::new(e)))?;
     Ok(buf)
 }
 
@@ -221,7 +221,7 @@ pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
-) -> Result<Managed<AttachmentItem>, multer::Error> {
+) -> Result<Managed<AttachmentItem>, multra::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
@@ -243,7 +243,7 @@ pub async fn read_field_into_item(
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
 
-        Err(multer::Error::FieldSizeExceeded {
+        Err(multra::Error::FieldSizeExceeded {
             limit: limit as u64,
             field_name,
         })
@@ -306,7 +306,7 @@ pub async fn multipart_items(
                 .inspect_err(|e| {
                     if matches!(
                         e,
-                        BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+                        BadStoreRequest::InvalidMultipart(multra::Error::FieldSizeExceeded { .. })
                     ) {
                         let attachment_type = DiscardAttachmentType::from(attachment_type);
                         let item_type = DiscardItemType::Attachment(attachment_type);
@@ -368,7 +368,7 @@ pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, Ba
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     let boundary =
-        multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
+        multra::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
     Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
@@ -506,7 +506,7 @@ mod tests {
         .await;
         assert!(res.is_err_and(|x| matches!(
             x,
-            BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+            BadStoreRequest::InvalidMultipart(multra::Error::FieldSizeExceeded { .. })
         )));
     }
 

@@ -3021,6 +3021,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
+name = "multra"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9efd1a1c4fd9d0672b27b5936c30432c5a62a06be674b53501d3d950422a0fe3"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http",
+ "httparse",
+ "memchr",
+ "mime",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5187,7 +5202,7 @@ dependencies = [
  "mime",
  "mime_guess",
  "minidump",
- "multer",
+ "multra",
  "objectstore-client",
  "objectstore-types",
  "opentelemetry-proto",
