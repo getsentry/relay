@@ -239,6 +239,38 @@ mod tests {
     );
 
     scrub_sql_test!(
+        not_in_expressions,
+        r#"SELECT * FROM "items123" WHERE "id456" NOT IN (1 + 2, abs(-3), 'secret')"#,
+        "SELECT * FROM items{%s} WHERE id{%s} NOT IN (%s)"
+    );
+
+    scrub_sql_test!(
+        in_subquery,
+        r#"SELECT * FROM "items123" WHERE "id456" IN (SELECT "id789" FROM "other123" WHERE "status456" = 'secret')"#,
+        "SELECT * FROM items{%s} WHERE id{%s} IN (SELECT id{%s} FROM other{%s} WHERE status{%s} = %s)"
+    );
+
+    scrub_sql_test_with_dialect!(
+        in_unnest,
+        "bigquery",
+        "SELECT * FROM items123 WHERE id456 IN UNNEST([123, 456])",
+        "SELECT * FROM items{%s} WHERE id{%s} IN UNNEST([%s, %s])"
+    );
+
+    scrub_sql_test_with_dialect!(
+        in_table,
+        "sqlite",
+        r#"SELECT * FROM "items123" WHERE "id456" IN "main"."allowed789""#,
+        "SELECT * FROM items{%s} WHERE id{%s} IN allowed{%s}"
+    );
+
+    scrub_sql_test!(
+        in_table_function,
+        "SELECT * FROM items123 WHERE id456 IN allowed789('secret', 123)",
+        "SELECT * FROM items{%s} WHERE id{%s} IN allowed{%s}(%s, %s)"
+    );
+
+    scrub_sql_test!(
         unparameterized_ins_nvarchar,
         "INSERT INTO a VALUES (123, N'foo', 'bar')",
         "INSERT INTO a (..) VALUES (%s)"
@@ -425,6 +457,51 @@ mod tests {
         declare_cursor_advanced,
         r#"DECLARE c123456 NO SCROLL CURSOR FOR SELECT "t".* FROM "t" WHERE "t".x = 1 AND y = %s"#,
         "DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        declare_comma_separated,
+        "mssql",
+        "DECLARE @secret123 INT = 42, @secret456 VARCHAR(20) = 'secret'",
+        "DECLARE %s INT = %s, %s VARCHAR(20) = %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        declare_semicolon_separated,
+        "snowflake",
+        "DECLARE secret123 INT DEFAULT 42; secret456 VARCHAR DEFAULT 'secret';",
+        "DECLARE %s INT DEFAULT %s; %s VARCHAR DEFAULT %s"
+    );
+
+    scrub_sql_test!(
+        copy_inline_payload,
+        "COPY items FROM STDIN;\n123\tsecret's data\n456\t\\N\n\\.",
+        "COPY items FROM STDIN;\n..\n\\."
+    );
+
+    scrub_sql_test_with_dialect!(
+        copy_payload_followed_by_query,
+        "postgresql",
+        "COPY items FROM STDIN;\nsecret\n\\.\nSELECT 'another secret'",
+        "COPY items FROM STDIN;\n..\n\\.; SELECT %s"
+    );
+
+    scrub_sql_test!(
+        copy_unterminated_payload,
+        "COPY items FROM STDIN;\n123\tsecret",
+        "COPY items FROM STDIN;\n..\n"
+    );
+
+    scrub_sql_test!(
+        copy_empty_payload,
+        "COPY items FROM STDIN;\n\\.",
+        "COPY items FROM STDIN;\n..\n\\."
+    );
+
+    scrub_sql_test!(
+        copy_without_payload,
+        "COPY items TO STDOUT",
+        "COPY items TO STDOUT"
     );
 
     scrub_sql_test!(
@@ -928,6 +1005,39 @@ mod tests {
         digits_in_alter_table,
         r#"ALTER TABLE "foo"."1234_foo" ADD COLUMN "bar678" TEXT"#,
         r#"ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT"#
+    );
+
+    scrub_sql_test_with_dialect!(
+        unpivot_expression,
+        "redshift",
+        r#"SELECT * FROM "items123" AS "item456", UNPIVOT "item456"."data789" AS "value123" AT "key456""#,
+        "SELECT * FROM items{%s} AS item{%s}, UNPIVOT data{%s} AS value{%s} AT key{%s}"
+    );
+
+    scrub_sql_test_with_dialect!(
+        unpivot_expression_without_attribute_alias,
+        "redshift",
+        r#"SELECT * FROM UNPIVOT json_parse('{"secret": 123}') AS "value456""#,
+        "SELECT * FROM UNPIVOT json_parse(%s) AS value{%s}"
+    );
+
+    scrub_sql_test!(
+        unpivot_columns,
+        r#"SELECT * FROM "sales123" UNPIVOT ("value123" FOR "month456" IN ("jan123" AS "first456", "feb789")) AS "result123""#,
+        "SELECT * FROM sales{%s} UNPIVOT(value{%s} FOR month{%s} IN (jan{%s} AS first{%s}, feb{%s})) AS result{%s}"
+    );
+
+    scrub_sql_test!(
+        exclude_constraint_identifiers,
+        r#"ALTER TABLE "schema123"."bookings456" ADD CONSTRAINT "overlap789" EXCLUDE USING "gist123" ("room123" WITH =, "during456" "schema123"."range_ops789" WITH &&) INCLUDE ("extra123", "extra456") WHERE ("active789" = 'secret') DEFERRABLE INITIALLY DEFERRED"#,
+        "ALTER TABLE bookings{%s} ADD CONSTRAINT overlap{%s} EXCLUDE USING gist{%s} (room{%s} WITH =, during{%s} range_ops{%s} WITH &&) INCLUDE (extra{%s}, extra{%s}) WHERE (active{%s} = %s) DEFERRABLE INITIALLY DEFERRED"
+    );
+
+    scrub_sql_test_with_dialect!(
+        exclude_constraint_expressions,
+        "postgresql",
+        r#"ALTER TABLE "bookings123" ADD EXCLUDE (("room456" + 123) WITH =, (coalesce("during789", 'secret')) WITH &&)"#,
+        "ALTER TABLE bookings{%s} ADD EXCLUDE ((room{%s} + %s) WITH =, (coalesce(during{%s}, %s)) WITH &&)"
     );
 
     scrub_sql_test!(
