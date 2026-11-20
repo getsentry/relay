@@ -2,8 +2,27 @@ use regex::bytes::{
     Captures as BytesCaptures, Regex as BytesRegex, RegexBuilder as BytesRegexBuilder,
 };
 use regex::{Captures, Regex};
+use std::ops::Range;
 
-type MatchValidator = fn(&[u8]) -> bool;
+/// A regex match passed to a [`MatchValidator`].
+///
+/// Gives access to the text around the match, in addition to the matched region itself.
+#[derive(Clone, Debug)]
+pub struct Match<'a> {
+    /// The full text the regex ran on.
+    pub haystack: &'a [u8],
+    /// The range of the match in the `haystack`.
+    pub range: Range<usize>,
+}
+
+impl<'a> Match<'a> {
+    /// Returns the matched region.
+    pub fn as_bytes(&self) -> &'a [u8] {
+        &self.haystack[self.range.clone()]
+    }
+}
+
+type MatchValidator = fn(Match<'_>) -> bool;
 
 /// A scrubbing regex with an optional validator for each match.
 #[derive(Clone, Copy, Debug)]
@@ -80,7 +99,12 @@ impl<'pattern> ScrubbingRegexRef<'pattern> {
     ) -> impl Iterator<Item = Captures<'haystack>> + use<'pattern, 'haystack> {
         let validator = self.validator;
         self.regex.captures_iter(haystack).filter(move |captures| {
-            validator.is_none_or(|validate| validate(captures[0].as_bytes()))
+            validator.is_none_or(|validate| {
+                validate(Match {
+                    haystack: haystack.as_bytes(),
+                    range: captures.get_match().range(),
+                })
+            })
         })
     }
 }
@@ -91,9 +115,14 @@ impl ScrubbingRegex<BytesRegex> {
         haystack: &'haystack [u8],
     ) -> impl Iterator<Item = BytesCaptures<'haystack>> + use<'regex, 'haystack> {
         let validator = self.validator;
-        self.regex
-            .captures_iter(haystack)
-            .filter(move |captures| validator.is_none_or(|validate| validate(&captures[0])))
+        self.regex.captures_iter(haystack).filter(move |captures| {
+            validator.is_none_or(|validate| {
+                validate(Match {
+                    haystack,
+                    range: captures.get_match().range(),
+                })
+            })
+        })
     }
 }
 
@@ -105,7 +134,7 @@ mod tests {
     #[test]
     fn test_validator_skips_overlapping_match() {
         let regex = ScrubbingRegex::new(Regex::new("..").unwrap())
-            .with_validator(|matched| matched != b"ab");
+            .with_validator(|matched| matched.as_bytes() != b"ab");
         let regex = regex.as_ref();
 
         // regex matches `ab` and validator rejects it -> no match
@@ -119,7 +148,7 @@ mod tests {
     #[test]
     fn test_custom_validator() {
         let regex = ScrubbingRegex::new(Regex::new(r"(.).").unwrap())
-            .with_validator(|matched| matched == b"bc");
+            .with_validator(|matched| matched.as_bytes() == b"bc");
         let regex = regex.as_ref();
 
         assert!(!regex.is_match("ab"));
