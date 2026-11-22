@@ -1,5 +1,17 @@
+const {execFileSync} = require('child_process');
+const path = require('path');
+
 module.exports = async ({ github, context, core }) => {
   const PR_LINK = `[#${context.payload.pull_request.number}](${context.payload.pull_request.html_url})`;
+
+  // Crates the C ABI depends on for infrastructure only. Changes to them never reach Python.
+  const INFRASTRUCTURE_CRATES = new Set([
+    'relay-cogs',
+    'relay-log',
+    'relay-redis',
+    'relay-statsd',
+    'relay-system',
+  ]);
 
   function getCleanTitle(title) {
     // remove fix(component): prefix
@@ -20,6 +32,7 @@ module.exports = async ({ github, context, core }) => {
   function getChangelogDetails(title) {
     return `
   For changes exposed to the _Python package_, please add an entry to \`py/CHANGELOG.md\`. This includes, but is not limited to event normalization, PII scrubbing, and the protocol.
+  Changes under \`py/\` or to a crate the C ABI depends on always require an entry in \`py/CHANGELOG.md\`.
   For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under the following heading:
    1. **Features**: For new user-visible functionality.
    2. **Bug Fixes**: For user-visible bug fixes.
@@ -55,6 +68,74 @@ module.exports = async ({ github, context, core }) => {
     return fileContent.match(/## Unreleased(.*?)##/ms)?.[1]?.includes(PR_LINK) || false;
   }
 
+  // Directories whose files change what the Python package sees: the package itself and every
+  // workspace crate the C ABI depends on. Falls back to the C ABI crate alone if cargo fails.
+  function pythonInterfaceDirs() {
+    try {
+      const metadata = JSON.parse(
+        execFileSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], {
+          encoding: 'utf8',
+        })
+      );
+      const packages = new Map(metadata.packages.map(pkg => [pkg.name, pkg]));
+
+      const closure = new Set();
+      const todo = ['relay-cabi'];
+      while (todo.length > 0) {
+        const name = todo.pop();
+        const pkg = packages.get(name);
+        if (!pkg || closure.has(name)) {
+          continue;
+        }
+        closure.add(name);
+        for (const dep of pkg.dependencies) {
+          if (dep.kind === null && packages.has(dep.name)) {
+            todo.push(dep.name);
+          }
+        }
+      }
+
+      const dirs = [...closure]
+        .filter(name => !INFRASTRUCTURE_CRATES.has(name))
+        .map(name => path.dirname(packages.get(name).manifest_path))
+        .map(dir => path.relative(metadata.workspace_root, dir));
+      return ['py', ...dirs];
+    } catch (error) {
+      core.warning(`Cannot resolve the C ABI dependencies, checking relay-cabi only: ${error}`);
+      return ['py', 'relay-cabi'];
+    }
+  }
+
+  async function touchesPythonInterface() {
+    const files = await github.paginate(github.rest.pulls.listFiles, {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: context.payload.pull_request.number,
+      per_page: 100,
+    });
+    const dirs = pythonInterfaceDirs();
+    return files.some(
+      file =>
+        file.filename !== 'py/CHANGELOG.md' &&
+        dirs.some(dir => file.filename.startsWith(`${dir}/`))
+    );
+  }
+
+  function failMissingChangelog(pr, file, message) {
+    core.error(message, {
+      title: 'Missing changelog entry.',
+      file,
+      startLine: 3,
+    });
+    const title = getCleanTitle(pr.title);
+    core.summary
+      .addHeading('Instructions and example for changelog')
+      .addRaw(getChangelogDetails(title))
+      .write();
+    core.setFailed(`${file} entry is missing.`);
+    logOutputError(title);
+  }
+
   async function checkChangelog(pr) {
     const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
     if (hasSkipLabel) {
@@ -65,23 +146,25 @@ module.exports = async ({ github, context, core }) => {
       return;
     }
 
-    const hasChangelog =
-      (await containsChangelog('CHANGELOG.md')) ||
-      (await containsChangelog('py/CHANGELOG.md'));
+    const hasPyChangelog = await containsChangelog('py/CHANGELOG.md');
+
+    if (!hasPyChangelog && (await touchesPythonInterface())) {
+      failMissingChangelog(
+        pr,
+        'py/CHANGELOG.md',
+        'This PR changes the Python package or the C ABI. Please add an entry to py/CHANGELOG.md.'
+      );
+      return;
+    }
+
+    const hasChangelog = hasPyChangelog || (await containsChangelog('CHANGELOG.md'));
 
     if (!hasChangelog) {
-      core.error('Please consider adding a changelog entry for the next release.', {
-        title: 'Missing changelog entry.',
-        file: 'CHANGELOG.md',
-        startLine: 3,
-      });
-      const title = getCleanTitle(pr.title);
-      core.summary
-        .addHeading('Instructions and example for changelog')
-        .addRaw(getChangelogDetails(title))
-        .write();
-      core.setFailed('CHANGELOG entry is missing.');
-      logOutputError(title);
+      failMissingChangelog(
+        pr,
+        'CHANGELOG.md',
+        'Please consider adding a changelog entry for the next release.'
+      );
       return;
     }
 
