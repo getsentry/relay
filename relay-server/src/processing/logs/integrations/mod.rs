@@ -8,7 +8,7 @@ use crate::processing::Intermediates;
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod browser_reports;
-mod heroku;
+pub(crate) mod heroku;
 mod nel;
 mod otel;
 mod vercel;

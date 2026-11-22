@@ -12,14 +12,14 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
-use relay_ourlogs::{
-    HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN as DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT as MSG_COUNT,
-};
 
 use crate::endpoints::common;
 use crate::envelope::ContentType;
 use crate::extractors::{IntegrationBuilder, RawContentType};
 use crate::integrations::LogsIntegration;
+use crate::processing::logs::integrations::heroku::{
+    HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN as DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT as MSG_COUNT,
+};
 use crate::service::ServiceState;
 
 /// All routes configured for the Heroku integration.

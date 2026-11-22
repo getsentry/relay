@@ -21,7 +21,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 
 mod filter;
-mod integrations;
+pub(crate) mod integrations;
 mod process;
 #[cfg(feature = "processing")]
 mod store;

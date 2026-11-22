@@ -1,12 +1,17 @@
 //! Heroku Logplex log expansion.
 
+mod logplex;
+
 use crate::envelope::IntegrationItem;
 
 use relay_cogs::AppFeature;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
-use relay_ourlogs::{HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT};
 use relay_quotas::DataCategory;
 
+pub(crate) use self::logplex::{
+    HEROKU_LOGPLEX_HEADER_DRAIN_TOKEN, HEROKU_LOGPLEX_HEADER_MSG_COUNT,
+};
+use self::logplex::{logplex_message_to_sentry_log, parse_logplex_frames, parse_logplex_message};
 use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
@@ -89,7 +94,7 @@ pub fn expand(
     let mut count: u32 = 0;
     let mut logs = Vec::new();
 
-    for frame in relay_ourlogs::parse_logplex_frames(&payload) {
+    for frame in parse_logplex_frames(&payload) {
         count += 1;
 
         if count > MAX_MESSAGES {
@@ -108,7 +113,7 @@ pub fn expand(
             .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
 
         let frame = String::from_utf8_lossy(frame);
-        let message = relay_ourlogs::parse_logplex_message(&frame)
+        let message = parse_logplex_message(&frame)
             .inspect_err(|err| {
                 relay_log::debug!(
                     error = err as &dyn std::error::Error,
@@ -117,7 +122,7 @@ pub fn expand(
             })
             .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
 
-        let log = relay_ourlogs::logplex_message_to_sentry_log(message, drain_token);
+        let log = logplex_message_to_sentry_log(message, drain_token);
         let byte_size = relay_ourlogs::calculate_size(&log);
 
         records.modify_by(DataCategory::LogItem, 1);
