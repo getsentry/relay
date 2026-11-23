@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Convert COOP reports sent to the browser report integration into logs. ([#6737](https://github.com/getsentry/relay/pull/6737))
+
 **Bug Fixes**:
 
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
