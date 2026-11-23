@@ -1,7 +1,7 @@
 use relay_config::ByteSize;
 use relay_event_schema::protocol::SpanV2;
 
-use crate::envelope::{ContainerItems, IntegrationItem, WithHeader};
+use crate::envelope::{ContainerItems, IntegrationItem};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
 use crate::processing::spans::Settings;
@@ -27,7 +27,7 @@ pub fn expand(
             }
         };
 
-        let payload = item.payload();
+        let payload = item.data().payload();
 
         let result = match integration {
             SpansIntegration::OtelV1 { format } => {
