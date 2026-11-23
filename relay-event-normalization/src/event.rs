@@ -433,32 +433,34 @@ pub fn normalize_ip_addresses(
         .map(|s| s.infer_ip())
         .unwrap_or_default();
 
-    // If infer_ip is set to Never then we just remove auto and don't continue
-    if let AutoInferSetting::Never = infer_ip {
-        // No user means there is also no IP so we can stop here
-        let Some(user) = user.value_mut() else {
-            return;
-        };
-        // If there is no IP we can also stop
-        let Some(ip) = user.ip_address.value() else {
-            return;
-        };
-        if ip.is_auto() {
-            user.ip_address.0 = None;
-            return;
-        }
-    }
+    let client_ip = client_ip
+        .filter(|ip| infer_ip != AutoInferSetting::Never && !ip.is_auto() && ip.is_valid());
+    let remote_addr_ip = normalize_remote_addr(request, client_ip);
 
-    let remote_addr_ip = request
-        .value()
-        .and_then(|r| r.env.value())
-        .and_then(|env| env.get("REMOTE_ADDR"))
-        .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok());
+    if infer_ip == AutoInferSetting::Never {
+        if let Some(user) = user.value_mut()
+            && user.ip_address.value().is_some_and(IpAddr::is_auto)
+        {
+            user.ip_address.set_value(None);
+        }
+        return;
+    }
 
     // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
     // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
     let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
+
+    // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+    if let Some(user) = user.value()
+        && user.ip_address.value().is_none()
+        && user
+            .ip_address
+            .meta()
+            .iter_remarks()
+            .any(|r| r.ty == RemarkType::Removed)
+    {
+        return;
+    }
 
     // We will infer IP addresses if:
     // * The IP address is {{auto}}
@@ -471,9 +473,13 @@ pub fn normalize_ip_addresses(
         None => matches!(infer_ip, AutoInferSetting::Auto),
     };
 
-    if should_be_inferred && let Some(ip) = inferred_ip {
-        let user = user.get_or_insert_with(User::default);
-        user.ip_address.set_value(Some(ip.to_owned()));
+    if should_be_inferred {
+        if let Some(ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.set_value(Some(ip.to_owned()));
+        } else if let Some(user) = user.value_mut() {
+            user.ip_address.set_value(None);
+        }
     }
 
     // Legacy behaviour:
@@ -486,22 +492,34 @@ pub fn normalize_ip_addresses(
         } else if let Some(client_ip) = inferred_ip {
             let user = user.get_or_insert_with(User::default);
             // auto is already handled above
-            if user.ip_address.value().is_none() {
-                // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-                let scrubbed_before = user
-                    .ip_address
-                    .meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Removed);
-                if !scrubbed_before {
-                    // In an ideal world all SDKs would set {{auto}} explicitly.
-                    if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                        user.ip_address = Annotated::new(client_ip.to_owned());
-                    }
-                }
+            // In an ideal world all SDKs would set {{auto}} explicitly.
+            if user.ip_address.value().is_none()
+                && matches!(platform, Some("javascript" | "cocoa" | "objc"))
+            {
+                user.ip_address = Annotated::new(client_ip.to_owned());
             }
         }
     }
+}
+
+/// Resolves an explicit REMOTE_ADDR marker in place, or removes it if inference is unavailable.
+fn normalize_remote_addr(
+    request: &mut Annotated<Request>,
+    client_ip: Option<&IpAddr>,
+) -> Option<IpAddr> {
+    let env = request.value_mut().as_mut()?.env.value_mut().as_mut()?;
+    let remote_addr = env.get_mut("REMOTE_ADDR")?;
+    let ip = IpAddr::parse(remote_addr.as_str()?).ok()?;
+    if !ip.is_auto() {
+        return Some(ip);
+    }
+
+    if let Some(ip) = client_ip {
+        remote_addr.set_value(Some(Value::String(ip.to_string())));
+    } else {
+        env.remove("REMOTE_ADDR");
+    }
+    client_ip.cloned()
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
