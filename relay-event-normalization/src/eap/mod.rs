@@ -425,10 +425,11 @@ pub fn normalize_user_geo(
 /// Derives the [`SENTRY__USER`] attribute from the user attributes.
 ///
 /// Uses the first of [`USER__ID`], [`USER__NAME`], [`USER__EMAIL`] and [`USER__IP_ADDRESS`], with the
-/// same format as the `user` tag on transactions.
+/// same format as the `user` tag on transactions. Values modified by PII scrubbing and the
+/// `{{auto}}` IP address placeholder are skipped, since they do not identify a user.
 ///
-/// Does not modify the attributes if [`SENTRY__USER`] is already present. This should run after PII
-/// scrubbing, so that the derived value is built from scrubbed user attributes.
+/// Does not modify the attributes if [`SENTRY__USER`] is already present. This must run after PII
+/// scrubbing, so that scrubbed user attributes can be skipped.
 pub fn normalize_sentry_user(attributes: &mut Annotated<Attributes>) {
     let Some(attributes) = attributes.value_mut() else {
         return;
@@ -438,11 +439,17 @@ pub fn normalize_sentry_user(attributes: &mut Annotated<Attributes>) {
         return;
     }
 
-    let get = |key| match attributes.get_value(key)? {
-        Value::String(s) => Some(Cow::Borrowed(s.as_str())),
-        Value::I64(i) => Some(Cow::Owned(i.to_string())),
-        Value::U64(u) => Some(Cow::Owned(u.to_string())),
-        _ => None,
+    let get = |key| {
+        let value = attributes.get_annotated_value(key)?;
+        if value.meta().iter_remarks().next().is_some() {
+            return None;
+        }
+        match value.value()? {
+            Value::String(s) if s != "{{auto}}" => Some(Cow::Borrowed(s.as_str())),
+            Value::I64(i) => Some(Cow::Owned(i.to_string())),
+            Value::U64(u) => Some(Cow::Owned(u.to_string())),
+            _ => None,
+        }
     };
 
     let user = format_user_tag(
@@ -2854,6 +2861,47 @@ mod tests {
         }"#,
         );
         assert_eq!(user.as_deref(), Some("id:existing"));
+    }
+
+    #[test]
+    fn test_normalize_sentry_user_skips_scrubbed() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.id": {"type": "string", "value": null},
+          "user.name": {"type": "string", "value": "[Filtered]"},
+          "user.email": {"type": "string", "value": "[email]"},
+          "user.ip_address": {"type": "string", "value": "127.0.0.1"},
+          "_meta": {
+            "user.id": {"value": {"": {"rem": [["@anything:remove", "x"]]}}},
+            "user.name": {"value": {"": {"rem": [["@password:filter", "s", 0, 10]]}}},
+            "user.email": {"value": {"": {"rem": [["@email:replace", "s", 0, 7]]}}}
+          }
+        }"#,
+        );
+        assert_eq!(user.as_deref(), Some("ip:127.0.0.1"));
+    }
+
+    #[test]
+    fn test_normalize_sentry_user_all_scrubbed() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.email": {"type": "string", "value": "[email]"},
+          "_meta": {
+            "user.email": {"value": {"": {"rem": [["@email:replace", "s", 0, 7]]}}}
+          }
+        }"#,
+        );
+        assert_eq!(user, None);
+    }
+
+    #[test]
+    fn test_normalize_sentry_user_skips_auto_ip_address() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.ip_address": {"type": "string", "value": "{{auto}}"}
+        }"#,
+        );
+        assert_eq!(user, None);
     }
 
     #[test]
