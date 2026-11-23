@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#TBD](https://github.com/getsentry/relay/pull/TBD))
+
 **Bug Fixes**:
 
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))

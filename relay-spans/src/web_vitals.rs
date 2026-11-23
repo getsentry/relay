@@ -1,10 +1,14 @@
 use relay_conventions::attributes::{
     BROWSER__NAME, BROWSER__NAVIGATION__ID, BROWSER__NAVIGATION__TYPE, BROWSER__VERSION,
     BROWSER__WEB_VITAL__CLS__VALUE, BROWSER__WEB_VITAL__FCP__VALUE,
-    BROWSER__WEB_VITAL__INP__INTERACTION_TYPE, BROWSER__WEB_VITAL__INP__TARGET,
-    BROWSER__WEB_VITAL__INP__VALUE, BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ID,
-    BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
-    BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
+    BROWSER__WEB_VITAL__INP__INPUT_DELAY, BROWSER__WEB_VITAL__INP__INTERACTION_TYPE,
+    BROWSER__WEB_VITAL__INP__PRESENTATION_DELAY, BROWSER__WEB_VITAL__INP__PROCESSING_DURATION,
+    BROWSER__WEB_VITAL__INP__TARGET, BROWSER__WEB_VITAL__INP__VALUE,
+    BROWSER__WEB_VITAL__LCP__ELEMENT, BROWSER__WEB_VITAL__LCP__ELEMENT_RENDER_DELAY,
+    BROWSER__WEB_VITAL__LCP__ID, BROWSER__WEB_VITAL__LCP__LOAD_TIME,
+    BROWSER__WEB_VITAL__LCP__RENDER_TIME, BROWSER__WEB_VITAL__LCP__RESOURCE_LOAD_DELAY,
+    BROWSER__WEB_VITAL__LCP__RESOURCE_LOAD_DURATION, BROWSER__WEB_VITAL__LCP__SIZE,
+    BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
     SENTRY__METRIC__SOURCE, SENTRY__ORIGIN, SENTRY__PAGELOAD__SPAN_ID, SENTRY__PLATFORM,
     SENTRY__PROFILE_ID, SENTRY__RELEASE, SENTRY__REPLAY_ID, SENTRY__SDK__NAME,
@@ -70,6 +74,9 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
             BROWSER__WEB_VITAL__LCP__SIZE,
             BROWSER__WEB_VITAL__LCP__LOAD_TIME,
             BROWSER__WEB_VITAL__LCP__RENDER_TIME,
+            BROWSER__WEB_VITAL__LCP__RESOURCE_LOAD_DELAY,
+            BROWSER__WEB_VITAL__LCP__RESOURCE_LOAD_DURATION,
+            BROWSER__WEB_VITAL__LCP__ELEMENT_RENDER_DELAY,
             "score.lcp",
             "score.weight.lcp",
             "score.ratio.lcp",
@@ -92,6 +99,9 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
         attribute_keys: &[
             BROWSER__WEB_VITAL__INP__TARGET,
             BROWSER__WEB_VITAL__INP__INTERACTION_TYPE,
+            BROWSER__WEB_VITAL__INP__INPUT_DELAY,
+            BROWSER__WEB_VITAL__INP__PROCESSING_DURATION,
+            BROWSER__WEB_VITAL__INP__PRESENTATION_DELAY,
             "score.inp",
             "score.weight.inp",
             "score.ratio.inp",
@@ -310,7 +320,10 @@ mod tests {
                     "sentry.op": {"type": "string", "value": "ui.interaction.click"},
                     "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
                     "browser.web_vital.inp.target": {"type": "string", "value": "body > button#submit"},
-                    "browser.web_vital.inp.interaction_type": {"type": "string", "value": "click"}
+                    "browser.web_vital.inp.interaction_type": {"type": "string", "value": "click"},
+                    "browser.web_vital.inp.input_delay": {"type": "double", "value": 12.0},
+                    "browser.web_vital.inp.processing_duration": {"type": "double", "value": 60.0},
+                    "browser.web_vital.inp.presentation_delay": {"type": "double", "value": 32.0}
                 }
             }"#,
         )
@@ -323,9 +336,21 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&metrics[0].attributes), @r#"
         {
+          "browser.web_vital.inp.input_delay": {
+            "type": "double",
+            "value": 12.0
+          },
           "browser.web_vital.inp.interaction_type": {
             "type": "string",
             "value": "click"
+          },
+          "browser.web_vital.inp.presentation_delay": {
+            "type": "double",
+            "value": 32.0
+          },
+          "browser.web_vital.inp.processing_duration": {
+            "type": "double",
+            "value": 60.0
           },
           "browser.web_vital.inp.target": {
             "type": "string",
@@ -352,6 +377,9 @@ mod tests {
                     "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
                     "browser.navigation.type": {"type": "string", "value": "soft-navigation"},
                     "browser.navigation.id": {"type": "integer", "value": 2},
+                    "browser.web_vital.lcp.resource_load_delay": {"type": "double", "value": 50.0},
+                    "browser.web_vital.lcp.resource_load_duration": {"type": "double", "value": 150.0},
+                    "browser.web_vital.lcp.element_render_delay": {"type": "double", "value": 100.0},
                     "unrelated": {"type": "string", "value": "dropped"}
                 }
             }"#,
@@ -372,6 +400,18 @@ mod tests {
           "browser.navigation.type": {
             "type": "string",
             "value": "soft-navigation"
+          },
+          "browser.web_vital.lcp.element_render_delay": {
+            "type": "double",
+            "value": 100.0
+          },
+          "browser.web_vital.lcp.resource_load_delay": {
+            "type": "double",
+            "value": 50.0
+          },
+          "browser.web_vital.lcp.resource_load_duration": {
+            "type": "double",
+            "value": 150.0
           },
           "sentry.metric.source": {
             "type": "string",
