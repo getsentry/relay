@@ -17,16 +17,16 @@
         "stacktrace": {
           "frames": [
             {
-              "package": "nnrtld",
+              "package": "libruntime",
               "instruction_addr": "0x00000077616ba2e4"
             },
             {
-              "package": "nnSdk",
-              "function": "nn::init::Start",
+              "package": "libplatform",
+              "function": "platform::init::Start",
               "instruction_addr": "0x0000007761723f10"
             },
             {
-              "package": "SentryIntegrationTest.nss",
+              "package": "SentryIntegrationTest",
               "filename": "main.cpp",
               "function": "nnMain",
               "lineno": 173,
@@ -59,16 +59,16 @@
         "stacktrace": {
           "frames": [
             {
-              "package": "nnrtld",
+              "package": "libruntime",
               "instruction_addr": "0x00000077616ba2e4"
             },
             {
-              "package": "nnSdk",
-              "function": "nn::init::Start",
+              "package": "libplatform",
+              "function": "platform::init::Start",
               "instruction_addr": "0x0000007761723f10"
             },
             {
-              "package": "SentryIntegrationTest.nss",
+              "package": "SentryIntegrationTest",
               "filename": "main.cpp",
               "function": "nnMain",
               "lineno": 173,
