@@ -308,6 +308,36 @@ impl processing::RateLimited for Managed<ExpandedError> {
     }
 }
 
+#[cfg(feature = "processing")]
+fn add_rate_limited_attachments_context(
+    event: &mut Annotated<Event>,
+    attachments: &[AttachmentItem],
+) {
+    use relay_event_schema::protocol::{AttachmentsContext, Contexts, RateLimitedAttachment};
+
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    for attachment in attachments {
+        let data = attachment.data();
+        if !data.rate_limited() {
+            continue;
+        }
+
+        event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::<AttachmentsContext>()
+            .rate_limited
+            .get_or_insert_with(Vec::new)
+            .push(Annotated::new(RateLimitedAttachment {
+                ty: attachment.attachment_type().to_string().into(),
+                reason_code: data.rate_limit_reason().map(ToString::to_string).into(),
+            }));
+    }
+}
+
 #[derive(Debug)]
 pub struct ErrorOutput(Managed<ExpandedError>);
 
@@ -383,7 +413,7 @@ impl Forward for ErrorOutput {
                 headers: _,
                 fully_normalized: _,
                 metrics: _,
-                event,
+                mut event,
                 mut attachments,
                 flamegraph,
                 user_reports,
@@ -398,6 +428,8 @@ impl Forward for ErrorOutput {
             let event_category = data.event_category();
             data.into_payload().append_to_store(&mut attachments);
             attachments.extend(flamegraph);
+
+            add_rate_limited_attachments_context(&mut event, &attachments);
 
             Box::new(StoreEvent {
                 event_category,

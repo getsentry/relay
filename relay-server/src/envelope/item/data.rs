@@ -4,6 +4,7 @@ use std::fmt;
 use std::ops::AddAssign;
 
 use bytes::Bytes;
+use relay_quotas::ReasonCode;
 #[cfg(test)]
 use serde::Serialize;
 use uuid::Uuid;
@@ -154,6 +155,16 @@ impl ItemData {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.set_rate_limited(rate_limited);
+    }
+
+    /// Returns the reason code of the rate limit that marked this item as rate limited.
+    pub fn rate_limit_reason(&self) -> Option<&ReasonCode> {
+        self.headers.rate_limit_reason()
+    }
+
+    /// Sets the reason code of the rate limit that marked this item as rate limited.
+    pub fn set_rate_limit_reason(&mut self, rate_limit_reason: Option<ReasonCode>) {
+        self.headers.set_rate_limit_reason(rate_limit_reason);
     }
 
     /// Returns the contained source quantities.
