@@ -89,14 +89,14 @@ pub fn expand(
     let mut produce = |log| -> Result<(), Error> {
         // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
         // the logs back into an envelope fails. Consider removing it.
-        let byte_size = relay_ourlogs::calculate_size(&log);
+        let (memory_size, data_size) = relay_ourlogs::calculate_memory_and_data_size(&log);
 
         records.add([
             (DataCategory::LogItem, 1),
-            (DataCategory::LogByte, byte_size as usize),
+            (DataCategory::LogByte, data_size as usize),
         ]);
 
-        total_logs_size += byte_size as usize;
+        total_logs_size += memory_size as usize;
 
         if total_logs_size > max_logs_size.as_bytes() {
             return Err(Error::Invalid(DiscardReason::RequestTooLarge));
@@ -119,7 +119,14 @@ pub fn expand(
                         error = &e as &dyn std::error::Error,
                         "Failed to parse logs data as JSON"
                     );
-                    Error::Invalid(DiscardReason::InvalidJson)
+                    match e {
+                        relay_serialization::serde::Error::LimitExceeded(_) => {
+                            Error::Invalid(DiscardReason::RequestTooLarge)
+                        }
+                        relay_serialization::serde::Error::Serde(_) => {
+                            Error::Invalid(DiscardReason::InvalidJson)
+                        }
+                    }
                 })?;
 
             for log in logs {
