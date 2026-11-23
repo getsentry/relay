@@ -515,10 +515,13 @@
 <a href=#515 id=515 data-nosnippet>515</a>    }
 <a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">if </span>keep {
 <a href=#517 id=517 data-nosnippet>517</a>        item.data_mut().set_rate_limited(<span class="bool-val">true</span>);
-<a href=#518 id=518 data-nosnippet>518</a>    }
-<a href=#519 id=519 data-nosnippet>519</a>    keep
-<a href=#520 id=520 data-nosnippet>520</a>}
-<a href=#521 id=521 data-nosnippet>521</a>
-<a href=#522 id=522 data-nosnippet>522</a><span class="attr">#[cfg(test)]
-<a href=#523 id=523 data-nosnippet>523</a></span><span class="kw">mod </span>tests;
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(Outcome::RateLimited(reason_code)) = <span class="kw-2">&amp;</span>rejection.outcome {
+<a href=#519 id=519 data-nosnippet>519</a>            item.data_mut().set_rate_limit_reason(reason_code.clone());
+<a href=#520 id=520 data-nosnippet>520</a>        }
+<a href=#521 id=521 data-nosnippet>521</a>    }
+<a href=#522 id=522 data-nosnippet>522</a>    keep
+<a href=#523 id=523 data-nosnippet>523</a>}
+<a href=#524 id=524 data-nosnippet>524</a>
+<a href=#525 id=525 data-nosnippet>525</a><span class="attr">#[cfg(test)]
+<a href=#526 id=526 data-nosnippet>526</a></span><span class="kw">mod </span>tests;
 </code></pre></div></section></main></body></html>
