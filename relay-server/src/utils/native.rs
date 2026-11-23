@@ -317,7 +317,7 @@ pub fn process_gpu_crash(event: &mut Event) {
 ///
 /// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
 ///  its exception `type` is the raw abort result code (for example
-/// `2168-0002 ResultAccessViolationData`).
+/// `2168-0002 SyntheticTestResult`).
 ///
 /// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
 /// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
