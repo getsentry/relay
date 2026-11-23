@@ -1376,6 +1376,7 @@ def sentry_users(mini_sentry, relay, config, user_attributes):
 
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    # Match by span ID so results follow the input case order even if Relay reorders the batch.
     spans = {span["span_id"]: span for span in item_payload["items"]}
 
     return [
@@ -1404,6 +1405,7 @@ def sentry_users(mini_sentry, relay, config, user_attributes):
                 ),
                 ({"user.ip_address": "127.0.0.1"}, "ip:127.0.0.1"),
                 ({"user.ip_address": "{{auto}}"}, "ip:127.0.0.1"),
+                ({"user.id": "{{auto}}"}, "id:{{auto}}"),
                 ({}, None),
             ],
         ),
@@ -1421,6 +1423,7 @@ def sentry_users(mini_sentry, relay, config, user_attributes):
             SCRUB_IP,
             [
                 ({"user.ip_address": "127.0.0.1"}, None),
+                ({"user.ip_address": "{{auto}}"}, None),
                 ({"user.id": "abc123", "user.ip_address": "127.0.0.1"}, "id:abc123"),
             ],
         ),

@@ -608,6 +608,72 @@ mod tests {
     }
 
     #[test]
+    fn test_user_ip_and_span_tags_with_auto_ip() {
+        let client_ip = IpAddr::parse("203.0.113.1").unwrap();
+        let remote_ip = "2001:db8::1";
+        for (remote, client, infer_ip, expected) in [
+            // A concrete REMOTE_ADDR takes precedence over the connection IP.
+            (remote_ip, Some(&client_ip), "auto", Some(remote_ip)),
+            // An explicit placeholder opts into inference even in legacy mode.
+            (
+                "{{auto}}",
+                Some(&client_ip),
+                "legacy",
+                Some(client_ip.as_str()),
+            ),
+            // Inference is enabled, but there is no address to use.
+            ("{{auto}}", None, "auto", None),
+            // The SDK disables inference even though a connection IP is available.
+            ("{{auto}}", Some(&client_ip), "never", None),
+        ] {
+            let payload = json!({
+                "type": "transaction",
+                "start_timestamp": 1700000000,
+                "timestamp": 1700000001,
+                "contexts": {"trace": {
+                    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb"
+                }},
+                "sdk": {"settings": {"infer_ip": infer_ip}},
+                "request": {"env": {"REMOTE_ADDR": remote}},
+                "user": {"ip_address": "{{auto}}"},
+                "spans": [{
+                    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "span_id": "cccccccccccccccc",
+                    "parent_span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": 1700000000,
+                    "timestamp": 1700000001
+                }]
+            });
+            let mut event = Annotated::<Event>::from_json(&payload.to_string()).unwrap();
+            normalize_event(
+                &mut event,
+                &NormalizationConfig {
+                    client_ip: client,
+                    enrich_spans: true,
+                    ..Default::default()
+                },
+            );
+
+            let env = get_value!(event.request.env!);
+            assert_eq!(
+                env.get("REMOTE_ADDR").map(|v| v.as_str().unwrap()),
+                expected
+            );
+            assert_eq!(
+                get_value!(event.user.ip_address).map(IpAddr::as_str),
+                expected
+            );
+            let tags = get_value!(event.spans[0].sentry_tags!);
+            assert_eq!(tags.user_ip.as_str(), expected);
+            assert_eq!(
+                tags.user.value(),
+                expected.map(|ip| format!("ip:{ip}")).as_ref()
+            );
+        }
+    }
+
+    #[test]
     fn test_user_ip_from_invalid_remote_addr() {
         let mut event = Annotated::new(Event {
             request: Annotated::from(Request {
@@ -726,7 +792,7 @@ mod tests {
         );
 
         let user = get_value!(event.user!);
-        assert!(user.ip_address.value().unwrap().is_auto());
+        assert!(user.ip_address.value().is_none());
         assert!(user.geo.value().is_some());
     }
 
