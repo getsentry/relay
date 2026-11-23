@@ -96,14 +96,14 @@ pub fn expand(
     let mut logs = vec![];
     for report in reports {
         if let Some(log) = nel::create_log(report.0, received_at) {
-            let byte_size = relay_ourlogs::calculate_size(&log);
+            let (memory_size, data_size) = relay_ourlogs::calculate_memory_and_data_size(&log);
 
             records.add([
                 (DataCategory::LogItem, 1),
-                (DataCategory::LogByte, byte_size as usize),
+                (DataCategory::LogByte, data_size as usize),
             ]);
 
-            total_logs_size += byte_size as usize;
+            total_logs_size += memory_size as usize;
 
             if total_logs_size > max_logs_size.as_bytes() {
                 return Err(Error::Invalid(DiscardReason::RequestTooLarge));
