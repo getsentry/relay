@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::csp::SourceFile;
+use crate::SourceFile;
 
 /// Whether the policy was enforced or only reported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

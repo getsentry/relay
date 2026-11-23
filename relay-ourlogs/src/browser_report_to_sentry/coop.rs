@@ -1,5 +1,5 @@
+use relay_browser_reporting::SourceFile;
 use relay_browser_reporting::coop::{Body, Disposition};
-use relay_browser_reporting::csp::SourceFile;
 use relay_conventions::{attributes::*, interpolate};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel};
 

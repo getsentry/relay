@@ -72,6 +72,24 @@ pub struct BrowserReport {
 }
 
 /// See <https://github.com/serde-rs/serde/issues/1714>.
+/// Source file information in a report body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceFile {
+    /// The URL of the resource where the violation occurred.
+    pub source_file: String,
+    /// The column number in source-file on which the violation occurred.
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub column_number: Option<u64>,
+    /// The line number in source-file on which the violation occurred.
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub line_number: Option<u64>,
+}
+
 fn deserialize_unknown_report_body<'de, D>(deserializer: D) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
