@@ -755,7 +755,7 @@ impl Default for Limits {
             max_expanded_span_operations: 3_000_000,
             max_expanded_trace_metric_operations: 3_000_000,
             max_expanded_span_bytes: ByteSize::mebibytes(20),
-            max_expanded_logs_size: ByteSize::mebibytes(20),
+            max_expanded_logs_size: ByteSize::mebibytes(100),
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
