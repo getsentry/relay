@@ -1331,6 +1331,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
 
 
 SCRUB_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:replace"]}}}
+HASH_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:hash"]}}}
 SCRUB_IP = {
     "datascrubbingSettings": {
         "scrubData": False,
@@ -1340,44 +1341,7 @@ SCRUB_IP = {
 }
 
 
-@pytest.mark.parametrize(
-    "user_attributes,config,expected",
-    [
-        (
-            {"user.id": "abc123", "user.name": "jane", "user.ip_address": "127.0.0.1"},
-            {},
-            "id:abc123",
-        ),
-        (
-            {"user.name": "jane", "user.email": "jane@example.com"},
-            {},
-            "username:jane",
-        ),
-        ({"user.email": "jane@example.com"}, SCRUB_EMAIL, None),
-        (
-            {"user.email": "jane@example.com", "user.ip_address": "127.0.0.1"},
-            SCRUB_EMAIL,
-            "ip:127.0.0.1",
-        ),
-        ({"user.ip_address": "127.0.0.1"}, {}, "ip:127.0.0.1"),
-        ({"user.ip_address": "{{auto}}"}, {}, None),
-        ({"user.ip_address": "127.0.0.1"}, SCRUB_IP, None),
-        ({"user.id": "abc123", "user.ip_address": "127.0.0.1"}, SCRUB_IP, "id:abc123"),
-        ({}, {}, None),
-    ],
-    ids=[
-        "id",
-        "username",
-        "scrubbed_email",
-        "scrubbed_email_with_ip_address",
-        "ip_address",
-        "auto_ip_address",
-        "scrubbed_ip_address",
-        "id_with_scrubbed_ip_address",
-        "none",
-    ],
-)
-def test_spansv2_sentry_user(mini_sentry, relay, user_attributes, config, expected):
+def sentry_users(mini_sentry, relay, config, user_attributes):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].update(config)
@@ -1386,19 +1350,22 @@ def test_spansv2_sentry_user(mini_sentry, relay, user_attributes, config, expect
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_spans(
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "name": "Test span",
-            "status": "ok",
-            "is_segment": False,
-            "attributes": {
-                key: {"value": value, "type": "string"}
-                for key, value in user_attributes.items()
-            },
-        },
+        *(
+            {
+                "start_timestamp": ts.timestamp(),
+                "end_timestamp": ts.timestamp() + 0.5,
+                "trace_id": "5b8efff798038103d269b633813fc60c",
+                "span_id": f"{i:016x}",
+                "name": "Test span",
+                "status": "ok",
+                "is_segment": False,
+                "attributes": {
+                    key: {"value": value, "type": "string"}
+                    for key, value in attributes.items()
+                },
+            }
+            for i, attributes in enumerate(user_attributes, 1)
+        ),
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -1409,12 +1376,73 @@ def test_spansv2_sentry_user(mini_sentry, relay, user_attributes, config, expect
 
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
-    attributes = item_payload["items"][0]["attributes"]
+    spans = {span["span_id"]: span for span in item_payload["items"]}
 
-    if expected is None:
-        assert "sentry.user" not in attributes
-    else:
-        assert attributes["sentry.user"] == {"type": "string", "value": expected}
+    return [
+        spans[f"{i:016x}"]["attributes"].get("sentry.user", {}).get("value")
+        for i in range(1, len(user_attributes) + 1)
+    ]
+
+
+@pytest.mark.parametrize(
+    "config,cases",
+    [
+        (
+            {},
+            [
+                (
+                    {
+                        "user.id": "abc123",
+                        "user.name": "jane",
+                        "user.ip_address": "127.0.0.1",
+                    },
+                    "id:abc123",
+                ),
+                (
+                    {"user.name": "jane", "user.email": "jane@example.com"},
+                    "username:jane",
+                ),
+                ({"user.ip_address": "127.0.0.1"}, "ip:127.0.0.1"),
+                ({"user.ip_address": "{{auto}}"}, "ip:127.0.0.1"),
+                ({}, None),
+            ],
+        ),
+        (
+            SCRUB_EMAIL,
+            [
+                ({"user.email": "jane@example.com"}, None),
+                (
+                    {"user.email": "jane@example.com", "user.ip_address": "127.0.0.1"},
+                    "ip:127.0.0.1",
+                ),
+            ],
+        ),
+        (
+            SCRUB_IP,
+            [
+                ({"user.ip_address": "127.0.0.1"}, None),
+                ({"user.id": "abc123", "user.ip_address": "127.0.0.1"}, "id:abc123"),
+            ],
+        ),
+    ],
+    ids=["default", "scrubbed_email", "scrubbed_ip_address"],
+)
+def test_spansv2_sentry_user(mini_sentry, relay, config, cases):
+    user_attributes, expected = zip(*cases)
+    assert sentry_users(mini_sentry, relay, config, user_attributes) == list(expected)
+
+
+def test_spansv2_sentry_user_hashed_email(mini_sentry, relay):
+    users = sentry_users(
+        mini_sentry,
+        relay,
+        HASH_EMAIL,
+        [{"user.email": "jane@example.com"}, {"user.email": "john@example.com"}],
+    )
+
+    assert all(user.startswith("email:") for user in users)
+    assert not any("@example.com" in user for user in users)
+    assert users[0] != users[1]
 
 
 def test_spansv2_attribute_normalization(
