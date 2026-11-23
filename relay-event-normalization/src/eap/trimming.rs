@@ -37,7 +37,7 @@ impl From<DeleteAction> for ProcessingAction {
 /// This primarily differs from the regular [`TrimmingProcessor`](crate::trimming::TrimmingProcessor)
 /// in the handling of [`Attributes`]. This processor handles attributes as follows:
 /// 1. Sort them by combined key and value size, where the key size is just the string length
-///    and the value size is given by [`size::attribute_size`].
+///    and the value size is given by [`relay_event_schema::protocol::attribute_size`].
 /// 2. Trim attributes one by one. Key lengths are counted for the attribute's size, but keys
 ///    aren't trimmed—if a key is too long, the attribute is simply discarded.
 /// 3. If we run out of space, all subsequent attributes are discarded.
