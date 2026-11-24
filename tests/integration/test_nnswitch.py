@@ -7,11 +7,11 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from .asserts import time_within_delta
 
 
-def make_dying_message(*items) -> bytes:
-    """Creates an uncompressed dying message
+def make_item_bundle(*items) -> bytes:
+    """Creates an uncompressed item bundle
     out of the given items.
 
-    See dying_message.md for details.
+    See item_bundle.md for details.
     """
     payload_writer = io.BytesIO()
 
@@ -55,11 +55,11 @@ def test_nnswitch(
     attachments_consumer = attachments_consumer()
     relay = relay(relay_with_processing())
 
-    dying_message_path = os.path.join(
+    item_bundle_path = os.path.join(
         os.path.dirname(__file__),
         "fixtures",
         "native",
-        "nnswitch_dying_message_%s.dat" % variant,
+        "item_bundle_%s.dat" % variant,
     )
 
     bogus_error = {
@@ -73,9 +73,10 @@ def test_nnswitch(
     envelope.add_item(
         Item(
             type="attachment",
-            payload=PayloadRef(path=dying_message_path),
+            payload=PayloadRef(path=item_bundle_path),
             headers={
-                "filename": "dying_message.dat",
+                "filename": "item_bundle.dat",
+                "attachment_type": "event.item_bundle",
                 "content_type": "application/octet-stream",
             },
         )
@@ -155,7 +156,7 @@ def test_nnswitch_with_session(
         "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
     }
 
-    dying_message = make_dying_message(
+    item_bundle = make_item_bundle(
         Item(type="event", payload=PayloadRef(json=event_payload)),
         Item(type="session", payload=PayloadRef(json=session_payload)),
     )
@@ -163,9 +164,10 @@ def test_nnswitch_with_session(
     envelope.add_item(
         Item(
             type="attachment",
-            payload=PayloadRef(bytes=dying_message),
+            payload=PayloadRef(bytes=item_bundle),
             headers={
-                "filename": "dying_message.dat",
+                "filename": "item_bundle.dat",
+                "attachment_type": "event.item_bundle",
                 "content_type": "application/octet-stream",
             },
         )

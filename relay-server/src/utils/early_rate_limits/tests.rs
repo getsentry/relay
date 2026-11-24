@@ -242,7 +242,7 @@ fn test_error_and_user_report_outcomes() {
 }
 
 #[test]
-fn test_user_report_with_nintendo_header() {
+fn test_user_report_with_item_bundle_header() {
     // Attachment headers do not change a feedback item's category or quantity.
     let mut original = envelope![UserReport];
     original
@@ -252,7 +252,7 @@ fn test_user_report_with_nintendo_header() {
         .data_mut()
         .set_test_header(
             crate::envelope::ItemHeaderKey::AttachmentType,
-            Some(AttachmentType::NintendoSwitchDyingMessage),
+            Some(AttachmentType::ItemBundle),
         );
     assert_eq!(EnvelopeSummary::compute(&original).user_report_quantity, 1);
 
@@ -264,7 +264,7 @@ fn test_user_report_with_nintendo_header() {
 }
 
 #[test]
-fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
+fn test_user_report_with_item_bundle_header_counts_when_parent_rejected() {
     let mut envelope = envelope![Event, UserReport];
     envelope
         .items_mut()
@@ -273,7 +273,7 @@ fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
         .data_mut()
         .set_test_header(
             crate::envelope::ItemHeaderKey::AttachmentType,
-            Some(AttachmentType::NintendoSwitchDyingMessage),
+            Some(AttachmentType::ItemBundle),
         );
 
     let (kept, _, outcomes) = enforce_and_apply(cached_limits(&[DataCategory::Error]), envelope);
@@ -285,8 +285,8 @@ fn test_user_report_with_nintendo_header_counts_when_parent_rejected() {
 }
 
 #[test]
-fn test_nintendo_attachment_has_no_individual_attachment_quantity() {
-    let original = envelope![Attachment::NintendoSwitchDyingMessage];
+fn test_item_bundle_has_no_individual_attachment_quantity() {
+    let original = envelope![Attachment::ItemBundle];
     let (kept, limits, outcomes) = enforce_and_apply(
         cached_limits(&[DataCategory::Attachment, DataCategory::AttachmentItem]),
         original.clone(),
@@ -356,6 +356,7 @@ fn test_span_and_trace_crash_attachments_do_not_create_events() {
         AttachmentType::Breadcrumbs,
         AttachmentType::NvGpuDump,
         AttachmentType::NintendoSwitchDyingMessage,
+        AttachmentType::ItemBundle,
     ] {
         for parent in [Some(ParentId::SpanId(None)), None] {
             let mut attachment = trace_attachment_item(10, parent);
@@ -560,29 +561,24 @@ fn test_enforce_limit_attachments() {
 }
 
 #[test]
-fn test_enforce_nintendo_dying_message_with_attachment_limit() {
-    let mut envelope = envelope![Attachment::NintendoSwitchDyingMessage, Attachment];
+fn test_enforce_item_bundle_with_attachment_limit() {
+    let mut envelope = envelope![Attachment::ItemBundle, Attachment];
     envelope.items_mut().next().unwrap().data_mut().set_payload(
         ContentType::OctetStream,
-        &include_bytes!(
-            "../../../../tests/integration/fixtures/native/nnswitch_dying_message_plain.dat"
-        )[..],
+        &include_bytes!("../../../../tests/integration/fixtures/native/item_bundle_plain.dat")[..],
     );
 
     let cached = cached_limits(&[DataCategory::Attachment]);
     let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
 
-    // The dying message carries the crash event and is expanded during processing;
+    // The item bundle carries the crash event and is expanded during processing;
     // it is not itself a billable attachment. Only the ordinary attachment is rejected.
     assert!(limits.is_limited());
     assert_eq!(envelope.len(), 1);
     let Some(Item::Attachment(attachment)) = envelope.items().next() else {
         panic!("expected an attachment");
     };
-    assert_eq!(
-        attachment.attachment_type(),
-        AttachmentType::NintendoSwitchDyingMessage
-    );
+    assert_eq!(attachment.attachment_type(), AttachmentType::ItemBundle);
     assert_eq!(
         outcomes,
         BTreeMap::from([
@@ -593,14 +589,14 @@ fn test_enforce_nintendo_dying_message_with_attachment_limit() {
 }
 
 #[test]
-fn test_enforce_nintendo_parent_error_limit() {
-    let envelope = envelope![Event, Attachment::NintendoSwitchDyingMessage, Attachment];
+fn test_enforce_item_bundle_parent_error_limit() {
+    let envelope = envelope![Event, Attachment::ItemBundle, Attachment];
     let cached = cached_limits(&[DataCategory::Error]);
     let (envelope, limits, outcomes) = enforce_and_apply(cached, envelope);
 
     assert!(limits.is_limited());
     assert!(envelope.is_empty());
-    // The event and dying message represent one error. Only the ordinary attachment counts.
+    // The event and item bundle represent one error. Only the ordinary attachment counts.
     assert_eq!(
         outcomes,
         BTreeMap::from([
