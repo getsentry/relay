@@ -215,3 +215,35 @@ def test_logentry_formatted_data_scrubbing_settings(
 
     if non_destructive.additional_checks:
         assert non_destructive.additional_checks(formatted_value)
+
+
+@pytest.mark.parametrize(
+    "user_ip",
+    [
+        pytest.param(
+            None,
+            id="inferred",
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="Normalization copies REMOTE_ADDR to user.ip_address before scrubbing",
+            ),
+        ),
+        pytest.param("2001:db8::2", id="explicit"),
+    ],
+)
+def test_scrub_remote_addr_user_ip(mini_sentry, relay, user_ip):
+    project = mini_sentry.add_basic_project_config(42)
+    project["config"]["piiConfig"]["applications"]["$request.env.REMOTE_ADDR"] = [
+        "@anything:remove"
+    ]
+    forwarder = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    event = {"request": {"env": {"REMOTE_ADDR": "2001:db8::1"}}}
+    if user_ip is not None:
+        event["user"] = {"ip_address": user_ip}
+
+    forwarder.send_event(42, event)
+    forwarded = mini_sentry.get_captured_envelope().get_event()
+    if (forwarded.get("request", {}).get("env") or {}).get("REMOTE_ADDR") is not None:
+        pytest.fail("Relay forwarded REMOTE_ADDR despite the removal rule")
+    assert (forwarded.get("user") or {}).get("ip_address") == user_ip
