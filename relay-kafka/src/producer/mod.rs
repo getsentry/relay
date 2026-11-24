@@ -167,8 +167,8 @@ struct TopicProducer {
 }
 
 impl TopicProducer {
-    async fn empty(&self) {
-        self.producer.context().inflight().empty().await
+    async fn wait_empty(&self) {
+        self.producer.context().inflight().wait_empty().await
     }
 }
 
@@ -197,7 +197,7 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
         // A drain timeout drops the old producer during a config reload, dropping its messages
         // without sending a delivery callback. This leaves the InflightCounter hanging.
         //
-        // Allow one day for draining to make this unlikely. Duration::MAX would overflow
+        // Allow one day for draining to make this unlikely. `Duration::MAX` would overflow
         // Arroyo's deadline calculation.
         drain_timeout: Duration::from_secs(24 * 60 * 60),
         ..ReloadConfig::default()
@@ -396,10 +396,10 @@ impl KafkaClient {
     }
 
     /// Await until all messages have been delivered.
-    pub async fn empty(&self) {
+    pub async fn wait_empty(&self) {
         for producer in self.producers.values() {
             for topic_producer in &producer.topic_producers.producers {
-                topic_producer.empty().await;
+                topic_producer.wait_empty().await;
             }
         }
     }
@@ -650,7 +650,7 @@ mod tests {
             .unwrap();
         assert_eq!(producer.context().inflight().get(), 1);
 
-        producer.context().inflight().empty().await;
+        producer.context().inflight().wait_empty().await;
 
         assert_eq!(producer.context().inflight().get(), 0);
     }

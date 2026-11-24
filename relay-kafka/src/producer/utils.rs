@@ -175,13 +175,14 @@ impl InflightCounter {
 
     pub fn decrement(&self) {
         let previous = self.count.fetch_sub(1, Ordering::Relaxed);
+        debug_assert!(previous > 0);
         if previous <= 1 {
             self.notify.notify_waiters();
         }
     }
 
     /// Awaits until the counter is zero.
-    pub async fn empty(&self) {
+    pub async fn wait_empty(&self) {
         loop {
             // Create future first so that it cannot miss any notifications.
             let future = self.notify.notified();
