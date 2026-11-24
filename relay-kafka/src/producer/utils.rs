@@ -1,4 +1,6 @@
 use std::error::Error;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
@@ -83,15 +85,24 @@ where
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
+    /// Counts the number of in-flight messages.
+    inflight: Arc<InflightCounter>,
 }
 
 impl Context {
     pub fn new(producer_name: String) -> Self {
-        Self { producer_name }
+        Self {
+            producer_name,
+            inflight: InflightCounter::default().into(),
+        }
     }
 
     pub fn producer_name(&self) -> &str {
         &self.producer_name
+    }
+
+    pub fn inflight(&self) -> &InflightCounter {
+        &self.inflight
     }
 }
 
@@ -110,6 +121,8 @@ impl ProducerContext for Context {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
 
+        self.inflight.decrement();
+
         match result {
             Ok(message) => {
                 metric!(
@@ -126,6 +139,42 @@ impl ProducerContext for Context {
                     "failed to produce message to Kafka (delivery callback)",
                 );
             }
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct InflightCounter {
+    count: AtomicUsize,
+    notify: tokio::sync::Notify,
+}
+
+impl InflightCounter {
+    pub fn get(&self) -> usize {
+        self.count.load(Ordering::Relaxed)
+    }
+
+    pub fn increment(&self) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn decrement(&self) {
+        let previous = self.count.fetch_sub(1, Ordering::Relaxed);
+        debug_assert!(previous > 0);
+        if previous <= 1 {
+            self.notify.notify_waiters();
+        }
+    }
+
+    /// Awaits until the counter is zero.
+    pub async fn wait_empty(&self) {
+        loop {
+            // Create future first so that it cannot miss any notifications.
+            let future = self.notify.notified();
+            if self.get() == 0 {
+                break;
+            }
+            future.await;
         }
     }
 }

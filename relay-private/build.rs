@@ -9,7 +9,11 @@ use tempfile::tempdir;
 fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
-    println!("cargo:rerun-if-changed=prosperoconv.version");
+    println!("cargo:rerun-if-changed=relay-private.version");
+
+    // Remove sources left behind by the former `relay-prosperoconv` package since git sadly
+    // does not remove them.
+    let _ = fs::remove_dir_all("../relay-prosperoconv");
 
     // Need to explicitly check the env var here since if the `--target` flag is used the build
     // script will not receive the cfgs:
@@ -20,12 +24,12 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let desired_version = fs::read_to_string("prosperoconv.version")
-        .context("Failed to read prosperoconv.version file")?
+    let desired_version = fs::read_to_string("relay-private.version")
+        .context("Failed to read relay-private.version file")?
         .trim()
         .to_owned();
 
-    let current_version = fs::read_to_string("src/prosperoconv.version").ok();
+    let current_version = fs::read_to_string("src/relay-private.version").ok();
 
     if let Some(current_version) = current_version
         && current_version.trim() == desired_version
@@ -33,7 +37,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    println!("cargo:warning=Setting up PlayStation support");
+    println!("cargo:warning=Setting up private source");
     let temp_dir = tempdir().context("Failed to make temp_dir")?;
     let temp_dir_path = temp_dir.path();
     let temp_dir_str = temp_dir_path.to_string_lossy().to_string();
@@ -41,7 +45,7 @@ fn main() -> anyhow::Result<()> {
     if !Command::new("git")
         .args([
             "clone",
-            "git@github.com:getsentry/tempest.git",
+            "git@github.com:getsentry/relay-private.git",
             &temp_dir_str,
             &format!("--revision={desired_version}"),
             "--depth=1",
@@ -53,16 +57,16 @@ fn main() -> anyhow::Result<()> {
         Command::new("git")
             .args([
                 "clone",
-                "https://github.com/getsentry/tempest.git",
+                "https://github.com/getsentry/relay-private.git",
                 &temp_dir_str,
                 &format!("--revision={desired_version}"),
                 "--depth=1",
             ])
             .status()
-            .context("Failed to clone tempest revision")?;
+            .context("Failed to clone relay-private revision")?;
     }
 
-    CopyBuilder::new(temp_dir_path.join("crates/prosperoconv/src"), "src")
+    CopyBuilder::new(temp_dir_path.join("src"), "src")
         .overwrite(true)
         .run()
         .context("Failed to copy files")?;
@@ -74,8 +78,8 @@ fn main() -> anyhow::Result<()> {
         .status()
         .context("Failed to skip worktree")?;
 
-    std::fs::copy("prosperoconv.version", "src/prosperoconv.version")
-        .context("Failed to copy prosperoconv.version")?;
+    std::fs::copy("relay-private.version", "src/relay-private.version")
+        .context("Failed to copy relay-private.version")?;
 
     Ok(())
 }

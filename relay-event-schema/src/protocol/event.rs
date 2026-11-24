@@ -197,14 +197,14 @@ pub struct Event {
     /// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    #[metastructure(max_chars = 200, pii = "maybe")]
+    #[metastructure(max_chars = Event::MAX_CULPRIT_CHARS, pii = "maybe")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = 200, trim_whitespace = true)]
+    #[metastructure(max_chars = Event::MAX_TRANSACTION_CHARS, trim_whitespace = true)]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
@@ -298,7 +298,7 @@ pub struct Event {
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
-        max_chars = 200,  // release ends in tag
+        max_chars = Event::MAX_RELEASE_CHARS,  // release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
         required = false,
         trim_whitespace = true,
@@ -328,7 +328,7 @@ pub struct Event {
     /// { "environment": "production" }
     /// ```
     #[metastructure(
-        max_chars = 64,
+        max_chars = Event::MAX_ENVIRONMENT_CHARS,
         // environment allowed chars are validated in the sentry-release-parser crate!
         nonempty = true,
         required = false,
@@ -494,6 +494,18 @@ pub struct Event {
 }
 
 impl Event {
+    /// Maximum number of characters in a transaction name.
+    pub const MAX_TRANSACTION_CHARS: usize = 200;
+
+    /// Maximum number of characters in a release.
+    pub const MAX_RELEASE_CHARS: usize = 200;
+
+    /// Maximum number of characters in an environment.
+    pub const MAX_ENVIRONMENT_CHARS: usize = 64;
+
+    /// Maximum number of characters in a culprit.
+    pub const MAX_CULPRIT_CHARS: usize = 200;
+
     /// Returns the value of a tag with the given key.
     ///
     /// If tags are specified in a pair list and the tag is declared multiple times, this function
@@ -620,7 +632,12 @@ fn or_none(string: &Annotated<impl AsRef<str>>) -> Option<&str> {
 
 impl Getter for Event {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path.strip_prefix("event.")? {
+        let path = path.strip_prefix("event.").or_else(|| {
+            let ty = self.ty.value()?.as_str();
+            path.strip_prefix(ty)?.strip_prefix('.')
+        })?;
+
+        Some(match path {
             // Simple fields
             "level" => self.level.value()?.name().into(),
             "release" => self.release.as_str()?.into(),
@@ -660,9 +677,6 @@ impl Getter for Event {
                 .into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
-
-            // Computed fields (after normalization).
-            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
@@ -803,7 +817,12 @@ impl Getter for Event {
     }
 
     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-        Some(match path.strip_prefix("event.")? {
+        let path = path.strip_prefix("event.").or_else(|| {
+            let ty = self.ty.value()?.as_str();
+            path.strip_prefix(ty)?.strip_prefix('.')
+        })?;
+
+        Some(match path {
             "exception.values" => {
                 GetterIter::new_annotated(self.exceptions.value()?.values.value()?)
             }
@@ -1101,7 +1120,6 @@ mod tests {
                 ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
-                sentry_user: Annotated::new("id:user-id".into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -1194,10 +1212,6 @@ mod tests {
         assert_eq!(
             Some(Val::String("user-id")),
             event.get_value("event.user.id")
-        );
-        assert_eq!(
-            Some(Val::String("id:user-id")),
-            event.get_value("event.sentry_user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),
@@ -1327,5 +1341,33 @@ mod tests {
         assert_eq!(None, event.get_value("event.user.id"));
         assert_eq!(None, event.get_value("event.user.segment"));
         assert_eq!(None, event.get_value("event.transaction"));
+    }
+
+    #[test]
+    fn test_field_value_provider_event_type_prefix() {
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/users".to_owned()),
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Some(Val::String("/users")),
+            event.get_value("event.transaction")
+        );
+        assert_eq!(
+            Some(Val::String("/users")),
+            event.get_value("transaction.transaction")
+        );
+        assert_eq!(
+            Some(Val::String("1.1.1")),
+            event.get_value("transaction.release")
+        );
+
+        // Prefixes of other event types do not match.
+        assert_eq!(None, event.get_value("error.release"));
+        // The prefix must be followed by a dot.
+        assert_eq!(None, event.get_value("transactionrelease"));
     }
 }

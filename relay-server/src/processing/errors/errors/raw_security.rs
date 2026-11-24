@@ -1,12 +1,12 @@
+use super::ErrorPayload;
 use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{AttachmentItem, Item, RawSecurityItem, UserReportItem};
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Result, utils};
 use crate::services::processor::ProcessingError;
@@ -21,7 +21,7 @@ impl SentryError for RawSecurity {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(item) = utils::take_item_of_type(items, ItemType::RawSecurity) else {
+        let Some(item) = utils::take_item::<RawSecurityItem>(items) else {
             return Ok(None);
         };
 
@@ -33,8 +33,9 @@ impl SentryError for RawSecurity {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_items::<AttachmentItem>(items).collect(),
+            flamegraph: None,
+            user_reports: utils::take_items::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self,
             metrics,
@@ -51,11 +52,11 @@ impl SentryError for RawSecurity {
         Ok(())
     }
 
-    fn serialize_into(self, _items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload::default()
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         None
     }
 }
@@ -67,13 +68,13 @@ impl Counted for RawSecurity {
 }
 
 fn event_from_security_report(
-    item: Item,
+    item: RawSecurityItem,
     meta: &RequestMeta,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
-    let len = item.len();
+    let len = item.data().len();
     let mut event = Event::default();
 
-    let bytes = item.payload();
+    let bytes = item.data().payload();
     let data = &bytes;
     let Some(report_type) =
         SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)?
@@ -96,11 +97,11 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityReport(json_error));
     }
 
-    if let Some(release) = item.sentry_release() {
+    if let Some(release) = item.data().sentry_release() {
         event.release = Annotated::from(LenientString(release.to_owned()));
     }
 
-    if let Some(env) = item.sentry_environment() {
+    if let Some(env) = item.data().sentry_environment() {
         event.environment = Annotated::from(env.to_owned());
     }
 

@@ -17,7 +17,9 @@ use relay_threading::{AsyncPoolService, ServicePool};
 use reqwest::header;
 
 use super::common::{self, SubmitClientReports};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+#[cfg(test)]
+use crate::envelope::ItemType;
+use crate::envelope::{ContentType, Envelope, MetricBucketsItem};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
 use crate::managed::ManagedEnvelope;
@@ -68,7 +70,6 @@ pub struct Addrs {
 }
 
 /// Creates a multi-threaded bucket processor.
-#[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
 pub fn create_service(
     pool: ServicePool,
     config: Arc<Config>,
@@ -77,8 +78,8 @@ pub fn create_service(
     cogs: Cogs,
     #[cfg(feature = "processing")] rate_limiter: Option<RedisRateLimiter>,
     addrs: Addrs,
-    metric_outcomes: MetricOutcomes,
 ) -> impl Service<Interface = BucketProcessor> {
+    let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
     AsyncPoolService::new(
         Arc::new(InnerProcessor::new(
             config,
@@ -349,9 +350,11 @@ impl InnerProcessor {
             for buckets in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
-                let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(crate::metrics::extract_quantities(buckets));
-                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+                let mut item = MetricBucketsItem::new();
+                item.data_mut()
+                    .set_source_quantities(crate::metrics::extract_quantities(buckets));
+                item.data_mut()
+                    .set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
                 let mut envelope =
@@ -1015,7 +1018,6 @@ mod tests {
             .unwrap();
             let (upstream_relay, mut upstream_rx) = Addr::custom();
             let outcome_aggregator = Addr::dummy();
-            let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
             let pool = relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
                 .build()
                 .unwrap();
@@ -1033,7 +1035,6 @@ mod tests {
                     #[cfg(feature = "processing")]
                     store_forwarder: None,
                 },
-                metric_outcomes,
             )
             .start_detached();
 
@@ -1099,7 +1100,7 @@ mod tests {
                 let envelope = Envelope::parse_bytes(Bytes::copy_from_slice(body)).unwrap();
                 let item = envelope.items().next().unwrap();
                 assert_eq!(item.ty(), &ItemType::MetricBuckets);
-                serde_json::from_slice(&item.payload()).unwrap()
+                serde_json::from_slice(&item.data().payload()).unwrap()
             };
             assert_eq!(buckets, vec![bucket]);
 

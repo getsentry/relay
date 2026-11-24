@@ -1,10 +1,10 @@
+use crate::envelope::{AttachmentItem, ProfileItem, TransactionItem};
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_quotas::RateLimits;
 
-use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
@@ -92,24 +92,17 @@ impl Processor for TransactionProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let mut event = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::Transaction))?;
-
-        // Count number of spans by shallow-parsing the event.
-        // Needed for accounting but not in prod, because the event is immediately parsed afterwards.
-        #[cfg(debug_assertions)]
-        event.ensure_span_count();
+        let event = envelope.envelope_mut().take_item::<TransactionItem>()?;
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment))
-            .into_vec();
+            .drain_items::<AttachmentItem>()
+            .collect();
 
         let profiles = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Profile))
-            .into_vec();
+            .drain_items::<ProfileItem>()
+            .collect();
 
         let work = SerializedTransaction {
             headers,

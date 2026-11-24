@@ -1278,11 +1278,38 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
-@pytest.mark.parametrize("quota_category", ["transaction", "transaction_indexed"])
-def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
+@pytest.mark.parametrize(
+    "quota_category,expected_items,expected_outcomes",
+    [
+        ("transaction", ["profile"], []),
+        ("transaction_indexed", ["profile"], []),
+        (
+            "profile",
+            [],
+            [
+                {
+                    "category": DataCategory.PROFILE,
+                    "outcome": Outcome.RATE_LIMITED,
+                    "quantity": 1,
+                    "reason": "profiles_exceeded",
+                },
+                {
+                    "category": DataCategory.PROFILE_INDEXED,
+                    "outcome": Outcome.RATE_LIMITED,
+                    "quantity": 1,
+                    "reason": "profiles_exceeded",
+                },
+            ],
+        ),
+    ],
+    ids=["transaction", "transaction_indexed", "profile"],
+)
+def test_standalone_profile_uses_profile_quota(
     mini_sentry,
     relay,
     quota_category,
+    expected_items,
+    expected_outcomes,
 ):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1310,35 +1337,25 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     ) as f:
         profile = f.read()
 
-    # Create an envelope with an invalid profile:
+    # The transaction was sampled out; its profile remains standalone.
     envelope = Envelope()
     profile_item = Item(payload=PayloadRef(bytes=profile), type="profile")
     profile_item.headers["sampled"] = False
     envelope.add_item(profile_item)
     relay.send_envelope(project_id, envelope)
 
-    if quota_category == "transaction":
-        assert mini_sentry.get_aggregated_outcomes() == [
-            {
-                "category": DataCategory.PROFILE,
-                "outcome": Outcome.RATE_LIMITED,
-                "quantity": 1,
-                "reason": "profiles_exceeded",
-            },
-            {
-                "category": DataCategory.PROFILE_INDEXED,
-                "outcome": Outcome.RATE_LIMITED,
-                "quantity": 1,
-                "reason": "profiles_exceeded",
-            },
-        ]
-    else:
-        # Do not rate limit if there is only a transaction_indexed quota.
-        envelope = mini_sentry.get_captured_envelope()
-        assert envelope.items[0].headers["type"] == "profile"
+    for expected_type in expected_items:
+        (item,) = mini_sentry.get_captured_envelope().items
+        assert item.type == expected_type
+        assert item.payload.get_bytes() == profile
+        assert item.headers["sampled"] is False
 
-        assert mini_sentry.captured_outcomes.empty()
-        assert mini_sentry.captured_envelopes.empty()
+    assert (
+        mini_sentry.get_aggregated_outcomes(timeout=10 if expected_outcomes else 1)
+        == expected_outcomes
+    )
+    assert mini_sentry.captured_outcomes.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])

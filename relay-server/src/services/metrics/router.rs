@@ -33,15 +33,43 @@ impl RouterService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
+        Self::prefixed(
+            handle,
+            "",
+            default_config,
+            secondary_configs,
+            receiver,
+            project_cache,
+        )
+    }
+    /// Create a new router service, with prefixed names for separate instrumentation.
+    pub fn prefixed(
+        handle: relay_system::Handle,
+        prefix: &'static str,
+        default_config: AggregatorServiceConfig,
+        secondary_configs: Vec<ScopedAggregatorConfig>,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        project_cache: ProjectCacheHandle,
+    ) -> Self {
         let mut secondary = Vec::new();
 
         for c in secondary_configs {
-            let service =
-                AggregatorService::named(c.name, c.config, receiver.clone(), project_cache.clone());
+            let name = c.name;
+            let service = AggregatorService::new(
+                format!("{prefix}{name}"),
+                c.config,
+                receiver.clone(),
+                project_cache.clone(),
+            );
             secondary.push((service, c.condition));
         }
 
-        let default = AggregatorService::new(default_config, receiver, project_cache);
+        let default = AggregatorService::new(
+            format!("{prefix}default"),
+            default_config,
+            receiver,
+            project_cache,
+        );
         Self {
             handle,
             default,
@@ -66,19 +94,10 @@ impl Service for RouterService {
         let mut router = StartedRouter::start(self);
         relay_log::info!("metrics router started");
 
-        // Note that currently this loop never exits and will run till the tokio runtime shuts
-        // down. This is about to change with the refactoring for the shutdown process.
-        loop {
-            tokio::select! {
-                biased;
-
-                Some(message) = rx.recv() => {
-                    router.handle_message(message)
-                },
-
-                else => break,
-            }
+        while let Some(message) = rx.recv().await {
+            router.handle_message(message)
         }
+
         relay_log::info!("metrics router stopped");
     }
 }
@@ -163,5 +182,37 @@ impl RouterHandle {
     /// Returns `true` if all the aggregators can still accept metrics.
     pub fn can_accept_metrics(&self) -> bool {
         self.0.iter().all(|ah| ah.can_accept_metrics())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_service(handle: &relay_system::Handle) -> RouterService {
+        RouterService::new(
+            handle.clone(),
+            AggregatorServiceConfig::default(),
+            Vec::new(),
+            None,
+            ProjectCacheHandle::for_test(),
+        )
+    }
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        let runtime = relay_system::Runtime::builder("router-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let service = dummy_service(runtime.handle());
+            let (addr, rx) = relay_system::channel(RouterService::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            drop(addr);
+            assert!(futures::poll!(&mut run).is_ready());
+        });
     }
 }

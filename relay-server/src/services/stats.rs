@@ -8,8 +8,6 @@ use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::{AsyncPool, ServicePool};
 use tokio::time::interval;
 
-#[cfg(feature = "processing")]
-use crate::services::store::StoreServicePool;
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayGauges, RuntimeCounters, RuntimeGauges};
 
@@ -25,7 +23,7 @@ pub struct RelayStats {
     redis_clients: Option<RedisClients>,
     processor_pool: Option<ServicePool>,
     #[cfg(feature = "processing")]
-    store_pool: StoreServicePool,
+    store_pool: ServicePool,
 }
 
 impl RelayStats {
@@ -35,7 +33,7 @@ impl RelayStats {
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
         processor_pool: Option<ServicePool>,
-        #[cfg(feature = "processing")] store_pool: StoreServicePool,
+        #[cfg(feature = "processing")] store_pool: ServicePool,
     ) -> Self {
         Self {
             config,
@@ -223,7 +221,7 @@ impl RelayStats {
 impl Service for RelayStats {
     type Interface = ();
 
-    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Some(mut ticker) = self
             .config
             .current()
@@ -234,14 +232,61 @@ impl Service for RelayStats {
         };
 
         loop {
-            let _ = tokio::join!(
-                self.upstream_status(),
-                self.service_metrics(),
-                self.tokio_metrics(),
-                self.redis_clients(),
-                self.async_pools_metrics()
-            );
-            ticker.tick().await;
+            tokio::select! {
+                _ = async {
+                    tokio::join!(
+                        self.upstream_status(),
+                        self.service_metrics(),
+                        self.tokio_metrics(),
+                        self.redis_clients(),
+                        self.async_pools_metrics()
+                    );
+                    ticker.tick().await;
+                } => {},
+                None = rx.recv() => break,
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_service(handle: &relay_system::Handle, upstream: Addr<UpstreamRelay>) -> RelayStats {
+        let config = Arc::new(Config::default());
+        assert!(config.current().metrics_periodic_interval().is_some());
+        RelayStats::new(
+            config,
+            handle.clone(),
+            upstream,
+            #[cfg(feature = "processing")]
+            None,
+            None,
+            #[cfg(feature = "processing")]
+            relay_threading::AsyncPoolBuilder::new(tokio::runtime::Handle::current())
+                .build()
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_shutdown_on_channel_close() {
+        let runtime = relay_system::Runtime::builder("stats-test")
+            .worker_threads(1)
+            .build();
+
+        runtime.block_on(async {
+            let (upstream, mut upstream_rx) = relay_system::channel("upstream");
+            let service = dummy_service(runtime.handle(), upstream);
+            let (addr, rx) = relay_system::channel(RelayStats::name());
+            let mut run = std::pin::pin!(service.run(rx));
+            assert!(futures::poll!(&mut run).is_pending());
+
+            // Keep the upstream response pending: shutdown must also interrupt a stats check.
+            let _request = upstream_rx.recv().await.unwrap();
+            drop(addr);
+            assert!(futures::poll!(&mut run).is_ready());
+        });
     }
 }

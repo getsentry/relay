@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::{Addr, Service};
+use relay_system::{Addr, AssertEmpty, Service};
 
-use crate::envelope::{ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::envelope::{ClientReportItem, ContentType, Envelope, EnvelopeError};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -24,24 +24,22 @@ use crate::statsd::RelayTimers;
 pub struct ProxyProcessorService {
     config: Arc<Config>,
     project_cache: ProjectCacheHandle,
-    addrs: ProxyAddrs,
-}
-
-/// Contains the addresses of services that the proxy-processor publishes to.
-pub struct ProxyAddrs {
-    /// Address of the service used for tracking outcomes.
-    pub outcome_aggregator: Addr<TrackOutcome>,
-    /// Address of the service used for forwarding envelopes to the upstream.
-    pub upstream_relay: Addr<UpstreamRelay>,
+    upstream_relay: Addr<UpstreamRelay>,
+    dummy_outcomes: (Addr<TrackOutcome>, AssertEmpty<TrackOutcome>),
 }
 
 impl ProxyProcessorService {
     /// Creates a proxy processor.
-    pub fn new(config: Arc<Config>, project_cache: ProjectCacheHandle, addrs: ProxyAddrs) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        project_cache: ProjectCacheHandle,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         Self {
-            project_cache,
-            addrs,
             config,
+            project_cache,
+            upstream_relay,
+            dummy_outcomes: Addr::never(),
         }
     }
 
@@ -65,8 +63,8 @@ impl ProxyProcessorService {
         for client_report in client_reports {
             match client_report.serialize() {
                 Ok(payload) => {
-                    let mut item = Item::new(ItemType::ClientReport);
-                    item.set_payload(ContentType::Json, payload);
+                    let mut item = ClientReportItem::new();
+                    item.data_mut().set_payload(ContentType::Json, payload);
                     envelope.add_item(item);
                 }
                 Err(error) => {
@@ -78,7 +76,8 @@ impl ProxyProcessorService {
             }
         }
 
-        let envelope = ManagedEnvelope::new(envelope, self.addrs.outcome_aggregator.clone());
+        // Envelopes containing only outcomes will never produce new outcomes:
+        let envelope = ManagedEnvelope::new(envelope, self.dummy_outcomes.0.clone());
         self.submit_upstream(envelope);
     }
 
@@ -97,7 +96,7 @@ impl ProxyProcessorService {
 
         match result {
             Ok(body) => {
-                self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
+                self.upstream_relay.send(SendRequest(SendEnvelope {
                     upstream: None,
                     envelope,
                     body,

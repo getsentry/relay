@@ -118,6 +118,11 @@ where
                 service = Self::name()
             );
         }
+        self.inner.on_exit().await;
+    }
+
+    fn name() -> &'static str {
+        S::name() // use inner name
     }
 }
 
@@ -163,6 +168,14 @@ mod tests {
         fn handle_loadshed(&self, _message: Incr) {
             self.fail.fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    #[test]
+    fn service_uses_inner_name() {
+        assert_eq!(
+            ConcurrentService::<CountingService>::name(),
+            "relay_system::service::concurrent::tests::CountingService"
+        );
     }
 
     #[tokio::test(start_paused = true)]

@@ -1,11 +1,10 @@
+use crate::envelope::{SessionItem, SessionsItem};
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::protocol::{SessionAggregates, SessionAttributes, SessionUpdate};
-use relay_quotas::DataCategory;
 
-use crate::envelope::Item;
 use crate::managed::{Managed, RecordKeeper};
 use crate::metrics_extraction;
 use crate::metrics_extraction::ExtractedMetrics;
@@ -64,8 +63,8 @@ pub fn expand(sessions: Managed<SerializedSessions>, ctx: Context<'_>) -> Expans
     Expansion::Continue(expanded)
 }
 
-fn expand_session(item: &Item) -> Result<SessionUpdate> {
-    let payload = item.payload();
+fn expand_session(item: &SessionItem) -> Result<SessionUpdate> {
+    let payload = item.data().payload();
 
     SessionUpdate::parse(&payload).map_err(|err| {
         relay_log::trace!(
@@ -76,8 +75,8 @@ fn expand_session(item: &Item) -> Result<SessionUpdate> {
     })
 }
 
-fn expand_session_aggregates(item: &Item) -> Result<SessionAggregates> {
-    let payload = item.payload();
+fn expand_session_aggregates(item: &SessionsItem) -> Result<SessionAggregates> {
+    let payload = item.data().payload();
 
     SessionAggregates::parse(&payload).map_err(|err| {
         relay_log::trace!(
@@ -227,7 +226,7 @@ pub fn extract_metrics(
         let meta = sessions.headers.meta();
 
         for update in sessions.updates {
-            records.modify_by(DataCategory::Session, -1);
+            records.remove(&update);
             metrics_extraction::sessions::extract_session_metrics(
                 &update.attributes,
                 &update,
@@ -239,7 +238,7 @@ pub fn extract_metrics(
 
         for aggregates in sessions.aggregates {
             for item in aggregates.aggregates {
-                records.modify_by(DataCategory::Session, -1);
+                records.remove(&item);
                 metrics_extraction::sessions::extract_session_metrics(
                     &aggregates.attributes,
                     &item,
@@ -250,8 +249,9 @@ pub fn extract_metrics(
             }
         }
 
-        records.modify_by(DataCategory::MetricBucket, metrics.len() as isize);
+        let metrics = ExtractedMetrics(metrics);
+        records.add(&metrics);
 
-        ExtractedMetrics(metrics)
+        metrics
     })
 }

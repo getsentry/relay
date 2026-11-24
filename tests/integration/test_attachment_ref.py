@@ -295,12 +295,12 @@ def test_attachment_ref_validation(
     assert o[DataCategory.ATTACHMENT_ITEM]["quantity"] == 1
 
 
+@pytest.mark.requires_global_config
 def test_attachment_ref_resumable_upload_in_chunks(
     mini_sentry,
     relay,
     relay_with_processing,
     attachments_consumer,
-    events_consumer,
     objectstore,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -313,11 +313,6 @@ def test_attachment_ref_resumable_upload_in_chunks(
 
     attachments_consumer = attachments_consumer()
     project_key = mini_sentry.get_dsn_public_key(project_id)
-
-    # Wait for the first event so the global config is guaranteed to be loaded.
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
 
     # First upload
     create_response = relay.post(

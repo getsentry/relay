@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     steps:
       - name: Install libcurl-dev
@@ -63,9 +63,9 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@4c58170a945e4e68ce3fc5b7af3d341d9b8c64ef # v6
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version: '0.13.5'
+          version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
@@ -76,17 +76,17 @@ jobs:
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
+          path: ~/.cache/prek
           key: cache-epoch-1|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
 
-      - name: Setup pre-commit
-        run: pre-commit install-hooks
+      - name: Setup prek
+        run: .venv/bin/prek prepare-hooks
 
-      - name: Run pre-commit
+      - name: Run prek
         run: |
           jq '.[]' --raw-output <<< '${{steps.changes.outputs.all_files}}' |
-            # Run pre-commit to lint and format check files that were changed (but not deleted)
-            xargs pre-commit run --files
+            # Run prek to lint and format check files that were changed (but not deleted)
+            xargs .venv/bin/prek run --files
 
       # running lint-python will unnecessarily go through setup-venv via devenv
       # we want to take advantage of cached action-setup-venv
@@ -151,7 +151,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -188,7 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY:  ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -261,9 +261,9 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@4c58170a945e4e68ce3fc5b7af3d341d9b8c64ef # v6
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version: '0.13.5'
+          version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 
@@ -451,7 +451,7 @@ jobs:
 
       - uses: webfactory/ssh-agent@v0.10.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
 
       - name: Compile
         run: |
@@ -745,7 +745,7 @@ jobs:
     timeout-minutes: 30
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_PRIVATE_KEY:  ${{ secrets.RELAY_PRIVATE_SSH_PRIVATE_KEY }}
       PYTEST_SENTRY_DSN: ${{ secrets.SENTRY_TESTS_DSN }}
       PYTEST_SENTRY_ALWAYS_REPORT: 1
       PYTEST_SENTRY_TRACES_SAMPLE_RATE: 1
@@ -811,9 +811,9 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: astral-sh/setup-uv@4c58170a945e4e68ce3fc5b7af3d341d9b8c64ef # v6
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version: '0.13.5'
+          version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
           enable-cache: false
 

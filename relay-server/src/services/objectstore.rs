@@ -27,7 +27,7 @@ use relay_system::{
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, ContentType};
 use crate::managed::{Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected};
 use crate::processing::trace_attachments::store::CONTENT_TYPE_ATTRIBUTE;
 use crate::processing::utils::store::item_id_to_uuid;
@@ -35,11 +35,9 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{
     ProfileAttachment, Store, StoreAttachment, StoreEvent, StoreProfileChunk, StoreTraceItem,
 };
-use crate::services::upload::ByteStream;
+use crate::services::upload::{DecodeError, PassthroughBoundedMeteredStream};
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    BoundedStream, ByteCounter, MeteredStream, RetryableStream, TakeOnce, find_error_source,
-};
+use crate::utils::{ByteCounter, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -232,7 +230,7 @@ pub struct Stream {
     pub project_id: ProjectId,
     pub context: StreamContext,
     pub retention: u16,
-    pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    pub stream: PassthroughBoundedMeteredStream,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -670,8 +668,8 @@ impl ObjectstoreServiceInner {
 
         for mut attachment in attachments.split(|e| e) {
             let content_type =
-                normalize_content_type(attachment.raw_content_type(), attachment.filename());
-            attachment.modify(|a, _| a.set_raw_content_type(content_type.clone()));
+                normalize_content_type(attachment.data().raw_content_type(), attachment.filename());
+            attachment.modify(|a, _| a.data_mut().set_raw_content_type(content_type.clone()));
 
             let attributes = ObjectAttributes {
                 content_type: Some(content_type),
@@ -683,7 +681,7 @@ impl ObjectstoreServiceInner {
                 .upload_bytes(
                     MessageKind::Event,
                     &session,
-                    attachment.payload(),
+                    attachment.data().payload(),
                     event.retention_days,
                     attributes,
                 )
@@ -727,10 +725,14 @@ impl ObjectstoreServiceInner {
         );
 
         let content_type = normalize_content_type(
-            attachment.attachment.raw_content_type(),
+            attachment.attachment.data().raw_content_type(),
             attachment.attachment.filename(),
         );
-        attachment.modify(|a, _| a.attachment.set_raw_content_type(content_type.clone()));
+        attachment.modify(|a, _| {
+            a.attachment
+                .data_mut()
+                .set_raw_content_type(content_type.clone())
+        });
 
         let upload_result = match session {
             Err(error) => Err(error),
@@ -744,7 +746,7 @@ impl ObjectstoreServiceInner {
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
-                    attachment.attachment.payload(),
+                    attachment.attachment.data().payload(),
                     attachment.retention,
                     attributes,
                 )
@@ -1154,7 +1156,7 @@ impl ObjectstoreServiceInner {
     async fn attempt_upload_stream(
         &self,
         session: &Session,
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     ) -> Result<UploadRef, objectstore_client::Error> {
@@ -1188,10 +1190,35 @@ impl ObjectstoreServiceInner {
             } => {
                 let resumable_upload = session.resume_upload(&key, session_token.clone());
 
-                let progress = resumable_upload
+                let result = resumable_upload
                     .put_stream(offset as u64, chunk_length as u64, body.boxed())
                     .send()
-                    .await?;
+                    .await;
+                if match &result {
+                    Err(objectstore_client::Error::Io(error)) => error
+                        .get_ref()
+                        .is_some_and(|error| error.is::<DecodeError>()),
+                    Err(objectstore_client::Error::Reqwest(error)) => {
+                        find_error_source(error, |error| {
+                            error
+                                .downcast_ref::<std::io::Error>()
+                                .and_then(std::io::Error::get_ref)
+                                .is_some_and(|error| error.is::<DecodeError>())
+                        })
+                        .is_some()
+                    }
+                    _ => false,
+                } {
+                    // Persisted bytes may be corrupt. Transport failures alone remain resumable.
+                    relay_log::info!("cancelling resumable upload after decoding failure");
+                    if let Err(error) = resumable_upload.cancel().send().await {
+                        relay_log::warn!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to cancel corrupt upload"
+                        );
+                    }
+                }
+                let progress = result?;
 
                 let (session_token, offset) = match progress {
                     UploadProgress::Incomplete { offset } => (Some(session_token), offset as usize),
@@ -1255,7 +1282,7 @@ enum Upload {
         filename: Option<String>,
     },
     Stream {
-        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        body: TakeOnce<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1302,7 +1329,7 @@ enum UploadAttempt {
         filename: Option<String>,
     },
     Stream {
-        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        body: RetryableStream<PassthroughBoundedMeteredStream>,
         context: StreamContext,
         retention: u16,
     },
@@ -1363,11 +1390,8 @@ fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'sta
     }
 }
 
-fn should_upload(item: &Item) -> bool {
-    *item.ty() == ItemType::Attachment
-        && item.stored_key().is_none()
-        && !item.is_empty()
-        && !item.is_attachment_ref()
+fn should_upload(item: &AttachmentItem) -> bool {
+    item.stored_key().is_none() && !item.data().is_empty() && !item.is_attachment_ref()
 }
 
 fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
@@ -1389,6 +1413,7 @@ mod tests {
 
     use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
+    use crate::utils::{BoundedStream, MeteredStream};
 
     use super::*;
 
@@ -1460,8 +1485,8 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::Text, "hello");
+        let mut item = AttachmentItem::new();
+        item.data_mut().set_payload(ContentType::Text, "hello");
         let quantities = item.quantities();
         let (attachment, mut handle) = Managed::for_test(StoreAttachment {
             event_id: EventId::new(),
@@ -1529,8 +1554,10 @@ mod tests {
     }
 
     fn test_event() -> (Managed<Box<StoreEvent>>, ManagedTestHandle) {
-        let mut attachment = Item::new(ItemType::Attachment);
-        attachment.set_payload(ContentType::Text, "hello");
+        let mut attachment = AttachmentItem::new();
+        attachment
+            .data_mut()
+            .set_payload(ContentType::Text, "hello");
 
         Managed::for_test(Box::new(StoreEvent {
             event_category: DataCategory::Error,

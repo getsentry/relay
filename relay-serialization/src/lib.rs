@@ -4,4 +4,7 @@
 
 #![warn(missing_docs)]
 
+mod meter;
+
+pub mod prost;
 pub mod serde;

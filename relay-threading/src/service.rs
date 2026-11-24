@@ -3,20 +3,26 @@ use relay_log::sentry::SentryFutureExt;
 use relay_system::{MessageHandler, Receiver, Service};
 
 use crate::AsyncPool;
+use crate::tracking::{Tracked, TrackingPool};
 
 /// An async thread pool used for scheduling processing tasks in a service.
-pub type ServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type ServicePool = AsyncPool<Tracked<BoxFuture<'static, ()>>>;
 
 /// A service that delegates its work to an [`ServicePool`].
+///
+/// Waits for all delegated tasks to finish when its message channel closes.
 pub struct AsyncPoolService<T> {
     handler: T,
-    pool: ServicePool,
+    pool: TrackingPool<BoxFuture<'static, ()>>,
 }
 
 impl<T> AsyncPoolService<T> {
-    /// Creates a new service from a handler and a pool.
+    /// Creates a new service from a handler and a shared service pool.
     pub fn new(handler: T, pool: ServicePool) -> Self {
-        Self { handler, pool }
+        Self {
+            handler,
+            pool: TrackingPool::new(pool),
+        }
     }
 }
 
@@ -35,5 +41,42 @@ impl<T: MessageHandler + Clone + Send + 'static> Service for AsyncPoolService<T>
                 ))
                 .await;
         }
+        self.pool.finish().await;
+        self.handler.on_exit().await;
+    }
+
+    fn name() -> &'static str {
+        T::name()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[derive(Clone)]
+    struct TestHandler;
+    impl MessageHandler for TestHandler {
+        type Interface = ();
+
+        async fn handle_message(&self, _: Self::Interface) {}
+    }
+
+    #[test]
+    fn service_uses_inner_name() {
+        assert_eq!(
+            AsyncPoolService::<TestHandler>::name(),
+            "relay_threading::service::tests::TestHandler"
+        );
+    }
+
+    #[test]
+    fn service_uses_inner_name_for_arc() {
+        assert_eq!(
+            AsyncPoolService::<Arc<TestHandler>>::name(),
+            "relay_threading::service::tests::TestHandler"
+        );
     }
 }

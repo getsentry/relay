@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,7 +14,6 @@ use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
-use crate::envelope::Item;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -83,8 +83,11 @@ impl PolymorphicEnvelopeBuffer {
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(
-            distribution(RelayDistributions::BufferEnvelopeBodySize) =
-                envelope.items().map(Item::len).sum::<usize>() as u64,
+            distribution(RelayDistributions::BufferEnvelopeBodySize) = envelope
+                .items()
+                .map(|item| item.data().len())
+                .sum::<usize>()
+                as u64,
             partition_id = self.partition_tag()
         );
 
@@ -191,18 +194,20 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
-    pub async fn shutdown(&mut self) -> bool {
-        // Currently, we want to flush the buffer only for disk, since the in memory implementation
-        // tries to not do anything and pop as many elements as possible within the shutdown
-        // timeout.
+    ///
+    /// - In persistent disk mode, flush everything to disk and shut down.
+    /// - Otherwise, continue draining envelopes to the processor.
+    ///
+    /// Returns `Break` if all work has been done and the buffer service can stop.
+    pub async fn shutdown(&mut self) -> ControlFlow<()> {
         match self {
             Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
                 buffer.flush().await;
-                true
+                ControlFlow::Break(())
             }
-            _ => {
+            Self::InMemory(_) | Self::Sqlite(_) => {
                 relay_log::trace!("shutdown procedure not needed");
-                false
+                ControlFlow::Continue(())
             }
         }
     }
@@ -734,24 +739,24 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
     use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use uuid::Uuid;
 
+    use super::*;
     use crate::SqliteEnvelopeStore;
-    use crate::envelope::{Item, ItemType};
+    use crate::envelope::TransactionItem;
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
-
-    use super::*;
 
     impl Peek {
         fn is_empty(&self) -> bool {
@@ -782,7 +787,7 @@ mod tests {
                 sampled: None,
                 other: Default::default(),
             });
-            envelope.add_item(Item::new(ItemType::Transaction));
+            envelope.add_item(TransactionItem::new());
         }
         if let Some(event_id) = event_id {
             envelope.set_event_id(event_id);

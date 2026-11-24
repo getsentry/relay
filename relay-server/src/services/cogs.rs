@@ -88,7 +88,7 @@ impl CogsRecorder for CogsServiceRecorder {
         // an error in the service should not have a visible impact in production.
         if self.addr.len() >= self.max_size {
             if !self.has_errored.swap(true, Ordering::Relaxed) {
-                relay_log::error!("COGS measurements backlogged");
+                relay_log::warn!("COGS measurements backlogged");
             }
 
             return;

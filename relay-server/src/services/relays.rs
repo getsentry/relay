@@ -3,13 +3,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, ConfigSnapshot, RelayInfo};
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::services::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{RetryBackoff, SleepHandle};
@@ -182,7 +184,7 @@ pub struct RelayCacheService {
     static_relays: HashMap<RelayId, RelayInfo>,
     relays: HashMap<RelayId, RelayState>,
     channels: HashMap<RelayId, BroadcastChannel<GetRelayResult>>,
-    fetch_channel: (mpsc::Sender<FetchResult>, mpsc::Receiver<FetchResult>),
+    fetch_tasks: FuturesUnordered<JoinHandle<Option<FetchResult>>>,
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc<Config>,
@@ -197,18 +199,12 @@ impl RelayCacheService {
             static_relays: current_config.static_relays().clone(),
             relays: HashMap::new(),
             channels: HashMap::new(),
-            fetch_channel: mpsc::channel(1),
+            fetch_tasks: FuturesUnordered::new(),
             backoff: RetryBackoff::new(current_config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
             upstream_relay,
         }
-    }
-
-    /// Returns a clone of the sender for the background fetch task.
-    fn fetch_tx(&self) -> mpsc::Sender<FetchResult> {
-        let (ref tx, _) = self.fetch_channel;
-        tx.clone()
     }
 
     /// Returns the backoff timeout for a batched upstream query.
@@ -237,20 +233,21 @@ impl RelayCacheService {
             self.backoff.attempt(),
         );
 
-        let fetch_tx = self.fetch_tx();
         let upstream_relay = self.upstream_relay.clone();
-        relay_system::spawn!(async move {
+        let fetch_task = relay_system::spawn!(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
             let query_result = match upstream_relay.send(SendQuery(request)).await {
                 Ok(inner) => inner,
-                // Drop the channels to propagate the `SendError` up.
-                Err(_send_error) => return,
+                Err(_send_error) => {
+                    relay_log::error!("upstream relay stopped while relay cache task is running");
+                    return None;
+                }
             };
 
-            let fetch_result = match query_result {
+            Some(match query_result {
                 Ok(response) => {
                     let response = GetRelaysResponse::from(response);
 
@@ -269,25 +266,27 @@ impl RelayCacheService {
                     );
                     Err(channels)
                 }
-            };
-
-            fetch_tx.send(fetch_result).await.ok();
+            })
         });
+        self.fetch_tasks.push(fetch_task);
     }
 
     /// Handles results from the background fetch task.
-    fn handle_fetch_result(&mut self, result: FetchResult) {
+    ///
+    /// A missing result means the task failed or the upstream service stopped.
+    fn handle_fetch_result(&mut self, result: Option<FetchResult>) {
         match result {
-            Ok(response) => {
+            Some(Ok(response)) => {
                 self.backoff.reset();
 
                 for (id, info) in response.relays {
                     self.relays.insert(id, RelayState::from_option(info));
                 }
             }
-            Err(channels) => {
+            Some(Err(channels)) => {
                 self.channels.extend(channels);
             }
+            None => self.backoff.reset(),
         }
 
         if !self.channels.is_empty() {
@@ -338,18 +337,65 @@ impl Service for RelayCacheService {
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         relay_log::info!("key cache started");
 
-        loop {
+        let mut expects_input = true;
+        while expects_input || !self.channels.is_empty() || !self.fetch_tasks.is_empty() {
             tokio::select! {
                 // Prioritize flush over receiving messages to prevent starving.
                 biased;
 
-                Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
+                Some(result) = self.fetch_tasks.next() => {
+                    let result = match result {
+                        Ok(result) => result,
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "fetch task panicked or was cancelled"
+                            );
+                            None
+                        }
+                    };
+                    self.handle_fetch_result(result);
+                }
                 () = &mut self.delay => self.fetch_relays(),
-                Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
-                else => break,
+                signal = rx.recv(), if expects_input => match signal {
+                    Some(message) => self.get_or_fetch(message.0, message.1),
+                    None => expects_input = false,
+                }
             }
         }
 
         relay_log::info!("key cache stopped");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_config::Credentials;
+
+    use super::*;
+
+    fn config() -> Arc<Config> {
+        let mut config = Config::default();
+        config
+            .replace_credentials(Some(Credentials::generate()))
+            .unwrap();
+        Arc::new(config)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_with_closed_upstream() {
+        let (upstream, upstream_rx) = Addr::custom();
+        drop(upstream_rx);
+        let service = RelayCacheService::new(config(), upstream);
+        let (addr, rx) = relay_system::channel(RelayCacheService::name());
+        let response = addr.send(GetRelay {
+            relay_id: RelayId::nil(),
+        });
+        drop(addr);
+
+        tokio::time::timeout(Duration::from_secs(10), service.run(rx))
+            .await
+            .expect("relay cache should stop when the upstream service is gone");
+        assert!(response.await.is_err());
     }
 }

@@ -22,8 +22,32 @@ macro_rules! add_string_attribute {
     }};
 }
 
+mod csp;
 mod integrity;
 mod nel;
+
+/// Attributes used in converting browser reports to logs.
+///
+/// This module is temporary while this project is under development.
+/// As part of INGEST-1350, the attributes will be integrated into `sentry-conventions` once
+/// they've been nailed down.
+mod attributes {
+    // Analogous to, and should subsume, `INTEGRITY__BLOCKED_URL`.
+    pub const BROWSER__REPORT__BLOCKED_URL: &str = "browser.report.blocked_url";
+    // Analogous to, and should subsume, `INTEGRITY__DOCUMENT_URL`.
+    // This might be redundant with the URL on reports.
+    pub const BROWSER__REPORT__DOCUMENT_URL: &str = "browser.report.document_url";
+    // Analogous to, and should subsume, `NEL__REPORT_ONLY`. CSP reports strictly speaking don't
+    // have a field for this, they have "disposition" of `enforce` or `report`
+    // instead.
+    pub const BROWSER__REPORT__REPORT_ONLY: &str = "browser.report.report_only";
+    pub const BROWSER__REPORT__CSP__EFFECTIVE_DIRECTIVE: &str =
+        "browser.report.csp.effective_directive";
+    pub const BROWSER__REPORT__CSP__ORIGINAL_POLICY: &str = "browser.report.csp.original_policy";
+    pub const BROWSER__REPORT__CSP__SAMPLE: &str = "browser.report.csp.sample";
+    // Analogous to `CODE__LINE__NUMBER` (doesn't exist yet).
+    pub const CODE__COLUMN__NUMBER: &str = "code.column.number";
+}
 
 /// Extracts the domain or IP address from a server address string.
 ///
@@ -82,6 +106,7 @@ fn create_log_with_trace_id(
         BrowserReportBody::IntegrityViolation(body) => {
             integrity::create_log_from_integrity_body(body, attributes)
         }
+        BrowserReportBody::CspViolation(body) => csp::create_log_from_csp_body(body, attributes),
         BrowserReportBody::Unsupported => return None,
     };
 
@@ -119,7 +144,9 @@ mod tests {
                     "referrer": "https://example.com/referer",
                     "server_ip": "192.168.1.1",
                     "status_code": 500,
-                    "sampling_fraction": 1.0
+                    "sampling_fraction": 1.0,
+                    "request_headers": {"Accept-Language": ["de-DE"]},
+                    "response_headers": {"X-Served-By": ["cache-fra-1", "cache-fra-2"]}
                 }
         }"#,
         )
@@ -143,13 +170,28 @@ mod tests {
               "type": "integer",
               "value": 1000
             },
+            "http.request.header.accept-language": {
+              "type": "array",
+              "value": [
+                "de-DE"
+              ]
+            },
             "http.request.header.referer": {
-              "type": "string",
-              "value": "https://example.com/referer"
+              "type": "array",
+              "value": [
+                "https://example.com/referer"
+              ]
             },
             "http.request.method": {
               "type": "string",
               "value": "GET"
+            },
+            "http.response.header.x-served-by": {
+              "type": "array",
+              "value": [
+                "cache-fra-1",
+                "cache-fra-2"
+              ]
             },
             "http.response.status_code": {
               "type": "integer",
@@ -422,6 +464,110 @@ mod tests {
             "user_agent.original": {
               "type": "string",
               "value": "Mozilla/5.0"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_csp_real() {
+        let received_at = DateTime::parse_from_rfc3339("2026-10-06T12:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(r#"{
+            "age": 0,
+            "url": "https://sentry.io/",
+            "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+            "type": "csp-violation",
+            "body": {
+                "documentURL": "https://sentry.io/sentry/csp/issues/88513416/",
+                "referrer": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/",
+                "effectiveDirective": "script-src",
+                "originalPolicy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
+                "disposition": "enforce",
+                "blockedURL": "http://baddomain.com/test.js?_=1515535030116",
+                "lineNumber": 24,
+                "columnNumber": 66270,
+                "sourceFile": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js",
+                "statusCode": 0,
+                "script-sample": ""
+            }
+        }"#).unwrap();
+
+        let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+
+        assert_annotated_snapshot!(
+            &Annotated::new(log), @r#"
+        {
+          "timestamp": 1791288005.0,
+          "trace_id": "de4e189601a342c6bee991645300852e",
+          "level": "warn",
+          "body": "Blocked 'script' from 'baddomain.com'",
+          "attributes": {
+            "browser.report.blocked_url": {
+              "type": "string",
+              "value": "http://baddomain.com/test.js?_=1515535030116"
+            },
+            "browser.report.csp.effective_directive": {
+              "type": "string",
+              "value": "script-src"
+            },
+            "browser.report.csp.original_policy": {
+              "type": "string",
+              "value": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7"
+            },
+            "browser.report.document_url": {
+              "type": "string",
+              "value": "https://sentry.io/sentry/csp/issues/88513416/"
+            },
+            "browser.report.report_only": {
+              "type": "boolean",
+              "value": false
+            },
+            "browser.report.type": {
+              "type": "string",
+              "value": "csp-violation"
+            },
+            "code.column.number": {
+              "type": "integer",
+              "value": 66270
+            },
+            "code.file.path": {
+              "type": "string",
+              "value": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js"
+            },
+            "code.line.number": {
+              "type": "integer",
+              "value": 24
+            },
+            "http.request.header.referer": {
+              "type": "array",
+              "value": [
+                "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/"
+              ]
+            },
+            "http.response.status_code": {
+              "type": "integer",
+              "value": 0
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http.browser_report"
+            },
+            "url.domain": {
+              "type": "string",
+              "value": "sentry.io"
+            },
+            "url.full": {
+              "type": "string",
+              "value": "https://sentry.io/"
+            },
+            "user_agent.original": {
+              "type": "string",
+              "value": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
             }
           }
         }

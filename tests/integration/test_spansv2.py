@@ -1330,6 +1330,124 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
     }
 
 
+SCRUB_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:replace"]}}}
+HASH_EMAIL = {"piiConfig": {"applications": {"$string": ["@email:hash"]}}}
+SCRUB_IP = {
+    "datascrubbingSettings": {
+        "scrubData": False,
+        "scrubDefaults": False,
+        "scrubIpAddresses": True,
+    }
+}
+
+
+def sentry_users(mini_sentry, relay, config, user_attributes):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].update(config)
+
+    relay = relay(mini_sentry)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        *(
+            {
+                "start_timestamp": ts.timestamp(),
+                "end_timestamp": ts.timestamp() + 0.5,
+                "trace_id": "5b8efff798038103d269b633813fc60c",
+                "span_id": f"{i:016x}",
+                "name": "Test span",
+                "status": "ok",
+                "is_segment": False,
+                "attributes": {
+                    key: {"value": value, "type": "string"}
+                    for key, value in attributes.items()
+                },
+            }
+            for i, attributes in enumerate(user_attributes, 1)
+        ),
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    # Match by span ID so results follow the input case order even if Relay reorders the batch.
+    spans = {span["span_id"]: span for span in item_payload["items"]}
+
+    return [
+        spans[f"{i:016x}"]["attributes"].get("sentry.user", {}).get("value")
+        for i in range(1, len(user_attributes) + 1)
+    ]
+
+
+@pytest.mark.parametrize(
+    "config,cases",
+    [
+        (
+            {},
+            [
+                (
+                    {
+                        "user.id": "abc123",
+                        "user.name": "jane",
+                        "user.ip_address": "127.0.0.1",
+                    },
+                    "id:abc123",
+                ),
+                (
+                    {"user.name": "jane", "user.email": "jane@example.com"},
+                    "username:jane",
+                ),
+                ({"user.ip_address": "127.0.0.1"}, "ip:127.0.0.1"),
+                ({"user.ip_address": "{{auto}}"}, "ip:127.0.0.1"),
+                ({"user.id": "{{auto}}"}, "id:{{auto}}"),
+                ({}, None),
+            ],
+        ),
+        (
+            SCRUB_EMAIL,
+            [
+                ({"user.email": "jane@example.com"}, None),
+                (
+                    {"user.email": "jane@example.com", "user.ip_address": "127.0.0.1"},
+                    "ip:127.0.0.1",
+                ),
+            ],
+        ),
+        (
+            SCRUB_IP,
+            [
+                ({"user.ip_address": "127.0.0.1"}, None),
+                ({"user.ip_address": "{{auto}}"}, None),
+                ({"user.id": "abc123", "user.ip_address": "127.0.0.1"}, "id:abc123"),
+            ],
+        ),
+    ],
+    ids=["default", "scrubbed_email", "scrubbed_ip_address"],
+)
+def test_spansv2_sentry_user(mini_sentry, relay, config, cases):
+    user_attributes, expected = zip(*cases)
+    assert sentry_users(mini_sentry, relay, config, user_attributes) == list(expected)
+
+
+def test_spansv2_sentry_user_hashed_email(mini_sentry, relay):
+    users = sentry_users(
+        mini_sentry,
+        relay,
+        HASH_EMAIL,
+        [{"user.email": "jane@example.com"}, {"user.email": "john@example.com"}],
+    )
+
+    assert all(user.startswith("email:") for user in users)
+    assert not any("@example.com" in user for user in users)
+    assert users[0] != users[1]
+
+
 def test_spansv2_attribute_normalization(
     mini_sentry,
     relay,
@@ -1651,8 +1769,7 @@ def test_invalid_spans(mini_sentry, relay):
     )
     relay.send_envelope(project_id, envelope)
 
-    # Wait here till the event arrives at which point we know that all the outcomes should also be
-    # available as well to check afterwards.
+    # Wait for the surviving span to arrive.
     envelope = mini_sentry.get_captured_envelope()
     spans = json.loads(envelope.items[0].payload.bytes.decode())["items"]
 
@@ -1660,7 +1777,8 @@ def test_invalid_spans(mini_sentry, relay):
     spans[0].pop("attributes")  # irrelevant for this test
     assert spans[0] == valid_span
 
-    outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
+    # Rejections can arrive in separate outcome flushes.
+    outcomes = mini_sentry.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
