@@ -37,6 +37,12 @@ from .tus import (
 
 
 @pytest.fixture
+def require_global_config():
+    # The upload handlers read the global kill switch before forwarding a request.
+    return True
+
+
+@pytest.fixture
 def project_config(mini_sentry):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -541,7 +547,6 @@ def test_create_processing(
     chain,
     feature_flag,
     project_config,
-    events_consumer,
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
@@ -554,11 +559,6 @@ def test_create_processing(
         relay = relay(processing_relay)
     else:
         relay = processing_relay
-
-    # Do some busy work until the global config is loaded
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
 
     data = b"hello world"
     response = relay.post(
@@ -637,17 +637,11 @@ def test_upload_with_deferred_length(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     defer_length_value,
 ):
     project_id = 42
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)
-
-    # Do some busy work until the global config is loaded
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
 
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
@@ -1186,7 +1180,6 @@ def test_create_granularity_header(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     granularity,
 ):
     project_id = 42
@@ -1207,11 +1200,6 @@ def test_create_granularity_header(
         }
     )
     pop_relay = relay(processing_relay)
-
-    # Do some busy work until the global config is loaded
-    events_consumer = events_consumer()
-    pop_relay.send_event(project_id)
-    events_consumer.get_event()
 
     for target in (processing_relay, pop_relay):
         response = target.post(
@@ -1238,7 +1226,7 @@ def test_create_granularity_header(
     [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")],
 )
 def test_resumable_upload_declined(
-    mini_sentry, relay, relay_with_processing, project_config, events_consumer, chain
+    mini_sentry, relay, relay_with_processing, project_config, chain
 ):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
@@ -1260,11 +1248,6 @@ def test_resumable_upload_declined(
     )
     relay = relay(processing_relay) if chain else processing_relay
 
-    # Do some busy work until the global config is loaded
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
-
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
@@ -1279,17 +1262,13 @@ def test_resumable_upload_declined(
 
 
 def test_head_resumable_progress(
-    mini_sentry, relay, relay_with_processing, project_config, events_consumer
+    mini_sentry, relay, relay_with_processing, project_config
 ):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
     total = len(RESUMABLE_DATA)
 
     relay = relay(relay_with_processing())
-    # Do some busy work until the global config is loaded
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
 
     create = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
@@ -1581,7 +1560,6 @@ def test_compressed_upload_passthrough(
     relay,
     processing_config,
     project_config,
-    events_consumer,
     case: EncodedUploadCase,
     chunked,
     processing,
@@ -1615,9 +1593,6 @@ def test_compressed_upload_passthrough(
         # Processing alone must not trigger decoding: this Relay still forwards uploads.
         options["processing"] = {"objectstore": {"objectstore_url": None}}
         options = processing_config(options)
-        receive_event = events_consumer().get_event
-    else:
-        receive_event = mini_sentry.get_captured_envelope
     upstream = relay(mini_sentry, options=options)
     edge = relay(
         upstream,
@@ -1626,9 +1601,6 @@ def test_compressed_upload_passthrough(
             "limits": {"max_upload_size": max_upload_size},
         },
     )
-    # An accepted event confirms that both hops have loaded global/project config.
-    edge.send_event(42)
-    receive_event()
 
     response = edge.patch(
         f"{DUMMY_UPLOAD_LOCATION}&sentry_key={mini_sentry.get_dsn_public_key(42)}",
@@ -1701,7 +1673,6 @@ def test_compressed_upload_size_limits(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     direct_storage,
     case: UploadLimitCase,
 ):
@@ -1712,9 +1683,6 @@ def test_compressed_upload_size_limits(
     options = {"limits": {"max_upload_size": case.max_upload_size}}
     storage = relay_with_processing(options=options)
     edge = storage if direct_storage else relay(storage, options=options)
-    consumer = events_consumer()
-    edge.send_event(42)
-    consumer.get_event()
 
     # Defer the length so creation does not reject before we exercise the body limits.
     create = edge.post(
@@ -1800,7 +1768,6 @@ def test_compressed_upload_processing_chain(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     attachments_consumer,
     outcomes_consumer,
     objectstore,
@@ -1821,11 +1788,8 @@ def test_compressed_upload_processing_chain(
         *case.upload_features,
     ]
     edge = relay(relay(relay_with_processing()))
-    consumer = events_consumer()
     attachments = attachments_consumer()
     outcomes = outcomes_consumer()
-    edge.send_event(42)
-    consumer.get_event()
 
     create = edge.post(
         f"/api/42/upload/?sentry_key={project_key}",
@@ -1902,15 +1866,11 @@ def test_invalid_compressed_upload_processing_chain(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     case: InvalidUploadCase,
 ):
     mini_sentry.fail_on_relay_error = False
     project_key = mini_sentry.get_dsn_public_key(42)
     edge = relay(relay(relay_with_processing()))
-    consumer = events_consumer()
-    edge.send_event(42)
-    consumer.get_event()
     create = edge.post(
         f"/api/42/upload/?sentry_key={project_key}",
         headers={"Tus-Resumable": "1.0.0", "Upload-Length": "11"},
@@ -1940,16 +1900,12 @@ def test_resumable_upload_restarts_after_corruption(
     relay,
     relay_with_processing,
     project_config,
-    events_consumer,
     objectstore,
     data,
     corruption,
 ):
     mini_sentry.fail_on_relay_error = False
     edge = relay(relay_with_processing())
-    consumer = events_consumer()
-    edge.send_event(42)
-    consumer.get_event()
     project_key = mini_sentry.get_dsn_public_key(42)
     compressed = bytearray(gzip.compress(data, compresslevel=0))
     if corruption == "checksum":
