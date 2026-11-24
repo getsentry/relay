@@ -319,6 +319,7 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
     }
     pii["applications"].update(
         {
+            "$request.env.REMOTE_ADDR": ["@anything:remove"],
             "$user.ip_address": ["replace-ip"],
             "$span.attributes.'client.address'.value": ["replace-ip"],
             "spans.1.data.'client.as.organization'": ["@anything:remove"],
@@ -333,6 +334,15 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
     processing.send_event(42, make_error({"user": {"ip_address": IP}}))
     error, _ = events.get_event()
     assert error["user"]["ip_address"] == "2600::1"
+    assert not {NUMBER, ORG}.intersection(dict(error.get("tags", [])))
+
+    # Normalization copied REMOTE_ADDR before scrubbing removed it.
+    processing.send_event(
+        42, make_error({"request": {"env": {"REMOTE_ADDR": "2600::1"}}})
+    )
+    error, _ = events.get_event()
+    assert error["user"]["ip_address"] == "2600::1"
+    assert error["request"]["env"]["REMOTE_ADDR"] is None
     assert not {NUMBER, ORG}.intersection(dict(error.get("tags", [])))
 
     tx = transaction(IP, {})
