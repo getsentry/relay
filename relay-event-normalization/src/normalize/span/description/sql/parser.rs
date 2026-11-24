@@ -18,8 +18,13 @@ const MAX_EXPRESSION_DEPTH: usize = 64;
 
 /// Maximum size of a SQL query in bytes.
 ///
+/// A flat chain of binary operators (`1+1+1+...`) costs two bytes per AST level and roughly
+/// 100 bytes of stack per level to visit, so this caps recursion at ~2000 levels / ~230 KiB.
+/// That has to stay well below the smallest stack we run on, which is 1 MiB on Windows and
+/// 512 KiB for a non-main thread on macOS.
+///
 /// Queries larger than this fall back to regex normalization.
-const MAX_PARSABLE_QUERY: usize = 20_000;
+const MAX_PARSABLE_QUERY: usize = 4_000;
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -907,22 +912,34 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parse_overflowing_expression() {
+    /// Builds `SELECT 1+1+1...` of exactly `len` bytes, the deepest AST per byte of input.
+    fn deep_expression(len: usize) -> String {
         let mut query = "SELECT 1".to_owned();
-        for _ in 0..60_000 {
+        while query.len() < len {
             query += "+1";
         }
-        assert!(normalize_parsed_queries(None, &query).is_err());
+        query.truncate(len);
+        query
     }
 
     #[test]
-    fn parse_overflowing_truncated_expression() {
-        let mut query = "SELECT 1".to_owned();
-        for _ in 0..60_000 {
-            query += "+1";
-        }
+    fn parse_at_size_limit() {
+        let query = deep_expression(MAX_PARSABLE_QUERY);
+        assert!(normalize_parsed_queries(None, &query).is_ok());
+    }
+
+    #[test]
+    fn parse_above_size_limit() {
+        let query = deep_expression(MAX_PARSABLE_QUERY + 1);
+        assert!(normalize_parsed_queries(None, &query).is_err());
+    }
+
+    /// A truncated description fails to parse, so the half-built AST is dropped recursively.
+    #[test]
+    fn parse_truncated_expression_at_size_limit() {
+        let mut query = deep_expression(MAX_PARSABLE_QUERY - 3);
         query += "+..";
+        assert_eq!(query.len(), MAX_PARSABLE_QUERY);
         assert!(normalize_parsed_queries(None, &query).is_err());
     }
 
