@@ -934,14 +934,6 @@ mod tests {
             ];
         );
         assert_text_rule!(
-            rule = "@iban";
-            input = "some iban: DE89 3704 0044 0532 0130 00!";
-            output = "some iban: [iban]!";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@iban", (11, 17)),
-            ];
-        );
-        assert_text_rule!(
             rule = "@iban:mask";
             input = "some iban: DE89370400440532013000!";
             output = "some iban: **********************!";
@@ -994,7 +986,7 @@ mod tests {
     /// To prevent too aggressive scrubbing, we don't scrub valid ibans found inside of a word.
     #[test]
     fn test_iban_scrubbing_word_boundaries() {
-        let valid_norwegian_iban = "NO9386011117945".to_owned();
+        let valid_norwegian_iban = "NO9386011117947".to_owned();
 
         assert_text_rule!(
             rule = "@iban";
@@ -1008,11 +1000,34 @@ mod tests {
             rule = "@iban";
             input = &valid_iban_within_word;
         );
+
+        // The match ends at the country's IBAN length.
+        for (input, output) in [
+            ("BE68 5390 0754 7034 REF: 7821", "[iban] REF: 7821"),
+            ("BE68 5390 0754 7034 42", "[iban] 42"),
+            ("BE68 5390 0754 7034 PAID 2026", "[iban] PAID 2026"),
+        ] {
+            assert_text_rule!(
+                rule = "@iban";
+                input = input;
+                output = output;
+                remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (0, 6))];
+            );
+        }
+        assert_text_rule!(
+            rule = "@iban";
+            input = "BE68 5390 0754 7034 DE89 3704 0044 0532 0130 00";
+            output = "[iban] [iban]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@iban", (0, 6)),
+                Remark::with_range(RemarkType::Substituted, "@iban", (7, 13)),
+            ];
+        );
     }
 
     #[test]
     fn test_invalid_iban_codes() {
-        let mut valid_norwegian_iban = "NO9386011117945".to_owned();
+        let mut valid_norwegian_iban = "NO9386011117947".to_owned();
 
         assert_text_rule!(
             rule = "@iban";
@@ -1030,18 +1045,6 @@ mod tests {
         assert_rule_not_applied!(
             rule = "@iban";
             input = &format!("some iban: {invalid_norwegian_iban}!");
-        );
-
-        // Same for the print format.
-        assert_text_rule!(
-            rule = "@iban";
-            input = "some iban: NO93 8601 1117 945!";
-            output = "some iban: [iban]!";
-            remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
-        );
-        assert_rule_not_applied!(
-            rule = "@iban";
-            input = "some iban: NO93 8601 1117 94!";
         );
 
         let mut valid_russian_iban = "RU0204452560040702810412345678901".to_owned();
@@ -1069,6 +1072,30 @@ mod tests {
             rule = "@iban";
             input = "some iban: N19386011117945!";
         );
+
+        for input in [
+            // Valid checksums, but German IBANs have 22 characters.
+            "DE5137040044053201300",
+            "DE543704004405320130001",
+            "DE51 3704 0044 0532 0130 0",
+            "DE54 3704 0044 0532 0130 001",
+            // Correct length, but an invalid checksum.
+            "DE88370400440532013000",
+            "DE88 3704 0044 0532 0130 00",
+        ] {
+            assert_rule_not_applied!(
+                rule = "@iban";
+                input = input;
+            );
+        }
+
+        // An invalid candidate does not hide the valid IBAN that starts inside of it.
+        assert_text_rule!(
+            rule = "@iban";
+            input = "BE68 5390 DE89 3704 0044 0532 0130 00";
+            output = "BE68 5390 [iban]";
+            remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (10, 16))];
+        );
     }
 
     #[test]
@@ -1077,92 +1104,123 @@ mod tests {
         // Randomized the digits in case of PII.
 
         let valid_iban_codes = vec![
-            "AD5878942710639732891555",
-            "AE843009416531083386439",
-            "AL57203331634841980876917055",
-            "AT894962316580861740",
-            "AZ20NABZ32222583861167817527",
-            "BA899087481698693720",
-            "BE02622338508282",
-            "BG74BNBG62683163859900",
-            "BH94BMAG81742510166411",
-            "BR6012720184945313263694220C2",
-            "BY42NBRB5423804338230Z59AB39",
-            "CH9094408966251267229",
-            "CR66628293047983395760",
-            "CY07828977709558493944217267",
-            "CZ3250044769520155043487",
-            "DE33286483480880127754",
-            "DK0104500396509359",
-            "DO00BAGR96761901498775724456",
-            "EE270648064710638158",
-            "EG690300132939956610501715864",
-            "ES1855993856250575846003",
-            "FI1536654201409964",
-            "FO7570156750217051",
-            "FR1014777374033381713M74535",
-            "GB24NWBK56308374074647",
-            "GE73NB0994186171721443",
-            "GI49NWBK125988332328154",
-            "GL9054108607699188",
-            "GR5565802405556734747216550",
-            "GT99TRAJ50683085639204647556",
-            "HR6800577821254763445",
-            "HU40379712415496584277966835",
-            "IE81AIBK65375754273298",
-            "IL273293887744694290805",
-            "IQ81NBIQ089246287424886",
-            "IS781608418318734844854556",
-            "IT53X5801219709784172710195",
-            "JO61CBJO9436591471899095231319",
-            "KW43CBKU4883997798760620316108",
-            "KZ51056KZT0837966427",
-            "LB33882243832059959713929005",
-            "LC66HEMM254988987389111701748958",
-            "LI29737657519298857AA",
-            "LT274687648772993442",
-            "LU366704963860370207",
-            "LV56BANK7310410483037",
-            "LY14487832647995492999076",
-            "MC6264639373071228615685245",
-            "MD21AG907990943540501824",
-            "ME03582335388820811523",
-            "MK23858890780702871",
-            "MR9327063831155222861023437",
-            "MT51MALT379454641617MTLCAST058S",
-            "MU03BOMM4322185029224038400MUR",
-            "NL96ABNA5744731632",
-            "NO9058068238671",
-            "PK25SCBL8656172440308193",
-            "PL12349940962957508091419645",
-            "PS76PALS166923702872903852485",
-            "PT14459770251588993280123",
-            "QA18DOHB89519772639156ABCDEFG",
-            "RO17AAAA6B92357725591367",
-            "RS15219225977278176022",
-            "SA5110364369768070892889",
-            "SC23SSCB28695826925340049496USD",
-            "SE1264086862739970624960",
-            "SI02570384665487060",
-            "SK8246443378900295468504",
-            "SM58U9584120480537549943122",
-            "SV18CENR54739364351768235550",
-            "TL666057100094711717888",
-            "TN9055668722925051026777",
-            "TR685596983808399006011173",
-            "UA660626845659376320141789664",
-            "VA02458628330591922762",
-            "VG84VPVG5177475162070855",
-            "XK074179726503194891",
+            "AD0978942710639732891555",
+            "AE283009416531083386439",
+            "AL82203331634841980876917055",
+            "AT084962316580861740",
+            "AX4411111111111111",
+            "AZ08NABZ32222583861167817527",
+            "BA849087481698693720",
+            "BE21622338508282",
+            "BG92BNBG62683163859900",
+            "BH29BMAG81742510166411",
+            "BL6211111111111111111111111",
+            "BR4712720184945313263694220C2",
+            "BY27NBRB5423804338230Z59AB39",
+            "CH7294408966251267229",
+            "CR52628293047983395760",
+            "CY78828977709558493944217267",
+            "CZ6650044769520155043487",
+            "DE15286483480880127754",
+            "DK0904500396509359",
+            "DO16BAGR96761901498775724456",
+            "EE430648064710638158",
+            "EG180300132939956610501715864",
+            "ES0855993856250575846003",
+            "FI3236654201409964",
+            "FK3811111111111111",
+            "FO4170156750217051",
+            "FR6614777374033381713M74535",
+            "GB12NWBK56308374074647",
+            "GE96NB0994186171721443",
+            "GF3511111111111111111111111",
+            "GG30111111111111111111",
+            "GI16NWBK125988332328154",
+            "GL9754108607699188",
+            "GP0511111111111111111111111",
+            "GR3965802405556734747216550",
+            "GT17TRAJ50683085639204647556",
+            "HR0700577821254763445",
+            "HU71379712415496584277966835",
+            "IE97AIBK65375754273298",
+            "IL843293887744694290805",
+            "IM91111111111111111111",
+            "IQ93NBIQ089246287424886",
+            "IS931608418318734844854556",
+            "IT30X5801219709784172710195",
+            "JE09111111111111111111",
+            "JO71CBJO9436591471899095231319",
+            "KW42CBKU4883997798760620316108",
+            "KZ04056KZT0837966427",
+            "LB05882243832059959713929005",
+            "LC72HEMM254988987389111701748958",
+            "LI53737657519298857AA",
+            "LT074687648772993442",
+            "LU666704963860370207",
+            "LV49BANK7310410483037",
+            "LY83487832647995492999076",
+            "MC6364639373071228615685245",
+            "MD95AG907990943540501824",
+            "ME62582335388820811523",
+            "MF7811111111111111111111111",
+            "MK64858890780702871",
+            "MN361111111111111111",
+            "MQ4511111111111111111111111",
+            "MR4827063831155222861023437",
+            "MT48MALT379454641617MTLCAST058S",
+            "MU64BOMM4322185029224038400MUR",
+            "NC7811111111111111111111111",
+            "NL88ABNA5744731632",
+            "NO9558068238671",
+            "OM591111111111111111111",
+            "PF5111111111111111111111111",
+            "PK09SCBL8656172440308193",
+            "PL03349940962957508091419645",
+            "PM3011111111111111111111111",
+            "PS75PALS166923702872903852485",
+            "PT71459770251588993280123",
+            "QA12DOHB89519772639156ABCDEFG",
+            "RE3611111111111111111111111",
+            "RO93AAAA6B92357725591367",
+            "RS67219225977278176022",
+            "SA9110364369768070892889",
+            "SC39SSCB28695826925340049496USD",
+            "SD3911111111111111",
+            "SE5864086862739970624960",
+            "SI52570384665487060",
+            "SK5546443378900295468504",
+            "SM53U9584120480537549943122",
+            "SO171111111111111111111",
+            "SV49CENR54739364351768235550",
+            "TF1511111111111111111111111",
+            "TL696057100094711717888",
+            "TN5955668722925051026777",
+            "TR275596983808399006011173",
+            "UA930626845659376320141789664",
+            "VA78458628330591922762",
+            "VG40VPVG5177475162070855",
+            "WF8511111111111111111111111",
+            "XK874179726503194891",
+            "YE4811111111111111111111111111",
+            "YT2511111111111111111111111",
         ];
 
         for iban_code in valid_iban_codes {
-            assert_text_rule!(
-                rule = "@iban";
-                input = &format!("some iban: {iban_code}!");
-                output = "some iban: [iban]!";
-                remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
-            );
+            let print_format = iban_code
+                .as_bytes()
+                .chunks(4)
+                .map(|group| std::str::from_utf8(group).unwrap())
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            for iban in [iban_code, &print_format] {
+                assert_text_rule!(
+                    rule = "@iban";
+                    input = &format!("some iban: {iban}!");
+                    output = "some iban: [iban]!";
+                    remarks = vec![Remark::with_range(RemarkType::Substituted, "@iban", (11, 17))];
+                );
+            }
         }
     }
 

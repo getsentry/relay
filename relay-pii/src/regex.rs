@@ -10,6 +10,7 @@ type MatchValidator = fn(&[u8]) -> bool;
 pub struct ScrubbingRegex<T = Regex> {
     regex: T,
     validator: Option<MatchValidator>,
+    retry_rejected: bool,
 }
 
 pub type ScrubbingRegexRef<'pattern, T = Regex> = ScrubbingRegex<&'pattern T>;
@@ -20,6 +21,7 @@ impl<T> ScrubbingRegex<T> {
         Self {
             regex,
             validator: None,
+            retry_rejected: false,
         }
     }
 
@@ -27,7 +29,7 @@ impl<T> ScrubbingRegex<T> {
     ///
     /// This allows a stronger validation for more lenient regex matches. Note however that the
     /// filter runs after the regex has found its matches. This means the regex will not consider an
-    /// overlapping match which would pass the filter.
+    /// overlapping match which would pass the filter, unless [`Self::retry_rejected`] is set.
     ///
     /// For example the [`ScrubbingRegex`] `..` with validator `x != 'ab'` on the input `abc`
     /// does _not_ match on `bc`.
@@ -36,11 +38,20 @@ impl<T> ScrubbingRegex<T> {
         self
     }
 
+    /// Searches again from the next position after the validator rejects a match.
+    ///
+    /// This finds valid matches which overlap a rejected match.
+    pub fn retry_rejected(mut self) -> Self {
+        self.retry_rejected = true;
+        self
+    }
+
     /// Returns a borrowed [`ScrubbingRegex`].
     pub fn as_ref(&self) -> ScrubbingRegex<&T> {
         ScrubbingRegex {
             regex: &self.regex,
             validator: self.validator,
+            retry_rejected: self.retry_rejected,
         }
     }
 }
@@ -61,6 +72,7 @@ impl<'pattern> ScrubbingRegexRef<'pattern> {
         Ok(ScrubbingRegex {
             regex,
             validator: self.validator,
+            retry_rejected: self.retry_rejected,
         })
     }
 
@@ -78,9 +90,28 @@ impl<'pattern> ScrubbingRegexRef<'pattern> {
         &self,
         haystack: &'haystack str,
     ) -> impl Iterator<Item = Captures<'haystack>> + use<'pattern, 'haystack> {
+        let regex = self.regex;
         let validator = self.validator;
-        self.regex.captures_iter(haystack).filter(move |captures| {
-            validator.is_none_or(|validate| validate(captures[0].as_bytes()))
+        let is_valid = move |matched: &[u8]| validator.is_none_or(|validate| validate(matched));
+        let mut matches = (!self.retry_rejected).then(|| regex.captures_iter(haystack));
+        let mut start = 0;
+
+        std::iter::from_fn(move || {
+            if let Some(matches) = &mut matches {
+                return matches.find(|captures| is_valid(captures[0].as_bytes()));
+            }
+
+            while start <= haystack.len() {
+                let captures = regex.captures_at(haystack, start)?;
+                let matched = captures.get(0)?;
+                let next = matched.start() + 1;
+                if is_valid(matched.as_str().as_bytes()) {
+                    start = matched.end().max(next);
+                    return Some(captures);
+                }
+                start = next;
+            }
+            None
         })
     }
 }
@@ -90,10 +121,29 @@ impl ScrubbingRegex<BytesRegex> {
         &'regex self,
         haystack: &'haystack [u8],
     ) -> impl Iterator<Item = BytesCaptures<'haystack>> + use<'regex, 'haystack> {
+        let regex = &self.regex;
         let validator = self.validator;
-        self.regex
-            .captures_iter(haystack)
-            .filter(move |captures| validator.is_none_or(|validate| validate(&captures[0])))
+        let is_valid = move |matched: &[u8]| validator.is_none_or(|validate| validate(matched));
+        let mut matches = (!self.retry_rejected).then(|| regex.captures_iter(haystack));
+        let mut start = 0;
+
+        std::iter::from_fn(move || {
+            if let Some(matches) = &mut matches {
+                return matches.find(|captures| is_valid(&captures[0]));
+            }
+
+            while start <= haystack.len() {
+                let captures = regex.captures_at(haystack, start)?;
+                let matched = captures.get(0)?;
+                let next = matched.start() + 1;
+                if is_valid(matched.as_bytes()) {
+                    start = matched.end().max(next);
+                    return Some(captures);
+                }
+                start = next;
+            }
+            None
+        })
     }
 }
 
@@ -114,6 +164,16 @@ mod tests {
 
         // `bc` matches just fine.
         assert!(regex.is_match("bc"));
+
+        // With retries, the rejected `ab` no longer hides `bc`.
+        let regex = ScrubbingRegex::new(Regex::new("..").unwrap())
+            .with_validator(|matched| matched != b"ab")
+            .retry_rejected();
+        let regex = regex.as_ref();
+        assert_eq!(&regex.captures_iter("abc").next().unwrap()[0], "bc");
+
+        let bytes_regex = regex.to_bytes().unwrap();
+        assert_eq!(&bytes_regex.captures_iter(b"abc").next().unwrap()[0], b"bc");
     }
 
     #[test]

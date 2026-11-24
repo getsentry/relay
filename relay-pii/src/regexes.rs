@@ -130,6 +130,20 @@ fn is_luhn_valid(s: &[u8]) -> bool {
     sum.is_multiple_of(10)
 }
 
+/// Validates the ISO 7064 MOD 97-10 checksum of an IBAN, ignoring spaces.
+fn is_iban_checksum_valid(s: &[u8]) -> bool {
+    let chars = || s.iter().filter(|b| **b != b' ');
+    let remainder = chars()
+        .skip(4)
+        .chain(chars().take(4))
+        .try_fold(0, |remainder, b| {
+            let value = char::from(*b).to_digit(36)?;
+            let shift = if value < 10 { 10 } else { 100 };
+            Some((remainder * shift + value) % 97)
+        });
+    remainder == Some(1)
+}
+
 #[rustfmt::skip]
 macro_rules! ip {
     (v4s) => { "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" };
@@ -138,12 +152,13 @@ macro_rules! ip {
 }
 
 macro_rules! regex {
-    ($name:ident, $rule:expr $(, $validator:expr)?) => {
+    ($name:ident, $rule:expr $(, $validator:expr $(, $option:ident)?)?) => {
         #[allow(non_snake_case)]
         mod $name {
             use super::*;
             pub static $name: LazyLock<ScrubbingRegex> = LazyLock::new(|| {
-                ScrubbingRegex::new(Regex::new($rule).unwrap())$(.with_validator($validator))?
+                ScrubbingRegex::new(Regex::new($rule).unwrap())
+                    $(.with_validator($validator)$(.$option())?)?
             });
 
             #[test]
@@ -239,21 +254,63 @@ regex!(
     "
 );
 
+/// Country codes by the total length of their IBANs.
+const IBAN_LENGTHS: &[(usize, &str)] = &[
+    (15, "NO"),
+    (16, "BE"),
+    (18, "AX|DK|FI|FK|FO|GL|NL|SD"),
+    (19, "MK|SI"),
+    (20, "AT|BA|EE|KZ|LT|LU|MN|XK"),
+    (21, "CH|HR|LI|LV"),
+    (22, "BG|BH|CR|DE|GB|GE|GG|IE|IM|JE|ME|RS|VA"),
+    (23, "AE|GI|IL|IQ|OM|SO|TL"),
+    (24, "AD|CZ|ES|MD|PK|RO|SA|SE|SK|TN|VG"),
+    (25, "AO|CV|GW|LY|MZ|PT|ST"),
+    (26, "DZ|IR|IS|TR"),
+    (
+        27,
+        "BI|BL|CF|CG|CM|DJ|FR|GA|GF|GP|GQ|GR|IT|KM|MC|MF|MG|MQ|MR|NC|PF|PM|RE|SM|TD|TF|WF|YT",
+    ),
+    (
+        28,
+        "AL|AZ|BF|BJ|BY|CI|CY|DO|GT|HN|HU|LB|MA|ML|NE|NI|PL|SN|SV|TG",
+    ),
+    (29, "BR|EG|PS|QA|UA"),
+    (30, "JO|KW|MU|YE"),
+    (31, "MT|SC"),
+    (32, "LC"),
+    (33, "RU"),
+];
+
+/// Builds a pattern for IBANs of exactly their country's length.
+///
+/// The pattern matches the electronic format, such as `DE89370400440532013000`, and the print
+/// format, such as `DE89 3704 0044 0532 0130 00`.
+fn iban_pattern() -> String {
+    let alternatives = IBAN_LENGTHS
+        .iter()
+        .map(|(length, countries)| {
+            let remaining = length - 4;
+            let groups = remaining / 4;
+            let last_group = match remaining % 4 {
+                0 => String::new(),
+                n => format!(r"\x20[A-Z0-9]{{{n}}}"),
+            };
+            format!(
+                r"(?:{countries})\d{{2}}(?:[a-zA-Z0-9]{{{remaining}}}|(?:\x20[A-Z0-9]{{4}}){{{groups}}}{last_group})"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+
+    format!(r"\b(?:{alternatives})\b")
+}
+
 regex!(
     IBAN_REGEX,
-    r"(?x)
-        \b
-        (AT|AD|AE|AL|AZ|BA|BE|BG|BH|BR|BY|CH|CR|CY|CZ|DE|DK|DO|EE|EG|ES|FI|FO|FR|GB|GE|GI|GL|GR|GT|HR|HU|IE|IL|IQ|IS|IT|JO|KW|KZ|LB|LC|LI|LT|LU|LV|LY|MC|MD|ME|MK|MR|MT|MU|NL|NO|PK|PL|PS|PT|QA|RO|RU|RS|SA|SC|SE|SI|SK|SM|ST|SV|TL|TN|TR|UA|VA|VG|XK|DZ|AO|BJ|BF|BI|CV|CM|CF|TD|KM|CG|CI|DJ|GQ|GA|GW|HN|IR|MG|ML|MA|MZ|NI|NE|SN|TG)\d{2}
-        (?:
-            # Electronic format: DE89370400440532013000
-            [a-zA-Z0-9]{11,29}
-            # Print format, groups of four separated by single spaces: DE89 3704 0044 0532 0130 00
-            | (?:\x20[A-Z0-9]{4}){3,7}(?:\x20[A-Z0-9]{1,4})?
-            # Shortest print format (Norway): NO93 8601 1117 947
-            | (?:\x20[A-Z0-9]{4}){2}\x20[A-Z0-9]{3}
-        )
-        \b
-    "
+    &iban_pattern(),
+    is_iban_checksum_valid,
+    retry_rejected
 );
 
 regex!(IPV4_REGEX, concat!("\\b", ip!(v4a), "\\b"));
