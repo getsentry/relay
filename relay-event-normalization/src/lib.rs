@@ -41,7 +41,7 @@ pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
 pub use self::clock_drift::*;
-pub use self::geo::{AsnLookup, CityLookup, GeoIpError, GeoIpLookup};
+pub use self::geo::{AsnLookup, CityLookup, GeoIpError};
 
 pub use sentry_release_parser::{validate_environment, validate_release};
 

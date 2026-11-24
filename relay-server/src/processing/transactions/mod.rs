@@ -2,7 +2,7 @@ use crate::envelope::{AttachmentItem, ProfileItem, TransactionItem};
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_quotas::RateLimits;
 
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
@@ -67,12 +67,12 @@ impl OutcomeError for Error {
 /// A processor for transactions.
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: GeoIpLookup,
+    geoip_lookup: CityLookup,
 }
 
 impl TransactionProcessor {
     /// Creates a new transaction processor.
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: GeoIpLookup) -> Self {
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: CityLookup) -> Self {
         Self {
             limiter,
             geoip_lookup,

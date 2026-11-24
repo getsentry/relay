@@ -1,6 +1,6 @@
 use crate::envelope::ProfileItem;
 use relay_base_schema::events::EventType;
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_event_schema::protocol::Event;
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
@@ -156,7 +156,7 @@ pub fn prepare_data(
 pub fn normalize(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
     work.try_map(|mut work, r| {

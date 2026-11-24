@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use relay_cogs::{Cogs, ResourceId};
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_system::Addr;
 
 use crate::envelope::Item;
@@ -65,7 +65,7 @@ impl RelayProcessor {
     pub fn new(
         cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
-        geoip_lookup: &GeoIpLookup,
+        geoip_lookup: &CityLookup,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Self {
         // Just so everything fits in a single line.

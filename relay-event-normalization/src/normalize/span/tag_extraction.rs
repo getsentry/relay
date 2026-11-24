@@ -21,7 +21,7 @@ use relay_protocol::{Annotated, Empty, FiniteF64, Meta, Value};
 use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
-use crate::GeoIpLookup;
+use crate::CityLookup;
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
@@ -152,7 +152,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         shared_tags.copy_into(&mut tags);
@@ -825,7 +825,7 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
-    geoip_lookup: &crate::GeoIpLookup,
+    geoip_lookup: &crate::CityLookup,
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
@@ -1607,7 +1607,7 @@ mod tests {
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
-    use crate::{GeoIpLookup, NormalizationConfig, normalize_event};
+    use crate::{CityLookup, NormalizationConfig, normalize_event};
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -2519,7 +2519,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
@@ -2595,7 +2595,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         assert_eq!(
@@ -2910,7 +2910,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         )
     }
 
@@ -2974,7 +2974,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
@@ -3010,7 +3010,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
@@ -3361,7 +3361,7 @@ LIMIT 1
 
     #[test]
     fn extract_geo_location_on_standalone_vital_span() {
-        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let lookup = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         let span: Span = Annotated::<Span>::from_json(
             r#"{
             "start_timestamp": 0,
@@ -3414,7 +3414,7 @@ LIMIT 1
             false,
             None,
             &[],
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));

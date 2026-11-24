@@ -87,9 +87,6 @@ impl<E> fmt::Debug for Lookup<E> {
 /// Reader for city and country lookups.
 pub type CityLookup = Lookup<City>;
 
-/// Historical name for [`CityLookup`].
-pub use CityLookup as GeoIpLookup;
-
 #[derive(Clone, Default)]
 pub struct City;
 

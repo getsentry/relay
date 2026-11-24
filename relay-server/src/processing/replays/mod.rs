@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
@@ -129,12 +129,12 @@ impl From<RateLimits> for Error {
 /// A processor for Replays.
 pub struct ReplaysProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: GeoIpLookup,
+    geoip_lookup: CityLookup,
 }
 
 impl ReplaysProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: GeoIpLookup) -> Self {
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: CityLookup) -> Self {
         Self {
             limiter,
             geoip_lookup,

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{Ingress, Pipeline};
-use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{CityLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -219,7 +219,7 @@ fn parse_and_validate_span_attachment(
 }
 
 /// Normalizes individual spans.
-pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
+pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &CityLookup, ctx: Context<'_>) {
     let settings = spans.settings;
     let user_agent = utils::normalize::user_agent(spans.headers.meta(), settings.infer_user_agent);
     let ingress = spans.ingress.clone();
@@ -248,7 +248,7 @@ fn normalize_span(
     ingress: Option<&Ingress>,
     settings: Settings,
     headers: &EnvelopeHeaders,
-    geo_lookup: &GeoIpLookup,
+    geo_lookup: &CityLookup,
     user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
@@ -489,7 +489,7 @@ mod tests {
         ingress: Option<&Ingress>,
         settings: Settings,
         headers: &EnvelopeHeaders,
-        geo_lookup: &GeoIpLookup,
+        geo_lookup: &CityLookup,
         ctx: Context<'_>,
     ) -> Result<()> {
         let user_agent = utils::normalize::user_agent(headers.meta(), settings.infer_user_agent);
@@ -1077,7 +1077,7 @@ mod tests {
     ) -> (
         Annotated<SpanV2>,
         EnvelopeHeaders,
-        GeoIpLookup,
+        CityLookup,
         Context<'static>,
     ) {
         let mut attributes = Attributes::new();
@@ -1110,7 +1110,7 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), meta);
         let headers = envelope.headers().to_owned();
 
-        (span, headers, GeoIpLookup::empty(), Context::for_test())
+        (span, headers, CityLookup::empty(), Context::for_test())
     }
 
     fn assert_attributes_contains(

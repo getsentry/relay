@@ -454,7 +454,7 @@ mod tests {
 
     use crate::stacktrace::normalize_non_raw_frame;
     use crate::validation::validate_event;
-    use crate::{EventValidationConfig, GeoIpLookup, NormalizationConfig, normalize_event};
+    use crate::{CityLookup, EventValidationConfig, NormalizationConfig, normalize_event};
 
     use super::*;
 
@@ -556,7 +556,7 @@ mod tests {
 
     #[test]
     fn test_geo_from_ip_address() {
-        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let lookup = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         let json = r#"{
             "user": {
@@ -730,7 +730,7 @@ mod tests {
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
 
-        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -753,7 +753,7 @@ mod tests {
         let mut event = Annotated::new(Event::default());
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -779,7 +779,7 @@ mod tests {
         });
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         normalize_event(
             &mut event,
@@ -807,7 +807,7 @@ mod tests {
         });
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         normalize_event(
             &mut event,
@@ -1927,7 +1927,7 @@ mod tests {
         )
         .unwrap();
 
-        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let lookup = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         // Extract user's geo information before normalization.
         let user_geo = event.value().unwrap().user.value().unwrap().geo.value();

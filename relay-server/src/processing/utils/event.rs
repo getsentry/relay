@@ -11,7 +11,7 @@ use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
 };
@@ -192,7 +192,7 @@ pub fn normalize(
     mut event_fully_normalized: EventFullyNormalized,
     project_id: ProjectId,
     ctx: Context,
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
