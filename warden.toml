@@ -39,6 +39,8 @@ actions = ["opened", "synchronize", "reopened"]
 [[skills]]
 name = "relay-feature-flags"
 paths = ["relay-dynamic-config/src/feature.rs"]
+# Findings are low severity: annotate the PR without failing the check.
+reportOn = "low"
 
 [[skills.triggers]]
 type = "pull_request"

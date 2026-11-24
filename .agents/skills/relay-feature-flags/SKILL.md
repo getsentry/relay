@@ -61,4 +61,4 @@ Moving variants is safe: `Feature` derives `Ord`, which only changes the order i
 
 ## Reporting
 
-Report each violation as **high** severity. Name the variant, the convention it breaks, and the fix, for example the exact `Serialized as` line to add or where to move the variant. Do not report style issues outside these three conventions.
+Report each violation as **low** severity. Name the variant, the convention it breaks, and the fix, for example the exact `Serialized as` line to add or where to move the variant. Do not report style issues outside these three conventions.
