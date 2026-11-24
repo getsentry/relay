@@ -70,7 +70,7 @@ impl OutcomeError for Error {
 pub struct ErrorsProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: CityLookup,
-    asn_lookup: Option<AsnLookup>,
+    asn_lookup: AsnLookup,
 }
 
 impl ErrorsProcessor {
@@ -78,7 +78,7 @@ impl ErrorsProcessor {
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
         geoip_lookup: CityLookup,
-        asn_lookup: Option<AsnLookup>,
+        asn_lookup: AsnLookup,
     ) -> Self {
         Self {
             limiter,
@@ -149,9 +149,10 @@ impl processing::Processor for ErrorsProcessor {
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 
         process::scrub(&mut error, ctx)?;
-        if let Some(lookup) = client_asn::project_lookup(self.asn_lookup.as_ref(), ctx) {
+        if client_asn::is_enabled(&self.asn_lookup, ctx) {
             error.try_modify(|error, _| {
-                client_asn::enrich_error(&mut error.event, lookup, ctx).map_err(Error::from)
+                client_asn::enrich_error(&mut error.event, &self.asn_lookup, ctx)
+                    .map_err(Error::from)
             })?;
         }
 

@@ -108,7 +108,7 @@ impl From<ScrubAttachmentError> for Error {
 pub struct SpansProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geo_lookup: CityLookup,
-    asn_lookup: Option<AsnLookup>,
+    asn_lookup: AsnLookup,
 }
 
 impl SpansProcessor {
@@ -116,7 +116,7 @@ impl SpansProcessor {
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
         geo_lookup: CityLookup,
-        asn_lookup: Option<AsnLookup>,
+        asn_lookup: AsnLookup,
     ) -> Self {
         Self {
             limiter,
@@ -214,7 +214,7 @@ impl processing::Processor for SpansProcessor {
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
         process::scrub(&mut spans, ctx);
-        process::normalize_derived(&mut spans, self.asn_lookup.as_ref(), ctx);
+        process::normalize_derived(&mut spans, &self.asn_lookup, ctx);
 
         let spans = self.limiter.enforce_quotas(spans, ctx).await?;
         let spans = match spans.transpose() {

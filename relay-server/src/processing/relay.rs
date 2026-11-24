@@ -66,7 +66,7 @@ impl RelayProcessor {
         cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
         geoip_lookup: &CityLookup,
-        asn_lookup: Option<AsnLookup>,
+        asn_lookup: AsnLookup,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Self {
         // Just so everything fits in a single line.

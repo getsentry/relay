@@ -69,7 +69,7 @@ impl OutcomeError for Error {
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: CityLookup,
-    asn_lookup: Option<AsnLookup>,
+    asn_lookup: AsnLookup,
 }
 
 impl TransactionProcessor {
@@ -77,7 +77,7 @@ impl TransactionProcessor {
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
         geoip_lookup: CityLookup,
-        asn_lookup: Option<AsnLookup>,
+        asn_lookup: AsnLookup,
     ) -> Self {
         Self {
             limiter,
@@ -185,9 +185,10 @@ impl Processor for TransactionProcessor {
 
         debug_assert!(tx.flags.fully_normalized);
 
-        if let Some(lookup) = client_asn::project_lookup(self.asn_lookup.as_ref(), ctx) {
+        if client_asn::is_enabled(&self.asn_lookup, ctx) {
             tx.try_modify(|tx, _| {
-                client_asn::enrich_transaction(&mut tx.event, lookup, ctx).map_err(Error::from)
+                client_asn::enrich_transaction(&mut tx.event, &self.asn_lookup, ctx)
+                    .map_err(Error::from)
             })?;
         }
         let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);

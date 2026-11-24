@@ -18,20 +18,16 @@ use crate::services::processor::ProcessingError;
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-/// Returns the configured reader when this processing Relay can enrich the project.
-pub fn project_lookup<'a>(
-    lookup: Option<&'a AsnLookup>,
-    ctx: Context<'_>,
-) -> Option<&'a AsnLookup> {
-    let db = lookup?;
-    (ctx.is_processing()
+/// Whether this processing Relay can enrich the project with client ASN data.
+pub fn is_enabled(lookup: &AsnLookup, ctx: Context<'_>) -> bool {
+    lookup.is_loaded()
+        && ctx.is_processing()
         && ctx.project_info.has_feature(Feature::ClientAsnLookup)
         && !ctx
             .project_info
             .config
             .datascrubbing_settings
-            .scrub_ip_addresses)
-        .then_some(db)
+            .scrub_ip_addresses
 }
 
 fn has_pii(ctx: Context<'_>) -> bool {

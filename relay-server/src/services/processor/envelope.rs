@@ -481,24 +481,31 @@ impl InnerProcessor {
 
         let city_lookup = c
             .city_path()
-            .and_then(|p| match CityLookup::open(p).context(ServiceError::GeoIp) {
-                Ok(geoip) => Some(geoip),
-                Err(err) => {
-                    relay_log::error!("failed to open GeoIP city db {p:?}: {err:?}");
-                    None
-                }
+            .and_then(|path| {
+                CityLookup::open(path)
+                    .context(ServiceError::GeoIp)
+                    .inspect_err(|err| {
+                        relay_log::error!("failed to open GeoIP city db {path:?}: {err:?}")
+                    })
+                    .ok()
             })
             .unwrap_or_else(CityLookup::empty);
+        let asn_lookup = c
+            .asn_path()
+            .and_then(|path| {
+                AsnLookup::open(path)
+                    .context(ServiceError::GeoIp)
+                    .inspect_err(|err| relay_log::error!("failed to open ASN db {path:?}: {err:?}"))
+                    .ok()
+            })
+            .unwrap_or_else(AsnLookup::empty);
 
         if let Some(build_epoch) = city_lookup.build_epoch() {
             relay_log::info!("Loaded GeoIP city database (build: {build_epoch})");
         }
-
-        let asn_lookup = c.asn_path().and_then(|path| {
-            AsnLookup::open(path)
-                .inspect_err(|err| relay_log::error!("failed to open ASN db {path:?}: {err}"))
-                .ok()
-        });
+        if let Some(build_epoch) = asn_lookup.build_epoch() {
+            relay_log::info!("Loaded ASN database (build: {build_epoch})");
+        }
 
         let quota_limiter = Arc::new(QuotaRateLimiter::new(
             #[cfg(feature = "processing")]
