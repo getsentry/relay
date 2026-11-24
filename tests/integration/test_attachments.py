@@ -11,6 +11,7 @@ from sentry_relay.consts import DataCategory
 from .asserts import matches_any
 from .test_store import make_transaction
 from .consts import Outcome
+from .envelopes import add_transaction
 
 
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
@@ -727,7 +728,7 @@ def test_flamegraph_without_envelope_event_id(mini_sentry, relay, event_type):
     event_id = "515539018c9b4260a6f999572f1661ee"
     envelope = Envelope()
     if event_type == "transaction":
-        envelope.add_transaction(make_transaction({"event_id": event_id}))
+        add_transaction(envelope, make_transaction({"event_id": event_id}))
     else:
         envelope.add_event({"event_id": event_id, "message": "Keep the flame graph"})
     payload = json.dumps(
@@ -1108,7 +1109,7 @@ def test_event_with_attachment(
     # Transaction attachments are sent as individual attachment messages,
     # with an objectstore reference or inline contents for small Kafka attachments.
     envelope = Envelope(headers=[["event_id", event_id]])
-    envelope.add_transaction(make_transaction({"event_id": event_id}))
+    add_transaction(envelope, make_transaction({"event_id": event_id}))
     envelope.add_item(
         Item(
             type="attachment",

@@ -7,6 +7,7 @@ import pytest
 import signal
 import zlib
 from requests import HTTPError
+from .envelopes import get_transaction_event
 
 
 @pytest.mark.parametrize("backend", ["memory", "disk"])
@@ -321,7 +322,7 @@ def send_transaction_with_dsc(mini_sentry, relay, project_id, sampling_project_k
         },
     )
 
-    return mini_sentry.get_captured_envelope().get_transaction_event()
+    return get_transaction_event(mini_sentry.get_captured_envelope())
 
 
 def test_root_project_disabled(mini_sentry, relay):

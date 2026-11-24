@@ -3,6 +3,7 @@ import queue
 from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .envelopes import add_transaction, get_transaction_event
 
 
 def test_envelope(mini_sentry, relay_chain):
@@ -191,7 +192,7 @@ def test_normalize_measurement_interface(
     )
 
     envelope = Envelope()
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(42, envelope)
 
     event, _ = events_consumer.get_event()
@@ -215,10 +216,10 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
     transaction_item.update({"measurements": {}})
 
     envelope = Envelope()
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(42, envelope)
 
-    event = mini_sentry.get_captured_envelope().get_transaction_event()
+    event = get_transaction_event(mini_sentry.get_captured_envelope())
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "measurements" not in event, event
@@ -351,7 +352,7 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     )
 
     envelope = Envelope()
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(42, envelope)
 
     event, _ = events_consumer.get_event()
@@ -396,10 +397,10 @@ def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
     transaction_item["contexts"]["trace"].update({"span_id": "aaaaaaaaaaaaaaaa"})
 
     envelope = Envelope()
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(42, envelope)
 
-    transaction = mini_sentry.get_captured_envelope().get_transaction_event()
+    transaction = get_transaction_event(mini_sentry.get_captured_envelope())
     assert transaction is not None
 
     span = transaction["spans"][0]
@@ -484,7 +485,7 @@ def test_span_exclusive_time(mini_sentry, relay_with_processing, transactions_co
     transaction_item["contexts"]["trace"].update({"span_id": "aaaaaaaaaaaaaaaa"})
 
     envelope = Envelope()
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(42, envelope)
 
     event, _ = events_consumer.get_event()
@@ -572,7 +573,7 @@ def test_sample_rate_propagates_across_orgs(
         "environment": "production",
     }
     envelope = Envelope(headers={"trace": dsc})
-    envelope.add_transaction(transaction_item)
+    add_transaction(envelope, transaction_item)
     relay.send_envelope(downstream_project_id, envelope)
 
     dsc = mini_sentry.get_captured_envelope().headers["trace"]

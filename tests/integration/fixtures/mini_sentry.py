@@ -17,6 +17,7 @@ from pytest_localserver.http import WSGIServer
 from sentry_sdk.envelope import Envelope, PayloadRef
 
 from . import SentryLike
+from ..envelopes import deserialize_envelope
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
@@ -393,7 +394,7 @@ def mini_sentry(request):  # noqa
             flask_request.headers.get("Content-Type") == "application/x-sentry-envelope"
         ), "Relay sent us non-envelope data to store"
 
-        envelope = Envelope.deserialize(data)
+        envelope = deserialize_envelope(data)
         for outcome in _extract_outcomes_from_envelope(envelope):
             sentry.captured_outcomes.put(outcome)
         if envelope.items:

@@ -8,6 +8,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 from .consts import Outcome
+from .envelopes import get_transaction_event
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -412,7 +413,7 @@ def test_profile_chunk_limited_transaction_context_removed(
         },
     )
 
-    event = mini_sentry.get_captured_envelope().get_transaction_event()
+    event = get_transaction_event(mini_sentry.get_captured_envelope())
     if filter_context:
         assert "profile" not in event["contexts"]
     else:
