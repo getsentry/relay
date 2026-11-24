@@ -16,6 +16,11 @@ use crate::span::TABLE_NAME_REGEX;
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
 
+/// Maximum size of a SQL query in bytes.
+///
+/// Queries larger than this fall back to regex normalization.
+const MAX_PARSABLE_QUERY: usize = 20_000;
+
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
 pub fn parse_query(
@@ -55,6 +60,10 @@ pub fn normalize_parsed_queries(
     db_system: Option<&str>,
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
+    if string.len() > MAX_PARSABLE_QUERY {
+        return Err(());
+    }
+
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     let _ = VisitMut::visit(&mut parsed, &mut NormalizeVisitor);
     let _ = VisitMut::visit(&mut parsed, &mut MaxDepthVisitor::new());
@@ -896,6 +905,25 @@ mod tests {
             normalize_parsed_queries(None, query).unwrap().0,
             "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
         );
+    }
+
+    #[test]
+    fn parse_overflowing_expression() {
+        let mut query = "SELECT 1".to_owned();
+        for _ in 0..60_000 {
+            query += "+1";
+        }
+        assert!(normalize_parsed_queries(None, &query).is_err());
+    }
+
+    #[test]
+    fn parse_overflowing_truncated_expression() {
+        let mut query = "SELECT 1".to_owned();
+        for _ in 0..60_000 {
+            query += "+1";
+        }
+        query += "+..";
+        assert!(normalize_parsed_queries(None, &query).is_err());
     }
 
     #[test]
