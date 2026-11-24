@@ -1,13 +1,13 @@
-# Dying message
+# ItemBundle
 
-We're capturing additional runtime information and this gets passed to Sentry as an attachment `dying_message.dat` by a crash handler.
+We're capturing additional runtime information and this gets passed to Sentry as an attachment (with attachment type `event.item_bundle`) by a crash handler.
 
 The size is currently limited to 4096 bytes on the client so the format of the message is designed to be compact and allow compression inside the message itself (regardless of transport compression), in order to fit as much data as possible in the limited space.
 
 > [!IMPORTANT]
 > It's important to keep this protocol documentation and its implementation up-to-date between [sentry-switch SDK](https://github.com/getsentry/sentry-switch) and [Relay](https://github.com/getsentry/relay).
 
-## Dying message file format
+## ItemBundle file format
 
 ```text
 4 bytes - Magic number (0x736E7472 = 'sntr')
@@ -38,11 +38,11 @@ The payload encoding is stored as a single byte but stores multiple components b
 
 The payload consists of envelope-items, as specified in the
 [Envelope data format](https://develop.sentry.dev/sdk/data-model/envelopes/#serialization-format).
-However, there is no envelope header as that is irrelevant in the context of DyingMessage.
+However, there is no envelope header as that is irrelevant in the context of ItemBundle.
 
 Additionally, the [Event envelope item type](https://develop.sentry.dev/sdk/data-model/event-payloads/) is considered
-a "patch" over the actual event envelope item in the "parent" envelope (the one that the DyingMessage is attached to).
-This will result in an update of the parent envelope's event item with the data from the DyingMessage's event item.
+a "patch" over the actual event envelope item in the "parent" envelope (the one that the ItemBundle is attached to).
+This will result in an update of the parent envelope's event item with the data from the ItemBundle's event item.
 
 Any other item is attached to the parent envelope.
 
