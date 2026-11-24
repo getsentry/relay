@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.3
 
 - Add the `error` span status. ([#6646](https://github.com/getsentry/relay/pull/6646))
 

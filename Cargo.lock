@@ -4635,7 +4635,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "anyhow",
  "chrono",
