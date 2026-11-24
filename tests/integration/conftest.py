@@ -57,9 +57,8 @@ from .consts import (
 
 
 @pytest.fixture
-def require_global_config():
-    """Override to wait for global config before a managed Relay handles test traffic."""
-    return False
+def require_global_config(request):
+    return request.node.get_closest_marker("requires_global_config") is not None
 
 
 @pytest.fixture(scope="session")

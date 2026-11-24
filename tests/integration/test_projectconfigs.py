@@ -271,7 +271,7 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-@pytest.mark.parametrize("require_global_config", [True])
+@pytest.mark.requires_global_config
 def test_get_global_config(mini_sentry, relay):
     original = mini_sentry.app.view_functions["get_project_config"]
     first_fetch = True

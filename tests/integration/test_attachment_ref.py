@@ -295,7 +295,7 @@ def test_attachment_ref_validation(
     assert o[DataCategory.ATTACHMENT_ITEM]["quantity"] == 1
 
 
-@pytest.mark.parametrize("require_global_config", [True])
+@pytest.mark.requires_global_config
 def test_attachment_ref_resumable_upload_in_chunks(
     mini_sentry,
     relay,
