@@ -12,18 +12,16 @@ use rdkafka::producer::BaseRecord;
 use relay_statsd::metric;
 use sentry_arroyo::backends::ProducerError;
 use sentry_arroyo::backends::kafka::config_blob::ProducerSelector;
-use sentry_arroyo::backends::kafka::reloading_producer::{
-    ReloadConfig, ReloadError, ReloadingKafkaProducer,
-};
+use sentry_arroyo::backends::kafka::reload::{ReloadConfig, ReloadError};
+use sentry_arroyo::backends::kafka::reloading_producer::ReloadingKafkaProducer;
 use sentry_arroyo::types::Topic;
 use thiserror::Error;
 
 use crate::KafkaTopicConfig;
 use crate::config::{KafkaParams, KafkaTopic};
-use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
 use crate::producer::utils::KafkaHeaders;
-use crate::statsd::{KafkaCounters, KafkaDistributions, KafkaGauges};
+use crate::statsd::{KafkaCounters, KafkaDistributions};
 
 mod utils;
 use utils::Context;
@@ -31,7 +29,6 @@ use utils::Context;
 #[cfg(debug_assertions)]
 mod schemas;
 
-const REPORT_FREQUENCY_SECS: u64 = 1;
 const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Key type used for partitioning.
@@ -208,8 +205,6 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
 struct Producer {
     /// Topic to producer and rate limiter mappings for sharding.
     topic_producers: TopicProducers,
-    /// Debouncer for metrics.
-    metrics: Debounced,
     next_key: AtomicU32,
 }
 
@@ -217,7 +212,6 @@ impl Producer {
     fn new(topic_producers: TopicProducers) -> Self {
         Self {
             topic_producers,
-            metrics: Debounced::new(REPORT_FREQUENCY_SECS),
             next_key: AtomicU32::new(0),
         }
     }
@@ -297,15 +291,6 @@ impl Producer {
             record = record.headers(headers);
         }
 
-        self.metrics.debounce(now, || {
-            metric!(
-                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
-                variant = variant,
-                topic = topic_name,
-                producer_name = producer_name
-            );
-        });
-
         // In theory the delivery callback can run before `produce_record` returns, so increment
         // the reference counter before:
         producer.context().inflight().increment();
@@ -313,15 +298,7 @@ impl Producer {
         producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
-            .inspect_err(|_| {
-                producer.context().inflight().decrement();
-                metric!(
-                    counter(KafkaCounters::ProducerEnqueueError) += 1,
-                    variant = variant,
-                    topic = topic_name,
-                    producer_name = producer_name
-                );
-            })?;
+            .inspect_err(|_| producer.context().inflight().decrement())?;
 
         Ok(topic_name)
     }
@@ -425,34 +402,21 @@ impl KafkaClient {
 
     /// Hands a new Kafka config blob to every topic's producer.
     ///
-    /// A blob that does not resolve for a topic is logged and counted rather
-    /// than returned; that topic keeps the client it is running.
+    /// A blob that does not resolve for a topic is logged rather than
+    /// returned; that topic keeps the client it is running. Arroyo counts
+    /// pushes in `arroyo.producer.config_reload_accepted` and `_rejected`.
     ///
     /// A successful push only means the rollout started. Arroyo probes a
     /// broker before swapping; watch `arroyo.producer.config_reload_generation` for the swap.
     pub fn push_kafka_config(&self, blob: &[u8]) {
         for producer in self.producers.values() {
             for tp in &producer.topic_producers.producers {
-                let producer_name = tp.producer.context().producer_name();
-
-                match tp.producer.push_config(blob) {
-                    Ok(_) => metric!(
-                        counter(KafkaCounters::ConfigReloadPushed) += 1,
-                        topic = &tp.topic_name,
-                        producer_name = producer_name
-                    ),
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            tags.topic = tp.topic_name.as_str(),
-                            "could not apply the kafka config, staying on the running one",
-                        );
-                        metric!(
-                            counter(KafkaCounters::ConfigReloadRejected) += 1,
-                            topic = &tp.topic_name,
-                            producer_name = producer_name
-                        );
-                    }
+                if let Err(error) = tp.producer.push_config(blob) {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        tags.topic = tp.topic_name.as_str(),
+                        "could not apply the kafka config, staying on the running one",
+                    );
                 }
             }
         }
