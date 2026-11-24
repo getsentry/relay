@@ -15,6 +15,7 @@
 
 **Internal**:
 
+- Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
 - Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))

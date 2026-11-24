@@ -101,6 +101,9 @@ pub enum Feature {
     /// Enable the experimental Trace Attachment pipeline in Relay.
     #[serde(rename = "projects:trace-attachment-processing")]
     TraceAttachmentProcessing,
+    /// Enrich spans and errors with ASN data from the client IP address.
+    #[serde(rename = "projects:relay-client-asn-lookup")]
+    ClientAsnLookup,
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
