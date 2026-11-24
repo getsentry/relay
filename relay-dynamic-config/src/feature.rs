@@ -81,75 +81,116 @@ pub enum Feature {
     /// Serialized as `projects:relay-automatic-json-expansion`.
     #[serde(rename = "projects:relay-automatic-json-expansion")]
     ProjectAutomaticJsonExpansion,
-    /// This feature has graduated ant is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
-    IngestUnsampledProfiles,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:user-feedback-ingest")]
-    UserReportV2Ingest,
-    #[doc(hidden)]
+    /// Enables data scrubbing of view hierarchy attachments.
+    ///
+    /// Serialized as `organizations:view-hierarchy-scrubbing`.
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
+    ///
+    /// Serialized as `organizations:performance-issues-spans`.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
     /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
+    ///
+    /// Serialized as `projects:span-v2-attachment-processing`.
     #[serde(rename = "projects:span-v2-attachment-processing")]
     SpanV2AttachmentProcessing,
     /// Enable the experimental Trace Attachment pipeline in Relay.
+    ///
+    /// Serialized as `projects:trace-attachment-processing`.
     #[serde(rename = "projects:trace-attachment-processing")]
     TraceAttachmentProcessing,
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
+    ///
+    /// Serialized as `projects:relay-playstation-uploads`.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
     /// Enable Nintendo event rewrite.
+    ///
+    /// Serialized as `projects:relay-nintendo-event-rewrite`.
     #[serde(rename = "projects:relay-nintendo-event-rewrite")]
     NintendoEventRewrite,
     /// Add a stack trace from the Unreal crash context to crashes without a minidump.
+    ///
+    /// Serialized as `projects:relay-unreal-crash-context-stacktrace`.
     #[serde(rename = "projects:relay-unreal-crash-context-stacktrace")]
     UnrealCrashContextStacktrace,
     /// Stream minidumps to objectstore.
+    ///
+    /// Serialized as `projects:relay-minidump-uploads`.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
     /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
     /// own event.
+    ///
+    /// Serialized as `organizations:gpu-crash-symbolication`.
     #[serde(rename = "organizations:gpu-crash-symbolication")]
     NvGpuCrashSplit,
     /// Enable resumable uploads to objectstore.
+    ///
+    /// Serialized as `projects:resumable-uploads`.
     #[serde(rename = "projects:resumable-uploads")]
     ResumableUpload,
+
+    // Deprecated features. Keep these after all in-use features.
+    /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `projects:profiling-ingest-unsampled-profiles`.
+    #[doc(hidden)]
+    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
+    IngestUnsampledProfiles,
+    /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:user-feedback-ingest`.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.
+    ///
+    /// Serialized as `organizations:span-v2-otlp-processing`.
+    #[doc(hidden)]
     #[serde(rename = "organizations:span-v2-otlp-processing")]
     DeprecatedSpanV2OtlpProcessing,
-    /// This feature has deprecated and is kept for external Relays.
+    /// This feature has been deprecated and is kept for external Relays.
+    ///
+    /// Serialized as `projects:span-metrics-extraction`.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]
     DeprecatedExtractCommonSpanMetricsFromEvent,
     /// This feature has been deprecated and is kept for external Relays.
+    ///
+    /// Serialized as `projects:span-metrics-extraction-addons`.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     DeprecatedExtractAddonsSpanMetricsFromEvent,
     /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:indexed-spans-extraction`.
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
     /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
     ///
     /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:relay-otlp-traces-endpoint`.
     #[doc(hidden)]
     #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
     DeprecatedOtelTracesEndpoint,
     /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///
     /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[doc(hidden)]
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
     DeprecatedOtelLogsEndpoint,
     /// Enable standalone span ingestion.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
     ///
     /// Serialized as `organizations:standalone-span-ingestion`.
     #[doc(hidden)]
@@ -158,12 +199,16 @@ pub enum Feature {
     /// Enable processing profiles.
     ///
     /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:profiling`.
     #[doc(hidden)]
     #[serde(rename = "organizations:profiling")]
     DeprecatedProfiling,
     /// Enables the experimental Span V2 processing pipeline in Relay.
     ///
     /// This feature has graduated.
+    ///
+    /// Serialized as `projects:span-v2-experimental-processing`.
     #[doc(hidden)]
     #[serde(rename = "projects:span-v2-experimental-processing")]
     DeprecatedSpanV2ExperimentalProcessing,
