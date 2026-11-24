@@ -184,9 +184,7 @@ pub fn normalize(
 
 pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        let asn_source = processing::client_asn::enrich_error(&mut error.event, ctx);
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
-        processing::client_asn::remove_from_error_if_ip_scrubbed(&mut error.event, asn_source);
         processing::utils::attachments::scrub(
             error
                 .attachments

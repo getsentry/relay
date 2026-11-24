@@ -340,6 +340,7 @@ fn normalize_span_derived(
     settings: Settings,
     ctx: Context<'_>,
 ) -> Result<()> {
+    crate::processing::client_asn::enrich_span(span, ctx)?;
     if let Some(span) = span.value_mut() {
         // The order of operations shouldn't matter here—we should never _actually_
         // need to synthesize both the name and description. If the span was sent as
@@ -451,7 +452,6 @@ pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
 }
 
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
-    let asn_source = crate::processing::client_asn::enrich_span(span, ctx);
     let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
     relay_pii::eap::scrub(
@@ -461,7 +461,6 @@ fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
         pii_config_from_scrubbing.as_ref(),
     )?;
 
-    crate::processing::client_asn::remove_from_span_if_ip_scrubbed(span, asn_source);
     Ok(())
 }
 

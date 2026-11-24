@@ -142,6 +142,9 @@ impl processing::Processor for ErrorsProcessor {
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 
         process::scrub(&mut error, ctx)?;
+        error.try_modify(|error, _| {
+            crate::processing::client_asn::enrich_error(&mut error.event, ctx).map_err(Error::from)
+        })?;
 
         Ok(Output {
             main: Some(ErrorOutput(error)),

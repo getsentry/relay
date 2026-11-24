@@ -419,17 +419,28 @@ pub fn scrub(
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let pii_config = config.datascrubbing_settings.pii_config();
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
+        scrub_pii(event, ProcessingState::root(), project_info)
+    })?;
+    Ok(())
+}
 
+/// Applies event-format PII rules to a value at its position in the event.
+pub fn scrub_pii<T: processor::ProcessValue>(
+    value: &mut Annotated<T>,
+    state: &ProcessingState<'_>,
+    project_info: &ProjectInfo,
+) -> processor::ProcessingResult {
+    let config = &project_info.config;
+    for rules in [
+        config.pii_config.as_ref(),
+        config.datascrubbing_settings.pii_config().as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let mut processor = PiiProcessor::new(rules.compiled());
+        processor::process_value(value, &mut processor, state)?;
+    }
     Ok(())
 }
 

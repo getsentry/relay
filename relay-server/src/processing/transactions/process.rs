@@ -468,9 +468,7 @@ pub fn scrub(
     ctx: Context<'_>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|mut work, records| {
-        let asn_sources = crate::processing::client_asn::enrich_transaction(&mut work.event, ctx)?;
         utils::event::scrub(&mut work.event, ctx.project_info)?;
-        asn_sources.remove_if_ip_scrubbed(&mut work.event);
         utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, Some(records));
         Ok::<_, Error>(work)
     })

@@ -167,7 +167,7 @@ impl Processor for TransactionProcessor {
 
         relay_log::trace!("Enforce quotas");
         let tx = self.limiter.enforce_quotas(tx, ctx).await?;
-        let tx = match tx.transpose() {
+        let mut tx = match tx.transpose() {
             either::Either::Left(tx) => tx,
             either::Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
@@ -178,6 +178,10 @@ impl Processor for TransactionProcessor {
 
         debug_assert!(tx.flags.fully_normalized);
 
+        tx.try_modify(|tx, _| {
+            crate::processing::client_asn::enrich_transaction(&mut tx.event, ctx)
+                .map_err(Error::from)
+        })?;
         let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);
         let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
 

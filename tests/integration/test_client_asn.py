@@ -303,3 +303,56 @@ def test_client_asn_address_selection(
     )
     error, _ = events.get_event()
     assert dict(error["tags"])[NUMBER] == "15169"
+
+
+def test_client_asn_scrubbed_ip_and_indexed_destination(
+    mini_sentry, relay_with_processing, events_consumer, spans_consumer
+):
+    project = mini_sentry.add_full_project_config(42)
+    config = project["config"]
+    config.setdefault("features", []).append("projects:relay-client-asn-lookup")
+    pii = config["piiConfig"]
+    pii["rules"]["replace-ip"] = {
+        "type": "pattern",
+        "pattern": r"^1\.0\.0\.1$",
+        "redaction": {"method": "replace", "text": "2600::1"},
+    }
+    pii["applications"].update(
+        {
+            "$user.ip_address": ["replace-ip"],
+            "$span.attributes.'client.address'.value": ["replace-ip"],
+            "spans.1.data.'client.as.organization'": ["@anything:remove"],
+        }
+    )
+    events = events_consumer()
+    spans = spans_consumer()
+    processing = relay_with_processing(options=DB)
+
+    # Both IPs have different, known ASNs in the fixture. Neither ASN may be
+    # derived from a redacted address, even if the replacement parses as an IP.
+    processing.send_event(42, make_error({"user": {"ip_address": IP}}))
+    error, _ = events.get_event()
+    assert error["user"]["ip_address"] == "2600::1"
+    assert not {NUMBER, ORG}.intersection(dict(error.get("tags", [])))
+
+    tx = transaction(IP, {})
+    first = tx["spans"][0]
+    for span_id in ("cccccccccccccccc", "dddddddddddddddd"):
+        tx["spans"].append(
+            {**first, "span_id": span_id, "data": {"client.address": "2600::1"}}
+        )
+    processing.send_event(42, tx)
+    processing.send_envelope(42, standalone_span(project, IP, {}))
+    by_id = {}
+    for _ in range(5):
+        span = spans.get_span()
+        attrs = span["attributes"]
+        by_id[span["span_id"]] = tuple(
+            (attrs.get(k) or {}).get("value") for k in (NUMBER, ORG)
+        )
+    assert by_id[tx["contexts"]["trace"]["span_id"]] == (None, None)
+    assert by_id[first["span_id"]] == (None, None)
+    assert by_id["eeeeeeeeeeeeeeee"] == (None, None)
+    assert by_id["cccccccccccccccc"] == (237, None)
+    number, organization = by_id["dddddddddddddddd"]
+    assert number == 237 and organization

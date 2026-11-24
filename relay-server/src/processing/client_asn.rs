@@ -1,6 +1,4 @@
-//! Insert generated fields before scrubbing so rules targeting the ASN can act on them.
-//! A rule targeting only the source IP can leave those fields intact. After scrubbing,
-//! discard the generated fields if the original IP was removed, replaced, or masked.
+//! Derive client ASN from the scrubbed IP and apply destination rules to the new fields.
 
 use std::net::IpAddr;
 
@@ -9,13 +7,13 @@ use relay_conventions::attributes::{
 };
 use relay_dynamic_config::Feature;
 use relay_event_normalization::AsnLookup;
-use relay_event_schema::processor::{ProcessingAction, ValueType};
+use relay_event_schema::processor::{ProcessingAction, ProcessingState, ValueType};
 use relay_event_schema::protocol::{
-    Attributes, Event, Measurements, Span, SpanData, SpanV2, TraceContext,
+    Attributes, Contexts, Event, Measurements, Span, SpanData, SpanV2, Tags, TraceContext,
 };
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::Annotated;
 
-use crate::processing::Context;
+use crate::processing::{Context, utils};
 use crate::services::processor::ProcessingError;
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
@@ -32,15 +30,22 @@ fn database(ctx: Context<'_>) -> Option<&AsnLookup> {
         .then_some(db)
 }
 
-// Only a configured PII processor can change these source fields during scrubbing.
-fn ip_to_recheck(ip: IpAddr, ctx: Context<'_>) -> Option<IpAddr> {
+fn has_pii(ctx: Context<'_>) -> bool {
     let config = &ctx.project_info.config;
-    (config.pii_config.is_some() || config.datascrubbing_settings.pii_config().is_some())
-        .then_some(ip)
+    config.pii_config.is_some() || config.datascrubbing_settings.pii_config().is_some()
 }
 
 fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
+}
+
+fn trace_redacted(event: &Event) -> bool {
+    redacted(&event.contexts)
+        || event
+            .contexts
+            .value()
+            .and_then(|contexts| contexts.0.get("trace"))
+            .is_some_and(redacted)
 }
 
 fn user_ip(event: &Event) -> Option<&str> {
@@ -73,16 +78,15 @@ enum SpanSource<'a> {
 struct SpanAddress<'a> {
     key: &'static str,
     text: &'a str,
-    ip: IpAddr,
 }
 
-/// Selects the same source for lookup and for the check after scrubbing.
+/// Selects a surviving client address, respecting removal remarks on either alias.
 fn span_address(source: SpanSource<'_>) -> Option<SpanAddress<'_>> {
     let data = match source {
         SpanSource::Standalone(_) => None,
         SpanSource::Segment(event) => {
             let data = &event.context::<TraceContext>()?.data;
-            if redacted(data) || redacted(&event.tags) {
+            if redacted(data) || redacted(&event.tags) || trace_redacted(event) {
                 return None;
             }
             data.value()
@@ -136,56 +140,115 @@ fn span_address(source: SpanSource<'_>) -> Option<SpanAddress<'_>> {
         (None, SpanSource::Segment(event)) => (USER__IP_ADDRESS, user_ip(event)?),
         _ => return None,
     };
-    Some(SpanAddress {
-        key,
-        text,
-        ip: text.parse().ok()?,
-    })
+    Some(SpanAddress { key, text })
 }
 
-pub fn enrich_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Option<IpAddr> {
-    let db = database(ctx)?;
-    let attrs = span.value_mut().as_mut()?.attributes.value_mut().as_mut()?;
-    if ASN_KEYS.iter().any(|key| attrs.contains_key(*key)) {
-        return None;
+fn scrub_span_attributes(
+    attrs: Attributes,
+    ctx: Context<'_>,
+) -> Result<Attributes, ProcessingAction> {
+    if !has_pii(ctx) {
+        return Ok(attrs);
     }
-    let ip = span_address(SpanSource::Standalone(attrs))?.ip;
-    let (number, organization) = db.lookup(ip)?;
-    attrs.insert(CLIENT__AS__NUMBER, i64::from(number));
-    if let Some(organization) = organization {
-        attrs.insert(CLIENT__AS__ORGANIZATION, organization);
-    }
-    ip_to_recheck(ip, ctx)
+
+    // Use the real span schema so object selectors and legacy value selectors see
+    // their usual paths. Only these attributes go through the scrubber.
+    let mut span = Annotated::new(SpanV2 {
+        attributes: Annotated::new(attrs),
+        ..Default::default()
+    });
+    let config = &ctx.project_info.config;
+    relay_pii::eap::scrub(
+        ValueType::Span,
+        &mut span,
+        config.pii_config.as_ref(),
+        config.datascrubbing_settings.pii_config().as_ref(),
+    )?;
+    Ok(span
+        .into_value()
+        .and_then(|span| span.attributes.into_value())
+        .unwrap_or_default())
 }
 
-pub fn remove_from_span_if_ip_scrubbed(span: &mut Annotated<SpanV2>, source: Option<IpAddr>) {
-    if let Some(ip) = source
-        && let Some(attrs) = span
-            .value_mut()
-            .as_mut()
-            .and_then(|s| s.attributes.value_mut().as_mut())
-        && span_address(SpanSource::Standalone(attrs)).map(|address| address.ip) != Some(ip)
-    {
-        for key in ASN_KEYS {
-            attrs.remove(key);
+fn span_fields(
+    db: &AsnLookup,
+    source: SpanSource<'_>,
+    ctx: Context<'_>,
+) -> Result<Attributes, ProcessingAction> {
+    let extracted = !matches!(source, SpanSource::Standalone(_));
+    let Some(address) = span_address(source) else {
+        return Ok(Attributes::new());
+    };
+
+    // Extracted spans do not pass through the standalone span scrubber. Check
+    // its source selectors before lookup as well as the transaction's own rules.
+    if extracted && has_pii(ctx) {
+        let mut source_attr = Attributes::new();
+        source_attr.insert(address.key, address.text);
+        let scrubbed = scrub_span_attributes(source_attr, ctx)?;
+        if span_address(SpanSource::Standalone(&scrubbed))
+            .is_none_or(|source| source.text != address.text)
+        {
+            return Ok(Attributes::new());
         }
     }
+
+    let mut fields = Attributes::new();
+    if let Ok(ip) = address.text.parse::<IpAddr>()
+        && let Some((number, organization)) = db.lookup(ip)
+    {
+        fields.insert(CLIENT__AS__NUMBER, i64::from(number));
+        if let Some(organization) = organization {
+            fields.insert(CLIENT__AS__ORGANIZATION, organization);
+        }
+        return scrub_span_attributes(fields, ctx);
+    }
+    Ok(fields)
 }
 
-pub fn enrich_error(event: &mut Annotated<Event>, ctx: Context<'_>) -> Option<IpAddr> {
-    let db = database(ctx)?;
-    let event = event.value_mut().as_mut()?;
+pub fn enrich_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<(), ProcessingAction> {
+    let Some(db) = database(ctx) else {
+        return Ok(());
+    };
+    let Some(span) = span.value_mut() else {
+        return Ok(());
+    };
+    if redacted(&span.attributes) {
+        return Ok(());
+    }
+    let Some(attrs) = span.attributes.value_mut() else {
+        return Ok(());
+    };
+    if !ASN_KEYS.iter().any(|key| attrs.contains_key(*key)) {
+        let fields = span_fields(db, SpanSource::Standalone(attrs), ctx)?;
+        attrs.0.extend(fields);
+    }
+    Ok(())
+}
+
+pub fn enrich_error(event: &mut Annotated<Event>, ctx: Context<'_>) -> Result<(), ProcessingError> {
+    let Some(db) = database(ctx) else {
+        return Ok(());
+    };
+    let Some(event) = event.value_mut() else {
+        return Ok(());
+    };
     if has_asn_tags(event)
+        || trace_redacted(event)
         || event
             .context::<TraceContext>()
-            .and_then(|trace| trace.data.value())
-            .is_some_and(has_asn_data)
+            .is_some_and(|trace| has_asn_data(&trace.data))
     {
-        return None;
+        return Ok(());
     }
-    let ip = user_ip(event)?.parse().ok()?;
-    let (number, organization) = db.lookup(ip)?;
-    let tags = event.tags.get_or_insert_with(Default::default);
+    let Some((number, organization)) = user_ip(event)
+        .and_then(|text| text.parse().ok())
+        .and_then(|ip| db.lookup(ip))
+    else {
+        return Ok(());
+    };
+
+    let mut tags = Tags::default();
     tags.0.insert(
         CLIENT__AS__NUMBER.into(),
         Annotated::new(number.to_string()),
@@ -196,19 +259,25 @@ pub fn enrich_error(event: &mut Annotated<Event>, ctx: Context<'_>) -> Option<Ip
             Annotated::new(organization.chars().take(200).collect()),
         );
     }
-    ip_to_recheck(ip, ctx)
-}
-
-pub fn remove_from_error_if_ip_scrubbed(event: &mut Annotated<Event>, source: Option<IpAddr>) {
-    if let Some(ip) = source
-        && let Some(event) = event.value_mut()
-        && user_ip(event).and_then(|s| s.parse().ok()) != Some(ip)
-        && let Some(tags) = event.tags.value_mut()
-    {
-        for key in ASN_KEYS {
-            tags.0.remove(key);
-        }
+    if has_pii(ctx) {
+        let mut fields = Annotated::new(Event {
+            tags: Annotated::new(tags),
+            ..Default::default()
+        });
+        utils::event::scrub_pii(&mut fields, ProcessingState::root(), ctx.project_info)?;
+        let Some(scrubbed) = fields
+            .into_value()
+            .and_then(|event| event.tags.into_value())
+        else {
+            return Ok(());
+        };
+        tags = scrubbed;
     }
+    event
+        .tags
+        .get_or_insert_with(Default::default)
+        .extend(tags.0.0);
+    Ok(())
 }
 
 fn has_asn_tags(event: &Event) -> bool {
@@ -219,178 +288,115 @@ fn has_asn_tags(event: &Event) -> bool {
             .is_some_and(|tags| ASN_KEYS.iter().any(|key| tags.0.contains(key)))
 }
 
-fn has_asn_data(data: &SpanData) -> bool {
-    ASN_KEYS.iter().any(|key| data.contains(key))
+fn has_asn_data(data: &Annotated<SpanData>) -> bool {
+    redacted(data)
+        || data
+            .value()
+            .is_some_and(|data| ASN_KEYS.iter().any(|key| data.contains(key)))
 }
 
 fn has_asn_measurement(measurements: &Annotated<Measurements>) -> bool {
-    measurements
-        .value()
-        .is_some_and(|m| ASN_KEYS.iter().any(|key| m.contains_key(*key)))
+    redacted(measurements)
+        || measurements
+            .value()
+            .is_some_and(|m| ASN_KEYS.iter().any(|key| m.contains_key(*key)))
 }
 
-struct TransactionAsn {
-    ip_to_recheck: Option<IpAddr>,
-    number: Annotated<Value>,
-    organization: Annotated<Value>,
-}
-
-impl TransactionAsn {
-    fn insert_into(self, target: &mut Annotated<SpanData>) -> Option<IpAddr> {
-        let data = target.get_or_insert_with(Default::default);
-        if !self.number.is_empty() {
-            data.insert(CLIENT__AS__NUMBER, self.number);
-        }
-        if !self.organization.is_empty() {
-            data.insert(CLIENT__AS__ORGANIZATION, self.organization);
-        }
-        self.ip_to_recheck
-    }
-}
-
-// Extracted transaction spans bypass the standalone span scrubber. Only the
-// source and the two generated fields need to see the V2 selectors as well.
-fn transaction_fields(
+fn transaction_data(
     db: &AsnLookup,
     source: SpanSource<'_>,
     ctx: Context<'_>,
-) -> Result<Option<TransactionAsn>, ProcessingAction> {
-    let Some(SpanAddress { key, text, ip }) = span_address(source) else {
-        return Ok(None);
+) -> Result<Option<SpanData>, ProcessingAction> {
+    let fields = span_fields(db, source, ctx)?;
+    let data = SpanData {
+        other: fields
+            .into_iter()
+            .filter_map(|(key, attr)| Some((key, attr.into_value()?.value.value)))
+            .collect(),
     };
-    let Some((number, organization)) = db.lookup(ip) else {
-        return Ok(None);
-    };
-    let config = &ctx.project_info.config;
-    let legacy = config.datascrubbing_settings.pii_config();
-    if config.pii_config.is_none() && legacy.is_none() {
-        return Ok(Some(TransactionAsn {
-            ip_to_recheck: None,
-            number: Annotated::new(i64::from(number).into()),
-            organization: Annotated::from(organization.map(|s| Value::String(s.to_owned()))),
-        }));
-    }
-
-    let mut attrs = Attributes::new();
-    attrs.insert(key, text);
-    attrs.insert(CLIENT__AS__NUMBER, i64::from(number));
-    if let Some(organization) = organization {
-        attrs.insert(CLIENT__AS__ORGANIZATION, organization);
-    }
-    let mut projection = Annotated::new(SpanV2 {
-        attributes: Annotated::new(attrs),
-        ..Default::default()
-    });
-    relay_pii::eap::scrub(
-        ValueType::Span,
-        &mut projection,
-        config.pii_config.as_ref(),
-        legacy.as_ref(),
-    )?;
-    let Some(mut attrs) = projection
-        .into_value()
-        .and_then(|s| s.attributes.into_value())
-    else {
-        return Ok(None);
-    };
-    if attrs
-        .get_annotated_value(key)
-        .is_none_or(|v| redacted(v) || v.value().is_none())
-    {
-        return Ok(None);
-    }
-    let [number, organization] = ASN_KEYS.map(|key| {
-        attrs
-            .remove(key)
-            .and_then(Annotated::into_value)
-            .map(|a| a.value.value)
-            .unwrap_or_default()
-    });
-    Ok(
-        (!number.is_empty() || !organization.is_empty()).then_some(TransactionAsn {
-            ip_to_recheck: Some(ip),
-            number,
-            organization,
-        }),
-    )
+    Ok((!data.other.is_empty()).then_some(data))
 }
 
-/// Tracks generated fields only when a PII processor runs. Scrubbing can clear an
-/// annotated child, but keeps its array index until serialization.
-#[derive(Default)]
-pub struct TransactionSources {
-    segment: Option<IpAddr>,
-    children: Vec<(usize, IpAddr)>,
+fn insert_span_data(target: &mut Annotated<SpanData>, data: SpanData) {
+    if !data.other.is_empty() {
+        target
+            .get_or_insert_with(Default::default)
+            .other
+            .extend(data.other);
+    }
 }
 
 pub fn enrich_transaction(
     event: &mut Annotated<Event>,
     ctx: Context<'_>,
-) -> Result<TransactionSources, ProcessingError> {
-    let mut sources = TransactionSources::default();
+) -> Result<(), ProcessingError> {
     let Some(db) = database(ctx) else {
-        return Ok(sources);
+        return Ok(());
     };
     let Some(event) = event.value_mut() else {
-        return Ok(sources);
+        return Ok(());
     };
     if !has_asn_tags(event)
         && !has_asn_measurement(&event.measurements)
         && let Some(trace) = event.context::<TraceContext>()
-        && !trace.data.value().is_some_and(has_asn_data)
-        && let Some(asn) = transaction_fields(db, SpanSource::Segment(event), ctx)?
+        && !has_asn_data(&trace.data)
+        && let Some(mut data) = transaction_data(db, SpanSource::Segment(event), ctx)?
         && let Some(trace) = event.context_mut::<TraceContext>()
     {
-        sources.segment = asn.insert_into(&mut trace.data);
+        if has_pii(ctx) {
+            let mut contexts = Contexts::new();
+            contexts.add(TraceContext {
+                data: Annotated::new(data),
+                ..Default::default()
+            });
+            let mut fields = Annotated::new(Event {
+                contexts: Annotated::new(contexts),
+                ..Default::default()
+            });
+            utils::event::scrub_pii(&mut fields, ProcessingState::root(), ctx.project_info)?;
+            data = fields
+                .value_mut()
+                .as_mut()
+                .and_then(Event::context_mut::<TraceContext>)
+                .and_then(|trace| trace.data.value_mut().take())
+                .unwrap_or_default();
+        }
+        insert_span_data(&mut trace.data, data);
     }
+    let array = ProcessingState::root().enter_borrowed("spans", None, [ValueType::Array]);
     for (index, span) in event.spans.value_mut().iter_mut().flatten().enumerate() {
         let Some(span) = span.value_mut() else {
             continue;
         };
-        if !span
+        if span
             .tags
             .value()
-            .is_some_and(|t| ASN_KEYS.iter().any(|key| t.contains_key(*key)))
-            && !has_asn_measurement(&span.measurements)
-            && !span.data.value().is_some_and(has_asn_data)
-            && let Some(asn) = transaction_fields(db, SpanSource::Child(span), ctx)?
-            && let Some(ip) = asn.insert_into(&mut span.data)
+            .is_some_and(|tags| ASN_KEYS.iter().any(|key| tags.contains_key(*key)))
+            || has_asn_measurement(&span.measurements)
+            || has_asn_data(&span.data)
         {
-            sources.children.push((index, ip));
+            continue;
         }
-    }
-    Ok(sources)
-}
-
-fn remove_asn(data: &mut Annotated<SpanData>) {
-    if let Some(data) = data.value_mut() {
-        for key in ASN_KEYS {
-            data.remove(key);
-        }
-    }
-}
-
-impl TransactionSources {
-    pub fn remove_if_ip_scrubbed(self, event: &mut Annotated<Event>) {
-        let Some(event) = event.value_mut() else {
-            return;
+        let Some(mut data) = transaction_data(db, SpanSource::Child(span), ctx)? else {
+            continue;
         };
-        if let Some(ip) = self.segment
-            && span_address(SpanSource::Segment(event)).map(|address| address.ip) != Some(ip)
-            && let Some(trace) = event.context_mut::<TraceContext>()
-        {
-            remove_asn(&mut trace.data);
+        if has_pii(ctx) {
+            // Preserve the real array index for rules such as spans.1.data.*.
+            let mut fields = Annotated::new(Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            });
+            let state =
+                array.enter_index(index, array.inner_attrs(), ValueType::for_field(&fields));
+            utils::event::scrub_pii(&mut fields, &state, ctx.project_info)?;
+            let Some(scrubbed) = fields.into_value().and_then(|span| span.data.into_value()) else {
+                continue;
+            };
+            data = scrubbed;
         }
-        if let Some(spans) = event.spans.value_mut() {
-            for (index, ip) in self.children {
-                if let Some(span) = spans.get_mut(index).and_then(|s| s.value_mut().as_mut())
-                    && span_address(SpanSource::Child(span)).map(|address| address.ip) != Some(ip)
-                {
-                    remove_asn(&mut span.data);
-                }
-            }
-        }
+        insert_span_data(&mut span.data, data);
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -410,7 +416,8 @@ mod tests {
         assert_eq!((address.key, address.text), (CLIENT__ADDRESS, "2600::1"));
 
         attrs.insert(CLIENT__ADDRESS, "invalid");
-        assert!(span_address(SpanSource::Standalone(&attrs)).is_none());
+        let address = span_address(SpanSource::Standalone(&attrs)).unwrap();
+        assert_eq!((address.key, address.text), (CLIENT__ADDRESS, "invalid"));
 
         attrs.remove(CLIENT__ADDRESS);
         let address = span_address(SpanSource::Standalone(&attrs)).unwrap();
