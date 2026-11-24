@@ -17,6 +17,7 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
+mod client_asn;
 mod common;
 mod forward;
 mod limits;
@@ -89,6 +90,8 @@ pub struct Context<'a> {
     pub project_info: &'a ProjectInfo,
     /// Project configuration associated with the root of the trace of the unit of work.
     pub sampling_project_info: Option<&'a ProjectInfo>,
+    /// Local ASN database, if configured.
+    pub asn_lookup: Option<&'a relay_event_normalization::AsnLookup>,
     /// Cached rate limits associated with the unit of work.
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
@@ -141,6 +144,7 @@ impl Context<'static> {
             global_config: &GLOBAL_CONFIG,
             project_info: &PROJECT_INFO,
             sampling_project_info: None,
+            asn_lookup: None,
             rate_limits: &RATE_LIMITS,
         }
     }

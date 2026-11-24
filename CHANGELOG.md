@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Look up client ASN fields for errors and spans on processing Relays with `geoip.asn_path` configured and the `projects:relay-client-asn-lookup` project flag enabled. The city database setting is now `geoip.city_path`. Existing configs using `geoip.path` are still accepted.
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 
 **Bug Fixes**:

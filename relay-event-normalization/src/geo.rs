@@ -6,6 +6,7 @@ use std::sync::Arc;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::Geo;
 use relay_protocol::Annotated;
+use serde::Deserialize;
 
 #[cfg(feature = "mmap")]
 type ReaderType = maxminddb::Mmap;
@@ -13,29 +14,41 @@ type ReaderType = maxminddb::Mmap;
 #[cfg(not(feature = "mmap"))]
 type ReaderType = Vec<u8>;
 
-/// An error in the `GeoIpLookup`.
+/// An error opening or querying a MaxMind database.
 pub type GeoIpError = maxminddb::MaxMindDbError;
 
-/// A geo ip lookup helper based on maxmind db files.
-///
-/// The helper is internally reference counted and can be cloned cheaply.
-#[derive(Clone, Default)]
-pub struct GeoIpLookup(Option<Arc<maxminddb::Reader<ReaderType>>>);
+#[derive(Debug)]
+struct Mmdb(maxminddb::Reader<ReaderType>);
 
-impl GeoIpLookup {
-    /// Opens a maxminddb file by path.
-    pub fn open<P>(path: P) -> Result<Self, GeoIpError>
-    where
-        P: AsRef<Path>,
-    {
+impl Mmdb {
+    fn open(path: impl AsRef<Path>) -> Result<Self, GeoIpError> {
         #[cfg(feature = "mmap")]
+        // The updater replaces the file by rename. A reader keeps its original mapping.
         let reader = unsafe { maxminddb::Reader::open_mmap(path)? };
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
-        Ok(GeoIpLookup(Some(Arc::new(reader))))
+        Ok(Self(reader))
     }
 
-    /// Creates a new [`GeoIpLookup`] instance without any data loaded.
+    fn lookup<'a, T: Deserialize<'a>>(&'a self, ip: IpAddr) -> Result<Option<T>, GeoIpError> {
+        self.0.lookup(ip)?.decode()
+    }
+}
+
+/// Reader for city and country lookups. Clones share the same database.
+#[derive(Clone, Default)]
+pub struct CityLookup(Option<Arc<Mmdb>>);
+
+/// Historical name for [`CityLookup`].
+pub use CityLookup as GeoIpLookup;
+
+impl CityLookup {
+    /// Opens a local database containing MaxMind city records.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, GeoIpError> {
+        Ok(Self(Some(Arc::new(Mmdb::open(path)?))))
+    }
+
+    /// Creates a new [`CityLookup`] instance without any data loaded.
     pub fn empty() -> Self {
         Self(None)
     }
@@ -45,7 +58,7 @@ impl GeoIpLookup {
     /// Returns `None` for an [`Self::empty`] database.
     pub fn build_epoch(&self) -> Option<UnixTimestamp> {
         let reader = self.0.as_ref()?;
-        Some(UnixTimestamp::from_secs(reader.metadata.build_epoch))
+        Some(UnixTimestamp::from_secs(reader.0.metadata.build_epoch))
     }
 
     /// Looks up an IP address.
@@ -54,10 +67,7 @@ impl GeoIpLookup {
             return Ok(None);
         };
 
-        let Some(city) = reader
-            .lookup(ip_address)?
-            .decode::<maxminddb::geoip2::City>()?
-        else {
+        let Some(city) = reader.lookup::<maxminddb::geoip2::City>(ip_address)? else {
             return Ok(None);
         };
 
@@ -80,8 +90,28 @@ impl GeoIpLookup {
     }
 }
 
-impl fmt::Debug for GeoIpLookup {
+impl fmt::Debug for CityLookup {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GeoIpLookup").finish()
+        f.debug_struct("CityLookup").finish()
+    }
+}
+
+/// Reader for a local MaxMind ASN database.
+#[derive(Debug)]
+pub struct AsnLookup(Mmdb);
+
+impl AsnLookup {
+    /// Opens the ASN database once for subsequent synchronous lookups.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, GeoIpError> {
+        Mmdb::open(path).map(Self)
+    }
+
+    /// Returns the number and organization if an ASN is known for this IP.
+    pub fn lookup(&self, ip: IpAddr) -> Option<(u32, Option<&str>)> {
+        let record = self.0.lookup::<maxminddb::geoip2::Asn>(ip).ok()??;
+        Some((
+            record.autonomous_system_number?,
+            record.autonomous_system_organization,
+        ))
     }
 }
