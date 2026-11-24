@@ -1,5 +1,4 @@
 use std::fmt;
-use std::marker::PhantomData;
 use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -20,18 +19,18 @@ type ReaderType = Vec<u8>;
 pub type GeoIpError = maxminddb::MaxMindDbError;
 
 /// The record to decode and the Relay fields to take from it.
-pub trait Edition {
+pub trait Edition: Default {
     type Record<'db>: Deserialize<'db>;
     type Fields<'db>;
 
-    fn fields<'db>(record: Self::Record<'db>) -> Option<Self::Fields<'db>>;
+    fn fields<'db>(&self, record: Self::Record<'db>) -> Option<Self::Fields<'db>>;
 }
 
 /// A local MaxMind database. Clones share the same reader.
 #[derive(Clone, Default)]
 pub struct Lookup<E> {
     reader: Option<Arc<maxminddb::Reader<ReaderType>>>,
-    edition: PhantomData<E>,
+    edition: E,
 }
 
 impl<E: Edition> Lookup<E> {
@@ -44,16 +43,13 @@ impl<E: Edition> Lookup<E> {
         let reader = maxminddb::Reader::open_readfile(path)?;
         Ok(Self {
             reader: Some(Arc::new(reader)),
-            edition: PhantomData,
+            edition: E::default(),
         })
     }
 
     /// Creates a lookup without a database.
     pub fn empty() -> Self {
-        Self {
-            reader: None,
-            edition: PhantomData,
-        }
+        Self::default()
     }
 
     /// Unix timestamp when the database was built.
@@ -71,7 +67,7 @@ impl<E: Edition> Lookup<E> {
         Ok(reader
             .lookup(ip)?
             .decode::<E::Record<'_>>()?
-            .and_then(E::fields))
+            .and_then(|record| self.edition.fields(record)))
     }
 
     /// Like [`Self::try_lookup`], but swallows errors.
@@ -101,7 +97,7 @@ impl Edition for City {
     type Record<'db> = geoip2::City<'db>;
     type Fields<'db> = Geo;
 
-    fn fields<'db>(city: Self::Record<'db>) -> Option<Self::Fields<'db>> {
+    fn fields<'db>(&self, city: Self::Record<'db>) -> Option<Self::Fields<'db>> {
         Some(Geo {
             country_code: Annotated::from(city.country.iso_code.map(String::from)),
             city: Annotated::from(city.city.names.english.map(String::from)),
@@ -126,7 +122,7 @@ impl Edition for Asn {
     type Record<'db> = geoip2::Asn<'db>;
     type Fields<'db> = (u32, Option<&'db str>);
 
-    fn fields<'db>(record: Self::Record<'db>) -> Option<Self::Fields<'db>> {
+    fn fields<'db>(&self, record: Self::Record<'db>) -> Option<Self::Fields<'db>> {
         Some((
             record.autonomous_system_number?,
             record.autonomous_system_organization,
