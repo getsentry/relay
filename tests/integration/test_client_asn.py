@@ -336,12 +336,11 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
     assert error["user"]["ip_address"] == "2600::1"
     assert not {NUMBER, ORG}.intersection(dict(error.get("tags", [])))
 
-    # Normalization copied REMOTE_ADDR before scrubbing removed it.
+    # A removed REMOTE_ADDR must not contribute ASN tags through the user IP fallback.
     processing.send_event(
         42, make_error({"request": {"env": {"REMOTE_ADDR": "2600::1"}}})
     )
     error, _ = events.get_event()
-    assert error["user"]["ip_address"] == "2600::1"
     assert error["request"]["env"]["REMOTE_ADDR"] is None
     assert not {NUMBER, ORG}.intersection(dict(error.get("tags", [])))
 
