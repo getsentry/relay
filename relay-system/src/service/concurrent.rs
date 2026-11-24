@@ -118,6 +118,7 @@ where
                 service = Self::name()
             );
         }
+        self.inner.on_exit().await;
     }
 
     fn name() -> &'static str {
