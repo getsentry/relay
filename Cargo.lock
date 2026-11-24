@@ -4898,7 +4898,7 @@ dependencies = [
  "dircpy",
  "lz4_flex",
  "minidump-writer",
- "object 0.37.3",
+ "object 0.39.1",
  "rmpv",
  "tempfile",
  "tracing",
@@ -5716,9 +5716,9 @@ dependencies = [
 
 [[package]]
 name = "sentry_arroyo"
-version = "2.49.0"
+version = "2.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb0a3d013238e9248cce3c6a98e9cd7b9d13b47e121ccba85414da1e2dc17903"
+checksum = "7cea33cc481704402f31779ba5f913c5c0053ce86f4e7e81411909f6ca4c0423"
 dependencies = [
  "async-stream",
  "chrono",

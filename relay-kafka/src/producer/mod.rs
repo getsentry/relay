@@ -12,9 +12,8 @@ use rdkafka::producer::BaseRecord;
 use relay_statsd::metric;
 use sentry_arroyo::backends::ProducerError;
 use sentry_arroyo::backends::kafka::config_blob::ProducerSelector;
-use sentry_arroyo::backends::kafka::reloading_producer::{
-    ReloadConfig, ReloadError, ReloadingKafkaProducer,
-};
+use sentry_arroyo::backends::kafka::reload::{ReloadConfig, ReloadError};
+use sentry_arroyo::backends::kafka::reloading_producer::ReloadingKafkaProducer;
 use sentry_arroyo::types::Topic;
 use thiserror::Error;
 
