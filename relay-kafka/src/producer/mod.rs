@@ -168,7 +168,9 @@ struct TopicProducer {
 
 impl TopicProducer {
     async fn wait_empty(&self) {
-        self.producer.context().inflight().wait_empty().await
+        while self.producer.in_flight_count() > 0 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
     }
 }
 
@@ -194,12 +196,6 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
         // stall produce for no benefit.
         ignore_key_ordering: true,
         jitter,
-        // A drain timeout drops the old producer during a config reload, dropping its messages
-        // without sending a delivery callback. This leaves the InflightCounter hanging.
-        //
-        // Allow one day for draining to make this unlikely. `Duration::MAX` would overflow
-        // Arroyo's deadline calculation.
-        drain_timeout: Duration::from_secs(24 * 60 * 60),
         ..ReloadConfig::default()
     }
 }
@@ -306,15 +302,10 @@ impl Producer {
             );
         });
 
-        // In theory the delivery callback can run before `produce_record` returns, so increment
-        // the reference counter before:
-        producer.context().inflight().increment();
-
         producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
             .inspect_err(|_| {
-                producer.context().inflight().decrement();
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
                     variant = variant,
@@ -643,16 +634,17 @@ mod tests {
             .unwrap()
             .build();
 
-        // Keep the underlying producer alive so its own drop cannot drain the message.
-        let producer = Arc::clone(producers(&client, KafkaTopic::Events)[0]);
+        let producer = producers(&client, KafkaTopic::Events)[0];
         client
             .send(KafkaTopic::Events, None, None, "event", b"payload")
             .unwrap();
-        assert_eq!(producer.context().inflight().get(), 1);
+        assert!(producer.in_flight_count() > 0);
 
-        producer.context().inflight().wait_empty().await;
+        tokio::time::timeout(Duration::from_secs(10), client.wait_empty())
+            .await
+            .expect("Kafka producer did not drain");
 
-        assert_eq!(producer.context().inflight().get(), 0);
+        assert_eq!(producer.in_flight_count(), 0);
     }
 
     /// Every shard needs its own producer, since each is a separate physical

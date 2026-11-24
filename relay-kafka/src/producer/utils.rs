@@ -1,6 +1,4 @@
 use std::error::Error;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
@@ -85,8 +83,6 @@ pub struct Context {
     producer_name: String,
     /// Delegate statistics to Arroyo.
     arroyo_statistics: ArroyoProducerContext,
-    /// Counts the number of in-flight messages.
-    inflight: Arc<InflightCounter>,
 }
 
 impl Context {
@@ -94,16 +90,11 @@ impl Context {
         Self {
             arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
-            inflight: InflightCounter::default().into(),
         }
     }
 
     pub fn producer_name(&self) -> &str {
         &self.producer_name
-    }
-
-    pub fn inflight(&self) -> &InflightCounter {
-        &self.inflight
     }
 }
 
@@ -124,8 +115,6 @@ impl ProducerContext for Context {
     fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
-
-        self.inflight.decrement();
 
         match result {
             Ok(message) => {
@@ -154,42 +143,6 @@ impl ProducerContext for Context {
                     producer_name = self.producer_name.as_str(),
                 );
             }
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct InflightCounter {
-    count: AtomicUsize,
-    notify: tokio::sync::Notify,
-}
-
-impl InflightCounter {
-    pub fn get(&self) -> usize {
-        self.count.load(Ordering::Relaxed)
-    }
-
-    pub fn increment(&self) {
-        self.count.fetch_add(1, Ordering::Relaxed);
-    }
-
-    pub fn decrement(&self) {
-        let previous = self.count.fetch_sub(1, Ordering::Relaxed);
-        debug_assert!(previous > 0);
-        if previous <= 1 {
-            self.notify.notify_waiters();
-        }
-    }
-
-    /// Awaits until the counter is zero.
-    pub async fn wait_empty(&self) {
-        loop {
-            // Create future first so that it cannot miss any notifications.
-            let future = self.notify.notified();
-            if self.get() == 0 {
-                break;
-            }
-            future.await;
         }
     }
 }
