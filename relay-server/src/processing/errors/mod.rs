@@ -34,7 +34,6 @@ mod integrations;
 mod process;
 mod utils;
 
-#[cfg(sentry)]
 pub use errors::SwitchProcessingError;
 pub use integrations::UnrealErrorIntegrationProcessor;
 
