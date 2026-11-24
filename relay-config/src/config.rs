@@ -2841,11 +2841,6 @@ impl ConfigSnapshot {
             .as_deref())
     }
 
-    /// Alias for [`Self::city_path`].
-    pub fn geoip_path(&self) -> Option<&Path> {
-        self.city_path()
-    }
-
     /// The path to the client ASN database.
     pub fn asn_path(&self) -> Option<&Path> {
         self.inner.values.geoip.asn_path.as_deref()
