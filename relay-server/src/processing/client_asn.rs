@@ -78,6 +78,7 @@ enum SpanSource<'a> {
 }
 
 struct SpanAddress<'a> {
+    ip: IpAddr,
     key: &'static str,
     text: &'a str,
 }
@@ -143,7 +144,8 @@ fn span_address(source: SpanSource<'_>) -> Option<SpanAddress<'_>> {
         (None, SpanSource::Segment(event)) => (USER__IP_ADDRESS, unscrubbed_user_ip(event)?),
         _ => return None,
     };
-    Some(SpanAddress { key, text })
+    let ip = text.parse().ok()?;
+    Some(SpanAddress { ip, key, text })
 }
 
 fn scrub_span_attributes(
@@ -198,9 +200,7 @@ fn span_fields(
     }
 
     let mut fields = Attributes::new();
-    if let Ok(ip) = address.text.parse::<IpAddr>()
-        && let Some((number, organization)) = db.lookup(ip)
-    {
+    if let Some((number, organization)) = db.lookup(address.ip) {
         fields.insert(CLIENT__AS__NUMBER, i64::from(number));
         if let Some(organization) = organization {
             fields.insert(CLIENT__AS__ORGANIZATION, organization);
@@ -424,8 +424,7 @@ mod tests {
         assert_eq!((address.key, address.text), (CLIENT__ADDRESS, "2600::1"));
 
         attrs.insert(CLIENT__ADDRESS, "invalid");
-        let address = span_address(SpanSource::Standalone(&attrs)).unwrap();
-        assert_eq!((address.key, address.text), (CLIENT__ADDRESS, "invalid"));
+        assert!(span_address(SpanSource::Standalone(&attrs)).is_none());
 
         attrs.remove(CLIENT__ADDRESS);
         let address = span_address(SpanSource::Standalone(&attrs)).unwrap();
