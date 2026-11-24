@@ -28,7 +28,7 @@ const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
 
 #[derive(Debug)]
 pub enum Nswitch {
-    Forward { dying_message: AttachmentItem },
+    Forward { item_bundle: AttachmentItem },
     Process,
 }
 
@@ -38,8 +38,11 @@ impl SentryError for Nswitch {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(dying_message) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == AttachmentType::NintendoSwitchDyingMessage
+        let Some(item_bundle) = utils::take_item_if::<AttachmentItem>(items, |item| {
+            matches!(
+                item.attachment_type(),
+                AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle
+            )
         }) else {
             return Ok(None);
         };
@@ -60,7 +63,7 @@ impl SentryError for Nswitch {
                 flamegraph: None,
                 user_reports,
                 intermediates: vec![],
-                error: Self::Forward { dying_message },
+                error: Self::Forward { item_bundle },
                 metrics,
                 fully_normalized: false,
             }));
@@ -68,18 +71,18 @@ impl SentryError for Nswitch {
 
         let event = utils::take_item::<EventItem>(items);
 
-        let dying_message = expand_dying_message(dying_message.data().payload())
+        let item_bundle = expand_item_bundle(item_bundle.data().payload())
             .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
 
         let mut attachments = attachments;
-        attachments.extend(dying_message.attachments);
+        attachments.extend(item_bundle.attachments);
 
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut event = match (event, dying_message.event) {
-            (Some(event), Some(dying_message)) => {
+        let mut event = match (event, item_bundle.event) {
+            (Some(event), Some(item_bundle)) => {
                 metrics.bytes_ingested_event =
-                    Annotated::new((event.data().len() + dying_message.data().len()) as u64);
-                merge_events(event, dying_message, ctx)?
+                    Annotated::new((event.data().len() + item_bundle.data().len()) as u64);
+                merge_events(event, item_bundle, ctx)?
             }
             (Some(event), None) => {
                 utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx.processing)?
@@ -102,7 +105,7 @@ impl SentryError for Nswitch {
             attachments,
             flamegraph: None,
             user_reports,
-            intermediates: dying_message
+            intermediates: item_bundle
                 .session_updates
                 .into_iter()
                 .map(Item::from)
@@ -124,7 +127,7 @@ impl SentryError for Nswitch {
 
     fn into_payload(self) -> ErrorPayload {
         ErrorPayload(match self {
-            Self::Forward { dying_message } => smallvec::smallvec![dying_message],
+            Self::Forward { item_bundle } => smallvec::smallvec![item_bundle],
             Self::Process => Default::default(),
         })
     }
@@ -137,15 +140,15 @@ impl SentryError for Nswitch {
 impl Counted for Nswitch {
     fn quantities(&self) -> Quantities {
         match self {
-            // The item rules own the dying message's zero attachment contribution.
-            Self::Forward { dying_message } => dying_message.quantities(),
+            // The item rules own the item bundle's zero attachment contribution.
+            Self::Forward { item_bundle } => item_bundle.quantities(),
             // Processing has already consumed the message into the event.
             Self::Process => Quantities::new(),
         }
     }
 }
 
-/// An error returned when parsing the dying message attachment.
+/// An error returned when parsing the item bundle attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum SwitchProcessingError {
     #[error("envelope parsing failed")]
@@ -162,46 +165,46 @@ pub enum SwitchProcessingError {
 
 fn merge_events(
     from_envelope: EventItem,
-    from_dying_messages: EventItem,
+    from_item_bundle: EventItem,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
     if from_envelope
         .data()
         .len()
-        .max(from_dying_messages.data().len())
+        .max(from_item_bundle.data().len())
         > ctx.processing.config.max_event_size()
     {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
 
-    merge_events_inner(from_envelope, from_dying_messages)
+    merge_events_inner(from_envelope, from_item_bundle)
         .map_err(ProcessingError::InvalidJson)
         .map_err(Into::into)
 }
 
 fn merge_events_inner(
     from_envelope: EventItem,
-    from_dying_messages: EventItem,
+    from_item_bundle: EventItem,
 ) -> Result<Annotated<Event>, serde_json::Error> {
     let from_envelope = serde_json::from_slice(&from_envelope.data().payload())?;
-    let mut from_dying_message = serde_json::from_slice(&from_dying_messages.data().payload())?;
+    let mut base = serde_json::from_slice(&from_item_bundle.data().payload())?;
 
-    // Uses the dying message as a base and fills it with values from the event.
-    crate::utils::merge_values(&mut from_dying_message, from_envelope);
+    // Uses the item bundle as a base and fills it with values from the event.
+    crate::utils::merge_values(&mut base, from_envelope);
 
-    Annotated::<Event>::deserialize_with_meta(from_dying_message)
+    Annotated::<Event>::deserialize_with_meta(base)
 }
 
 #[derive(Debug, Default)]
-struct ExpandedDyingMessage {
+struct ExpandedItemBundle {
     event: Option<EventItem>,
     attachments: Vec<AttachmentItem>,
     session_updates: Vec<SessionItem>,
 }
 
-/// Parses DyingMessage contents and updates the envelope.
-/// See dying_message.md for the documentation.
-fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
+/// Parses ItemBundle contents and updates the envelope.
+/// See `item_bundle.md` for the documentation.
+fn expand_item_bundle(mut payload: Bytes) -> Result<ExpandedItemBundle, SwitchProcessingError> {
     // `AttachmentItem::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
     // header, which bypasses the `starts_with(magic)` guard it applies when inferring the type.
     // Validate the magic here so a crafted short payload can't panic the `advance` below.
@@ -216,7 +219,7 @@ fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, Swit
         })?;
 
     match version {
-        0 => expand_dying_message_v0(payload),
+        0 => expand_item_bundle_v0(payload),
         _ => Err(SwitchProcessingError::InvalidValue(
             "version",
             version as usize,
@@ -224,10 +227,8 @@ fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, Swit
     }
 }
 
-/// DyingMessage protocol v0 parser.
-fn expand_dying_message_v0(
-    mut payload: Bytes,
-) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
+/// ItemBundle protocol v0 parser.
+fn expand_item_bundle_v0(mut payload: Bytes) -> Result<ExpandedItemBundle, SwitchProcessingError> {
     let encoding_byte = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
@@ -251,7 +252,7 @@ fn expand_dying_message_v0(
     )?;
 
     match format {
-        0 => expand_dying_message_from_envelope_items(data),
+        0 => expand_item_bundle_from_envelope_items(data),
         _ => Err(SwitchProcessingError::InvalidValue(
             "payload format",
             format as usize,
@@ -259,10 +260,10 @@ fn expand_dying_message_v0(
     }
 }
 
-/// Merges envelope items with the ones contained in the DyingMessage
-fn expand_dying_message_from_envelope_items(
+/// Merges envelope items with the ones contained in the ItemBundle
+fn expand_item_bundle_from_envelope_items(
     data: Bytes,
-) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
+) -> Result<ExpandedItemBundle, SwitchProcessingError> {
     let mut items = Envelope::parse_items_bytes(data)
         .map_err(SwitchProcessingError::EnvelopeParsing)?
         .into_vec();
@@ -274,12 +275,12 @@ fn expand_dying_message_from_envelope_items(
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.
         relay_log::debug!(
-            "Ignoring {} unsupported items in the dying message",
+            "Ignoring {} unsupported items in the item bundle",
             items.len()
         );
     }
 
-    Ok(ExpandedDyingMessage {
+    Ok(ExpandedItemBundle {
         event,
         attachments,
         session_updates,
@@ -538,14 +539,14 @@ mod tests {
         // `advance` (reachable when the attachment type is set explicitly in the item header).
         for payload in ["", "s", "sn", "snt"] {
             assert!(matches!(
-                expand_dying_message(Bytes::from(payload)),
+                expand_item_bundle(Bytes::from(payload)),
                 Err(SwitchProcessingError::InvalidMagic)
             ));
         }
 
         // A long-enough payload whose magic doesn't match is rejected too.
         assert!(matches!(
-            expand_dying_message(Bytes::from("xxxx")),
+            expand_item_bundle(Bytes::from("xxxx")),
             Err(SwitchProcessingError::InvalidMagic)
         ));
     }
