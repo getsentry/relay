@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use relay_cogs::{Cogs, ResourceId};
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_system::Addr;
 
 use crate::envelope::Item;
@@ -66,6 +66,7 @@ impl RelayProcessor {
         cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
         geoip_lookup: &CityLookup,
+        asn_lookup: Option<AsnLookup>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Self {
         // Just so everything fits in a single line.
@@ -78,7 +79,7 @@ impl RelayProcessor {
             check_ins: CheckInsProcessor::new(ql()),
             client_reports: ClientReportsProcessor::new(outcome_aggregator),
             errors_unreal_integration: UnrealErrorIntegrationProcessor,
-            errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
+            errors: ErrorsProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
             logs: LogsProcessor::new(ql()),
@@ -91,10 +92,10 @@ impl RelayProcessor {
             profiles: ProfilesProcessor::new(ql()),
             replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
             sessions: SessionsProcessor::new(ql()),
-            spans: SpansProcessor::new(ql(), geoip_lookup.clone()),
+            spans: SpansProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             trace_attachments: TraceAttachmentsProcessor::new(ql()),
             trace_metrics: TraceMetricsProcessor::new(ql()),
-            transactions: TransactionProcessor::new(ql(), geoip_lookup.clone()),
+            transactions: TransactionProcessor::new(ql(), geoip_lookup.clone(), asn_lookup),
             user_reports: UserReportsProcessor::new(ql()),
         }
     }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
@@ -13,6 +13,7 @@ use crate::envelope::{
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
+use crate::processing::client_asn;
 use crate::processing::errors::errors::SentryError as _;
 use crate::processing::utils::attachments;
 use crate::processing::utils::event::EventFullyNormalized;
@@ -69,14 +70,20 @@ impl OutcomeError for Error {
 pub struct ErrorsProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: CityLookup,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl ErrorsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: CityLookup) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geoip_lookup: CityLookup,
+        asn_lookup: Option<AsnLookup>,
+    ) -> Self {
         Self {
             limiter,
             geoip_lookup,
+            asn_lookup,
         }
     }
 }
@@ -142,9 +149,11 @@ impl processing::Processor for ErrorsProcessor {
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 
         process::scrub(&mut error, ctx)?;
-        error.try_modify(|error, _| {
-            crate::processing::client_asn::enrich_error(&mut error.event, ctx).map_err(Error::from)
-        })?;
+        if let Some(lookup) = client_asn::project_lookup(self.asn_lookup.as_ref(), ctx) {
+            error.try_modify(|error, _| {
+                client_asn::enrich_error(&mut error.event, lookup, ctx).map_err(Error::from)
+            })?;
+        }
 
         Ok(Output {
             main: Some(ErrorOutput(error)),

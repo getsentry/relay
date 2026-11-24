@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{Ingress, Pipeline};
-use relay_event_normalization::{CityLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{AsnLookup, CityLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -323,12 +323,17 @@ fn normalize_span(
 ///
 /// It also takes care of trimming and schema validation because those procedures need
 /// to also run for derived fields.
-pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
+pub fn normalize_derived(
+    spans: &mut Managed<ExpandedSpans>,
+    asn_lookup: Option<&AsnLookup>,
+    ctx: Context<'_>,
+) {
+    let asn_lookup = crate::processing::client_asn::project_lookup(asn_lookup, ctx);
     let settings = spans.settings;
     spans.retain_with_context(
         |spans| (&mut spans.spans, &()),
         |span, _, _| {
-            normalize_span_derived(&mut span.span, settings, ctx).inspect_err(|err| {
+            normalize_span_derived(&mut span.span, settings, asn_lookup, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
@@ -338,9 +343,12 @@ pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
 fn normalize_span_derived(
     span: &mut Annotated<SpanV2>,
     settings: Settings,
+    asn_lookup: Option<&AsnLookup>,
     ctx: Context<'_>,
 ) -> Result<()> {
-    crate::processing::client_asn::enrich_span(span, ctx)?;
+    if let Some(lookup) = asn_lookup {
+        crate::processing::client_asn::enrich_span(span, lookup, ctx)?;
+    }
     if let Some(span) = span.value_mut() {
         // The order of operations shouldn't matter here—we should never _actually_
         // need to synthesize both the name and description. If the span was sent as

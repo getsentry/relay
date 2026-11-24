@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use either::Either;
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::CityLookup;
 use relay_event_normalization::eap::Ingress;
 use relay_event_normalization::eap::time::TimestampOutOfRange;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
@@ -108,14 +108,20 @@ impl From<ScrubAttachmentError> for Error {
 pub struct SpansProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geo_lookup: CityLookup,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl SpansProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geo_lookup: CityLookup) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geo_lookup: CityLookup,
+        asn_lookup: Option<AsnLookup>,
+    ) -> Self {
         Self {
             limiter,
             geo_lookup,
+            asn_lookup,
         }
     }
 }
@@ -208,7 +214,7 @@ impl processing::Processor for SpansProcessor {
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
         process::scrub(&mut spans, ctx);
-        process::normalize_derived(&mut spans, ctx);
+        process::normalize_derived(&mut spans, self.asn_lookup.as_ref(), ctx);
 
         let spans = self.limiter.enforce_quotas(spans, ctx).await?;
         let spans = match spans.transpose() {

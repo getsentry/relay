@@ -18,8 +18,12 @@ use crate::services::processor::ProcessingError;
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-fn database(ctx: Context<'_>) -> Option<&AsnLookup> {
-    let db = ctx.asn_lookup?;
+/// Returns the configured reader when this processing Relay can enrich the project.
+pub fn project_lookup<'a>(
+    lookup: Option<&'a AsnLookup>,
+    ctx: Context<'_>,
+) -> Option<&'a AsnLookup> {
+    let db = lookup?;
     (ctx.is_processing()
         && ctx.project_info.has_feature(Feature::ClientAsnLookup)
         && !ctx
@@ -206,10 +210,11 @@ fn span_fields(
     Ok(fields)
 }
 
-pub fn enrich_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<(), ProcessingAction> {
-    let Some(db) = database(ctx) else {
-        return Ok(());
-    };
+pub fn enrich_span(
+    span: &mut Annotated<SpanV2>,
+    db: &AsnLookup,
+    ctx: Context<'_>,
+) -> Result<(), ProcessingAction> {
     let Some(span) = span.value_mut() else {
         return Ok(());
     };
@@ -226,10 +231,11 @@ pub fn enrich_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<(),
     Ok(())
 }
 
-pub fn enrich_error(event: &mut Annotated<Event>, ctx: Context<'_>) -> Result<(), ProcessingError> {
-    let Some(db) = database(ctx) else {
-        return Ok(());
-    };
+pub fn enrich_error(
+    event: &mut Annotated<Event>,
+    db: &AsnLookup,
+    ctx: Context<'_>,
+) -> Result<(), ProcessingError> {
     let Some(event) = event.value_mut() else {
         return Ok(());
     };
@@ -328,11 +334,9 @@ fn insert_span_data(target: &mut Annotated<SpanData>, data: SpanData) {
 
 pub fn enrich_transaction(
     event: &mut Annotated<Event>,
+    db: &AsnLookup,
     ctx: Context<'_>,
 ) -> Result<(), ProcessingError> {
-    let Some(db) = database(ctx) else {
-        return Ok(());
-    };
     let Some(event) = event.value_mut() else {
         return Ok(());
     };

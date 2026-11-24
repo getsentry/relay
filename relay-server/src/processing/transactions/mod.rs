@@ -2,10 +2,11 @@ use crate::envelope::{AttachmentItem, ProfileItem, TransactionItem};
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_quotas::RateLimits;
 
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
+use crate::processing::client_asn;
 use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
 use crate::processing::utils::attachments;
@@ -68,14 +69,20 @@ impl OutcomeError for Error {
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: CityLookup,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl TransactionProcessor {
     /// Creates a new transaction processor.
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: CityLookup) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geoip_lookup: CityLookup,
+        asn_lookup: Option<AsnLookup>,
+    ) -> Self {
         Self {
             limiter,
             geoip_lookup,
+            asn_lookup,
         }
     }
 }
@@ -178,10 +185,11 @@ impl Processor for TransactionProcessor {
 
         debug_assert!(tx.flags.fully_normalized);
 
-        tx.try_modify(|tx, _| {
-            crate::processing::client_asn::enrich_transaction(&mut tx.event, ctx)
-                .map_err(Error::from)
-        })?;
+        if let Some(lookup) = client_asn::project_lookup(self.asn_lookup.as_ref(), ctx) {
+            tx.try_modify(|tx, _| {
+                client_asn::enrich_transaction(&mut tx.event, lookup, ctx).map_err(Error::from)
+            })?;
+        }
         let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);
         let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
 

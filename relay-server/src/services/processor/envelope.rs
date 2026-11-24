@@ -465,7 +465,6 @@ struct InnerProcessor {
     addrs: Addrs,
     metric_outcomes: MetricOutcomes,
     processor: RelayProcessor,
-    asn_lookup: Option<AsnLookup>,
 }
 
 impl InnerProcessor {
@@ -510,11 +509,11 @@ impl InnerProcessor {
         Self {
             global_config,
             project_cache,
-            asn_lookup,
             processor: RelayProcessor::new(
                 cogs.clone(),
                 &quota_limiter,
                 &city_lookup,
+                asn_lookup,
                 addrs.outcome_aggregator.clone(),
             ),
             cogs,
@@ -601,7 +600,6 @@ impl InnerProcessor {
         let ctx = processing::Context {
             config: &config,
             global_config: &global_config,
-            asn_lookup: self.asn_lookup.as_ref(),
             project_info: &message.project_info,
             sampling_project_info: message.sampling_project_info.as_deref(),
             rate_limits: &message.rate_limits,
