@@ -16,23 +16,33 @@ use relay_protocol::{Annotated, Value};
 
 use crate::processing::{Context, utils};
 use crate::services::processor::ProcessingError;
+use crate::services::projects::project::ProjectInfo;
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-/// Whether project settings allow client ASN enrichment on this Relay.
-pub fn is_enabled(ctx: Context<'_>) -> bool {
-    ctx.is_processing()
-        && ctx.project_info.has_feature(Feature::ClientAsnLookup)
-        && !ctx
-            .project_info
-            .config
-            .datascrubbing_settings
-            .scrub_ip_addresses
+/// ASN processing selected from the Relay and project configuration.
+#[derive(Clone, Copy)]
+pub enum Mode<'a> {
+    Lookup,
+    LookupWithPii(&'a ProjectInfo),
 }
 
-fn has_pii(ctx: Context<'_>) -> bool {
-    let config = &ctx.project_info.config;
-    config.pii_config.is_some() || config.datascrubbing_settings.pii_config().is_some()
+impl<'a> Mode<'a> {
+    pub fn for_project(ctx: Context<'a>) -> Option<Self> {
+        let config = &ctx.project_info.config;
+        if !ctx.is_processing()
+            || !ctx.project_info.has_feature(Feature::ClientAsnLookup)
+            || config.datascrubbing_settings.scrub_ip_addresses
+        {
+            return None;
+        }
+
+        if config.pii_config.is_some() || config.datascrubbing_settings.pii_config().is_some() {
+            Some(Self::LookupWithPii(ctx.project_info))
+        } else {
+            Some(Self::Lookup)
+        }
+    }
 }
 
 fn redacted<T>(value: &Annotated<T>) -> bool {
@@ -148,9 +158,9 @@ fn span_address(source: SpanSource<'_>) -> Option<SpanAddress<'_>> {
     Some(SpanAddress { ip, key, text })
 }
 
-fn scrub_span_attributes(
+pub fn scrub_span_attributes(
     attrs: Attributes,
-    ctx: Context<'_>,
+    project: &ProjectInfo,
 ) -> Result<Attributes, ProcessingAction> {
     // Use the real span schema so object selectors and legacy value selectors see
     // their usual paths. Only these attributes go through the scrubber.
@@ -158,7 +168,7 @@ fn scrub_span_attributes(
         attributes: Annotated::new(attrs),
         ..Default::default()
     });
-    let config = &ctx.project_info.config;
+    let config = &project.config;
     relay_pii::eap::scrub(
         ValueType::Span,
         &mut span,
@@ -171,51 +181,20 @@ fn scrub_span_attributes(
         .unwrap_or_default())
 }
 
-fn span_fields(
-    db: &AsnLookup,
-    source: SpanSource<'_>,
-    ctx: Context<'_>,
-    apply_pii: bool,
-) -> Result<Attributes, ProcessingAction> {
-    let extracted = !matches!(source, SpanSource::Standalone(_));
-    let Some(address) = span_address(source) else {
-        return Ok(Attributes::new());
-    };
-
-    // Extracted spans do not pass through the standalone span scrubber. Check
-    // its source selectors before lookup as well as the transaction's own rules.
-    if extracted && apply_pii {
-        let mut source_attr = Attributes::new();
-        source_attr.insert(address.key, address.text);
-        let scrubbed = scrub_span_attributes(source_attr, ctx)?;
-        if scrubbed
-            .0
-            .get(address.key)
-            .and_then(attribute_value)
-            .and_then(|value| value.as_str())
-            != Some(address.text)
-        {
-            return Ok(Attributes::new());
-        }
-    }
-
+fn lookup_fields(db: &AsnLookup, ip: IpAddr) -> Option<Attributes> {
+    let (number, organization) = db.lookup(ip)?;
     let mut fields = Attributes::new();
-    if let Some((number, organization)) = db.lookup(address.ip) {
-        fields.insert(CLIENT__AS__NUMBER, i64::from(number));
-        if let Some(organization) = organization {
-            fields.insert(CLIENT__AS__ORGANIZATION, organization);
-        }
-        if apply_pii {
-            return scrub_span_attributes(fields, ctx);
-        }
+    fields.insert(CLIENT__AS__NUMBER, i64::from(number));
+    if let Some(organization) = organization {
+        fields.insert(CLIENT__AS__ORGANIZATION, organization);
     }
-    Ok(fields)
+    Some(fields)
 }
 
 pub fn enrich_span(
     span: &mut Annotated<SpanV2>,
     db: &AsnLookup,
-    ctx: Context<'_>,
+    prepare: impl FnOnce(Attributes) -> Result<Attributes, ProcessingAction>,
 ) -> Result<(), ProcessingAction> {
     let Some(span) = span.value_mut() else {
         return Ok(());
@@ -226,9 +205,11 @@ pub fn enrich_span(
     let Some(attrs) = span.attributes.value_mut() else {
         return Ok(());
     };
-    if !ASN_KEYS.iter().any(|key| attrs.contains_key(*key)) {
-        let fields = span_fields(db, SpanSource::Standalone(attrs), ctx, has_pii(ctx))?;
-        attrs.0.extend(fields);
+    if !ASN_KEYS.iter().any(|key| attrs.contains_key(*key))
+        && let Some(address) = span_address(SpanSource::Standalone(attrs))
+        && let Some(fields) = lookup_fields(db, address.ip)
+    {
+        attrs.0.extend(prepare(fields)?);
     }
     Ok(())
 }
@@ -236,7 +217,7 @@ pub fn enrich_span(
 pub fn enrich_error(
     event: &mut Annotated<Event>,
     db: &AsnLookup,
-    ctx: Context<'_>,
+    mode: Mode<'_>,
 ) -> Result<(), ProcessingError> {
     let Some(event) = event.value_mut() else {
         return Ok(());
@@ -267,12 +248,12 @@ pub fn enrich_error(
             Annotated::new(organization.chars().take(200).collect()),
         );
     }
-    if has_pii(ctx) {
+    if let Mode::LookupWithPii(project) = mode {
         let mut fields = Annotated::new(Event {
             tags: Annotated::new(tags),
             ..Default::default()
         });
-        utils::event::scrub_pii(&mut fields, ProcessingState::root(), ctx.project_info)?;
+        utils::event::scrub_pii(&mut fields, ProcessingState::root(), project)?;
         let Some(scrubbed) = fields
             .into_value()
             .and_then(|event| event.tags.into_value())
@@ -310,20 +291,83 @@ fn has_asn_measurement(measurements: &Annotated<Measurements>) -> bool {
             .is_some_and(|m| ASN_KEYS.iter().any(|key| m.contains_key(*key)))
 }
 
-fn transaction_data(
-    db: &AsnLookup,
-    source: SpanSource<'_>,
-    ctx: Context<'_>,
-    apply_pii: bool,
-) -> Result<Option<SpanData>, ProcessingAction> {
-    let fields = span_fields(db, source, ctx, apply_pii)?;
-    let data = SpanData {
+fn span_data(fields: Attributes) -> SpanData {
+    SpanData {
         other: fields
             .into_iter()
             .filter_map(|(key, attr)| Some((key, attr.into_value()?.value.value)))
             .collect(),
+    }
+}
+
+enum TransactionTarget {
+    Segment,
+    Child(usize),
+}
+
+fn scrubbed_transaction_data(
+    db: &AsnLookup,
+    address: SpanAddress<'_>,
+    target: TransactionTarget,
+    project: &ProjectInfo,
+) -> Result<SpanData, ProcessingAction> {
+    // Extracted spans do not pass through the standalone span scrubber.
+    let mut source = Attributes::new();
+    source.insert(address.key, address.text);
+    let scrubbed = scrub_span_attributes(source, project)?;
+    if scrubbed
+        .0
+        .get(address.key)
+        .and_then(attribute_value)
+        .and_then(|v| v.as_str())
+        != Some(address.text)
+    {
+        return Ok(SpanData::default());
+    }
+
+    let Some(fields) = lookup_fields(db, address.ip) else {
+        return Ok(SpanData::default());
     };
-    Ok((!data.other.is_empty()).then_some(data))
+    let data = span_data(scrub_span_attributes(fields, project)?);
+    if data.other.is_empty() {
+        return Ok(data);
+    }
+
+    // Apply transaction selectors at the path where the derived fields will be stored.
+    match target {
+        TransactionTarget::Segment => {
+            let mut contexts = Contexts::new();
+            contexts.add(TraceContext {
+                data: Annotated::new(data),
+                ..Default::default()
+            });
+            let mut fields = Annotated::new(Event {
+                contexts: Annotated::new(contexts),
+                ..Default::default()
+            });
+            utils::event::scrub_pii(&mut fields, ProcessingState::root(), project)?;
+            Ok(fields
+                .value_mut()
+                .as_mut()
+                .and_then(Event::context_mut::<TraceContext>)
+                .and_then(|trace| trace.data.value_mut().take())
+                .unwrap_or_default())
+        }
+        TransactionTarget::Child(index) => {
+            let mut fields = Annotated::new(Span {
+                data: Annotated::new(data),
+                ..Default::default()
+            });
+            let array = ProcessingState::root().enter_borrowed("spans", None, [ValueType::Array]);
+            let state =
+                array.enter_index(index, array.inner_attrs(), ValueType::for_field(&fields));
+            utils::event::scrub_pii(&mut fields, &state, project)?;
+            Ok(fields
+                .into_value()
+                .and_then(|span| span.data.into_value())
+                .unwrap_or_default())
+        }
+    }
 }
 
 fn insert_span_data(target: &mut Annotated<SpanData>, data: SpanData) {
@@ -338,40 +382,38 @@ fn insert_span_data(target: &mut Annotated<SpanData>, data: SpanData) {
 pub fn enrich_transaction(
     event: &mut Annotated<Event>,
     db: &AsnLookup,
-    ctx: Context<'_>,
+    mode: Mode<'_>,
 ) -> Result<(), ProcessingError> {
     let Some(event) = event.value_mut() else {
         return Ok(());
     };
-    let apply_pii = has_pii(ctx);
+    match mode {
+        Mode::Lookup => enrich_transaction_fields(event, |address, _| {
+            Ok(lookup_fields(db, address.ip)
+                .map(span_data)
+                .unwrap_or_default())
+        }),
+        Mode::LookupWithPii(project) => enrich_transaction_fields(event, |address, target| {
+            scrubbed_transaction_data(db, address, target, project)
+        }),
+    }
+}
+
+fn enrich_transaction_fields(
+    event: &mut Event,
+    fields: impl Fn(SpanAddress<'_>, TransactionTarget) -> Result<SpanData, ProcessingAction>,
+) -> Result<(), ProcessingError> {
     if !has_asn_tags(event)
         && !has_asn_measurement(&event.measurements)
         && let Some(trace) = event.context::<TraceContext>()
         && !has_asn_data(&trace.data)
-        && let Some(mut data) = transaction_data(db, SpanSource::Segment(event), ctx, apply_pii)?
-        && let Some(trace) = event.context_mut::<TraceContext>()
+        && let Some(address) = span_address(SpanSource::Segment(event))
     {
-        if apply_pii {
-            let mut contexts = Contexts::new();
-            contexts.add(TraceContext {
-                data: Annotated::new(data),
-                ..Default::default()
-            });
-            let mut fields = Annotated::new(Event {
-                contexts: Annotated::new(contexts),
-                ..Default::default()
-            });
-            utils::event::scrub_pii(&mut fields, ProcessingState::root(), ctx.project_info)?;
-            data = fields
-                .value_mut()
-                .as_mut()
-                .and_then(Event::context_mut::<TraceContext>)
-                .and_then(|trace| trace.data.value_mut().take())
-                .unwrap_or_default();
+        let data = fields(address, TransactionTarget::Segment)?;
+        if let Some(trace) = event.context_mut::<TraceContext>() {
+            insert_span_data(&mut trace.data, data);
         }
-        insert_span_data(&mut trace.data, data);
     }
-    let array = ProcessingState::root().enter_borrowed("spans", None, [ValueType::Array]);
     for (index, span) in event.spans.value_mut().iter_mut().flatten().enumerate() {
         let Some(span) = span.value_mut() else {
             continue;
@@ -385,23 +427,10 @@ pub fn enrich_transaction(
         {
             continue;
         }
-        let Some(mut data) = transaction_data(db, SpanSource::Child(span), ctx, apply_pii)? else {
+        let Some(address) = span_address(SpanSource::Child(span)) else {
             continue;
         };
-        if apply_pii {
-            // Preserve the real array index for rules such as spans.1.data.*.
-            let mut fields = Annotated::new(Span {
-                data: Annotated::new(data),
-                ..Default::default()
-            });
-            let state =
-                array.enter_index(index, array.inner_attrs(), ValueType::for_field(&fields));
-            utils::event::scrub_pii(&mut fields, &state, ctx.project_info)?;
-            let Some(scrubbed) = fields.into_value().and_then(|span| span.data.into_value()) else {
-                continue;
-            };
-            data = scrubbed;
-        }
+        let data = fields(address, TransactionTarget::Child(index))?;
         insert_span_data(&mut span.data, data);
     }
     Ok(())

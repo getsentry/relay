@@ -185,9 +185,9 @@ impl Processor for TransactionProcessor {
 
         debug_assert!(tx.flags.fully_normalized);
 
-        if client_asn::is_enabled(ctx) {
+        if let Some(mode) = client_asn::Mode::for_project(ctx) {
             tx.try_modify(|tx, _| {
-                client_asn::enrich_transaction(&mut tx.event, &self.asn_lookup, ctx)
+                client_asn::enrich_transaction(&mut tx.event, &self.asn_lookup, mode)
                     .map_err(Error::from)
             })?;
         }

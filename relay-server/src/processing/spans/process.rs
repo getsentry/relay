@@ -4,7 +4,7 @@ use std::time::Duration;
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{Ingress, Pipeline};
 use relay_event_normalization::{AsnLookup, CityLookup, RequiredMode, SchemaProcessor, eap};
-use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
+use relay_event_schema::processor::{ProcessingResult, ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
@@ -328,12 +328,27 @@ pub fn normalize_derived(
     asn_lookup: &AsnLookup,
     ctx: Context<'_>,
 ) {
-    let enrich_asn = client_asn::is_enabled(ctx);
+    match client_asn::Mode::for_project(ctx) {
+        None => normalize_batch(spans, ctx, |_| Ok(())),
+        Some(client_asn::Mode::Lookup) => normalize_batch(spans, ctx, |span| {
+            client_asn::enrich_span(span, asn_lookup, Ok)
+        }),
+        Some(client_asn::Mode::LookupWithPii(project)) => normalize_batch(spans, ctx, |span| {
+            client_asn::enrich_span(span, asn_lookup, |attrs| {
+                client_asn::scrub_span_attributes(attrs, project)
+            })
+        }),
+    }
+}
+
+fn normalize_batch(
+    spans: &mut Managed<ExpandedSpans>,
+    ctx: Context<'_>,
+    enrich: impl Fn(&mut Annotated<SpanV2>) -> ProcessingResult,
+) {
     let settings = spans.settings;
     let normalize = |span: &mut Annotated<SpanV2>| -> Result<()> {
-        if enrich_asn {
-            client_asn::enrich_span(span, asn_lookup, ctx)?;
-        }
+        enrich(span)?;
         normalize_span_derived(span, settings, ctx)
     };
     spans.retain_with_context(
