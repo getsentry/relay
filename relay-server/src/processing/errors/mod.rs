@@ -149,7 +149,7 @@ impl processing::Processor for ErrorsProcessor {
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 
         process::scrub(&mut error, ctx)?;
-        if client_asn::is_enabled(&self.asn_lookup, ctx) {
+        if client_asn::is_enabled(ctx) {
             error.try_modify(|error, _| {
                 client_asn::enrich_error(&mut error.event, &self.asn_lookup, ctx)
                     .map_err(Error::from)

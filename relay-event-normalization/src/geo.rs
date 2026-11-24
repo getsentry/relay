@@ -52,11 +52,6 @@ impl<E: Edition> Lookup<E> {
         Self::default()
     }
 
-    /// Whether a database is available for lookups.
-    pub fn is_loaded(&self) -> bool {
-        self.reader.is_some()
-    }
-
     /// Unix timestamp when the database was built.
     pub fn build_epoch(&self) -> Option<UnixTimestamp> {
         Some(UnixTimestamp::from_secs(

@@ -328,7 +328,7 @@ pub fn normalize_derived(
     asn_lookup: &AsnLookup,
     ctx: Context<'_>,
 ) {
-    let enrich_asn = client_asn::is_enabled(asn_lookup, ctx);
+    let enrich_asn = client_asn::is_enabled(ctx);
     let settings = spans.settings;
     let normalize = |span: &mut Annotated<SpanV2>| -> Result<()> {
         if enrich_asn {
