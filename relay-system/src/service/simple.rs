@@ -22,6 +22,7 @@ impl<T: MessageHandler + Send + 'static> Service for SimpleService<T> {
         while let Some(message) = rx.recv().await {
             self.0.handle_message(message).await;
         }
+        self.0.on_exit().await;
     }
 }
 
@@ -32,6 +33,16 @@ pub trait MessageHandler {
 
     /// The asynchronous message handler for this service.
     fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send;
+
+    /// Runs after the service loop.
+    fn on_exit(&self) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+
+    /// The name of the message handler.
+    fn name() -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 impl<T: MessageHandler + ?Sized> MessageHandler for Arc<T> {
@@ -39,5 +50,13 @@ impl<T: MessageHandler + ?Sized> MessageHandler for Arc<T> {
 
     fn handle_message(&self, message: Self::Interface) -> impl Future<Output = ()> + Send {
         self.as_ref().handle_message(message)
+    }
+
+    fn on_exit(&self) -> impl Future<Output = ()> + Send {
+        self.as_ref().on_exit()
+    }
+
+    fn name() -> &'static str {
+        std::any::type_name::<T>() // use inner name
     }
 }

@@ -177,6 +177,9 @@ pub enum UnpackError {
     /// Raised on unpacking if the data carries an invalid timestamp.
     #[error("{0}")]
     Time(#[from] TimeError),
+    /// Raised if the Relay ID in a register response does not match the signed register state.
+    #[error("relay id does not match the register challenge")]
+    RelayIdMismatch,
 }
 
 impl From<SignatureError> for UnpackError {
@@ -751,6 +754,8 @@ pub struct RegisterResponse {
 
 impl RegisterResponse {
     /// Unpacks the register response and validates signatures.
+    ///
+    /// The Relay ID of the response must match the Relay ID in the signed register state.
     pub fn unpack(
         data: &[u8],
         signature: SignatureRef<'_>,
@@ -764,6 +769,10 @@ impl RegisterResponse {
         let _verified = state
             .public_key()
             .verify(data, signature, start_time, max_age)?;
+
+        if response.relay_id != state.relay_id() {
+            return Err(UnpackError::RelayIdMismatch);
+        }
 
         Ok((response, state))
     }
@@ -996,6 +1005,31 @@ mod tests {
         assert_eq!(response.relay_id(), relay_id);
         assert_eq!(response.token(), challenge_token);
         assert_eq!(response.version, LATEST_VERSION);
+    }
+
+    #[test]
+    fn test_registration_relay_id_mismatch() {
+        let max_age = Duration::minutes(15);
+        let upstream_secret = b"secret";
+        let (sk, pk) = generate_key_pair();
+
+        let request = RegisterRequest::new(&generate_relay_id(), &pk);
+        let challenge = request.into_challenge(upstream_secret);
+
+        // Respond to the challenge with a different Relay ID than the one it was issued for.
+        let mut response = challenge.into_response();
+        response.relay_id = generate_relay_id();
+
+        let (response_bytes, response_sig) = sk.pack(response);
+        let result = RegisterResponse::unpack(
+            &response_bytes,
+            response_sig.as_signature_ref(),
+            upstream_secret,
+            Utc::now(),
+            max_age,
+        );
+
+        assert!(matches!(result, Err(UnpackError::RelayIdMismatch)));
     }
 
     /// This is a pseudo-test to easily generate the strings used by test_auth.py

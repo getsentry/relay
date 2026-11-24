@@ -19,6 +19,7 @@ mod legacy;
 mod minidumps;
 mod processor;
 mod redactions;
+mod regex;
 mod regexes;
 mod selector;
 mod utils;

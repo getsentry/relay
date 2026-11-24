@@ -1,8 +1,10 @@
 //! Utility methods for native event processing.
 //!
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
-//! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
+//! payloads. See [`process_minidump`], [`process_apple_crash_report`] and [`process_gpu_crash`] for
+//! more information.
 
+use crate::envelope::AttachmentItem;
 use std::collections::BTreeMap;
 use std::error::Error;
 
@@ -15,8 +17,6 @@ use relay_event_schema::protocol::{
     StabilityReportContext, Values,
 };
 use relay_protocol::{Annotated, Value, get_value};
-
-use crate::envelope::{Item, ItemType};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -38,8 +38,8 @@ struct NativePlaceholder {
     mechanism_type: &'static str,
 }
 
-/// Writes a placeholder to indicate that this event has an associated minidump or an apple
-/// crash report.
+/// Writes a placeholder to indicate that this event has an associated minidump, apple crash
+/// report or GPU crash.
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
@@ -223,8 +223,7 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, item: &Item) {
-    debug_assert_eq!(item.ty(), &ItemType::Attachment);
+pub fn process_minidump(event: &mut Event, item: &AttachmentItem) {
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
@@ -243,7 +242,7 @@ pub fn process_minidump(event: &mut Event, item: &Item) {
         return;
     }
 
-    let data = item.payload();
+    let data = item.data().payload();
     let minidump = match Minidump::read(&data) {
         Ok(minidump) => minidump,
         Err(err) => {
@@ -302,11 +301,23 @@ pub fn process_apple_crash_report(event: &mut Event) {
     write_native_placeholder(event, placeholder);
 }
 
+/// Writes the placeholder exception for a GPU crash into the event.
+///
+/// Sentry replaces this exception after it symbolicates the dump.
+pub fn process_gpu_crash(event: &mut Event) {
+    let placeholder = NativePlaceholder {
+        exception_type: "GpuCrash",
+        exception_value: "Unprocessed GPU Crash",
+        mechanism_type: "gpu_crash",
+    };
+    write_native_placeholder(event, placeholder);
+}
+
 /// Reshapes a Switch crash so it renders the same as crashes on other platforms.
 ///
 /// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
 ///  its exception `type` is the raw abort result code (for example
-/// `2168-0002 ResultAccessViolationData`).
+/// `2168-0002 SyntheticTestResult`).
 ///
 /// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
 /// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
@@ -315,6 +326,7 @@ pub fn process_apple_crash_report(event: &mut Event) {
 ///
 /// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
 /// subtitle.
+#[cfg(sentry)]
 pub fn reshape_switch_crash(event: &mut Event) {
     // Sentry derives the issue title from the last exception in the list (see `_get_exception`
     // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.
@@ -355,10 +367,7 @@ mod tests {
         .unwrap();
         let source = get_value!(event.exceptions.values[1]!).clone();
 
-        process_minidump(
-            event.value_mut().as_mut().unwrap(),
-            &Item::new(ItemType::Attachment),
-        );
+        process_minidump(event.value_mut().as_mut().unwrap(), &AttachmentItem::new());
 
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert_eq!(placeholder.thread_id, source.thread_id);
@@ -387,10 +396,7 @@ mod tests {
         .unwrap();
         let source = get_value!(event.exceptions.values[1]!).clone();
 
-        process_minidump(
-            event.value_mut().as_mut().unwrap(),
-            &Item::new(ItemType::Attachment),
-        );
+        process_minidump(event.value_mut().as_mut().unwrap(), &AttachmentItem::new());
 
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert!(placeholder.thread_id.value().is_none());
@@ -411,5 +417,46 @@ mod tests {
         process_apple_crash_report(event.value_mut().as_mut().unwrap());
 
         assert!(get_value!(event.exceptions.values[0].thread_id).is_none());
+    }
+
+    #[test]
+    fn test_gpu_crash_placeholder_without_event() {
+        let mut event = Event::default();
+
+        process_gpu_crash(&mut event);
+
+        let event = Annotated::new(event);
+        assert_eq!(get_value!(event.platform!), "native");
+        assert_eq!(get_value!(event.level), Some(&Level::Fatal));
+        assert_eq!(get_value!(event.exceptions.values!).len(), 1);
+        assert_eq!(get_value!(event.exceptions.values[0].ty!), "GpuCrash");
+        assert_eq!(
+            get_value!(event.exceptions.values[0].value!).as_str(),
+            "Unprocessed GPU Crash"
+        );
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.ty!),
+            "gpu_crash"
+        );
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.synthetic),
+            Some(&true)
+        );
+    }
+
+    #[test]
+    fn test_gpu_crash_placeholder_precedes_client_exceptions() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"level":"error","exception":{"values":[{"type":"Other","thread_id":42}]}}"#,
+        )
+        .unwrap();
+
+        process_gpu_crash(event.value_mut().as_mut().unwrap());
+
+        assert_eq!(get_value!(event.level), Some(&Level::Error));
+        assert_eq!(get_value!(event.exceptions.values!).len(), 2);
+        assert_eq!(get_value!(event.exceptions.values[0].ty!), "GpuCrash");
+        assert!(get_value!(event.exceptions.values[0].thread_id).is_none());
+        assert_eq!(get_value!(event.exceptions.values[1].ty!), "Other");
     }
 }

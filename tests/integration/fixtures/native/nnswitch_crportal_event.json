@@ -7,8 +7,8 @@
   "exception": {
     "values": [
       {
-        "type": "2168-0002 ResultAccessViolationData",
-        "value": "Data access to an invalid memory region was performed. (2: Access Violation Data)",
+        "type": "2168-0002 SyntheticTestResult",
+        "value": "Synthetic test description. (2: Synthetic Test Code)",
         "mechanism": {
           "type": "2168-0002",
           "handled": false
@@ -17,16 +17,16 @@
         "stacktrace": {
           "frames": [
             {
-              "package": "nnrtld",
+              "package": "libruntime",
               "instruction_addr": "0x00000077616ba2e4"
             },
             {
-              "package": "nnSdk",
-              "function": "nn::init::Start",
+              "package": "libplatform",
+              "function": "platform::init::Start",
               "instruction_addr": "0x0000007761723f10"
             },
             {
-              "package": "SentryIntegrationTest.nss",
+              "package": "SentryIntegrationTest",
               "filename": "main.cpp",
               "function": "nnMain",
               "lineno": 173,
@@ -36,7 +36,7 @@
                 "current_core": 0,
                 "exception_address": "0x0000000000000000",
                 "exception_code": 2,
-                "exception_code_description": "Access Violation Data",
+                "exception_code_description": "Synthetic Test Code",
                 "exception_thread": "8440",
                 "ideal_core": 0,
                 "lr_called": true,
@@ -59,16 +59,16 @@
         "stacktrace": {
           "frames": [
             {
-              "package": "nnrtld",
+              "package": "libruntime",
               "instruction_addr": "0x00000077616ba2e4"
             },
             {
-              "package": "nnSdk",
-              "function": "nn::init::Start",
+              "package": "libplatform",
+              "function": "platform::init::Start",
               "instruction_addr": "0x0000007761723f10"
             },
             {
-              "package": "SentryIntegrationTest.nss",
+              "package": "SentryIntegrationTest",
               "filename": "main.cpp",
               "function": "nnMain",
               "lineno": 173,

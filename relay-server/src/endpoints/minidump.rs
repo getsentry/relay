@@ -3,7 +3,7 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use futures::{self, Stream, StreamExt, TryStreamExt};
-use multer::{Field, Multipart};
+use multra::{Field, Multipart};
 use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
@@ -18,7 +18,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::constants;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
+use crate::envelope::{AttachmentItem, AttachmentType, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -27,8 +27,8 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardRe
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ByteStream, ProjectContext, Upload};
 use crate::utils::{
-    self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
-    read_bytes_into_item, read_field_into_item,
+    self, AttachmentStrategy, MultipartItems, SizeSplit, find_error_source, is_length_limit_error,
+    peek_n, read_bytes_into_item, read_field_into_item,
 };
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -230,18 +230,24 @@ struct UploadContext<'a> {
 }
 
 impl UploadContext<'_> {
-    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
+    fn upload_decision(&self, attachment_type: AttachmentType) -> &UploadDecision {
         match attachment_type {
-            Some(AttachmentType::Attachment) => &self.upload_attachments,
+            AttachmentType::Attachment => &self.upload_attachments,
             // GPU dumps are smaller than minidumps. We still stream them under the same
             // decision instead of inlining them into the envelope.
-            Some(
-                AttachmentType::Minidump
-                | AttachmentType::NvGpuDump
-                | AttachmentType::NvShaderDebug
-                | AttachmentType::CompiledShader,
-            ) => &self.upload_minidumps,
-            _ => &UploadDecision::Inline,
+            AttachmentType::Minidump
+            | AttachmentType::NvGpuDump
+            | AttachmentType::NvShaderDebug
+            | AttachmentType::CompiledShader => &self.upload_minidumps,
+            AttachmentType::AppleCrashReport
+            | AttachmentType::EventPayload
+            | AttachmentType::Breadcrumbs
+            | AttachmentType::Prosperodump
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::UnrealContext
+            | AttachmentType::UnrealLogs
+            | AttachmentType::ViewHierarchy
+            | AttachmentType::Flamegraph => &UploadDecision::Inline,
         }
     }
 }
@@ -257,14 +263,14 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Managed<Item>,
+        item: Managed<AttachmentItem>,
         config: &ConfigSnapshot,
-    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
-        let read_inline = async |field: Field<'static>, item: Managed<Item>| {
-            let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+    ) -> Result<Option<Managed<AttachmentItem>>, BadStoreRequest> {
+        let read_inline = async |field: Field<'static>, item: Managed<AttachmentItem>| {
+            let is_minidump = matches!(item.attachment_type(), AttachmentType::Minidump);
             match read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
-                Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                Err(multra::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
                 r => Ok(Some(r?)),
             }
         };
@@ -278,7 +284,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Upload => {
                 let content_type = field.content_type().map(|ct| ct.as_ref().to_owned());
-                let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+                let is_minidump = matches!(item.attachment_type(), AttachmentType::Minidump);
 
                 match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
                     SizeSplit::Small(bytes) => Ok(Some(read_bytes_into_item(
@@ -347,17 +353,17 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
 pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
-    mut item: Managed<Item>,
+    mut item: Managed<AttachmentItem>,
     config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, BadStoreRequest>
+) -> Result<Managed<AttachmentItem>, BadStoreRequest>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
-    if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
+    if !matches!(item.attachment_type(), AttachmentType::Minidump) {
         return upload_stream(
             stream,
             content_type,
@@ -406,7 +412,7 @@ async fn multipart_to_items(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
     let config = state.config();
 
@@ -419,19 +425,17 @@ async fn multipart_to_items(
     )
     .await?;
 
-    let minidump_idx = items
+    let (minidump_idx, minidump_item) = items
+        .attachments
         .iter()
-        .position(|item| item.attachment_type() == Some(AttachmentType::Minidump))
+        .enumerate()
+        .find(|(_, item)| item.attachment_type() == AttachmentType::Minidump)
         .ok_or(BadStoreRequest::MissingMinidump)
         .reject(&items)?;
 
-    let minidump_item = items
-        .get(minidump_idx)
-        .ok_or(BadStoreRequest::MissingMinidump)
-        .reject(&items)?;
     // Doing these operations does not make sense if we already streamed the minidump to objectstore.
     if !minidump_item.is_attachment_ref() {
-        let payload = minidump_item.payload();
+        let payload = minidump_item.data().payload();
         let payload = extract_embedded_minidump(payload.clone())
             .await
             .reject(&items)?
@@ -441,15 +445,18 @@ async fn multipart_to_items(
             .reject(&items)?;
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
-            let minidump_item = items
-                .get_mut(minidump_idx)
-                .ok_or(BadStoreRequest::MissingMinidump)?;
-            minidump_item.set_payload(ContentType::Minidump, payload);
+            let Some(minidump_item) = items.attachments.get_mut(minidump_idx) else {
+                return Err(BadStoreRequest::MissingMinidump);
+            };
+            minidump_item
+                .data_mut()
+                .set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             if let Some(minidump_filename) = minidump_item.filename() {
-                minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned())
+                let filename = remove_container_extension(minidump_filename).to_owned();
+                minidump_item.set_filename(filename)
             }
-            validate_minidump(&minidump_item.payload())?;
+            validate_minidump(&minidump_item.data().payload())?;
             Ok(())
         })?;
     }
@@ -534,13 +541,13 @@ async fn raw_minidump_to_item(
     meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Item>, BadStoreRequest> {
+) -> Result<Managed<AttachmentItem>, BadStoreRequest> {
     debug_assert!(!matches!(
         upload_context.as_ref().map(|c| &c.upload_minidumps),
         Some(UploadDecision::Drop(_))
     ));
 
-    let mut item = Item::new(ItemType::Attachment);
+    let mut item = AttachmentItem::new();
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
     let mut item = Managed::with_meta_from_request_meta(meta, state.outcome_aggregator(), item);
@@ -558,9 +565,9 @@ async fn raw_minidump_to_item(
                     .await
                     .reject(&item)?;
                 item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-                    inner.set_payload(ContentType::Minidump, payload);
+                    inner.data_mut().set_payload(ContentType::Minidump, payload);
                     records.lenient(DataCategory::Attachment); // decoding changes its size
-                    validate_minidump(&inner.payload())?;
+                    validate_minidump(&inner.data().payload())?;
                     Ok(())
                 })?;
             }
@@ -595,9 +602,9 @@ async fn raw_minidump_to_item(
             .await
             .reject(&item)?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-            inner.set_payload(ContentType::Minidump, payload);
+            inner.data_mut().set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
-            validate_minidump(&inner.payload())?;
+            validate_minidump(&inner.data().payload())?;
             Ok(())
         })?;
     };
@@ -611,11 +618,14 @@ async fn items(
     meta: &RequestMeta,
     content_type: RawContentType,
     request: Request,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<MultipartItems>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         raw_minidump_to_item(request, meta, state, upload_context)
             .await?
-            .map(|item, _| smallvec![item])
+            .map(|item, _| MultipartItems {
+                attachments: smallvec![item],
+                form_data: None,
+            })
     } else {
         let multipart = utils::multipart_from_request(request)?;
         multipart_to_items(multipart, meta, state, upload_context).await?
@@ -662,6 +672,7 @@ async fn handle(
         .reject(&managed_err)?;
 
     let mut envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let items = items.into_items();
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
         Ok::<_, BadStoreRequest>(Box::new(envelope))
@@ -707,8 +718,8 @@ pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::ContentType;
-    use crate::utils::FormDataIter;
+    use std::io::Write;
+
     use axum::body::Body;
     use bzip2::Compression as BzCompression;
     use bzip2::write::BzEncoder;
@@ -716,10 +727,12 @@ mod tests {
     use flate2::write::GzEncoder;
     use liblzma::write::XzEncoder;
     use relay_config::Config;
-    use std::io::Write;
     use zstd::stream::Encoder as ZstdEncoder;
 
     use super::*;
+    use crate::envelope::{ContentType, Item};
+    use crate::managed::Counted;
+    use crate::utils::FormDataIter;
 
     #[test]
     fn test_validate_minidump() {
@@ -925,66 +938,86 @@ mod tests {
         // * one event file
         // * one form-data item
         // * one view-hierarchy file
-        assert_eq!(6, items.len());
+        assert_eq!(5, items.attachments.len());
+        assert!(items.form_data.is_some());
 
         // `config.json` has no content-type. MIME-detection in later processing will assign this.
-        let item = &items[0];
+        let item = &items.attachments[0];
         assert_eq!(item.filename().unwrap(), "config.json");
-        assert!(item.content_type().is_none());
-        assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Attachment);
-        assert_eq!(item.payload().len(), 95);
+        assert!(item.data().content_type().is_none());
+        assert_eq!(item.attachment_type(), AttachmentType::Attachment);
+        assert_eq!(item.data().payload().len(), 95);
 
         // the first breadcrumb buffer
-        let item = &items[1];
+        let item = &items.attachments[1];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
-        assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-        assert_eq!(item.payload().len(), 66);
+        assert_eq!(
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
+        );
+        assert_eq!(item.attachment_type(), AttachmentType::Breadcrumbs);
+        assert_eq!(item.data().payload().len(), 66);
 
         // the second breadcrumb buffer is empty since we haven't reached our max in the first
-        let item = &items[2];
+        let item = &items.attachments[2];
         assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
-        assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-        assert_eq!(item.payload().len(), 0);
+        assert_eq!(
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
+        );
+        assert_eq!(item.attachment_type(), AttachmentType::Breadcrumbs);
+        assert_eq!(item.data().payload().len(), 0);
 
         // the msg-pack encoded event file
-        let item = &items[3];
+        let item = &items.attachments[3];
         assert_eq!(item.filename().unwrap(), "__sentry-event");
-        assert_eq!(item.content_type().unwrap(), ContentType::OctetStream);
-        assert_eq!(item.ty(), &ItemType::Attachment);
         assert_eq!(
-            item.attachment_type().unwrap(),
-            AttachmentType::EventPayload
+            item.data().content_type().unwrap(),
+            ContentType::OctetStream
         );
-        assert_eq!(item.payload().len(), 29);
+        assert_eq!(item.attachment_type(), AttachmentType::EventPayload);
+        assert_eq!(item.data().payload().len(), 29);
 
         // the next item is the view-hierarchy file
-        let item = &items[4];
+        let item = &items.attachments[4];
         assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
-        assert_eq!(item.content_type().unwrap(), ContentType::Json);
-        assert_eq!(item.ty(), &ItemType::Attachment);
-        assert_eq!(
-            item.attachment_type().unwrap(),
-            AttachmentType::ViewHierarchy
-        );
-        assert_eq!(item.payload().len(), 184);
+        assert_eq!(item.data().content_type().unwrap(), ContentType::Json);
+        assert_eq!(item.attachment_type(), AttachmentType::ViewHierarchy);
+        assert_eq!(item.data().payload().len(), 184);
 
         // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
-        let item = &items[5];
-        assert!(item.filename().is_none());
-        assert_eq!(item.content_type().unwrap(), ContentType::Text);
-        assert_eq!(item.ty(), &ItemType::FormData);
-        assert!(item.attachment_type().is_none());
-        let form_payload = item.payload();
+        let item = items.form_data.as_ref().unwrap();
+        assert_eq!(item.data().content_type().unwrap(), ContentType::Text);
+        let form_payload = item.data().payload();
         let form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
         assert_eq!(form_data_entry.key(), "guid");
         assert_eq!(
             form_data_entry.value(),
             "dd46bb04-bb27-448c-aad0-0deb0c134bdb"
         );
+
+        // Envelope conversion preserves accounting and keeps attachments in order, then form data.
+        let quantities = items.quantities();
+        let items = items.map(|items, _| items.into_items());
+        assert_eq!(items.quantities(), quantities);
+        assert_eq!(items.len(), 6);
+        assert_eq!(
+            items[..5]
+                .iter()
+                .map(|item| match item {
+                    Item::Attachment(attachment) => attachment.filename(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            [
+                Some("config.json"),
+                Some("__sentry-breadcrumb1"),
+                Some("__sentry-breadcrumb2"),
+                Some("__sentry-event"),
+                Some("view-hierarchy.json"),
+            ]
+        );
+        assert!(matches!(&items[5], Item::FormData(_)));
+        assert_eq!(items[5].data().payload(), form_payload);
     }
 }

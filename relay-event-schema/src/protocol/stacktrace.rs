@@ -136,7 +136,7 @@ pub struct Frame {
 
     /// Mapping of local variables and expression names that were available in this frame.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
+    #[metastructure(pii = "true", max_depth = 10, max_bytes = 2048)]
     pub vars: Annotated<FrameVars>,
 
     /// Auxiliary information about the frame that is platform specific.
@@ -379,6 +379,15 @@ pub struct RawStacktrace {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+impl RawStacktrace {
+    /// Number of oldest frames retained when a stack exceeds the frame limit.
+    pub const MAX_OLDEST_FRAMES: usize = 50;
+    /// Number of newest frames retained when a stack exceeds the frame limit.
+    pub const MAX_NEWEST_FRAMES: usize = 200;
+    /// Maximum number of frames retained during normalization.
+    pub const MAX_FRAMES: usize = Self::MAX_OLDEST_FRAMES + Self::MAX_NEWEST_FRAMES;
 }
 
 /// Controls the mechanism by which the `instruction_addr` of a [`Stacktrace`] [`Frame`] is adjusted.

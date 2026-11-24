@@ -198,17 +198,22 @@ impl Service for HealthCheckService {
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + config.health_probe_timeout()).mul_f64(1.1);
 
-        relay_system::spawn!(async move {
+        let update_task = relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
 
             while shutdown.get().is_none() {
-                let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
-                    timer(RelayTimers::HealthCheckDuration),
-                    type = "readiness",
-                    { self.check_readiness().await }
-                )));
-
-                tokio::time::sleep(check_interval).await;
+                tokio::select! {
+                    _ = update_tx.closed() => break,
+                    _ = async {
+                        let check_result = relay_statsd::metric!(
+                            timer(RelayTimers::HealthCheckDuration),
+                            type = "readiness",
+                            { self.check_readiness().await }
+                        );
+                        let _ = update_tx.send(StatusUpdate::new(check_result));
+                        tokio::time::sleep(check_interval).await;
+                    } => {}
+                }
             }
 
             // Shutdown marks readiness health check as unhealthy.
@@ -226,12 +231,69 @@ impl Service for HealthCheckService {
                 update.status
             });
         }
+
+        // Join on the update task:
+        drop(update_rx);
+        let _ = update_task.await;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use relay_system::TokioServiceSpawn;
+
+    use crate::MemoryStat;
+    use crate::services::global_config;
+    use crate::services::projects::cache::ProjectCacheHandle;
+
     use super::*;
+
+    fn dummy_service(upstream: Addr<UpstreamRelay>) -> HealthCheckService {
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "health": { "max_memory_percent": 2.0 }
+            }))
+            .unwrap(),
+        );
+        assert!(config.current().requires_auth());
+        let memory_stat = MemoryStat::default();
+        let (_, global_config_rx) = watch::channel(global_config::Status::Pending);
+        let buffer = PartitionedEnvelopeBuffer::create(
+            1.try_into().unwrap(),
+            config.clone(),
+            memory_stat.clone(),
+            global_config_rx,
+            ProjectCacheHandle::for_test(),
+            Addr::dummy(),
+            Addr::dummy(),
+            &TokioServiceSpawn,
+        );
+        HealthCheckService::new(
+            config.clone(),
+            MemoryChecker::new(memory_stat, config),
+            None,
+            upstream,
+            buffer,
+        )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close_joins_readiness_task() {
+        let (upstream, mut upstream_rx) = Addr::custom();
+        let service = dummy_service(upstream);
+        let buffer = Arc::downgrade(&service.envelope_buffer);
+        let (addr, rx) = relay_system::channel(HealthCheckService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        // Queued requests must still receive responses before the worker is joined.
+        let response = addr.send(IsHealthy::Liveness);
+        drop(addr);
+        run.await;
+        assert!(matches!(response.await.unwrap(), Status::Healthy));
+        assert!(buffer.upgrade().is_none());
+        while upstream_rx.recv().await.is_some() {}
+    }
 
     #[test]
     fn test_status() {

@@ -166,6 +166,12 @@ struct TopicProducer {
     pub rate_limiter: Option<KafkaRateLimits>,
 }
 
+impl TopicProducer {
+    async fn wait_empty(&self) {
+        self.producer.context().inflight().wait_empty().await
+    }
+}
+
 /// Where producers take their initial Kafka config from, and how they reload it.
 #[derive(Debug, Clone, Copy)]
 pub struct KafkaConfigSource<'a> {
@@ -188,6 +194,12 @@ fn reload_config(jitter: Duration) -> ReloadConfig {
         // stall produce for no benefit.
         ignore_key_ordering: true,
         jitter,
+        // A drain timeout drops the old producer during a config reload, dropping its messages
+        // without sending a delivery callback. This leaves the InflightCounter hanging.
+        //
+        // Allow one day for draining to make this unlikely. `Duration::MAX` would overflow
+        // Arroyo's deadline calculation.
+        drain_timeout: Duration::from_secs(24 * 60 * 60),
         ..ReloadConfig::default()
     }
 }
@@ -294,10 +306,15 @@ impl Producer {
             );
         });
 
+        // In theory the delivery callback can run before `produce_record` returns, so increment
+        // the reference counter before:
+        producer.context().inflight().increment();
+
         producer
             .produce_record(record)
             .map_err(ClientError::SendFailed)
             .inspect_err(|_| {
+                producer.context().inflight().decrement();
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
                     variant = variant,
@@ -376,6 +393,15 @@ impl KafkaClient {
             message.variant(),
             serialized.as_bytes(),
         )
+    }
+
+    /// Await until all messages have been delivered.
+    pub async fn wait_empty(&self) {
+        for producer in self.producers.values() {
+            for topic_producer in &producer.topic_producers.producers {
+                topic_producer.wait_empty().await;
+            }
+        }
     }
 
     /// Sends the payload to the correct producer for the current topic.
@@ -598,6 +624,35 @@ mod tests {
             .iter()
             .map(|tp| &tp.producer)
             .collect()
+    }
+
+    #[tokio::test]
+    async fn test_waits_for_inflight_messages() {
+        let cluster = MockCluster::new(1).unwrap();
+        cluster
+            .broker_round_trip_time(1, Duration::from_millis(100))
+            .unwrap();
+        let servers = cluster.bootstrap_servers();
+        let blob = blob(&servers, &["ingest-events"]);
+        let params = params(&servers);
+        let secondary = BTreeMap::new();
+        let assignment = TopicAssignment::from("ingest-events".to_owned());
+        let configs = assignment.kafka_configs(&params, &secondary).unwrap();
+        let client = KafkaClient::builder()
+            .add_kafka_topic_config(KafkaTopic::Events, &configs, false, &source(&blob))
+            .unwrap()
+            .build();
+
+        // Keep the underlying producer alive so its own drop cannot drain the message.
+        let producer = Arc::clone(producers(&client, KafkaTopic::Events)[0]);
+        client
+            .send(KafkaTopic::Events, None, None, "event", b"payload")
+            .unwrap();
+        assert_eq!(producer.context().inflight().get(), 1);
+
+        producer.context().inflight().wait_empty().await;
+
+        assert_eq!(producer.context().inflight().get(), 0);
     }
 
     /// Every shard needs its own producer, since each is a separate physical

@@ -6,17 +6,20 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 
 use crate::Envelope;
-use crate::envelope::{AttachmentType, ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{
+    AttachmentItem, AttachmentType, ContentType, EnvelopeHeaders, EventItem, IntegrationItem, Item,
+    UnrealReportItem,
+};
 use crate::integrations::{ErrorsIntegration, Integration};
 use crate::managed::{Counted, Managed, ManagedEnvelope, Quantities, RecordKeeper, Rejected};
 use crate::processing::errors::{Error, Result, utils};
 use crate::processing::{self, Context, Intermediates, Nothing, Output};
 use crate::services::processor::ProcessingError;
-use crate::utils::{ProcessedUnrealReport, UnrealExpansion, gpu};
+use crate::utils::{ProcessedUnrealReport, UnrealExpansion};
 
 /// A processor for Unreal items created by Relay's Unreal endpoint.
 ///
-/// Also accepts legacy [`ItemType::UnrealReport`] items, which are still forwarded by older
+/// Also accepts legacy [`UnrealReportItem`] items, which are still forwarded by older
 /// Relays.
 #[derive(Debug)]
 pub struct UnrealErrorIntegrationProcessor;
@@ -31,12 +34,26 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
     }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
-        let report = envelope.envelope_mut().take_item_by(|item| {
-            matches!(
-                item.integration(),
-                Some(Integration::Errors(ErrorsIntegration::Unreal))
-            ) || *item.ty() == ItemType::UnrealReport
+        let report = envelope.envelope().items().find(|item| {
+            matches!(item, Item::Integration(integration)
+                if integration.integration() == Some(Integration::Errors(ErrorsIntegration::Unreal)))
+                || matches!(item, Item::UnrealReport(_))
         })?;
+        let report = match report {
+            Item::Integration(_) => envelope
+                .envelope_mut()
+                .take_item_if::<IntegrationItem>(|item| {
+                    item.integration() == Some(Integration::Errors(ErrorsIntegration::Unreal))
+                })?
+                .data()
+                .payload(),
+            Item::UnrealReport(_) => envelope
+                .envelope_mut()
+                .take_item::<UnrealReportItem>()?
+                .data()
+                .payload(),
+            _ => unreachable!("selected an Unreal report"),
+        };
 
         let headers = envelope.envelope().headers().clone();
 
@@ -58,7 +75,7 @@ impl processing::Processor for UnrealErrorIntegrationProcessor {
 #[derive(Debug)]
 pub struct SerializedUnrealReport {
     headers: EnvelopeHeaders,
-    report: Item,
+    report: bytes::Bytes,
 }
 
 impl Counted for SerializedUnrealReport {
@@ -79,14 +96,14 @@ fn convert(
         event,
         context,
         attachments,
-    } = crate::utils::expand_unreal(unreal.report.payload(), ctx.config)?;
+    } = crate::utils::expand_unreal(unreal.report, ctx.config)?;
 
-    let mut attachments = attachments.to_vec();
+    let mut attachments = attachments.into_vec();
 
     let mut metrics = Default::default();
     let mut event = match event {
-        Some(event) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
-        None => utils::take_event_from_attachments(&mut attachments, &mut metrics, ctx)?,
+        Some(event) => utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx)?,
+        None => utils::take_event_from_typed_attachments(&mut attachments, &mut metrics, ctx)?,
     };
     // Metrics are not actually required here, they will be calculated again by the error processor.
     drop(metrics);
@@ -96,9 +113,19 @@ fn convert(
         .get_header(crate::constants::UNREAL_USER_HEADER)
         .and_then(|v| v.as_str());
 
-    let report =
-        crate::utils::process_unreal(context, event_id, &mut event, &attachments, user_header)
-            .map_err(ProcessingError::InvalidUnrealReport)?;
+    let context_stacktrace = ctx
+        .project_info
+        .has_feature(Feature::UnrealCrashContextStacktrace);
+
+    let report = crate::utils::process_unreal(
+        context,
+        event_id,
+        &mut event,
+        &attachments,
+        user_header,
+        context_stacktrace,
+    )
+    .map_err(ProcessingError::InvalidUnrealReport)?;
 
     let mut intermediates = Intermediates::default();
 
@@ -113,8 +140,8 @@ fn convert(
     let event = match event.is_empty() {
         true => None,
         false => {
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(
+            let mut item = EventItem::new();
+            item.data_mut().set_payload(
                 ContentType::Json,
                 event.to_json().map_err(ProcessingError::SerializeFailed)?,
             );
@@ -152,7 +179,7 @@ fn convert(
     }
 
     // There must at least be an `event` item with data or a crash which can create an event.
-    if !envelope.items().any(|item| item.creates_event()) {
+    if !envelope.items().any(|item| item.carries_event_payload()) {
         return Err(ProcessingError::NoEventPayload.into());
     }
     intermediates.add_envelope(envelope);
@@ -162,15 +189,18 @@ fn convert(
 
 fn take_gpu_crash(
     headers: &EnvelopeHeaders,
-    event: Option<&Item>,
-    items: &mut Vec<Item>,
+    event: Option<&EventItem>,
+    items: &mut Vec<AttachmentItem>,
 ) -> Option<Box<Envelope>> {
     // No need to fork off an envelope if there is no GPU crash at all.
     if !items.iter().any(is_cpu_dump_item) {
         return None;
     }
 
-    if !items.iter().any(gpu::is_gpu_dump_item) {
+    if !items
+        .iter()
+        .any(|item| item.attachment_type() == AttachmentType::NvGpuDump)
+    {
         return None;
     }
 
@@ -178,18 +208,30 @@ fn take_gpu_crash(
     if let Some(event) = event {
         envelope.add_item(event.clone());
     }
-    for item in items.extract_if(.., |item| gpu::is_gpu_crash_item(item)) {
+    for item in items.extract_if(.., |item| crate::utils::gpu::is_gpu_crash_item(item)) {
         envelope.add_item(item);
     }
 
     Some(envelope)
 }
 
-fn is_cpu_dump_item(item: &Item) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(AttachmentType::Minidump | AttachmentType::AppleCrashReport)
-    )
+fn is_cpu_dump_item(item: &AttachmentItem) -> bool {
+    // Keep exhaustive so new crash formats require an explicit splitting decision.
+    match item.attachment_type() {
+        AttachmentType::Minidump | AttachmentType::AppleCrashReport => true,
+        AttachmentType::Attachment
+        | AttachmentType::EventPayload
+        | AttachmentType::Breadcrumbs
+        | AttachmentType::Prosperodump
+        | AttachmentType::NintendoSwitchDyingMessage
+        | AttachmentType::UnrealContext
+        | AttachmentType::UnrealLogs
+        | AttachmentType::ViewHierarchy
+        | AttachmentType::Flamegraph
+        | AttachmentType::NvGpuDump
+        | AttachmentType::NvShaderDebug
+        | AttachmentType::CompiledShader => false,
+    }
 }
 
 /// Adds a [`DynamicSamplingContext`] to `envelope`.

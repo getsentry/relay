@@ -7,7 +7,9 @@ use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{
+    AttachmentItem, ContentType, EnvelopeHeaders, Item, ItemType, UserReportItem,
+};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
@@ -27,10 +29,12 @@ mod dynamic_sampling;
 )]
 mod errors;
 mod filter;
+mod flamegraph;
 mod integrations;
 mod process;
 mod utils;
 
+#[cfg(sentry)]
 pub use errors::SwitchProcessingError;
 pub use integrations::UnrealErrorIntegrationProcessor;
 
@@ -96,14 +100,14 @@ impl processing::Processor for ErrorsProcessor {
             return None;
         }
 
-        let creates_event = envelope.envelope().items().any(Item::creates_event);
-        if !creates_event {
+        let has_event_payload = envelope.envelope().items().any(Item::carries_event_payload);
+        if !has_event_payload {
             return None;
         }
 
         let items = envelope
             .envelope_mut()
-            .take_items_by(Item::requires_event)
+            .take_items_by(Item::routes_with_event)
             .into_vec();
 
         if items.is_empty() {
@@ -126,7 +130,7 @@ impl processing::Processor for ErrorsProcessor {
 
         attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
-        process::process(&mut error)?;
+        process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
         process::normalize(&mut error, &self.geoip_lookup, ctx)?;
@@ -153,7 +157,7 @@ pub struct SerializedError {
     headers: EnvelopeHeaders,
     /// List of items which can be processed as an error.
     ///
-    /// This is a mixture of items all of which return `true` for [`Item::requires_event`].
+    /// This is a mixture of items all of which return `true` for [`Item::routes_with_event`].
     items: Vec<Item>,
 }
 
@@ -182,9 +186,11 @@ struct ExpandedError {
     /// discarded.
     pub event: Box<Annotated<Event>>,
     /// Optional list of attachments sent with the event.
-    pub attachments: Vec<Item>,
+    pub attachments: Vec<AttachmentItem>,
+    /// Flame graph awaiting validation and culprit extraction.
+    pub flamegraph: Option<AttachmentItem>,
     /// Optional list of user reports sent with the event.
-    pub user_reports: Vec<Item>,
+    pub user_reports: Vec<UserReportItem>,
     /// Custom event data.
     ///
     /// This may contain elements which are custom to the specific event shape being handled.
@@ -209,6 +215,7 @@ impl Counted for ExpandedError {
             // Quantity inferred from `data.event_category()`.
             event: _,
             attachments,
+            flamegraph,
             user_reports,
             data,
             other,
@@ -218,6 +225,7 @@ impl Counted for ExpandedError {
 
         quantities.push((data.event_category(), 1));
         quantities.extend(attachments.quantities());
+        quantities.extend(flamegraph.quantities());
         quantities.extend(user_reports.quantities());
         quantities.extend(data.quantities());
         quantities.extend(other.quantities());
@@ -261,7 +269,9 @@ impl processing::RateLimited for Managed<ExpandedError> {
             }
         }
 
-        for (category, quantity) in self.attachments.quantities() {
+        let attachment_quantities =
+            [self.attachments.quantities(), self.flamegraph.quantities()].quantities();
+        for (category, quantity) in attachment_quantities {
             let limits = rate_limiter
                 .try_consume(&scoping.item(category), quantity)
                 .await;
@@ -269,9 +279,10 @@ impl processing::RateLimited for Managed<ExpandedError> {
             if !limits.is_empty() {
                 self.modify(|this, record_keeper| {
                     record_keeper.reject_err(
-                        Error::RateLimited(limits),
+                        Error::RateLimited(limits.clone()),
                         std::mem::take(&mut this.attachments),
                     );
+                    record_keeper.reject_err(Error::RateLimited(limits), this.flamegraph.take());
                 });
                 break;
             }
@@ -297,6 +308,36 @@ impl processing::RateLimited for Managed<ExpandedError> {
     }
 }
 
+#[cfg(feature = "processing")]
+fn add_rate_limited_attachments_context(
+    event: &mut Annotated<Event>,
+    attachments: &[AttachmentItem],
+) {
+    use relay_event_schema::protocol::{AttachmentsContext, Contexts, RateLimitedAttachment};
+
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+
+    for attachment in attachments {
+        let data = attachment.data();
+        if !data.rate_limited() {
+            continue;
+        }
+
+        event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::<AttachmentsContext>()
+            .rate_limited
+            .get_or_insert_with(Vec::new)
+            .push(Annotated::new(RateLimitedAttachment {
+                ty: attachment.attachment_type().to_string().into(),
+                reason_code: data.rate_limit_reason().map(ToString::to_string).into(),
+            }));
+    }
+}
+
 #[derive(Debug)]
 pub struct ErrorOutput(Managed<ExpandedError>);
 
@@ -313,6 +354,7 @@ impl Forward for ErrorOutput {
                     metrics: _,
                     event,
                     attachments,
+                    flamegraph,
                     user_reports,
                     data,
                     other,
@@ -324,7 +366,7 @@ impl Forward for ErrorOutput {
                     let event_type = ev.ty.value().copied().unwrap_or_default();
 
                     let mut item = Item::new(ItemType::from_event_type(event_type));
-                    item.set_payload(
+                    item.data_mut().set_payload(
                         ContentType::Json,
                         relay_statsd::metric!(timer(RelayTimers::EventProcessingSerialization), {
                             event.to_json().map_err(ProcessingError::SerializeFailed)?
@@ -332,16 +374,17 @@ impl Forward for ErrorOutput {
                     );
 
                     if fully_normalized.0 {
-                        item.set_fully_normalized(true);
+                        item.data_mut().set_fully_normalized(true);
                     }
 
                     items.push(item);
                 }
 
-                data.serialize_into(&mut items, ctx)?;
+                data.into_payload().append_to_envelope(&mut items);
 
-                items.extend(attachments);
-                items.extend(user_reports);
+                items.extend(attachments.into_iter().map(Item::from));
+                items.extend(flamegraph.into_iter().map(Item::from));
+                items.extend(user_reports.into_iter().map(Item::from));
 
                 if !ctx.config.processing_enabled() {
                     items.extend(other);
@@ -365,35 +408,37 @@ impl Forward for ErrorOutput {
 
         let ErrorOutput(event) = self;
 
-        let event = event
-            .try_map(|errors, _| -> Result<_> {
-                let ExpandedError {
-                    headers: _,
-                    fully_normalized: _,
-                    metrics: _,
-                    event,
-                    mut attachments,
-                    user_reports,
-                    data,
-                    other,
-                } = errors;
+        let event = event.map(|errors, _| {
+            let ExpandedError {
+                headers: _,
+                fully_normalized: _,
+                metrics: _,
+                mut event,
+                mut attachments,
+                flamegraph,
+                user_reports,
+                data,
+                other,
+            } = errors;
 
-                // A processing Relay must know about all item types in use, unknown items are
-                // already discarded during expansion.
-                debug_assert!(other.is_empty());
+            // A processing Relay must know about all item types in use, unknown items are
+            // already discarded during expansion.
+            debug_assert!(other.is_empty());
 
-                let event_category = data.event_category();
-                data.serialize_into(&mut attachments, ctx)?;
+            let event_category = data.event_category();
+            data.into_payload().append_to_store(&mut attachments);
+            attachments.extend(flamegraph);
 
-                Ok(Box::new(StoreEvent {
-                    event_category,
-                    event: *event,
-                    attachments,
-                    user_reports,
-                    retention_days: ctx.event_retention().standard,
-                }))
+            add_rate_limited_attachments_context(&mut event, &attachments);
+
+            Box::new(StoreEvent {
+                event_category,
+                event: *event,
+                attachments,
+                user_reports,
+                retention_days: ctx.event_retention().standard,
             })
-            .map_err(|err| err.map(|_| ()))?;
+        });
 
         s.send_event(event);
 

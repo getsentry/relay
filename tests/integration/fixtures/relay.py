@@ -7,12 +7,13 @@ import signal
 import stat
 import requests
 import subprocess
+import time
 from collections import defaultdict
 
 import yaml
 import pytest
 
-from sentry_relay.auth import generate_key_pair
+from sentry_relay.auth import SecretKey, generate_key_pair
 from . import SentryLike
 
 RELAY_BIN = [os.path.abspath(os.environ.get("RELAY_BIN") or "target/debug/relay")]
@@ -64,6 +65,39 @@ class Relay(SentryLike):
         self._wait(f"/api/relay/healthcheck/{mode}/", is_internal=True)
         self._health_check_passed[mode] = True
 
+    def get_global_config(self, *, timeout=None):
+        body, signature = SecretKey.parse(self.secret_key).pack(
+            {"publicKeys": [], "global": True}
+        )
+        response = self.post(
+            "/api/0/relays/projectconfigs/?version=3",
+            data=body,
+            headers={
+                "X-Sentry-Relay-Id": self.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def wait_for_global_config(self):
+        # Managed Relays fetch global config asynchronously after authentication.
+        if self.options["relay"].get("mode", "managed") != "managed":
+            return
+
+        deadline = time.monotonic() + 15
+        while (remaining := deadline - time.monotonic()) > 0:
+            status = self.get_global_config(timeout=remaining).get("globalStatus")
+            assert status is not None, (
+                f"Relay {self.version} omitted globalStatus. "
+                "This test requires Relay 23.12.0 or newer."
+            )
+            if status == "ready":
+                return
+            time.sleep(0.05)
+        raise AssertionError("Timed out waiting for Relay to load global config")
+
     def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
 
@@ -75,6 +109,12 @@ class Relay(SentryLike):
 
     def send_signal(self, signal):
         self.process.send_signal(signal)
+
+
+@pytest.fixture(scope="session")
+def relay_has_private():
+    output = subprocess.check_output(RELAY_BIN + ["--version"], text=True)
+    return "[sentry]" in output
 
 
 @pytest.fixture
@@ -128,7 +168,14 @@ def relay_credentials():
 
 
 @pytest.fixture
-def relay(mini_sentry, random_port, background_process, config_dir, get_relay_binary):
+def relay(
+    mini_sentry,
+    random_port,
+    background_process,
+    config_dir,
+    get_relay_binary,
+    require_global_config,
+):
     def inner(
         upstream,
         options=None,
@@ -228,6 +275,8 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             relay.wait_health_check("live")
             if wait_health_check == "ready":
                 relay.wait_health_check("ready")
+                if require_global_config:
+                    relay.wait_for_global_config()
 
             # Filter out health check failures, which can happen during startup
             filtered_test_failures = Queue()
@@ -246,8 +295,7 @@ def latest_relay_version(get_relay_binary):
     version_str = subprocess.check_output(
         get_relay_binary() + ["--version"], text=True
     ).strip()
-    _the_word_relay, version = version_str.split(" ", 1)
-    return version
+    return version_str.split(" ")[1]
 
 
 def get_internal_address(options, server_address):

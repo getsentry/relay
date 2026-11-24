@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Error reporting and logging for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.10.1"
+version = "26.11.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -24,10 +24,12 @@ sentry = ["dep:sentry"]
 relay-common = { workspace = true }
 
 console = { workspace = true, optional = true }
+# Disable trace and debug logs from dependencies using `log`:
+log = { workspace = true, features = ["release_max_level_info"] }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
-    "logs"
+    "logs",
 ], optional = true }
 sentry-core = { workspace = true }
 serde = { workspace = true, optional = true }

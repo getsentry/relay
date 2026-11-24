@@ -1,13 +1,13 @@
+use super::ErrorPayload;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentItem, AttachmentType, Item, UserReportItem};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result, utils};
 
 #[derive(Debug)]
-pub struct Minidump(pub Item);
+pub struct Minidump(pub AttachmentItem);
 
 impl SentryError for Minidump {
     fn event_category(&self) -> DataCategory {
@@ -15,8 +15,8 @@ impl SentryError for Minidump {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let Some(minidump) = utils::take_item_by(items, |item| {
-            item.attachment_type() == Some(AttachmentType::Minidump)
+        let Some(minidump) = utils::take_item_if::<AttachmentItem>(items, |item| {
+            item.attachment_type() == AttachmentType::Minidump
         }) else {
             return Ok(None);
         };
@@ -32,8 +32,9 @@ impl SentryError for Minidump {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            attachments: utils::take_items_of_type(items, ItemType::Attachment),
-            user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+            attachments: utils::take_items::<AttachmentItem>(items).collect(),
+            flamegraph: None,
+            user_reports: utils::take_items::<UserReportItem>(items).collect(),
             intermediates: vec![],
             error: Self(minidump),
             metrics,
@@ -47,20 +48,21 @@ impl SentryError for Minidump {
         limits: RateLimits,
         records: &mut RecordKeeper<'_>,
     ) -> Result<()> {
-        if !self.0.rate_limited() {
+        if !self.0.data().rate_limited() {
+            let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             records.reject_err(Error::RateLimited(limits), &self.0);
-            self.0.set_rate_limited(true);
+            self.0.data_mut().set_rate_limited(true);
+            self.0.data_mut().set_rate_limit_reason(reason_code);
         }
 
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
-        items.push(self.0);
-        Ok(())
+    fn into_payload(self) -> ErrorPayload {
+        ErrorPayload(smallvec::smallvec![self.0])
     }
 
-    fn minidump_mut(&mut self) -> Option<&mut Item> {
+    fn minidump_mut(&mut self) -> Option<&mut AttachmentItem> {
         Some(&mut self.0)
     }
 }
@@ -72,9 +74,6 @@ impl Counted for Minidump {
         //
         // The rate limited information is passed along and will lead to the item later to be
         // dropped.
-        match self.0.rate_limited() {
-            true => Default::default(),
-            false => self.0.quantities(),
-        }
+        self.0.quantities()
     }
 }

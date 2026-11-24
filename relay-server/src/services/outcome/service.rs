@@ -4,6 +4,7 @@
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
+use relay_filter::FilterStatKey;
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
@@ -232,7 +234,10 @@ impl Service for ClientReportOutcomeProducerService {
                 biased;
 
                 () = &mut self.flush_handle => self.do_flush(),
-                Some(message) = rx.recv() => self.handle_message(message),
+                signal = rx.recv() => match signal {
+                    Some(message) => self.handle_message(message),
+                    None => break,
+                },
                 _ = shutdown.notified() => self.handle_shutdown(),
 
                 else => break,
@@ -271,7 +276,91 @@ fn send_outcome_metric(message: &TrackOutcome) {
     );
     metric!(
         counter(RelayCounters::Outcomes) += 1,
-        reason = message.outcome.to_reason().unwrap_or_default(),
+        reason = metric_reason(&message.outcome),
         outcome = outcome_name,
     );
+}
+
+/// Returns the outcome reason to use as a metric tag.
+///
+/// A generic filter id can carry a per-filter instance id after a colon, such as
+/// `custom-inbound-filter:<id>`. The outcome keeps the full id, but as a metric tag it would
+/// create one time series per filter, so only the part before the colon is used.
+fn metric_reason(outcome: &Outcome) -> Cow<'_, str> {
+    match outcome {
+        Outcome::Filtered(FilterStatKey::GenericFilter(id)) => {
+            Cow::Borrowed(id.split_once(':').map_or(id.as_str(), |(kind, _)| kind))
+        }
+        other => other.to_reason().unwrap_or_default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::ProjectId;
+
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn test_shutdown_on_channel_close() {
+        let config = Config::default();
+        let (processor, mut processor_rx) = Addr::custom();
+        let service = ClientReportOutcomeProducerService::new(&config.current(), processor);
+        let (addr, rx) = relay_system::channel(ClientReportOutcomeProducerService::name());
+        let mut run = std::pin::pin!(service.run(rx));
+        assert!(futures::poll!(&mut run).is_pending());
+
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(1),
+            project_id: ProjectId::new(3),
+            project_key: "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap(),
+            key_id: None,
+        };
+        addr.send(TrackOutcome {
+            timestamp: Utc::now(),
+            scoping,
+            outcome: Outcome::Filtered(FilterStatKey::WebCrawlers),
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::Error,
+            quantity: 1,
+        });
+
+        drop(addr);
+        assert!(futures::poll!(&mut run).is_ready());
+        let EnvelopeProcessor::SubmitClientReports(message) = processor_rx.try_recv().unwrap()
+        else {
+            panic!("expected client reports");
+        };
+        assert_eq!(message.scoping, scoping);
+        assert_eq!(message.client_reports.len(), 1);
+        let events = &message.client_reports[0].filtered_events;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason, "web-crawlers");
+        assert_eq!(events[0].quantity, 1);
+        assert!(processor_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn metric_reason_strips_generic_filter_instance_id() {
+        let generic = |id: &str| Outcome::Filtered(FilterStatKey::GenericFilter(id.to_owned()));
+
+        assert_eq!(
+            metric_reason(&generic("custom-inbound-filter:25196")),
+            "custom-inbound-filter"
+        );
+        assert_eq!(
+            metric_reason(&generic("chunk-load-error")),
+            "chunk-load-error"
+        );
+        assert_eq!(
+            metric_reason(&Outcome::Filtered(FilterStatKey::WebCrawlers)),
+            "web-crawlers"
+        );
+        assert_eq!(
+            metric_reason(&Outcome::Invalid(DiscardReason::Payload)),
+            "payload"
+        );
+    }
 }

@@ -2,15 +2,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use relay_config::ConfigSnapshot;
-use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
+use relay_quotas::{CachedRateLimits, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::ItemType;
 use crate::managed::{Managed, Rejected};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
-use crate::utils::{CheckLimits, EnvelopeLimiter};
+use crate::utils::enforce_rate_limits;
 
 /// A loaded project.
 pub struct Project<'a> {
@@ -51,7 +50,7 @@ impl<'a> Project<'a> {
     ///  - Validate origins and public keys
     ///  - Quotas with a limit of `0`
     ///  - Cached rate limits
-    pub async fn check_envelope(
+    pub fn check_envelope(
         &self,
         envelope: &mut Managed<Box<Envelope>>,
     ) -> Result<RateLimits, Rejected<DiscardReason>> {
@@ -69,10 +68,8 @@ impl<'a> Project<'a> {
             ProjectState::Pending => None,
         };
 
-        let mut scoping = envelope.scoping();
-
         if let Some(ref state) = state {
-            scoping = state.scope_request(envelope.meta());
+            let scoping = state.scope_request(envelope.meta());
             envelope.scope(scoping);
 
             if let Err(reason) = state.check_envelope(envelope, &self.config) {
@@ -86,62 +83,25 @@ impl<'a> Project<'a> {
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
 
-        // To get the correct span outcomes, we have to partially parse the event payload
-        // and count the spans contained in the transaction events.
-        // For performance reasons, we only do this if there is an active limit on `Transaction`.
-        if current_limits
-            .is_any_limited_with_quotas(quotas, &[scoping.item(DataCategory::Transaction)])
-        {
-            ensure_span_count(envelope);
-        }
-
-        let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
-            let current_limits = Arc::clone(&current_limits);
-            async move { Ok(current_limits.check_with_quotas(quotas, &item_scoping)) }
-        });
-
-        let (enforcement, mut rate_limits) = envelope_limiter.compute(envelope, &scoping).await?;
-
-        enforcement.apply_to_managed(envelope);
-
-        // Special case: Expose active rate limits for all metric namespaces if there is at least
-        // one metrics item in the Envelope to communicate backoff to SDKs. This is necessary
-        // because `EnvelopeLimiter` cannot not check metrics without parsing item contents.
-        if envelope.items().any(|i| i.ty().is_metrics()) {
-            let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
-            metrics_scoping.namespace = MetricNamespaceScoping::Any;
-            rate_limits.merge(current_limits.check_with_quotas(quotas, &metrics_scoping));
-        }
-
-        Ok(rate_limits)
+        Ok(enforce_rate_limits(envelope, &current_limits, quotas))
     }
-}
-
-fn ensure_span_count(envelope: &mut Managed<Box<Envelope>>) {
-    envelope.modify(|envelope, records| {
-        if let Some(transaction_item) = envelope
-            .items_mut()
-            .find(|item| *item.ty() == ItemType::Transaction)
-        {
-            // We're actively 'correcting' span counts -> there will be differences.
-            records.lenient(DataCategory::Span);
-            records.lenient(DataCategory::SpanIndexed);
-            transaction_item.ensure_span_count();
-        }
-    });
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{ContentType, Envelope, Item};
-    use crate::extractors::RequestMeta;
-    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
+    use std::collections::BTreeMap;
+
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
+    use relay_quotas::{DataCategory, ReasonCode};
     use serde_json::json;
     use smallvec::smallvec;
 
     use super::*;
+    use crate::envelope::TransactionItem;
+    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::extractors::RequestMeta;
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
 
     fn create_project(config: ConfigSnapshot, data: Option<serde_json::Value>) -> Project<'static> {
         let mut project_info = ProjectInfo {
@@ -172,7 +132,10 @@ mod tests {
     }
 
     fn get_span_count(envelope: &Envelope) -> usize {
-        envelope.items().next().unwrap().span_count() as usize
+        let Some(Item::Transaction(transaction)) = envelope.items().next() else {
+            panic!("expected a transaction");
+        };
+        transaction.span_count().unwrap_or(0) as usize
     }
 
     #[tokio::test]
@@ -193,8 +156,8 @@ mod tests {
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
-        let mut transaction = Item::new(ItemType::Transaction);
-        transaction.set_payload(
+        let mut transaction = TransactionItem::new();
+        transaction.data_mut().set_payload(
             ContentType::Json,
             r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
@@ -232,7 +195,7 @@ mod tests {
         let mut managed_envelope = Managed::from_envelope(envelope, outcome_aggregator);
 
         assert_eq!(get_span_count(&managed_envelope), 0); // not written yet
-        project.check_envelope(&mut managed_envelope).await.unwrap();
+        project.check_envelope(&mut managed_envelope).unwrap();
 
         let expected = [
             (DataCategory::Transaction, 1),
@@ -241,11 +204,15 @@ mod tests {
             (DataCategory::SpanIndexed, 3),
         ];
 
-        for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.recv().await.unwrap();
-            assert_eq!(outcome.category, expected_category);
-            assert_eq!(outcome.quantity, expected_quantity);
+        let mut actual = BTreeMap::new();
+        while let Ok(outcome) = outcome_aggregator_rx.try_recv() {
+            assert_eq!(
+                outcome.outcome,
+                Outcome::RateLimited(Some(ReasonCode::new("foo")))
+            );
+            *actual.entry(outcome.category).or_insert(0) += outcome.quantity;
         }
+        assert_eq!(actual, BTreeMap::from(expected));
     }
 
     #[tokio::test]
@@ -266,9 +233,9 @@ mod tests {
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
-        let mut transaction = Item::new(ItemType::Transaction);
+        let mut transaction = TransactionItem::new();
         transaction.set_span_count(Some(666));
-        transaction.set_payload(
+        transaction.data_mut().set_payload(
             ContentType::Json,
             r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
@@ -293,7 +260,7 @@ mod tests {
         let mut managed_envelope = Managed::from_envelope(envelope, outcome_aggregator);
 
         assert_eq!(get_span_count(&managed_envelope), 666);
-        project.check_envelope(&mut managed_envelope).await.unwrap();
+        project.check_envelope(&mut managed_envelope).unwrap();
 
         let expected = [
             (DataCategory::Transaction, 1),
@@ -302,10 +269,14 @@ mod tests {
             (DataCategory::SpanIndexed, 667),
         ];
 
-        for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.recv().await.unwrap();
-            assert_eq!(outcome.category, expected_category);
-            assert_eq!(outcome.quantity, expected_quantity);
+        let mut actual = BTreeMap::new();
+        while let Ok(outcome) = outcome_aggregator_rx.try_recv() {
+            assert_eq!(
+                outcome.outcome,
+                Outcome::RateLimited(Some(ReasonCode::new("foo")))
+            );
+            *actual.entry(outcome.category).or_insert(0) += outcome.quantity;
         }
+        assert_eq!(actual, BTreeMap::from(expected));
     }
 }

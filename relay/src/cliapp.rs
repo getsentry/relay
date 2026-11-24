@@ -6,7 +6,11 @@ use clap::builder::ValueParser;
 use clap::{Arg, ArgAction, ArgGroup, Command, ValueHint};
 use clap_complete::Shell;
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = if cfg!(sentry) {
+    concat!(env!("CARGO_PKG_VERSION"), " [sentry]")
+} else {
+    env!("CARGO_PKG_VERSION")
+};
 pub const ABOUT: &str = "The official Sentry Relay.";
 
 pub fn make_app() -> Command {

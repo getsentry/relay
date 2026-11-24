@@ -13,7 +13,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{CheckInItem, ContentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
@@ -64,8 +64,8 @@ async fn handle(
     }
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-    let mut item = Item::new(ItemType::CheckIn);
-    item.set_payload(ContentType::Json, json);
+    let mut item = CheckInItem::new();
+    item.data_mut().set_payload(ContentType::Json, json);
     envelope.add_item(item);
 
     // Never respond with a 429

@@ -3,7 +3,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::managed::{Counted, Managed, RecordKeeper, Rejected};
+use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
@@ -70,7 +70,10 @@ fn do_expand(
     //
     // It is reasonable to just reject such envelopes, this is ported over from a prior
     // implementation of the error processing pipeline.
-    for item in error.items.extract_if(.., |item| item.creates_event()) {
+    for item in error
+        .items
+        .extract_if(.., |item| item.carries_event_payload())
+    {
         records.reject_err(ProcessingError::DuplicateItem(item.ty().clone()), item);
     }
 
@@ -86,9 +89,7 @@ fn do_expand(
         // Currently all intermediates are new items which were not accounted for before.
         //
         // Intermediates are currently used for session items for Switch and PlayStation crashes.
-        for (category, quantity) in parsed.intermediates.quantities() {
-            records.modify_by(category, quantity as isize);
-        }
+        records.add(&parsed.intermediates);
 
         // The forked off envelope is completely standalone, to prevent any issues with duplicated
         // event ids that may get de-duplicated later, we always create a new event id here.
@@ -106,6 +107,7 @@ fn do_expand(
         metrics: parsed.metrics,
         event: parsed.event,
         attachments: parsed.attachments,
+        flamegraph: parsed.flamegraph,
         user_reports: parsed.user_reports,
         data: parsed.error,
         other: error.items,
@@ -114,9 +116,29 @@ fn do_expand(
     Ok((expanded_error, intermediates))
 }
 
-pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {
+pub fn process(
+    error: &mut Managed<ExpandedError>,
+    ctx: Context<'_>,
+) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
         processing::user_reports::process_user_reports(&mut error.user_reports, records);
+
+        let needs_culprit = error
+            .event
+            .value()
+            .is_some_and(super::flamegraph::needs_enrichment);
+        let culprit = super::flamegraph::process_flamegraph(
+            &mut error.flamegraph,
+            needs_culprit,
+            ctx.config.max_event_size(),
+            records,
+        );
+        if let Some(event) = error.event.value_mut().as_mut()
+            && super::flamegraph::enrich(event, culprit)
+        {
+            // Derived frames need the same normalization and trimming as SDK-supplied frames.
+            error.fully_normalized = EventFullyNormalized(false);
+        }
 
         Ok::<_, Error>(())
     })
@@ -130,7 +152,7 @@ pub fn finalize(
         processing::utils::event::finalize(
             &error.headers,
             &mut error.event,
-            error.attachments.iter(),
+            error.attachments.iter().chain(error.flamegraph.iter()),
             &mut error.metrics,
             ctx.config,
         )?;
@@ -164,7 +186,10 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
     error.try_modify(|error, records| {
         processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
         processing::utils::attachments::scrub(
-            error.attachments.iter_mut(),
+            error
+                .attachments
+                .iter_mut()
+                .chain(error.flamegraph.iter_mut()),
             ctx.project_info,
             Some(records),
         );

@@ -27,7 +27,7 @@ dev = [
     "mypy",
     "objectstore-client",
     "opentelemetry-proto",
-    "pre-commit",
+    "prek>=0.5.10",
     "pytest",
     "pytest-timeout",
     "pytest-localserver",

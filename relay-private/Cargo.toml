@@ -1,9 +1,9 @@
 [package]
-name = "relay-prosperoconv"
+name = "relay-private"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.10.1"
+version = "26.11.0"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -12,12 +12,18 @@ publish = false
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 
 [dependencies]
-lz4_flex = ">= 0.11.6, < 0.14"
+bytes = { workspace = true }
 minidump-writer = ">= 0.11, < 0.13"
-object = { version = ">= 0.36, < 0.40", default-features = false, features = ["read_core", "elf", "std"] }
+object = { version = ">= 0.36, < 0.40", default-features = false, features = [
+    "read_core",
+    "elf",
+    "std",
+] }
 rmpv = "1.3.0"
+thiserror = { workspace = true }
 tracing = { workspace = true }
 watto = "0.2.0"
+zstd = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

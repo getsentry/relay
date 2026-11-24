@@ -1,0 +1,44 @@
+// A schema exercising every shape the descriptor generator has to describe: messages nested
+// inside messages, repeated message fields, recursion (both direct and through a `oneof`),
+// packed scalars, opaque `bytes`, enums, and a message pulled in from another file.
+syntax = "proto3";
+
+package relay.test.v1;
+
+import "relay/test/common/v1/metadata.proto";
+
+message Tree {
+  // A type nested inside another message, so the generator has to flatten the path.
+  message Node {
+    string label = 1;
+    repeated Leaf leaves = 2;
+    // Recursion through a nested type.
+    repeated Node children = 3;
+  }
+
+  Node root = 1;
+  repeated Node forest = 2;
+  // Lives in an imported file, so it is only resolvable with `--include_imports`.
+  relay.test.common.v1.Metadata metadata = 3;
+}
+
+message Leaf {
+  string text = 1;
+  uint64 number = 2;
+  double real = 3;
+  fixed32 fixed = 4;
+  bytes blob = 5;
+  repeated uint64 numbers = 6;
+  Kind kind = 7;
+
+  oneof value {
+    string name = 8;
+    // Recursion through a `oneof`.
+    Leaf leaf = 9;
+  }
+}
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_ONE = 1;
+}
