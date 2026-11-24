@@ -5013,16 +5013,13 @@ name = "relay-private"
 version = "26.11.0"
 dependencies = [
  "anyhow",
- "bytes",
  "dircpy",
  "minidump-writer",
  "object 0.39.1",
  "rmpv",
  "tempfile",
- "thiserror 2.0.21",
  "tracing",
  "watto",
- "zstd",
 ]
 
 [[package]]
