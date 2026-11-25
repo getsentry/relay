@@ -1581,8 +1581,12 @@ impl Default for AuthConfig {
 /// GeoIp database configuration options.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GeoIpConfig {
-    /// The path to GeoIP database.
-    pub path: Option<PathBuf>,
+    /// Local database for city and country lookups. Older configs use `geoip.path`.
+    #[serde(alias = "path")]
+    pub city_path: Option<PathBuf>,
+    /// Optional local ASN database used by processing Relays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asn_path: Option<PathBuf>,
 }
 
 /// Settings to control Relay's health checks.
@@ -2827,14 +2831,19 @@ impl ConfigSnapshot {
         self.inner.values.normalization.level
     }
 
-    /// The path to the GeoIp database required for event processing.
-    pub fn geoip_path(&self) -> Option<&Path> {
-        self.inner.values.geoip.path.as_deref().or(self
+    /// The path to the database for city and country lookups.
+    pub fn city_path(&self) -> Option<&Path> {
+        self.inner.values.geoip.city_path.as_deref().or(self
             .inner
             .values
             .processing
             .geoip_path
             .as_deref())
+    }
+
+    /// The path to the client ASN database.
+    pub fn asn_path(&self) -> Option<&Path> {
+        self.inner.values.geoip.asn_path.as_deref()
     }
 
     /// Maximum future timestamp of ingested data.
@@ -3106,6 +3115,32 @@ impl fmt::Debug for ConfigSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_geoip_paths() {
+        for city_key in ["city_path", "path"] {
+            let config = Config::from_json_value(serde_json::json!({
+                "geoip": { (city_key): "city.mmdb", "asn_path": "asn.mmdb" },
+                "processing": { "geoip_path": "legacy.mmdb" }
+            }))
+            .unwrap()
+            .current();
+            assert_eq!(config.city_path(), Some(Path::new("city.mmdb")));
+            assert_eq!(config.asn_path(), Some(Path::new("asn.mmdb")));
+            assert_eq!(
+                serde_json::to_value(&config.inner.values.geoip).unwrap(),
+                serde_json::json!({ "city_path": "city.mmdb", "asn_path": "asn.mmdb" })
+            );
+        }
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": { "geoip_path": "legacy.mmdb" }
+        }))
+        .unwrap()
+        .current();
+        assert_eq!(config.city_path(), Some(Path::new("legacy.mmdb")));
+        assert_eq!(config.asn_path(), None);
+    }
 
     #[test]
     fn test_http_encoding_parse_strict() {

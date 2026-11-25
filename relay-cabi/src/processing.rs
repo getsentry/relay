@@ -1,4 +1,4 @@
-// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
+// TODO: Fix casts between RelayGeoIpLookup and CityLookup
 #![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
 #![allow(clippy::derive_partial_eq_without_eq)]
@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::{GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    BreakdownsConfig, ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig,
+    BreakdownsConfig, CityLookup, ClientHints, EventValidationConfig, NormalizationConfig,
     RawUserAgentInfo, normalize_event, validate_event,
 };
 use relay_event_schema::processor::{ProcessingState, process_value, split_chunks};
@@ -169,7 +169,7 @@ pub unsafe extern "C" fn relay_split_chunks(
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_geoip_lookup_new(path: *const c_char) -> *mut RelayGeoIpLookup {
     let path = unsafe { CStr::from_ptr(path) }.to_string_lossy();
-    let lookup = GeoIpLookup::open(path.as_ref())?;
+    let lookup = CityLookup::open(path.as_ref())?;
     Box::into_raw(Box::new(lookup)) as *mut RelayGeoIpLookup
 }
 
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn relay_geoip_lookup_new(path: *const c_char) -> *mut Rel
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) {
     if !lookup.is_null() {
-        let lookup = lookup as *mut GeoIpLookup;
+        let lookup = lookup as *mut CityLookup;
         let _dropped = unsafe { Box::from_raw(lookup) };
     }
 }

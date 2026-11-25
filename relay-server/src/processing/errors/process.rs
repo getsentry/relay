@@ -1,4 +1,4 @@
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::CityLookup;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
@@ -163,7 +163,7 @@ pub fn finalize(
 
 pub fn normalize(
     error: &mut Managed<ExpandedError>,
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let scoping = error.scoping();

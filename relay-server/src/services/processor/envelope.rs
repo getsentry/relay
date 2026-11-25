@@ -10,7 +10,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
+use relay_event_normalization::{AsnLookup, CityLookup, ClockDriftProcessor};
 use relay_event_schema::processor::ProcessingAction;
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata};
@@ -476,21 +476,32 @@ impl InnerProcessor {
     ) -> Self {
         let c = config.current();
 
-        let geoip_lookup = c
-            .geoip_path()
-            .and_then(
-                |p| match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
-                    Ok(geoip) => Some(geoip),
-                    Err(err) => {
-                        relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
-                        None
-                    }
-                },
-            )
-            .unwrap_or_else(GeoIpLookup::empty);
+        let city_lookup = c
+            .city_path()
+            .and_then(|path| {
+                CityLookup::open(path)
+                    .context(ServiceError::GeoIp)
+                    .inspect_err(|err| {
+                        relay_log::error!("failed to open GeoIP city db {path:?}: {err:?}")
+                    })
+                    .ok()
+            })
+            .unwrap_or_else(CityLookup::empty);
+        let asn_lookup = c
+            .asn_path()
+            .and_then(|path| {
+                AsnLookup::open(path)
+                    .context(ServiceError::GeoIp)
+                    .inspect_err(|err| relay_log::error!("failed to open ASN db {path:?}: {err:?}"))
+                    .ok()
+            })
+            .unwrap_or_else(AsnLookup::empty);
 
-        if let Some(build_epoch) = geoip_lookup.build_epoch() {
-            relay_log::info!("Loaded GeoIP database (build: {build_epoch})");
+        if let Some(build_epoch) = city_lookup.build_epoch() {
+            relay_log::info!("Loaded GeoIP city database (build: {build_epoch})");
+        }
+        if let Some(build_epoch) = asn_lookup.build_epoch() {
+            relay_log::info!("Loaded ASN database (build: {build_epoch})");
         }
 
         let quota_limiter = Arc::new(QuotaRateLimiter::new(
@@ -505,7 +516,8 @@ impl InnerProcessor {
             processor: RelayProcessor::new(
                 cogs.clone(),
                 &quota_limiter,
-                &geoip_lookup,
+                &city_lookup,
+                asn_lookup,
                 addrs.outcome_aggregator.clone(),
             ),
             cogs,

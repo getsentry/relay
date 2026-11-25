@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
 use relay_quotas::RateLimits;
@@ -67,15 +67,21 @@ impl OutcomeError for Error {
 /// It processes all kinds of error events, user feedback, crashes, ...
 pub struct ErrorsProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: GeoIpLookup,
+    geoip_lookup: CityLookup,
+    _asn_lookup: AsnLookup,
 }
 
 impl ErrorsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: GeoIpLookup) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geoip_lookup: CityLookup,
+        asn_lookup: AsnLookup,
+    ) -> Self {
         Self {
             limiter,
             geoip_lookup,
+            _asn_lookup: asn_lookup,
         }
     }
 }

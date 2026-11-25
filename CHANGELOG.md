@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add `geoip.asn_path` for a local ASN database. The City database can be configured with `geoip.city_path` or the existing `geoip.path` key.
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 
 **Bug Fixes**:

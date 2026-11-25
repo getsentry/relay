@@ -39,7 +39,7 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CityLookup, CombinedMeasurementsConfig, MaxChars,
     ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
@@ -145,7 +145,7 @@ pub struct NormalizationConfig<'a> {
     pub ai_model_metadata: Option<&'a ModelMetadata>,
 
     /// An initialized GeoIP lookup.
-    pub geoip_lookup: Option<&'a GeoIpLookup>,
+    pub geoip_lookup: Option<&'a CityLookup>,
 
     /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
     ///
@@ -524,7 +524,7 @@ fn normalize_remote_addr(
 
 /// Sets the user's GeoIp info based on user's IP address.
 pub fn normalize_user_geoinfo(
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
     user: &mut Annotated<User>,
     ip_addr: Option<&IpAddr>,
 ) {
