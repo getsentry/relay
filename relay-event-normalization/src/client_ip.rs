@@ -12,12 +12,17 @@ use relay_event_schema::protocol::{
 use relay_pii::{ProjectPii, user_needs_id};
 use relay_protocol::{Annotated, RemarkType, Value};
 
+use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-pub fn redacted<T>(value: &Annotated<T>) -> bool {
+fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
+}
+
+pub fn unredacted_value<T>(field: &Annotated<T>) -> Option<&T> {
+    field.value().filter(|_| !redacted(field))
 }
 
 /// Use the original address for enrichment, then publish only identity allowed by both
@@ -56,6 +61,41 @@ pub struct ClientIpConfig<'a> {
     pub security_report: bool,
 }
 
+/// A missing field permits fallback. An upstream redaction stops it, even on a parent.
+enum Unavailable {
+    Missing,
+    Redacted,
+}
+
+fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
+    if redacted(field) {
+        return Err(Redacted);
+    }
+    field.value_mut().as_mut().ok_or(Missing)
+}
+
+/// Resolve the request marker independently of whether this request supplies the user IP.
+fn normalize_remote_addr(
+    request: &mut Annotated<Request>,
+    transport: Option<IpAddr>,
+    use_for_user: bool,
+) -> Result<ProtocolIp, Unavailable> {
+    let env = field_value_mut(&mut field_value_mut(request)?.env)?;
+    let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
+    match field.as_str() {
+        Some("{{auto}}") => {
+            let Some(ip) = transport else {
+                env.remove("REMOTE_ADDR");
+                return Err(Missing);
+            };
+            *field = Value::String(ip.to_string());
+            use_for_user.then(|| ProtocolIp::from(ip)).ok_or(Missing)
+        }
+        Some(text) if use_for_user => ProtocolIp::parse(text).map_err(|_| Missing),
+        _ => Err(Missing),
+    }
+}
+
 /// Normalize the request and user in place and return the address eligible for lookup.
 pub fn process_user_ip(
     request: &mut Annotated<Request>,
@@ -73,57 +113,31 @@ pub fn process_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let existing = user.value();
-    let supplied = existing
-        .and_then(|u| u.ip_address.value())
-        .map(ProtocolIp::parsed);
-    let user_ip_redacted = redacted(user) || existing.is_some_and(|u| redacted(&u.ip_address));
-    let auto = supplied == Some(ParsedIp::Auto);
+    let supplied = field_value_mut(user)
+        .and_then(|u| field_value_mut(&mut u.ip_address))
+        .map(|ip| ip.parsed());
+    let auto = matches!(supplied, Ok(ParsedIp::Auto));
     let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
-    let use_remote = !user_ip_redacted
-        && (supplied.is_none() || auto)
+
+    let use_remote = matches!(supplied, Err(Missing) | Ok(ParsedIp::Auto))
         && infer != AutoInferSetting::Never
         && !csp_transport;
-    let mut request_redacted = redacted(request);
-    let remote = request.0.as_mut().and_then(|request| {
-        request_redacted |= redacted(&request.env);
-        let env = request.env.0.as_mut()?;
-        let field = env.get_mut("REMOTE_ADDR")?;
-        request_redacted |= redacted(field);
-        if request_redacted {
-            return None;
-        }
-        let text = field.as_str()?;
-        if text == "{{auto}}" {
-            let Some(ip) = transport else {
-                env.remove("REMOTE_ADDR");
-                return None;
-            };
-            field.set_value(Some(Value::String(ip.to_string())));
-            return use_remote.then(|| ProtocolIp::from(ip));
-        }
-        if !use_remote {
-            return None;
-        }
-        ProtocolIp::parse(text).ok()
-    });
-
-    // Keep the original request IP for lookup. Only a surviving source can become user.ip_address.
+    let remote = normalize_remote_addr(request, transport, use_remote);
     rules.scrub_request_env(request)?;
-    let from_remote = remote.is_some();
-    let (lookup, backfill) = match supplied {
-        _ if user_ip_redacted => (None, None),
-        Some(ParsedIp::Address(ip)) => (Some(ip), None),
-        Some(ParsedIp::Replacement) => (None, None),
-        _ if let Some(remote) = remote => {
-            let ip = remote.address();
+    let from_remote = remote.is_ok();
+    let (lookup, backfill) = match (supplied, remote) {
+        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None),
+        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None),
+        (_, Ok(remote)) => {
             let surviving = request
                 .value()
                 .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
-                .is_some_and(|v| v.as_str().is_some() && !redacted(v));
-            (ip, surviving.then_some(remote))
+                .and_then(unredacted_value)
+                .is_some_and(|v| v.as_str().is_some());
+            (remote.address(), surviving.then_some(remote))
         }
-        _ if csp_transport || !request_redacted => {
+        (_, Err(Redacted)) if !csp_transport => (None, None),
+        _ => {
             let infer_transport = csp_transport
                 || auto
                 || infer == AutoInferSetting::Auto
@@ -133,9 +147,8 @@ pub fn process_user_ip(
                 transport.filter(|_| infer_transport).map(ProtocolIp::from),
             )
         }
-        _ => (None, None),
     };
-    let geo = match existing {
+    let geo = match user.value() {
         Some(u) if u.geo.value().is_some() || redacted(&u.geo) => None,
         _ => config.geoip_lookup.and_then(|db| db.lookup(lookup?)),
     };
@@ -151,7 +164,7 @@ pub fn process_user_ip(
     let hash_only = backfill.is_some() && !from_remote && !config.infer_ip_address;
     if let Some(ip) = backfill {
         user.ip_address.set_value(Some(ip));
-    } else if auto && !user_ip_redacted {
+    } else if auto {
         user.ip_address.set_value(None);
     }
     let mut produced_replacement = false;
@@ -182,19 +195,18 @@ pub fn process_user_ip(
 }
 
 fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules: ProjectPii<'_>) {
-    let contexts_redacted = redacted(&event.contexts);
-    let trace = event.contexts.0.as_mut().and_then(|c| c.0.get_mut("trace"));
-    let trace_redacted = trace.as_deref().is_some_and(redacted);
-    let trace_data = trace.and_then(|entry| match &mut entry.0.as_mut()?.0 {
-        Context::Trace(trace) => Some(&mut trace.data),
-        _ => None,
+    let trace_data = field_value_mut(&mut event.contexts).and_then(|contexts| {
+        let trace = field_value_mut(contexts.0.get_mut("trace").ok_or(Missing)?)?;
+        match &mut trace.0 {
+            Context::Trace(trace) => Ok(&mut trace.data),
+            _ => Err(Missing),
+        }
     });
-    let segment_has_asn = contexts_redacted
-        || trace_redacted
-        || has_asn(&event.tags, |tags, k| tags.0.contains(k))
-        || trace_data
-            .as_deref()
-            .is_some_and(|d| has_asn(d, SpanData::contains));
+    let segment_has_asn = has_asn(&event.tags, |tags, k| tags.0.contains(k))
+        || match &trace_data {
+            Ok(data) => has_asn(data, SpanData::contains),
+            Err(reason) => matches!(reason, Redacted),
+        };
     if event.ty.value() != Some(&EventType::Transaction) {
         if !segment_has_asn && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip)) {
             let tags = &mut event.tags.get_or_insert_with(Tags::default).0;
@@ -218,7 +230,7 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         .then(Attributes::new);
     if !segment_has_asn
         && !has_asn(&event.measurements, |m, k| m.contains_key(k))
-        && let Some(data) = trace_data
+        && let Ok(data) = trace_data
         && let Some(ip) = span_ip(data, |key| event.tags.value()?.0.get(key), ip)
     {
         insert_span_asn(data, ip, db, rules, &mut fields);
@@ -263,17 +275,14 @@ pub fn enrich_span_asn(attrs: &mut Annotated<Attributes>, db: &AsnLookup) {
     let Some(attrs) = attrs.value_mut() else {
         return;
     };
-    let source = [CLIENT__ADDRESS, USER__IP_ADDRESS]
+    let ip = [CLIENT__ADDRESS, USER__IP_ADDRESS]
         .into_iter()
-        .find_map(|key| attrs.0.get(key));
-    let Some(entry) = source.filter(|a| !redacted(a)).and_then(|a| a.value()) else {
-        return;
-    };
-    let value = &entry.value.value;
-    if !redacted(value)
-        && let Some(ip) = value.as_str().and_then(|s| s.parse().ok())
-        && let Some((number, organization)) = db.lookup(ip)
-    {
+        .find_map(|key| attrs.0.get(key))
+        .and_then(unredacted_value)
+        .and_then(|attr| unredacted_value(&attr.value.value))
+        .and_then(Value::as_str)
+        .and_then(|text| text.parse().ok());
+    if let Some((number, organization)) = ip.and_then(|ip| db.lookup(ip)) {
         set_asn_fields(attrs, number, organization);
     }
 }
@@ -327,19 +336,13 @@ fn span_ip<'a, T: AsRef<str> + 'a>(
 ) -> Option<IpAddr> {
     for key in [CLIENT__ADDRESS, USER__IP_ADDRESS] {
         let text = if let Some(v) = data.value().and_then(|d| d.get(key)) {
-            if redacted(v) {
-                return None;
-            }
-            v.as_str()
+            unredacted_value(v)?.as_str()?
         } else if let Some(v) = tag(key) {
-            if redacted(v) {
-                return None;
-            }
-            v.as_str()
+            unredacted_value(v)?.as_ref()
         } else {
             continue;
         };
-        return text?.parse().ok();
+        return text.parse().ok();
     }
     fallback
 }
@@ -349,6 +352,42 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn test_transport_fallback_with_upstream_redaction() {
+        let removed = json!({"": {"rem": [["@anything:remove", "x"]]}});
+        let ip = Some("1.0.0.1");
+        let asn = Some("15169");
+        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
+        let config = NormalizationConfig {
+            client_ip: Some("1.0.0.1".parse().unwrap()),
+            infer_ip_address: true,
+            asn_lookup: Some(&db),
+            ..Default::default()
+        };
+        for (meta, expected_ip, expected_asn) in [
+            (json!({}), ip, asn), // Missing values permit transport fallback.
+            (json!({"user": removed}), None, None), // A removed user blocks lookup.
+            (json!({"user": {"ip_address": removed}}), None, None), // So does its IP.
+            (json!({"request": removed}), None, None), // A removed request blocks fallback.
+            (json!({"request": {"env": removed}}), None, None), // So does its environment.
+            (json!({"contexts": removed}), ip, None), // The ASN destination is blocked.
+            (json!({"contexts": {"trace": removed}}), ip, None), // So is a removed trace.
+        ] {
+            let payload = json!({
+                "platform": "javascript", "user": {"ip_address": null},
+                "request": {"env": {}}, "contexts": {"trace": null}, "_meta": meta,
+            });
+            let mut event = Annotated::<Event>::from_json(&payload.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            process_client_ip(&mut event, &config, Default::default()).unwrap();
+            let ip = event.user.value().and_then(|u| u.ip_address.as_str());
+            let asn = event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER));
+            assert_eq!((ip, asn), (expected_ip, expected_asn), "{meta}");
+        }
+    }
 
     #[test]
     fn test_ip_fallback_after_both_rule_sets() {
