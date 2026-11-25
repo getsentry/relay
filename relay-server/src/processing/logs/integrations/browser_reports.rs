@@ -1,8 +1,10 @@
 use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
+use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_quotas::DataCategory;
 
+use crate::constants::BROWSER_REPORT_RELEASE_HEADER;
 use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
@@ -67,12 +69,21 @@ fn expand(
 
     let payload = item.data().payload();
     let received_at = headers.meta().received_at();
+    let release = headers
+        .get_header(BROWSER_REPORT_RELEASE_HEADER)
+        .and_then(|h| h.as_str());
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
         .filter_map(|report| relay_ourlogs::browser_report_to_sentry_log(report, received_at))
-        .map(|log| {
+        .map(|mut log| {
+            if let Some(release) = release {
+                log.attributes
+                    .get_or_insert_with(Default::default)
+                    .insert(SENTRY__RELEASE, release.to_owned());
+            }
+
             // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.
             let byte_size = relay_ourlogs::calculate_size(&log);

@@ -408,3 +408,39 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
         ],
     }
     assert mini_sentry.captured_envelopes.empty()
+
+
+def test_browser_report_release(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:browser-report-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    relay.send_browser_report(
+        project_id,
+        payload=[
+            {
+                "age": 0,
+                "type": "integrity-violation",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0",
+                "body": {
+                    "documentURL": "https://example.com/index.html",
+                    "blockedURL": "https://cdn.example.com/app.js",
+                    "destination": "script",
+                    "reportOnly": True,
+                },
+            }
+        ],
+        params={"sentry_release": "frontend@1.2.3"},
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+    (log,) = json.loads(envelope.items[0].payload.bytes)["items"]
+    assert log["attributes"]["sentry.release"] == {
+        "type": "string",
+        "value": "frontend@1.2.3",
+    }
