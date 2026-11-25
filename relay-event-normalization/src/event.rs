@@ -306,7 +306,7 @@ pub fn normalize_event_with_pii(
     Ok(())
 }
 
-/// Normalize event fields before resolving the client address.
+/// Normalizes the given event based on the given config.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Validate the basic attributes we extract metrics from
     let _ = processor::apply(&mut event.release, |release, meta| {
