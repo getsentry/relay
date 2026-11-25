@@ -220,8 +220,8 @@ def test_logentry_formatted_data_scrubbing_settings(
 @pytest.mark.parametrize(
     "user_ip",
     [
-        pytest.param(None, id="inferred"),
-        pytest.param("2001:db8::2", id="explicit"),
+        pytest.param(None, id="inferred"),  # Removing REMOTE_ADDR blocks backfill.
+        pytest.param("2001:db8::2", id="explicit"),  # Keep the SDK's IP.
     ],
 )
 def test_scrub_remote_addr_user_ip(mini_sentry, relay, user_ip):
@@ -287,7 +287,10 @@ def test_ip_hash_respects_user_id_removal(mini_sentry, relay):
         {"$user.ip_address": ["@ip:hash"], "$user.id": ["@anything:remove"]}
     )
     ingress = relay(mini_sentry)
-    for identity in ({}, {"id": "sdk-id"}):
+    for identity in (
+        {},  # The ID removal rule also applies to the fallback hash.
+        {"id": "sdk-id"},  # Removing an SDK ID blocks backfill from the IP hash.
+    ):
         ingress.send_event(42, {"user": {"ip_address": ip, **identity}})
         user = mini_sentry.get_captured_envelope().get_event().get("user") or {}
         assert user.get("id") is None

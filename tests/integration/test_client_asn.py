@@ -91,19 +91,35 @@ SDK_NUMBER = EventCase(id="sdk-number", supplied={NUMBER: 42}, expected={NUMBER:
         ProjectCase(
             id="enabled",
             events=(
-                LOOKUP,
-                SDK_NUMBER,
+                LOOKUP,  # Fill both ASN fields from the IP.
+                SDK_NUMBER,  # Keep the SDK number and leave the organization absent.
                 EventCase(
                     id="sdk-organization",
                     supplied={ORG: "SDK value"},
                     expected={ORG: "SDK value"},
-                ),
+                ),  # Keep the SDK organization and leave the number absent.
             ),
-        ),
-        ProjectCase(id="without-pii", applications=None, events=(LOOKUP,)),
-        ProjectCase(id="flag-off", enabled=False, events=(NO_ASN,)),
-        ProjectCase(id="forwarder-only", forwarder_only_db=True, events=(LOOKUP,)),
-        ProjectCase(id="scrub-ips", scrub_ips=True, events=(LOOKUP, SDK_NUMBER)),
+        ),  # Fill missing ASN data and preserve SDK-supplied fields.
+        ProjectCase(
+            id="without-pii",
+            applications=None,
+            events=(LOOKUP,),
+        ),  # Lookup also works without scrubbing rules.
+        ProjectCase(
+            id="flag-off",
+            enabled=False,
+            events=(NO_ASN,),
+        ),  # Disabling lookup leaves both fields absent.
+        ProjectCase(
+            id="forwarder-only",
+            forwarder_only_db=True,
+            events=(LOOKUP,),
+        ),  # The forwarder's ASN survives processing without a database.
+        ProjectCase(
+            id="scrub-ips",
+            scrub_ips=True,
+            events=(LOOKUP, SDK_NUMBER),
+        ),  # Disabling IP storage preserves both derived and supplied ASN data.
         ProjectCase(
             id="remove-source",
             applications={
@@ -112,7 +128,7 @@ SDK_NUMBER = EventCase(id="sdk-number", supplied={NUMBER: 42}, expected={NUMBER:
                 "$span.attributes.'client.address'.value": ["@anything:remove"],
             },
             events=(LOOKUP,),
-        ),
+        ),  # Removing the source IP preserves the derived ASN.
         ProjectCase(
             id="remove-destination",
             applications={
@@ -120,7 +136,7 @@ SDK_NUMBER = EventCase(id="sdk-number", supplied={NUMBER: 42}, expected={NUMBER:
                 "$span.attributes.'client.as.organization'.value": ["@anything:remove"],
             },
             events=(EventCase(id="number-only", expected={NUMBER: 15169}),),
-        ),
+        ),  # Scrubbing the organization preserves the ASN number.
     ],
     ids=lambda case: case.id,
 )
@@ -182,7 +198,13 @@ def test_client_asn(
         }, event.id
 
 
-@pytest.mark.parametrize("remove", ["source", "destination"])
+@pytest.mark.parametrize(
+    "remove",
+    [
+        "source",  # The ASN survives removal of its source on the first hop.
+        "destination",  # The second hop leaves the removed SDK number absent.
+    ],
+)
 def test_client_asn_preserves_upstream_removal(
     mini_sentry,
     relay,
@@ -227,7 +249,11 @@ def test_client_asn_preserves_upstream_removal(
     for key in keys:
         del rules[key]
     processing = relay_with_processing(options=DB)
-    for envelope in (error, tx, standalone):
+    for envelope in (
+        error,  # Check redaction across hops for error tags.
+        tx,  # Check the transaction segment and its child span.
+        standalone,  # Check native span attributes across hops.
+    ):
         processing.send_envelope(42, envelope, headers={"X-Forwarded-For": IP})
 
     error, _ = events.get_event()
@@ -261,10 +287,10 @@ def test_client_asn_address_selection(
     headers = {"X-Forwarded-For": IP}
 
     for addr, number in [
-        ("{{auto}}", 15169),
-        ("2600::1", 237),
-        ("192.0.2.1", None),
-        ("example.invalid", None),
+        ("{{auto}}", 15169),  # Resolve the marker from the transport IP.
+        ("2600::1", 237),  # Prefer the supplied IPv6 address over the transport IP.
+        ("192.0.2.1", None),  # A valid IP missing from the database yields no ASN.
+        ("example.invalid", None),  # A hostname cannot supply an IP for lookup.
     ]:
         processing.send_envelope(
             42, standalone_span(project, addr, {}), headers=headers
@@ -348,7 +374,10 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
 
     tx = transaction(IP, {})
     first = tx["spans"][0]
-    for span_id in ("cccccccccccccccc", "dddddddddddddddd"):
+    for span_id in (
+        "cccccccccccccccc",  # The rule removes the organization from spans[1].
+        "dddddddddddddddd",  # The same address keeps its organization on spans[2].
+    ):
         tx["spans"].append(
             {**first, "span_id": span_id, "data": {"client.address": "2600::1"}}
         )
@@ -372,10 +401,10 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
 @pytest.mark.parametrize(
     "source, remove_remote",
     [
-        ("user", True),
-        ("remote", False),
-        ("remote", True),
-        ("auto", True),
+        ("user", True),  # An explicit user IP still supplies a stable hash.
+        ("remote", False),  # A retained REMOTE_ADDR supplies the hash on the first hop.
+        ("remote", True),  # A removed REMOTE_ADDR supplies ASN but no user ID.
+        ("auto", True),  # The marker uses the transport IP for a stable hash.
     ],
 )
 def test_client_ip_hash_survives_relay_hops(mini_sentry, relay, source, remove_remote):
@@ -426,14 +455,20 @@ def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
     )
     first = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
     second = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
-    for explicit in (False, True):
+    for explicit in (
+        False,  # Removing REMOTE_ADDR leaves the marker without an ID source.
+        True,  # The explicit user IP still supplies the ID hash.
+    ):
         tx = transaction(IP, {})
         tx["request"] = {"env": {"REMOTE_ADDR": IP}}
         tx["spans"][0]["data"] = {}
         tx["user"] = {"ip_address": IP if explicit else "{{auto}}"}
         first.send_event(42, tx)
         envelope = mini_sentry.get_captured_envelope()
-        for hop in (1, 2):
+        for hop in (
+            1,  # Check identity and span tags after initial scrubbing.
+            2,  # A different transport IP must preserve the first hop's result.
+        ):
             event = next(
                 item.payload.json
                 for item in envelope.items
@@ -487,11 +522,11 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     second = relay(mini_sentry, options=options)
     hashed = hmac.digest(b"", ip.encode(), "sha1").hex().upper()
     for supplied, identity, expected_id in [
-        (False, {}, None),
-        (True, {}, hashed),
-        (True, {"id": "sdk-id"}, "sdk-id"),
-        (True, {"email": "client@example.org"}, None),
-        (True, {"username": "sdk-user"}, None),
+        (False, {}, None),  # Scrubbed REMOTE_ADDR yields City and ASN only.
+        (True, {}, hashed),  # The explicit user IP supplies the fallback ID.
+        (True, {"id": "sdk-id"}, "sdk-id"),  # Keep the SDK's ID over the IP hash.
+        (True, {"email": "client@example.org"}, None),  # Email takes priority.
+        (True, {"username": "sdk-user"}, None),  # Username takes priority.
     ]:
         user = identity.copy()
         if supplied:
