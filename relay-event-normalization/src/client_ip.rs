@@ -4,15 +4,15 @@ use std::net::IpAddr;
 use relay_conventions::attributes::{
     CLIENT__ADDRESS, CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION, USER__IP_ADDRESS,
 };
-use relay_event_schema::processor::{ProcessingResult, ValueType};
+use relay_event_schema::processor::{ProcessingAction, ProcessingResult, ValueType};
 use relay_event_schema::protocol::{
-    Attributes, AutoInferSetting, Event, EventType, IpAddr as ProtocolIp, Measurements, ParsedIp,
-    Request, SpanData, SpanV2, Tags, TraceContext, User,
+    Attributes, AutoInferSetting, ClientSdkInfo, Event, EventType, IpAddr as ProtocolIp,
+    Measurements, ParsedIp, Request, SpanData, SpanV2, Tags, TraceContext, User,
 };
 use relay_pii::{PiiProcessor, ProjectPii};
 use relay_protocol::{Annotated, Remark, RemarkType, Value};
 
-use crate::{AsnLookup, NormalizationConfig};
+use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
@@ -57,9 +57,44 @@ pub fn process_client_ip(
     config: &NormalizationConfig<'_>,
     rules: ProjectPii<'_>,
 ) -> ProcessingResult {
-    let infer = event
-        .client_sdk
-        .value()
+    let lookup = process_user_ip(
+        &mut event.request,
+        &mut event.user,
+        ClientIpConfig {
+            platform: event.platform.as_str(),
+            sdk: event.client_sdk.value(),
+            client_ip: config.client_ip,
+            geoip_lookup: config.geoip_lookup,
+            infer_ip_address: config.infer_ip_address,
+            security_report: event.csp.value().is_some(),
+        },
+        rules,
+    )?;
+    if let Some(db) = config.asn_lookup {
+        enrich_event_asn(event, lookup, db, rules);
+    }
+    Ok(())
+}
+
+/// Inputs used to resolve a user IP on events and replays.
+pub struct ClientIpConfig<'a> {
+    pub platform: Option<&'a str>,
+    pub sdk: Option<&'a ClientSdkInfo>,
+    pub client_ip: Option<&'a ProtocolIp>,
+    pub geoip_lookup: Option<&'a CityLookup>,
+    pub infer_ip_address: bool,
+    pub security_report: bool,
+}
+
+/// Normalize the request and user in place and return the address eligible for lookup.
+pub fn process_user_ip(
+    request: &mut Annotated<Request>,
+    user: &mut Annotated<User>,
+    config: ClientIpConfig<'_>,
+    rules: ProjectPii<'_>,
+) -> Result<Option<IpAddr>, ProcessingAction> {
+    let infer = config
+        .sdk
         .and_then(|sdk| sdk.settings.value())
         .map(|settings| settings.infer_ip())
         .unwrap_or_default();
@@ -71,20 +106,19 @@ pub fn process_client_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let request_redacted = remote_redacted(&event.request);
+    let request_redacted = remote_redacted(request);
     let remote = if request_redacted {
         None
     } else {
-        normalize_remote(&mut event.request, transport)
+        normalize_remote(request, transport)
     };
-    let csp_transport =
-        event.csp.value().is_some() && config.infer_ip_address && transport.is_some();
+    let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
     let remote = remote.filter(|_| infer != AutoInferSetting::Never && !csp_transport);
 
     // Keep the original request IP for lookup. Only its surviving text can become user.ip_address.
-    rules.scrub_request_env(&mut event.request)?;
-    let field = event.user.value().map(|u| &u.ip_address);
-    let user_ip_redacted = redacted(&event.user) || field.is_some_and(redacted);
+    rules.scrub_request_env(request)?;
+    let field = user.value().map(|u| &u.ip_address);
+    let user_ip_redacted = redacted(user) || field.is_some_and(redacted);
     let supplied = field.and_then(|f| f.as_str()).map(str::parse::<ParsedIp>);
     let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
     let (lookup, backfill) = match (supplied, remote) {
@@ -93,7 +127,7 @@ pub fn process_client_ip(
         (Some(Err(_)), _) => (None, None),
         (_, Some(ip)) => (
             Some(ip),
-            remote_addr(&event.request)
+            remote_addr(request)
                 .filter(|v| !redacted(v))
                 .and_then(|v| v.as_str()),
         ),
@@ -101,10 +135,7 @@ pub fn process_client_ip(
             let infer_transport = csp_transport
                 || auto
                 || infer == AutoInferSetting::Auto
-                || matches!(
-                    event.platform.as_str(),
-                    Some("javascript" | "cocoa" | "objc")
-                );
+                || matches!(config.platform, Some("javascript" | "cocoa" | "objc"));
             (
                 connection.map(|(_, ip)| ip),
                 transport
@@ -117,19 +148,27 @@ pub fn process_client_ip(
 
     let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
     if let Some(text) = backfill {
-        event
-            .user
-            .get_or_insert_with(User::default)
+        user.get_or_insert_with(User::default)
             .ip_address
             .set_value(Some(ProtocolIp(text.to_owned())));
     } else if auto
         && !user_ip_redacted
-        && let Some(user) = event.user.value_mut()
+        && let Some(user) = user.value_mut()
     {
         user.ip_address.set_value(None);
     }
-    enrich(event, lookup, config, rules);
-    scrub_user_identity(&mut event.user, rules, hash_only)
+    if let (Some(db), Some(ip)) = (config.geoip_lookup, lookup)
+        && user
+            .value()
+            .is_none_or(|u| u.geo.value().is_none() && !redacted(&u.geo))
+        && let Some(geo) = db.lookup(ip)
+    {
+        user.get_or_insert_with(User::default)
+            .geo
+            .set_value(Some(geo));
+    }
+    scrub_user_identity(user, rules, hash_only)?;
+    Ok(lookup)
 }
 
 /// A rule can hash the IP before a later rule removes the IP or another identifier.
@@ -194,26 +233,7 @@ fn scrub_user_identity(
     Ok(())
 }
 
-fn enrich(
-    event: &mut Event,
-    ip: Option<IpAddr>,
-    config: &NormalizationConfig<'_>,
-    rules: ProjectPii<'_>,
-) {
-    if let (Some(db), Some(ip)) = (config.geoip_lookup, ip)
-        && event
-            .user
-            .value()
-            .is_none_or(|u| u.geo.value().is_none() && !redacted(&u.geo))
-        && let Some(geo) = db.lookup(ip)
-    {
-        event
-            .user
-            .get_or_insert_with(User::default)
-            .geo
-            .set_value(Some(geo));
-    }
-    let Some(db) = config.asn_lookup else { return };
+fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules: ProjectPii<'_>) {
     let has_tags = redacted(&event.tags)
         || event
             .tags

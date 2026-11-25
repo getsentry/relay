@@ -3,12 +3,13 @@
 use std::net::IpAddr as StdIpAddr;
 
 use relay_event_schema::processor::{self, ProcessingState, Processor};
-use relay_event_schema::protocol::{Contexts, Event, IpAddr, Replay};
+use relay_event_schema::protocol::{Contexts, IpAddr, Replay};
 use relay_protocol::Annotated;
 
+use crate::client_ip::{ClientIpConfig, process_user_ip};
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
-use crate::{CityLookup, NormalizationConfig, process_client_ip, trimming};
+use crate::{CityLookup, trimming};
 
 /// Replay validation error.
 ///
@@ -83,26 +84,19 @@ pub fn normalize(
 ) {
     let _ = processor::apply(replay, |replay_value, meta| {
         normalize_platform(replay_value);
-        let mut identity = Event {
-            request: std::mem::take(&mut replay_value.request),
-            user: std::mem::take(&mut replay_value.user),
-            platform: std::mem::take(&mut replay_value.platform),
-            client_sdk: std::mem::take(&mut replay_value.sdk),
-            ..Default::default()
-        };
-        process_client_ip(
-            &mut identity,
-            &NormalizationConfig {
+        process_user_ip(
+            &mut replay_value.request,
+            &mut replay_value.user,
+            ClientIpConfig {
+                platform: replay_value.platform.as_str(),
+                sdk: replay_value.sdk.value(),
                 client_ip: client_ip.map(IpAddr::from).as_ref(),
                 geoip_lookup: Some(geoip_lookup),
-                ..Default::default()
+                infer_ip_address: true,
+                security_report: false,
             },
             Default::default(),
         )?;
-        replay_value.request = identity.request;
-        replay_value.user = identity.user;
-        replay_value.platform = identity.platform;
-        replay_value.sdk = identity.client_sdk;
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);
         normalize_array_fields(replay_value);
