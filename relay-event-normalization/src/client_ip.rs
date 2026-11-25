@@ -154,54 +154,26 @@ pub fn process_user_ip(
     } else if auto && !user_ip_redacted {
         user.ip_address.set_value(None);
     }
-    let (early, mut last) = match rules.processors() {
-        [early, Some(last)] => (early, last),
-        [Some(last), None] => (None, last),
-        [None, None] => return Ok(lookup),
-    };
-    let id_unset = |u: &User| u.id.value().is_none() && u.id.meta().is_empty();
-    let eligible = id_unset(user)
-        && user
-            .ip_address
-            .value()
-            .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
-    let allowed = |ip: &Annotated<ProtocolIp>| {
-        !hash_only
-            || ip
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Pseudonymized)
-    };
-
-    // Only projects with both rule sets need to preserve an intermediate replacement.
-    let (eligible, saved) = match early {
-        None => (eligible, None),
-        Some(mut first) => {
-            first.scrub_event_user_fields(user)?;
-            match user.ip_address.value().map(ProtocolIp::parsed) {
-                Some(ParsedIp::Address(_) | ParsedIp::Auto) => (id_unset(user), None),
-                Some(ParsedIp::Replacement) if eligible && allowed(&user.ip_address) => {
-                    (false, Some(user.ip_address.clone()))
-                }
-                _ => (false, None),
-            }
+    let mut produced_replacement = false;
+    let mut prior_replacement = None;
+    for mut processor in rules.processors().into_iter().flatten() {
+        // A later pass can remove the replacement or a competing email/username.
+        if produced_replacement {
+            prior_replacement = Some(user.ip_address.clone());
         }
-    };
-
-    last.scrub_event_user_fields(user)?;
-    if user_needs_id(user) {
-        let replacement = saved.or_else(|| {
-            (eligible
-                && user
+        produced_replacement = processor.scrub_event_user_fields(user)?
+            && (!hash_only
+                || user
                     .ip_address
-                    .value()
-                    .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
-                && allowed(&user.ip_address))
-            .then(|| std::mem::take(&mut user.ip_address))
-        });
-        if let Some(ip) = replacement {
-            rules.set_derived_user_id(user, ip)?;
-        }
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Pseudonymized));
+    }
+    if user_needs_id(user)
+        && let Some(ip) = prior_replacement
+            .or_else(|| produced_replacement.then(|| std::mem::take(&mut user.ip_address)))
+    {
+        rules.set_derived_user_id(user, ip)?;
     }
     if hash_only {
         user.ip_address.set_value(None);

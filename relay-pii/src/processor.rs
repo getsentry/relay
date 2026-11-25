@@ -155,10 +155,29 @@ impl<'a> PiiProcessor<'a> {
         self
     }
 
-    /// The event user container has no PII flag. Scrub its fields at their schema paths.
-    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> ProcessingResult {
+    /// Scrub the event user and report whether its IP became a candidate for the fallback ID.
+    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> Result<bool, ProcessingAction> {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
-        user.process_child_values(self, &state)
+        self.scrub_user_fields(user, &state)
+    }
+
+    fn scrub_user_fields(
+        &mut self,
+        user: &mut User,
+        state: &ProcessingState<'_>,
+    ) -> Result<bool, ProcessingAction> {
+        let can_replace = user.id.value().is_none()
+            && user.id.meta().is_empty()
+            && user
+                .ip_address
+                .value()
+                .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
+        user.process_child_values(self, state)?;
+        Ok(can_replace
+            && user
+                .ip_address
+                .value()
+                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement))
     }
 
     fn apply_all_rules(
@@ -373,20 +392,7 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let can_replace = user.id.value().is_none()
-            && user.id.meta().is_empty()
-            && user
-                .ip_address
-                .value()
-                .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
-        user.process_child_values(self, state)?;
-        if can_replace
-            && user
-                .ip_address
-                .value()
-                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
-            && user_needs_id(user)
-        {
+        if self.scrub_user_fields(user, state)? && user_needs_id(user) {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
             remove_replaced_ip(user);
         }
