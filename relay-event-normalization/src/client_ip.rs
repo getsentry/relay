@@ -205,7 +205,7 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
             if let Some(org) = org {
                 tags.insert(
                     CLIENT__AS__ORGANIZATION.into(),
-                    Annotated::new(org.chars().take(200).collect()),
+                    Annotated::new(org.to_owned()),
                 );
             }
         }
