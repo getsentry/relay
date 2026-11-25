@@ -68,7 +68,7 @@ fn expand(
 
     let payload = item.data().payload();
     let received_at = headers.meta().received_at();
-    let release = item.data().sentry_release();
+    let release = headers.get_header(SENTRY__RELEASE).and_then(|h| h.as_str());
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?

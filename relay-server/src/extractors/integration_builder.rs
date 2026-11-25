@@ -25,17 +25,10 @@ pub struct HasType(());
 pub struct IntegrationBuilder<T = ()> {
     envelope: Box<Envelope>,
     payload: Bytes,
-    sentry_release: Option<String>,
     _state: PhantomData<T>,
 }
 
 impl IntegrationBuilder<()> {
-    /// Sets the Sentry release on the integration item, if the value is not `None`.
-    pub fn with_sentry_release(mut self, release: Option<String>) -> Self {
-        self.sentry_release = release;
-        self
-    }
-
     /// Configures the [`Integration`] type.
     ///
     /// Setting the type is required.
@@ -46,16 +39,12 @@ impl IntegrationBuilder<()> {
             let mut item = IntegrationItem::new();
             item.data_mut()
                 .set_payload(integration.into(), self.payload.clone());
-            if let Some(release) = self.sentry_release.take() {
-                item.data_mut().set_sentry_release(release);
-            }
             item
         });
 
         IntegrationBuilder {
             envelope: self.envelope,
             payload: self.payload,
-            sentry_release: None,
             _state: Default::default(),
         }
     }
@@ -119,7 +108,6 @@ impl FromRequest<ServiceState> for IntegrationBuilder {
         Ok(Self {
             envelope,
             payload,
-            sentry_release: None,
             _state: Default::default(),
         })
     }

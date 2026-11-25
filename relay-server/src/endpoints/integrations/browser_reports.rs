@@ -3,6 +3,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::ConfigSnapshot;
+use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_dynamic_config::Feature;
 use serde::Deserialize;
 
@@ -31,8 +32,8 @@ async fn handle(
     }
 
     let envelope = builder
-        .with_sentry_release(query.sentry_release)
         .with_type(LogsIntegration::BrowserReport)
+        .with_header_opt(SENTRY__RELEASE, query.sentry_release)
         .with_required_feature(Feature::BrowserReportIngestion)
         .build();
 
