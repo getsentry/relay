@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from .asserts import matches_any, time_within_delta
 
 
@@ -410,7 +412,12 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_browser_report_release(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "release, expected",
+    [("frontend@1.2.3", "frontend@1.2.3"), ("a" * 201, None)],
+    ids=["valid", "too_long"],
+)
+def test_browser_report_release(mini_sentry, relay, release, expected):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -435,12 +442,15 @@ def test_browser_report_release(mini_sentry, relay):
                 },
             }
         ],
-        params={"sentry_release": "frontend@1.2.3"},
+        params={"sentry_release": release},
     )
 
     envelope = mini_sentry.get_captured_envelope()
     (log,) = json.loads(envelope.items[0].payload.bytes)["items"]
-    assert log["attributes"]["sentry.release"] == {
-        "type": "string",
-        "value": "frontend@1.2.3",
-    }
+    if expected is None:
+        assert "sentry.release" not in log["attributes"]
+    else:
+        assert log["attributes"]["sentry.release"] == {
+            "type": "string",
+            "value": expected,
+        }

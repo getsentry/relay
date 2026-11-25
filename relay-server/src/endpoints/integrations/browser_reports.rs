@@ -31,9 +31,13 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
+    let release = query
+        .sentry_release
+        .filter(|release| relay_event_normalization::validate_release(release).is_ok());
+
     let envelope = builder
         .with_type(LogsIntegration::BrowserReport)
-        .with_header_opt(SENTRY__RELEASE, query.sentry_release)
+        .with_header_opt(SENTRY__RELEASE, release)
         .with_required_feature(Feature::BrowserReportIngestion)
         .build();
 
