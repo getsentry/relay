@@ -88,13 +88,14 @@ fn expand_remote_addr(env: &mut Object<Value>, transport: Option<IpAddr>) -> Opt
     transport
 }
 
-/// Normalize the request and user in place and return the address eligible for lookup.
-pub fn process_user_ip(
+/// Select the lookup address, any backfill that must await request PII, and whether
+/// the connection address may only be used for a hashed ID.
+fn select_user_ip(
     request: &mut Annotated<Request>,
     user: &mut Annotated<User>,
-    config: ClientIpConfig<'_>,
+    config: &ClientIpConfig<'_>,
     rules: ProjectPii<'_>,
-) -> Result<Option<IpAddr>, ProcessingAction> {
+) -> (Option<IpAddr>, Option<ProtocolIp>, bool) {
     let infer = config
         .sdk
         .and_then(|sdk| sdk.settings.value())
@@ -110,40 +111,36 @@ pub fn process_user_ip(
         .as_deref_mut()
         .ok()
         .and_then(|env| expand_remote_addr(env, transport));
-    // Only a raw address taken from the request must wait for request PII before it can be copied.
-    let (lookup, request_backfill, hash_only) = 'select: {
-        let supplied = field_value_mut(user).and_then(|u| {
-            let parsed = field_value_mut(&mut u.ip_address)?.parsed();
-            Ok((parsed, &mut u.ip_address))
-        });
-        let fallback_connection = match supplied {
-            Ok((ParsedIp::Address(ip), _)) => break 'select (Some(ip), None, false),
-            Ok((ParsedIp::Replacement, _)) | Err(Redacted) => break 'select (None, None, false),
-            Ok((ParsedIp::Auto, field)) => {
-                // Consume the marker even if no eligible address is available.
-                field.set_value(None);
-                transport
-            }
-            // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
-            Err(Missing) => transport.filter(|_| {
-                infer == AutoInferSetting::Auto
-                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
-            }),
-        };
+    let supplied = field_value_mut(user).and_then(|u| {
+        let parsed = field_value_mut(&mut u.ip_address)?.parsed();
+        Ok((parsed, &mut u.ip_address))
+    });
+    let fallback_connection = match supplied {
+        Ok((ParsedIp::Address(ip), _)) => return (Some(ip), None, false),
+        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => return (None, None, false),
+        Ok((ParsedIp::Auto, field)) => {
+            // Consume the marker even if no eligible address is available.
+            field.set_value(None);
+            transport
+        }
+        // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
+        Err(Missing) => transport.filter(|_| {
+            infer == AutoInferSetting::Auto
+                || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
+        }),
+    };
 
-        // Browser CSP reports prefer the connection. Other events prefer a supplied REMOTE_ADDR.
-        let ip = if let Some(ip) =
-            transport.filter(|_| config.security_report && config.infer_ip_address)
-        {
-            ip
-        } else {
+    // Browser CSP reports prefer the connection. Other events prefer a supplied REMOTE_ADDR.
+    let ip = match transport {
+        Some(ip) if config.security_report && config.infer_ip_address => ip,
+        _ => {
             let request_ip = if let Some(ip) = expanded_ip {
                 Some(ProtocolIp::from(ip))
             } else {
                 match env
                     .and_then(|env| field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?))
                 {
-                    Err(Redacted) => break 'select (None, None, false),
+                    Err(Redacted) => return (None, None, false),
                     Ok(Value::String(text)) if infer != AutoInferSetting::Never => {
                         ProtocolIp::parse(text.as_str()).ok()
                     }
@@ -151,20 +148,30 @@ pub fn process_user_ip(
                 }
             };
             if let Some(ip) = request_ip {
-                break 'select (ip.address(), Some(ip), false);
+                return (ip.address(), Some(ip), false);
             }
-            let Some(ip) = fallback_connection else {
+            match fallback_connection {
+                Some(ip) => ip,
                 // City and ASN may still use the connection without storing a user IP.
-                break 'select (config.client_ip, None, false);
-            };
-            ip
-        };
-        user.get_or_insert_with(User::default)
-            .ip_address
-            .set_value(Some(ProtocolIp::from(ip)));
-        // With IP storage disabled, only a PII hash may become a user identifier.
-        (Some(ip), None, !config.infer_ip_address)
+                None => return (config.client_ip, None, false),
+            }
+        }
     };
+    user.get_or_insert_with(User::default)
+        .ip_address
+        .set_value(Some(ProtocolIp::from(ip)));
+    // With IP storage disabled, only a PII hash may become a user identifier.
+    (Some(ip), None, !config.infer_ip_address)
+}
+
+/// Normalize the request and user in place and return the address eligible for lookup.
+pub fn process_user_ip(
+    request: &mut Annotated<Request>,
+    user: &mut Annotated<User>,
+    config: ClientIpConfig<'_>,
+    rules: ProjectPii<'_>,
+) -> Result<Option<IpAddr>, ProcessingAction> {
+    let (lookup, request_backfill, hash_only) = select_user_ip(request, user, &config, rules);
     rules.scrub_request_env(request)?;
     if let Some(ip) = request_backfill
         && request
