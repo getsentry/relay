@@ -108,7 +108,8 @@ pub fn process_user_ip(
 
     // Keep the original request IP for lookup. Only its surviving text can become user.ip_address.
     rules.scrub_request_env(request)?;
-    let field = user.value().map(|u| &u.ip_address);
+    let existing = user.value();
+    let field = existing.map(|u| &u.ip_address);
     let user_ip_redacted = redacted(user) || field.is_some_and(redacted);
     let supplied = field.and_then(|f| f.as_str()).map(str::parse::<ParsedIp>);
     let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
@@ -139,51 +140,50 @@ pub fn process_user_ip(
         _ => (None, None),
     };
 
+    let geo = match existing {
+        Some(u) if u.geo.value().is_some() || redacted(&u.geo) => None,
+        _ => config.geoip_lookup.and_then(|db| db.lookup(lookup?)),
+    };
+    let current = match user.value_mut() {
+        Some(current) => current,
+        missing if backfill.is_some() || geo.is_some() => missing.insert(User::default()),
+        None => return Ok(lookup),
+    };
+    if let Some(geo) = geo {
+        current.geo.set_value(Some(geo));
+    }
+
     let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
-    let mut valid_ip = if let Some(text) = backfill {
-        user.get_or_insert_with(User::default)
+    let valid_ip = if let Some(text) = backfill {
+        current
             .ip_address
             .set_value(Some(ProtocolIp(text.to_owned())));
         true
-    } else if auto
-        && !user_ip_redacted
-        && let Some(user) = user.value_mut()
-    {
-        user.ip_address.set_value(None);
+    } else if auto && !user_ip_redacted {
+        current.ip_address.set_value(None);
         false
     } else {
         matches!(supplied, Some(Ok(_)))
     };
-    if let (Some(db), Some(ip)) = (config.geoip_lookup, lookup)
-        && user
-            .value()
-            .is_none_or(|u| u.geo.value().is_none() && !redacted(&u.geo))
-        && let Some(geo) = db.lookup(ip)
-    {
-        user.get_or_insert_with(User::default)
-            .geo
-            .set_value(Some(geo));
-    }
-    if user.value().is_none() || rules.is_empty() {
+    if rules.is_empty() {
         return Ok(lookup);
     }
 
     // A later rule may remove both a hash and the email that took precedence over it.
+    let id_unset = |u: &User| u.id.value().is_none() && u.id.meta().is_empty();
+    let mut can_derive = valid_ip && id_unset(current);
     let mut saved_replacement = None;
     let mut passes = rules.processors().peekable();
     while let Some(mut pii) = passes.next() {
-        let can_derive = valid_ip
-            && user
-                .value()
-                .is_some_and(|u| u.id.value().is_none() && u.id.meta().is_empty());
         pii.scrub_event_user_fields(user)?;
         let Some(user) = user.value_mut() else {
             continue;
         };
         let text = user.ip_address.as_str();
-        valid_ip = text.is_some_and(|s| s.parse::<ParsedIp>().is_ok());
+        let valid_ip = text.is_some_and(|s| s.parse::<ParsedIp>().is_ok());
         let replaced = can_derive && text.is_some() && !valid_ip;
         if passes.peek().is_some() {
+            can_derive = valid_ip && id_unset(user);
             if replaced {
                 saved_replacement = Some(user.ip_address.clone());
             }

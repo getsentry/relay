@@ -522,20 +522,19 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     second = relay(mini_sentry, options=options)
     hashed = hmac.digest(b"", ip.encode(), "sha1").hex().upper()
     for supplied, identity, expected_id in [
-        (False, {}, None),  # Scrubbed REMOTE_ADDR yields City and ASN only.
+        (False, None, None),  # A City hit creates the missing user.
+        (False, {}, None),  # An existing empty user receives the city.
         (True, {}, hashed),  # The explicit user IP supplies the fallback ID.
         (True, {"id": "sdk-id"}, "sdk-id"),  # Keep the SDK's ID over the IP hash.
         (True, {"email": "client@example.org"}, None),  # Email takes priority.
         (True, {"username": "sdk-user"}, None),  # Username takes priority.
     ]:
-        user = identity.copy()
-        if supplied:
-            user["ip_address"] = ip
-        first.send_event(
-            42,
-            {"request": {"env": {"REMOTE_ADDR": ip}}, "user": user},
-            headers={"X-Forwarded-For": "1.0.0.1"},
-        )
+        event = {"request": {"env": {"REMOTE_ADDR": ip}}}
+        if identity is not None:
+            event["user"] = identity.copy()
+            if supplied:
+                event["user"]["ip_address"] = ip
+        first.send_event(42, event, headers={"X-Forwarded-For": "1.0.0.1"})
 
         def check(event):
             assert event["user"]["geo"]["city"] == "Linköping"
@@ -543,7 +542,7 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
             assert (event["request"].get("env") or {}).get("REMOTE_ADDR") is None
             assert event["user"].get("ip_address") != ip
             assert event["user"].get("id") == expected_id
-            for key, value in identity.items():
+            for key, value in (identity or {}).items():
                 assert event["user"][key] == value
 
         envelope = mini_sentry.get_captured_envelope()

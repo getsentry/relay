@@ -305,7 +305,7 @@ mod tests {
             &RawUserAgentInfo::default(),
             &CityLookup::empty(),
         );
-        assert_eq!(get_value!(replay.user.geo), None);
+        assert!(get_value!(replay.user).is_none());
 
         // No user object but an ip-address was provided.
         let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
