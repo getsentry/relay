@@ -34,6 +34,11 @@ pub enum AttachmentType {
     /// A Nintendo Switch dying message.
     NintendoSwitchDyingMessage,
 
+    /// A bundle of items packed into a single attachment.
+    ///
+    /// See `item_bundle.md` for the format.
+    ItemBundle,
+
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -76,6 +81,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
             AttachmentType::NintendoSwitchDyingMessage => write!(f, "nswitch.dying_message"),
+            AttachmentType::ItemBundle => write!(f, "event.item_bundle"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
             AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
@@ -111,6 +117,7 @@ impl std::str::FromStr for AttachmentType {
             "event.payload" => AttachmentType::EventPayload,
             "playstation.prosperodump" => AttachmentType::Prosperodump,
             "nswitch.dying_message" => AttachmentType::NintendoSwitchDyingMessage,
+            "event.item_bundle" => AttachmentType::ItemBundle,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "event.flamegraph" => AttachmentType::Flamegraph,
