@@ -9,8 +9,8 @@ use relay_event_schema::protocol::{
     Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, IpAddr as ProtocolIp,
     ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
-use relay_pii::{ProjectPii, user_needs_id};
-use relay_protocol::{Annotated, RemarkType, Value};
+use relay_pii::{PiiProcessor, ProjectPii, user_needs_id};
+use relay_protocol::{Annotated, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
@@ -116,40 +116,47 @@ pub fn process_user_ip(
     let supplied = field_value_mut(user)
         .and_then(|u| field_value_mut(&mut u.ip_address))
         .map(|ip| ip.parsed());
-    let auto = matches!(supplied, Ok(ParsedIp::Auto));
+    // Only an absent IP or the marker permits writing a fallback. An explicit marker
+    // opts legacy SDKs into automatic inference, while the SDK's "never" still wins.
+    let (explicit_ip, fallback_policy) = match supplied {
+        Ok(ParsedIp::Address(ip)) => (Some(ip), None),
+        Ok(ParsedIp::Replacement) | Err(Redacted) => (None, None),
+        Ok(ParsedIp::Auto) if infer == AutoInferSetting::Legacy => {
+            (None, Some(AutoInferSetting::Auto))
+        }
+        Ok(ParsedIp::Auto) | Err(Missing) => (None, Some(infer)),
+    };
     // Browser CSP reports can supply the connection IP even without an SDK inference setting.
     let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
 
     // An SDK-supplied REMOTE_ADDR takes precedence over the connection IP for ordinary events.
-    let use_remote = matches!(supplied, Err(Missing) | Ok(ParsedIp::Auto))
-        && infer != AutoInferSetting::Never
-        && !csp_transport;
+    let use_remote = matches!(
+        fallback_policy,
+        Some(AutoInferSetting::Legacy | AutoInferSetting::Auto)
+    ) && !csp_transport;
     let remote = normalize_remote_addr(request, transport, use_remote);
     rules.scrub_request_env(request)?;
-    let mut hash_only = false;
-    let (lookup, backfill) = match (supplied, remote) {
-        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None),
-        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None),
+    let (lookup, backfill, hash_only) = match (fallback_policy, remote) {
+        (None, _) => (explicit_ip, None, false),
         (_, Ok(remote)) => {
             let surviving = request
                 .value()
                 .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
                 .and_then(unredacted_value)
                 .is_some_and(|v| v.as_str().is_some());
-            (remote.address(), surviving.then_some(remote))
+            (remote.address(), surviving.then_some(remote), false)
         }
-        (_, Err(Redacted)) if !csp_transport => (None, None),
-        (_, Err(_)) => {
+        (_, Err(Redacted)) if !csp_transport => (None, None, false),
+        (Some(policy), Err(_)) => {
             // City and ASN can use the connection IP even when we cannot store it on the user.
             // Legacy JavaScript and Apple SDKs treat a missing IP as an implicit {{auto}}.
             let infer_transport = csp_transport
-                || auto
-                || infer == AutoInferSetting::Auto
+                || policy == AutoInferSetting::Auto
                 || matches!(config.platform, Some("javascript" | "cocoa" | "objc"));
             let backfill = transport.filter(|_| infer_transport).map(ProtocolIp::from);
             // With IP storage disabled, only a PII hash may become a user identifier.
-            hash_only = backfill.is_some() && !config.infer_ip_address;
-            (config.client_ip, backfill)
+            let hash_only = backfill.is_some() && !config.infer_ip_address;
+            (config.client_ip, backfill, hash_only)
         }
     };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
@@ -172,29 +179,27 @@ pub fn process_user_ip(
         }
     };
 
-    if let Some(ip) = backfill {
-        user.ip_address.set_value(Some(ip));
-    } else if auto {
-        user.ip_address.set_value(None);
+    if fallback_policy.is_some() {
+        user.ip_address.set_value(backfill);
     }
-    let mut produced_replacement = false;
-    let mut prior_replacement = None;
-    for mut processor in rules.processors().into_iter().flatten() {
-        // A later pass can remove the replacement or a competing email/username.
-        if produced_replacement {
-            prior_replacement = Some(user.ip_address.clone());
-        }
-        produced_replacement = processor.scrub_event_user_fields(user)?
-            && (!hash_only
-                || user
-                    .ip_address
-                    .meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized));
-    }
+
+    let advanced_replaced = if let Some(advanced) = rules.advanced {
+        PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user, hash_only)?
+    } else {
+        false
+    };
+    let (saved_ip, last_replaced) = if let Some(legacy) = rules.legacy {
+        // Legacy rules may remove the advanced replacement or a competing username/email.
+        let saved_ip = advanced_replaced.then(|| user.ip_address.clone());
+        let replaced =
+            PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user, hash_only)?;
+        (saved_ip, replaced)
+    } else {
+        (None, advanced_replaced)
+    };
     if user_needs_id(user)
-        && let Some(ip) = prior_replacement
-            .or_else(|| produced_replacement.then(|| std::mem::take(&mut user.ip_address)))
+        && let Some(ip) =
+            saved_ip.or_else(|| last_replaced.then(|| std::mem::take(&mut user.ip_address)))
     {
         rules.set_derived_user_id(user, ip)?;
     }

@@ -42,18 +42,14 @@ pub struct ProjectPii<'a> {
 }
 
 impl<'a> ProjectPii<'a> {
-    /// The advanced and legacy processors, in application order.
-    pub fn processors(self) -> [Option<PiiProcessor<'a>>; 2] {
-        [self.advanced, self.legacy].map(|config| config.map(|c| PiiProcessor::new(c.compiled())))
-    }
-
     /// Store the replacement as the user ID and apply rules for its new field.
     pub fn set_derived_user_id(self, user: &mut User, ip: Annotated<IpAddr>) -> ProcessingResult {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
         // Match the PII annotation on User::id when visiting just this field.
         const ID_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
         user.id = ip.map_value(|ip| ip.into_inner().into());
-        for mut processor in self.processors().into_iter().flatten() {
+        for config in [self.advanced, self.legacy].into_iter().flatten() {
+            let mut processor = PiiProcessor::new(config.compiled());
             let id_state = state.enter_borrowed(
                 "id",
                 Some(Cow::Borrowed(&ID_ATTRS)),
@@ -124,7 +120,8 @@ impl<'a> ProjectPii<'a> {
 
     /// Apply both rule sets to an event at its schema root.
     fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
-        for mut processor in self.processors().into_iter().flatten() {
+        for config in [self.advanced, self.legacy].into_iter().flatten() {
+            let mut processor = PiiProcessor::new(config.compiled());
             process_value(event, &mut processor, ProcessingState::root())?;
         }
         Ok(())
@@ -156,9 +153,19 @@ impl<'a> PiiProcessor<'a> {
     }
 
     /// Scrub the event user and report whether its IP became a candidate for the fallback ID.
-    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> Result<bool, ProcessingAction> {
+    pub fn scrub_event_user_fields(
+        &mut self,
+        user: &mut User,
+        hash_only: bool,
+    ) -> Result<bool, ProcessingAction> {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
-        self.scrub_user_fields(user, &state)
+        Ok(self.scrub_user_fields(user, &state)?
+            && (!hash_only
+                || user
+                    .ip_address
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Pseudonymized)))
     }
 
     fn scrub_user_fields(
