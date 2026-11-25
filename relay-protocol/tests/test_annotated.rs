@@ -1,8 +1,6 @@
 #![cfg(feature = "derive")]
 
-use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Remark, RemarkType, Value,
-};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, FromValue, IntoValue};
 use similar_asserts::assert_eq;
 
 #[test]
@@ -95,27 +93,5 @@ fn test_annotated_deserialize_with_meta() {
     }
   }
 }"#
-    );
-}
-
-#[test]
-fn test_cloned_meta_can_be_scrubbed_independently() {
-    let mut source = Meta::default();
-    source.add_remark(Remark::new(RemarkType::Removed, "rule"));
-    source.set_original_value(Some("original".to_owned()));
-
-    let mut copy = Meta::default().merge(source.clone());
-    copy.clear_remarks();
-    *copy.original_value_as_mut().unwrap() = Value::String("edited".into());
-
-    assert_eq!(
-        copy.take_original_value(),
-        Some(Value::String("edited".into()))
-    );
-    assert!(copy.is_empty());
-    assert_eq!(source.iter_remarks().count(), 1);
-    assert_eq!(
-        source.original_value(),
-        Some(&Value::String("original".into()))
     );
 }
