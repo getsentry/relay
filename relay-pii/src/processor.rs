@@ -46,6 +46,30 @@ impl ProjectPii<'_> {
         self.advanced.is_none() && self.legacy.is_none()
     }
 
+    /// The IP pipeline has already scrubbed the user and request environment at their schema paths.
+    pub fn scrub_remaining_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
+        if self.is_empty() {
+            return Ok(());
+        }
+        let Some(inner) = event.value_mut() else {
+            return Ok(());
+        };
+        let user = mem::take(&mut inner.user);
+        let env = inner
+            .request
+            .value_mut()
+            .as_mut()
+            .map(|r| mem::take(&mut r.env));
+        self.scrub_event(event)?;
+        if let Some(inner) = event.value_mut() {
+            inner.user = user;
+            if let (Some(request), Some(env)) = (inner.request.value_mut(), env) {
+                request.env = env;
+            }
+        }
+        Ok(())
+    }
+
     /// Apply both rule sets to an event at its schema root.
     pub fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
         self.scrub_event_with_ip_fallback(event, false)

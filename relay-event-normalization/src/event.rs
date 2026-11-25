@@ -24,7 +24,7 @@ use relay_event_schema::protocol::{
     AsPair, Attributes, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event, EventId,
     EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
     PerformanceScoreContext, ReplayContext, Request, Span, SpanId, SpanV2, Tags, Timestamp,
-    TraceContext, TraceId, User, VALID_PLATFORMS,
+    TraceContext, TraceId, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
@@ -230,24 +230,22 @@ impl Default for NormalizationConfig<'_> {
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
-    let _ = normalize_event_for_scrubbing(event, config, Default::default());
+    normalize_event_with_pii(event, config, Default::default()).expect("no PII rules");
 }
 
-/// Normalize the event for filtering and retain the state needed to scrub it afterwards.
-#[must_use]
-pub fn normalize_event_for_scrubbing(
+/// Normalize the event and resolve user identity under the project PII rules.
+pub fn normalize_event_with_pii(
     event: &mut Annotated<Event>,
     config: &NormalizationConfig,
     rules: relay_pii::ProjectPii<'_>,
-) -> crate::EventScrubbingState {
+) -> processor::ProcessingResult {
     let Annotated(Some(event), meta) = event else {
-        return Default::default();
+        return Ok(());
     };
 
     // Convert legacy data structures to current format
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
-    let mut scrubbing = crate::EventScrubbingState::default();
     if !config.is_renormalize {
         // Check for required and non-empty values
         let _ = schema::SchemaProcessor::new().process_event(event, meta, ProcessingState::root());
@@ -271,15 +269,14 @@ pub fn normalize_event_for_scrubbing(
         // Process security reports first to ensure all props.
         normalize_security_report(event, &config.user_agent);
 
-        scrubbing = crate::client_ip::normalize_event_ip(event, config, rules);
         normalize(event, meta, config);
+        crate::process_client_ip(event, config, rules)?;
 
         if config.enrich_spans {
             extract_span_tags_from_event(
                 event,
                 config.max_tag_value_length,
                 config.span_allowed_hosts,
-                !scrubbing.defers_span_tags(),
             );
             extract_segment_name_from_event(event, config.max_tag_value_length);
         }
@@ -306,10 +303,10 @@ pub fn normalize_event_for_scrubbing(
         let _ =
             event_error::EmitEventErrors::new().process_event(event, meta, ProcessingState::root());
     }
-    scrubbing
+    Ok(())
 }
 
-/// Normalize event fields after resolving the client address.
+/// Normalize event fields before resolving the client address.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Validate the basic attributes we extract metrics from
     let _ = processor::apply(&mut event.release, |release, meta| {
@@ -410,29 +407,6 @@ fn normalize_security_report(event: &mut Event, user_agent: &RawUserAgentInfo<&s
 
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
-}
-
-/// Sets the user's GeoIp info based on user's IP address.
-pub fn normalize_user_geoinfo(
-    geoip_lookup: &CityLookup,
-    user: &mut Annotated<User>,
-    ip_addr: Option<&IpAddr>,
-) {
-    let user = user.value_mut().get_or_insert_with(User::default);
-    // The event was already populated with geo information so we don't have to do anything.
-    if user.geo.value().is_some() {
-        return;
-    }
-    if let Some(ip_address) = user
-        .ip_address
-        .value()
-        .filter(|ip| !ip.is_auto())
-        .or(ip_addr)
-        .and_then(|ip| ip.as_str().parse().ok())
-        && let Some(geo) = geoip_lookup.lookup(ip_address)
-    {
-        user.geo.set_value(Some(geo));
-    }
 }
 
 fn normalize_user(event: &mut Event) {
@@ -2008,14 +1982,15 @@ mod tests {
         // This call should fill the event headers with info from the user_agent which is
         // tested below.
         normalize_security_report(&mut event, &user_agent);
-        crate::client_ip::normalize_event_ip(
+        crate::process_client_ip(
             &mut event,
             &NormalizationConfig {
                 client_ip,
                 ..Default::default()
             },
             Default::default(),
-        );
+        )
+        .unwrap();
 
         let headers = event
             .request

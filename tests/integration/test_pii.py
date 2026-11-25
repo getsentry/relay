@@ -241,6 +241,28 @@ def test_scrub_remote_addr_user_ip(mini_sentry, relay, user_ip):
     assert (forwarded.get("user") or {}).get("ip_address") == user_ip
 
 
+def test_removed_remote_addr_blocks_transport_on_next_hop(mini_sentry, relay):
+    project = mini_sentry.add_basic_project_config(42)
+    rules = project["config"]["piiConfig"]["applications"]
+    rules["$request.env.REMOTE_ADDR"] = ["@anything:remove"]
+    first = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    first.send_event(
+        42,
+        {
+            "sdk": {"settings": {"infer_ip": "auto"}},
+            "request": {"env": {"REMOTE_ADDR": "192.0.2.41"}},
+        },
+    )
+    envelope = mini_sentry.get_captured_envelope()
+    assert (envelope.get_event().get("user") or {}).get("ip_address") is None
+
+    del rules["$request.env.REMOTE_ADDR"]
+    second = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    second.send_envelope(42, envelope, headers={"X-Forwarded-For": "192.0.2.42"})
+    event = mini_sentry.get_captured_envelope().get_event()
+    assert (event.get("user") or {}).get("ip_address") is None
+
+
 def test_ip_hash_uses_final_identity(mini_sentry, relay):
     ip = "1.0.0.1"
     project = mini_sentry.add_basic_project_config(42)

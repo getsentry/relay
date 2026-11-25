@@ -135,8 +135,7 @@ impl Processor for TransactionProcessor {
         process::prepare_data(&mut tx, &mut ctx)?;
 
         relay_log::trace!("Normalize transaction");
-        let (mut tx, scrubbing) =
-            process::normalize(tx, ctx, &self.geoip_lookup, &self.asn_lookup)?;
+        let mut tx = process::normalize(tx, ctx, &self.geoip_lookup, &self.asn_lookup)?;
 
         relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&tx, ctx)?;
@@ -170,7 +169,7 @@ impl Processor for TransactionProcessor {
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
         #[allow(unused_mut)]
-        let mut tx = process::scrub(tx, ctx, scrubbing)?;
+        let mut tx = process::scrub(tx, ctx)?;
 
         relay_log::trace!("Enforce quotas");
         let tx = self.limiter.enforce_quotas(tx, ctx).await?;

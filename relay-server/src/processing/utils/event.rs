@@ -12,10 +12,8 @@ use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
-use relay_event_normalization::{AsnLookup, CityLookup, EventScrubbingState};
-use relay_event_normalization::{
-    ClockDriftProcessor, normalize_event_for_scrubbing as normalize_event_inner, validate_event,
-};
+use relay_event_normalization::{AsnLookup, CityLookup};
+use relay_event_normalization::{ClockDriftProcessor, normalize_event_with_pii, validate_event};
 use relay_event_normalization::{
     CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
     RawUserAgentInfo, TransactionNameConfig,
@@ -195,13 +193,13 @@ pub fn normalize(
     ctx: Context,
     geoip_lookup: &CityLookup,
     asn_lookup: &AsnLookup,
-) -> Result<(EventFullyNormalized, EventScrubbingState), ProcessingError> {
+) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
         // attachments, so these events won't be normalized in
         // non-processing relays even if the config is set to run full
         // normalization.
-        return Ok((event_fully_normalized, EventScrubbingState::default()));
+        return Ok(event_fully_normalized);
     }
 
     let project = &ctx.project_info.config;
@@ -217,10 +215,17 @@ pub fn normalize(
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
             if ctx.config.processing_enabled() && event_fully_normalized.0 {
-                if let (Some(db), Some(event)) = (asn_lookup, event.value_mut()) {
-                    relay_event_normalization::enrich_normalized_event_asn(event, db, ip_pii_rules);
+                if let Some(event) = event.value_mut() {
+                    relay_event_normalization::process_client_ip(
+                        event,
+                        &NormalizationConfig {
+                            asn_lookup,
+                            ..Default::default()
+                        },
+                        ip_pii_rules,
+                    )?;
                 }
-                return Ok((event_fully_normalized, EventScrubbingState::default()));
+                return Ok(event_fully_normalized);
             }
 
             ctx.config.processing_enabled()
@@ -243,7 +248,7 @@ pub fn normalize(
         .unwrap_or(DEFAULT_EVENT_RETENTION)
         .into();
 
-    let scrubbing = utils::log_transaction_name_metrics(event, |event| {
+    utils::log_transaction_name_metrics(event, |event| {
         let event_validation_config = EventValidationConfig {
             received_at: Some(headers.meta().received_at()),
             max_secs_in_past: Some(retention_days * 24 * 3600),
@@ -319,17 +324,17 @@ pub fn normalize(
                 );
                 ProcessingError::InvalidTransaction
             })?;
-            let scrubbing = normalize_event_inner(event, &normalization_config, ip_pii_rules);
+            normalize_event_with_pii(event, &normalization_config, ip_pii_rules)?;
             if full_normalization && has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);
             }
-            Result::<_, ProcessingError>::Ok(scrubbing)
+            Result::<_, ProcessingError>::Ok(())
         })
     })?;
 
     event_fully_normalized.0 |= full_normalization;
 
-    Ok((event_fully_normalized, scrubbing))
+    Ok(event_fully_normalized)
 }
 
 /// Status for applying some filters that don't drop the event.
@@ -420,7 +425,6 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 pub fn scrub(
     event: &mut Annotated<Event>,
     project_info: &ProjectInfo,
-    scrubbing: EventScrubbingState,
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
 
@@ -431,13 +435,11 @@ pub fn scrub(
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
-        scrubbing.scrub(
-            event,
-            ProjectPii {
-                advanced: config.pii_config.as_ref(),
-                legacy: config.datascrubbing_settings.pii_config().as_ref(),
-            },
-        )
+        ProjectPii {
+            advanced: config.pii_config.as_ref(),
+            legacy: config.datascrubbing_settings.pii_config().as_ref(),
+        }
+        .scrub_remaining_event(event)
     })?;
     Ok(())
 }

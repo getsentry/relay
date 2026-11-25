@@ -432,6 +432,24 @@ pub struct Addr(pub u64);
 hex_metrastructure!(Addr, "address");
 relay_common::impl_str_serde!(Addr, "an address");
 
+/// An IP field on the wire can request inference or supply a concrete address.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParsedIp {
+    Auto,
+    Address(net::IpAddr),
+}
+
+impl FromStr for ParsedIp {
+    type Err = net::AddrParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "{{auto}}" => Ok(Self::Auto),
+            value => value.parse().map(Self::Address),
+        }
+    }
+}
+
 /// An ip address.
 #[derive(
     Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
@@ -449,11 +467,7 @@ impl IpAddr {
     where
         S: AsRef<str> + Into<String>,
     {
-        if value.as_ref() == "{{auto}}" {
-            return Ok(IpAddr(value.into()));
-        }
-
-        match net::IpAddr::from_str(value.as_ref()) {
+        match value.as_ref().parse::<ParsedIp>() {
             Ok(_) => Ok(IpAddr(value.into())),
             Err(_) => Err(value),
         }
@@ -464,9 +478,14 @@ impl IpAddr {
         self.0 == "{{auto}}"
     }
 
+    /// Interpret the current field value. PII rules can replace its original text.
+    pub fn parsed(&self) -> Result<ParsedIp, net::AddrParseError> {
+        self.0.parse()
+    }
+
     /// Checks whether the contained ip address is still valid (relevant for PII processing).
     pub fn is_valid(&self) -> bool {
-        self.is_auto() || net::IpAddr::from_str(&self.0).is_ok()
+        self.parsed().is_ok()
     }
 
     /// Returns the string value of this ip address.

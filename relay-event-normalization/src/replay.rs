@@ -3,10 +3,9 @@
 use std::net::IpAddr as StdIpAddr;
 
 use relay_event_schema::processor::{self, ProcessingState, Processor};
-use relay_event_schema::protocol::{Contexts, IpAddr, Replay};
+use relay_event_schema::protocol::{Contexts, Event, IpAddr, Replay};
 use relay_protocol::Annotated;
 
-use crate::event::normalize_user_geoinfo;
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
 use crate::{CityLookup, trimming};
@@ -84,12 +83,26 @@ pub fn normalize(
 ) {
     let _ = processor::apply(replay, |replay_value, meta| {
         normalize_platform(replay_value);
-        normalize_ip_address(replay_value, client_ip);
-        normalize_user_geoinfo(
-            geoip_lookup,
-            &mut replay_value.user,
-            client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
-        );
+        let mut identity = Event {
+            request: std::mem::take(&mut replay_value.request),
+            user: std::mem::take(&mut replay_value.user),
+            platform: std::mem::take(&mut replay_value.platform),
+            client_sdk: std::mem::take(&mut replay_value.sdk),
+            ..Default::default()
+        };
+        crate::process_client_ip(
+            &mut identity,
+            &crate::NormalizationConfig {
+                client_ip: client_ip.map(IpAddr::from).as_ref(),
+                geoip_lookup: Some(geoip_lookup),
+                ..Default::default()
+            },
+            Default::default(),
+        )?;
+        replay_value.request = identity.request;
+        replay_value.user = identity.user;
+        replay_value.platform = identity.platform;
+        replay_value.sdk = identity.client_sdk;
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);
         normalize_array_fields(replay_value);
@@ -119,18 +132,6 @@ fn normalize_array_fields(replay: &mut Replay) {
     if let Some(items) = replay.segment_names.value_mut() {
         items.truncate(100);
     }
-}
-
-fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
-    crate::client_ip::resolve_backfill(
-        &mut replay.request,
-        &replay.user,
-        replay.platform.as_str(),
-        ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
-        replay.sdk.value(),
-        false,
-    )
-    .apply(&mut replay.user);
 }
 
 fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentInfo<&str>) {

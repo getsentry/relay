@@ -504,6 +504,39 @@ def test_generic_filters_release_condition(
     assert outcomes[0]["reason"] == "old-releases"
 
 
+def test_removed_remote_addr_never_reaches_user_ip_filter(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    events = events_consumer()
+    outcomes = outcomes_consumer()
+    project = mini_sentry.add_full_project_config(42)
+    config = project["config"]
+    ip = "192.0.2.42"
+    config["piiConfig"]["applications"]["$request.env.REMOTE_ADDR"] = [
+        "@anything:remove"
+    ]
+    config["filterSettings"]["generic"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "user-ip",
+                "isEnabled": True,
+                "condition": {"op": "eq", "name": "event.user.ip_address", "value": ip},
+            }
+        ],
+    }
+    relay = relay_with_processing()
+    request = {"env": {"REMOTE_ADDR": ip}}
+    relay.send_event(42, {"request": request, "message": "request-only"})
+    relay.send_event(42, {"request": request, "user": {"ip_address": ip}})
+
+    event, _ = events.get_event()
+    assert event["logentry"]["formatted"] == "request-only"
+    assert (event.get("user") or {}).get("ip_address") is None
+    assert ((event.get("request") or {}).get("env") or {}).get("REMOTE_ADDR") is None
+    assert [item["reason"] for item in outcomes.get_outcomes()] == ["user-ip"]
+
+
 def profile_transaction_item():
     now = datetime.datetime.now(datetime.UTC)
     transaction = {
