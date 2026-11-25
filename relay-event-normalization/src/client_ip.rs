@@ -1,9 +1,7 @@
 //! Resolve the client address and finish its derived identity before span tag extraction.
 use std::net::IpAddr;
 
-use relay_conventions::attributes::{
-    CLIENT__ADDRESS, CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION, USER__IP_ADDRESS,
-};
+use relay_conventions::attributes::{CLIENT__ADDRESS, USER__IP_ADDRESS};
 use relay_event_schema::processor::{ProcessingAction, ProcessingResult, ValueType};
 use relay_event_schema::protocol::{
     Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, IpAddr as ProtocolIp,
@@ -13,6 +11,14 @@ use relay_pii::{ProjectPii, user_needs_id};
 use relay_protocol::{Annotated, RemarkType, Value};
 
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
+
+mod asn {
+    pub use relay_conventions::attributes::{
+        CLIENT__AS__NUMBER as NUMBER, CLIENT__AS__ORGANIZATION as ORGANIZATION,
+    };
+
+    pub const KEYS: [&str; 2] = [NUMBER, ORGANIZATION];
+}
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
@@ -224,13 +230,10 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
     if event.ty.value() != Some(&EventType::Transaction) {
         if !segment_has_asn && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip)) {
             let tags = &mut event.tags.get_or_insert_with(Tags::default).0;
-            tags.insert(
-                CLIENT__AS__NUMBER.into(),
-                Annotated::new(number.to_string()),
-            );
+            tags.insert(asn::NUMBER.into(), Annotated::new(number.to_string()));
             if let Some(org) = org {
                 tags.insert(
-                    CLIENT__AS__ORGANIZATION.into(),
+                    asn::ORGANIZATION.into(),
                     Annotated::new(org.chars().take(200).collect()),
                 );
             }
@@ -266,20 +269,18 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
     }
 }
 
-const ASN: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
-
 /// Preserve a scrubbed container or either ASN attribute supplied by the SDK.
 fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
     redacted(field)
         || field
             .value()
-            .is_some_and(|value| ASN.iter().any(|k| contains(value, k)))
+            .is_some_and(|value| asn::KEYS.into_iter().any(|key| contains(value, key)))
 }
 
 fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
-    fields.insert(CLIENT__AS__NUMBER, i64::from(number));
+    fields.insert(asn::NUMBER, i64::from(number));
     if let Some(org) = organization {
-        fields.insert(CLIENT__AS__ORGANIZATION, org);
+        fields.insert(asn::ORGANIZATION, org);
     }
 }
 
@@ -318,9 +319,9 @@ fn insert_span_asn(
     };
     let Some(fields) = fields else {
         let data = data.get_or_insert_with(Default::default);
-        data.insert_value(CLIENT__AS__NUMBER, i64::from(number));
+        data.insert_value(asn::NUMBER, i64::from(number));
         if let Some(org) = organization {
-            data.insert_value(CLIENT__AS__ORGANIZATION, org.to_owned());
+            data.insert_value(asn::ORGANIZATION, org.to_owned());
         }
         return;
     };
@@ -339,7 +340,7 @@ fn insert_span_asn(
     *fields = attrs;
     let data = data.get_or_insert_with(Default::default);
     // Move the owned keys and values into span data, reusing the map for the next span.
-    for key in ASN {
+    for key in asn::KEYS {
         if let Some((key, attr)) = fields.0.remove_entry(key)
             && let Some(attr) = attr.into_value()
         {
