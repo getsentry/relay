@@ -71,6 +71,7 @@ fn is_scope_item(item: &Item) -> bool {
             | AttachmentType::AppleCrashReport
             | AttachmentType::Prosperodump
             | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::ItemBundle
             | AttachmentType::UnrealContext
             | AttachmentType::UnrealLogs
             | AttachmentType::ViewHierarchy
@@ -124,6 +125,7 @@ pub fn is_gpu_crash_item(item: &AttachmentItem) -> bool {
         | AttachmentType::Breadcrumbs
         | AttachmentType::Prosperodump
         | AttachmentType::NintendoSwitchDyingMessage
+        | AttachmentType::ItemBundle
         | AttachmentType::UnrealContext
         | AttachmentType::UnrealLogs
         | AttachmentType::ViewHierarchy

@@ -34,7 +34,7 @@ mod integrations;
 mod process;
 mod utils;
 
-pub use errors::SwitchProcessingError;
+pub use errors::ItemBundleError;
 pub use integrations::UnrealErrorIntegrationProcessor;
 
 type Result<T, E = Error> = std::result::Result<T, E>;

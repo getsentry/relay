@@ -1,9 +1,11 @@
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use relay_config::ConfigSnapshot;
+use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_dynamic_config::Feature;
+use serde::Deserialize;
 
 use crate::endpoints::common;
 use crate::envelope::ContentType;
@@ -11,8 +13,14 @@ use crate::extractors::{IntegrationBuilder, RawContentType};
 use crate::integrations::LogsIntegration;
 use crate::service::ServiceState;
 
+#[derive(Debug, Deserialize)]
+struct BrowserReportQuery {
+    sentry_release: Option<String>,
+}
+
 async fn handle(
     content_type: RawContentType,
+    Query(query): Query<BrowserReportQuery>,
     state: ServiceState,
     builder: IntegrationBuilder,
 ) -> axum::response::Result<impl IntoResponse> {
@@ -23,8 +31,13 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
+    let release = query
+        .sentry_release
+        .filter(|release| relay_event_normalization::validate_release(release).is_ok());
+
     let envelope = builder
         .with_type(LogsIntegration::BrowserReport)
+        .with_header_opt(SENTRY__RELEASE, release)
         .with_required_feature(Feature::BrowserReportIngestion)
         .build();
 
