@@ -153,19 +153,9 @@ impl<'a> PiiProcessor<'a> {
     }
 
     /// Scrub the event user and report whether its IP became a candidate for the fallback ID.
-    pub fn scrub_event_user_fields(
-        &mut self,
-        user: &mut User,
-        hash_only: bool,
-    ) -> Result<bool, ProcessingAction> {
+    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> Result<bool, ProcessingAction> {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
-        Ok(self.scrub_user_fields(user, &state)?
-            && (!hash_only
-                || user
-                    .ip_address
-                    .meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized)))
+        self.scrub_user_fields(user, &state)
     }
 
     fn scrub_user_fields(

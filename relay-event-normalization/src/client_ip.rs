@@ -10,7 +10,7 @@ use relay_event_schema::protocol::{
     ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
 use relay_pii::{PiiProcessor, ProjectPii, user_needs_id};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, RemarkType, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
@@ -208,27 +208,40 @@ pub fn process_user_ip(
     };
 
     let advanced_replaced = if let Some(advanced) = rules.advanced {
-        PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user, hash_only)?
+        PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?
     } else {
         false
     };
-    let (saved_ip, last_replaced) = if let Some(legacy) = rules.legacy {
+    let (mut saved_ip, last_replaced) = if let Some(legacy) = rules.legacy {
         // Legacy rules may remove the advanced replacement or a competing username/email.
         let saved_ip = advanced_replaced.then(|| user.ip_address.clone());
-        let replaced =
-            PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user, hash_only)?;
+        let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
         (saved_ip, replaced)
     } else {
         (None, advanced_replaced)
     };
-    if user_needs_id(user)
-        && let Some(ip) =
-            saved_ip.or_else(|| last_replaced.then(|| std::mem::take(&mut user.ip_address)))
-    {
-        rules.set_derived_user_id(user, ip)?;
-    }
-    if hash_only {
+    let replacement = if user_needs_id(user) {
+        saved_ip
+            .as_mut()
+            .or_else(|| last_replaced.then_some(&mut user.ip_address))
+    } else {
+        None
+    };
+    let id = if hash_only {
+        let hash = replacement
+            .filter(|ip| {
+                ip.meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Pseudonymized)
+            })
+            .map(std::mem::take);
         user.ip_address.set_value(None);
+        hash
+    } else {
+        replacement.map(std::mem::take)
+    };
+    if let Some(ip) = id {
+        rules.set_derived_user_id(user, ip)?;
     }
     Ok(lookup)
 }
