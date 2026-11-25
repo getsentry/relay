@@ -33,9 +33,6 @@ fn normalize_remote(
     request: &mut Annotated<Request>,
     client: Option<(&ProtocolIp, IpAddr)>,
 ) -> Option<IpAddr> {
-    if remote_redacted(request) {
-        return None;
-    }
     let env = request.value_mut().as_mut()?.env.value_mut().as_mut()?;
     let remote = env.get_mut("REMOTE_ADDR")?;
     match remote.as_str()?.parse::<ParsedIp>().ok()? {
@@ -60,26 +57,79 @@ pub fn process_client_ip(
     config: &NormalizationConfig<'_>,
     rules: ProjectPii<'_>,
 ) -> ProcessingResult {
-    let (remote, transport) = inferred_sources(event, config, rules);
-    let ip = lookup_ip(
-        event,
-        remote.or(transport.map(|(_, ip)| ip)),
-        config.client_ip,
-    );
-    enrich(event, ip, config, rules);
-    rules.scrub_request_env(&mut event.request)?;
+    let infer = event
+        .client_sdk
+        .value()
+        .and_then(|sdk| sdk.settings.value())
+        .map(|settings| settings.infer_ip())
+        .unwrap_or_default();
+    let connection = config
+        .client_ip
+        .and_then(|text| Some((text, text.as_str().parse::<IpAddr>().ok()?)));
+    let transport = connection.filter(|_| {
+        infer != AutoInferSetting::Never
+            && (config.infer_ip_address
+                || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
+    });
+    let request_redacted = remote_redacted(&event.request);
+    let remote = if request_redacted {
+        None
+    } else {
+        normalize_remote(&mut event.request, transport)
+    };
+    let csp_transport =
+        event.csp.value().is_some() && config.infer_ip_address && transport.is_some();
+    let remote = remote.filter(|_| infer != AutoInferSetting::Never && !csp_transport);
 
-    let surviving_remote = remote
-        .and_then(|_| remote_addr(&event.request))
-        .filter(|v| !redacted(v))
-        .and_then(|v| v.as_str());
-    let inferred = surviving_remote.or_else(|| transport.map(|(text, _)| text.as_str()));
-    fill_user_ip(&mut event.user, inferred);
-    scrub_user_identity(
-        &mut event.user,
-        rules,
-        transport.is_some() && !config.infer_ip_address,
-    )
+    // Keep the original request IP for lookup. Only its surviving text can become user.ip_address.
+    rules.scrub_request_env(&mut event.request)?;
+    let field = event.user.value().map(|u| &u.ip_address);
+    let user_ip_redacted = redacted(&event.user) || field.is_some_and(redacted);
+    let supplied = field.and_then(|f| f.value()).map(ProtocolIp::parsed);
+    let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
+    let (lookup, backfill) = match (supplied, remote) {
+        _ if user_ip_redacted => (None, None),
+        (Some(Ok(ParsedIp::Address(ip))), _) => (Some(ip), None),
+        (Some(Err(_)), _) => (None, None),
+        (_, Some(ip)) => (
+            Some(ip),
+            remote_addr(&event.request)
+                .filter(|v| !redacted(v))
+                .and_then(|v| v.as_str()),
+        ),
+        _ if csp_transport || !request_redacted => {
+            let infer_transport = csp_transport
+                || auto
+                || infer == AutoInferSetting::Auto
+                || matches!(
+                    event.platform.as_str(),
+                    Some("javascript" | "cocoa" | "objc")
+                );
+            (
+                connection.map(|(_, ip)| ip),
+                transport
+                    .filter(|_| infer_transport)
+                    .map(|(text, _)| text.as_str()),
+            )
+        }
+        _ => (None, None),
+    };
+
+    let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
+    if let Some(text) = backfill {
+        event
+            .user
+            .get_or_insert_with(User::default)
+            .ip_address
+            .set_value(Some(ProtocolIp(text.to_owned())));
+    } else if auto
+        && !user_ip_redacted
+        && let Some(user) = event.user.value_mut()
+    {
+        user.ip_address.set_value(None);
+    }
+    enrich(event, lookup, config, rules);
+    scrub_user_identity(&mut event.user, rules, hash_only)
 }
 
 /// A rule can hash the IP before a later rule removes the IP or another identifier.
@@ -140,99 +190,24 @@ fn scrub_user_identity(
     Ok(())
 }
 
-fn fill_user_ip(user: &mut Annotated<User>, inferred: Option<&str>) {
-    if let Some(text) = inferred {
-        user.get_or_insert_with(User::default)
-            .ip_address
-            .set_value(Some(ProtocolIp(text.to_owned())));
-    } else if !redacted(user)
-        && let Some(user) = user.value_mut()
-        && !redacted(&user.ip_address)
-        && user.ip_address.value().is_some_and(ProtocolIp::is_auto)
-    {
-        user.ip_address.set_value(None);
-    }
-}
-
-fn lookup_ip(
-    event: &Event,
-    inferred: Option<IpAddr>,
-    connection: Option<&ProtocolIp>,
-) -> Option<IpAddr> {
-    let field = event.user.value().map(|u| &u.ip_address);
-    if redacted(&event.user) || field.is_some_and(redacted) {
-        return None;
-    }
-    match field.and_then(|f| f.value()).map(ProtocolIp::parsed) {
-        Some(Ok(ParsedIp::Address(ip))) => Some(ip),
-        Some(Err(_)) => None,
-        _ => inferred.or_else(|| {
-            connection
-                .filter(|_| !remote_redacted(&event.request))?
-                .as_str()
-                .parse()
-                .ok()
-        }),
-    }
-}
-
-/// Return the eligible request or transport address. Once a request address wins,
-/// scrubbing it must not cause a fallback to the transport address.
-fn inferred_sources<'a>(
-    event: &mut Event,
-    config: &NormalizationConfig<'a>,
-    rules: ProjectPii<'_>,
-) -> (Option<IpAddr>, Option<(&'a ProtocolIp, IpAddr)>) {
-    let infer = event
-        .client_sdk
-        .value()
-        .and_then(|s| s.settings.value())
-        .map(|s| s.infer_ip())
-        .unwrap_or_default();
-    let may_hash = rules.advanced.is_some_and(|r| !r.applications.is_empty());
-    let transport = config
-        .client_ip
-        .filter(|_| infer != AutoInferSetting::Never && (config.infer_ip_address || may_hash))
-        .and_then(|text| Some((text, text.as_str().parse::<IpAddr>().ok()?)));
-    let remote = normalize_remote(&mut event.request, transport);
-    let field = event.user.value().map(|u| &u.ip_address);
-    let supplied = field.and_then(|v| v.value());
-    if infer == AutoInferSetting::Never
-        || redacted(&event.user)
-        || field.is_some_and(redacted)
-        || supplied.is_some_and(|ip| !ip.is_auto())
-    {
-        return (None, None);
-    }
-    if event.csp.value().is_some() && config.infer_ip_address && transport.is_some() {
-        return (None, transport);
-    }
-    if remote_redacted(&event.request) {
-        return (None, None);
-    }
-    if remote.is_some() {
-        return (remote, None);
-    }
-    let infer_transport = infer == AutoInferSetting::Auto
-        || supplied.is_some()
-        || matches!(
-            event.platform.as_str(),
-            Some("javascript" | "cocoa" | "objc")
-        );
-    (None, transport.filter(|_| infer_transport))
-}
-
 fn enrich(
     event: &mut Event,
     ip: Option<IpAddr>,
     config: &NormalizationConfig<'_>,
     rules: ProjectPii<'_>,
 ) {
-    if let (Some(db), Some(ip)) = (config.geoip_lookup, ip) {
-        let user = event.user.get_or_insert_with(User::default);
-        if user.geo.value().is_none() && !redacted(&user.geo) {
-            user.geo.set_value(db.lookup(ip));
-        }
+    if let (Some(db), Some(ip)) = (config.geoip_lookup, ip)
+        && event
+            .user
+            .value()
+            .is_none_or(|u| u.geo.value().is_none() && !redacted(&u.geo))
+        && let Some(geo) = db.lookup(ip)
+    {
+        event
+            .user
+            .get_or_insert_with(User::default)
+            .geo
+            .set_value(Some(geo));
     }
     let Some(db) = config.asn_lookup else { return };
     let has_tags = redacted(&event.tags)
