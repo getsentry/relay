@@ -74,26 +74,39 @@ fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
     field.value_mut().as_mut().ok_or(Missing)
 }
 
-/// Resolve the request marker independently of whether this request supplies the user IP.
+/// A literal keeps its wire spelling. An expanded request marker already has a parsed address.
+enum RequestAddress<'a> {
+    Literal(&'a str),
+    Connection(IpAddr),
+}
+
+impl RequestAddress<'_> {
+    fn into_ip(self) -> Option<ProtocolIp> {
+        match self {
+            Self::Literal(text) => ProtocolIp::parse(text).ok(),
+            Self::Connection(ip) => Some(ProtocolIp::from(ip)),
+        }
+    }
+}
+
 fn normalize_remote_addr(
     request: &mut Annotated<Request>,
     transport: Option<IpAddr>,
-    use_for_user: bool,
-) -> Result<ProtocolIp, Unavailable> {
+) -> Result<RequestAddress<'_>, Unavailable> {
     let env = field_value_mut(&mut field_value_mut(request)?.env)?;
     let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
-    match field.as_str() {
-        Some("{{auto}}") => {
-            let Some(ip) = transport else {
-                env.remove("REMOTE_ADDR");
-                return Err(Missing);
-            };
-            *field = Value::String(ip.to_string());
-            use_for_user.then(|| ProtocolIp::from(ip)).ok_or(Missing)
-        }
-        Some(text) if use_for_user => ProtocolIp::parse(text).map_err(|_| Missing),
-        _ => Err(Missing),
+    if field.as_str() == Some("{{auto}}") {
+        let Some(ip) = transport else {
+            env.remove("REMOTE_ADDR");
+            return Err(Missing);
+        };
+        *field = Value::String(ip.to_string());
+        return Ok(RequestAddress::Connection(ip));
     }
+    env.get("REMOTE_ADDR")
+        .and_then(|field| field.as_str())
+        .map(RequestAddress::Literal)
+        .ok_or(Missing)
 }
 
 /// Normalize the request and user in place and return the address eligible for lookup.
@@ -113,52 +126,68 @@ pub fn process_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let supplied = field_value_mut(user)
-        .and_then(|u| field_value_mut(&mut u.ip_address))
-        .map(|ip| ip.parsed());
-    // Only an absent IP or the marker permits writing a fallback. An explicit marker
-    // opts legacy SDKs into automatic inference, while the SDK's "never" still wins.
-    let (explicit_ip, fallback_policy) = match supplied {
-        Ok(ParsedIp::Address(ip)) => (Some(ip), None),
-        Ok(ParsedIp::Replacement) | Err(Redacted) => (None, None),
-        Ok(ParsedIp::Auto) if infer == AutoInferSetting::Legacy => {
-            (None, Some(AutoInferSetting::Auto))
-        }
-        Ok(ParsedIp::Auto) | Err(Missing) => (None, Some(infer)),
-    };
-    // Browser CSP reports can supply the connection IP even without an SDK inference setting.
-    let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
+    let remote = normalize_remote_addr(request, transport);
+    // Only a raw address taken from the request must wait for request PII before it can be copied.
+    let (lookup, request_backfill, hash_only) = 'select: {
+        let supplied = field_value_mut(user).and_then(|u| {
+            let parsed = field_value_mut(&mut u.ip_address)?.parsed();
+            Ok((parsed, &mut u.ip_address))
+        });
+        let fallback_connection = match supplied {
+            Ok((ParsedIp::Address(ip), _)) => break 'select (Some(ip), None, false),
+            Ok((ParsedIp::Replacement, _)) | Err(Redacted) => break 'select (None, None, false),
+            Ok((ParsedIp::Auto, field)) => {
+                // Consume the marker even if no eligible address is available.
+                field.set_value(None);
+                transport
+            }
+            // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
+            Err(Missing) => transport.filter(|_| {
+                infer == AutoInferSetting::Auto
+                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
+            }),
+        };
 
-    // An SDK-supplied REMOTE_ADDR takes precedence over the connection IP for ordinary events.
-    let use_remote = matches!(
-        fallback_policy,
-        Some(AutoInferSetting::Legacy | AutoInferSetting::Auto)
-    ) && !csp_transport;
-    let remote = normalize_remote_addr(request, transport, use_remote);
-    rules.scrub_request_env(request)?;
-    let (lookup, backfill, hash_only) = match (fallback_policy, remote) {
-        (None, _) => (explicit_ip, None, false),
-        (_, Ok(remote)) => {
-            let surviving = request
-                .value()
-                .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
-                .and_then(unredacted_value)
-                .is_some_and(|v| v.as_str().is_some());
-            (remote.address(), surviving.then_some(remote), false)
-        }
-        (_, Err(Redacted)) if !csp_transport => (None, None, false),
-        (Some(policy), Err(_)) => {
-            // City and ASN can use the connection IP even when we cannot store it on the user.
-            // Legacy JavaScript and Apple SDKs treat a missing IP as an implicit {{auto}}.
-            let infer_transport = csp_transport
-                || policy == AutoInferSetting::Auto
-                || matches!(config.platform, Some("javascript" | "cocoa" | "objc"));
-            let backfill = transport.filter(|_| infer_transport).map(ProtocolIp::from);
-            // With IP storage disabled, only a PII hash may become a user identifier.
-            let hash_only = backfill.is_some() && !config.infer_ip_address;
-            (config.client_ip, backfill, hash_only)
-        }
+        // Browser CSP reports prefer the connection. Other events prefer a supplied REMOTE_ADDR.
+        let ip = if let Some(ip) =
+            transport.filter(|_| config.security_report && config.infer_ip_address)
+        {
+            ip
+        } else {
+            match remote {
+                Err(Redacted) => break 'select (None, None, false),
+                Ok(address) if infer != AutoInferSetting::Never => {
+                    if let Some(ip) = address.into_ip() {
+                        break 'select (ip.address(), Some(ip), false);
+                    }
+                }
+                _ => {}
+            }
+            let Some(ip) = fallback_connection else {
+                // City and ASN may still use the connection without storing a user IP.
+                break 'select (config.client_ip, None, false);
+            };
+            ip
+        };
+        user.get_or_insert_with(User::default)
+            .ip_address
+            .set_value(Some(ProtocolIp::from(ip)));
+        // With IP storage disabled, only a PII hash may become a user identifier.
+        (Some(ip), None, !config.infer_ip_address)
     };
+    rules.scrub_request_env(request)?;
+    if let Some(ip) = request_backfill
+        && request
+            .value()
+            .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
+            .and_then(unredacted_value)
+            .and_then(Value::as_str)
+            .is_some()
+    {
+        user.get_or_insert_with(User::default)
+            .ip_address
+            .set_value(Some(ip));
+    }
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
         Some(user) => {
@@ -168,20 +197,15 @@ pub fn process_user_ip(
             user
         }
         slot @ None => {
-            let geo = lookup_city();
-            if geo.is_none() && backfill.is_none() {
+            let Some(geo) = lookup_city() else {
                 return Ok(lookup);
-            }
+            };
             slot.insert(User {
-                geo: geo.into(),
+                geo: Annotated::new(geo),
                 ..Default::default()
             })
         }
     };
-
-    if fallback_policy.is_some() {
-        user.ip_address.set_value(backfill);
-    }
 
     let advanced_replaced = if let Some(advanced) = rules.advanced {
         PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user, hash_only)?
