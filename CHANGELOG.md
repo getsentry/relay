@@ -6,6 +6,7 @@
 
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
+- Look up the geo information of sessions from their IP address, so generic inbound filters can match them by `event.user.geo.country_code`. ([#6763](https://github.com/getsentry/relay/pull/6763))
 
 **Bug Fixes**:
 
