@@ -30,6 +30,27 @@ pub fn calculate_size(log: &OurLog) -> u64 {
     u64::try_from(total_size).unwrap_or(u64::MAX).max(1)
 }
 
+/// This function calculates the size of a log struct, plus the large payloads of the log.  This
+/// should be used as an approximation of the memory footprint of a log item.  Also returns the EAP
+/// size to avoid unnecessary work.
+pub fn calculate_memory_size(log: &OurLog) -> u64 {
+    let mut memory_size = std::mem::size_of_val(log);
+
+    memory_size += log.body.value().map_or(0, |s| s.len());
+
+    if let Some(attributes) = log.attributes.value() {
+        memory_size += relay_event_schema::protocol::attributes_memory_size(attributes);
+    }
+
+    memory_size += log
+        .other
+        .iter()
+        .map(|(k, v)| k.len() + relay_event_schema::protocol::value_memory_size(v))
+        .sum::<usize>();
+
+    u64::try_from(memory_size).unwrap_or(u64::MAX).max(1)
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;

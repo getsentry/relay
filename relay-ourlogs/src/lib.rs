@@ -13,5 +13,6 @@ mod vercel_to_sentry;
 
 pub use self::browser_report_to_sentry::browser_report_to_sentry_log;
 pub use self::heroku_to_sentry::*;
+pub use self::size::calculate_memory_size;
 pub use self::size::calculate_size;
 pub use self::vercel_to_sentry::{VercelLog, vercel_log_to_sentry_log};
