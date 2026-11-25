@@ -20,7 +20,6 @@
 
 **Internal**:
 
-- Update sentry-conventions to [0.36.0](https://github.com/getsentry/sentry-conventions/releases/tag/0.36.0), which defines `client.as.number` and `client.as.organization`. ([#6762](https://github.com/getsentry/relay/pull/6762))
 - Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
 - Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
@@ -30,7 +29,7 @@
 - Delay shutdown until kafka messages have been drained. ([#6700](https://github.com/getsentry/relay/pull/6700))
 - Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
 - Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
-- Update sentry-conventions to 0.34.0. Adds `sentry.user`, `page.server_rendering.age`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728))
+- Update sentry-conventions to [0.36.0](https://github.com/getsentry/sentry-conventions/releases/tag/0.36.0). Adds `sentry.user`, `page.server_rendering.age`, `client.as.number`, `client.as.organization`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728), [#6762](https://github.com/getsentry/relay/pull/6762))
 - Increase the maximum depth of stack frame variables from 5 to 10. ([#6733](https://github.com/getsentry/relay/pull/6733))
 
 ## 26.11.0
