@@ -5,6 +5,7 @@
 **Features**:
 
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
+- Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
 
 **Bug Fixes**:
 
