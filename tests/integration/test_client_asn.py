@@ -370,6 +370,19 @@ def test_client_asn_address_selection(
     error, _ = events.get_event()
     assert dict(error["tags"])[NUMBER] == "15169"
 
+    # The marker resolves on the request while the explicit user IP supplies the ASN.
+    event = make_error(
+        {
+            "request": {"env": {"REMOTE_ADDR": "{{auto}}"}},
+            "user": {"ip_address": "2600::1"},
+        }
+    )
+    processing.send_event(42, event, headers=headers)
+    error, _ = events.get_event()
+    assert error["request"]["env"]["REMOTE_ADDR"] == IP
+    assert error["user"]["ip_address"] == "2600::1"
+    assert dict(error["tags"])[NUMBER] == "237"
+
 
 def test_client_asn_scrubbed_ip_and_indexed_destination(
     mini_sentry, relay_with_processing, events_consumer, spans_consumer

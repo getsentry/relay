@@ -1,4 +1,15 @@
 //! Resolve the client address and finish its derived identity before span tag extraction.
+//!
+//! ```text
+//! connection + inference settings + request marker -> normalized REMOTE_ADDR
+//! normalized REMOTE_ADDR -> request PII -> stored REMOTE_ADDR
+//! supplied user IP + redactions + request IP + connection policy -> selected address
+//! selected address -> user City / event ASN when eligible
+//! selected address + request PII (for a request backfill) -> user.ip_address
+//! user fields -> advanced PII -> legacy PII -> remaining user identifiers
+//! eligible IP replacement + remaining identifiers -> fallback user ID -> ID field PII
+//! final user fields -> span identity tags
+//! ```
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
@@ -80,13 +91,35 @@ enum SelectedIp {
     Connection(IpAddr),
 }
 
-/// Select an address without creating a user or publishing a backfill.
-fn select_user_ip(
+/// Update the request payload's marker and read a concrete address only when needed for fallback.
+fn normalize_request_ip(
+    request: &mut Annotated<Request>,
+    transport: Option<IpAddr>,
+    use_request: bool,
+) -> Result<ProtocolIp, Unavailable> {
+    let env = field_value_mut(&mut field_value_mut(request)?.env)?;
+    let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
+    match field.as_str() {
+        Some(ProtocolIp::AUTO_MARKER) => {
+            let Some(ip) = transport else {
+                env.remove("REMOTE_ADDR");
+                return Err(Missing);
+            };
+            *field = Value::String(ip.to_string());
+            use_request.then(|| ProtocolIp::from(ip)).ok_or(Missing)
+        }
+        Some(text) if use_request => ProtocolIp::parse(text).map_err(|_| Missing),
+        _ => Err(Missing),
+    }
+}
+
+/// Normalize the request and user in place and return the address eligible for lookup.
+pub fn process_user_ip(
     request: &mut Annotated<Request>,
     user: &mut Annotated<User>,
-    config: &ClientIpConfig<'_>,
+    config: ClientIpConfig<'_>,
     rules: ProjectPii<'_>,
-) -> SelectedIp {
+) -> Result<Option<IpAddr>, ProcessingAction> {
     let infer = config
         .sdk
         .and_then(|sdk| sdk.settings.value())
@@ -126,42 +159,14 @@ fn select_user_ip(
     });
 
     let use_request = preferred.is_none() && infer != AutoInferSetting::Never;
-    let remote = field_value_mut(request)
-        .and_then(|r| field_value_mut(&mut r.env))
-        .and_then(|env| {
-            let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
-            match field.as_str() {
-                // Resolve the marker in the request payload even if another source supplies the user IP.
-                Some(ProtocolIp::AUTO_MARKER) => {
-                    if let Some(ip) = transport {
-                        *field = Value::String(ip.to_string());
-                        Ok(use_request.then(|| ProtocolIp::from(ip)))
-                    } else {
-                        env.remove("REMOTE_ADDR");
-                        Ok(None)
-                    }
-                }
-                Some(text) if use_request => Ok(ProtocolIp::parse(text).ok()),
-                _ => Ok(None),
-            }
-        });
-    preferred.unwrap_or_else(|| match remote {
-        Ok(Some(ip)) => SelectedIp::Request(ip),
+    let remote = normalize_request_ip(request, transport, use_request);
+    let selected = preferred.unwrap_or_else(|| match remote {
+        Ok(ip) => SelectedIp::Request(ip),
         Err(Redacted) => SelectedIp::LookupOnly(None),
-        _ => fallback
+        Err(Missing) => fallback
             .map(SelectedIp::Connection)
             .unwrap_or(SelectedIp::LookupOnly(config.client_ip)),
-    })
-}
-
-/// Normalize the request and user in place and return the address eligible for lookup.
-pub fn process_user_ip(
-    request: &mut Annotated<Request>,
-    user: &mut Annotated<User>,
-    config: ClientIpConfig<'_>,
-    rules: ProjectPii<'_>,
-) -> Result<Option<IpAddr>, ProcessingAction> {
-    let selected = select_user_ip(request, user, &config, rules);
+    });
     rules.scrub_request_env(request)?;
     let (lookup, backfill, hash_only) = match selected {
         SelectedIp::LookupOnly(ip) => (ip, None, false),
