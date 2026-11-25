@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `geoip.asn_path` for a local ASN database. The City database can be configured with `geoip.city_path` or the existing `geoip.path` key.
+- Add `geoip.asn_path` for a local ASN database. The City database can be configured with `geoip.city_path` or the existing `geoip.path` key. ([#6759](https://github.com/getsentry/relay/pull/6759))
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
 
@@ -21,7 +21,7 @@
 
 **Internal**:
 
-- Update sentry-conventions to [0.36.0](https://github.com/getsentry/sentry-conventions/releases/tag/0.36.0), which defines `client.as.number` and `client.as.organization`.
+- Update sentry-conventions to [0.36.0](https://github.com/getsentry/sentry-conventions/releases/tag/0.36.0), which defines `client.as.number` and `client.as.organization`. ([#6762](https://github.com/getsentry/relay/pull/6762))
 - Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
 - Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
