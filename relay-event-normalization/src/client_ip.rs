@@ -9,8 +9,8 @@ use relay_event_schema::protocol::{
     Attributes, AutoInferSetting, Event, EventType, IpAddr as ProtocolIp, Measurements, ParsedIp,
     Request, SpanData, SpanV2, Tags, TraceContext, User,
 };
-use relay_pii::ProjectPii;
-use relay_protocol::{Annotated, Value};
+use relay_pii::{PiiProcessor, ProjectPii};
+use relay_protocol::{Annotated, Remark, RemarkType, Value};
 
 use crate::{AsnLookup, NormalizationConfig};
 
@@ -75,10 +75,69 @@ pub fn process_client_ip(
         .and_then(|v| v.as_str());
     let inferred = surviving_remote.or_else(|| transport.map(|(text, _)| text.as_str()));
     fill_user_ip(&mut event.user, inferred);
-    rules.scrub_user(
+    scrub_user_identity(
         &mut event.user,
+        rules,
         transport.is_some() && !config.infer_ip_address,
     )
+}
+
+/// A rule can hash the IP before a later rule removes the IP or another identifier.
+fn scrub_user_identity(
+    user: &mut Annotated<User>,
+    rules: ProjectPii<'_>,
+    hash_only: bool,
+) -> ProcessingResult {
+    if rules.is_empty() || user.value().is_none() {
+        return Ok(());
+    }
+    let configs = [rules.advanced, rules.legacy].into_iter().flatten();
+    let mut replacement = None;
+    for config in configs.clone() {
+        let can_replace = user.value().is_some_and(|u| {
+            u.id.value().is_none()
+                && u.id.meta().is_empty()
+                && u.ip_address.value().is_some_and(ProtocolIp::is_valid)
+        });
+        PiiProcessor::new(config.compiled()).scrub_event_user_fields(user)?;
+        if can_replace
+            && let Some(u) = user.value()
+            && u.ip_address.value().is_some_and(|ip| !ip.is_valid())
+        {
+            replacement = Some(u.ip_address.clone());
+        }
+    }
+    let Some(user) = user.value_mut() else {
+        return Ok(());
+    };
+    if let Some(ip) = replacement
+        && user.id.value().is_none()
+        && user.id.meta().is_empty()
+        && user.email.value().is_none()
+        && user.username.value().is_none()
+        && (!hash_only
+            || ip
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Pseudonymized))
+    {
+        let mut destination = Annotated::new(User {
+            id: ip.map_value(|ip| ip.into_inner().into()),
+            ..Default::default()
+        });
+        for config in configs {
+            PiiProcessor::new(config.compiled()).scrub_event_user_fields(&mut destination)?;
+        }
+        user.id = destination.into_value().map(|u| u.id).unwrap_or_default();
+        user.ip_address = Annotated::empty();
+        user.ip_address
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Removed, "pii:ip_address"));
+    }
+    if hash_only {
+        user.ip_address.set_value(None);
+    }
+    Ok(())
 }
 
 fn fill_user_ip(user: &mut Annotated<User>, inferred: Option<&str>) {
@@ -345,4 +404,44 @@ fn span_ip<'a, T: AsRef<str> + 'a>(
         return text?.parse().ok();
     }
     fallback
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_ip_fallback_after_both_rule_sets() {
+        let advanced = serde_json::from_value(json!({
+            "applications": {"$user.ip_address": ["@ip:hash"]}
+        }))
+        .unwrap();
+        let legacy = serde_json::from_value(json!({
+            "applications": {
+                "$user.email": ["@anything:remove"],
+                "$user.ip_address": ["@anything:remove"]
+            }
+        }))
+        .unwrap();
+        let rules = ProjectPii {
+            advanced: Some(&advanced),
+            legacy: Some(&legacy),
+        };
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"user":{"email":"sdk@example.org","ip_address":"127.0.0.1"}}"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        process_client_ip(&mut event, &NormalizationConfig::default(), rules).unwrap();
+        let user = event.user.value().unwrap();
+        assert!(user.email.value().is_none());
+        assert!(user.ip_address.value().is_none());
+        assert_eq!(
+            user.id.as_str(),
+            Some("AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741")
+        );
+    }
 }

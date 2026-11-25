@@ -74,26 +74,6 @@ impl ProjectPii<'_> {
         Ok(())
     }
 
-    /// Apply user rules and finalize the IP-derived ID before other fields inherit it.
-    pub fn scrub_user(self, user: &mut Annotated<User>, hash_only: bool) -> ProcessingResult {
-        if self.is_empty() || user.is_empty() {
-            return Ok(());
-        }
-        let mut fields = Annotated::new(Event {
-            user: mem::take(user),
-            ..Default::default()
-        });
-        self.scrub_event_with_ip_fallback(&mut fields, hash_only)?;
-        *user = fields
-            .into_value()
-            .ok_or(ProcessingAction::DeleteValueHard)?
-            .user;
-        if hash_only && let Some(user) = user.value_mut() {
-            user.ip_address.set_value(None);
-        }
-        Ok(())
-    }
-
     /// The IP pipeline has already scrubbed the user and request environment at their schema paths.
     pub fn scrub_remaining_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
         if self.is_empty() {
@@ -119,63 +99,14 @@ impl ProjectPii<'_> {
     }
 
     /// Apply both rule sets to an event at its schema root.
-    pub fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
-        self.scrub_event_with_ip_fallback(event, false)
-    }
-
-    /// Scrub the event, optionally allowing only a hash to identify a user from a transient IP.
-    pub fn scrub_event_with_ip_fallback(
-        self,
-        event: &mut Annotated<Event>,
-        hash_only: bool,
-    ) -> ProcessingResult {
-        // A later rule set may clear another user identifier or the IP field itself.
-        // Retain a replacement as a candidate until every rule has seen the real user.
-        let mut replacement = None;
-        for rules in [self.advanced, self.legacy].into_iter().flatten() {
-            let mut processor = PiiProcessor::new(rules.compiled());
-            processor.deferred_user_ip = Some(&mut replacement);
-            process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let Some(ip) = replacement else { return Ok(()) };
-        let Some(user) = event
-            .value_mut()
-            .as_mut()
-            .and_then(|e| e.user.value_mut().as_mut())
-        else {
-            return Ok(());
-        };
-        if !user_needs_id(user)
-            || (hash_only
-                && !ip
-                    .meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized))
-        {
-            return Ok(());
-        }
-        // The replacement now occupies user.id. Apply selectors at its destination
-        // before publishing it, including selectors from an earlier rule set.
-        let mut destination = Annotated::new(Event {
-            user: Annotated::new(User {
-                id: ip.map_value(|ip| ip.into_inner().into()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
+    fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
         for rules in [self.advanced, self.legacy].into_iter().flatten() {
             process_value(
-                &mut destination,
+                event,
                 &mut PiiProcessor::new(rules.compiled()),
                 ProcessingState::root(),
             )?;
         }
-        user.id = destination
-            .into_value()
-            .and_then(|e| e.user.into_value())
-            .map(|u| u.id)
-            .unwrap_or_default();
-        remove_replaced_ip(user);
         Ok(())
     }
 }
@@ -185,7 +116,6 @@ pub struct PiiProcessor<'a> {
     /// Controls how rules are applied to attributes.
     attribute_mode: AttributeMode,
     compiled_config: &'a CompiledPiiConfig,
-    deferred_user_ip: Option<&'a mut Option<Annotated<IpAddr>>>,
 }
 
 impl<'a> PiiProcessor<'a> {
@@ -195,7 +125,6 @@ impl<'a> PiiProcessor<'a> {
         // any init logic into CompiledPiiConfig::new.
         PiiProcessor {
             compiled_config,
-            deferred_user_ip: None,
             attribute_mode: AttributeMode::Object,
         }
     }
@@ -204,6 +133,15 @@ impl<'a> PiiProcessor<'a> {
     pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
         self.attribute_mode = attribute_mode;
         self
+    }
+
+    /// Scrub the fields of an event user without deriving an identity from its IP.
+    pub fn scrub_event_user_fields(&mut self, user: &mut Annotated<User>) -> ProcessingResult {
+        let state =
+            ProcessingState::root().enter_borrowed("user", None, ValueType::for_field(user));
+        let action = self.before_process(user.0.as_ref(), &mut user.1, &state);
+        processor::apply(user, |_, _| action)?;
+        processor::apply(user, |user, _| user.process_child_values(self, &state))
     }
 
     fn apply_all_rules(
@@ -422,13 +360,12 @@ impl Processor for PiiProcessor<'_> {
             && user.id.value().is_none()
             && user.id.meta().is_empty();
         user.process_child_values(self, state)?;
-        if can_replace && user.ip_address.value().is_some_and(|ip| !ip.is_valid()) {
-            if let Some(candidate) = &mut self.deferred_user_ip {
-                **candidate = Some(user.ip_address.clone());
-            } else if user_needs_id(user) {
-                user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
-                remove_replaced_ip(user);
-            }
+        if can_replace
+            && user.ip_address.value().is_some_and(|ip| !ip.is_valid())
+            && user_needs_id(user)
+        {
+            user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
+            remove_replaced_ip(user);
         }
         Ok(())
     }
@@ -1703,37 +1640,6 @@ mod tests {
         assert_eq!(
             user.id.value().unwrap().as_str(),
             "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
-        );
-    }
-
-    #[test]
-    fn test_ip_fallback_after_both_rule_sets() {
-        let advanced = serde_json::from_value(json!({
-            "applications": {"$user.ip_address": ["@ip:hash"]}
-        }))
-        .unwrap();
-        let legacy = serde_json::from_value(json!({
-            "applications": {
-                "$user.email": ["@anything:remove"],
-                "$user.ip_address": ["@anything:remove"]
-            }
-        }))
-        .unwrap();
-        let rules = ProjectPii {
-            advanced: Some(&advanced),
-            legacy: Some(&legacy),
-        };
-        let mut event = Annotated::<Event>::from_json(
-            r#"{"user":{"email":"sdk@example.org","ip_address":"127.0.0.1"}}"#,
-        )
-        .unwrap();
-        rules.scrub_event(&mut event).unwrap();
-        let user = get_value!(event.user!);
-        assert!(user.email.value().is_none());
-        assert!(user.ip_address.value().is_none());
-        assert_eq!(
-            user.id.as_str(),
-            Some("AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741")
         );
     }
 
