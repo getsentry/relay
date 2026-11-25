@@ -21,6 +21,7 @@
 
 **Internal**:
 
+- Recognize the `organizations:relay-otel-metrics-endpoint` flag in project configs.
 - Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
 - Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
