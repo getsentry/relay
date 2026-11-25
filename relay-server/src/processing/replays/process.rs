@@ -1,6 +1,6 @@
 use crate::envelope::ReplayVideoItem;
 use relay_dynamic_config::Feature;
-use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, eap, replay};
+use relay_event_normalization::{CityLookup, RawUserAgentInfo, eap, replay};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::PiiProcessor;
@@ -101,7 +101,7 @@ pub fn expand(
 /// Normalizes a replay event.
 pub fn normalize(
     replay: &mut Managed<ExpandedReplay>,
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let meta = replay.headers.meta();

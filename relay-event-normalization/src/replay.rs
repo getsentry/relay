@@ -9,7 +9,7 @@ use relay_protocol::Annotated;
 use crate::event::normalize_user_geoinfo;
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
-use crate::{GeoIpLookup, trimming};
+use crate::{CityLookup, trimming};
 
 /// Replay validation error.
 ///
@@ -80,7 +80,7 @@ pub fn normalize(
     replay: &mut Annotated<Replay>,
     client_ip: Option<StdIpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-    geoip_lookup: &GeoIpLookup,
+    geoip_lookup: &CityLookup,
 ) {
     let _ = processor::apply(replay, |replay_value, meta| {
         normalize_platform(replay_value);
@@ -264,7 +264,7 @@ mod tests {
             &mut replay,
             None,
             &RawUserAgentInfo::default(),
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         let contexts = get_value!(replay.contexts!);
@@ -306,7 +306,7 @@ mod tests {
             &mut replay,
             None,
             &RawUserAgentInfo::default(),
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
         assert_eq!(get_value!(replay.user.geo), None);
 
@@ -316,7 +316,7 @@ mod tests {
             &mut replay,
             Some(ip_address),
             &RawUserAgentInfo::default(),
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         let ipaddr = get_value!(replay.user!).ip_address.as_str();
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_set_ip_address_missing_user_ip_address_and_geo() {
-        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let lookup = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         let ip_address = IpAddr::V4(Ipv4Addr::new(2, 125, 160, 216));
 
         // IP-Address set.
@@ -365,7 +365,7 @@ mod tests {
             &mut replay,
             None,
             &RawUserAgentInfo::default(),
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
 
         let user = get_value!(replay.user!);
@@ -500,7 +500,7 @@ mod tests {
             &mut replay,
             None,
             &RawUserAgentInfo::default(),
-            &GeoIpLookup::empty(),
+            &CityLookup::empty(),
         );
         assert_annotated_snapshot!(replay, @r###"
         {

@@ -3,9 +3,11 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
 
+use maxminddb::geoip2;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::Geo;
 use relay_protocol::Annotated;
+use serde::Deserialize;
 
 #[cfg(feature = "mmap")]
 type ReaderType = maxminddb::Mmap;
@@ -13,55 +15,87 @@ type ReaderType = maxminddb::Mmap;
 #[cfg(not(feature = "mmap"))]
 type ReaderType = Vec<u8>;
 
-/// An error in the `GeoIpLookup`.
+/// An error opening or querying a MaxMind database.
 pub type GeoIpError = maxminddb::MaxMindDbError;
 
-/// A geo ip lookup helper based on maxmind db files.
-///
-/// The helper is internally reference counted and can be cloned cheaply.
-#[derive(Clone, Default)]
-pub struct GeoIpLookup(Option<Arc<maxminddb::Reader<ReaderType>>>);
+/// The record to decode and the Relay fields to take from it.
+pub trait Edition: Default {
+    type Record<'db>: Deserialize<'db>;
+    type Fields<'db>;
 
-impl GeoIpLookup {
-    /// Opens a maxminddb file by path.
-    pub fn open<P>(path: P) -> Result<Self, GeoIpError>
-    where
-        P: AsRef<Path>,
-    {
+    fn fields<'db>(&self, record: Self::Record<'db>) -> Option<Self::Fields<'db>>;
+}
+
+/// A local MaxMind database. Clones share the same reader.
+#[derive(Clone, Default)]
+pub struct Lookup<E> {
+    reader: Option<Arc<maxminddb::Reader<ReaderType>>>,
+    edition: E,
+}
+
+impl<E: Edition> Lookup<E> {
+    /// Opens a local MMDB file.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, GeoIpError> {
         #[cfg(feature = "mmap")]
+        // The updater replaces the file by rename. A reader keeps its original mapping.
         let reader = unsafe { maxminddb::Reader::open_mmap(path)? };
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
-        Ok(GeoIpLookup(Some(Arc::new(reader))))
+        Ok(Self {
+            reader: Some(Arc::new(reader)),
+            edition: E::default(),
+        })
     }
 
-    /// Creates a new [`GeoIpLookup`] instance without any data loaded.
+    /// Creates a lookup without a database.
     pub fn empty() -> Self {
-        Self(None)
+        Self::default()
     }
 
     /// Unix timestamp when the database was built.
-    ///
-    /// Returns `None` for an [`Self::empty`] database.
     pub fn build_epoch(&self) -> Option<UnixTimestamp> {
-        let reader = self.0.as_ref()?;
-        Some(UnixTimestamp::from_secs(reader.metadata.build_epoch))
+        Some(UnixTimestamp::from_secs(
+            self.reader.as_ref()?.metadata.build_epoch,
+        ))
     }
 
-    /// Looks up an IP address.
-    pub fn try_lookup(&self, ip_address: IpAddr) -> Result<Option<Geo>, GeoIpError> {
-        let Some(reader) = self.0.as_ref() else {
+    /// Looks up an IP and decodes this edition's record.
+    pub fn try_lookup(&self, ip: IpAddr) -> Result<Option<E::Fields<'_>>, GeoIpError> {
+        let Some(reader) = &self.reader else {
             return Ok(None);
         };
+        Ok(reader
+            .lookup(ip)?
+            .decode::<E::Record<'_>>()?
+            .and_then(|record| self.edition.fields(record)))
+    }
 
-        let Some(city) = reader
-            .lookup(ip_address)?
-            .decode::<maxminddb::geoip2::City>()?
-        else {
-            return Ok(None);
-        };
+    /// Like [`Self::try_lookup`], but swallows errors.
+    pub fn lookup(&self, ip: IpAddr) -> Option<E::Fields<'_>> {
+        self.try_lookup(ip).ok().flatten()
+    }
+}
 
-        Ok(Some(Geo {
+impl<E> fmt::Debug for Lookup<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lookup")
+            .field("loaded", &self.reader.is_some())
+            .finish()
+    }
+}
+
+/// Reader for city and country lookups.
+pub type CityLookup = Lookup<City>;
+
+#[derive(Clone, Default)]
+pub struct City;
+
+impl Edition for City {
+    type Record<'db> = geoip2::City<'db>;
+    type Fields<'db> = Geo;
+
+    fn fields<'db>(&self, city: Self::Record<'db>) -> Option<Self::Fields<'db>> {
+        Some(Geo {
             country_code: Annotated::from(city.country.iso_code.map(String::from)),
             city: Annotated::from(city.city.names.english.map(String::from)),
             subdivision: Annotated::from(
@@ -71,17 +105,47 @@ impl GeoIpLookup {
             ),
             region: Annotated::from(city.country.names.english.map(String::from)),
             ..Default::default()
-        }))
-    }
-
-    /// Like [`Self::try_lookup`], but swallows errors.
-    pub fn lookup(&self, ip_address: IpAddr) -> Option<Geo> {
-        self.try_lookup(ip_address).ok().flatten()
+        })
     }
 }
 
-impl fmt::Debug for GeoIpLookup {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GeoIpLookup").finish()
+/// Reader for client autonomous system lookups.
+pub type AsnLookup = Lookup<Asn>;
+
+#[derive(Clone, Default)]
+pub struct Asn;
+
+impl Edition for Asn {
+    type Record<'db> = geoip2::Asn<'db>;
+    type Fields<'db> = (u32, Option<&'db str>);
+
+    fn fields<'db>(&self, record: Self::Record<'db>) -> Option<Self::Fields<'db>> {
+        Some((
+            record.autonomous_system_number?,
+            record.autonomous_system_organization,
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn test_asn_lookup() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/GeoLite2-ASN-Test.mmdb");
+        let lookup = AsnLookup::open(path).unwrap();
+
+        assert_eq!(
+            lookup.try_lookup("1.0.0.1".parse().unwrap()).unwrap(),
+            Some((15169, Some("Google Inc.")))
+        );
+        assert_eq!(
+            lookup.try_lookup("192.0.2.1".parse().unwrap()).unwrap(),
+            None
+        );
     }
 }

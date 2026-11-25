@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use either::Either;
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::eap::Ingress;
 use relay_event_normalization::eap::time::TimestampOutOfRange;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
@@ -107,15 +107,21 @@ impl From<ScrubAttachmentError> for Error {
 /// A processor for Spans.
 pub struct SpansProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geo_lookup: GeoIpLookup,
+    geo_lookup: CityLookup,
+    _asn_lookup: AsnLookup,
 }
 
 impl SpansProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geo_lookup: GeoIpLookup) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geo_lookup: CityLookup,
+        asn_lookup: AsnLookup,
+    ) -> Self {
         Self {
             limiter,
             geo_lookup,
+            _asn_lookup: asn_lookup,
         }
     }
 }
