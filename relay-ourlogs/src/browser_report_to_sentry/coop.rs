@@ -23,6 +23,9 @@ fn create_message(body: &Body) -> String {
             "COOP '{policy}' would move the next page to a new browsing context group when navigating away, but does not due to report only configuration"
         ),
         ty => match &body.property {
+            Some(property) if enforced => {
+                format!("COOP '{policy}' blocked access to '{property}' ({ty})")
+            }
             Some(property) => format!("COOP '{policy}' would block access to '{property}' ({ty})"),
             None => format!("COOP '{policy}' violation ({ty})"),
         },
