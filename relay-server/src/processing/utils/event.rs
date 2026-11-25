@@ -202,10 +202,14 @@ pub fn normalize(
         return Ok(event_fully_normalized);
     }
 
-    let project = &ctx.project_info.config;
     let ip_pii_rules = ProjectPii {
-        advanced: project.pii_config.as_ref(),
-        legacy: project.datascrubbing_settings.pii_config().as_ref(),
+        advanced: ctx.project_info.config.pii_config.as_ref(),
+        legacy: ctx
+            .project_info
+            .config
+            .datascrubbing_settings
+            .pii_config()
+            .as_ref(),
     };
     let asn_lookup = ctx
         .project_info
@@ -274,7 +278,10 @@ pub fn normalize(
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
             client_ip: client_ipaddr.as_ref(),
-            infer_ip_address: !project.datascrubbing_settings.scrub_ip_addresses,
+            infer_ip_address: !project_info
+                .config
+                .datascrubbing_settings
+                .scrub_ip_addresses,
             client_sample_rate: headers.dsc().and_then(|ctx| ctx.sample_rate),
             user_agent: RawUserAgentInfo {
                 user_agent: request_meta.user_agent(),
