@@ -298,10 +298,7 @@ fn normalize_span(
             eap::normalize_inject_client_address(&mut span.attributes, meta.client_addr());
         }
         user_agent.normalize(&mut span.attributes);
-        eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        if let Some(db) = asn {
-            relay_event_normalization::enrich_span_asn(&mut span.attributes, db);
-        }
+        eap::normalize_span_ip(&mut span.attributes, |ip| geo_lookup.lookup(ip), asn);
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
         if ctx.is_processing() {

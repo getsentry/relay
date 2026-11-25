@@ -17,6 +17,7 @@ use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, R
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
+use crate::client_ip::{has_asn, redacted, set_asn_fields};
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
@@ -25,7 +26,7 @@ use crate::span::tag_extraction::{
     sql_action_from_query, sql_tables_from_query,
 };
 use crate::utils::format_user_tag;
-use crate::{TransactionNameRule, normalize_transaction_name};
+use crate::{AsnLookup, TransactionNameRule, normalize_transaction_name};
 
 mod ai;
 mod attribute_like;
@@ -382,42 +383,58 @@ pub fn normalize_user_geo(
     attributes: &mut Annotated<Attributes>,
     info: impl FnOnce(IpAddr) -> Option<Geo>,
 ) {
+    normalize_span_ip(attributes, info, None);
+}
+
+/// Enrich City and ASN from the same address. Only ASN may fall back to the user IP.
+pub fn normalize_span_ip(
+    attributes: &mut Annotated<Attributes>,
+    city: impl FnOnce(IpAddr) -> Option<Geo>,
+    asn: Option<&AsnLookup>,
+) {
+    let asn = asn.filter(|_| !has_asn(attributes, |a, k| a.contains_key(k)));
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
-
-    if [
-        USER__GEO__COUNTRY_CODE,
-        USER__GEO__CITY,
-        USER__GEO__SUBDIVISION,
-        USER__GEO__REGION,
-    ]
-    .into_iter()
-    .any(|a| attributes.contains_key(a))
-    {
-        return;
-    }
-
-    let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
-        .and_then(|v| v.as_str())
-        .and_then(|v| v.parse().ok());
-
-    let Some(geo) = client_address.and_then(info) else {
+    let client = attributes.0.get(CLIENT__ADDRESS);
+    let needs_city = client.is_some()
+        && ![
+            USER__GEO__COUNTRY_CODE,
+            USER__GEO__CITY,
+            USER__GEO__SUBDIVISION,
+            USER__GEO__REGION,
+        ]
+        .into_iter()
+        .any(|key| attributes.contains_key(key));
+    let Some(source @ Annotated(Some(attr), _)) =
+        client.or_else(|| asn.and_then(|_| attributes.0.get(USER__IP_ADDRESS)))
+    else {
         return;
     };
+    let value = &attr.value.value;
+    let asn = asn.filter(|_| !redacted(source) && !redacted(value));
+    if !needs_city && asn.is_none() {
+        return;
+    }
+    let Some(ip) = value.as_str().and_then(|text| text.parse().ok()) else {
+        return;
+    };
+    if let Some((number, org)) = asn.and_then(|db| db.lookup(ip)) {
+        set_asn_fields(attributes, number, org);
+    }
+    if needs_city && let Some(geo) = city(ip) {
+        let subregion = geo
+            .country_code
+            .value()
+            .and_then(|cc| Subregion::from_iso2(cc));
 
-    let subregion = geo
-        .country_code
-        .value()
-        .and_then(|cc| Subregion::from_iso2(cc));
-
-    attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
-    attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
-    attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
-    attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
-    if let Some(subregion) = subregion {
-        attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
+        attributes.insert(USER__GEO__COUNTRY_CODE, geo.country_code);
+        attributes.insert(USER__GEO__CITY, geo.city);
+        attributes.insert(USER__GEO__SUBDIVISION, geo.subdivision);
+        attributes.insert(USER__GEO__REGION, geo.region);
+        if let Some(subregion) = subregion {
+            attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
+        }
     }
 }
 
@@ -1501,6 +1518,36 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_span_ip_source_eligibility() {
+        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
+        let mut source = Attributes::new();
+        source.insert(USER__IP_ADDRESS, "1.0.0.1");
+        let mut user_only = Annotated::new(source.clone());
+        normalize_span_ip(&mut user_only, |_| unreachable!(), Some(&db));
+        assert!(user_only.value().unwrap().contains_key(CLIENT__AS__NUMBER));
+
+        // A redacted client address still supplies City and blocks ASN fallback to the user IP.
+        source.insert(CLIENT__ADDRESS, "2600::1");
+        source
+            .get_annotated_value_mut(CLIENT__ADDRESS)
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        let mut attrs = Annotated::new(source);
+        let mut city_ip = None;
+        normalize_span_ip(
+            &mut attrs,
+            |ip| {
+                city_ip = Some(ip);
+                None
+            },
+            Some(&db),
+        );
+        assert_eq!(city_ip, Some("2600::1".parse().unwrap()));
+        assert!(!attrs.value().unwrap().contains_key(CLIENT__AS__NUMBER));
     }
 
     #[test]

@@ -10,14 +10,14 @@ use relay_event_schema::protocol::{
     ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
 use relay_pii::{PiiProcessor, ProjectPii, user_needs_id};
-use relay_protocol::{Annotated, Object, RemarkType, Value};
+use relay_protocol::{Annotated, RemarkType, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-fn redacted<T>(value: &Annotated<T>) -> bool {
+pub fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
 }
 
@@ -74,20 +74,6 @@ fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
     field.value_mut().as_mut().ok_or(Missing)
 }
 
-/// Expand a request marker even when the user already has an IP. Leave literals unparsed.
-fn expand_remote_addr(env: &mut Object<Value>, transport: Option<IpAddr>) -> Option<IpAddr> {
-    let field = field_value_mut(env.get_mut("REMOTE_ADDR")?).ok()?;
-    if field.as_str() != Some(ProtocolIp::AUTO_MARKER) {
-        return None;
-    }
-    if let Some(ip) = transport {
-        *field = Value::String(ip.to_string());
-    } else {
-        env.remove("REMOTE_ADDR");
-    }
-    transport
-}
-
 enum SelectedIp {
     LookupOnly(Option<IpAddr>),
     Request(ProtocolIp),
@@ -111,56 +97,61 @@ fn select_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let mut env = field_value_mut(request).and_then(|r| field_value_mut(&mut r.env));
-    let expanded_ip = env
-        .as_deref_mut()
-        .ok()
-        .and_then(|env| expand_remote_addr(env, transport));
     let supplied = field_value_mut(user).and_then(|u| {
         let parsed = field_value_mut(&mut u.ip_address)?.parsed();
         Ok((parsed, &mut u.ip_address))
     });
-    let fallback_connection = match supplied {
-        Ok((ParsedIp::Address(ip), _)) => return SelectedIp::LookupOnly(Some(ip)),
-        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => return SelectedIp::LookupOnly(None),
+    let (preferred, fallback) = match supplied {
+        Ok((ParsedIp::Address(ip), _)) => (Some(SelectedIp::LookupOnly(Some(ip))), None),
+        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => {
+            (Some(SelectedIp::LookupOnly(None)), None)
+        }
         Ok((ParsedIp::Auto, field)) => {
-            // Consume the marker even if no eligible address is available.
             field.set_value(None);
-            transport
+            (None, transport)
         }
-        // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
-        Err(Missing) => transport.filter(|_| {
-            infer == AutoInferSetting::Auto
-                || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
-        }),
+        Err(Missing) => {
+            // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
+            let fallback = transport.filter(|_| {
+                infer == AutoInferSetting::Auto
+                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
+            });
+            (None, fallback)
+        }
     };
+    let preferred = preferred.or_else(|| {
+        transport
+            .filter(|_| config.security_report && config.infer_ip_address)
+            .map(SelectedIp::Connection)
+    });
 
-    // Browser CSP reports prefer the connection. Other events prefer a supplied REMOTE_ADDR.
-    if config.security_report
-        && config.infer_ip_address
-        && let Some(ip) = transport
-    {
-        return SelectedIp::Connection(ip);
-    }
-    let request_ip = if let Some(ip) = expanded_ip {
-        Some(ProtocolIp::from(ip))
-    } else {
-        match env.and_then(|env| field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)) {
-            Err(Redacted) => return SelectedIp::LookupOnly(None),
-            Ok(Value::String(text)) if infer != AutoInferSetting::Never => {
-                ProtocolIp::parse(text.as_str()).ok()
+    // Normalize a request marker even when an explicit user IP or CSP connection wins.
+    let use_request = preferred.is_none() && infer != AutoInferSetting::Never;
+    let remote = field_value_mut(request)
+        .and_then(|r| field_value_mut(&mut r.env))
+        .and_then(|env| {
+            let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
+            match field.as_str() {
+                Some(ProtocolIp::AUTO_MARKER) => {
+                    if let Some(ip) = transport {
+                        *field = Value::String(ip.to_string());
+                        Ok(use_request.then(|| ProtocolIp::from(ip)))
+                    } else {
+                        env.remove("REMOTE_ADDR");
+                        Ok(None)
+                    }
+                }
+                Some(text) if use_request => Ok(ProtocolIp::parse(text).ok()),
+                _ => Ok(None),
             }
-            _ => None,
-        }
-    };
-    if let Some(ip) = request_ip {
-        return SelectedIp::Request(ip);
-    }
-    match fallback_connection {
-        Some(ip) => SelectedIp::Connection(ip),
-        // City and ASN may still use the connection without storing a user IP.
-        None => SelectedIp::LookupOnly(config.client_ip),
-    }
+        });
+    preferred.unwrap_or_else(|| match remote {
+        Ok(Some(ip)) => SelectedIp::Request(ip),
+        Err(Redacted) => SelectedIp::LookupOnly(None),
+        _ => fallback
+            .map(SelectedIp::Connection)
+            .unwrap_or(SelectedIp::LookupOnly(config.client_ip)),
+    })
 }
 
 /// Normalize the request and user in place and return the address eligible for lookup.
@@ -309,37 +300,17 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
 }
 
 /// Preserve a scrubbed container or either ASN attribute supplied by the SDK.
-fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
+pub fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
     redacted(field)
         || field
             .value()
             .is_some_and(|value| ASN_KEYS.into_iter().any(|key| contains(value, key)))
 }
 
-fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
+pub fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
     fields.insert(CLIENT__AS__NUMBER, i64::from(number));
     if let Some(org) = organization {
         fields.insert(CLIENT__AS__ORGANIZATION, org);
-    }
-}
-
-/// Enrich a standalone span using its normalized client address or user IP.
-pub fn enrich_span_asn(attrs: &mut Annotated<Attributes>, db: &AsnLookup) {
-    if has_asn(attrs, |attrs, k| attrs.contains_key(k)) {
-        return;
-    }
-    let Some(attrs) = attrs.value_mut() else {
-        return;
-    };
-    let ip = [CLIENT__ADDRESS, USER__IP_ADDRESS]
-        .into_iter()
-        .find_map(|key| attrs.0.get(key))
-        .and_then(unredacted_value)
-        .and_then(|attr| unredacted_value(&attr.value.value))
-        .and_then(Value::as_str)
-        .and_then(|text| text.parse().ok());
-    if let Some((number, organization)) = ip.and_then(|ip| db.lookup(ip)) {
-        set_asn_fields(attrs, number, organization);
     }
 }
 
