@@ -10,7 +10,7 @@ use relay_event_schema::protocol::{
     ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
 use relay_pii::{PiiProcessor, ProjectPii, user_needs_id};
-use relay_protocol::{Annotated, RemarkType, Value};
+use relay_protocol::{Annotated, Object, RemarkType, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
@@ -74,39 +74,18 @@ fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
     field.value_mut().as_mut().ok_or(Missing)
 }
 
-/// A literal keeps its wire spelling. An expanded request marker already has a parsed address.
-enum RequestAddress<'a> {
-    Literal(&'a str),
-    Connection(IpAddr),
-}
-
-impl RequestAddress<'_> {
-    fn into_ip(self) -> Option<ProtocolIp> {
-        match self {
-            Self::Literal(text) => ProtocolIp::parse(text).ok(),
-            Self::Connection(ip) => Some(ProtocolIp::from(ip)),
-        }
+/// Expand a request marker even when the user already has an IP. Leave literals unparsed.
+fn expand_remote_addr(env: &mut Object<Value>, transport: Option<IpAddr>) -> Option<IpAddr> {
+    let field = field_value_mut(env.get_mut("REMOTE_ADDR")?).ok()?;
+    if field.as_str() != Some(ProtocolIp::AUTO_MARKER) {
+        return None;
     }
-}
-
-fn normalize_remote_addr(
-    request: &mut Annotated<Request>,
-    transport: Option<IpAddr>,
-) -> Result<RequestAddress<'_>, Unavailable> {
-    let env = field_value_mut(&mut field_value_mut(request)?.env)?;
-    let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
-    if field.as_str() == Some("{{auto}}") {
-        let Some(ip) = transport else {
-            env.remove("REMOTE_ADDR");
-            return Err(Missing);
-        };
+    if let Some(ip) = transport {
         *field = Value::String(ip.to_string());
-        return Ok(RequestAddress::Connection(ip));
+    } else {
+        env.remove("REMOTE_ADDR");
     }
-    env.get("REMOTE_ADDR")
-        .and_then(|field| field.as_str())
-        .map(RequestAddress::Literal)
-        .ok_or(Missing)
+    transport
 }
 
 /// Normalize the request and user in place and return the address eligible for lookup.
@@ -126,7 +105,11 @@ pub fn process_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let remote = normalize_remote_addr(request, transport);
+    let mut env = field_value_mut(request).and_then(|r| field_value_mut(&mut r.env));
+    let expanded_ip = env
+        .as_deref_mut()
+        .ok()
+        .and_then(|env| expand_remote_addr(env, transport));
     // Only a raw address taken from the request must wait for request PII before it can be copied.
     let (lookup, request_backfill, hash_only) = 'select: {
         let supplied = field_value_mut(user).and_then(|u| {
@@ -154,14 +137,21 @@ pub fn process_user_ip(
         {
             ip
         } else {
-            match remote {
-                Err(Redacted) => break 'select (None, None, false),
-                Ok(address) if infer != AutoInferSetting::Never => {
-                    if let Some(ip) = address.into_ip() {
-                        break 'select (ip.address(), Some(ip), false);
+            let request_ip = if let Some(ip) = expanded_ip {
+                Some(ProtocolIp::from(ip))
+            } else {
+                match env
+                    .and_then(|env| field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?))
+                {
+                    Err(Redacted) => break 'select (None, None, false),
+                    Ok(Value::String(text)) if infer != AutoInferSetting::Never => {
+                        ProtocolIp::parse(text.as_str()).ok()
                     }
+                    _ => None,
                 }
-                _ => {}
+            };
+            if let Some(ip) = request_ip {
+                break 'select (ip.address(), Some(ip), false);
             }
             let Some(ip) = fallback_connection else {
                 // City and ASN may still use the connection without storing a user IP.

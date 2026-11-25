@@ -446,7 +446,7 @@ impl FromStr for ParsedIp {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "{{auto}}" => Ok(Self::Auto),
+            IpAddr::AUTO_MARKER => Ok(Self::Auto),
             value => value.parse().map(Self::Address),
         }
     }
@@ -460,10 +460,13 @@ pub struct IpAddr {
 }
 
 impl IpAddr {
+    /// Wire spelling of the marker that requests address inference.
+    pub const AUTO_MARKER: &'static str = "{{auto}}";
+
     /// Returns the auto marker IP address.
     pub fn auto() -> Self {
         Self {
-            text: LenientString("{{auto}}".into()),
+            text: LenientString(Self::AUTO_MARKER.into()),
             parsed: ParsedIp::Auto,
         }
     }
