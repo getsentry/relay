@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["deserialize","deserialize_seed"]};
+window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["deserialize","deserialize_json","deserialize_seed"]};
