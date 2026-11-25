@@ -4,7 +4,6 @@ use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_quotas::DataCategory;
 
-use crate::constants::BROWSER_REPORT_RELEASE_HEADER;
 use crate::envelope::WithHeader;
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
@@ -69,9 +68,7 @@ fn expand(
 
     let payload = item.data().payload();
     let received_at = headers.meta().received_at();
-    let release = headers
-        .get_header(BROWSER_REPORT_RELEASE_HEADER)
-        .and_then(|h| h.as_str());
+    let release = item.data().sentry_release();
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?

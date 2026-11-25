@@ -6,7 +6,6 @@ use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use serde::Deserialize;
 
-use crate::constants::BROWSER_REPORT_RELEASE_HEADER;
 use crate::endpoints::common;
 use crate::envelope::ContentType;
 use crate::extractors::{IntegrationBuilder, RawContentType};
@@ -32,8 +31,8 @@ async fn handle(
     }
 
     let envelope = builder
+        .with_sentry_release(query.sentry_release)
         .with_type(LogsIntegration::BrowserReport)
-        .with_header_opt(BROWSER_REPORT_RELEASE_HEADER, query.sentry_release)
         .with_required_feature(Feature::BrowserReportIngestion)
         .build();
 

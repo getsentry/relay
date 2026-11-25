@@ -51,9 +51,6 @@ pub const ATTACHMENT_CSO_SUFFIX: &str = ".cso";
 /// Envelope header used to store the UE4 user id.
 pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 
-/// Envelope header used to store the release of browser reports.
-pub const BROWSER_REPORT_RELEASE_HEADER: &str = "sentry_release";
-
 /// The default retention for events if the server does not specify a value in project
 /// configurations.
 pub const DEFAULT_EVENT_RETENTION: u16 = 90;
