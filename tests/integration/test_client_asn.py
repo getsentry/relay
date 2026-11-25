@@ -1,4 +1,5 @@
 import hmac
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,7 +19,15 @@ DB = {
 }
 NUMBER = "client.as.number"
 ORG = "client.as.organization"
+ASN_TYPES = {NUMBER: "integer", ORG: "string"}
 IP = "1.0.0.1"
+IP_HASH = hmac.digest(b"", IP.encode(), "sha1").hex().upper()
+ASN_FEATURE = "projects:relay-client-asn-lookup"
+HASH_USER_IP = {"$user.ip_address": ["@ip:hash"]}
+HASH_AND_REMOVE_REMOTE = {
+    **HASH_USER_IP,
+    "$request.env.REMOTE_ADDR": ["@anything:remove"],
+}
 
 
 def transaction(ip, supplied):
@@ -44,7 +53,7 @@ def standalone_span(project, ip, supplied):
     now = datetime.now(UTC).timestamp()
     attrs = {"client.address": {"type": "string", "value": ip}}
     for k, v in supplied.items():
-        attrs[k] = {"type": "integer" if k == NUMBER else "string", "value": v}
+        attrs[k] = {"type": ASN_TYPES[k], "value": v}
     return envelope_with_spans(
         {
             "trace_id": trace_id,
@@ -74,10 +83,16 @@ class EventCase:
 class ProjectCase:
     id: str
     events: tuple[EventCase, ...]
-    enabled: bool = True
-    forwarder_only_db: bool = False
-    scrub_ips: bool = False
-    applications: dict[str, list[str]] | None = field(default_factory=dict)
+    config: dict = field(
+        default_factory=lambda: {
+            "features": [ASN_FEATURE],
+            "datascrubbingSettings": {"scrubIpAddresses": False},
+        }
+    )
+    applications: dict[str, list[str]] = field(default_factory=dict)
+    omit_config: tuple[str, ...] = ()
+    processing_options: dict = field(default_factory=lambda: DB)
+    forwarders: tuple[dict, ...] = ()
 
 
 LOOKUP = EventCase(id="lookup", expected={NUMBER: 15169, ORG: "Google Inc."})
@@ -102,22 +117,33 @@ SDK_NUMBER = EventCase(id="sdk-number", supplied={NUMBER: 42}, expected={NUMBER:
         ),  # Fill missing ASN data and preserve SDK-supplied fields.
         ProjectCase(
             id="without-pii",
-            applications=None,
+            config={
+                "features": [ASN_FEATURE],
+                "datascrubbingSettings": {
+                    "scrubIpAddresses": False,
+                    "scrubData": False,
+                },
+            },
+            omit_config=("piiConfig",),
             events=(LOOKUP,),
         ),  # Lookup also works without scrubbing rules.
         ProjectCase(
             id="flag-off",
-            enabled=False,
+            config={"datascrubbingSettings": {"scrubIpAddresses": False}},
             events=(NO_ASN,),
         ),  # Disabling lookup leaves both fields absent.
         ProjectCase(
             id="forwarder-only",
-            forwarder_only_db=True,
+            processing_options={},
+            forwarders=(DB,),
             events=(LOOKUP,),
         ),  # The forwarder's ASN survives processing without a database.
         ProjectCase(
             id="scrub-ips",
-            scrub_ips=True,
+            config={
+                "features": [ASN_FEATURE],
+                "datascrubbingSettings": {"scrubIpAddresses": True},
+            },
             events=(LOOKUP, SDK_NUMBER),
         ),  # Disabling IP storage preserves both derived and supplied ASN data.
         ProjectCase(
@@ -148,23 +174,18 @@ def test_client_asn(
     spans_consumer,
     case: ProjectCase,
 ):
-    project = mini_sentry.add_full_project_config(42)
+    project = mini_sentry.add_full_project_config(
+        42, extra={"config": deepcopy(case.config)}
+    )
     config = project["config"]
-    if case.enabled:
-        config.setdefault("features", []).append("projects:relay-client-asn-lookup")
-    config.setdefault("datascrubbingSettings", {})["scrubIpAddresses"] = case.scrub_ips
-    if case.applications is None:
-        del config["piiConfig"]
-        config["datascrubbingSettings"]["scrubData"] = False
-    else:
-        config["piiConfig"]["applications"].update(case.applications)
+    config["piiConfig"]["applications"].update(case.applications)
+    for key in case.omit_config:
+        del config[key]
     events = events_consumer()
     spans = spans_consumer()
-    ingress = (
-        relay(relay_with_processing(), options=DB)
-        if case.forwarder_only_db
-        else relay_with_processing(options=DB)
-    )
+    ingress = relay_with_processing(options=case.processing_options)
+    for options in case.forwarders:
+        ingress = relay(ingress, options=options)
 
     for event in case.events:
         tx = transaction(IP, event.supplied)
@@ -199,10 +220,27 @@ def test_client_asn(
 
 
 @pytest.mark.parametrize(
-    "remove",
+    "keys, case",
     [
-        "source",  # The ASN survives removal of its source on the first hop.
-        "destination",  # The second hop leaves the removed SDK number absent.
+        pytest.param(
+            (
+                "$user.ip_address",
+                "$span.data.'client.address'",
+                "$span.attributes.'client.address'.value",
+            ),
+            LOOKUP,
+            id="source",
+        ),  # The ASN survives removal of its source on the first hop.
+        pytest.param(
+            (
+                "tags.'client.as.number'",
+                "$span.data.'client.as.number'",
+                "contexts.trace.data.'client.as.number'",
+                "$span.attributes.'client.as.number'.value",
+            ),
+            EventCase(id="removed-sdk-number", supplied={NUMBER: 42}, expected={}),
+            id="destination",
+        ),  # The second hop leaves the removed SDK number absent.
     ],
 )
 def test_client_asn_preserves_upstream_removal(
@@ -211,28 +249,14 @@ def test_client_asn_preserves_upstream_removal(
     relay_with_processing,
     events_consumer,
     spans_consumer,
-    remove,
+    keys,
+    case,
 ):
     project = mini_sentry.add_full_project_config(42)
-    project["config"].setdefault("features", []).append(
-        "projects:relay-client-asn-lookup"
-    )
+    project["config"].setdefault("features", []).append(ASN_FEATURE)
     rules = project["config"]["piiConfig"]["applications"]
-    keys = {
-        "source": [
-            "$user.ip_address",
-            "$span.data.'client.address'",
-            "$span.attributes.'client.address'.value",
-        ],
-        "destination": [
-            "tags.'client.as.number'",
-            "$span.data.'client.as.number'",
-            "contexts.trace.data.'client.as.number'",
-            "$span.attributes.'client.as.number'.value",
-        ],
-    }[remove]
     rules.update({key: ["@anything:remove"] for key in keys})
-    supplied = {NUMBER: 42} if remove == "destination" else {}
+    supplied = case.supplied
     events = events_consumer()
     spans = spans_consumer()
     forwarder = relay(mini_sentry, options=DB)
@@ -258,9 +282,10 @@ def test_client_asn_preserves_upstream_removal(
 
     error, _ = events.get_event()
     tags = dict(error.get("tags", []))
-    expected = LOOKUP.expected if remove == "source" else {}
+    expected = case.expected
+    expected_tags = {k: str(v) for k, v in expected.items()}
     for key in (NUMBER, ORG):
-        assert tags.get(key) == (str(expected[key]) if key in expected else None)
+        assert tags.get(key) == expected_tags.get(key)
     for _ in range(3):
         span = spans.get_span()
         for key in (NUMBER, ORG):
@@ -273,9 +298,7 @@ def test_client_asn_address_selection(
     mini_sentry, relay_with_processing, events_consumer, spans_consumer
 ):
     project = mini_sentry.add_full_project_config(42)
-    project["config"].setdefault("features", []).append(
-        "projects:relay-client-asn-lookup"
-    )
+    project["config"].setdefault("features", []).append(ASN_FEATURE)
     # This legacy selector applies only to the transaction segment, even though
     # standalone spans use the same convention names for the generated fields.
     project["config"]["piiConfig"]["applications"][
@@ -286,21 +309,25 @@ def test_client_asn_address_selection(
     processing = relay_with_processing(options=DB)
     headers = {"X-Forwarded-For": IP}
 
-    for addr, number in [
-        ("{{auto}}", 15169),  # Resolve the marker from the transport IP.
-        ("2600::1", 237),  # Prefer the supplied IPv6 address over the transport IP.
-        ("192.0.2.1", None),  # A valid IP missing from the database yields no ASN.
-        ("example.invalid", None),  # A hostname cannot supply an IP for lookup.
+    for addr, expected in [
+        (
+            "{{auto}}",
+            {NUMBER: 15169, ORG: "Google Inc."},
+        ),  # Resolve the marker from the transport IP.
+        (
+            "2600::1",
+            {NUMBER: 237, ORG: "Merit Network Inc."},
+        ),  # Prefer the supplied IPv6 address over the transport IP.
+        ("192.0.2.1", {}),  # A valid IP missing from the database yields no ASN.
+        ("example.invalid", {}),  # A hostname cannot supply an IP for lookup.
     ]:
         processing.send_envelope(
             42, standalone_span(project, addr, {}), headers=headers
         )
         attrs = spans.get_span()["attributes"]
-        assert (attrs.get(NUMBER) or {}).get("value") == number
-        if number is None:
-            assert ORG not in attrs
-        else:
-            assert attrs[ORG]["value"]
+        assert {
+            key: attrs[key]["value"] for key in attrs.keys() & {NUMBER, ORG}
+        } == expected
 
     # A transaction's user IP belongs to its segment. Don't fan it out to
     # every child from the copy of user.ip made during tag extraction.
@@ -338,7 +365,7 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
 ):
     project = mini_sentry.add_full_project_config(42)
     config = project["config"]
-    config.setdefault("features", []).append("projects:relay-client-asn-lookup")
+    config.setdefault("features", []).append(ASN_FEATURE)
     pii = config["piiConfig"]
     pii["rules"]["replace-ip"] = {
         "type": "pattern",
@@ -394,47 +421,75 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
     assert by_id[first["span_id"]] == (15169, "Google Inc.")
     assert by_id["eeeeeeeeeeeeeeee"] == (15169, "Google Inc.")
     assert by_id["cccccccccccccccc"] == (237, None)
-    number, organization = by_id["dddddddddddddddd"]
-    assert number == 237 and organization
+    assert by_id["dddddddddddddddd"] == (237, "Merit Network Inc.")
+
+
+@dataclass(frozen=True, kw_only=True)
+class HashCase:
+    id: str
+    event: dict
+    applications: dict[str, list[str]]
+    datascrubbing_settings: dict
+    expected_id: str | None
+    expected_remote: str | None
 
 
 @pytest.mark.parametrize(
-    "source, remove_remote",
+    "case",
     [
-        ("user", True),  # An explicit user IP still supplies a stable hash.
-        ("remote", False),  # A retained REMOTE_ADDR supplies the hash on the first hop.
-        ("remote", True),  # A removed REMOTE_ADDR supplies ASN but no user ID.
-        ("auto", True),  # The marker uses the transport IP for a stable hash.
+        HashCase(
+            id="explicit",
+            event={"user": {"ip_address": IP}},
+            applications=HASH_AND_REMOVE_REMOTE,
+            datascrubbing_settings={"scrubIpAddresses": True},
+            expected_id=IP_HASH,
+            expected_remote=None,
+        ),  # The explicit IP supplies the hash.
+        HashCase(
+            id="retained-remote",
+            event={"request": {"env": {"REMOTE_ADDR": IP}}},
+            applications=HASH_USER_IP,
+            datascrubbing_settings={"scrubIpAddresses": False},
+            expected_id=IP_HASH,
+            expected_remote=IP,
+        ),  # The retained address supplies the hash.
+        HashCase(
+            id="removed-remote",
+            event={"request": {"env": {"REMOTE_ADDR": IP}}},
+            applications=HASH_AND_REMOVE_REMOTE,
+            datascrubbing_settings={"scrubIpAddresses": True},
+            expected_id=None,
+            expected_remote=None,
+        ),  # The removed address supplies only ASN.
+        HashCase(
+            id="auto",
+            event={"user": {"ip_address": "{{auto}}"}},
+            applications=HASH_AND_REMOVE_REMOTE,
+            datascrubbing_settings={"scrubIpAddresses": True},
+            expected_id=IP_HASH,
+            expected_remote=None,
+        ),  # The marker hashes the transport IP.
     ],
+    ids=lambda case: case.id,
 )
-def test_client_ip_hash_survives_relay_hops(mini_sentry, relay, source, remove_remote):
+def test_client_ip_hash_survives_relay_hops(mini_sentry, relay, case: HashCase):
     project = mini_sentry.add_basic_project_config(42)
     config = project["config"]
-    config.setdefault("features", []).append("projects:relay-client-asn-lookup")
-    config.setdefault("datascrubbingSettings", {})["scrubIpAddresses"] = remove_remote
-    rules = config["piiConfig"]["applications"]
-    rules["$user.ip_address"] = ["@ip:hash"]
-    if remove_remote:
-        rules["$request.env.REMOTE_ADDR"] = ["@anything:remove"]
-    event = {
-        "user": {"ip_address": IP if source == "user" else "{{auto}}"},
-    }
-    if source == "remote":
-        event = {"request": {"env": {"REMOTE_ADDR": IP}}}
+    config.setdefault("features", []).append(ASN_FEATURE)
+    config.setdefault("datascrubbingSettings", {}).update(case.datascrubbing_settings)
+    config["piiConfig"]["applications"].update(case.applications)
 
     options = {**DB, "normalization": {"level": "full"}}
     first = relay(mini_sentry, options=options)
-    first.send_event(42, event, headers={"X-Forwarded-For": IP})
+    first.send_event(42, case.event, headers={"X-Forwarded-For": IP})
     envelope = mini_sentry.get_captured_envelope()
-    expected_id = hmac.digest(b"", IP.encode(), "sha1").hex().upper()
 
     def check(payload):
-        expected = None if source == "remote" and remove_remote else expected_id
-        assert payload.get("user", {}).get("id") == expected
+        assert payload.get("user", {}).get("id") == case.expected_id
         assert payload.get("user", {}).get("ip_address") is None
-        assert (payload.get("request", {}).get("env") or {}).get("REMOTE_ADDR") == (
-            IP if source == "remote" and not remove_remote else None
-        )
+        assert (payload.get("request", {}).get("env") or {}).get(
+            "REMOTE_ADDR"
+        ) == case.expected_remote
         assert dict(payload["tags"])[NUMBER] == "15169"
 
     check(envelope.get_event())
@@ -446,7 +501,7 @@ def test_client_ip_hash_survives_relay_hops(mini_sentry, relay, source, remove_r
 def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
     project = mini_sentry.add_basic_project_config(42)
     config = project["config"]
-    config.setdefault("features", []).append("projects:relay-client-asn-lookup")
+    config.setdefault("features", []).append(ASN_FEATURE)
     config["piiConfig"]["applications"].update(
         {
             "$request.env.REMOTE_ADDR": ["@anything:remove"],
@@ -455,45 +510,35 @@ def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
     )
     first = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
     second = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
-    for explicit in (
-        False,  # Removing REMOTE_ADDR leaves the marker without an ID source.
-        True,  # The explicit user IP still supplies the ID hash.
+
+    def check(envelope, expected_id):
+        event = next(
+            item.payload.json for item in envelope.items if item.type == "transaction"
+        )
+        assert (event.get("request", {}).get("env") or {}).get("REMOTE_ADDR") is None
+        user = event.get("user") or {}
+        assert user.get("ip_address") is None
+        assert user.get("id") == expected_id
+        assert event["contexts"]["trace"]["data"][NUMBER] == 15169
+        tags = event["spans"][0].get("sentry_tags") or {}
+        assert tags.get("user.ip") is None
+        assert tags.get("user") != f"ip:{IP}"
+
+    for address, expected_id in (
+        (
+            "{{auto}}",
+            None,
+        ),  # Scrubbing REMOTE_ADDR leaves the marker without an ID source.
+        (IP, IP_HASH),  # The explicit user IP supplies the hash.
     ):
-        tx = transaction(IP, {})
+        tx = transaction(address, {})
         tx["request"] = {"env": {"REMOTE_ADDR": IP}}
         tx["spans"][0]["data"] = {}
-        tx["user"] = {"ip_address": IP if explicit else "{{auto}}"}
         first.send_event(42, tx)
         envelope = mini_sentry.get_captured_envelope()
-        for hop in (
-            1,  # Check identity and span tags after initial scrubbing.
-            2,  # A different transport IP must preserve the first hop's result.
-        ):
-            event = next(
-                item.payload.json
-                for item in envelope.items
-                if item.type == "transaction"
-            )
-            assert (event.get("request", {}).get("env") or {}).get(
-                "REMOTE_ADDR"
-            ) is None
-            user = event.get("user") or {}
-            assert user.get("ip_address") is None
-            expected_id = (
-                hmac.digest(b"", IP.encode(), "sha1").hex().upper()
-                if explicit
-                else None
-            )
-            assert user.get("id") == expected_id
-            assert event["contexts"]["trace"]["data"][NUMBER] == 15169
-            tags = event["spans"][0].get("sentry_tags") or {}
-            assert tags.get("user.ip") is None
-            assert tags.get("user") != f"ip:{IP}"
-            if hop == 1:
-                second.send_envelope(
-                    42, envelope, headers={"X-Forwarded-For": "2600::1"}
-                )
-                envelope = mini_sentry.get_captured_envelope()
+        check(envelope, expected_id)
+        second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
+        check(mini_sentry.get_captured_envelope(), expected_id)
 
 
 def test_remote_addr_identity_and_lookup(mini_sentry, relay):
@@ -502,7 +547,7 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     ip = "89.160.20.112"
     project = mini_sentry.add_basic_project_config(42)
     config = project["config"]
-    config.setdefault("features", []).append("projects:relay-client-asn-lookup")
+    config.setdefault("features", []).append(ASN_FEATURE)
     config["piiConfig"]["applications"] = {
         "$request.env.REMOTE_ADDR": ["@anything:remove"],
         "$user.ip_address": ["@ip:hash"],
@@ -521,31 +566,38 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     first = relay(mini_sentry, options=options)
     second = relay(mini_sentry, options=options)
     hashed = hmac.digest(b"", ip.encode(), "sha1").hex().upper()
-    for supplied, identity, expected_id in [
-        (False, None, None),  # A City hit creates the missing user.
-        (False, {}, None),  # An existing empty user receives the city.
-        (True, {}, hashed),  # The explicit user IP supplies the fallback ID.
-        (True, {"id": "sdk-id"}, "sdk-id"),  # Keep the SDK's ID over the IP hash.
-        (True, {"email": "client@example.org"}, None),  # Email takes priority.
-        (True, {"username": "sdk-user"}, None),  # Username takes priority.
+
+    def check(event, expected_identity):
+        user = event["user"]
+        assert user["geo"]["city"] == "Linköping"
+        assert dict(event["tags"])[NUMBER] == "29518"
+        assert (event["request"].get("env") or {}).get("REMOTE_ADDR") is None
+        assert user.get("ip_address") != ip
+        assert {k: user.get(k) for k in expected_identity} == expected_identity
+
+    for fields, expected_identity in [
+        ({}, {"id": None}),  # A City hit creates the missing user.
+        ({"user": {}}, {"id": None}),  # An existing empty user receives the city.
+        (
+            {"user": {"ip_address": ip}},
+            {"id": hashed},
+        ),  # The explicit IP supplies the hash.
+        (
+            {"user": {"ip_address": ip, "id": "sdk-id"}},
+            {"id": "sdk-id"},
+        ),  # SDK ID wins.
+        (
+            {"user": {"ip_address": ip, "email": "client@example.org"}},
+            {"id": None, "email": "client@example.org"},
+        ),  # Email takes priority.
+        (
+            {"user": {"ip_address": ip, "username": "sdk-user"}},
+            {"id": None, "username": "sdk-user"},
+        ),  # Username takes priority.
     ]:
-        event = {"request": {"env": {"REMOTE_ADDR": ip}}}
-        if identity is not None:
-            event["user"] = identity.copy()
-            if supplied:
-                event["user"]["ip_address"] = ip
+        event = {"request": {"env": {"REMOTE_ADDR": ip}}, **fields}
         first.send_event(42, event, headers={"X-Forwarded-For": "1.0.0.1"})
-
-        def check(event):
-            assert event["user"]["geo"]["city"] == "Linköping"
-            assert dict(event["tags"])[NUMBER] == "29518"
-            assert (event["request"].get("env") or {}).get("REMOTE_ADDR") is None
-            assert event["user"].get("ip_address") != ip
-            assert event["user"].get("id") == expected_id
-            for key, value in (identity or {}).items():
-                assert event["user"][key] == value
-
         envelope = mini_sentry.get_captured_envelope()
-        check(envelope.get_event())
+        check(envelope.get_event(), expected_identity)
         second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
-        check(mini_sentry.get_captured_envelope().get_event())
+        check(mini_sentry.get_captured_envelope().get_event(), expected_identity)

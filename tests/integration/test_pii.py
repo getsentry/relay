@@ -218,27 +218,26 @@ def test_logentry_formatted_data_scrubbing_settings(
 
 
 @pytest.mark.parametrize(
-    "user_ip",
+    "fields, expected_ip",
     [
-        pytest.param(None, id="inferred"),  # Removing REMOTE_ADDR blocks backfill.
-        pytest.param("2001:db8::2", id="explicit"),  # Keep the SDK's IP.
+        pytest.param({}, None, id="inferred"),  # Removing REMOTE_ADDR blocks backfill.
+        pytest.param(
+            {"user": {"ip_address": "2001:db8::2"}}, "2001:db8::2", id="explicit"
+        ),  # Keep the SDK's IP.
     ],
 )
-def test_scrub_remote_addr_user_ip(mini_sentry, relay, user_ip):
+def test_scrub_remote_addr_user_ip(mini_sentry, relay, fields, expected_ip):
     project = mini_sentry.add_basic_project_config(42)
     project["config"]["piiConfig"]["applications"]["$request.env.REMOTE_ADDR"] = [
         "@anything:remove"
     ]
     forwarder = relay(mini_sentry, options={"normalization": {"level": "full"}})
-    event = {"request": {"env": {"REMOTE_ADDR": "2001:db8::1"}}}
-    if user_ip is not None:
-        event["user"] = {"ip_address": user_ip}
+    event = {"request": {"env": {"REMOTE_ADDR": "2001:db8::1"}}, **fields}
 
     forwarder.send_event(42, event)
     forwarded = mini_sentry.get_captured_envelope().get_event()
-    if (forwarded.get("request", {}).get("env") or {}).get("REMOTE_ADDR") is not None:
-        pytest.fail("Relay forwarded REMOTE_ADDR despite the removal rule")
-    assert (forwarded.get("user") or {}).get("ip_address") == user_ip
+    assert (forwarded.get("request", {}).get("env") or {}).get("REMOTE_ADDR") is None
+    assert (forwarded.get("user") or {}).get("ip_address") == expected_ip
 
 
 def test_removed_remote_addr_blocks_transport_on_next_hop(mini_sentry, relay):
