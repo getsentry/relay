@@ -209,6 +209,7 @@ class SentryLike:
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
+        params=None,
     ):
         if isinstance(payload, list):
             kwargs = {"json": payload}
@@ -225,7 +226,7 @@ class SentryLike:
 
         url = f"/api/{project_id}/integration/browser/reporting/?sentry_key={dsn_key}"
 
-        response = self.post(url, headers=headers, **kwargs)
+        response = self.post(url, headers=headers, params=params, **kwargs)
         response.raise_for_status()
 
         return

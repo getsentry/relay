@@ -213,18 +213,18 @@ fn test_item_quantities_preserve_order_and_zero_counts() {
         .data_mut()
         .set_payload(ContentType::TraceAttachment, "{}body");
     trace_attachment.set_meta_length(2);
-    let mut nintendo = AttachmentItem::new();
-    nintendo.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
-    nintendo
+    let mut item_bundle = AttachmentItem::new();
+    item_bundle.set_attachment_type(AttachmentType::ItemBundle);
+    item_bundle
         .data_mut()
-        .set_payload(ContentType::OctetStream, "dying message");
+        .set_payload(ContentType::OctetStream, "item bundle");
     let mut misplaced = UserReportItem::new();
     misplaced.data_mut().set_test_header(
         crate::envelope::ItemHeaderKey::AttachmentType,
-        Some(AttachmentType::NintendoSwitchDyingMessage),
+        Some(AttachmentType::ItemBundle),
     );
     let cases: [(Item, Vec<_>); 11] = [
-        (nintendo.into(), vec![]),
+        (item_bundle.into(), vec![]),
         (misplaced.into(), vec![(DataCategory::UserReportV2, 1)]),
         (UnknownItem::new("future".into()).into(), vec![]),
         (attachment.into(), vec![]),

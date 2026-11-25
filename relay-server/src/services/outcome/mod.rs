@@ -579,6 +579,7 @@ impl DiscardItemType {
             Self::Attachment(DiscardAttachmentType::NnswitchDyingMessage) => {
                 "attachment:nnswitch_dying_message"
             }
+            Self::Attachment(DiscardAttachmentType::ItemBundle) => "attachment:item_bundle",
             Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
             Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
             Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
@@ -688,6 +689,8 @@ pub enum DiscardAttachmentType {
     Breadcrumbs,
     /// A Nintendo switch dying message.
     NnswitchDyingMessage,
+    /// A bundle of envelope items packed into a single attachment.
+    ItemBundle,
     // A prosperodump crash report (binary data)
     Prosperodump,
     /// Binary attachment present in Unreal 4 events containing event context information.
@@ -710,6 +713,7 @@ impl From<&AttachmentType> for DiscardAttachmentType {
             AttachmentType::Breadcrumbs => Self::Breadcrumbs,
             AttachmentType::Prosperodump => Self::Prosperodump,
             AttachmentType::NintendoSwitchDyingMessage => Self::NnswitchDyingMessage,
+            AttachmentType::ItemBundle => Self::ItemBundle,
             AttachmentType::UnrealContext => Self::UnrealContext,
             AttachmentType::UnrealLogs => Self::UnrealLogs,
             AttachmentType::ViewHierarchy => Self::ViewHierarchy,

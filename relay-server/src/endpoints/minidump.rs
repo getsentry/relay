@@ -244,6 +244,7 @@ impl UploadContext<'_> {
             | AttachmentType::Breadcrumbs
             | AttachmentType::Prosperodump
             | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::ItemBundle
             | AttachmentType::UnrealContext
             | AttachmentType::UnrealLogs
             | AttachmentType::ViewHierarchy
