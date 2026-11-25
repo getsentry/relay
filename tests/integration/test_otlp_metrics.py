@@ -150,13 +150,13 @@ def test_otlp_metrics_conversion(
         }
 
     assert items == [
-        item("http.requests", "counter", "none", 3.0, 108, {}),
+        item("http.requests", "counter", "none", 3.0, 21, {}),
         item(
             "http.server.duration",
             "histogram",
             "millisecond",
             10.0,
-            457,
+            108,
             {
                 "sentry._internal.bucket_counts": {
                     "arrayValue": {"values": [{"intValue": "1"}, {"intValue": "2"}]}
@@ -190,7 +190,7 @@ def test_otlp_metrics_conversion(
             "histogram_exemplar",
             "millisecond",
             12.0,
-            115,
+            28,
             {},
             trace_id=TRACE_ID,
         ),

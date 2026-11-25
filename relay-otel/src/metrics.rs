@@ -25,6 +25,7 @@ use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_conventions::attributes::{SENTRY__ORIGIN, SENTRY__PLATFORM};
 use relay_event_schema::protocol::{
     AttributeType, AttributeValue, Attributes, MetricType, SpanId, Timestamp, TraceId, TraceMetric,
+    attribute_size, value_size,
 };
 use relay_protocol::{Annotated, Value};
 
@@ -52,6 +53,31 @@ const MAX_HISTOGRAM_BUCKETS: usize = 160;
 /// Exponential histograms are downscaled until they fit, which keeps them, including the zero
 /// bucket, within [`MAX_HISTOGRAM_BUCKETS`].
 const MAX_EXPONENTIAL_BUCKETS: usize = 64;
+
+/// Calculates the byte size of a trace metric converted from OpenTelemetry.
+///
+/// Like the size of trace metrics sent by SDKs, but only the data sent by the user is counted.
+/// Internal attributes carrying user data only count their values, attributes added by Relay are
+/// not counted.
+pub fn calculate_trace_metric_size(metric: &TraceMetric) -> u64 {
+    let mut total_size = 0;
+
+    total_size += metric.name.value().map_or(0, |s| s.len());
+    total_size += value_size(&metric.value);
+
+    if let Some(attributes) = metric.attributes.value() {
+        for (key, value) in &attributes.0 {
+            total_size += match key.as_str() {
+                SENTRY__ORIGIN | POINT_ID | BUCKET_SUM_SHARES => 0,
+                BUCKET_LOWERS | BUCKET_UPPERS | BUCKET_COUNTS | HISTOGRAM_COUNT | HISTOGRAM_SUM
+                | HISTOGRAM_MIN | HISTOGRAM_MAX => attribute_size(value),
+                key => key.len() + attribute_size(value),
+            };
+        }
+    }
+
+    u64::try_from(total_size).unwrap_or(u64::MAX).max(1)
+}
 
 /// Transforms an OpenTelemetry metric into Sentry trace metrics.
 ///
@@ -1099,5 +1125,40 @@ mod tests {
             (buckets[0].lower, buckets[0].upper),
             (2f64.powi(-10), 2f64.powi(-8))
         );
+    }
+
+    #[test]
+    fn test_calculate_trace_metric_size() {
+        let (metrics, dropped) = convert(
+            r#"{
+              "name": "http.server.duration",
+              "histogram": {
+                "aggregationTemporality": 1,
+                "dataPoints": [{
+                  "attributes": [{"key": "route", "value": {"stringValue": "/api"}}],
+                  "count": "3",
+                  "sum": 30.0,
+                  "bucketCounts": ["1", "2"],
+                  "explicitBounds": [10.0],
+                  "min": 5.0,
+                  "max": 15.0,
+                  "exemplars": [{
+                    "asDouble": 12.0,
+                    "filteredAttributes": [{"key": "user", "value": {"stringValue": "foo"}}]
+                  }]
+                }]
+              }
+            }"#,
+        );
+
+        assert_eq!(dropped, 0);
+        let sizes: Vec<_> = metrics
+            .iter()
+            .map(|metric| calculate_trace_metric_size(metric.value().unwrap()))
+            .collect();
+
+        // Name, value and `route`, the point additionally counts 3 arrays of 2 numbers and 4
+        // numbers, the exemplar its `user` attribute.
+        assert_eq!(sizes, [20 + 8 + 9 + 3 * 16 + 4 * 8, 20 + 8 + 9 + 7]);
     }
 }

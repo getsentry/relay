@@ -14,7 +14,7 @@ mod logs;
 mod metrics;
 
 pub use self::logs::otel_to_sentry_log;
-pub use self::metrics::otel_to_sentry_trace_metrics;
+pub use self::metrics::{calculate_trace_metric_size, otel_to_sentry_trace_metrics};
 
 pub use opentelemetry_proto::tonic::logs::v1 as otel_logs;
 pub use opentelemetry_proto::tonic::metrics::v1 as otel_metrics;

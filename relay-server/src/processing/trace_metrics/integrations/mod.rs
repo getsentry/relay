@@ -4,7 +4,6 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, IntegrationItem, WithHeader};
 use crate::integrations::{Integration, TraceMetricsIntegration};
 use crate::managed::RecordKeeper;
-use crate::processing::trace_metrics::utils::calculate_size;
 use crate::processing::trace_metrics::{Error, Settings};
 use crate::services::outcome::DiscardReason;
 
@@ -39,7 +38,7 @@ pub fn expand(
     // attributes to every trace metric. Trace metrics exceeding the size are dropped.
     let mut remaining = max_size.map(|max_size| max_size / 2);
     let produce = |metric: TraceMetric| {
-        let byte_size = calculate_size(&metric);
+        let byte_size = relay_otel::calculate_trace_metric_size(&metric);
         let metric = WithHeader {
             header: Some(TraceMetricHeader {
                 byte_size: Some(byte_size),
