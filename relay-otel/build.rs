@@ -6,10 +6,12 @@ fn main() {
     let descriptors = opentelemetry_proto::DESCRIPTORS;
     let roots = [
         "opentelemetry/proto/logs/v1/logs.proto".to_owned(),
+        "opentelemetry/proto/metrics/v1/metrics.proto".to_owned(),
         "opentelemetry/proto/trace/v1/trace.proto".to_owned(),
     ];
     let uses = [
         "use opentelemetry_proto::tonic::logs::v1::*;",
+        "use opentelemetry_proto::tonic::metrics::v1::*;",
         "use opentelemetry_proto::tonic::trace::v1::*;",
     ]
     .join("\n");
