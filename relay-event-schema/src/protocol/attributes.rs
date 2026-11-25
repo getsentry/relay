@@ -467,10 +467,10 @@ pub fn value_memory_size(v: &Annotated<Value>) -> usize {
 
     total += match v {
         Value::String(v) => v.len(),
-        Value::Array(v) => v.iter().map(value_size).sum(),
+        Value::Array(v) => v.iter().map(value_memory_size).sum(),
         Value::Object(v) => v
             .iter()
-            .map(|(k, v)| std::mem::size_of::<String>() + k.len() + value_size(v))
+            .map(|(k, v)| std::mem::size_of::<String>() + k.len() + value_memory_size(v))
             .sum(),
         _ => 0,
     };
