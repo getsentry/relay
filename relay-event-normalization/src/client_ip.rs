@@ -88,14 +88,19 @@ fn expand_remote_addr(env: &mut Object<Value>, transport: Option<IpAddr>) -> Opt
     transport
 }
 
-/// Select the lookup address, any backfill that must await request PII, and whether
-/// the connection address may only be used for a hashed ID.
+enum SelectedIp {
+    LookupOnly(Option<IpAddr>),
+    Request(ProtocolIp),
+    Connection(IpAddr),
+}
+
+/// Select an address without creating a user or publishing a backfill.
 fn select_user_ip(
     request: &mut Annotated<Request>,
     user: &mut Annotated<User>,
     config: &ClientIpConfig<'_>,
     rules: ProjectPii<'_>,
-) -> (Option<IpAddr>, Option<ProtocolIp>, bool) {
+) -> SelectedIp {
     let infer = config
         .sdk
         .and_then(|sdk| sdk.settings.value())
@@ -116,8 +121,8 @@ fn select_user_ip(
         Ok((parsed, &mut u.ip_address))
     });
     let fallback_connection = match supplied {
-        Ok((ParsedIp::Address(ip), _)) => return (Some(ip), None, false),
-        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => return (None, None, false),
+        Ok((ParsedIp::Address(ip), _)) => return SelectedIp::LookupOnly(Some(ip)),
+        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => return SelectedIp::LookupOnly(None),
         Ok((ParsedIp::Auto, field)) => {
             // Consume the marker even if no eligible address is available.
             field.set_value(None);
@@ -131,37 +136,31 @@ fn select_user_ip(
     };
 
     // Browser CSP reports prefer the connection. Other events prefer a supplied REMOTE_ADDR.
-    let ip = match transport {
-        Some(ip) if config.security_report && config.infer_ip_address => ip,
-        _ => {
-            let request_ip = if let Some(ip) = expanded_ip {
-                Some(ProtocolIp::from(ip))
-            } else {
-                match env
-                    .and_then(|env| field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?))
-                {
-                    Err(Redacted) => return (None, None, false),
-                    Ok(Value::String(text)) if infer != AutoInferSetting::Never => {
-                        ProtocolIp::parse(text.as_str()).ok()
-                    }
-                    _ => None,
-                }
-            };
-            if let Some(ip) = request_ip {
-                return (ip.address(), Some(ip), false);
+    if config.security_report
+        && config.infer_ip_address
+        && let Some(ip) = transport
+    {
+        return SelectedIp::Connection(ip);
+    }
+    let request_ip = if let Some(ip) = expanded_ip {
+        Some(ProtocolIp::from(ip))
+    } else {
+        match env.and_then(|env| field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)) {
+            Err(Redacted) => return SelectedIp::LookupOnly(None),
+            Ok(Value::String(text)) if infer != AutoInferSetting::Never => {
+                ProtocolIp::parse(text.as_str()).ok()
             }
-            match fallback_connection {
-                Some(ip) => ip,
-                // City and ASN may still use the connection without storing a user IP.
-                None => return (config.client_ip, None, false),
-            }
+            _ => None,
         }
     };
-    user.get_or_insert_with(User::default)
-        .ip_address
-        .set_value(Some(ProtocolIp::from(ip)));
-    // With IP storage disabled, only a PII hash may become a user identifier.
-    (Some(ip), None, !config.infer_ip_address)
+    if let Some(ip) = request_ip {
+        return SelectedIp::Request(ip);
+    }
+    match fallback_connection {
+        Some(ip) => SelectedIp::Connection(ip),
+        // City and ASN may still use the connection without storing a user IP.
+        None => SelectedIp::LookupOnly(config.client_ip),
+    }
 }
 
 /// Normalize the request and user in place and return the address eligible for lookup.
@@ -171,34 +170,45 @@ pub fn process_user_ip(
     config: ClientIpConfig<'_>,
     rules: ProjectPii<'_>,
 ) -> Result<Option<IpAddr>, ProcessingAction> {
-    let (lookup, request_backfill, hash_only) = select_user_ip(request, user, &config, rules);
+    let selected = select_user_ip(request, user, &config, rules);
     rules.scrub_request_env(request)?;
-    if let Some(ip) = request_backfill
-        && request
-            .value()
-            .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
-            .and_then(unredacted_value)
-            .and_then(Value::as_str)
-            .is_some()
-    {
-        user.get_or_insert_with(User::default)
-            .ip_address
-            .set_value(Some(ip));
-    }
+    let (lookup, backfill, hash_only) = match selected {
+        SelectedIp::LookupOnly(ip) => (ip, None, false),
+        SelectedIp::Request(ip) => {
+            // A removed request address may enrich the event but cannot be copied to the user.
+            let survives = request
+                .value()
+                .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
+                .and_then(unredacted_value)
+                .and_then(Value::as_str)
+                .is_some();
+            (ip.address(), survives.then_some(ip), false)
+        }
+        SelectedIp::Connection(ip) => (
+            Some(ip),
+            Some(ProtocolIp::from(ip)),
+            !config.infer_ip_address,
+        ),
+    };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
         Some(user) => {
+            if let Some(ip) = backfill {
+                user.ip_address.set_value(Some(ip));
+            }
             if user.geo.value().is_none() && !redacted(&user.geo) {
                 user.geo.set_value(lookup_city());
             }
             user
         }
         slot @ None => {
-            let Some(geo) = lookup_city() else {
+            let geo = lookup_city();
+            if backfill.is_none() && geo.is_none() {
                 return Ok(lookup);
-            };
+            }
             slot.insert(User {
-                geo: Annotated::new(geo),
+                ip_address: backfill.into(),
+                geo: geo.into(),
                 ..Default::default()
             })
         }
