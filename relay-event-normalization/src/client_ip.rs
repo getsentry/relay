@@ -6,48 +6,16 @@ use relay_conventions::attributes::{
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingResult, ValueType};
 use relay_event_schema::protocol::{
-    Attributes, AutoInferSetting, ClientSdkInfo, Event, EventType, IpAddr as ProtocolIp,
-    Measurements, ParsedIp, Request, SpanData, SpanV2, Tags, TraceContext, User,
+    Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, IpAddr as ProtocolIp,
+    ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
-use relay_pii::{PiiProcessor, ProjectPii};
-use relay_protocol::{Annotated, Remark, RemarkType, Value};
+use relay_pii::{ProjectPii, user_needs_id};
+use relay_protocol::{Annotated, RemarkType, Value};
 
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
     value.meta().iter_remarks().next().is_some()
-}
-
-fn remote_addr(request: &Annotated<Request>) -> Option<&Annotated<Value>> {
-    request.value()?.env.value()?.get("REMOTE_ADDR")
-}
-
-fn remote_redacted(request: &Annotated<Request>) -> bool {
-    redacted(request)
-        || request.value().is_some_and(|r| redacted(&r.env))
-        || remote_addr(request).is_some_and(redacted)
-}
-
-/// Resolve the request marker in place. Keep SDK-supplied address spelling for IP hash rules.
-fn normalize_remote(
-    request: &mut Annotated<Request>,
-    client: Option<(&ProtocolIp, IpAddr)>,
-) -> Option<IpAddr> {
-    let env = request.value_mut().as_mut()?.env.value_mut().as_mut()?;
-    let remote = env.get_mut("REMOTE_ADDR")?;
-    match remote.as_str()?.parse::<ParsedIp>().ok()? {
-        ParsedIp::Address(ip) => Some(ip),
-        ParsedIp::Auto => match client {
-            Some((text, ip)) => {
-                remote.set_value(Some(Value::String(text.to_string())));
-                Some(ip)
-            }
-            None => {
-                env.remove("REMOTE_ADDR");
-                None
-            }
-        },
-    }
 }
 
 /// Use the original address for enrichment, then publish only identity allowed by both
@@ -106,12 +74,29 @@ pub fn process_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let request_redacted = remote_redacted(request);
-    let remote = if request_redacted {
-        None
-    } else {
-        normalize_remote(request, transport)
-    };
+    let mut request_redacted = redacted(request);
+    let remote = request.0.as_mut().and_then(|request| {
+        request_redacted |= redacted(&request.env);
+        let env = request.env.0.as_mut()?;
+        let field = env.get_mut("REMOTE_ADDR")?;
+        request_redacted |= redacted(field);
+        if request_redacted {
+            return None;
+        }
+        match field.as_str()?.parse::<ParsedIp>().ok()? {
+            ParsedIp::Address(ip) => Some(ip),
+            ParsedIp::Auto => match transport {
+                Some((text, ip)) => {
+                    field.set_value(Some(Value::String(text.to_string())));
+                    Some(ip)
+                }
+                None => {
+                    env.remove("REMOTE_ADDR");
+                    None
+                }
+            },
+        }
+    });
     let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
     let remote = remote.filter(|_| infer != AutoInferSetting::Never && !csp_transport);
 
@@ -121,13 +106,15 @@ pub fn process_user_ip(
     let user_ip_redacted = redacted(user) || field.is_some_and(redacted);
     let supplied = field.and_then(|f| f.as_str()).map(str::parse::<ParsedIp>);
     let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
-    let (lookup, backfill) = match (supplied, remote) {
+    let (lookup, backfill) = match (supplied.as_ref(), remote) {
         _ if user_ip_redacted => (None, None),
-        (Some(Ok(ParsedIp::Address(ip))), _) => (Some(ip), None),
+        (Some(Ok(ParsedIp::Address(ip))), _) => (Some(*ip), None),
         (Some(Err(_)), _) => (None, None),
         (_, Some(ip)) => (
             Some(ip),
-            remote_addr(request)
+            request
+                .value()
+                .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
                 .filter(|v| !redacted(v))
                 .and_then(|v| v.as_str()),
         ),
@@ -147,16 +134,20 @@ pub fn process_user_ip(
     };
 
     let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
-    if let Some(text) = backfill {
+    let mut valid_ip = if let Some(text) = backfill {
         user.get_or_insert_with(User::default)
             .ip_address
             .set_value(Some(ProtocolIp(text.to_owned())));
+        true
     } else if auto
         && !user_ip_redacted
         && let Some(user) = user.value_mut()
     {
         user.ip_address.set_value(None);
-    }
+        false
+    } else {
+        matches!(supplied, Some(Ok(_)))
+    };
     if let (Some(db), Some(ip)) = (config.geoip_lookup, lookup)
         && user
             .value()
@@ -167,99 +158,71 @@ pub fn process_user_ip(
             .geo
             .set_value(Some(geo));
     }
-    scrub_user_identity(user, rules, hash_only)?;
+    if user.value().is_none() || rules.is_empty() {
+        return Ok(lookup);
+    }
+
+    // A later rule may remove both a hash and the email that took precedence over it.
+    let mut saved_replacement = None;
+    let mut passes = rules.processors().peekable();
+    while let Some(mut pii) = passes.next() {
+        let can_derive = valid_ip
+            && user
+                .value()
+                .is_some_and(|u| u.id.value().is_none() && u.id.meta().is_empty());
+        pii.scrub_event_user_fields(user)?;
+        let Some(user) = user.value_mut() else {
+            continue;
+        };
+        let text = user.ip_address.as_str();
+        valid_ip = text.is_some_and(|s| s.parse::<ParsedIp>().is_ok());
+        let replaced = can_derive && text.is_some() && !valid_ip;
+        if passes.peek().is_some() {
+            if replaced {
+                saved_replacement = Some(user.ip_address.clone());
+            }
+            continue;
+        }
+        if user_needs_id(user) {
+            let ip = if replaced {
+                Some(&mut user.ip_address)
+            } else {
+                saved_replacement.as_mut()
+            };
+            if let Some(ip) = ip.filter(|ip| {
+                !hash_only
+                    || ip
+                        .meta()
+                        .iter_remarks()
+                        .any(|r| r.ty == RemarkType::Pseudonymized)
+            }) {
+                let replacement = std::mem::take(ip);
+                rules.set_derived_user_id(user, replacement)?;
+            }
+        }
+        if hash_only {
+            user.ip_address.set_value(None);
+        }
+    }
     Ok(lookup)
 }
 
-/// A rule can hash the IP before a later rule removes the IP or another identifier.
-fn scrub_user_identity(
-    user: &mut Annotated<User>,
-    rules: ProjectPii<'_>,
-    hash_only: bool,
-) -> ProcessingResult {
-    if rules.is_empty() || user.value().is_none() {
-        return Ok(());
-    }
-    let configs = [rules.advanced, rules.legacy].into_iter().flatten();
-    let mut earlier_replacement = None;
-    let mut replaced = false;
-    for config in configs.clone() {
-        // Only save a copy if another rule set is about to process the replacement.
-        if replaced {
-            earlier_replacement = user.value().map(|u| u.ip_address.clone());
-        }
-        let can_replace = user.value().is_some_and(|u| {
-            u.id.value().is_none()
-                && u.id.meta().is_empty()
-                && u.ip_address
-                    .as_str()
-                    .is_some_and(|s| s.parse::<ParsedIp>().is_ok())
-        });
-        PiiProcessor::new(config.compiled()).scrub_event_user_fields(user)?;
-        replaced = can_replace
-            && user
-                .value()
-                .and_then(|u| u.ip_address.as_str())
-                .is_some_and(|s| s.parse::<ParsedIp>().is_err());
-    }
-    let Some(user) = user.value_mut() else {
-        return Ok(());
-    };
-    let replacement = if replaced {
-        Some(&mut user.ip_address)
-    } else {
-        earlier_replacement.as_mut()
-    };
-    if let Some(ip) = replacement
-        && user.id.value().is_none()
-        && user.id.meta().is_empty()
-        && user.email.value().is_none()
-        && user.username.value().is_none()
-        && (!hash_only
-            || ip
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Pseudonymized))
-    {
-        let mut destination = Annotated::new(User {
-            id: std::mem::take(ip).map_value(|ip| ip.into_inner().into()),
-            ..Default::default()
-        });
-        for config in configs {
-            PiiProcessor::new(config.compiled()).scrub_event_user_fields(&mut destination)?;
-        }
-        user.id = destination.into_value().map(|u| u.id).unwrap_or_default();
-        user.ip_address = Annotated::empty();
-        user.ip_address
-            .meta_mut()
-            .add_remark(Remark::new(RemarkType::Removed, "pii:ip_address"));
-    }
-    if hash_only {
-        user.ip_address.set_value(None);
-    }
-    Ok(())
-}
-
 fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules: ProjectPii<'_>) {
-    let has_tags = redacted(&event.tags)
-        || event
-            .tags
-            .value()
-            .is_some_and(|t| ASN.iter().any(|k| t.0.contains(k)));
-    let has_trace = redacted(&event.contexts)
-        || event
-            .contexts
-            .value()
-            .and_then(|c| c.0.get("trace"))
-            .is_some_and(redacted)
-        || event
-            .context::<TraceContext>()
-            .is_some_and(|t| has_data(&t.data));
+    let contexts_redacted = redacted(&event.contexts);
+    let trace = event.contexts.0.as_mut().and_then(|c| c.0.get_mut("trace"));
+    let trace_redacted = trace.as_deref().is_some_and(redacted);
+    let trace_data = trace.and_then(|entry| match &mut entry.0.as_mut()?.0 {
+        Context::Trace(trace) => Some(&mut trace.data),
+        _ => None,
+    });
+    let segment_has_asn = contexts_redacted
+        || trace_redacted
+        || has_asn(&event.tags, |tags, k| tags.0.contains(k))
+        || trace_data
+            .as_deref()
+            .is_some_and(|d| has_asn(d, SpanData::contains));
     if event.ty.value() != Some(&EventType::Transaction) {
-        if !has_tags
-            && !has_trace
-            && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip))
-        {
+        if !segment_has_asn && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip)) {
             let tags = &mut event.tags.get_or_insert_with(Tags::default).0;
             tags.insert(
                 CLIENT__AS__NUMBER.into(),
@@ -279,14 +242,12 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         .flatten()
         .any(|config| !config.applications.is_empty())
         .then(Attributes::new);
-    if !has_tags
-        && !has_trace
-        && !has_measurement(&event.measurements)
-        && let Some(trace) = event.context::<TraceContext>()
-        && let Some(ip) = span_ip(&trace.data, |key| event.tags.value()?.0.get(key), ip)
-        && let Some(trace) = event.context_mut::<TraceContext>()
+    if !segment_has_asn
+        && !has_asn(&event.measurements, |m, k| m.contains_key(k))
+        && let Some(data) = trace_data
+        && let Some(ip) = span_ip(data, |key| event.tags.value()?.0.get(key), ip)
     {
-        insert_span_asn(&mut trace.data, ip, db, rules, &mut fields);
+        insert_span_asn(data, ip, db, rules, &mut fields);
     }
     for span in event
         .spans
@@ -295,13 +256,9 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         .flatten()
         .filter_map(|s| s.value_mut().as_mut())
     {
-        if !has_data(&span.data)
-            && !has_measurement(&span.measurements)
-            && !redacted(&span.tags)
-            && !span
-                .tags
-                .value()
-                .is_some_and(|tags| ASN.iter().any(|k| tags.contains_key(*k)))
+        if !has_asn(&span.data, SpanData::contains)
+            && !has_asn(&span.measurements, |m, k| m.contains_key(k))
+            && !has_asn(&span.tags, |tags, k| tags.contains_key(k))
             && let Some(ip) = span_ip(&span.data, |key| span.tags.value()?.get(key), None)
         {
             insert_span_asn(&mut span.data, ip, db, rules, &mut fields);
@@ -311,17 +268,12 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
 
 const ASN: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-fn has_data(data: &Annotated<SpanData>) -> bool {
-    redacted(data)
-        || data
+/// Preserve a scrubbed container or either ASN attribute supplied by the SDK.
+fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
+    redacted(field)
+        || field
             .value()
-            .is_some_and(|d| ASN.iter().any(|k| d.contains(k)))
-}
-
-fn has_measurement(m: &Annotated<Measurements>) -> bool {
-    redacted(m)
-        || m.value()
-            .is_some_and(|m| ASN.iter().any(|k| m.contains_key(*k)))
+            .is_some_and(|value| ASN.iter().any(|k| contains(value, k)))
 }
 
 fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
@@ -333,15 +285,12 @@ fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&st
 
 /// Enrich a standalone span using its normalized client address or user IP.
 pub fn enrich_span_asn(attrs: &mut Annotated<Attributes>, db: &AsnLookup) {
-    if redacted(attrs) {
+    if has_asn(attrs, |attrs, k| attrs.contains_key(k)) {
         return;
     }
     let Some(attrs) = attrs.value_mut() else {
         return;
     };
-    if ASN.iter().any(|k| attrs.contains_key(*k)) {
-        return;
-    }
     let source = [CLIENT__ADDRESS, USER__IP_ADDRESS]
         .into_iter()
         .find_map(|key| attrs.0.get(key));

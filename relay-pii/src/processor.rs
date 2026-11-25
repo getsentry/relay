@@ -9,7 +9,8 @@ use relay_event_schema::processor::{
     ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
-    AsPair, Event, NativeImagePath, PairList, ParsedIp, Replay, Request, ResponseContext, User,
+    AsPair, Event, IpAddr, NativeImagePath, PairList, ParsedIp, Replay, Request, ResponseContext,
+    User,
 };
 use relay_protocol::{Annotated, Array, Empty, Meta, Remark, RemarkType, Value};
 
@@ -40,7 +41,29 @@ pub struct ProjectPii<'a> {
     pub legacy: Option<&'a PiiConfig>,
 }
 
-impl ProjectPii<'_> {
+impl<'a> ProjectPii<'a> {
+    /// Visit advanced rules first, then legacy rules.
+    pub fn processors(self) -> impl Iterator<Item = PiiProcessor<'a>> {
+        [self.advanced, self.legacy]
+            .into_iter()
+            .flatten()
+            .map(|config| PiiProcessor::new(config.compiled()))
+    }
+
+    /// Apply destination rules to a replacement before storing it as the user ID.
+    pub fn set_derived_user_id(self, user: &mut User, ip: Annotated<IpAddr>) -> ProcessingResult {
+        let mut destination = Annotated::new(User {
+            id: ip.map_value(|ip| ip.into_inner().into()),
+            ..Default::default()
+        });
+        for mut processor in self.processors() {
+            processor.scrub_event_user_fields(&mut destination)?;
+        }
+        user.id = destination.into_value().map(|u| u.id).unwrap_or_default();
+        remove_replaced_ip(user);
+        Ok(())
+    }
+
     /// Whether either source of rules is present.
     pub fn is_empty(self) -> bool {
         self.advanced.is_none() && self.legacy.is_none()
@@ -100,12 +123,8 @@ impl ProjectPii<'_> {
 
     /// Apply both rule sets to an event at its schema root.
     fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
-        for rules in [self.advanced, self.legacy].into_iter().flatten() {
-            process_value(
-                event,
-                &mut PiiProcessor::new(rules.compiled()),
-                ProcessingState::root(),
-            )?;
+        for mut processor in self.processors() {
+            process_value(event, &mut processor, ProcessingState::root())?;
         }
         Ok(())
     }
@@ -388,7 +407,8 @@ impl Processor for PiiProcessor<'_> {
     }
 }
 
-fn user_needs_id(user: &User) -> bool {
+/// Whether a replacement IP may supply the ID after scrubbing the user.
+pub fn user_needs_id(user: &User) -> bool {
     user.id.value().is_none()
         && user.id.meta().is_empty()
         && user.email.value().is_none()
