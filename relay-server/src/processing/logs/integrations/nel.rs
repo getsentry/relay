@@ -96,7 +96,8 @@ pub fn expand(
     let mut logs = vec![];
     for report in reports {
         if let Some(log) = nel::create_log(report.0, received_at) {
-            let (memory_size, data_size) = relay_ourlogs::calculate_memory_and_data_size(&log);
+            let data_size = relay_ourlogs::calculate_size(&log);
+            let memory_size = relay_ourlogs::calculate_memory_size(&log);
 
             records.add([
                 (DataCategory::LogItem, 1),

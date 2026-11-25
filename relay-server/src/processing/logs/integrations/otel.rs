@@ -98,7 +98,9 @@ pub fn expand(
                 let log = relay_otel::otel_to_sentry_log(log_record, resource, scope);
                 // https://github.com/getsentry/relay/issues/6605: This is only used to keep records in case serializing
                 // the logs back into an envelope fails. Consider removing it.
-                let (memory_size, data_size) = relay_ourlogs::calculate_memory_and_data_size(&log);
+                let data_size = relay_ourlogs::calculate_size(&log);
+
+                let memory_size = relay_ourlogs::calculate_memory_size(&log);
                 total_log_size += memory_size as usize;
 
                 if total_log_size > max_logs_size.as_bytes() {

@@ -441,6 +441,43 @@ pub fn value_size(v: &Annotated<Value>) -> usize {
     }
 }
 
+/// Recursively calculates the approximate total memory size of an [`Attributes`] struct.
+pub fn attributes_memory_size(attributes: &Attributes) -> usize {
+    attributes
+        .0
+        .iter()
+        .map(|(k, v)| std::mem::size_of::<String>() + k.len() + attribute_memory_size(v))
+        .sum()
+}
+
+/// Calculates the approximate memory size of a single attribute.
+pub fn attribute_memory_size(v: &Annotated<Attribute>) -> usize {
+    v.value()
+        .map(|v| &v.value.value)
+        .map_or(0, value_memory_size)
+}
+
+/// Recursively calculates the approximate memory size of a [`Value`].
+pub fn value_memory_size(v: &Annotated<Value>) -> usize {
+    let mut total = std::mem::size_of_val(v);
+
+    let Some(v) = v.value() else {
+        return total;
+    };
+
+    total += match v {
+        Value::String(v) => v.len(),
+        Value::Array(v) => v.iter().map(value_size).sum(),
+        Value::Object(v) => v
+            .iter()
+            .map(|(k, v)| std::mem::size_of::<String>() + k.len() + value_size(v))
+            .sum(),
+        _ => 0,
+    };
+
+    total
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::{Error, Object};
