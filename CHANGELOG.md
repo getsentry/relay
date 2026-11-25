@@ -31,6 +31,7 @@
 - Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
 - Update sentry-conventions to 0.34.0. Adds `sentry.user`, `page.server_rendering.age`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728))
 - Increase the maximum depth of stack frame variables from 5 to 10. ([#6733](https://github.com/getsentry/relay/pull/6733))
+- Bound all span expansions/deserializations. ([#6651](https://github.com/getsentry/relay/pull/6651))
 
 ## 26.11.0
 
