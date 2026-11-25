@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add the `sentry_release` query parameter of the browser report integration to logs as `sentry.release`. ([#6758](https://github.com/getsentry/relay/pull/6758))
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 
 **Bug Fixes**:
