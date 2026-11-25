@@ -150,9 +150,6 @@ pub struct NormalizationConfig<'a> {
     /// Local ASN database for projects with client ASN lookup enabled.
     pub asn_lookup: Option<&'a crate::AsnLookup>,
 
-    /// Rules applied to IP addresses before copying them into another field.
-    pub ip_pii_rules: relay_pii::ProjectPii<'a>,
-
     /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
     ///
     /// See the event schema for size declarations.
@@ -215,7 +212,6 @@ impl Default for NormalizationConfig<'_> {
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
             asn_lookup: None,
-            ip_pii_rules: Default::default(),
             ai_model_metadata: Default::default(),
             enable_trimming: false,
             measurements: None,
@@ -234,29 +230,63 @@ impl Default for NormalizationConfig<'_> {
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
-    normalize_event_for_scrubbing(event, config);
+    let _ = normalize_event_for_scrubbing(event, config, Default::default());
 }
 
-/// Normalize the view used by filters and return its event-local IP context for scrubbing.
+/// Normalize the event for filtering and retain the state needed to scrub it afterwards.
+#[must_use]
 pub fn normalize_event_for_scrubbing(
     event: &mut Annotated<Event>,
     config: &NormalizationConfig,
-) -> crate::EventIp {
+    rules: relay_pii::ProjectPii<'_>,
+) -> crate::EventScrubbingState {
     let Annotated(Some(event), meta) = event else {
         return Default::default();
     };
 
-    let is_renormalize = config.is_renormalize;
-
     // Convert legacy data structures to current format
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
-    let mut ip = Default::default();
-    if !is_renormalize {
+    let mut scrubbing = crate::EventScrubbingState::default();
+    if !config.is_renormalize {
         // Check for required and non-empty values
         let _ = schema::SchemaProcessor::new().process_event(event, meta, ProcessingState::root());
 
-        ip = normalize(event, meta, config);
+        // This must run first, as the following normalizations rely on the latest version of
+        // conventions.
+        if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+            span::normalize_conventions(event);
+        }
+
+        // Normalize the transaction.
+        // (internally noops for non-transaction events).
+        // TODO: Parts of this processor should probably be a filter so we
+        // can revert some changes to ProcessingAction)
+        let mut transactions_processor = transactions::TransactionsProcessor::new(
+            config.transaction_name_config,
+            config.span_op_defaults,
+        );
+        let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
+
+        // Process security reports first to ensure all props.
+        normalize_security_report(event, &config.user_agent);
+
+        scrubbing = crate::client_ip::normalize_event_ip(event, config, rules);
+        normalize(event, meta, config);
+
+        if config.enrich_spans {
+            extract_span_tags_from_event(
+                event,
+                config.max_tag_value_length,
+                config.span_allowed_hosts,
+                !scrubbing.defers_span_tags(),
+            );
+            extract_segment_name_from_event(event, config.max_tag_value_length);
+        }
+
+        if let Some(context) = event.context_mut::<TraceContext>() {
+            context.client_sample_rate = Annotated::from(config.client_sample_rate);
+        }
     }
 
     if config.enable_trimming {
@@ -276,32 +306,11 @@ pub fn normalize_event_for_scrubbing(
         let _ =
             event_error::EmitEventErrors::new().process_event(event, meta, ProcessingState::root());
     }
-    ip
+    scrubbing
 }
 
-/// Normalizes the given event based on the given config.
-fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -> crate::EventIp {
-    // This must run first, as the following normalizations rely on the latest version of
-    // conventions.
-    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::normalize_conventions(event);
-    }
-
-    // Normalize the transaction.
-    // (internally noops for non-transaction events).
-    // TODO: Parts of this processor should probably be a filter so we
-    // can revert some changes to ProcessingAction)
-    let mut transactions_processor = transactions::TransactionsProcessor::new(
-        config.transaction_name_config,
-        config.span_op_defaults,
-    );
-    let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
-
-    // Process security reports first to ensure all props.
-    normalize_security_report(event, &config.user_agent);
-
-    let ip = crate::client_ip::normalize_event_ip(event, config);
-
+/// Normalize event fields after resolving the client address.
+fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Validate the basic attributes we extract metrics from
     let _ = processor::apply(&mut event.release, |release, meta| {
         if crate::validate_release(release).is_ok() {
@@ -365,21 +374,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
-
-    if config.enrich_spans {
-        extract_span_tags_from_event(
-            event,
-            config.max_tag_value_length,
-            config.span_allowed_hosts,
-            !ip.defers_span_tags(),
-        );
-        extract_segment_name_from_event(event, config.max_tag_value_length);
-    }
-
-    if let Some(context) = event.context_mut::<TraceContext>() {
-        context.client_sample_rate = Annotated::from(config.client_sample_rate);
-    }
-    ip
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
@@ -2020,6 +2014,7 @@ mod tests {
                 client_ip,
                 ..Default::default()
             },
+            Default::default(),
         );
 
         let headers = event

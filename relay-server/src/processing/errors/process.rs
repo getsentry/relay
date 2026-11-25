@@ -1,4 +1,4 @@
-use relay_event_normalization::{AsnLookup, CityLookup, EventIp};
+use relay_event_normalization::{AsnLookup, CityLookup, EventScrubbingState};
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
@@ -166,12 +166,12 @@ pub fn normalize(
     geoip_lookup: &CityLookup,
     asn_lookup: &AsnLookup,
     ctx: Context<'_>,
-) -> Result<EventIp, Rejected<Error>> {
+) -> Result<EventScrubbingState, Rejected<Error>> {
     let scoping = error.scoping();
 
-    let mut ip = EventIp::default();
+    let mut scrubbing = EventScrubbingState::default();
     error.try_modify(|error, _| {
-        (error.fully_normalized, ip) = processing::utils::event::normalize(
+        (error.fully_normalized, scrubbing) = processing::utils::event::normalize(
             &error.headers,
             &mut error.event,
             error.fully_normalized,
@@ -183,16 +183,16 @@ pub fn normalize(
 
         Ok::<_, Error>(())
     })?;
-    Ok(ip)
+    Ok(scrubbing)
 }
 
 pub fn scrub(
     error: &mut Managed<ExpandedError>,
     ctx: Context<'_>,
-    ip: EventIp,
+    scrubbing: EventScrubbingState,
 ) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        processing::utils::event::scrub(&mut error.event, ctx.project_info, ip)?;
+        processing::utils::event::scrub(&mut error.event, ctx.project_info, scrubbing)?;
         processing::utils::attachments::scrub(
             error
                 .attachments

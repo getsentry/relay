@@ -1,6 +1,6 @@
 use crate::envelope::ProfileItem;
 use relay_base_schema::events::EventType;
-use relay_event_normalization::{AsnLookup, CityLookup, EventIp};
+use relay_event_normalization::{AsnLookup, CityLookup, EventScrubbingState};
 use relay_event_schema::protocol::Event;
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
@@ -158,14 +158,14 @@ pub fn normalize(
     ctx: Context<'_>,
     geoip_lookup: &CityLookup,
     asn_lookup: &AsnLookup,
-) -> Result<(Managed<Box<ExpandedTransaction>>, EventIp), Rejected<Error>> {
+) -> Result<(Managed<Box<ExpandedTransaction>>, EventScrubbingState), Rejected<Error>> {
     let project_id = work.scoping().project_id;
-    let mut ip = EventIp::default();
+    let mut scrubbing = EventScrubbingState::default();
     let work = work.try_map(|mut work, r| {
         let original_span_count = work.count_embedded_spans_and_self();
 
         let normalized;
-        (normalized, ip) = utils::event::normalize(
+        (normalized, scrubbing) = utils::event::normalize(
             &work.headers,
             &mut work.event,
             EventFullyNormalized(work.flags.fully_normalized),
@@ -181,7 +181,7 @@ pub fn normalize(
 
         Ok::<_, Error>(work)
     })?;
-    Ok((work, ip))
+    Ok((work, scrubbing))
 }
 
 fn record_trimmed_spans(
@@ -479,11 +479,11 @@ pub fn extract_spans(
 pub fn scrub(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
-    ip: EventIp,
+    scrubbing: EventScrubbingState,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|mut work, records| {
         let before = work.count_embedded_spans_and_self();
-        utils::event::scrub(&mut work.event, ctx.project_info, ip)?;
+        utils::event::scrub(&mut work.event, ctx.project_info, scrubbing)?;
         record_trimmed_spans(before, &work, records);
         utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, Some(records));
         Ok::<_, Error>(work)

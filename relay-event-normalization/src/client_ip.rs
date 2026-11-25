@@ -55,10 +55,10 @@ pub fn enrich_normalized_event_asn(event: &mut Event, db: &AsnLookup, rules: Pro
     enrich_event_asn(event, lookup_ip(event, None), db, rules);
 }
 
-/// The IP shown to filters and the source to consult when the real event is scrubbed.
+/// IP source and pending span user tags needed when the filtered event reaches scrubbing.
 /// This context lives for one event on one Relay and is never serialized.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct EventIp {
+pub struct EventScrubbingState {
     source: Source,
     span_tag_limit: Option<usize>,
     trim: bool,
@@ -72,7 +72,7 @@ enum Source {
     TransientTransport(IpAddr),
 }
 
-impl EventIp {
+impl EventScrubbingState {
     /// Whether to publish the shared user tags after scrubbing the real user.
     pub fn defers_span_tags(self) -> bool {
         self.span_tag_limit.is_some()
@@ -161,8 +161,11 @@ impl EventIp {
 
 /// Resolve the IP, enrich from it, then decide which raw values may be copied.
 /// Record the selected source while it is unambiguous, before filtering and sampling.
-pub fn normalize_event_ip(event: &mut Event, config: &NormalizationConfig<'_>) -> EventIp {
-    let rules = config.ip_pii_rules;
+pub fn normalize_event_ip(
+    event: &mut Event,
+    config: &NormalizationConfig<'_>,
+    rules: ProjectPii<'_>,
+) -> EventScrubbingState {
     let may_hash = rules.advanced.is_some_and(|r| !r.applications.is_empty());
     let security_report = event.csp.value().is_some();
     let backfill = resolve_backfill(
@@ -212,7 +215,7 @@ pub fn normalize_event_ip(event: &mut Event, config: &NormalizationConfig<'_>) -
                 .user
                 .value()
                 .is_some_and(|u| u.ip_address.value().is_some()));
-    EventIp {
+    EventScrubbingState {
         source,
         span_tag_limit: defer_tags.then_some(config.max_tag_value_length),
         trim: config.enable_trimming,
