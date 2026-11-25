@@ -85,7 +85,7 @@ pub fn process_client_ip(
     rules.scrub_request_env(&mut event.request)?;
     let field = event.user.value().map(|u| &u.ip_address);
     let user_ip_redacted = redacted(&event.user) || field.is_some_and(redacted);
-    let supplied = field.and_then(|f| f.value()).map(ProtocolIp::parsed);
+    let supplied = field.and_then(|f| f.as_str()).map(str::parse::<ParsedIp>);
     let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
     let (lookup, backfill) = match (supplied, remote) {
         _ if user_ip_redacted => (None, None),
@@ -147,12 +147,16 @@ fn scrub_user_identity(
         let can_replace = user.value().is_some_and(|u| {
             u.id.value().is_none()
                 && u.id.meta().is_empty()
-                && u.ip_address.value().is_some_and(ProtocolIp::is_valid)
+                && u.ip_address
+                    .as_str()
+                    .is_some_and(|s| s.parse::<ParsedIp>().is_ok())
         });
         PiiProcessor::new(config.compiled()).scrub_event_user_fields(user)?;
         if can_replace
             && let Some(u) = user.value()
-            && u.ip_address.value().is_some_and(|ip| !ip.is_valid())
+            && u.ip_address
+                .as_str()
+                .is_some_and(|s| s.parse::<ParsedIp>().is_err())
         {
             replacement = Some(u.ip_address.clone());
         }

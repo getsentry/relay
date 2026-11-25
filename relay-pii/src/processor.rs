@@ -9,7 +9,7 @@ use relay_event_schema::processor::{
     ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
-    AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, Request, ResponseContext, User,
+    AsPair, Event, NativeImagePath, PairList, ParsedIp, Replay, Request, ResponseContext, User,
 };
 use relay_protocol::{Annotated, Array, Empty, Meta, Remark, RemarkType, Value};
 
@@ -356,12 +356,18 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let can_replace = user.ip_address.value().is_some_and(IpAddr::is_valid)
-            && user.id.value().is_none()
-            && user.id.meta().is_empty();
+        let can_replace = user.id.value().is_none()
+            && user.id.meta().is_empty()
+            && user
+                .ip_address
+                .as_str()
+                .is_some_and(|s| s.parse::<ParsedIp>().is_ok());
         user.process_child_values(self, state)?;
         if can_replace
-            && user.ip_address.value().is_some_and(|ip| !ip.is_valid())
+            && user
+                .ip_address
+                .as_str()
+                .is_some_and(|s| s.parse::<ParsedIp>().is_err())
             && user_needs_id(user)
         {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
@@ -716,7 +722,7 @@ mod tests {
     use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, IpAddr, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{FromValue, Object, assert_annotated_snapshot, get_value};

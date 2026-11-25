@@ -450,7 +450,7 @@ impl FromStr for ParsedIp {
     }
 }
 
-/// An ip address.
+/// The original IP field text (including `{{auto}}`), or its replacement after PII scrubbing.
 #[derive(
     Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
 )]
@@ -476,16 +476,6 @@ impl IpAddr {
     /// Checks if the ip address is set to the auto marker.
     pub fn is_auto(&self) -> bool {
         self.0 == "{{auto}}"
-    }
-
-    /// Interpret the current field value. PII rules can replace its original text.
-    pub fn parsed(&self) -> Result<ParsedIp, net::AddrParseError> {
-        self.0.parse()
-    }
-
-    /// Checks whether the contained ip address is still valid (relevant for PII processing).
-    pub fn is_valid(&self) -> bool {
-        self.parsed().is_ok()
     }
 
     /// Returns the string value of this ip address.
