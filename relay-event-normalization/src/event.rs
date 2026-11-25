@@ -21,8 +21,8 @@ use relay_conventions::measurements::{
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event,
-    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    AsPair, Attributes, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event, EventId,
+    EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
     PerformanceScoreContext, ReplayContext, Request, Span, SpanId, SpanV2, Tags, Timestamp,
     TraceContext, TraceId, User, VALID_PLATFORMS,
 };
@@ -147,6 +147,9 @@ pub struct NormalizationConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a CityLookup>,
 
+    /// Rules applied to IP addresses before copying them into another field.
+    pub ip_pii_rules: relay_pii::ProjectPii<'a>,
+
     /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
     ///
     /// See the event schema for size declarations.
@@ -208,6 +211,7 @@ impl Default for NormalizationConfig<'_> {
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
+            ip_pii_rules: Default::default(),
             ai_model_metadata: Default::default(),
             enable_trimming: false,
             measurements: None,
@@ -226,8 +230,16 @@ impl Default for NormalizationConfig<'_> {
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
+    normalize_event_for_scrubbing(event, config);
+}
+
+/// Normalize the view used by filters and return its event-local IP context for scrubbing.
+pub fn normalize_event_for_scrubbing(
+    event: &mut Annotated<Event>,
+    config: &NormalizationConfig,
+) -> crate::EventIp {
     let Annotated(Some(event), meta) = event else {
-        return;
+        return Default::default();
     };
 
     let is_renormalize = config.is_renormalize;
@@ -235,11 +247,12 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
     // Convert legacy data structures to current format
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
+    let mut ip = Default::default();
     if !is_renormalize {
         // Check for required and non-empty values
         let _ = schema::SchemaProcessor::new().process_event(event, meta, ProcessingState::root());
 
-        normalize(event, meta, config);
+        ip = normalize(event, meta, config);
     }
 
     if config.enable_trimming {
@@ -259,10 +272,11 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
         let _ =
             event_error::EmitEventErrors::new().process_event(event, meta, ProcessingState::root());
     }
+    ip
 }
 
 /// Normalizes the given event based on the given config.
-fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -> crate::EventIp {
     // This must run first, as the following normalizations rely on the latest version of
     // conventions.
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
@@ -279,23 +293,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
-    let client_ip = config.client_ip.filter(|_| config.infer_ip_address);
-
     // Process security reports first to ensure all props.
-    normalize_security_report(event, client_ip, &config.user_agent);
+    normalize_security_report(event, &config.user_agent);
 
-    // Insert IP addrs before recursing, since geo lookup depends on it.
-    normalize_ip_addresses(
-        &mut event.request,
-        &mut event.user,
-        event.platform.as_str(),
-        client_ip,
-        event.client_sdk.value(),
-    );
-
-    if let Some(geoip_lookup) = config.geoip_lookup {
-        normalize_user_geoinfo(geoip_lookup, &mut event.user, config.client_ip);
-    }
+    let ip = crate::client_ip::normalize_event_ip(event, config);
 
     // Validate the basic attributes we extract metrics from
     let _ = processor::apply(&mut event.release, |release, meta| {
@@ -366,6 +367,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
+            !ip.defers_span_tags(),
         );
         extract_segment_name_from_event(event, config.max_tag_value_length);
     }
@@ -373,6 +375,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if let Some(context) = event.context_mut::<TraceContext>() {
         context.client_sample_rate = Annotated::from(config.client_sample_rate);
     }
+    ip
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
@@ -386,22 +389,13 @@ fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
 }
 
 /// Backfills common security report attributes.
-fn normalize_security_report(
-    event: &mut Event,
-    client_ip: Option<&IpAddr>,
-    user_agent: &RawUserAgentInfo<&str>,
-) {
+fn normalize_security_report(event: &mut Event, user_agent: &RawUserAgentInfo<&str>) {
     if !is_security_report(event) {
         // This event is not a security report, exit here.
         return;
     }
 
     event.logger.get_or_insert_with(|| "csp".to_owned());
-
-    if let Some(client_ip) = client_ip {
-        let user = event.user.value_mut().get_or_insert_with(User::default);
-        user.ip_address = Annotated::new(client_ip.to_owned());
-    }
 
     if !user_agent.is_empty() {
         let headers = event
@@ -418,108 +412,6 @@ fn normalize_security_report(
 
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
-}
-
-/// Backfills IP addresses in various places.
-pub fn normalize_ip_addresses(
-    request: &mut Annotated<Request>,
-    user: &mut Annotated<User>,
-    platform: Option<&str>,
-    client_ip: Option<&IpAddr>,
-    client_sdk_settings: Option<&ClientSdkInfo>,
-) {
-    let infer_ip = client_sdk_settings
-        .and_then(|c| c.settings.0.as_ref())
-        .map(|s| s.infer_ip())
-        .unwrap_or_default();
-
-    let client_ip = client_ip
-        .filter(|ip| infer_ip != AutoInferSetting::Never && !ip.is_auto() && ip.is_valid());
-    let remote_addr_ip = normalize_remote_addr(request, client_ip);
-
-    if infer_ip == AutoInferSetting::Never {
-        if let Some(user) = user.value_mut()
-            && user.ip_address.value().is_some_and(IpAddr::is_auto)
-        {
-            user.ip_address.set_value(None);
-        }
-        return;
-    }
-
-    // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
-    // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
-    let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
-
-    // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-    if let Some(user) = user.value()
-        && user.ip_address.value().is_none()
-        && user
-            .ip_address
-            .meta()
-            .iter_remarks()
-            .any(|r| r.ty == RemarkType::Removed)
-    {
-        return;
-    }
-
-    // We will infer IP addresses if:
-    // * The IP address is {{auto}}
-    // * the infer_ip setting is set to "auto"
-    let should_be_inferred = match user.value() {
-        Some(user) => match user.ip_address.value() {
-            Some(ip) => ip.is_auto(),
-            None => matches!(infer_ip, AutoInferSetting::Auto),
-        },
-        None => matches!(infer_ip, AutoInferSetting::Auto),
-    };
-
-    if should_be_inferred {
-        if let Some(ip) = inferred_ip {
-            let user = user.get_or_insert_with(User::default);
-            user.ip_address.set_value(Some(ip.to_owned()));
-        } else if let Some(user) = user.value_mut() {
-            user.ip_address.set_value(None);
-        }
-    }
-
-    // Legacy behaviour:
-    // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
-    // * Empty means {{auto}} for some SDKs
-    if infer_ip == AutoInferSetting::Legacy {
-        if let Some(http_ip) = remote_addr_ip {
-            let user = user.get_or_insert_with(User::default);
-            user.ip_address.value_mut().get_or_insert(http_ip);
-        } else if let Some(client_ip) = inferred_ip {
-            let user = user.get_or_insert_with(User::default);
-            // auto is already handled above
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if user.ip_address.value().is_none()
-                && matches!(platform, Some("javascript" | "cocoa" | "objc"))
-            {
-                user.ip_address = Annotated::new(client_ip.to_owned());
-            }
-        }
-    }
-}
-
-/// Resolves an explicit REMOTE_ADDR marker in place, or removes it if inference is unavailable.
-fn normalize_remote_addr(
-    request: &mut Annotated<Request>,
-    client_ip: Option<&IpAddr>,
-) -> Option<IpAddr> {
-    let env = request.value_mut().as_mut()?.env.value_mut().as_mut()?;
-    let remote_addr = env.get_mut("REMOTE_ADDR")?;
-    let ip = IpAddr::parse(remote_addr.as_str()?).ok()?;
-    if !ip.is_auto() {
-        return Some(ip);
-    }
-
-    if let Some(ip) = client_ip {
-        remote_addr.set_value(Some(Value::String(ip.to_string())));
-    } else {
-        env.remove("REMOTE_ADDR");
-    }
-    client_ip.cloned()
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
@@ -2117,7 +2009,14 @@ mod tests {
 
         // This call should fill the event headers with info from the user_agent which is
         // tested below.
-        normalize_security_report(&mut event, client_ip, &user_agent);
+        normalize_security_report(&mut event, &user_agent);
+        crate::client_ip::normalize_event_ip(
+            &mut event,
+            &NormalizationConfig {
+                client_ip,
+                ..Default::default()
+            },
+        );
 
         let headers = event
             .request

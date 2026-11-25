@@ -1,4 +1,4 @@
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{CityLookup, EventIp};
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
@@ -165,11 +165,12 @@ pub fn normalize(
     error: &mut Managed<ExpandedError>,
     geoip_lookup: &CityLookup,
     ctx: Context<'_>,
-) -> Result<(), Rejected<Error>> {
+) -> Result<EventIp, Rejected<Error>> {
     let scoping = error.scoping();
 
+    let mut ip = EventIp::default();
     error.try_modify(|error, _| {
-        error.fully_normalized = processing::utils::event::normalize(
+        (error.fully_normalized, ip) = processing::utils::event::normalize(
             &error.headers,
             &mut error.event,
             error.fully_normalized,
@@ -179,12 +180,17 @@ pub fn normalize(
         )?;
 
         Ok::<_, Error>(())
-    })
+    })?;
+    Ok(ip)
 }
 
-pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(), Rejected<Error>> {
+pub fn scrub(
+    error: &mut Managed<ExpandedError>,
+    ctx: Context<'_>,
+    ip: EventIp,
+) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        processing::utils::event::scrub(&mut error.event, ctx.project_info)?;
+        processing::utils::event::scrub(&mut error.event, ctx.project_info, ip)?;
         processing::utils::attachments::scrub(
             error
                 .attachments

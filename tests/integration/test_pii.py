@@ -215,3 +215,58 @@ def test_logentry_formatted_data_scrubbing_settings(
 
     if non_destructive.additional_checks:
         assert non_destructive.additional_checks(formatted_value)
+
+
+@pytest.mark.parametrize(
+    "user_ip",
+    [
+        pytest.param(None, id="inferred"),
+        pytest.param("2001:db8::2", id="explicit"),
+    ],
+)
+def test_scrub_remote_addr_user_ip(mini_sentry, relay, user_ip):
+    project = mini_sentry.add_basic_project_config(42)
+    project["config"]["piiConfig"]["applications"]["$request.env.REMOTE_ADDR"] = [
+        "@anything:remove"
+    ]
+    forwarder = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    event = {"request": {"env": {"REMOTE_ADDR": "2001:db8::1"}}}
+    if user_ip is not None:
+        event["user"] = {"ip_address": user_ip}
+
+    forwarder.send_event(42, event)
+    forwarded = mini_sentry.get_captured_envelope().get_event()
+    if (forwarded.get("request", {}).get("env") or {}).get("REMOTE_ADDR") is not None:
+        pytest.fail("Relay forwarded REMOTE_ADDR despite the removal rule")
+    assert (forwarded.get("user") or {}).get("ip_address") == user_ip
+
+
+def test_ip_hash_uses_final_identity(mini_sentry, relay):
+    ip = "1.0.0.1"
+    project = mini_sentry.add_basic_project_config(42)
+    config = project["config"]
+    config["piiConfig"]["applications"]["$user.ip_address"] = ["@ip:hash"]
+    # The legacy pass replaces the username. It is still a competing identifier.
+    config.setdefault("datascrubbingSettings", {}).update(
+        {"scrubData": True, "scrubDefaults": False, "sensitiveFields": ["username"]}
+    )
+    ingress = relay(mini_sentry)
+    ingress.send_event(42, {"user": {"ip_address": ip, "username": "original"}})
+    user = mini_sentry.get_captured_envelope().get_event()["user"]
+    assert user["username"] == "[Filtered]"
+    assert user.get("ip_address") != ip
+    assert user.get("id") is None
+
+
+def test_ip_hash_respects_user_id_removal(mini_sentry, relay):
+    ip = "1.0.0.1"
+    project = mini_sentry.add_basic_project_config(42)
+    project["config"]["piiConfig"]["applications"].update(
+        {"$user.ip_address": ["@ip:hash"], "$user.id": ["@anything:remove"]}
+    )
+    ingress = relay(mini_sentry)
+    for identity in ({}, {"id": "sdk-id"}):
+        ingress.send_event(42, {"user": {"ip_address": ip, **identity}})
+        user = mini_sentry.get_captured_envelope().get_event().get("user") or {}
+        assert user.get("id") is None
+        assert user.get("ip_address") != ip

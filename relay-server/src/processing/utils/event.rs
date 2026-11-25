@@ -11,9 +11,9 @@ use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{CityLookup, EventIp};
 use relay_event_normalization::{
-    ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
+    ClockDriftProcessor, normalize_event_for_scrubbing as normalize_event_inner, validate_event,
 };
 use relay_event_normalization::{
     CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
@@ -24,7 +24,7 @@ use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
-use relay_pii::PiiProcessor;
+use relay_pii::ProjectPii;
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
@@ -193,20 +193,25 @@ pub fn normalize(
     project_id: ProjectId,
     ctx: Context,
     geoip_lookup: &CityLookup,
-) -> Result<EventFullyNormalized, ProcessingError> {
+) -> Result<(EventFullyNormalized, EventIp), ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
         // attachments, so these events won't be normalized in
         // non-processing relays even if the config is set to run full
         // normalization.
-        return Ok(event_fully_normalized);
+        return Ok((event_fully_normalized, EventIp::default()));
     }
 
+    let project = &ctx.project_info.config;
+    let ip_pii_rules = ProjectPii {
+        advanced: project.pii_config.as_ref(),
+        legacy: project.datascrubbing_settings.pii_config().as_ref(),
+    };
     let full_normalization = match ctx.config.normalization_level() {
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
             if ctx.config.processing_enabled() && event_fully_normalized.0 {
-                return Ok(event_fully_normalized);
+                return Ok((event_fully_normalized, EventIp::default()));
             }
 
             ctx.config.processing_enabled()
@@ -229,7 +234,7 @@ pub fn normalize(
         .unwrap_or(DEFAULT_EVENT_RETENTION)
         .into();
 
-    utils::log_transaction_name_metrics(event, |event| {
+    let ip = utils::log_transaction_name_metrics(event, |event| {
         let event_validation_config = EventValidationConfig {
             received_at: Some(headers.meta().received_at()),
             max_secs_in_past: Some(retention_days * 24 * 3600),
@@ -255,11 +260,7 @@ pub fn normalize(
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
             client_ip: client_ipaddr.as_ref(),
-            // if the setting is enabled we do not want to infer the ip address
-            infer_ip_address: !project_info
-                .config
-                .datascrubbing_settings
-                .scrub_ip_addresses,
+            infer_ip_address: !project.datascrubbing_settings.scrub_ip_addresses,
             client_sample_rate: headers.dsc().and_then(|ctx| ctx.sample_rate),
             user_agent: RawUserAgentInfo {
                 user_agent: request_meta.user_agent(),
@@ -286,6 +287,7 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
+            ip_pii_rules,
             ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
@@ -308,17 +310,17 @@ pub fn normalize(
                 );
                 ProcessingError::InvalidTransaction
             })?;
-            normalize_event_inner(event, &normalization_config);
+            let ip = normalize_event_inner(event, &normalization_config);
             if full_normalization && has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);
             }
-            Result::<(), ProcessingError>::Ok(())
+            Result::<_, ProcessingError>::Ok(ip)
         })
     })?;
 
     event_fully_normalized.0 |= full_normalization;
 
-    Ok(event_fully_normalized)
+    Ok((event_fully_normalized, ip))
 }
 
 /// Status for applying some filters that don't drop the event.
@@ -409,6 +411,7 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 pub fn scrub(
     event: &mut Annotated<Event>,
     project_info: &ProjectInfo,
+    ip: EventIp,
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
 
@@ -419,17 +422,14 @@ pub fn scrub(
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-        let pii_config = config.datascrubbing_settings.pii_config();
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
-
+        ip.scrub(
+            event,
+            ProjectPii {
+                advanced: config.pii_config.as_ref(),
+                legacy: config.datascrubbing_settings.pii_config().as_ref(),
+            },
+        )
+    })?;
     Ok(())
 }
 

@@ -28,8 +28,7 @@ use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
 use crate::utils::{
-    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, get_event_user_tag,
-    http_status_code_from_span,
+    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, http_status_code_from_span,
 };
 
 /// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
@@ -102,14 +101,16 @@ pub(crate) fn extract_span_tags_from_event(
     event: &mut Event,
     max_tag_value_size: usize,
     http_scrubbing_allow_list: &[String],
+    copy_user_ip: bool,
 ) {
     // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
-    extract_span_tags(
+    extract_span_tags_with_user_ip(
         event,
+        copy_user_ip,
         spans_vec.as_mut_slice(),
         max_tag_value_size,
         http_scrubbing_allow_list,
@@ -127,9 +128,19 @@ pub fn extract_span_tags(
     max_tag_value_size: usize,
     span_allowed_hosts: &[String],
 ) {
+    extract_span_tags_with_user_ip(event, true, spans, max_tag_value_size, span_allowed_hosts);
+}
+
+fn extract_span_tags_with_user_ip(
+    event: &Event,
+    copy_user_ip: bool,
+    spans: &mut [Annotated<Span>],
+    max_tag_value_size: usize,
+    span_allowed_hosts: &[String],
+) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
-    let shared_tags = extract_shared_tags(event, max_tag_value_size);
+    let shared_tags = extract_shared_tags(event, max_tag_value_size, copy_user_ip);
     let is_mobile = shared_tags
         .mobile
         .value()
@@ -326,10 +337,81 @@ impl SharedTags {
     }
 }
 
+impl SharedTags {
+    fn set_user_identity(
+        &mut self,
+        user: &relay_event_schema::protocol::User,
+        max_tag_value_size: usize,
+    ) {
+        let ip = user
+            .ip_address
+            .value()
+            .filter(|_| !crate::client_ip::redacted(&user.ip_address));
+        if let Some(user) = crate::utils::format_user_tag(
+            user.id.as_str(),
+            user.username.as_str(),
+            user.email.as_str(),
+            ip.map(|ip| ip.as_str()),
+        ) {
+            self.user = truncate_string(user, max_tag_value_size);
+        }
+        if let Some(user_id) = user.id.value() {
+            self.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
+        }
+        if let Some(user_ip) = ip {
+            self.user_ip = truncate_string(user_ip.as_str().to_owned(), max_tag_value_size);
+        }
+        if let Some(user_username) = user.username.value() {
+            self.user_username =
+                truncate_string(user_username.as_str().to_owned(), max_tag_value_size);
+        }
+        if let Some(user_email) = user.email.value() {
+            self.user_email = truncate_string(user_email.clone(), max_tag_value_size);
+        }
+    }
+}
+
+/// Fill only the shared identity tags, after all user identifiers have been scrubbed.
+pub fn copy_scrubbed_span_user_tags(
+    event: &mut Event,
+    user: &relay_event_schema::protocol::User,
+    limit: usize,
+) -> bool {
+    let mut added = false;
+    let mut shared = SharedTags::default();
+    shared.set_user_identity(user, limit);
+    for span in event
+        .spans
+        .value_mut()
+        .iter_mut()
+        .flatten()
+        .filter_map(|s| s.value_mut().as_mut())
+    {
+        if let Some(tags) = span.sentry_tags.value_mut() {
+            for (destination, source) in [
+                (&mut tags.user, &shared.user),
+                (&mut tags.user_id, &shared.user_id),
+                (&mut tags.user_ip, &shared.user_ip),
+                (&mut tags.user_email, &shared.user_email),
+                (&mut tags.user_username, &shared.user_username),
+            ] {
+                if source.value().is_some()
+                    && destination.value().is_none()
+                    && destination.meta().is_empty()
+                {
+                    destination.clone_from(source);
+                    added = true;
+                }
+            }
+        }
+    }
+    added
+}
+
 /// Extracts tags shared by every span.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
+fn extract_shared_tags(event: &Event, max_tag_value_size: usize, copy_user_ip: bool) -> SharedTags {
     let mut tags = SharedTags::default();
 
     if let Some(release) = event.release.as_str() {
@@ -337,21 +419,8 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     }
 
     if let Some(user) = event.user.value() {
-        if let Some(user) = get_event_user_tag(user) {
-            tags.user = truncate_string(user, max_tag_value_size);
-        }
-        if let Some(user_id) = user.id.value() {
-            tags.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
-        }
-        if let Some(user_ip) = user.ip_address.value() {
-            tags.user_ip = truncate_string(user_ip.as_str().to_owned(), max_tag_value_size);
-        }
-        if let Some(user_username) = user.username.value() {
-            tags.user_username =
-                truncate_string(user_username.as_str().to_owned(), max_tag_value_size);
-        }
-        if let Some(user_email) = user.email.value() {
-            tags.user_email = truncate_string(user_email.clone(), max_tag_value_size);
+        if copy_user_ip {
+            tags.set_user_identity(user, max_tag_value_size);
         }
 
         if let Some(geo) = user.geo.value() {
@@ -1905,7 +1974,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let spans = event.spans.value().unwrap();
 
@@ -1967,7 +2036,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -2089,7 +2158,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -2174,7 +2243,7 @@ LIMIT 1
         "#;
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
-        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), 200, &[]);
+        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), 200, &[], true);
         insta::assert_snapshot!(event.to_json_pretty().unwrap());
     }
 
@@ -2318,7 +2387,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -2417,7 +2486,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -2486,7 +2555,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2557,7 +2626,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2804,7 +2873,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], true);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();

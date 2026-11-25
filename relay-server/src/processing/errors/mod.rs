@@ -138,7 +138,7 @@ impl processing::Processor for ErrorsProcessor {
         process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
-        process::normalize(&mut error, &self.geoip_lookup, ctx)?;
+        let ip = process::normalize(&mut error, &self.geoip_lookup, ctx)?;
 
         filter::filter(&error, ctx).reject(&error)?;
 
@@ -146,7 +146,7 @@ impl processing::Processor for ErrorsProcessor {
 
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 
-        process::scrub(&mut error, ctx)?;
+        process::scrub(&mut error, ctx, ip)?;
 
         Ok(Output {
             main: Some(ErrorOutput(error)),

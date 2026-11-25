@@ -122,13 +122,15 @@ fn normalize_array_fields(replay: &mut Replay) {
 }
 
 fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
-    crate::event::normalize_ip_addresses(
+    crate::client_ip::resolve_backfill(
         &mut replay.request,
-        &mut replay.user,
+        &replay.user,
         replay.platform.as_str(),
         ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
         replay.sdk.value(),
-    );
+        false,
+    )
+    .apply(&mut replay.user);
 }
 
 fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentInfo<&str>) {

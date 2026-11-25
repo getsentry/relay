@@ -1,6 +1,6 @@
 use crate::envelope::ProfileItem;
 use relay_base_schema::events::EventType;
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{CityLookup, EventIp};
 use relay_event_schema::protocol::Event;
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
@@ -157,37 +157,48 @@ pub fn normalize(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     geoip_lookup: &CityLookup,
-) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
+) -> Result<(Managed<Box<ExpandedTransaction>>, EventIp), Rejected<Error>> {
     let project_id = work.scoping().project_id;
-    work.try_map(|mut work, r| {
+    let mut ip = EventIp::default();
+    let work = work.try_map(|mut work, r| {
         let original_span_count = work.count_embedded_spans_and_self();
 
-        work.flags.fully_normalized = utils::event::normalize(
+        let normalized;
+        (normalized, ip) = utils::event::normalize(
             &work.headers,
             &mut work.event,
             EventFullyNormalized(work.flags.fully_normalized),
             project_id,
             ctx,
             geoip_lookup,
-        )?
-        .0;
+        )?;
+        work.flags.fully_normalized = normalized.0;
 
         // Normalization may have trimmed spans:
-        let new_span_count = work.count_embedded_spans_and_self();
-        if let Some(trimmed) = original_span_count.checked_sub(new_span_count)
-            && trimmed > 0
-        {
-            r.reject_err(
-                Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Span)),
-                [
-                    (DataCategory::Span, trimmed),
-                    (DataCategory::SpanIndexed, trimmed),
-                ],
-            );
-        }
+        record_trimmed_spans(original_span_count, &work, r);
 
         Ok::<_, Error>(work)
-    })
+    })?;
+    Ok((work, ip))
+}
+
+fn record_trimmed_spans(
+    before: usize,
+    work: &ExpandedTransaction,
+    r: &mut crate::managed::RecordKeeper,
+) {
+    let new_span_count = work.count_embedded_spans_and_self();
+    if let Some(trimmed) = before.checked_sub(new_span_count)
+        && trimmed > 0
+    {
+        r.reject_err(
+            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Span)),
+            [
+                (DataCategory::Span, trimmed),
+                (DataCategory::SpanIndexed, trimmed),
+            ],
+        );
+    }
 }
 
 /// Rejects the entire unit of work if one of the project's filters matches.
@@ -466,9 +477,12 @@ pub fn extract_spans(
 pub fn scrub(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
+    ip: EventIp,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     work.try_map(|mut work, records| {
-        utils::event::scrub(&mut work.event, ctx.project_info)?;
+        let before = work.count_embedded_spans_and_self();
+        utils::event::scrub(&mut work.event, ctx.project_info, ip)?;
+        record_trimmed_spans(before, &work, records);
         utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, Some(records));
         Ok::<_, Error>(work)
     })

@@ -6,6 +6,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+mod client_ip;
 mod clock_drift;
 pub mod eap;
 mod event;
@@ -28,8 +29,8 @@ mod validation;
 pub use validation::{EventValidationConfig, validate_event, validate_standalone_span};
 pub mod replay;
 pub use event::{
-    NormalizationConfig, infer_event_type, normalize_event, normalize_measurements,
-    normalize_performance_score,
+    NormalizationConfig, infer_event_type, normalize_event, normalize_event_for_scrubbing,
+    normalize_measurements, normalize_performance_score,
 };
 pub use normalize::breakdowns::*;
 pub use normalize::*;
@@ -40,6 +41,7 @@ pub use transactions::*;
 pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
+pub use self::client_ip::EventIp;
 pub use self::clock_drift::*;
 pub use self::geo::{AsnLookup, CityLookup, GeoIpError};
 
