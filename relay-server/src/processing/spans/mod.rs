@@ -108,7 +108,7 @@ impl From<ScrubAttachmentError> for Error {
 pub struct SpansProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geo_lookup: CityLookup,
-    _asn_lookup: AsnLookup,
+    asn_lookup: AsnLookup,
 }
 
 impl SpansProcessor {
@@ -121,7 +121,7 @@ impl SpansProcessor {
         Self {
             limiter,
             geo_lookup,
-            _asn_lookup: asn_lookup,
+            asn_lookup,
         }
     }
 }
@@ -211,7 +211,7 @@ impl processing::Processor for SpansProcessor {
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
 
-        process::normalize(&mut spans, &self.geo_lookup, ctx);
+        process::normalize(&mut spans, &self.geo_lookup, &self.asn_lookup, ctx);
         filter::filter(&mut spans, ctx);
         process::scrub(&mut spans, ctx);
         process::normalize_derived(&mut spans, ctx);

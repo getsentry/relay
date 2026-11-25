@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{Ingress, Pipeline};
-use relay_event_normalization::{CityLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{AsnLookup, CityLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -219,10 +219,19 @@ fn parse_and_validate_span_attachment(
 }
 
 /// Normalizes individual spans.
-pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &CityLookup, ctx: Context<'_>) {
+pub fn normalize(
+    spans: &mut Managed<ExpandedSpans>,
+    geo_lookup: &CityLookup,
+    asn_lookup: &AsnLookup,
+    ctx: Context<'_>,
+) {
     let settings = spans.settings;
     let user_agent = utils::normalize::user_agent(spans.headers.meta(), settings.infer_user_agent);
     let ingress = spans.ingress.clone();
+    let asn = ctx
+        .project_info
+        .has_feature(relay_dynamic_config::Feature::ClientAsnLookup)
+        .then_some(asn_lookup);
 
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
@@ -232,7 +241,7 @@ pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &CityLookup, ct
                 ingress.as_ref(),
                 settings,
                 headers,
-                geo_lookup,
+                (geo_lookup, asn),
                 &user_agent,
                 ctx,
             )
@@ -248,7 +257,7 @@ fn normalize_span(
     ingress: Option<&Ingress>,
     settings: Settings,
     headers: &EnvelopeHeaders,
-    geo_lookup: &CityLookup,
+    (geo_lookup, asn): (&CityLookup, Option<&AsnLookup>),
     user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
@@ -290,6 +299,9 @@ fn normalize_span(
         }
         user_agent.normalize(&mut span.attributes);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
+        if let Some(db) = asn {
+            relay_event_normalization::enrich_span_asn(&mut span.attributes, db);
+        }
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
         if ctx.is_processing() {
@@ -497,7 +509,7 @@ mod tests {
             ingress,
             settings,
             headers,
-            geo_lookup,
+            (geo_lookup, None),
             &user_agent,
             ctx,
         )

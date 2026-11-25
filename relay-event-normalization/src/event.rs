@@ -147,6 +147,9 @@ pub struct NormalizationConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a CityLookup>,
 
+    /// Local ASN database for projects with client ASN lookup enabled.
+    pub asn_lookup: Option<&'a crate::AsnLookup>,
+
     /// Rules applied to IP addresses before copying them into another field.
     pub ip_pii_rules: relay_pii::ProjectPii<'a>,
 
@@ -211,6 +214,7 @@ impl Default for NormalizationConfig<'_> {
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
+            asn_lookup: None,
             ip_pii_rules: Default::default(),
             ai_model_metadata: Default::default(),
             enable_trimming: false,

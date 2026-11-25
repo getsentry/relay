@@ -11,7 +11,8 @@ use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
-use relay_event_normalization::{CityLookup, EventIp};
+use relay_dynamic_config::Feature;
+use relay_event_normalization::{AsnLookup, CityLookup, EventIp};
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event_for_scrubbing as normalize_event_inner, validate_event,
 };
@@ -193,6 +194,7 @@ pub fn normalize(
     project_id: ProjectId,
     ctx: Context,
     geoip_lookup: &CityLookup,
+    asn_lookup: &AsnLookup,
 ) -> Result<(EventFullyNormalized, EventIp), ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
@@ -207,10 +209,17 @@ pub fn normalize(
         advanced: project.pii_config.as_ref(),
         legacy: project.datascrubbing_settings.pii_config().as_ref(),
     };
+    let asn_lookup = ctx
+        .project_info
+        .has_feature(Feature::ClientAsnLookup)
+        .then_some(asn_lookup);
     let full_normalization = match ctx.config.normalization_level() {
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
             if ctx.config.processing_enabled() && event_fully_normalized.0 {
+                if let (Some(db), Some(event)) = (asn_lookup, event.value_mut()) {
+                    relay_event_normalization::enrich_normalized_event_asn(event, db, ip_pii_rules);
+                }
                 return Ok((event_fully_normalized, EventIp::default()));
             }
 
@@ -287,6 +296,7 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
+            asn_lookup,
             ip_pii_rules,
             ai_model_metadata,
             enable_trimming: true,

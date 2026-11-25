@@ -68,7 +68,7 @@ impl OutcomeError for Error {
 pub struct ErrorsProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: CityLookup,
-    _asn_lookup: AsnLookup,
+    asn_lookup: AsnLookup,
 }
 
 impl ErrorsProcessor {
@@ -81,7 +81,7 @@ impl ErrorsProcessor {
         Self {
             limiter,
             geoip_lookup,
-            _asn_lookup: asn_lookup,
+            asn_lookup,
         }
     }
 }
@@ -138,7 +138,7 @@ impl processing::Processor for ErrorsProcessor {
         process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
-        let ip = process::normalize(&mut error, &self.geoip_lookup, ctx)?;
+        let ip = process::normalize(&mut error, &self.geoip_lookup, &self.asn_lookup, ctx)?;
 
         filter::filter(&error, ctx).reject(&error)?;
 
