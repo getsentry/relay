@@ -98,14 +98,7 @@ impl SentryError for Nswitch {
 
         // Reshape switch crash title to match other native platforms, and mark it as fatal.
         utils::if_processing!(ctx, {
-            use relay_dynamic_config::Feature;
-
-            if let Some(event) = event.value_mut()
-                && ctx
-                    .processing
-                    .project_info
-                    .has_feature(Feature::NintendoEventRewrite)
-            {
+            if let Some(event) = event.value_mut() {
                 crate::utils::reshape_switch_crash(event);
             }
         });
@@ -483,7 +476,7 @@ mod tests {
         // title is removed. `value` remains as the issue subtitle.
         assert_eq!(
             exception.ty.value().map(String::as_str),
-            Some("2168-0002 ResultAccessViolationData")
+            Some("2168-0002 SyntheticTestResult")
         );
     }
 }

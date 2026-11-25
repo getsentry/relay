@@ -105,8 +105,8 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 .PHONY: lint-rust
 
 lint-python: ## run lint on Python code using flake8
-	.venv/bin/pre-commit run flake8 -a
-	.venv/bin/pre-commit run mypy -a
+	.venv/bin/prek run flake8 -a
+	.venv/bin/prek run mypy -a
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
@@ -126,7 +126,7 @@ format-rust: ## format the Rust code
 .PHONY: format-rust
 
 format-python: ## format the Python code
-	.venv/bin/pre-commit run black -a
+	.venv/bin/prek run black -a
 .PHONY: format-python
 
 # Development

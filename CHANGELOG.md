@@ -5,6 +5,7 @@
 **Features**:
 
 - Convert COOP reports sent to the browser report integration into logs. ([#6737](https://github.com/getsentry/relay/pull/6737))
+- Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 
 **Bug Fixes**:
 
@@ -14,13 +15,18 @@
 - Reject replay recordings that decompress past `max_replay_uncompressed_size` with an `ItemTooLarge` outcome, also in processing Relays for projects without recording scrubbing. ([#6587](https://github.com/getsentry/relay/pull/6587))
 - Derive the `sentry.user` attribute for streamed spans from the user attributes, like for transaction spans. ([#6719](https://github.com/getsentry/relay/pull/6719))
 - Remove the `user.ip_address` attribute from spans, logs and trace metrics when IP address scrubbing is enabled, like for events. ([#6719](https://github.com/getsentry/relay/pull/6719))
+- Do not derive `sentry.user` for streamed spans from user attributes removed, replaced or masked by PII scrubbing. ([#6736](https://github.com/getsentry/relay/pull/6736))
+- Infer the client IP for a `user.ip_address` of `{{auto}}` on spans, logs and trace metrics, like for `client.address`. ([#6736](https://github.com/getsentry/relay/pull/6736))
 
 **Internal**:
 
+- Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
+- Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
 - Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
+- Delay shutdown until kafka messages have been drained. ([#6700](https://github.com/getsentry/relay/pull/6700))
 - Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
 - Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
 - Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))

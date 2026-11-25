@@ -333,10 +333,11 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
         });
 }
 
-/// Normalizes the client address into [`Attributes`].
+/// Normalizes the client address and the user IP address into [`Attributes`].
 ///
 /// Infers the client ip from the client information which was provided to Relay, if the SDK
-/// indicates the client ip should be inferred by setting it to `{{auto}}`.
+/// indicates the client ip should be inferred by setting [`CLIENT__ADDRESS`] or
+/// [`USER__IP_ADDRESS`] to `{{auto}}`.
 ///
 /// This requires cooperation from SDKs as inferring a client ip only works in non-server
 /// environments, where the user/client device is also the device sending the item.
@@ -345,14 +346,12 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
         return;
     };
 
-    let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
-        .and_then(|v| v.as_str());
-
-    if client_address == Some("{{auto}}") {
-        match client_ip {
-            Some(client_ip) => attributes.insert(CLIENT__ADDRESS, client_ip.to_string()),
-            None => drop(attributes.remove(CLIENT__ADDRESS)),
+    for key in [CLIENT__ADDRESS, USER__IP_ADDRESS] {
+        if attributes.get_value(key).and_then(|v| v.as_str()) == Some("{{auto}}") {
+            match client_ip {
+                Some(client_ip) => attributes.insert(key, client_ip.to_string()),
+                None => drop(attributes.remove(key)),
+            }
         }
     }
 }
@@ -425,10 +424,11 @@ pub fn normalize_user_geo(
 /// Derives the [`SENTRY__USER`] attribute from the user attributes.
 ///
 /// Uses the first of [`USER__ID`], [`USER__NAME`], [`USER__EMAIL`] and [`USER__IP_ADDRESS`], with the
-/// same format as the `user` tag on transactions.
+/// same format as the `user` tag on transactions. Values removed, replaced or masked by PII scrubbing
+/// are skipped, since they do not identify a user. Pseudonymized (hashed) values are kept.
 ///
-/// Does not modify the attributes if [`SENTRY__USER`] is already present. This should run after PII
-/// scrubbing, so that the derived value is built from scrubbed user attributes.
+/// Does not modify the attributes if [`SENTRY__USER`] is already present. This must run after PII
+/// scrubbing, so that scrubbed user attributes can be skipped.
 pub fn normalize_sentry_user(attributes: &mut Annotated<Attributes>) {
     let Some(attributes) = attributes.value_mut() else {
         return;
@@ -438,11 +438,21 @@ pub fn normalize_sentry_user(attributes: &mut Annotated<Attributes>) {
         return;
     }
 
-    let get = |key| match attributes.get_value(key)? {
-        Value::String(s) => Some(Cow::Borrowed(s.as_str())),
-        Value::I64(i) => Some(Cow::Owned(i.to_string())),
-        Value::U64(u) => Some(Cow::Owned(u.to_string())),
-        _ => None,
+    let get = |key| {
+        let value = attributes.get_annotated_value(key)?;
+        if value
+            .meta()
+            .iter_remarks()
+            .any(|r| r.ty != RemarkType::Pseudonymized)
+        {
+            return None;
+        }
+        match value.value()? {
+            Value::String(s) => Some(Cow::Borrowed(s.as_str())),
+            Value::I64(i) => Some(Cow::Owned(i.to_string())),
+            Value::U64(u) => Some(Cow::Owned(u.to_string())),
+            _ => None,
+        }
     };
 
     let user = format_user_tag(
@@ -2857,6 +2867,51 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_sentry_user_skips_scrubbed() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.id": {"type": "string", "value": null},
+          "user.name": {"type": "string", "value": "[Filtered]"},
+          "user.email": {"type": "string", "value": "[email]"},
+          "user.ip_address": {"type": "string", "value": "127.0.0.1"},
+          "_meta": {
+            "user.id": {"value": {"": {"rem": [["@anything:remove", "x"]]}}},
+            "user.name": {"value": {"": {"rem": [["@password:filter", "s", 0, 10]]}}},
+            "user.email": {"value": {"": {"rem": [["@email:replace", "s", 0, 7]]}}}
+          }
+        }"#,
+        );
+        assert_eq!(user.as_deref(), Some("ip:127.0.0.1"));
+    }
+
+    #[test]
+    fn test_normalize_sentry_user_all_scrubbed() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.email": {"type": "string", "value": "[email]"},
+          "_meta": {
+            "user.email": {"value": {"": {"rem": [["@email:replace", "s", 0, 7]]}}}
+          }
+        }"#,
+        );
+        assert_eq!(user, None);
+    }
+
+    #[test]
+    fn test_normalize_sentry_user_keeps_pseudonymized() {
+        let user = normalized_sentry_user(
+            r#"{
+          "user.email": {"type": "string", "value": "3C1B2D7A"},
+          "user.ip_address": {"type": "string", "value": "127.0.0.1"},
+          "_meta": {
+            "user.email": {"value": {"": {"rem": [["@email:hash", "p", 0, 8]]}}}
+          }
+        }"#,
+        );
+        assert_eq!(user.as_deref(), Some("email:3C1B2D7A"));
+    }
+
+    #[test]
     fn test_normalize_client_address_auto_with_ip() {
         let mut attributes = Annotated::from_json(
             r#"{
@@ -2930,6 +2985,49 @@ mod tests {
         normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
 
         assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_client_address_user_ip_address_auto_with_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "user.ip_address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "user.ip_address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_user_ip_address_auto_without_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "user.ip_address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {}
+        "#);
     }
 
     #[test]

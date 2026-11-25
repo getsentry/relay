@@ -351,12 +351,16 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip:hash"]
 
-    relay.send_event(project_id, {"platform": "javascript"})
+    for extra in (
+        {},  # Legacy JavaScript fallback uses the connection IP.
+        {"request": {"env": {"REMOTE_ADDR": "{{auto}}"}}},  # Resolved request IP.
+        {"sdk": {"settings": {"infer_ip": "auto"}}},  # The SDK requests IP inference.
+    ):
+        relay.send_event(project_id, {"platform": "javascript", **extra})
 
-    envelope = mini_sentry.get_captured_envelope()
-    event = envelope.get_event()
-    assert event["user"]["ip_address"] is None
-    assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+        event = mini_sentry.get_captured_envelope().get_event()
+        assert event["user"]["ip_address"] is None, extra
+        assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741", extra
 
 
 @pytest.mark.parametrize(

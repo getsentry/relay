@@ -30,6 +30,7 @@ sentry_arroyo = { workspace = true, optional = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }

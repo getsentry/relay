@@ -4635,7 +4635,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4868,6 +4868,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
@@ -5015,7 +5016,7 @@ dependencies = [
  "bytes",
  "dircpy",
  "minidump-writer",
- "object 0.37.3",
+ "object 0.39.1",
  "rmpv",
  "tempfile",
  "thiserror 2.0.21",
@@ -5881,9 +5882,9 @@ dependencies = [
 
 [[package]]
 name = "sentry_arroyo"
-version = "2.49.0"
+version = "2.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb0a3d013238e9248cce3c6a98e9cd7b9d13b47e121ccba85414da1e2dc17903"
+checksum = "7cea33cc481704402f31779ba5f913c5c0053ce86f4e7e81411909f6ca4c0423"
 dependencies = [
  "async-stream",
  "chrono",
@@ -6613,7 +6614,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

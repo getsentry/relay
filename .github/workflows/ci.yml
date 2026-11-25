@@ -63,7 +63,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
@@ -76,17 +76,17 @@ jobs:
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
+          path: ~/.cache/prek
           key: cache-epoch-1|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
 
-      - name: Setup pre-commit
-        run: pre-commit install-hooks
+      - name: Setup prek
+        run: .venv/bin/prek prepare-hooks
 
-      - name: Run pre-commit
+      - name: Run prek
         run: |
           jq '.[]' --raw-output <<< '${{steps.changes.outputs.all_files}}' |
-            # Run pre-commit to lint and format check files that were changed (but not deleted)
-            xargs pre-commit run --files
+            # Run prek to lint and format check files that were changed (but not deleted)
+            xargs .venv/bin/prek run --files
 
       # running lint-python will unnecessarily go through setup-venv via devenv
       # we want to take advantage of cached action-setup-venv
@@ -261,7 +261,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv
@@ -811,7 +811,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: '0.13.7'
           # we just cache the venv-dir directly in action-setup-venv

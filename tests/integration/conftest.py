@@ -56,6 +56,11 @@ from .consts import (
 )
 
 
+@pytest.fixture
+def require_global_config(request):
+    return request.node.get_closest_marker("requires_global_config") is not None
+
+
 @pytest.fixture(scope="session")
 def random_port():
     """

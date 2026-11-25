@@ -1,10 +1,11 @@
 use std::error::Error;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
-use sentry_arroyo::backends::kafka::producer::ProducerContext as ArroyoProducerContext;
 
 use crate::statsd::KafkaCounters;
 
@@ -73,7 +74,10 @@ where
     }
 }
 
-/// Kafka client and producer context that logs statistics and producer errors.
+/// Kafka client and producer context that logs producer errors.
+///
+/// Arroyo records its producer metrics regardless of the context, so this only
+/// holds Relay's own logic.
 ///
 /// Cloned once per client a producer builds, so that the
 /// callbacks keep reporting across a config reload.
@@ -81,30 +85,31 @@ where
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
-    /// Delegate statistics to Arroyo.
-    arroyo_statistics: ArroyoProducerContext,
+    /// Counts the number of in-flight messages.
+    inflight: Arc<InflightCounter>,
 }
 
 impl Context {
     pub fn new(producer_name: String) -> Self {
         Self {
-            arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
+            inflight: InflightCounter::default().into(),
         }
     }
 
     pub fn producer_name(&self) -> &str {
         &self.producer_name
     }
+
+    pub fn inflight(&self) -> &InflightCounter {
+        &self.inflight
+    }
 }
 
 impl ClientContext for Context {
-    /// Report client statistics as statsd metrics.
-    ///
-    /// This method is only called if `statistics.interval.ms` is configured.
-    fn stats(&self, statistics: rdkafka::Statistics) {
-        self.arroyo_statistics.stats(statistics);
-    }
+    /// Arroyo reports statistics as metrics. Overridden because rdkafka's
+    /// default logs every statistics payload.
+    fn stats(&self, _statistics: rdkafka::Statistics) {}
 }
 
 impl ProducerContext for Context {
@@ -116,13 +121,10 @@ impl ProducerContext for Context {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
 
+        self.inflight.decrement();
+
         match result {
             Ok(message) => {
-                metric!(
-                    counter(KafkaCounters::ProduceStatusSuccess) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
-                );
                 metric!(
                     counter(KafkaCounters::ProcessingMessageProduced) += 1,
                     topic = message.topic(),
@@ -136,51 +138,43 @@ impl ProducerContext for Context {
                     tags.topic = message.topic(),
                     "failed to produce message to Kafka (delivery callback)",
                 );
-
-                metric!(
-                    counter(KafkaCounters::ProduceStatusError) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
-                );
             }
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use rdkafka::ClientContext;
-    use rdkafka::statistics::{Broker, Statistics};
-    use relay_statsd::with_capturing_test_client;
+#[derive(Default)]
+pub struct InflightCounter {
+    count: AtomicUsize,
+    notify: tokio::sync::Notify,
+}
 
-    use super::Context;
+impl InflightCounter {
+    pub fn get(&self) -> usize {
+        self.count.load(Ordering::Relaxed)
+    }
 
-    #[test]
-    fn test_statistics_backend() {
-        let context = Context::new("test-producer".to_owned());
-        let statistics = Statistics {
-            msg_cnt: 42,
-            brokers: [(
-                "broker-id".to_owned(),
-                Broker {
-                    name: "broker-name".to_owned(),
-                    state: "UP".to_owned(),
-                    outbuf_cnt: 7,
-                    ..Default::default()
-                },
-            )]
-            .into(),
-            ..Default::default()
-        };
+    pub fn increment(&self) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+    }
 
-        let metrics = with_capturing_test_client(|| context.stats(statistics));
-        let prefix = "arroyo.producer.librdkafka.";
-        let broker_metric = "broker_outbuf_requests";
+    pub fn decrement(&self) {
+        let previous = self.count.fetch_sub(1, Ordering::Relaxed);
+        debug_assert!(previous > 0);
+        if previous <= 1 {
+            self.notify.notify_waiters();
+        }
+    }
 
-        assert!(metrics.contains(&format!(
-            "{prefix}message_count:42|g|#producer_name:test-producer"
-        )));
-        assert!(metrics.contains(&format!("{prefix}{broker_metric}:7|g|#")));
-        assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
+    /// Awaits until the counter is zero.
+    pub async fn wait_empty(&self) {
+        loop {
+            // Create future first so that it cannot miss any notifications.
+            let future = self.notify.notified();
+            if self.get() == 0 {
+                break;
+            }
+            future.await;
+        }
     }
 }

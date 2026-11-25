@@ -271,11 +271,21 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
+@pytest.mark.requires_global_config
 def test_get_global_config(mini_sentry, relay):
-    project_key = 42
-    relay_config = {
-        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
-    }
+    original = mini_sentry.app.view_functions["get_project_config"]
+    first_fetch = True
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        nonlocal first_fetch
+        data = original().get_json()
+        if "global" in data and first_fetch:
+            # A pending response can already contain a default global config.
+            first_fetch = False
+            data["global"] = {}
+            data["globalStatus"] = "pending"
+        return data
 
     mini_sentry.global_config = {
         "measurements": {
@@ -286,13 +296,9 @@ def test_get_global_config(mini_sentry, relay):
             "maxCustomMeasurements": 10,
         }
     }
-    relay = relay(mini_sentry, relay_config)
-    mini_sentry.add_full_project_config(project_key)
-
-    body = {"publicKeys": [], "global": True}
-    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data, _ = get_response(relay, packed, signature, version="3")
-
+    relay = relay(mini_sentry, {"cache": {"global_config_fetch_interval": 1}})
+    data = relay.get_global_config()
+    assert data["globalStatus"] == "ready"
     assert data["global"] == mini_sentry.global_config
 
 
