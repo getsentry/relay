@@ -6,7 +6,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-mod client_asn;
 mod client_ip;
 mod clock_drift;
 pub mod eap;
@@ -42,8 +41,7 @@ pub use transactions::*;
 pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
-pub use self::client_asn::enrich_span_asn;
-pub use self::client_ip::process_client_ip;
+pub use self::client_ip::{enrich_span_asn, process_client_ip};
 pub use self::clock_drift::*;
 pub use self::geo::{AsnLookup, CityLookup, GeoIpError};
 

@@ -108,11 +108,25 @@ pub(crate) fn extract_span_tags_from_event(
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
-    extract_span_tags(
+    let mut shared = extract_shared_tags(event, max_tag_value_size);
+    if let Some(user) = event.user.value() {
+        // Embedded spans inherit the scrubbing history of the user fields they copy.
+        // A segment synthesized later only inherits fields that still have a value.
+        for (tag, source) in [
+            (&mut shared.user_email, user.email.meta()),
+            (&mut shared.user_username, user.username.meta()),
+            (&mut shared.user_id, user.id.meta()),
+            (&mut shared.user_ip, user.ip_address.meta()),
+        ] {
+            inherit_redactions(tag, source);
+        }
+    }
+    extract_tags_for_spans(
         event,
-        spans_vec.as_mut_slice(),
+        spans_vec,
         max_tag_value_size,
         http_scrubbing_allow_list,
+        shared,
     );
 
     event.spans = spans;
@@ -127,9 +141,19 @@ pub fn extract_span_tags(
     max_tag_value_size: usize,
     span_allowed_hosts: &[String],
 ) {
+    let shared = extract_shared_tags(event, max_tag_value_size);
+    extract_tags_for_spans(event, spans, max_tag_value_size, span_allowed_hosts, shared);
+}
+
+fn extract_tags_for_spans(
+    event: &Event,
+    spans: &mut [Annotated<Span>],
+    max_tag_value_size: usize,
+    span_allowed_hosts: &[String],
+    shared_tags: SharedTags,
+) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
-    let shared_tags = extract_shared_tags(event, max_tag_value_size);
     let is_mobile = shared_tags
         .mobile
         .value()
@@ -324,6 +348,26 @@ impl SharedTags {
             tags.user = user.clone();
         };
     }
+}
+
+/// Copy redaction remarks without propagating original values or validation errors.
+fn inherit_redactions(tag: &mut Annotated<String>, source: &Meta) {
+    let mut remarks = source.iter_remarks().peekable();
+    if remarks.peek().is_none() {
+        return;
+    }
+    let kept = tag.as_str().map(str::len);
+    for remark in remarks {
+        let mut remark = remark.clone();
+        // Truncation or suppression can invalidate the range on the copied text.
+        if let (Some(len), Some((_, end))) = (kept, remark.range)
+            && end > len
+        {
+            remark.range = None;
+        }
+        tag.meta_mut().add_remark(remark);
+    }
+    tag.meta_mut().set_original_length(source.original_length());
 }
 
 /// Extracts tags shared by every span.

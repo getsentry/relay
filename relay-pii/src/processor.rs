@@ -9,9 +9,9 @@ use relay_event_schema::processor::{
     ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
-    AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
+    AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, Request, ResponseContext, User,
 };
-use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Empty, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
@@ -44,6 +44,54 @@ impl ProjectPii<'_> {
     /// Whether either source of rules is present.
     pub fn is_empty(self) -> bool {
         self.advanced.is_none() && self.legacy.is_none()
+    }
+
+    /// Scrub the environment using its schema path, including rules on its ancestors.
+    pub fn scrub_request_env(self, request: &mut Annotated<Request>) -> ProcessingResult {
+        let Some(value) = request.value_mut() else {
+            return Ok(());
+        };
+        if self.is_empty() || value.env.is_empty() {
+            return Ok(());
+        }
+        let mut fields = Annotated::new(Event {
+            request: Annotated::new(Request {
+                env: mem::take(&mut value.env),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        self.scrub_event(&mut fields)?;
+        let scrubbed = fields
+            .into_value()
+            .ok_or(ProcessingAction::DeleteValueHard)?
+            .request;
+        if let Some(r) = scrubbed.0 {
+            value.env = r.env;
+        } else {
+            *request = scrubbed;
+        }
+        Ok(())
+    }
+
+    /// Apply user rules and finalize the IP-derived ID before other fields inherit it.
+    pub fn scrub_user(self, user: &mut Annotated<User>, hash_only: bool) -> ProcessingResult {
+        if self.is_empty() || user.is_empty() {
+            return Ok(());
+        }
+        let mut fields = Annotated::new(Event {
+            user: mem::take(user),
+            ..Default::default()
+        });
+        self.scrub_event_with_ip_fallback(&mut fields, hash_only)?;
+        *user = fields
+            .into_value()
+            .ok_or(ProcessingAction::DeleteValueHard)?
+            .user;
+        if hash_only && let Some(user) = user.value_mut() {
+            user.ip_address.set_value(None);
+        }
+        Ok(())
     }
 
     /// The IP pipeline has already scrubbed the user and request environment at their schema paths.
