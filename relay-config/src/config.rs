@@ -2664,7 +2664,7 @@ impl ConfigSnapshot {
         self.inner.values.limits.max_expanded_span_bytes
     }
 
-    /// Returns the maximum number of logs than can be generated from a log expansion.
+    /// Returns the maximum number of logs that can be generated from a log expansion.
     pub fn max_expanded_logs_size(&self) -> ByteSize {
         self.inner.values.limits.max_expanded_logs_size
     }
