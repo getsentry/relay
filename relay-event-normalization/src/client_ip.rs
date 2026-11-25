@@ -204,41 +204,38 @@ pub fn process_user_ip(
         }
     };
 
+    let accepts_replacement = |user: &User| {
+        !hash_only
+            || user
+                .ip_address
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Pseudonymized)
+    };
     let advanced_replaced = if let Some(advanced) = rules.advanced {
         PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?
     } else {
         false
     };
-    let (mut saved_ip, last_replaced) = if let Some(legacy) = rules.legacy {
+    let (saved_id, last_replaced) = if let Some(legacy) = rules.legacy {
         // Legacy rules may remove the advanced replacement or a competing username/email.
-        let saved_ip = advanced_replaced.then(|| user.ip_address.clone());
+        let saved_id =
+            (advanced_replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
         let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
-        (saved_ip, replaced)
+        (saved_id, replaced)
     } else {
         (None, advanced_replaced)
     };
-    let replacement = if user_needs_id(user) {
-        saved_ip
-            .as_mut()
-            .or_else(|| last_replaced.then_some(&mut user.ip_address))
-    } else {
-        None
-    };
-    let id = if hash_only {
-        let hash = replacement
-            .filter(|ip| {
-                ip.meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized)
-            })
-            .map(std::mem::take);
+    if user_needs_id(user)
+        && let Some(id) = saved_id.or_else(|| {
+            (last_replaced && accepts_replacement(user))
+                .then(|| std::mem::take(&mut user.ip_address))
+        })
+    {
+        rules.set_derived_user_id(user, id)?;
+    }
+    if hash_only {
         user.ip_address.set_value(None);
-        hash
-    } else {
-        replacement.map(std::mem::take)
-    };
-    if let Some(ip) = id {
-        rules.set_derived_user_id(user, ip)?;
     }
     Ok(lookup)
 }
