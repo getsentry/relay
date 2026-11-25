@@ -6,8 +6,8 @@ use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::protocol::IpAddr;
 use crate::protocol::utils::null_to_default;
+use crate::protocol::{Geo, IpAddr};
 
 /// The type of session event we're dealing with.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
@@ -146,6 +146,12 @@ pub struct SessionAttributes {
     /// The user agent of the user.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
+
+    /// The location of the user, which Relay derives from `ip_address`.
+    ///
+    /// This is not part of the session payload.
+    #[serde(skip)]
+    pub geo: Option<Geo>,
 }
 
 impl Getter for SessionAttributes {
@@ -153,6 +159,10 @@ impl Getter for SessionAttributes {
         Some(match path.strip_prefix("event.")? {
             "release" => self.release.as_str().into(),
             "environment" => self.environment.as_deref()?.into(),
+            "user.geo.city" => self.geo.as_ref()?.city.as_str()?.into(),
+            "user.geo.country_code" => self.geo.as_ref()?.country_code.as_str()?.into(),
+            "user.geo.region" => self.geo.as_ref()?.region.as_str()?.into(),
+            "user.geo.subdivision" => self.geo.as_ref()?.subdivision.as_str()?.into(),
             _ => return None,
         })
     }
@@ -399,6 +409,8 @@ mod tests {
 
     use similar_asserts::assert_eq;
 
+    use relay_protocol::Annotated;
+
     use super::*;
 
     #[test]
@@ -480,6 +492,7 @@ mod tests {
                 environment: None,
                 ip_address: None,
                 user_agent: None,
+                geo: None,
             },
         };
 
@@ -540,6 +553,7 @@ mod tests {
                 environment: Some("production".to_owned()),
                 ip_address: Some(IpAddr::parse("::1").unwrap()),
                 user_agent: Some("Firefox/72.0".to_owned()),
+                geo: None,
             },
         };
 
@@ -637,6 +651,44 @@ mod tests {
             None
         );
         assert_eq!(update.get_value("release"), None);
+    }
+
+    #[test]
+    fn test_session_update_get_value_geo() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0"
+  }
+}"#;
+
+        let mut update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.get_value("event.user.geo.country_code"), None);
+
+        update.attributes.geo = Some(Geo {
+            country_code: Annotated::new("GB".to_owned()),
+            city: Annotated::new("Boxford".to_owned()),
+            subdivision: Annotated::new("England".to_owned()),
+            region: Annotated::new("United Kingdom".to_owned()),
+            ..Default::default()
+        });
+        assert_eq!(
+            update.get_value("event.user.geo.country_code"),
+            Some(Val::String("GB"))
+        );
+        assert_eq!(
+            update.get_value("event.user.geo.city"),
+            Some(Val::String("Boxford"))
+        );
+        assert_eq!(
+            update.get_value("event.user.geo.subdivision"),
+            Some(Val::String("England"))
+        );
+        assert_eq!(
+            update.get_value("event.user.geo.region"),
+            Some(Val::String("United Kingdom"))
+        );
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -47,12 +48,16 @@ impl From<RateLimits> for Error {
 /// A processor for sessions, individual updates and aggregates.
 pub struct SessionsProcessor {
     limiter: Arc<QuotaRateLimiter>,
+    geoip_lookup: GeoIpLookup,
 }
 
 impl SessionsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>) -> Self {
-        Self { limiter }
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: GeoIpLookup) -> Self {
+        Self {
+            limiter,
+            geoip_lookup,
+        }
     }
 }
 
@@ -100,12 +105,10 @@ impl processing::Processor for SessionsProcessor {
             Expansion::Forward(sessions) => return Ok(Output::just(SessionsOutput(sessions))),
         };
 
-        // We can apply filters before normalization here, as our filters currently do not depend
-        // on any normalization steps. Changes to the filtering in the future may make it necessary
-        // to switch the order of operations.
-        filter::filter(&mut sessions, ctx);
+        // Filters read the geo information, which normalization derives from the IP address.
+        process::normalize(&mut sessions, &self.geoip_lookup, ctx);
 
-        process::normalize(&mut sessions, ctx);
+        filter::filter(&mut sessions, ctx);
 
         let sessions = self.limiter.enforce_quotas(sessions, ctx).await?;
 
