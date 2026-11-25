@@ -47,16 +47,20 @@ impl<'a> ProjectPii<'a> {
         [self.advanced, self.legacy].map(|config| config.map(|c| PiiProcessor::new(c.compiled())))
     }
 
-    /// Apply destination rules to a replacement before storing it as the user ID.
+    /// Store the replacement as the user ID and apply rules for its new field.
     pub fn set_derived_user_id(self, user: &mut User, ip: Annotated<IpAddr>) -> ProcessingResult {
-        let mut destination = User {
-            id: ip.map_value(|ip| ip.into_inner().into()),
-            ..Default::default()
-        };
+        let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
+        // Match the PII annotation on User::id when visiting just this field.
+        const ID_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+        user.id = ip.map_value(|ip| ip.into_inner().into());
         for mut processor in self.processors().into_iter().flatten() {
-            processor.scrub_event_user_fields(&mut destination)?;
+            let id_state = state.enter_borrowed(
+                "id",
+                Some(Cow::Borrowed(&ID_ATTRS)),
+                ValueType::for_field(&user.id),
+            );
+            process_value(&mut user.id, &mut processor, &id_state)?;
         }
-        user.id = destination.id;
         remove_replaced_ip(user);
         Ok(())
     }
