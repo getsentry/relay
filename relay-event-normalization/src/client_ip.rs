@@ -109,9 +109,9 @@ pub fn process_user_ip(
     // Keep the original request IP for lookup. Only its surviving text can become user.ip_address.
     rules.scrub_request_env(request)?;
     let existing = user.value();
-    let field = existing.map(|u| &u.ip_address);
-    let user_ip_redacted = redacted(user) || field.is_some_and(redacted);
-    let supplied = field.and_then(|f| f.as_str()).map(str::parse::<ParsedIp>);
+    let parsed_ip = |u: &User| u.ip_address.as_str().map(str::parse::<ParsedIp>);
+    let user_ip_redacted = redacted(user) || existing.is_some_and(|u| redacted(&u.ip_address));
+    let supplied = existing.and_then(parsed_ip);
     let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
     let (lookup, backfill) = match (supplied.as_ref(), remote) {
         _ if user_ip_redacted => (None, None),
@@ -144,71 +144,67 @@ pub fn process_user_ip(
         Some(u) if u.geo.value().is_some() || redacted(&u.geo) => None,
         _ => config.geoip_lookup.and_then(|db| db.lookup(lookup?)),
     };
-    let current = match user.value_mut() {
-        Some(current) => current,
+    let user = match user.value_mut() {
+        Some(user) => user,
         missing if backfill.is_some() || geo.is_some() => missing.insert(User::default()),
         None => return Ok(lookup),
     };
     if let Some(geo) = geo {
-        current.geo.set_value(Some(geo));
+        user.geo.set_value(Some(geo));
     }
 
     let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
     let valid_ip = if let Some(text) = backfill {
-        current
-            .ip_address
-            .set_value(Some(ProtocolIp(text.to_owned())));
+        user.ip_address.set_value(Some(ProtocolIp(text.to_owned())));
         true
     } else if auto && !user_ip_redacted {
-        current.ip_address.set_value(None);
+        user.ip_address.set_value(None);
         false
     } else {
         matches!(supplied, Some(Ok(_)))
     };
-    if rules.is_empty() {
-        return Ok(lookup);
-    }
-
-    // A later rule may remove both a hash and the email that took precedence over it.
+    let (early, mut last) = match rules.processors() {
+        [early, Some(last)] => (early, last),
+        [Some(last), None] => (None, last),
+        [None, None] => return Ok(lookup),
+    };
     let id_unset = |u: &User| u.id.value().is_none() && u.id.meta().is_empty();
-    let mut can_derive = valid_ip && id_unset(current);
-    let mut saved_replacement = None;
-    let mut passes = rules.processors().peekable();
-    while let Some(mut pii) = passes.next() {
-        pii.scrub_event_user_fields(user)?;
-        let Some(user) = user.value_mut() else {
-            continue;
-        };
-        let text = user.ip_address.as_str();
-        let valid_ip = text.is_some_and(|s| s.parse::<ParsedIp>().is_ok());
-        let replaced = can_derive && text.is_some() && !valid_ip;
-        if passes.peek().is_some() {
-            can_derive = valid_ip && id_unset(user);
-            if replaced {
-                saved_replacement = Some(user.ip_address.clone());
-            }
-            continue;
-        }
-        if user_needs_id(user) {
-            let ip = if replaced {
-                Some(&mut user.ip_address)
-            } else {
-                saved_replacement.as_mut()
-            };
-            if let Some(ip) = ip.filter(|ip| {
-                !hash_only
-                    || ip
-                        .meta()
-                        .iter_remarks()
-                        .any(|r| r.ty == RemarkType::Pseudonymized)
-            }) {
-                let replacement = std::mem::take(ip);
-                rules.set_derived_user_id(user, replacement)?;
+    let eligible = valid_ip && id_unset(user);
+    let allowed = |ip: &Annotated<ProtocolIp>| {
+        !hash_only
+            || ip
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Pseudonymized)
+    };
+
+    // Only projects with both rule sets need to preserve an intermediate replacement.
+    let (eligible, saved) = match early {
+        None => (eligible, None),
+        Some(mut first) => {
+            first.scrub_event_user_fields(user)?;
+            match parsed_ip(user) {
+                Some(Ok(_)) => (id_unset(user), None),
+                Some(Err(_)) if eligible && allowed(&user.ip_address) => {
+                    (false, Some(user.ip_address.clone()))
+                }
+                _ => (false, None),
             }
         }
-        if hash_only {
-            user.ip_address.set_value(None);
+    };
+
+    last.scrub_event_user_fields(user)?;
+    if user_needs_id(user) {
+        let replacement = saved.or_else(|| {
+            (eligible && matches!(parsed_ip(user), Some(Err(_))) && allowed(&user.ip_address))
+                .then(|| std::mem::take(&mut user.ip_address))
+        });
+        if let Some(ip) = replacement {
+            rules.set_derived_user_id(user, ip)?;
         }
+    }
+    if hash_only {
+        user.ip_address.set_value(None);
     }
     Ok(lookup)
 }

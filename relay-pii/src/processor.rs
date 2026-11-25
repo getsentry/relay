@@ -42,24 +42,21 @@ pub struct ProjectPii<'a> {
 }
 
 impl<'a> ProjectPii<'a> {
-    /// Visit advanced rules first, then legacy rules.
-    pub fn processors(self) -> impl Iterator<Item = PiiProcessor<'a>> {
-        [self.advanced, self.legacy]
-            .into_iter()
-            .flatten()
-            .map(|config| PiiProcessor::new(config.compiled()))
+    /// The advanced and legacy processors, in application order.
+    pub fn processors(self) -> [Option<PiiProcessor<'a>>; 2] {
+        [self.advanced, self.legacy].map(|config| config.map(|c| PiiProcessor::new(c.compiled())))
     }
 
     /// Apply destination rules to a replacement before storing it as the user ID.
     pub fn set_derived_user_id(self, user: &mut User, ip: Annotated<IpAddr>) -> ProcessingResult {
-        let mut destination = Annotated::new(User {
+        let mut destination = User {
             id: ip.map_value(|ip| ip.into_inner().into()),
             ..Default::default()
-        });
-        for mut processor in self.processors() {
+        };
+        for mut processor in self.processors().into_iter().flatten() {
             processor.scrub_event_user_fields(&mut destination)?;
         }
-        user.id = destination.into_value().map(|u| u.id).unwrap_or_default();
+        user.id = destination.id;
         remove_replaced_ip(user);
         Ok(())
     }
@@ -123,7 +120,7 @@ impl<'a> ProjectPii<'a> {
 
     /// Apply both rule sets to an event at its schema root.
     fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
-        for mut processor in self.processors() {
+        for mut processor in self.processors().into_iter().flatten() {
             process_value(event, &mut processor, ProcessingState::root())?;
         }
         Ok(())
@@ -154,13 +151,10 @@ impl<'a> PiiProcessor<'a> {
         self
     }
 
-    /// Scrub the fields of an event user without deriving an identity from its IP.
-    pub fn scrub_event_user_fields(&mut self, user: &mut Annotated<User>) -> ProcessingResult {
-        let state =
-            ProcessingState::root().enter_borrowed("user", None, ValueType::for_field(user));
-        let action = self.before_process(user.0.as_ref(), &mut user.1, &state);
-        processor::apply(user, |_, _| action)?;
-        processor::apply(user, |user, _| user.process_child_values(self, &state))
+    /// The event user container has no PII flag. Scrub its fields at their schema paths.
+    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> ProcessingResult {
+        let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
+        user.process_child_values(self, &state)
     }
 
     fn apply_all_rules(
@@ -1671,10 +1665,12 @@ mod tests {
 
     #[test]
     fn test_ip_address_hashing_does_not_overwrite_id() {
+        // A rule targeting the container leaves the user present while its IP is scrubbed.
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
                 "applications": {
+                    "$user": ["@anything:remove"],
                     "$user.ip_address": ["@ip:hash"]
                 }
             }
