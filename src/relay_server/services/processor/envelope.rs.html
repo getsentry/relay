@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::ExtractedMetrics;
-<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::SwitchProcessingError;
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span><span class="kw">crate</span>::processing::errors::ItemBundleError;
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span><span class="kw">crate</span>::processing::relay::RelayProcessor;
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span><span class="kw">crate</span>::processing::{<span class="self">self</span>, Forward <span class="kw">as _</span>, Output, Outputs, QuotaRateLimiter};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
@@ -100,8 +100,8 @@
 <a href=#100 id=100 data-nosnippet>100</a>    #[error(<span class="string">"failed to apply quotas"</span>)]
 <a href=#101 id=101 data-nosnippet>101</a>    </span>QuotasFailed(<span class="attr">#[from] </span>RateLimitingError),
 <a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a>    <span class="attr">#[error(<span class="string">"nintendo switch dying message processing failed {0:?}"</span>)]
-<a href=#104 id=104 data-nosnippet>104</a>    </span>InvalidNintendoDyingMessage(<span class="attr">#[source] </span>SwitchProcessingError),
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="attr">#[error(<span class="string">"item bundle processing failed {0:?}"</span>)]
+<a href=#104 id=104 data-nosnippet>104</a>    </span>InvalidItemBundle(<span class="attr">#[source] </span>ItemBundleError),
 <a href=#105 id=105 data-nosnippet>105</a>
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
 <a href=#107 id=107 data-nosnippet>107</a>    #[error(<span class="string">"playstation dump processing failed: {0}"</span>)]
@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>            <span class="self">Self</span>::InvalidFlamegraph =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidFlamegraph)),
 <a href=#135 id=135 data-nosnippet>135</a>            <span class="self">Self</span>::DuplicateItem(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::DuplicateItem)),
 <a href=#136 id=136 data-nosnippet>136</a>            <span class="self">Self</span>::NoEventPayload =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::NoEventPayload)),
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="self">Self</span>::InvalidNintendoDyingMessage(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Payload)),
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="self">Self</span>::InvalidItemBundle(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Payload)),
 <a href=#138 id=138 data-nosnippet>138</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
 <a href=#139 id=139 data-nosnippet>139</a>            </span><span class="self">Self</span>::InvalidPlaystationDump(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Payload)),
 <a href=#140 id=140 data-nosnippet>140</a>            <span class="self">Self</span>::InvalidUnrealReport(err) <span class="kw">if </span>err.kind() == Unreal4ErrorKind::BadCompression =&gt; {
