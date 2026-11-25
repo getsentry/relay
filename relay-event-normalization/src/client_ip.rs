@@ -125,13 +125,13 @@ fn select_user_ip(
             .map(SelectedIp::Connection)
     });
 
-    // Normalize a request marker even when an explicit user IP or CSP connection wins.
     let use_request = preferred.is_none() && infer != AutoInferSetting::Never;
     let remote = field_value_mut(request)
         .and_then(|r| field_value_mut(&mut r.env))
         .and_then(|env| {
             let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
             match field.as_str() {
+                // Resolve the marker in the request payload even if another source supplies the user IP.
                 Some(ProtocolIp::AUTO_MARKER) => {
                     if let Some(ip) = transport {
                         *field = Value::String(ip.to_string());
