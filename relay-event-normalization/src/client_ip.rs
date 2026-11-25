@@ -117,14 +117,16 @@ pub fn process_user_ip(
         .and_then(|u| field_value_mut(&mut u.ip_address))
         .map(|ip| ip.parsed());
     let auto = matches!(supplied, Ok(ParsedIp::Auto));
+    // Browser CSP reports can supply the connection IP even without an SDK inference setting.
     let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
 
+    // An SDK-supplied REMOTE_ADDR takes precedence over the connection IP for ordinary events.
     let use_remote = matches!(supplied, Err(Missing) | Ok(ParsedIp::Auto))
         && infer != AutoInferSetting::Never
         && !csp_transport;
     let remote = normalize_remote_addr(request, transport, use_remote);
     rules.scrub_request_env(request)?;
-    let from_remote = remote.is_ok();
+    let mut hash_only = false;
     let (lookup, backfill) = match (supplied, remote) {
         (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None),
         (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None),
@@ -137,31 +139,39 @@ pub fn process_user_ip(
             (remote.address(), surviving.then_some(remote))
         }
         (_, Err(Redacted)) if !csp_transport => (None, None),
-        _ => {
+        (_, Err(_)) => {
+            // City and ASN can use the connection IP even when we cannot store it on the user.
+            // Legacy JavaScript and Apple SDKs treat a missing IP as an implicit {{auto}}.
             let infer_transport = csp_transport
                 || auto
                 || infer == AutoInferSetting::Auto
                 || matches!(config.platform, Some("javascript" | "cocoa" | "objc"));
-            (
-                config.client_ip,
-                transport.filter(|_| infer_transport).map(ProtocolIp::from),
-            )
+            let backfill = transport.filter(|_| infer_transport).map(ProtocolIp::from);
+            // With IP storage disabled, only a PII hash may become a user identifier.
+            hash_only = backfill.is_some() && !config.infer_ip_address;
+            (config.client_ip, backfill)
         }
     };
-    let geo = match user.value() {
-        Some(u) if u.geo.value().is_some() || redacted(&u.geo) => None,
-        _ => config.geoip_lookup.and_then(|db| db.lookup(lookup?)),
-    };
+    let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
-        Some(user) => user,
-        missing if backfill.is_some() || geo.is_some() => missing.insert(User::default()),
-        None => return Ok(lookup),
+        Some(user) => {
+            if user.geo.value().is_none() && !redacted(&user.geo) {
+                user.geo.set_value(lookup_city());
+            }
+            user
+        }
+        slot @ None => {
+            let geo = lookup_city();
+            if geo.is_none() && backfill.is_none() {
+                return Ok(lookup);
+            }
+            slot.insert(User {
+                geo: geo.into(),
+                ..Default::default()
+            })
+        }
     };
-    if let Some(geo) = geo {
-        user.geo.set_value(Some(geo));
-    }
 
-    let hash_only = backfill.is_some() && !from_remote && !config.infer_ip_address;
     if let Some(ip) = backfill {
         user.ip_address.set_value(Some(ip));
     } else if auto {

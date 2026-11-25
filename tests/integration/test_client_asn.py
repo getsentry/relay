@@ -586,37 +586,54 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     second = relay(mini_sentry, options=options)
     hashed = hmac.digest(b"", ip.encode(), "sha1").hex().upper()
 
-    def check(event, expected_identity):
+    def check(event, expected_city, expected_identity):
         user = event["user"]
-        assert user["geo"]["city"] == "Linköping"
+        assert user["geo"]["city"] == expected_city
         assert dict(event["tags"])[NUMBER] == "29518"
         assert (event["request"].get("env") or {}).get("REMOTE_ADDR") is None
         assert user.get("ip_address") != ip
         assert {k: user.get(k) for k in expected_identity} == expected_identity
 
-    for fields, expected_identity in [
-        ({}, {"id": None}),  # A City hit creates the missing user.
-        ({"user": {}}, {"id": None}),  # An existing empty user receives the city.
+    for fields, expected_city, expected_identity in [
+        ({}, "Linköping", {"id": None}),  # A City hit creates the missing user.
+        (
+            {"user": {}},
+            "Linköping",
+            {"id": None},
+        ),  # An existing empty user receives the city.
+        (
+            {"user": {"geo": {"city": "SDK city"}}},
+            "SDK city",
+            {"id": None},
+        ),  # Preserve the SDK city while deriving ASN from REMOTE_ADDR.
         (
             {"user": {"ip_address": ip}},
+            "Linköping",
             {"id": hashed},
         ),  # The explicit IP supplies the hash.
         (
             {"user": {"ip_address": ip, "id": "sdk-id"}},
+            "Linköping",
             {"id": "sdk-id"},
         ),  # SDK ID wins.
         (
             {"user": {"ip_address": ip, "email": "client@example.org"}},
+            "Linköping",
             {"id": None, "email": "client@example.org"},
         ),  # Email takes priority.
         (
             {"user": {"ip_address": ip, "username": "sdk-user"}},
+            "Linköping",
             {"id": None, "username": "sdk-user"},
         ),  # Username takes priority.
     ]:
         event = {"request": {"env": {"REMOTE_ADDR": ip}}, **fields}
         first.send_event(42, event, headers={"X-Forwarded-For": "1.0.0.1"})
         envelope = mini_sentry.get_captured_envelope()
-        check(envelope.get_event(), expected_identity)
+        check(envelope.get_event(), expected_city, expected_identity)
         second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
-        check(mini_sentry.get_captured_envelope().get_event(), expected_identity)
+        check(
+            mini_sentry.get_captured_envelope().get_event(),
+            expected_city,
+            expected_identity,
+        )
