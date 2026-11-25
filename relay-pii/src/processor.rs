@@ -14,7 +14,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Array, Empty, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
-use crate::config::RuleType;
+use crate::config::{PiiConfig, RuleType};
 use crate::redactions::Redaction;
 use crate::regex::ScrubbingRegexRef;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
@@ -35,9 +35,9 @@ pub enum AttributeMode {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProjectPii<'a> {
     /// Advanced PII rules, applied first.
-    pub advanced: Option<&'a crate::PiiConfig>,
+    pub advanced: Option<&'a PiiConfig>,
     /// Legacy data scrubbing rules.
-    pub legacy: Option<&'a crate::PiiConfig>,
+    pub legacy: Option<&'a PiiConfig>,
 }
 
 impl ProjectPii<'_> {
@@ -723,7 +723,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
+    use crate::{DataScrubbingConfig, ReplaceRedaction};
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::convert::to_pii_config as to_pii_config_impl;

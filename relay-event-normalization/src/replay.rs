@@ -8,7 +8,7 @@ use relay_protocol::Annotated;
 
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
-use crate::{CityLookup, trimming};
+use crate::{CityLookup, NormalizationConfig, process_client_ip, trimming};
 
 /// Replay validation error.
 ///
@@ -90,9 +90,9 @@ pub fn normalize(
             client_sdk: std::mem::take(&mut replay_value.sdk),
             ..Default::default()
         };
-        crate::process_client_ip(
+        process_client_ip(
             &mut identity,
-            &crate::NormalizationConfig {
+            &NormalizationConfig {
                 client_ip: client_ip.map(IpAddr::from).as_ref(),
                 geoip_lookup: Some(geoip_lookup),
                 ..Default::default()

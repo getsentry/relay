@@ -39,10 +39,10 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CityLookup, CombinedMeasurementsConfig, MaxChars,
-    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
-    stacktrace, transactions, trimming, user_agent,
+    AsnLookup, BorrowedSpanOpDefaults, BreakdownsConfig, CityLookup, CombinedMeasurementsConfig,
+    MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, process_client_ip,
+    remove_other, schema, span, stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
@@ -148,7 +148,7 @@ pub struct NormalizationConfig<'a> {
     pub geoip_lookup: Option<&'a CityLookup>,
 
     /// Local ASN database for projects with client ASN lookup enabled.
-    pub asn_lookup: Option<&'a crate::AsnLookup>,
+    pub asn_lookup: Option<&'a AsnLookup>,
 
     /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
     ///
@@ -270,7 +270,7 @@ pub fn normalize_event_with_pii(
         normalize_security_report(event, &config.user_agent);
 
         normalize(event, meta, config);
-        crate::process_client_ip(event, config, rules)?;
+        process_client_ip(event, config, rules)?;
 
         if config.enrich_spans {
             extract_span_tags_from_event(
@@ -1982,7 +1982,7 @@ mod tests {
         // This call should fill the event headers with info from the user_agent which is
         // tested below.
         normalize_security_report(&mut event, &user_agent);
-        crate::process_client_ip(
+        process_client_ip(
             &mut event,
             &NormalizationConfig {
                 client_ip,
