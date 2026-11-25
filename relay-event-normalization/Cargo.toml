@@ -46,6 +46,8 @@ url = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
+mimalloc = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
 similar-asserts = { workspace = true }
@@ -54,3 +56,7 @@ similar-asserts = { workspace = true }
 default = ["mmap"]
 mmap = ["maxminddb/mmap"]
 serde = []
+
+[[bench]]
+name = "field_metadata"
+harness = false
