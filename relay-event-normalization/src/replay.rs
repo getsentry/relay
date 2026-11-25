@@ -1,9 +1,9 @@
 //! Validation and normalization of [`Replay`] events.
 
-use std::net::IpAddr as StdIpAddr;
+use std::net::IpAddr;
 
 use relay_event_schema::processor::{self, ProcessingState, Processor};
-use relay_event_schema::protocol::{Contexts, IpAddr, Replay};
+use relay_event_schema::protocol::{Contexts, Replay};
 use relay_protocol::Annotated;
 
 use crate::client_ip::{ClientIpConfig, process_user_ip};
@@ -78,7 +78,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 /// Adds default fields and normalizes all values in to their standard representation.
 pub fn normalize(
     replay: &mut Annotated<Replay>,
-    client_ip: Option<StdIpAddr>,
+    client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
     geoip_lookup: &CityLookup,
 ) {
@@ -90,7 +90,7 @@ pub fn normalize(
             ClientIpConfig {
                 platform: replay_value.platform.as_str(),
                 sdk: replay_value.sdk.value(),
-                client_ip: client_ip.map(IpAddr::from).as_ref(),
+                client_ip,
                 geoip_lookup: Some(geoip_lookup),
                 infer_ip_address: true,
                 security_report: false,

@@ -6,6 +6,7 @@ use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::net::IpAddr;
 use std::sync::OnceLock;
 
 use itertools::Itertools;
@@ -22,7 +23,7 @@ use relay_conventions::measurements::{
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Attributes, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event, EventId,
-    EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    EventType, Exception, Headers, Level, LogEntry, Measurement, Measurements,
     PerformanceScoreContext, ReplayContext, Request, Span, SpanId, SpanV2, Tags, Timestamp,
     TraceContext, TraceId, VALID_PLATFORMS,
 };
@@ -74,7 +75,7 @@ pub struct NormalizationConfig<'a> {
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
     /// `request` context, this IP address gets added to the `user` context.
-    pub client_ip: Option<&'a IpAddr>,
+    pub client_ip: Option<IpAddr>,
 
     /// Specifies whether the client_ip should be used to determine the ip address of the user.
     pub infer_ip_address: bool,
@@ -1961,9 +1962,7 @@ mod tests {
             csp: Annotated::from(Csp::default()),
             ..Default::default()
         };
-        let ipaddr = IpAddr("213.164.1.114".to_owned());
-
-        let client_ip = Some(&ipaddr);
+        let ipaddr: IpAddr = "213.164.1.114".parse().unwrap();
 
         let user_agent = RawUserAgentInfo {
             user_agent: Some(
@@ -1985,7 +1984,7 @@ mod tests {
         process_client_ip(
             &mut event,
             &NormalizationConfig {
-                client_ip,
+                client_ip: Some(ipaddr),
                 ..Default::default()
             },
             Default::default(),
@@ -2002,7 +2001,7 @@ mod tests {
 
         assert_eq!(
             event.user.value().unwrap().ip_address,
-            Annotated::from(ipaddr)
+            Annotated::new(ipaddr.into())
         );
         assert_eq!(
             headers.get_header(RawUserAgentInfo::USER_AGENT),

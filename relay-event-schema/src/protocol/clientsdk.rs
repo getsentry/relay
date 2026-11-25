@@ -270,7 +270,7 @@ mod tests {
                     version: Annotated::new("0.10.0".to_owned()),
                 }),
             ]),
-            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            client_ip: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
             settings: Annotated::empty(),
             other: {
                 let mut map = Map::new();
@@ -299,7 +299,7 @@ mod tests {
             integrations: Annotated::empty(),
             features: Annotated::empty(),
             packages: Annotated::empty(),
-            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            client_ip: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
             settings: Annotated::empty(),
             other: Default::default(),
         });

@@ -50,7 +50,7 @@ pub fn process_client_ip(
 pub struct ClientIpConfig<'a> {
     pub platform: Option<&'a str>,
     pub sdk: Option<&'a ClientSdkInfo>,
-    pub client_ip: Option<&'a ProtocolIp>,
+    pub client_ip: Option<IpAddr>,
     pub geoip_lookup: Option<&'a CityLookup>,
     pub infer_ip_address: bool,
     pub security_report: bool,
@@ -68,14 +68,22 @@ pub fn process_user_ip(
         .and_then(|sdk| sdk.settings.value())
         .map(|settings| settings.infer_ip())
         .unwrap_or_default();
-    let connection = config
-        .client_ip
-        .and_then(|text| Some((text, text.as_str().parse::<IpAddr>().ok()?)));
-    let transport = connection.filter(|_| {
+    let transport = config.client_ip.filter(|_| {
         infer != AutoInferSetting::Never
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
+    let existing = user.value();
+    let supplied = existing
+        .and_then(|u| u.ip_address.value())
+        .map(ProtocolIp::parsed);
+    let user_ip_redacted = redacted(user) || existing.is_some_and(|u| redacted(&u.ip_address));
+    let auto = supplied == Some(ParsedIp::Auto);
+    let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
+    let use_remote = !user_ip_redacted
+        && (supplied.is_none() || auto)
+        && infer != AutoInferSetting::Never
+        && !csp_transport;
     let mut request_redacted = redacted(request);
     let remote = request.0.as_mut().and_then(|request| {
         request_redacted |= redacted(&request.env);
@@ -85,57 +93,48 @@ pub fn process_user_ip(
         if request_redacted {
             return None;
         }
-        match field.as_str()?.parse::<ParsedIp>().ok()? {
-            ParsedIp::Address(ip) => Some(ip),
-            ParsedIp::Auto => match transport {
-                Some((text, ip)) => {
-                    field.set_value(Some(Value::String(text.to_string())));
-                    Some(ip)
-                }
-                None => {
-                    env.remove("REMOTE_ADDR");
-                    None
-                }
-            },
+        let text = field.as_str()?;
+        if text == "{{auto}}" {
+            let Some(ip) = transport else {
+                env.remove("REMOTE_ADDR");
+                return None;
+            };
+            field.set_value(Some(Value::String(ip.to_string())));
+            return use_remote.then(|| ProtocolIp::from(ip));
         }
+        if !use_remote {
+            return None;
+        }
+        ProtocolIp::parse(text).ok()
     });
-    let csp_transport = config.security_report && config.infer_ip_address && transport.is_some();
-    let remote = remote.filter(|_| infer != AutoInferSetting::Never && !csp_transport);
 
-    // Keep the original request IP for lookup. Only its surviving text can become user.ip_address.
+    // Keep the original request IP for lookup. Only a surviving source can become user.ip_address.
     rules.scrub_request_env(request)?;
-    let existing = user.value();
-    let parsed_ip = |u: &User| u.ip_address.as_str().map(str::parse::<ParsedIp>);
-    let user_ip_redacted = redacted(user) || existing.is_some_and(|u| redacted(&u.ip_address));
-    let supplied = existing.and_then(parsed_ip);
-    let auto = matches!(supplied, Some(Ok(ParsedIp::Auto)));
-    let (lookup, backfill) = match (supplied.as_ref(), remote) {
+    let from_remote = remote.is_some();
+    let (lookup, backfill) = match supplied {
         _ if user_ip_redacted => (None, None),
-        (Some(Ok(ParsedIp::Address(ip))), _) => (Some(*ip), None),
-        (Some(Err(_)), _) => (None, None),
-        (_, Some(ip)) => (
-            Some(ip),
-            request
+        Some(ParsedIp::Address(ip)) => (Some(ip), None),
+        Some(ParsedIp::Replacement) => (None, None),
+        _ if let Some(remote) = remote => {
+            let ip = remote.address();
+            let surviving = request
                 .value()
                 .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
-                .filter(|v| !redacted(v))
-                .and_then(|v| v.as_str()),
-        ),
+                .is_some_and(|v| v.as_str().is_some() && !redacted(v));
+            (ip, surviving.then_some(remote))
+        }
         _ if csp_transport || !request_redacted => {
             let infer_transport = csp_transport
                 || auto
                 || infer == AutoInferSetting::Auto
                 || matches!(config.platform, Some("javascript" | "cocoa" | "objc"));
             (
-                connection.map(|(_, ip)| ip),
-                transport
-                    .filter(|_| infer_transport)
-                    .map(|(text, _)| text.as_str()),
+                config.client_ip,
+                transport.filter(|_| infer_transport).map(ProtocolIp::from),
             )
         }
         _ => (None, None),
     };
-
     let geo = match existing {
         Some(u) if u.geo.value().is_some() || redacted(&u.geo) => None,
         _ => config.geoip_lookup.and_then(|db| db.lookup(lookup?)),
@@ -149,23 +148,23 @@ pub fn process_user_ip(
         user.geo.set_value(Some(geo));
     }
 
-    let hash_only = backfill.is_some() && remote.is_none() && !config.infer_ip_address;
-    let valid_ip = if let Some(text) = backfill {
-        user.ip_address.set_value(Some(ProtocolIp(text.to_owned())));
-        true
+    let hash_only = backfill.is_some() && !from_remote && !config.infer_ip_address;
+    if let Some(ip) = backfill {
+        user.ip_address.set_value(Some(ip));
     } else if auto && !user_ip_redacted {
         user.ip_address.set_value(None);
-        false
-    } else {
-        matches!(supplied, Some(Ok(_)))
-    };
+    }
     let (early, mut last) = match rules.processors() {
         [early, Some(last)] => (early, last),
         [Some(last), None] => (None, last),
         [None, None] => return Ok(lookup),
     };
     let id_unset = |u: &User| u.id.value().is_none() && u.id.meta().is_empty();
-    let eligible = valid_ip && id_unset(user);
+    let eligible = id_unset(user)
+        && user
+            .ip_address
+            .value()
+            .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
     let allowed = |ip: &Annotated<ProtocolIp>| {
         !hash_only
             || ip
@@ -179,9 +178,9 @@ pub fn process_user_ip(
         None => (eligible, None),
         Some(mut first) => {
             first.scrub_event_user_fields(user)?;
-            match parsed_ip(user) {
-                Some(Ok(_)) => (id_unset(user), None),
-                Some(Err(_)) if eligible && allowed(&user.ip_address) => {
+            match user.ip_address.value().map(ProtocolIp::parsed) {
+                Some(ParsedIp::Address(_) | ParsedIp::Auto) => (id_unset(user), None),
+                Some(ParsedIp::Replacement) if eligible && allowed(&user.ip_address) => {
                     (false, Some(user.ip_address.clone()))
                 }
                 _ => (false, None),
@@ -192,8 +191,13 @@ pub fn process_user_ip(
     last.scrub_event_user_fields(user)?;
     if user_needs_id(user) {
         let replacement = saved.or_else(|| {
-            (eligible && matches!(parsed_ip(user), Some(Err(_))) && allowed(&user.ip_address))
-                .then(|| std::mem::take(&mut user.ip_address))
+            (eligible
+                && user
+                    .ip_address
+                    .value()
+                    .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
+                && allowed(&user.ip_address))
+            .then(|| std::mem::take(&mut user.ip_address))
         });
         if let Some(ip) = replacement {
             rules.set_derived_user_id(user, ip)?;

@@ -373,14 +373,14 @@ impl Processor for PiiProcessor<'_> {
             && user.id.meta().is_empty()
             && user
                 .ip_address
-                .as_str()
-                .is_some_and(|s| s.parse::<ParsedIp>().is_ok());
+                .value()
+                .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
         user.process_child_values(self, state)?;
         if can_replace
             && user
                 .ip_address
-                .as_str()
-                .is_some_and(|s| s.parse::<ParsedIp>().is_err())
+                .value()
+                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
             && user_needs_id(user)
         {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
@@ -1644,7 +1644,7 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ip_address: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1681,7 +1681,7 @@ mod tests {
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
                 id: Annotated::new("123".to_owned().into()),
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ip_address: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
                 ..Default::default()
             }),
             ..Default::default()

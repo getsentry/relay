@@ -361,7 +361,7 @@ mod tests {
             elapsed_time: Annotated::new(1000),
             method: Annotated::new("GET".to_owned()),
             protocol: Annotated::new("http/1.1".to_owned()),
-            server_ip: Annotated::new(IpAddr("192.168.1.1".to_owned())),
+            server_ip: Annotated::new(IpAddr::parse("192.168.1.1").unwrap()),
             phase: Annotated::new(NetworkReportPhases::Application),
             sampling_fraction: Annotated::new(1.0),
             referrer: Annotated::new("https://example.com/referer".to_owned()),
@@ -423,7 +423,7 @@ mod tests {
             elapsed_time: Annotated::new(2000),
             method: Annotated::new("POST".to_owned()),
             protocol: Annotated::new("http/2".to_owned()),
-            server_ip: Annotated::new(IpAddr("10.0.0.1".to_owned())),
+            server_ip: Annotated::new(IpAddr::parse("10.0.0.1").unwrap()),
             phase: Annotated::new(NetworkReportPhases::DNS),
             sampling_fraction: Annotated::new(0.5),
             ..Default::default()

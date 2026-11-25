@@ -19,7 +19,6 @@ use relay_event_normalization::{
     RawUserAgentInfo, TransactionNameConfig,
 };
 use relay_event_schema::processor::{self, ProcessingState};
-use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
@@ -237,7 +236,6 @@ pub fn normalize(
     };
 
     let request_meta = headers.meta();
-    let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
     // Inherit from spans, as transactions no longer produce metrics.
     let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
@@ -277,7 +275,7 @@ pub fn normalize(
             key_id,
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
-            client_ip: client_ipaddr.as_ref(),
+            client_ip: request_meta.client_addr(),
             infer_ip_address: !project_info
                 .config
                 .datascrubbing_settings

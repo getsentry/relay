@@ -69,7 +69,7 @@ mod tests {
     fn get_event_with_ip_addr(val: &str) -> Event {
         Event {
             user: Annotated::from(User {
-                ip_address: Annotated::from(IpAddr(val.to_owned())),
+                ip_address: Annotated::from(IpAddr::parse(val).unwrap()),
                 ..User::default()
             }),
             ..Event::default()
