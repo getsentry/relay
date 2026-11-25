@@ -42,7 +42,7 @@ pub fn calculate_memory_and_data_size(log: &OurLog) -> (u64, u64) {
     memory_size += log
         .other
         .iter()
-        .map(|(k, v)| k.len() + relay_event_normalization::eap::value_size(v))
+        .map(|(k, v)| k.len() + relay_event_schema::protocol::value_size(v))
         .sum::<usize>();
 
     (

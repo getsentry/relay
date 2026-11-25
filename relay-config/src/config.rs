@@ -2659,12 +2659,12 @@ impl ConfigSnapshot {
             .max_expanded_trace_metric_operations
     }
 
-    /// Returns the maximum number of spans than can be generated from a span expansion.
+    /// Returns the maximum number of bytes than can be generated from a span expansion.
     pub fn max_expanded_span_bytes(&self) -> ByteSize {
         self.inner.values.limits.max_expanded_span_bytes
     }
 
-    /// Returns the maximum number of logs that can be generated from a log expansion.
+    /// Returns the maximum number of bytes that can be generated from a log expansion.
     pub fn max_expanded_logs_size(&self) -> ByteSize {
         self.inner.values.limits.max_expanded_logs_size
     }
