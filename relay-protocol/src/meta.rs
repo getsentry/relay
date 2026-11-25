@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
@@ -443,8 +444,10 @@ impl MetaInner {
 }
 
 /// Meta information for a data field in the event payload.
+///
+/// Fields copied into child spans share their metadata until a writer changes it.
 #[derive(Clone, Default, Serialize)]
-pub struct Meta(Option<Box<MetaInner>>);
+pub struct Meta(Option<Arc<MetaInner>>);
 
 impl fmt::Debug for Meta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -468,7 +471,7 @@ impl<'de> Deserialize<'de> for Meta {
                 if value.is_empty() {
                     Meta(None)
                 } else {
-                    Meta(Some(Box::new(value)))
+                    Meta(Some(Arc::new(value)))
                 }
             }
             None => Meta(None),
@@ -485,7 +488,7 @@ impl Meta {
     }
 
     fn upsert(&mut self) -> &mut MetaInner {
-        self.0.get_or_insert_with(Box::default)
+        Arc::make_mut(self.0.get_or_insert_with(Arc::default))
     }
 
     /// The original length of this field, if applicable.
@@ -497,9 +500,8 @@ impl Meta {
 
     /// Updates the original length of this annotation.
     pub fn set_original_length(&mut self, original_length: Option<usize>) {
-        let inner = self.upsert();
-        if inner.original_length.is_none() {
-            inner.original_length = original_length.map(|x| x as u32);
+        if self.original_length().is_none() {
+            self.upsert().original_length = original_length.map(|x| x as u32);
         }
     }
 
@@ -517,8 +519,8 @@ impl Meta {
 
     /// Clears all remarks
     pub fn clear_remarks(&mut self) {
-        if let Some(ref mut inner) = self.0 {
-            inner.remarks.clear();
+        if !self.remarks().is_empty() {
+            self.upsert().remarks.clear();
         }
     }
 
@@ -541,12 +543,10 @@ impl Meta {
 
     /// Mutable reference to errors of this field.
     pub fn add_error<E: Into<Error>>(&mut self, err: E) {
-        let errors = &mut self.upsert().errors;
         let err = err.into();
-        if errors.contains(&err) {
-            return;
+        if !self.errors().contains(&err) {
+            self.upsert().errors.push(err);
         }
-        errors.push(err);
     }
 
     /// Returns a reference to the original value, if any.
@@ -556,7 +556,8 @@ impl Meta {
 
     /// Returns a mutable reference to the original value, if any.
     pub fn original_value_as_mut(&mut self) -> Option<&mut Value> {
-        self.0.as_mut().and_then(|x| x.original_value.as_mut())
+        self.original_value()?;
+        self.upsert().original_value.as_mut()
     }
 
     /// Sets the original value.
@@ -573,7 +574,8 @@ impl Meta {
 
     /// Take out the original value.
     pub fn take_original_value(&mut self) -> Option<Value> {
-        self.0.as_mut().and_then(|x| x.original_value.take())
+        self.original_value()?;
+        self.upsert().original_value.take()
     }
 
     /// Indicates whether this field has errors.
@@ -589,7 +591,10 @@ impl Meta {
     /// Merges this meta with another one.
     pub fn merge(mut self, other: Self) -> Self {
         if let Some(other_inner) = other.0 {
-            let other_inner = *other_inner;
+            if self.0.is_none() {
+                return Self(Some(other_inner));
+            }
+            let other_inner = Arc::unwrap_or_clone(other_inner);
             let inner = self.upsert();
             inner.remarks.extend(other_inner.remarks);
             inner.errors.extend(other_inner.errors);

@@ -898,12 +898,10 @@ pub fn extract_tags(
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.op = span_op.to_owned().into();
-
-        let category = category_for_span(span);
+        let category = category_for_span(span, &span_op);
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
-        let action = match (category.as_deref(), span_op.as_str(), &scrubbed_description) {
+        let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -935,7 +933,7 @@ pub fn extract_tags(
         };
 
         if let Some(category) = category {
-            span_tags.category = category.into_owned().into();
+            span_tags.category = category.to_owned().into();
         }
 
         if let Some(act) = action {
@@ -1158,6 +1156,7 @@ pub fn extract_tags(
                 }
             }
         }
+        span_tags.op = span_op.into();
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
@@ -1549,7 +1548,7 @@ fn extract_captured_substring<'a>(
     None
 }
 
-fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
+fn category_for_span<'a>(span: &'a Span, normalized_op: &'a str) -> Option<&'a str> {
     // Allow clients to explicitly set the category via attribute.
     if let Some(Value::String(category)) = span
         .data
@@ -1557,15 +1556,12 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         .and_then(|v| v.other.get("sentry.category"))
         .and_then(|c| c.value())
     {
-        return Some(category.to_owned().into());
+        return Some(category);
     }
 
     // If we're given an op, derive the category from that.
-    if let Some(unsanitized_span_op) = span.op.value() {
-        let span_op = unsanitized_span_op.to_lowercase();
-        if let Some(category) = span_op_to_category(&span_op) {
-            return Some(category.to_owned().into());
-        }
+    if let Some(category) = span_op_to_category(normalized_op) {
+        return Some(category);
     }
 
     // Derive the category from the span's attributes.
@@ -1580,32 +1576,32 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         .get(DB__SYSTEM__NAME)
         .is_some_and(value_is_set)
     {
-        Some("db".into())
+        Some("db")
     } else if span_data
         .other
         .get(HTTP__REQUEST__METHOD)
         .is_some_and(value_is_set)
     {
-        Some("http".into())
+        Some("http")
     } else if span_data
         .other
         .get(UI__COMPONENT_NAME)
         .is_some_and(value_is_set)
     {
-        Some("ui".into())
+        Some("ui")
     } else if span_data
         .other
         .get(RESOURCE__RENDER_BLOCKING_STATUS)
         .is_some_and(value_is_set)
     {
-        Some("resource".into())
+        Some("resource")
     } else if span_data
         .other
         .get("sentry.origin")
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
-        Some("browser".into())
+        Some("browser")
     } else {
         None
     }
@@ -3326,18 +3322,16 @@ LIMIT 1
     #[test]
     fn span_category_from_explicit_attribute_overrides_op() {
         let span = Span {
-            op: "app.start".to_owned().into(),
             data: SpanData::from([("sentry.category".into(), Value::String("db".into()).into())])
                 .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("db".into()));
+        assert_eq!(category_for_span(&span, "app.start"), Some("db"));
     }
 
     #[test]
     fn span_category_from_op_overrides_inference() {
         let span = Span {
-            op: "app.start".to_owned().into(),
             data: SpanData::from([(
                 DB__SYSTEM__NAME.to_owned(),
                 Value::String("postgresql".into()).into(),
@@ -3345,7 +3339,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("app".into()));
+        assert_eq!(category_for_span(&span, "app.start"), Some("app"));
     }
 
     #[test]
@@ -3358,7 +3352,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("db".into()));
+        assert_eq!(category_for_span(&span, ""), Some("db"));
     }
 
     #[test]
@@ -3371,7 +3365,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("http".into()));
+        assert_eq!(category_for_span(&span, ""), Some("http"));
     }
 
     #[test]
@@ -3384,7 +3378,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("ui".into()));
+        assert_eq!(category_for_span(&span, ""), Some("ui"));
     }
 
     #[test]
@@ -3397,7 +3391,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("resource".into()));
+        assert_eq!(category_for_span(&span, ""), Some("resource"));
     }
 
     #[test]
@@ -3410,7 +3404,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("browser".into()));
+        assert_eq!(category_for_span(&span, ""), Some("browser"));
     }
 
     #[test]

@@ -181,8 +181,13 @@ fn scrub_user_identity(
         return Ok(());
     }
     let configs = [rules.advanced, rules.legacy].into_iter().flatten();
-    let mut replacement = None;
+    let mut earlier_replacement = None;
+    let mut replaced = false;
     for config in configs.clone() {
+        // Only save a copy if another rule set is about to process the replacement.
+        if replaced {
+            earlier_replacement = user.value().map(|u| u.ip_address.clone());
+        }
         let can_replace = user.value().is_some_and(|u| {
             u.id.value().is_none()
                 && u.id.meta().is_empty()
@@ -191,17 +196,19 @@ fn scrub_user_identity(
                     .is_some_and(|s| s.parse::<ParsedIp>().is_ok())
         });
         PiiProcessor::new(config.compiled()).scrub_event_user_fields(user)?;
-        if can_replace
-            && let Some(u) = user.value()
-            && u.ip_address
-                .as_str()
-                .is_some_and(|s| s.parse::<ParsedIp>().is_err())
-        {
-            replacement = Some(u.ip_address.clone());
-        }
+        replaced = can_replace
+            && user
+                .value()
+                .and_then(|u| u.ip_address.as_str())
+                .is_some_and(|s| s.parse::<ParsedIp>().is_err());
     }
     let Some(user) = user.value_mut() else {
         return Ok(());
+    };
+    let replacement = if replaced {
+        Some(&mut user.ip_address)
+    } else {
+        earlier_replacement.as_mut()
     };
     if let Some(ip) = replacement
         && user.id.value().is_none()
@@ -215,7 +222,7 @@ fn scrub_user_identity(
                 .any(|r| r.ty == RemarkType::Pseudonymized))
     {
         let mut destination = Annotated::new(User {
-            id: ip.map_value(|ip| ip.into_inner().into()),
+            id: std::mem::take(ip).map_value(|ip| ip.into_inner().into()),
             ..Default::default()
         });
         for config in configs {
@@ -267,6 +274,11 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         }
         return;
     }
+    let mut fields = [rules.advanced, rules.legacy]
+        .into_iter()
+        .flatten()
+        .any(|config| !config.applications.is_empty())
+        .then(Attributes::new);
     if !has_tags
         && !has_trace
         && !has_measurement(&event.measurements)
@@ -274,7 +286,7 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         && let Some(ip) = span_ip(&trace.data, |key| event.tags.value()?.0.get(key), ip)
         && let Some(trace) = event.context_mut::<TraceContext>()
     {
-        insert_span_asn(&mut trace.data, ip, db, rules);
+        insert_span_asn(&mut trace.data, ip, db, rules, &mut fields);
     }
     for span in event
         .spans
@@ -292,7 +304,7 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
                 .is_some_and(|tags| ASN.iter().any(|k| tags.contains_key(*k)))
             && let Some(ip) = span_ip(&span.data, |key| span.tags.value()?.get(key), None)
         {
-            insert_span_asn(&mut span.data, ip, db, rules);
+            insert_span_asn(&mut span.data, ip, db, rules, &mut fields);
         }
     }
 }
@@ -312,14 +324,11 @@ fn has_measurement(m: &Annotated<Measurements>) -> bool {
             .is_some_and(|m| ASN.iter().any(|k| m.contains_key(*k)))
 }
 
-fn lookup_fields(ip: IpAddr, db: &AsnLookup) -> Option<Attributes> {
-    let (number, organization) = db.lookup(ip)?;
-    let mut fields = Attributes::new();
+fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
     fields.insert(CLIENT__AS__NUMBER, i64::from(number));
     if let Some(org) = organization {
         fields.insert(CLIENT__AS__ORGANIZATION, org);
     }
-    Some(fields)
 }
 
 /// Enrich a standalone span using its normalized client address or user IP.
@@ -342,9 +351,9 @@ pub fn enrich_span_asn(attrs: &mut Annotated<Attributes>, db: &AsnLookup) {
     let value = &entry.value.value;
     if !redacted(value)
         && let Some(ip) = value.as_str().and_then(|s| s.parse().ok())
-        && let Some(fields) = lookup_fields(ip, db)
+        && let Some((number, organization)) = db.lookup(ip)
     {
-        attrs.0.extend(fields.0);
+        set_asn_fields(attrs, number, organization);
     }
 }
 
@@ -353,29 +362,38 @@ fn insert_span_asn(
     ip: IpAddr,
     db: &AsnLookup,
     rules: ProjectPii<'_>,
+    fields: &mut Option<Attributes>,
 ) {
-    let Some(mut fields) = lookup_fields(ip, db) else {
+    let Some((number, organization)) = db.lookup(ip) else {
         return;
     };
-    // Transaction spans will be extracted after event-format scrubbing. Apply
-    // span-format destination rules while this hop still has its project rules.
-    if !rules.is_empty() {
-        let mut span = Annotated::new(SpanV2 {
-            attributes: Annotated::new(fields),
-            ..Default::default()
-        });
-        if relay_pii::eap::scrub(ValueType::Span, &mut span, rules.advanced, rules.legacy).is_err()
-        {
-            return;
+    let Some(fields) = fields else {
+        let data = data.get_or_insert_with(Default::default);
+        data.insert_value(CLIENT__AS__NUMBER, i64::from(number));
+        if let Some(org) = organization {
+            data.insert_value(CLIENT__AS__ORGANIZATION, org.to_owned());
         }
-        let Some(attrs) = span.into_value().and_then(|s| s.attributes.into_value()) else {
-            return;
-        };
-        fields = attrs;
+        return;
+    };
+    set_asn_fields(fields, number, organization);
+    // Apply span-format destination rules before extracting transaction spans.
+    let mut span = Annotated::new(SpanV2 {
+        attributes: Annotated::new(std::mem::take(fields)),
+        ..Default::default()
+    });
+    if relay_pii::eap::scrub(ValueType::Span, &mut span, rules.advanced, rules.legacy).is_err() {
+        return;
     }
+    let Some(attrs) = span.into_value().and_then(|s| s.attributes.into_value()) else {
+        return;
+    };
+    *fields = attrs;
     let data = data.get_or_insert_with(Default::default);
-    for (key, attr) in fields {
-        if let Some(attr) = attr.into_value() {
+    // Move the owned keys and values into span data, reusing the map for the next span.
+    for key in ASN {
+        if let Some((key, attr)) = fields.0.remove_entry(key)
+            && let Some(attr) = attr.into_value()
+        {
             data.other.insert(key, attr.value.value);
         }
     }
