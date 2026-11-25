@@ -105,7 +105,7 @@ impl processing::Processor for SessionsProcessor {
             Expansion::Forward(sessions) => return Ok(Output::just(SessionsOutput(sessions))),
         };
 
-        // Filters read the geo information, which normalization derives from the IP address.
+        // Filters read the country, which normalization derives from the IP address.
         process::normalize(&mut sessions, &self.geoip_lookup, ctx);
 
         filter::filter(&mut sessions, ctx);

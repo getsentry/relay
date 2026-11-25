@@ -214,11 +214,12 @@ fn normalize_attributes(attrs: &mut SessionAttributes, ctx: &NormalizeContext<'_
         attrs.ip_address = ctx.client_addr.map(Into::into);
     }
 
-    attrs.geo = attrs
+    attrs.country_code = attrs
         .ip_address
         .as_ref()
         .and_then(|ip| ip.as_str().parse().ok())
-        .and_then(|ip| ctx.geoip_lookup.lookup(ip));
+        .and_then(|ip| ctx.geoip_lookup.lookup(ip))
+        .and_then(|geo| geo.country_code.into_value());
 
     Ok(())
 }
