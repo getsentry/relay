@@ -402,3 +402,69 @@ def test_session_filtering(mini_sentry, relay_with_processing, metrics_consumer)
     )
 
     metrics_consumer.assert_empty()
+
+
+def test_session_filtering_by_geo(mini_sentry, relay_with_processing, metrics_consumer):
+    relay = relay_with_processing(
+        options={"geoip": {"path": "tests/fixtures/GeoIP2-Enterprise-Test.mmdb"}}
+    )
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["generic"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "geo",
+                "isEnabled": True,
+                "condition": {
+                    "op": "glob",
+                    "name": "event.user.geo.country_code",
+                    "value": ["GB"],
+                },
+            }
+        ],
+    }
+
+    timestamp = datetime.now(tz=timezone.utc)
+    gb_ip = "2.125.160.216"
+
+    # Filtered, the IP address of the session is in the country.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "init": True,
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0", "ip_address": gb_ip},
+        },
+    )
+
+    # Filtered, the IP address is inferred from the client address.
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [{"started": timestamp.isoformat(), "exited": 2}],
+            "attrs": {"release": "sentry-test@1.0.0", "ip_address": "{{auto}}"},
+        },
+        headers={"X-Forwarded-For": gb_ip},
+    )
+
+    metrics_consumer.assert_empty()
+
+    # Kept, a session without an IP address has no country.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab59",
+            "init": True,
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0"},
+        },
+        headers={"X-Forwarded-For": gb_ip},
+    )
+
+    assert metrics_consumer.get_metrics()

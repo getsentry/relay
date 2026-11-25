@@ -90,7 +90,7 @@ impl RelayProcessor {
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
             replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
-            sessions: SessionsProcessor::new(ql()),
+            sessions: SessionsProcessor::new(ql(), geoip_lookup.clone()),
             spans: SpansProcessor::new(ql(), geoip_lookup.clone()),
             trace_attachments: TraceAttachmentsProcessor::new(ql()),
             trace_metrics: TraceMetricsProcessor::new(ql()),

@@ -2,7 +2,7 @@ use crate::envelope::{SessionItem, SessionsItem};
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
-use relay_event_normalization::ClockDriftProcessor;
+use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::protocol::{SessionAggregates, SessionAttributes, SessionUpdate};
 
 use crate::managed::{Managed, RecordKeeper};
@@ -87,7 +87,11 @@ fn expand_session_aggregates(item: &SessionsItem) -> Result<SessionAggregates> {
     })
 }
 
-pub fn normalize(sessions: &mut Managed<ExpandedSessions>, ctx: Context<'_>) {
+pub fn normalize(
+    sessions: &mut Managed<ExpandedSessions>,
+    geoip_lookup: &GeoIpLookup,
+    ctx: Context<'_>,
+) {
     let received_at = sessions.received_at();
     let ctx = NormalizeContext {
         ctx,
@@ -95,6 +99,7 @@ pub fn normalize(sessions: &mut Managed<ExpandedSessions>, ctx: Context<'_>) {
             .at_least(MINIMUM_CLOCK_DRIFT),
         received_at,
         client_addr: sessions.headers.meta().client_addr(),
+        geoip_lookup,
     };
 
     sessions.retain(
@@ -113,6 +118,7 @@ struct NormalizeContext<'a> {
     clock_drift: ClockDriftProcessor,
     received_at: DateTime<Utc>,
     client_addr: Option<IpAddr>,
+    geoip_lookup: &'a GeoIpLookup,
 }
 
 impl NormalizeContext<'_> {
@@ -207,6 +213,13 @@ fn normalize_attributes(attrs: &mut SessionAttributes, ctx: &NormalizeContext<'_
     if attrs.ip_address.as_ref().is_some_and(|ip| ip.is_auto()) {
         attrs.ip_address = ctx.client_addr.map(Into::into);
     }
+
+    attrs.country_code = attrs
+        .ip_address
+        .as_ref()
+        .and_then(|ip| ip.as_str().parse().ok())
+        .and_then(|ip| ctx.geoip_lookup.lookup(ip))
+        .and_then(|geo| geo.country_code.into_value());
 
     Ok(())
 }
