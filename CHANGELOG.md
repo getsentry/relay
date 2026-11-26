@@ -10,6 +10,7 @@
 
 **Bug Fixes**:
 
+- Bump symbolic so Unreal crash parsing caps the length of individual values in the crash context XML. ([#6767](https://github.com/getsentry/relay/pull/6767))
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
