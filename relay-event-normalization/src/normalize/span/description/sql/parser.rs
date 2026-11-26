@@ -18,13 +18,9 @@ const MAX_EXPRESSION_DEPTH: usize = 64;
 
 /// Maximum size of a SQL query in bytes.
 ///
-/// A flat chain of binary operators (`1+1+1+...`) costs two bytes per AST level and roughly
-/// 100 bytes of stack per level to visit, so this caps recursion at ~2000 levels / ~230 KiB.
-/// That has to stay well below the smallest stack we run on, which is 1 MiB on Windows and
-/// 512 KiB for a non-main thread on macOS.
-///
-/// Queries larger than this fall back to regex normalization.
-const MAX_PARSABLE_QUERY: usize = 4_000;
+/// Large queries can create deeply nested [`Expr`]s, which in some cases cause stack overflows
+/// inside the [`sqlparser`] library before we can safely decompose them.
+const MAX_PARSABLE_QUERY: usize = 10_000;
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
