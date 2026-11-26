@@ -198,7 +198,15 @@ def test_client_asn(
             tx = transaction(IP, event.supplied)
             ingress.send_event(
                 project_id,
-                make_error({"user": {"ip_address": IP}, "tags": event.supplied}),
+                make_error(
+                    {
+                        "user": {"ip_address": IP},
+                        "tags": event.supplied,
+                        "contexts": {
+                            "trace": {**tx["contexts"]["trace"], "data": {NUMBER: 123}}
+                        },
+                    }
+                ),
             )
             ingress.send_event(project_id, tx)
             ingress.send_envelope(
@@ -206,6 +214,7 @@ def test_client_asn(
             )
 
             error, _ = events.get_event()
+            assert error["contexts"]["trace"]["data"][NUMBER] == 123
             tags = dict(error.get("tags", []))
             expected_tags = {k: str(v) for k, v in event.expected.items()}
             for key in (NUMBER, ORG):
