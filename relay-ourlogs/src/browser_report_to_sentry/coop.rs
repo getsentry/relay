@@ -97,7 +97,9 @@ pub fn create_log_from_coop_body(body: Body, mut attributes: Attributes) -> OurL
         }
     }
 
-    if let Some(referrer) = referrer.filter(|referrer| !referrer.is_empty()) {
+    if let Some(referrer) = referrer
+        && !referrer.is_empty()
+    {
         let referrer_key = interpolate::http__request__header__key("referer");
         add_attribute!(attributes, referrer_key, vec![referrer]);
     }
