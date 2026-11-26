@@ -36,9 +36,9 @@
 //!
 //! ## User identity
 //!
-//! - A PII pass can supply a fallback ID when `user.id` starts empty with no metadata
-//!   and the pass turns the IP into non-IP text, such as a hash or `[ip]`.
-//! - Prefer the advanced replacement, even if legacy rules later remove the IP.
+//! - A PII pass can supply a fallback ID by hashing a concrete IP when `user.id` starts
+//!   empty with no metadata. A mask or fixed replacement cannot identify a user.
+//! - Prefer the advanced hash, even if legacy rules later remove the IP.
 //!   After both passes, any ID, ID metadata, email, or username blocks the fallback.
 //! - Apply `user.id` rules to the fallback and mark `user.ip_address` as removed.
 //!   Always clear a connection IP admitted only for hashing. Only its hash may supply the ID.

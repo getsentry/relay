@@ -551,6 +551,27 @@ def test_client_ip_hash_survives_relay_hops(
         check(mini_sentry.get_captured_envelope().get_event(), case)
 
 
+def test_transaction_user_skips_placeholders(mini_sentry, relay):
+    project = mini_sentry.add_basic_project_config(42)
+    rules = project["config"]["piiConfig"]["applications"]
+    rules.update({"$user.ip_address": ["@ip"], "$user.email": ["@email"]})
+    ingress = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    for fields, expected_tag in [
+        ({}, None),
+        ({"email": "alice@example.org"}, None),
+        ({"email": "alice@example.org", "id": "alice"}, "id:alice"),
+    ]:
+        tx = transaction(IP, {})
+        tx["user"].update(fields)
+        ingress.send_event(42, tx)
+        event = mini_sentry.get_captured_envelope().get_transaction_event()
+        assert (event.get("user") or {}).get("id") == fields.get("id")
+        if "email" in fields:
+            assert event["user"]["email"] == "[email]"
+        tags = event["spans"][0].get("sentry_tags") or {}
+        assert tags.get("user") == expected_tag
+
+
 def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
     project = mini_sentry.add_basic_project_config(42)
     config = project["config"]
@@ -575,7 +596,7 @@ def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
         assert event["contexts"]["trace"]["data"][NUMBER] == 15169
         tags = event["spans"][0].get("sentry_tags") or {}
         assert tags.get("user.ip") is None
-        assert tags.get("user") != f"ip:{IP}"
+        assert tags.get("user") == (f"id:{expected_id}" if expected_id else None)
 
     for address, expected_id in (
         (

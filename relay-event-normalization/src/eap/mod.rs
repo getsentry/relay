@@ -457,11 +457,7 @@ pub fn normalize_sentry_user(attributes: &mut Annotated<Attributes>) {
 
     let get = |key| {
         let value = attributes.get_annotated_value(key)?;
-        if value
-            .meta()
-            .iter_remarks()
-            .any(|r| r.ty != RemarkType::Pseudonymized)
-        {
+        if !value.meta().preserves_user_identity() {
             return None;
         }
         match value.value()? {

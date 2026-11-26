@@ -58,39 +58,27 @@ impl<'a> ProjectPii<'a> {
         ip_retention: UserIpRetention,
     ) -> ProcessingResult {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
-        let accepts_replacement = |user: &User| {
-            ip_retention == UserIpRetention::ApplyRules
-                || user
-                    .ip_address
-                    .meta()
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized)
-        };
-        let (saved_id, last_replaced) = match (self.advanced, self.legacy) {
+        let (saved_id, last_hashed) = match (self.advanced, self.legacy) {
             // Without scrubbing, there is no replacement to use as a fallback ID.
             (None, None) => (None, false),
             // A single pass leaves its replacement in the IP field for the final ID check.
             (Some(rule), None) | (None, Some(rule)) => {
-                let replaced =
-                    PiiProcessor::new(rule.compiled()).scrub_user_fields(user, &state)?;
-                (None, replaced)
+                let hashed = PiiProcessor::new(rule.compiled()).scrub_user_fields(user, &state)?;
+                (None, hashed)
             }
             // Preserve an eligible advanced replacement before legacy rules scrub the IP and identifiers.
             (Some(advanced), Some(legacy)) => {
-                let replaced =
+                let hashed =
                     PiiProcessor::new(advanced.compiled()).scrub_user_fields(user, &state)?;
-                let saved_id =
-                    (replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
-                let replaced =
+                let saved_id = hashed.then(|| user.ip_address.clone());
+                let hashed =
                     PiiProcessor::new(legacy.compiled()).scrub_user_fields(user, &state)?;
-                (saved_id, replaced)
+                (saved_id, hashed)
             }
         };
         if user_needs_id(user)
-            && let Some(id) = saved_id.or_else(|| {
-                (last_replaced && accepts_replacement(user))
-                    .then(|| mem::take(&mut user.ip_address))
-            })
+            && let Some(id) =
+                saved_id.or_else(|| last_hashed.then(|| mem::take(&mut user.ip_address)))
         {
             self.set_derived_user_id(user, id, &state)?;
         }
@@ -214,7 +202,7 @@ impl<'a> PiiProcessor<'a> {
         self
     }
 
-    /// Scrub the user and report whether its IP became a candidate for the fallback ID.
+    /// Scrub the user and report whether this pass hashed a concrete IP for a fallback ID.
     fn scrub_user_fields(
         &mut self,
         user: &mut User,
@@ -225,13 +213,27 @@ impl<'a> PiiProcessor<'a> {
             && user
                 .ip_address
                 .value()
-                .is_some_and(|ip| ip.parsed() != ParsedIp::Replacement);
+                .is_some_and(|ip| ip.address().is_some());
         user.process_child_values(self, state)?;
-        Ok(can_replace
+        if can_replace
             && user
                 .ip_address
                 .value()
-                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement))
+                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
+        {
+            let meta = user.ip_address.meta();
+            if meta.preserves_user_identity()
+                && meta
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Pseudonymized)
+            {
+                return Ok(true);
+            }
+            if user_needs_id(user) {
+                remove_replaced_ip(user);
+            }
+        }
+        Ok(false)
     }
 
     fn apply_all_rules(

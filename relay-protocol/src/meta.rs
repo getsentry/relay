@@ -515,6 +515,17 @@ impl Meta {
         self.remarks().iter()
     }
 
+    /// Whether the scrubbing history permits using this value to identify a user.
+    pub fn preserves_user_identity(&self) -> bool {
+        self.iter_remarks().all(|remark| match remark.ty {
+            RemarkType::Annotated | RemarkType::Pseudonymized => true,
+            RemarkType::Removed
+            | RemarkType::Substituted
+            | RemarkType::Masked
+            | RemarkType::Encrypted => false,
+        })
+    }
+
     /// Clears all remarks
     pub fn clear_remarks(&mut self) {
         if let Some(ref mut inner) = self.0 {
