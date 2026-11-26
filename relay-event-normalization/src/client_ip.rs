@@ -475,6 +475,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_event_ip_sources_without_connection() {
+        // An HTTP integration test always has at least the loopback peer.
+        let config = NormalizationConfig {
+            infer_ip_address: true,
+            ..Default::default()
+        };
+        for csp in [None, Some(json!({"effective_directive": "default-src"}))] {
+            for user in [None, Some("192.0.2.1")] {
+                for remote in [None, Some("192.0.2.2")] {
+                    let payload = json!({
+                        "platform": "javascript", "csp": csp,
+                        "user": {"ip_address": user}, "request": {"env": {"REMOTE_ADDR": remote}},
+                    });
+                    let mut event = Annotated::<Event>::from_json(&payload.to_string())
+                        .unwrap()
+                        .into_value()
+                        .unwrap();
+                    process_client_ip(&mut event, &config, Default::default()).unwrap();
+                    assert_eq!(
+                        event.user.value().and_then(|u| u.ip_address.as_str()),
+                        user.or(remote),
+                        "{payload}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_transport_fallback_with_upstream_redaction() {
         let removed = json!({"": {"rem": [["@anything:remove", "x"]]}});
         let ip = Some("1.0.0.1");
