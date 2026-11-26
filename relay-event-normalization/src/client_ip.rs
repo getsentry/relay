@@ -1,5 +1,20 @@
 //! Client IP invariants:
 //!
+//! ## Envelope item coverage
+//!
+//! ASN lookup requires `projects:relay-client-asn-lookup` and a local ASN database.
+//!
+//! | Payload | IP source for enrichment | Derived ASN |
+//! | --- | --- | --- |
+//! | Errors, messages, security reports, feedback events | Event IP | Event tags |
+//! | Transaction segment | Span address or event IP | Span attributes |
+//! | Child or standalone span | Span address | Span attributes |
+//! | Replay event | Event IP for City | None |
+//! | Logs, trace metrics, sessions | Resolve IP markers | None |
+//! | Other items | No lookup on the item itself | None |
+//!
+//! Crash attachments can produce an error event, which follows the event rules.
+//!
 //! ## Request and connection
 //!
 //! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`. CSP reports
@@ -38,14 +53,7 @@
 //! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
 //!   `user.ip_address`. If scrubbing replaces `client.address` with a valid IP, City can use
 //!   the replacement and ASN skips lookup. Span PII rules apply to the derived ASN attributes.
-//!
-//! ## Error events
-//!
-//! - Write the derived ASN number and optional organization to event tags.
-//!
-//! ## Replays
-//!
-//! - Replays share request and user IP resolution and City lookup. They derive no ASN.
+
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
