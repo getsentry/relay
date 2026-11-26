@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BrowserReportBody"],"mod":["csp","integrity","nel"],"struct":["BrowserReport"]};
+window.SIDEBAR_ITEMS = {"enum":["BrowserReportBody"],"mod":["coop","csp","integrity","nel"],"struct":["BrowserReport","SourceFile"]};

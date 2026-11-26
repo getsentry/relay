@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BlockedUrl","CspDirective","Disposition"],"struct":["Body","SourceFile"]};
+window.SIDEBAR_ITEMS = {"enum":["BlockedUrl","CspDirective","Disposition"],"struct":["Body"]};
