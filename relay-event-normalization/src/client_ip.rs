@@ -94,6 +94,7 @@ fn normalize_request_ip(
     let env = field_value_mut(&mut field_value_mut(request)?.env)?;
     let field = field_value_mut(env.get_mut("REMOTE_ADDR").ok_or(Missing)?)?;
     match field.as_str() {
+        // Resolve the marker in the request payload even if another source supplies the user IP.
         Some(ProtocolIp::AUTO_MARKER) => {
             let Some(ip) = transport else {
                 env.remove("REMOTE_ADDR");
@@ -102,7 +103,9 @@ fn normalize_request_ip(
             *field = Value::String(ip.to_string());
             use_request.then(|| ProtocolIp::from(ip)).ok_or(Missing)
         }
+        // Parse a literal only when the request can supply the user IP.
         Some(text) if use_request => ProtocolIp::parse(text).map_err(|_| Missing),
+        // Leave the payload as received when there is no request candidate to read.
         _ => Err(Missing),
     }
 }
@@ -139,14 +142,17 @@ pub fn process_user_ip(
     rules.scrub_request_env(request)?;
 
     let (lookup, backfill, hash_only) = match (supplied, remote) {
+        // Use the concrete IP already on the user for lookup and leave the field for user PII.
         (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, false),
+        // A replaced or redacted user IP blocks lookup and fallback to another source.
         (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, false),
 
         // Security reports prefer the connection, even if the request IP was redacted.
         (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), false),
+        // Redaction on the incoming request, environment, or address blocks connection fallback.
         (_, Err(Redacted)) => (None, None, false),
+        // Look up the original request IP. Copy it to the user only if it survives request PII.
         (_, Ok(ip)) => {
-            // A removed request address may enrich the event but cannot be copied to the user.
             let survives = request
                 .value()
                 .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
@@ -173,6 +179,7 @@ pub fn process_user_ip(
     };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
+        // Fill eligible fields on the existing user, preserving supplied or redacted geo.
         Some(user) => {
             if let Some(ip) = backfill {
                 user.ip_address.set_value(Some(ip));
@@ -182,6 +189,7 @@ pub fn process_user_ip(
             }
             user
         }
+        // Create a user only when an IP or City lookup result needs to be stored.
         slot @ None => {
             let geo = lookup_city();
             if backfill.is_none() && geo.is_none() {
@@ -204,14 +212,16 @@ pub fn process_user_ip(
                 .any(|r| r.ty == RemarkType::Pseudonymized)
     };
     let (saved_id, last_replaced) = match (rules.advanced, rules.legacy) {
+        // Without scrubbing, there is no replacement to use as a fallback ID.
         (None, None) => (None, false),
+        // A single pass leaves its replacement in the IP field for the final ID check.
         (Some(rule), None) | (None, Some(rule)) => {
             let replaced = PiiProcessor::new(rule.compiled()).scrub_event_user_fields(user)?;
             (None, replaced)
         }
+        // Preserve an eligible advanced replacement before legacy rules scrub the IP and identifiers.
         (Some(advanced), Some(legacy)) => {
             let replaced = PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?;
-            // Legacy rules may remove the advanced replacement or a competing username/email.
             let saved_id = (replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
             let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
             (saved_id, replaced)
