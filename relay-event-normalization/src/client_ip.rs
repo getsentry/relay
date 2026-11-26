@@ -1,15 +1,21 @@
-//! Resolve the client address and finish its derived identity before span tag extraction.
+//! Client IP invariants:
 //!
-//! ```text
-//! connection + inference settings + request marker -> normalized REMOTE_ADDR
-//! normalized REMOTE_ADDR -> request PII -> stored REMOTE_ADDR
-//! supplied user IP + redactions + request IP + connection policy -> selected address
-//! selected address -> user City / event ASN when eligible
-//! selected address + request PII (for a request backfill) -> user.ip_address
-//! user fields -> advanced PII -> legacy PII -> remaining user identifiers
-//! eligible IP replacement + remaining identifiers -> fallback user ID -> ID field PII
-//! final user fields -> span identity tags
-//! ```
+//! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`
+//!   over the connection, except on CSP reports. Resolve request `{{auto}}` independently.
+//! - An explicit user `{{auto}}` permits connection backfill when inference is enabled.
+//!   A missing user IP requires SDK opt-in or a legacy JavaScript, Cocoa, or ObjC platform.
+//! - City and opt-in ASN may use an IP even when storage is disabled or scrubbing removes it.
+//!   If `REMOTE_ADDR` is the only source and is scrubbed, keep eligible enrichment
+//!   without copying the IP to the user or deriving a user ID from it.
+//! - Skip City lookup when `user.geo` is supplied or redacted. Skip ASN lookup at a
+//!   destination when either ASN field is supplied or redacted. Honor destination PII rules.
+//! - An eligible IP replacement may supply a fallback ID after advanced and legacy PII
+//!   if no ID, email, or username survives. Respect ID redaction and scrub the derived ID.
+//!   A connection IP admitted only for hashing may contribute only its hash.
+//! - A transaction segment may use the event IP for ASN. Child spans need their own address.
+//!   Later Relays preserve existing enrichment and honor upstream redactions.
+//!
+//! City lookup with IP storage disabled: <https://github.com/getsentry/relay/pull/4586>.
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
