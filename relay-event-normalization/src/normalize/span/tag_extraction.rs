@@ -22,7 +22,7 @@ use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
 use crate::CityLookup;
-use crate::client_ip::unredacted_value;
+use crate::client_ip::value_without_modifying_remark;
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
@@ -382,7 +382,7 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     }
 
     if let Some(user) = event.user.value() {
-        let user_ip = unredacted_value(&user.ip_address).map(|ip| ip.as_str());
+        let user_ip = value_without_modifying_remark(&user.ip_address).map(|ip| ip.as_str());
         if let Some(tag) = get_event_user_tag(user) {
             tags.user = truncate_string(tag, max_tag_value_size);
         }

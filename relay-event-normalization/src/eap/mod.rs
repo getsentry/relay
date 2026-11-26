@@ -17,7 +17,7 @@ use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, R
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
-use crate::client_ip::{has_asn, redacted, set_asn_fields};
+use crate::client_ip::{has_asn, has_modifying_remark, set_asn_fields};
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
@@ -392,7 +392,7 @@ pub fn normalize_span_ip(
     city: impl FnOnce(IpAddr) -> Option<Geo>,
     asn: Option<&AsnLookup>,
 ) {
-    if redacted(attributes) {
+    if has_modifying_remark(attributes) {
         return;
     }
     let asn = asn.filter(|_| !has_asn(attributes, |a, k| a.contains_key(k)));
@@ -415,7 +415,8 @@ pub fn normalize_span_ip(
         return;
     };
     let value = &attr.value.value;
-    if redacted(source) || redacted(value) || (!needs_city && asn.is_none()) {
+    if has_modifying_remark(source) || has_modifying_remark(value) || (!needs_city && asn.is_none())
+    {
         return;
     }
     let Some(ip) = value.as_str().and_then(|text| text.parse().ok()) else {

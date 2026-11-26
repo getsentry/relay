@@ -119,7 +119,7 @@ pub fn get_event_user_tag(user: &User) -> Option<String> {
         unsubstituted(&user.id).map(|id| id.as_str()),
         unsubstituted(&user.username).map(|name| name.as_str()),
         unsubstituted(&user.email).map(String::as_str),
-        crate::client_ip::unredacted_value(&user.ip_address)
+        crate::client_ip::value_without_modifying_remark(&user.ip_address)
             .filter(|ip| ip.address().is_some())
             .map(|ip| ip.as_str()),
     )

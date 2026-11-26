@@ -29,8 +29,8 @@
 //! - City and opt-in ASN may use an IP even when storage is disabled or scrubbing removes it.
 //!   If `REMOTE_ADDR` is the only source and is scrubbed, keep eligible enrichment
 //!   without copying the IP to the user or deriving a user ID from it.
-//! - Skip City lookup when `user.geo` is supplied or redacted. Skip ASN lookup at a
-//!   destination when either ASN field is supplied or redacted. Honor destination PII rules.
+//! - Skip City lookup when `user.geo` is supplied or marked as modified. Skip ASN lookup
+//!   when either destination field is supplied or marked as modified. Honor destination PII rules.
 //!
 //! City lookup with IP storage disabled: <https://github.com/getsentry/relay/pull/4586>.
 //!
@@ -43,12 +43,13 @@
 //! - Apply `user.id` rules to the fallback and mark `user.ip_address` as removed.
 //!   Always clear a connection IP admitted only for hashing. Only its hash may supply the ID.
 //! - A downstream processor can fill missing City or ASN from the forwarded client IP.
-//!   An earlier normalization decision still governs IP storage. Redacted sources block fallback.
+//!   An earlier normalization decision still governs IP storage. A modifying remark on the
+//!   source blocks fallback.
 //!
 //! ## Span enrichment
 //!
 //! - For ASN, use the span's `client.address`, then `user.ip_address` if the first is absent.
-//!   An invalid or redacted address blocks fallback.
+//!   An invalid address or one marked as modified blocks fallback.
 //! - An explicit span address marker (`{{auto}}`) requests the connection IP, including
 //!   on transaction segments and children. Store the resolved address when IP inference is
 //!   enabled, subject to the span attribute’s PII rules. A missing child address stays missing.
@@ -73,14 +74,15 @@ use relay_pii::ProjectPii;
 use relay_pii::UserIpRetention::{ApplyRules, HashOnly};
 use relay_protocol::{Annotated, Object, RemarkType, Value};
 
-use self::Unavailable::{Missing, Redacted};
+use self::Unavailable::{MarkedModified, Missing};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 const ADDRESS_KEYS: [&str; 2] = [CLIENT__ADDRESS, USER__IP_ADDRESS];
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
-pub fn redacted<T>(value: &Annotated<T>) -> bool {
-    value.meta().iter_remarks().any(|remark| match remark.ty {
+/// Whether a remark records a change to the field, including a change to only part of its value.
+pub fn has_modifying_remark<T>(field: &Annotated<T>) -> bool {
+    field.meta().iter_remarks().any(|remark| match remark.ty {
         RemarkType::Annotated => false,
         RemarkType::Removed
         | RemarkType::Substituted
@@ -90,8 +92,9 @@ pub fn redacted<T>(value: &Annotated<T>) -> bool {
     })
 }
 
-pub fn unredacted_value<T>(field: &Annotated<T>) -> Option<&T> {
-    field.value().filter(|_| !redacted(field))
+/// Read a present value when its remarks permit using it as a source.
+pub fn value_without_modifying_remark<T>(field: &Annotated<T>) -> Option<&T> {
+    field.value().filter(|_| !has_modifying_remark(field))
 }
 
 /// Use the original address for enrichment, then publish only identity allowed by both
@@ -148,15 +151,15 @@ pub struct ClientIpConfig<'a> {
     pub security_report: bool,
 }
 
-/// A missing field permits fallback. An upstream redaction stops it, even on a parent.
+/// A missing field permits fallback. A modifying remark on the field or a parent stops it.
 enum Unavailable {
     Missing,
-    Redacted,
+    MarkedModified,
 }
 
 fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
-    if redacted(field) {
-        return Err(Redacted);
+    if has_modifying_remark(field) {
+        return Err(MarkedModified);
     }
     field.value_mut().as_mut().ok_or(Missing)
 }
@@ -228,19 +231,19 @@ pub fn process_user_ip(
     let (lookup, backfill, ip_retention) = match (supplied, remote) {
         // A supplied IP also wins on a CSP event forwarded by another Relay.
         (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, ApplyRules),
-        // A replaced or redacted user IP blocks lookup and fallback to another source.
-        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, ApplyRules),
+        // A replacement value or a modifying remark blocks lookup and fallback.
+        (Ok(ParsedIp::Replacement) | Err(MarkedModified), _) => (None, None, ApplyRules),
 
         // A browser report without a user IP uses the connection for backfill.
         (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), ApplyRules),
-        // Redaction on the incoming request, environment, or address blocks connection fallback.
-        (_, Err(Redacted)) => (None, None, ApplyRules),
+        // A modifying remark on the request, environment, or address blocks connection fallback.
+        (_, Err(MarkedModified)) => (None, None, ApplyRules),
         // Look up the original request IP. Copy it to the user only if it survives request PII.
         (_, Ok(ip)) => {
             let survives = request
                 .value()
                 .and_then(|r| r.env.value()?.get("REMOTE_ADDR"))
-                .and_then(unredacted_value)
+                .and_then(value_without_modifying_remark)
                 .and_then(Value::as_str)
                 .is_some();
             (ip.address(), survives.then_some(ip), ApplyRules)
@@ -267,7 +270,7 @@ pub fn process_user_ip(
             if let Some(ip) = backfill {
                 user.ip_address.set_value(Some(ip));
             }
-            if user.geo.value().is_none() && !redacted(&user.geo) {
+            if user.geo.value().is_none() && !has_modifying_remark(&user.geo) {
                 user.geo.set_value(lookup_city());
             }
             user
@@ -397,7 +400,7 @@ fn process_transaction_ips(
 
 /// Preserve a scrubbed container or either ASN attribute supplied by the SDK.
 pub fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
-    redacted(field)
+    has_modifying_remark(field)
         || field
             .value()
             .is_some_and(|value| ASN_KEYS.into_iter().any(|key| contains(value, key)))
@@ -454,7 +457,7 @@ fn resolve_address<T: From<String>>(
     stored: impl FnOnce() -> Annotated<String>,
     text: fn(&T) -> Option<&str>,
 ) -> (ParsedIp, bool) {
-    let address = unredacted_value(field)
+    let address = value_without_modifying_remark(field)
         .and_then(text)
         .and_then(|v| v.parse().ok())
         .unwrap_or(ParsedIp::Replacement);
