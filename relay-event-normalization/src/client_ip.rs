@@ -66,7 +66,7 @@ use relay_event_schema::protocol::{
 };
 use relay_pii::ProjectPii;
 use relay_pii::UserIpRetention::{ApplyRules, HashOnly};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, RemarkType, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
@@ -74,7 +74,10 @@ use crate::{AsnLookup, CityLookup, NormalizationConfig};
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
-    value.meta().iter_remarks().next().is_some()
+    value
+        .meta()
+        .iter_remarks()
+        .any(|r| r.ty != RemarkType::Annotated)
 }
 
 pub fn unredacted_value<T>(field: &Annotated<T>) -> Option<&T> {
@@ -428,6 +431,33 @@ mod tests {
             let ip = event.user.value().and_then(|u| u.ip_address.as_str());
             let asn = event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER));
             assert_eq!((ip, asn), (expected_ip, expected_asn), "{meta}");
+        }
+    }
+
+    #[test]
+    fn test_user_ip_lookup_with_remarks() {
+        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
+        let config = NormalizationConfig {
+            asn_lookup: Some(&db),
+            ..Default::default()
+        };
+        for (remarks, expected) in [
+            (json!([["note", "a"]]), Some("15169")),
+            (json!([["note", "a"], ["replace", "s"]]), None),
+        ] {
+            let payload = json!({
+                "user": {"ip_address": "1.0.0.1"},
+                "_meta": {"user": {"ip_address": {"": {"rem": remarks}}}},
+            });
+            let mut event = Annotated::<Event>::from_json(&payload.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            process_client_ip(&mut event, &config, Default::default()).unwrap();
+            assert_eq!(
+                event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER)),
+                expected
+            );
         }
     }
 
