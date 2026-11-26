@@ -17,8 +17,8 @@
 //!
 //! ## Request and connection
 //!
-//! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`. CSP reports
-//!   prefer the connection IP when inference is enabled. Resolve request `{{auto}}` independently.
+//! - CSP reports prefer the connection IP when inference is enabled. Other events prefer
+//!   a concrete `user.ip_address`, then `REMOTE_ADDR`. Resolve request `{{auto}}` independently.
 //! - An explicit user `{{auto}}` permits connection backfill when inference is enabled.
 //!   With no user IP, connection backfill requires SDK opt-in or legacy JavaScript, Cocoa, or ObjC.
 //! - SDK `infer_ip: "never"` disables user IP backfill. City and opt-in ASN may still
@@ -204,13 +204,13 @@ pub fn process_user_ip(
         HashOnly
     };
     let (lookup, backfill, ip_retention) = match (supplied, remote) {
-        // Use the concrete IP already on the user for lookup and leave the field for user PII.
-        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, ApplyRules),
         // A replaced or redacted user IP blocks lookup and fallback to another source.
         (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, ApplyRules),
 
         // Security reports prefer the connection, even if the request IP was redacted.
         (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), ApplyRules),
+        // Other events use the concrete user IP before any request or connection fallback.
+        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, ApplyRules),
         // Redaction on the incoming request, environment, or address blocks connection fallback.
         (_, Err(Redacted)) => (None, None, ApplyRules),
         // Look up the original request IP. Copy it to the user only if it survives request PII.

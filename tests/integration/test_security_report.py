@@ -376,6 +376,7 @@ def test_security_report_forwards_classified_events(mini_sentry, relay):
             payload=PayloadRef(
                 json={
                     "type": "csp",
+                    "user": {"ip_address": "192.0.2.1"},
                     "csp": {
                         "blocked_uri": "http://evilhackerscripts.com",
                         "document_uri": "https://example.com/foo/bar",
@@ -386,11 +387,13 @@ def test_security_report_forwards_classified_events(mini_sentry, relay):
             type="security",
         )
     )
-    relay.send_envelope(proj_id, envelope)
+    relay.send_envelope(proj_id, envelope, headers={"X-Forwarded-For": "198.51.100.1"})
 
     envelope = mini_sentry.get_captured_envelope()
     assert [item.type for item in envelope.items] == ["security"]
-    assert get_security_report(envelope)["csp"]["effective_directive"] == "default-src"
+    report = get_security_report(envelope)
+    assert report["csp"]["effective_directive"] == "default-src"
+    assert report["user"]["ip_address"] == "198.51.100.1"
 
     assert mini_sentry.captured_outcomes.empty()
 
