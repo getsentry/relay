@@ -131,28 +131,21 @@ pub fn process_user_ip(
         }
         Ok(ip)
     });
-    let csp = transport.filter(|_| config.security_report && config.infer_ip_address);
+    let csp_connection = transport.filter(|_| config.security_report && config.infer_ip_address);
     let use_request = matches!(supplied, Ok(ParsedIp::Auto) | Err(Missing))
-        && csp.is_none()
+        && csp_connection.is_none()
         && infer != AutoInferSetting::Never;
     let remote = normalize_request_ip(request, transport, use_request);
     rules.scrub_request_env(request)?;
 
-    // Legacy JavaScript and Apple SDKs infer even a missing user IP from the connection.
-    let fallback = transport.filter(|_| {
-        matches!(supplied, Ok(ParsedIp::Auto))
-            || infer == AutoInferSetting::Auto
-            || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
-    });
-    let (lookup, backfill, hash_only) = match (supplied, csp, remote, fallback) {
-        (Ok(ParsedIp::Address(ip)), ..) => (Some(ip), None, false),
-        (Ok(ParsedIp::Replacement) | Err(Redacted), ..) => (None, None, false),
-        (_, Some(ip), ..) | (_, None, Err(Missing), Some(ip)) => (
-            Some(ip),
-            Some(ProtocolIp::from(ip)),
-            !config.infer_ip_address,
-        ),
-        (_, _, Ok(ip), _) => {
+    let (lookup, backfill, hash_only) = match (supplied, remote) {
+        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, false),
+        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, false),
+
+        // Security reports prefer the connection, even if the request IP was redacted.
+        (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), false),
+        (_, Err(Redacted)) => (None, None, false),
+        (_, Ok(ip)) => {
             // A removed request address may enrich the event but cannot be copied to the user.
             let survives = request
                 .value()
@@ -162,8 +155,21 @@ pub fn process_user_ip(
                 .is_some();
             (ip.address(), survives.then_some(ip), false)
         }
-        (_, _, Err(Redacted), _) => (None, None, false),
-        _ => (config.client_ip, None, false),
+
+        // An explicit user marker requests a connection backfill on any platform.
+        (Ok(ParsedIp::Auto), Err(Missing)) if let Some(ip) = transport => {
+            (Some(ip), Some(ip.into()), !config.infer_ip_address)
+        }
+        // A missing user IP uses the connection for SDK opt-in or legacy client platforms.
+        (Err(Missing), Err(Missing))
+            if let Some(ip) = transport
+                && (infer == AutoInferSetting::Auto
+                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))) =>
+        {
+            (Some(ip), Some(ip.into()), !config.infer_ip_address)
+        }
+        // The envelope IP can still supply a lookup when it cannot backfill the user.
+        (Ok(ParsedIp::Auto) | Err(Missing), Err(Missing)) => (config.client_ip, None, false),
     };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
@@ -197,19 +203,19 @@ pub fn process_user_ip(
                 .iter_remarks()
                 .any(|r| r.ty == RemarkType::Pseudonymized)
     };
-    let advanced_replaced = if let Some(advanced) = rules.advanced {
-        PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?
-    } else {
-        false
-    };
-    let (saved_id, last_replaced) = if let Some(legacy) = rules.legacy {
-        // Legacy rules may remove the advanced replacement or a competing username/email.
-        let saved_id =
-            (advanced_replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
-        let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
-        (saved_id, replaced)
-    } else {
-        (None, advanced_replaced)
+    let (saved_id, last_replaced) = match (rules.advanced, rules.legacy) {
+        (None, None) => (None, false),
+        (Some(rule), None) | (None, Some(rule)) => {
+            let replaced = PiiProcessor::new(rule.compiled()).scrub_event_user_fields(user)?;
+            (None, replaced)
+        }
+        (Some(advanced), Some(legacy)) => {
+            let replaced = PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?;
+            // Legacy rules may remove the advanced replacement or a competing username/email.
+            let saved_id = (replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
+            let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
+            (saved_id, replaced)
+        }
     };
     if user_needs_id(user)
         && let Some(id) = saved_id.or_else(|| {
