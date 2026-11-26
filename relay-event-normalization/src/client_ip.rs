@@ -12,10 +12,18 @@
 //! - An eligible IP replacement may supply a fallback ID after advanced and legacy PII
 //!   if no ID, email, or username survives. Respect ID redaction and scrub the derived ID.
 //!   A connection IP admitted only for hashing may contribute only its hash.
-//! - A transaction segment may use the event IP for ASN. Child spans need their own address.
-//!   Later Relays preserve existing enrichment and honor upstream redactions.
+//! - Later Relays preserve existing enrichment and honor upstream redactions.
 //!
 //! City lookup with IP storage disabled: <https://github.com/getsentry/relay/pull/4586>.
+//!
+//! ## Span enrichment
+//!
+//! - For ASN, use the span's `client.address`, then `user.ip_address` if the first is absent.
+//!   An invalid or redacted address blocks fallback.
+//! - A transaction segment may use the event IP when both span addresses are absent.
+//!   Child spans need their own address for ASN, even when they inherit event user tags.
+//! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
+//!   `user.ip_address`. Span PII rules apply to the derived ASN attributes.
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
