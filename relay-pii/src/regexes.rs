@@ -4,7 +4,7 @@ use regex::Regex;
 use smallvec::{SmallVec, smallvec};
 
 use crate::config::RuleType;
-use crate::regex::{ScrubbingRegex, ScrubbingRegexRef};
+use crate::regex::{Match, ScrubbingRegex, ScrubbingRegexRef};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PatternType {
@@ -128,6 +128,24 @@ fn is_luhn_valid(s: &[u8]) -> bool {
         })
         .sum();
     sum.is_multiple_of(10)
+}
+
+/// Validates a credit card number match.
+///
+/// Rejects parts of a decimal number, such as `1.4111111111111111` or `4111111111111111.5`, and
+/// numbers with an invalid Luhn checksum.
+fn is_creditcard(m: Match<'_>) -> bool {
+    let before = &m.haystack[..m.range.start];
+    if matches!(before, [.., d, b'.'] if d.is_ascii_digit()) {
+        return false;
+    }
+
+    let after = &m.haystack[m.range.end..];
+    if matches!(after, [b'.', d, ..] if d.is_ascii_digit()) {
+        return false;
+    }
+
+    is_luhn_valid(m.as_bytes())
 }
 
 #[rustfmt::skip]
@@ -329,7 +347,7 @@ regex!(
         ([-\s]?\d){12}
     )\b
     "#,
-    is_luhn_valid
+    is_creditcard
 );
 
 regex!(
