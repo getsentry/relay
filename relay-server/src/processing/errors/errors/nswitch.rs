@@ -4,29 +4,31 @@
 
 use super::ErrorPayload;
 
-#[cfg(sentry)]
-use bytes::Bytes;
-#[cfg(sentry)]
+use bytes::{Buf, Bytes};
 use relay_event_schema::protocol::Event;
-#[cfg(sentry)]
 use relay_protocol::Annotated;
+use std::sync::OnceLock;
+use zstd::bulk::Decompressor as ZstdDecompressor;
+
 use relay_quotas::DataCategory;
 
-use crate::envelope::{AttachmentItem, Item};
-#[cfg(sentry)]
-use crate::envelope::{EventItem, SessionItem};
+use crate::Envelope;
+use crate::constants::NNSWITCH_SENTRY_MAGIC;
+use crate::envelope::{
+    AttachmentItem, AttachmentType, EnvelopeError, EventItem, Item, SessionItem, UserReportItem,
+};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
-#[cfg(sentry)]
-use crate::processing::errors::utils;
-#[cfg(sentry)]
+use crate::processing::errors::{Result, utils};
+use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
+/// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
+const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
+
 #[derive(Debug)]
-#[cfg_attr(not(sentry), expect(dead_code))]
 pub enum Nswitch {
-    Forward { dying_message: AttachmentItem },
+    Forward { item_bundle: AttachmentItem },
     Process,
 }
 
@@ -35,17 +37,12 @@ impl SentryError for Nswitch {
         DataCategory::Error
     }
 
-    #[cfg(not(sentry))]
-    fn try_expand(_items: &mut Vec<Item>, _ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        Ok(None)
-    }
-
-    #[cfg(sentry)]
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        use crate::envelope::{AttachmentType, UserReportItem};
-
-        let Some(dying_message) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            item.attachment_type() == AttachmentType::NintendoSwitchDyingMessage
+        let Some(item_bundle) = utils::take_item_if::<AttachmentItem>(items, |item| {
+            matches!(
+                item.attachment_type(),
+                AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle
+            )
         }) else {
             return Ok(None);
         };
@@ -66,7 +63,7 @@ impl SentryError for Nswitch {
                 flamegraph: None,
                 user_reports,
                 intermediates: vec![],
-                error: Self::Forward { dying_message },
+                error: Self::Forward { item_bundle },
                 metrics,
                 fully_normalized: false,
             }));
@@ -74,18 +71,18 @@ impl SentryError for Nswitch {
 
         let event = utils::take_item::<EventItem>(items);
 
-        let dying_message = expand_dying_message(dying_message.data().payload())
-            .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
+        let item_bundle = expand_item_bundle(item_bundle.data().payload())
+            .map_err(ProcessingError::InvalidItemBundle)?;
 
         let mut attachments = attachments;
-        attachments.extend(dying_message.attachments);
+        attachments.extend(item_bundle.attachments);
 
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
-        let mut event = match (event, dying_message.event) {
-            (Some(event), Some(dying_message)) => {
+        let mut event = match (event, item_bundle.event) {
+            (Some(event), Some(item_bundle)) => {
                 metrics.bytes_ingested_event =
-                    Annotated::new((event.data().len() + dying_message.data().len()) as u64);
-                merge_events(event, dying_message, ctx)?
+                    Annotated::new((event.data().len() + item_bundle.data().len()) as u64);
+                merge_events(event, item_bundle, ctx)?
             }
             (Some(event), None) => {
                 utils::event_from_json(&event.data().payload(), None, &mut metrics, ctx.processing)?
@@ -108,7 +105,7 @@ impl SentryError for Nswitch {
             attachments,
             flamegraph: None,
             user_reports,
-            intermediates: dying_message
+            intermediates: item_bundle
                 .session_updates
                 .into_iter()
                 .map(Item::from)
@@ -130,7 +127,7 @@ impl SentryError for Nswitch {
 
     fn into_payload(self) -> ErrorPayload {
         ErrorPayload(match self {
-            Self::Forward { dying_message } => smallvec::smallvec![dying_message],
+            Self::Forward { item_bundle } => smallvec::smallvec![item_bundle],
             Self::Process => Default::default(),
         })
     }
@@ -143,84 +140,128 @@ impl SentryError for Nswitch {
 impl Counted for Nswitch {
     fn quantities(&self) -> Quantities {
         match self {
-            // The item rules own the dying message's zero attachment contribution.
-            Self::Forward { dying_message } => dying_message.quantities(),
+            // The item rules own the item bundle's zero attachment contribution.
+            Self::Forward { item_bundle } => item_bundle.quantities(),
             // Processing has already consumed the message into the event.
             Self::Process => Quantities::new(),
         }
     }
 }
 
-/// An error returned when parsing the dying message attachment.
-#[cfg(sentry)]
+/// An error returned when parsing the item bundle attachment.
 #[derive(Debug, thiserror::Error)]
-pub enum SwitchProcessingError {
+pub enum ItemBundleError {
     #[error("envelope parsing failed")]
-    EnvelopeParsing(#[from] crate::envelope::EnvelopeError),
-    #[error("invalid dying message")]
-    DyingMessage(#[from] relay_private::nintendo::Error),
+    EnvelopeParsing(#[from] EnvelopeError),
+    #[error("unexpected EOF, expected {expected:?}")]
+    UnexpectedEof { expected: &'static str },
+    #[error("invalid magic number")]
+    InvalidMagic,
+    #[error("invalid {0:?} ({1:?})")]
+    InvalidValue(&'static str, usize),
+    #[error("Zstandard error")]
+    Zstandard(#[source] std::io::Error),
 }
 
-#[cfg(sentry)]
 fn merge_events(
     from_envelope: EventItem,
-    from_dying_messages: EventItem,
+    from_item_bundle: EventItem,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    use crate::services::outcome::DiscardItemType;
-
     if from_envelope
         .data()
         .len()
-        .max(from_dying_messages.data().len())
+        .max(from_item_bundle.data().len())
         > ctx.processing.config.max_event_size()
     {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
 
-    merge_events_inner(from_envelope, from_dying_messages)
+    merge_events_inner(from_envelope, from_item_bundle)
         .map_err(ProcessingError::InvalidJson)
         .map_err(Into::into)
 }
 
-#[cfg(sentry)]
 fn merge_events_inner(
     from_envelope: EventItem,
-    from_dying_messages: EventItem,
+    from_item_bundle: EventItem,
 ) -> Result<Annotated<Event>, serde_json::Error> {
     let from_envelope = serde_json::from_slice(&from_envelope.data().payload())?;
-    let mut from_dying_message = serde_json::from_slice(&from_dying_messages.data().payload())?;
+    let mut base = serde_json::from_slice(&from_item_bundle.data().payload())?;
 
-    // Uses the dying message as a base and fills it with values from the event.
-    crate::utils::merge_values(&mut from_dying_message, from_envelope);
+    // Uses the item bundle as a base and fills it with values from the event.
+    crate::utils::merge_values(&mut base, from_envelope);
 
-    Annotated::<Event>::deserialize_with_meta(from_dying_message)
+    Annotated::<Event>::deserialize_with_meta(base)
 }
 
-#[cfg(sentry)]
 #[derive(Debug, Default)]
-struct ExpandedDyingMessage {
+struct ExpandedItemBundle {
     event: Option<EventItem>,
     attachments: Vec<AttachmentItem>,
     session_updates: Vec<SessionItem>,
 }
 
-/// Parses DyingMessage contents and updates the envelope.
-#[cfg(sentry)]
-fn expand_dying_message(payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    let data = relay_private::nintendo::expand_dying_message(payload)?;
-    expand_dying_message_from_envelope_items(data)
+/// Parses ItemBundle contents and updates the envelope.
+/// See `item_bundle.md` for the documentation.
+fn expand_item_bundle(mut payload: Bytes) -> Result<ExpandedItemBundle, ItemBundleError> {
+    // The attachment type usually comes from an explicitly set item header, in which case nothing
+    // has inspected the payload yet. Validate the magic here so a crafted short payload can't
+    // panic the `advance` below.
+    if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
+        return Err(ItemBundleError::InvalidMagic);
+    }
+    payload.advance(NNSWITCH_SENTRY_MAGIC.len());
+    let version = payload
+        .try_get_u8()
+        .map_err(|_| ItemBundleError::UnexpectedEof {
+            expected: "version",
+        })?;
+
+    match version {
+        0 => expand_item_bundle_v0(payload),
+        _ => Err(ItemBundleError::InvalidValue("version", version as usize)),
+    }
 }
 
-/// Merges envelope items with the ones contained in the DyingMessage
-#[cfg(sentry)]
-fn expand_dying_message_from_envelope_items(
-    data: Bytes,
-) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
-    use crate::Envelope;
+/// ItemBundle protocol v0 parser.
+fn expand_item_bundle_v0(mut payload: Bytes) -> Result<ExpandedItemBundle, ItemBundleError> {
+    let encoding_byte = payload
+        .try_get_u8()
+        .map_err(|_| ItemBundleError::UnexpectedEof {
+            expected: "encoding",
+        })?;
+    let format = (encoding_byte >> 6) & 0b0000_0011;
+    let compression = (encoding_byte >> 4) & 0b0000_0011;
+    let compression_arg = encoding_byte & 0b0000_1111;
 
+    let compressed_length = payload
+        .try_get_u16()
+        .map_err(|_| ItemBundleError::UnexpectedEof {
+            expected: "compressed data length",
+        })?;
+    let data = decompress_data(
+        payload,
+        compressed_length as usize,
+        compression,
+        compression_arg,
+    )?;
+
+    match format {
+        0 => expand_item_bundle_from_envelope_items(data),
+        _ => Err(ItemBundleError::InvalidValue(
+            "payload format",
+            format as usize,
+        )),
+    }
+}
+
+/// Merges envelope items with the ones contained in the ItemBundle
+fn expand_item_bundle_from_envelope_items(
+    data: Bytes,
+) -> Result<ExpandedItemBundle, ItemBundleError> {
     let mut items = Envelope::parse_items_bytes(data)
-        .map_err(SwitchProcessingError::EnvelopeParsing)?
+        .map_err(ItemBundleError::EnvelopeParsing)?
         .into_vec();
 
     let event = utils::take_item::<EventItem>(&mut items);
@@ -230,20 +271,79 @@ fn expand_dying_message_from_envelope_items(
     if !items.is_empty() {
         // Ignore unsupported items instead of failing to keep forward compatibility.
         relay_log::debug!(
-            "Ignoring {} unsupported items in the dying message",
+            "Ignoring {} unsupported items in the item bundle",
             items.len()
         );
     }
 
-    Ok(ExpandedDyingMessage {
+    Ok(ExpandedItemBundle {
         event,
         attachments,
         session_updates,
     })
 }
 
+fn decompress_data(
+    payload: Bytes,
+    compressed_length: usize,
+    compression: u8,
+    compression_arg: u8,
+) -> Result<Bytes, ItemBundleError> {
+    if payload.len() < compressed_length {
+        return Err(ItemBundleError::InvalidValue(
+            "compressed data length",
+            compressed_length,
+        ));
+    }
+
+    let data = payload.slice(0..compressed_length);
+    match compression {
+        // No compression
+        0 => Ok(data),
+        // Zstandard
+        1 => decompress_data_zstd(data, compression_arg)
+            .map(Bytes::from)
+            .map_err(ItemBundleError::Zstandard),
+        _ => Err(ItemBundleError::InvalidValue(
+            "compression format",
+            compression as usize,
+        )),
+    }
+}
+
+fn get_zstd_dictionary(id: usize) -> Option<&'static zstd::dict::DecoderDictionary<'static>> {
+    // Inlined dictionary binary data.
+    static ZSTD_DICTIONARIES: &[&[u8]] = &[
+        // index 0 = empty dictionary (a.k.a "none")
+        b"",
+    ];
+
+    // We initialize dictionaries (from their binary representation) only once and reuse them when decompressing.
+    static ZSTD_DEC_DICTIONARIES: OnceLock<
+        [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()],
+    > = OnceLock::new();
+    let dictionaries = ZSTD_DEC_DICTIONARIES.get_or_init(|| {
+        let mut dictionaries: [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()] =
+            [zstd::dict::DecoderDictionary::new(ZSTD_DICTIONARIES[0])];
+        for i in 0..ZSTD_DICTIONARIES.len() {
+            dictionaries[i] = zstd::dict::DecoderDictionary::new(ZSTD_DICTIONARIES[i]);
+        }
+        dictionaries
+    });
+
+    dictionaries.get(id)
+}
+
+fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
+    let dictionary = get_zstd_dictionary(dictionary_id as usize)
+        .ok_or(std::io::Error::other("Unknown compression dictionary"))?;
+
+    let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
+    decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
+}
+
 #[cfg(test)]
-#[cfg(all(sentry, feature = "processing"))]
+#[cfg(feature = "processing")]
 mod tests {
     use super::*;
 
@@ -254,9 +354,7 @@ mod tests {
     use std::io::Write;
     use zstd::bulk::Compressor as ZstdCompressor;
 
-    use crate::Envelope;
-    use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
-    use crate::envelope::{AttachmentType, ContentType, Item};
+    use crate::envelope::{ContentType, Item};
     use crate::processing;
     use crate::services::projects::project::ProjectInfo;
 
@@ -292,18 +390,18 @@ mod tests {
         }
     }
 
-    fn create_envelope_items(dying_message: Bytes) -> Vec<Item> {
+    fn create_envelope_items(item_bundle: Bytes) -> Vec<Item> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
         //       Otherwise parsing would fail because the inner one can contain line-breaks.
         let envelope =
         r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 {"type":"event"}
 {"message":"hello world","level":"error","map":{"a":"val"}}
-{"type":"attachment","filename":"dying_message.dat","length":<len>}
-"#.replace("<len>", &dying_message.len().to_string());
+{"type":"attachment","attachment_type":"event.item_bundle","filename":"item_bundle.dat","length":<len>}
+"#.replace("<len>", &item_bundle.len().to_string());
 
         let mut envelope =
-            Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap();
+            Envelope::parse_bytes([Bytes::from(envelope), item_bundle].concat().into()).unwrap();
 
         envelope.take_items_by(|_| true).into_vec()
     }
@@ -327,7 +425,7 @@ mod tests {
         let Item::Attachment(attachment) = &items[1] else {
             panic!("expected an attachment");
         };
-        assert_eq!(attachment.filename(), Some(NNSWITCH_DYING_MESSAGE_FILENAME));
+        assert_eq!(attachment.attachment_type(), AttachmentType::ItemBundle);
         assert_eq!(items[1].data().payload().len(), 106);
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
@@ -353,8 +451,8 @@ mod tests {
     #[test]
     fn test_expand_compressed_envelope_items() {
         // encoding 0x10 - i.e. envelope items, Zstandard compressed, no dictionary
-        let dying_message = create_compressed_dying_message(0x10);
-        let mut items = create_envelope_items(dying_message.into());
+        let item_bundle = create_compressed_item_bundle(0x10);
+        let mut items = create_envelope_items(item_bundle.into());
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
@@ -376,7 +474,7 @@ mod tests {
         assert_eq!(parsed.attachments[0].data().payload(), "Hi".as_bytes());
     }
 
-    fn create_compressed_dying_message(encoding: u8) -> Vec<u8> {
+    fn create_compressed_item_bundle(encoding: u8) -> Vec<u8> {
         // The attachment content is as follows:
         // - 4 bytes magic = sntr
         // - 1 byte version = 0
@@ -394,14 +492,33 @@ mod tests {
                 ",
             )
             .unwrap();
-        let mut dying_message: Vec<u8> = Vec::new();
-        dying_message.write_all(b"sntr\0").unwrap();
-        dying_message.write_all(&[encoding]).unwrap();
-        dying_message
+        let mut item_bundle: Vec<u8> = Vec::new();
+        item_bundle.write_all(b"sntr\0").unwrap();
+        item_bundle.write_all(&[encoding]).unwrap();
+        item_bundle
             .write_all(&(compressed_data.len() as u16).to_be_bytes())
             .unwrap();
-        dying_message.write_all(&compressed_data).unwrap();
-        dying_message
+        item_bundle.write_all(&compressed_data).unwrap();
+        item_bundle
+    }
+
+    #[test]
+    fn test_expand_fails_with_unknown_dictioary() {
+        // encoding 0x10 - i.e. envelope items, Zstandard compressed, dictionary ID 1
+        let item_bundle = create_compressed_item_bundle(0b0001_0001);
+        let mut items = create_envelope_items(item_bundle.into());
+
+        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
+    }
+
+    #[test]
+    fn test_expand_fails_on_invalid_data() {
+        let mut items = create_envelope_items(Bytes::from(
+            "sntr\0\0\0\x62\
+            {\"type\":\"event\"}\n\
+            ",
+        ));
+        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
     }
 
     #[test]
@@ -412,34 +529,52 @@ mod tests {
     }
 
     #[test]
+    fn test_expand_item_bundle_rejects_short_or_invalid_magic() {
+        // A payload shorter than the 4-byte magic must return an error rather than panic in
+        // `advance` (reachable when the attachment type is set explicitly in the item header).
+        for payload in ["", "s", "sn", "snt"] {
+            assert!(matches!(
+                expand_item_bundle(Bytes::from(payload)),
+                Err(ItemBundleError::InvalidMagic)
+            ));
+        }
+
+        // A long-enough payload whose magic doesn't match is rejected too.
+        assert!(matches!(
+            expand_item_bundle(Bytes::from("xxxx")),
+            Err(ItemBundleError::InvalidMagic)
+        ));
+    }
+
+    #[test]
     fn test_switch_crash_is_reshaped() {
         let mut event = EventItem::new();
         event.data_mut().set_payload(
             ContentType::Json,
             include_bytes!(
-                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_event.json"
+                "../../../../../tests/integration/fixtures/native/item_bundle_scope_event.json"
             )
             .as_slice(),
         );
 
-        let mut dying_message = AttachmentItem::new();
-        dying_message.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
-        dying_message.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
-        dying_message.data_mut().set_payload(
+        let mut item_bundle = AttachmentItem::new();
+        item_bundle.set_filename("item_bundle.dat");
+        item_bundle.set_attachment_type(AttachmentType::ItemBundle);
+        item_bundle.data_mut().set_payload(
             ContentType::OctetStream,
             include_bytes!(
-                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_dying_message_raw.dat"
+                "../../../../../tests/integration/fixtures/native/item_bundle_scope.dat"
             )
             .as_slice(),
         );
 
-        let mut items = vec![event.into(), dying_message.into()];
+        let mut items = vec![event.into(), item_bundle.into()];
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         let event = parsed.event.value().unwrap();
 
-        // The DyingMessage scope patch is the merge base and contributes the fields the
+        // The ItemBundle scope patch is the merge base and contributes the fields the
         // forwarded event lacks.
         assert_eq!(
             event.release.value().map(|release| release.as_str()),

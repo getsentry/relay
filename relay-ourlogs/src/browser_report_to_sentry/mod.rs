@@ -86,8 +86,9 @@ fn extract_server_address(server_address: &str) -> String {
 pub fn browser_report_to_sentry_log(
     report: BrowserReport,
     received_at: DateTime<Utc>,
+    release: Option<&str>,
 ) -> Option<OurLog> {
-    create_log_with_trace_id(report, received_at, None)
+    create_log_with_trace_id(report, received_at, release, None)
 }
 
 /// Creates a [`OurLog`] from the provided [`BrowserReport`] with an optional trace ID.
@@ -95,6 +96,7 @@ pub fn browser_report_to_sentry_log(
 fn create_log_with_trace_id(
     report: BrowserReport,
     received_at: DateTime<Utc>,
+    release: Option<&str>,
     trace_id: Option<TraceId>,
 ) -> Option<OurLog> {
     let BrowserReport {
@@ -115,6 +117,9 @@ fn create_log_with_trace_id(
     add_string_attribute!(attributes, USER_AGENT__ORIGINAL, user_agent);
     add_string_attribute!(attributes, URL__DOMAIN, extract_server_address(&url));
     add_string_attribute!(attributes, URL__FULL, url);
+    if let Some(release) = release {
+        add_string_attribute!(attributes, SENTRY__RELEASE, release);
+    }
 
     let log = match body {
         BrowserReportBody::NetworkError(body) => nel::create_log_from_nel_body(body, attributes),
@@ -169,7 +174,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(&Annotated::new(log), @r#"
         {
@@ -285,7 +290,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "825d2fca3bcd40d390a0b39fe7102e90".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log),
@@ -361,7 +366,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log), @r#"
@@ -435,7 +440,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log), @r#"
@@ -513,7 +518,7 @@ mod tests {
         }"#).unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log), @r#"
@@ -783,6 +788,6 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "825d2fca3bcd40d390a0b39fe7102e90".parse().unwrap();
-        assert!(create_log_with_trace_id(report, received_at, Some(trace_id)).is_none());
+        assert!(create_log_with_trace_id(report, received_at, None, Some(trace_id)).is_none());
     }
 }

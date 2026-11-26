@@ -5,9 +5,12 @@
 **Features**:
 
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
+- Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
+- Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart. ([#6717](https://github.com/getsentry/relay/pull/6717))
 
 **Bug Fixes**:
 
+- Bump symbolic so Unreal crash parsing caps the length of individual values in the crash context XML. ([#6767](https://github.com/getsentry/relay/pull/6767))
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))
@@ -26,11 +29,12 @@
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
 - Support duplicating Redis write commands to a second Redis with a multi write config. ([#6695](https://github.com/getsentry/relay/pull/6695))
 - Delay shutdown until kafka messages have been drained. ([#6700](https://github.com/getsentry/relay/pull/6700))
-- Move some Nintendo logic into the private source. ([#6683](https://github.com/getsentry/relay/pull/6683))
 - Improve performance for logs, spans and trace metrics by parsing a user agent only once when it repeats across items. ([#6677](https://github.com/getsentry/relay/pull/6677))
 - Use `multra` instead of `multer` for multipart parsing. ([#6723](https://github.com/getsentry/relay/pull/6723))
-- Update sentry-conventions to 0.34.0. Adds `sentry.user`, `page.server_rendering.age`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728))
+- Update sentry-conventions to [0.36.0](https://github.com/getsentry/sentry-conventions/releases/tag/0.36.0). Adds `sentry.user`, `page.server_rendering.age`, `client.as.number`, `client.as.organization`, and Elixir runtime metric attributes, and moves the deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes back from `transform` to `normalize`. ([#6728](https://github.com/getsentry/relay/pull/6728), [#6762](https://github.com/getsentry/relay/pull/6762))
 - Increase the maximum depth of stack frame variables from 5 to 10. ([#6733](https://github.com/getsentry/relay/pull/6733))
+- Bound all span expansions/deserializations. ([#6651](https://github.com/getsentry/relay/pull/6651))
+- Bounds all log expansions/deserializations. ([#6652](https://github.com/getsentry/relay/pull/6652))
 
 ## 26.11.0
 
