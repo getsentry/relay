@@ -641,12 +641,12 @@ where
             );
             continue;
         };
-        rewrites.push((name.clone(), target, move_value));
+        rewrites.push((Box::<str>::from(name.as_str()), target, move_value));
     }
 
     for (name, target, move_value) in rewrites {
         if move_value {
-            let Some(source) = attributes.get_mut(&name) else {
+            let Some(source) = attributes.get_mut(name.as_ref()) else {
                 continue;
             };
             let mut meta = Meta::default();
@@ -657,7 +657,7 @@ where
                 attributes.insert(target.into_owned(), value);
             }
         } else if !attributes.contains_key(&*target)
-            && let Some(source) = attributes.get(&name).cloned()
+            && let Some(source) = attributes.get(name.as_ref()).cloned()
         {
             attributes.insert(target.into_owned(), source);
         }
