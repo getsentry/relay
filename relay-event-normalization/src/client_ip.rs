@@ -85,12 +85,6 @@ fn field_value_mut<T>(field: &mut Annotated<T>) -> Result<&mut T, Unavailable> {
     field.value_mut().as_mut().ok_or(Missing)
 }
 
-enum SelectedIp {
-    LookupOnly(Option<IpAddr>),
-    Request(ProtocolIp),
-    Connection(IpAddr),
-}
-
 /// Update the request payload's marker and read a concrete address only when needed for fallback.
 fn normalize_request_ip(
     request: &mut Annotated<Request>,
@@ -130,47 +124,35 @@ pub fn process_user_ip(
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });
-    let supplied = field_value_mut(user).and_then(|u| {
-        let parsed = field_value_mut(&mut u.ip_address)?.parsed();
-        Ok((parsed, &mut u.ip_address))
+    let supplied = field_value_mut(user).and_then(|user| {
+        let ip = field_value_mut(&mut user.ip_address)?.parsed();
+        if ip == ParsedIp::Auto {
+            user.ip_address.set_value(None);
+        }
+        Ok(ip)
     });
-    let (preferred, fallback) = match supplied {
-        Ok((ParsedIp::Address(ip), _)) => (Some(SelectedIp::LookupOnly(Some(ip))), None),
-        Ok((ParsedIp::Replacement, _)) | Err(Redacted) => {
-            (Some(SelectedIp::LookupOnly(None)), None)
-        }
-        Ok((ParsedIp::Auto, field)) => {
-            field.set_value(None);
-            (None, transport)
-        }
-        Err(Missing) => {
-            // Legacy JavaScript and Apple SDKs infer a missing user IP from the connection.
-            let fallback = transport.filter(|_| {
-                infer == AutoInferSetting::Auto
-                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
-            });
-            (None, fallback)
-        }
-    };
-    let preferred = preferred.or_else(|| {
-        transport
-            .filter(|_| config.security_report && config.infer_ip_address)
-            .map(SelectedIp::Connection)
-    });
-
-    let use_request = preferred.is_none() && infer != AutoInferSetting::Never;
+    let csp = transport.filter(|_| config.security_report && config.infer_ip_address);
+    let use_request = matches!(supplied, Ok(ParsedIp::Auto) | Err(Missing))
+        && csp.is_none()
+        && infer != AutoInferSetting::Never;
     let remote = normalize_request_ip(request, transport, use_request);
-    let selected = preferred.unwrap_or_else(|| match remote {
-        Ok(ip) => SelectedIp::Request(ip),
-        Err(Redacted) => SelectedIp::LookupOnly(None),
-        Err(Missing) => fallback
-            .map(SelectedIp::Connection)
-            .unwrap_or(SelectedIp::LookupOnly(config.client_ip)),
-    });
     rules.scrub_request_env(request)?;
-    let (lookup, backfill, hash_only) = match selected {
-        SelectedIp::LookupOnly(ip) => (ip, None, false),
-        SelectedIp::Request(ip) => {
+
+    // Legacy JavaScript and Apple SDKs infer even a missing user IP from the connection.
+    let fallback = transport.filter(|_| {
+        matches!(supplied, Ok(ParsedIp::Auto))
+            || infer == AutoInferSetting::Auto
+            || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))
+    });
+    let (lookup, backfill, hash_only) = match (supplied, csp, remote, fallback) {
+        (Ok(ParsedIp::Address(ip)), ..) => (Some(ip), None, false),
+        (Ok(ParsedIp::Replacement) | Err(Redacted), ..) => (None, None, false),
+        (_, Some(ip), ..) | (_, None, Err(Missing), Some(ip)) => (
+            Some(ip),
+            Some(ProtocolIp::from(ip)),
+            !config.infer_ip_address,
+        ),
+        (_, _, Ok(ip), _) => {
             // A removed request address may enrich the event but cannot be copied to the user.
             let survives = request
                 .value()
@@ -180,11 +162,8 @@ pub fn process_user_ip(
                 .is_some();
             (ip.address(), survives.then_some(ip), false)
         }
-        SelectedIp::Connection(ip) => (
-            Some(ip),
-            Some(ProtocolIp::from(ip)),
-            !config.infer_ip_address,
-        ),
+        (_, _, Err(Redacted), _) => (None, None, false),
+        _ => (config.client_ip, None, false),
     };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
