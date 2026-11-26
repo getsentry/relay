@@ -32,7 +32,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     if let Some(status_code) = span
         .data
         .value()
-        .and_then(|data| data.get_value(HTTP__RESPONSE__STATUS_CODE))
+        .and_then(|data| data.get_value_with_deprecations(HTTP__RESPONSE__STATUS_CODE))
         .map(|v| match v {
             Value::String(s) => Some(s.as_str().to_owned()),
             Value::I64(i) => Some(i.to_string()),
@@ -264,6 +264,17 @@ mod tests {
         let user = User::default();
 
         assert!(get_event_user_tag(&user).is_none());
+    }
+
+    #[test]
+    fn http_status_code_uses_alias_before_tag_fallback() {
+        let span = Annotated::<Span>::from_json(
+            r#"{"data":{"http.status_code":201},"tags":{"http.status_code":"503"}}"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        assert_eq!(http_status_code_from_span(&span).as_deref(), Some("201"));
     }
 
     #[test]
