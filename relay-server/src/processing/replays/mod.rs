@@ -3,8 +3,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_event_normalization::CityLookup;
 use relay_event_normalization::eap::time::TimestampOutOfRange;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
 use relay_filter::FilterStatKey;
@@ -130,14 +130,20 @@ impl From<RateLimits> for Error {
 pub struct ReplaysProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: Option<CityLookup>,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl ReplaysProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: Option<CityLookup>) -> Self {
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        geoip_lookup: Option<CityLookup>,
+        asn_lookup: Option<AsnLookup>,
+    ) -> Self {
         Self {
             limiter,
             geoip_lookup,
+            asn_lookup,
         }
     }
 }
@@ -192,7 +198,12 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        process::normalize(&mut replay, self.geoip_lookup.as_ref(), ctx)?;
+        process::normalize(
+            &mut replay,
+            self.geoip_lookup.as_ref(),
+            self.asn_lookup.as_ref(),
+            ctx,
+        )?;
         filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;

@@ -90,7 +90,7 @@ impl RelayProcessor {
             logs_integration_vercel: VercelLogsIntegrationProcessor,
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
-            replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
+            replays: ReplaysProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             sessions: SessionsProcessor::new(ql()),
             spans: SpansProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             trace_attachments: TraceAttachmentsProcessor::new(ql()),

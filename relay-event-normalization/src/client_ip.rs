@@ -8,9 +8,9 @@
 //! | --- | --- | --- |
 //! | Raw CSP report | Connection at ingestion | Event tags after conversion |
 //! | Errors, messages, classified CSP, feedback v2 | Event IP | Event tags |
-//! | Transaction segment | Span address or event IP | Span attributes |
-//! | Child or standalone span | Span address | Span attributes |
-//! | Replay event | Event IP for City | None |
+//! | Transaction segment and embedded children | Event IP | Span attributes |
+//! | Standalone span | Span address | Span attributes |
+//! | Replay event | Event IP | Replay tags |
 //! | Logs, trace metrics | Address attributes | None |
 //! | Sessions, session aggregates | `attrs.ip_address` marker | None |
 //! | Other items | No lookup on the item itself | None |
@@ -51,14 +51,15 @@
 //!
 //! ## Span enrichment
 //!
-//! - Read `client.address`, then `user.ip_address`, from transaction span data or standalone span attributes.
-//!   An invalid address or one marked as modified blocks fallback.
+//! - On standalone spans, read `client.address`, then `user.ip_address`, from span attributes.
+//!   Only IP literals can supply a lookup. A hostname, socket name, or modified address blocks fallback.
 //! - Standalone spans can request the connection IP with an explicit address marker (`{{auto}}`).
-//! - A transaction segment may use the event IP when both span addresses are absent.
-//!   Child spans need their own address for ASN, even when they inherit event user tags.
+//! - The transaction segment and its children share the ASN derived from the event IP,
+//!   just as they share event user geo. Preserve ASN already supplied or scrubbed on a span.
 //! - Standalone spans use the same eligible address for City and ASN. Span PII rules
 //!   apply to the derived attributes.
 
+use std::cell::LazyCell;
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
@@ -79,7 +80,6 @@ use self::Unavailable::{MarkedModified, Missing};
 use crate::span::country_subregion::Subregion;
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
-const ADDRESS_KEYS: [&str; 2] = [CLIENT__ADDRESS, USER__IP_ADDRESS];
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
 /// Whether a remark records a change to the field, including a change to only part of its value.
@@ -122,11 +122,20 @@ pub fn process_client_ip(
     let Some(db) = config.asn_lookup else {
         return Ok(());
     };
-    let tags_have_asn = has_asn(&event.tags, |tags, k| tags.0.contains(k));
     if event.ty.value() == Some(&EventType::Transaction) {
-        enrich_transaction_asn(event, lookup, tags_have_asn, db, rules);
-    } else if !tags_have_asn && let Some((number, org)) = lookup.and_then(|ip| db.lookup(ip)) {
-        let tags = &mut event.tags.get_or_insert_with(Tags::default).0;
+        enrich_transaction_asn(event, lookup, db, rules);
+    } else {
+        enrich_asn_tags(&mut event.tags, lookup, db);
+    }
+    Ok(())
+}
+
+/// Fill missing ASN tags from the same address used for the event's City lookup.
+pub fn enrich_asn_tags(tags: &mut Annotated<Tags>, ip: Option<IpAddr>, db: &AsnLookup) {
+    if !has_asn(tags, |tags, k| tags.0.contains(k))
+        && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip))
+    {
+        let tags = &mut tags.get_or_insert_with(Tags::default).0;
         tags.insert(
             CLIENT__AS__NUMBER.into(),
             Annotated::new(number.to_string()),
@@ -138,7 +147,6 @@ pub fn process_client_ip(
             );
         }
     }
-    Ok(())
 }
 
 /// Inputs used to resolve a user IP on events and replays.
@@ -376,54 +384,43 @@ fn enrich_span_ip(
 fn enrich_transaction_asn(
     event: &mut Event,
     ip: Option<IpAddr>,
-    tags_have_asn: bool,
     db: &AsnLookup,
     rules: ProjectPii<'_>,
 ) {
-    if !tags_have_asn
+    let Some(ip) = ip else { return };
+    // Resolve and scrub the shared attributes once, when a span needs them.
+    let shared = LazyCell::new(|| {
+        let (number, org) = db.lookup(ip)?;
+        let mut fields = Attributes::new();
+        set_asn_fields(&mut fields, number, org);
+        Some(scrubbed_span_fields(fields, rules).collect::<Vec<_>>())
+    });
+    let inherit = |data: &mut Annotated<SpanData>| {
+        if !has_asn(data, SpanData::contains)
+            && let Some(fields) = &*shared
+        {
+            data.get_or_insert_with(SpanData::default)
+                .other
+                .extend(fields.iter().cloned());
+        }
+    };
+    if !has_asn(&event.tags, |tags, k| tags.0.contains(k))
         && !has_asn(&event.measurements, |m, k| m.contains_key(k))
         && let Ok(contexts) = field_value_mut(&mut event.contexts)
         && let Some(trace) = contexts.0.get_mut("trace")
         && let Ok(context) = field_value_mut(trace)
         && let Context::Trace(trace) = &mut context.0
     {
-        enrich_span_asn(&mut trace.data, ip, db, rules);
+        inherit(&mut trace.data);
     }
     if let Ok(spans) = field_value_mut(&mut event.spans) {
         for span in spans.iter_mut().filter_map(|s| field_value_mut(s).ok()) {
             if !has_asn(&span.measurements, |m, k| m.contains_key(k))
                 && !has_asn(&span.tags, |tags, k| tags.contains_key(k))
             {
-                enrich_span_asn(&mut span.data, None, db, rules);
+                inherit(&mut span.data);
             }
         }
-    }
-}
-
-fn enrich_span_asn(
-    data: &mut Annotated<SpanData>,
-    fallback: Option<IpAddr>,
-    db: &AsnLookup,
-    rules: ProjectPii<'_>,
-) {
-    if has_asn(data, SpanData::contains) {
-        return;
-    }
-    let source = data
-        .value()
-        .and_then(|d| ADDRESS_KEYS.iter().find_map(|key| d.get(key)));
-    let ip = match source {
-        Some(field) => value_without_modifying_remark(field)
-            .and_then(Value::as_str)
-            .and_then(|s| s.parse().ok()),
-        None => fallback,
-    };
-    if let Some((number, org)) = ip.and_then(|ip| db.lookup(ip)) {
-        let mut fields = Attributes::new();
-        set_asn_fields(&mut fields, number, org);
-        data.get_or_insert_with(Default::default)
-            .other
-            .extend(scrubbed_span_fields(fields, rules));
     }
 }
 

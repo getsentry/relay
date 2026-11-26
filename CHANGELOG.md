@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Look up the client ASN number and organization for errors and spans before IP scrubbing when the project enables `projects:relay-client-asn-lookup` and Relay has a local ASN database. ([#6760](https://github.com/getsentry/relay/pull/6760))
+- Look up the client ASN number and organization for errors, spans, and replay events before IP scrubbing when the project enables `projects:relay-client-asn-lookup` and Relay has a local ASN database. ([#6760](https://github.com/getsentry/relay/pull/6760))
 - Add `geoip.asn_path` for a local ASN database. The City database can be configured with `geoip.city_path` or the existing `geoip.path` key. ([#6759](https://github.com/getsentry/relay/pull/6759))
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))

@@ -1,4 +1,5 @@
 import hmac
+import json
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -8,6 +9,7 @@ from uuid import uuid4
 import pytest
 from sentry_sdk.envelope import Envelope
 
+from .test_replay_events import generate_replay_sdk_event
 from .test_spansv2 import envelope_with_spans
 from .test_store import make_error, make_transaction
 
@@ -343,6 +345,39 @@ def test_client_ip_enrichment_at_ingress(
             assert attrs.get("user.geo.city", {}).get("value") == city
 
 
+@pytest.mark.parametrize(
+    "enabled,scrub_org", [(True, False), (False, False), (True, True)]
+)
+def test_replay_city_and_asn(mini_sentry, relay, enabled, scrub_org):
+    project = mini_sentry.add_full_project_config(42)
+    features = ["organizations:session-replay"]
+    if enabled:
+        features.append(ASN_FEATURE)
+    project["config"]["features"] = features
+    if scrub_org:
+        project["config"]["piiConfig"]["applications"][f"tags.'{ORG}'"] = [
+            "@anything:remove"
+        ]
+    ingress = relay(mini_sentry, options={"geoip": {**CITY_DB, **DB["geoip"]}})
+    for supplied in ({}, {NUMBER: "42"}):
+        replay = generate_replay_sdk_event(uuid4().hex)
+        replay["user"]["ip_address"] = "89.160.20.112"
+        replay["tags"].update(supplied)
+        ingress.send_replay_event(
+            42, replay, envelope_headers={"event_id": replay["event_id"]}
+        )
+        envelope = mini_sentry.get_captured_envelope()
+        item = next(i for i in envelope.items if i.type == "replay_event")
+        payload = json.loads(item.payload.bytes)
+        assert payload["user"]["geo"]["city"] == "Linköping"
+        tags = dict(payload["tags"])
+        expected_number = supplied.get(NUMBER, "29518" if enabled else None)
+        assert tags.get(NUMBER) == expected_number
+        assert (tags.get(ORG) is not None) == (
+            enabled and not supplied and not scrub_org
+        )
+
+
 def test_fully_normalized_event_skips_ip_enrichment(
     mini_sentry, relay_credentials, relay_with_processing, events_consumer
 ):
@@ -520,7 +555,7 @@ def test_client_asn_address_selection(
     ] = ["@anything:remove"]
     events = events_consumer()
     spans = spans_consumer()
-    processing = relay_with_processing(options=DB)
+    processing = relay_with_processing(options={"geoip": {**CITY_DB, **DB["geoip"]}})
     headers = {"X-Forwarded-For": IP}
 
     for addr, expected in [
@@ -542,10 +577,12 @@ def test_client_asn_address_selection(
         assert {
             key: attrs[key]["value"] for key in attrs.keys() & {NUMBER, ORG}
         } == expected
+        if addr == "example.invalid":
+            assert attrs["client.address"]["value"] == addr
+            assert "user.geo.city" not in attrs
 
-    # A transaction's user IP belongs to its segment. Don't fan it out to
-    # every child from the copy of user.ip made during tag extraction.
-    tx = transaction("{{auto}}", {})
+    # Embedded spans inherit enrichment from the transaction's user IP.
+    tx = transaction("89.160.20.112", {})
     tx["spans"][0]["data"] = {}
     tx["spans"].append(
         {
@@ -554,23 +591,22 @@ def test_client_asn_address_selection(
             "data": {"client.address": "2600::1", "user.ip_address": IP},
         }
     )
-    # A custom tag alone does not supply an IP for enrichment.
-    tx["spans"][0]["tags"] = {"client.address": "{{auto}}"}
     processing.send_event(42, tx, headers=headers)
     results = {
         s["span_id"]: s["attributes"]
         for s in (spans.get_span(), spans.get_span(), spans.get_span())
     }
-    assert results[tx["contexts"]["trace"]["span_id"]][NUMBER]["value"] == 15169
+    assert results[tx["contexts"]["trace"]["span_id"]][NUMBER]["value"] == 29518
     assert (results[tx["contexts"]["trace"]["span_id"]].get(ORG) or {}).get(
         "value"
     ) is None
-    assert results["cccccccccccccccc"][NUMBER]["value"] == 237
-    assert results["bbbbbbbbbbbbbbbb"]["client.address"]["value"] == "{{auto}}"
-    assert NUMBER not in results["bbbbbbbbbbbbbbbb"]
-    assert ORG not in results["bbbbbbbbbbbbbbbb"]
+    assert results["cccccccccccccccc"][NUMBER]["value"] == 29518
+    assert results["cccccccccccccccc"]["user.geo.city"]["value"] == "Linköping"
+    child = results["bbbbbbbbbbbbbbbb"]
+    assert child["user.geo.city"]["value"] == "Linköping"
+    assert child[NUMBER]["value"] == 29518
 
-    # Embedded span addresses are literal data. A marker supplies no IP for ASN.
+    # Embedded markers stay literal. Both spans inherit the transaction user's ASN.
     tx = transaction("2600::1", {})
     tx["contexts"]["trace"]["data"] = {"client.address": "{{auto}}"}
     tx["spans"][0]["data"] = {"user.ip_address": "{{auto}}"}
@@ -579,7 +615,7 @@ def test_client_asn_address_selection(
         span = spans.get_span()
         key = "client.address" if span["is_segment"] else "user.ip_address"
         assert span["attributes"][key]["value"] == "{{auto}}"
-        assert NUMBER not in span["attributes"]
+        assert span["attributes"][NUMBER]["value"] == 237
 
     processing.send_event(
         42, make_error({"user": {"ip_address": "{{auto}}"}}), headers=headers
@@ -661,8 +697,8 @@ def test_client_asn_scrubbed_ip_and_indexed_destination(
     assert by_id[tx["contexts"]["trace"]["span_id"]] == (15169, "Google Inc.")
     assert by_id[first["span_id"]] == (15169, "Google Inc.")
     assert by_id["eeeeeeeeeeeeeeee"] == (15169, "Google Inc.")
-    assert by_id["cccccccccccccccc"] == (237, None)
-    assert by_id["dddddddddddddddd"] == (237, "Merit Network Inc.")
+    assert by_id["cccccccccccccccc"] == (15169, None)
+    assert by_id["dddddddddddddddd"] == (15169, "Google Inc.")
 
 
 @dataclass(frozen=True, kw_only=True)

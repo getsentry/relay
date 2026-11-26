@@ -1,6 +1,6 @@
 use crate::envelope::ReplayVideoItem;
 use relay_dynamic_config::Feature;
-use relay_event_normalization::{CityLookup, RawUserAgentInfo, eap, replay};
+use relay_event_normalization::{AsnLookup, CityLookup, RawUserAgentInfo, eap, replay};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::PiiProcessor;
@@ -102,6 +102,7 @@ pub fn expand(
 pub fn normalize(
     replay: &mut Managed<ExpandedReplay>,
     geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let meta = replay.headers.meta();
@@ -115,7 +116,13 @@ pub fn normalize(
     replay.try_modify(|replay, _| -> Result<(), Error> {
         if let Some(event) = replay.payload.event_mut() {
             eap::time::normalize(event, time_config)?;
-            replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup);
+            replay::normalize(
+                event,
+                client_addr,
+                &user_agent.as_deref(),
+                geoip_lookup,
+                asn_lookup.filter(|_| ctx.project_info.has_feature(Feature::ClientAsnLookup)),
+            );
         }
         Ok(())
     })
