@@ -221,12 +221,7 @@ impl<'a> PiiProcessor<'a> {
                 .value()
                 .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
         {
-            let meta = user.ip_address.meta();
-            if meta.preserves_user_identity()
-                && meta
-                    .iter_remarks()
-                    .any(|r| r.ty == RemarkType::Pseudonymized)
-            {
+            if user.ip_address.meta().is_pseudonymized() {
                 return Ok(true);
             }
             if user_needs_id(user) {

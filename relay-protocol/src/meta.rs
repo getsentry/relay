@@ -515,15 +515,17 @@ impl Meta {
         self.remarks().iter()
     }
 
-    /// Whether the scrubbing history permits using this value to identify a user.
-    pub fn preserves_user_identity(&self) -> bool {
-        self.iter_remarks().all(|remark| match remark.ty {
-            RemarkType::Annotated | RemarkType::Pseudonymized => true,
-            RemarkType::Removed
-            | RemarkType::Substituted
-            | RemarkType::Masked
-            | RemarkType::Encrypted => false,
-        })
+    /// Whether scrubbing hashed this value without also masking, replacing or removing it.
+    pub fn is_pseudonymized(&self) -> bool {
+        self.iter_remarks()
+            .any(|r| r.ty == RemarkType::Pseudonymized)
+            && self.iter_remarks().all(|remark| match remark.ty {
+                RemarkType::Annotated | RemarkType::Pseudonymized => true,
+                RemarkType::Removed
+                | RemarkType::Substituted
+                | RemarkType::Masked
+                | RemarkType::Encrypted => false,
+            })
     }
 
     /// Clears all remarks

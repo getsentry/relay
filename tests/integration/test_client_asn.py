@@ -572,6 +572,21 @@ def test_transaction_user_skips_placeholders(mini_sentry, relay):
         assert tags.get("user") == expected_tag
 
 
+def test_mask_ip_hash_at_user_id(mini_sentry, relay):
+    project = mini_sentry.add_basic_project_config(42)
+    project["config"]["piiConfig"]["applications"].update(
+        {**HASH_USER_IP, "$user.id": ["@anything:mask"]}
+    )
+    ingress = relay(mini_sentry, options={"normalization": {"level": "full"}})
+    for supplied, expected in [({}, IP_HASH), ({"id": IP_HASH}, "*" * len(IP_HASH))]:
+        tx = transaction(IP, {})
+        tx["user"].update(supplied)
+        ingress.send_event(42, tx)
+        event = mini_sentry.get_captured_envelope().get_transaction_event()
+        assert event["user"]["id"] == expected
+        assert event["spans"][0]["sentry_tags"]["user"] == f"id:{expected}"
+
+
 def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
     project = mini_sentry.add_basic_project_config(42)
     config = project["config"]
