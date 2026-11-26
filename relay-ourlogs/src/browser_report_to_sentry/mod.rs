@@ -619,7 +619,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log), @r#"
@@ -700,7 +700,7 @@ mod tests {
         .unwrap();
 
         let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
-        let log = create_log_with_trace_id(report, received_at, Some(trace_id)).unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
 
         assert_annotated_snapshot!(
             &Annotated::new(log), @r#"
