@@ -2,10 +2,12 @@
 //!
 //! ## Request and connection
 //!
-//! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`
-//!   over the connection, except on CSP reports. Resolve request `{{auto}}` independently.
+//! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`. CSP reports
+//!   prefer the connection IP when inference is enabled. Resolve request `{{auto}}` independently.
 //! - An explicit user `{{auto}}` permits connection backfill when inference is enabled.
-//!   A missing user IP requires SDK opt-in or a legacy JavaScript, Cocoa, or ObjC platform.
+//!   With no user IP, connection backfill requires SDK opt-in or legacy JavaScript, Cocoa, or ObjC.
+//! - SDK `infer_ip: "never"` disables user IP backfill. City and opt-in ASN may still
+//!   use the connection IP.
 //!
 //! ## City and ASN
 //!
@@ -19,8 +21,9 @@
 //!
 //! ## User identity
 //!
-//! - An eligible IP replacement may supply a fallback ID after advanced and legacy PII
-//!   if no ID, email, or username survives. Respect ID redaction and scrub the derived ID.
+//! - An eligible IP replacement may supply a fallback ID if no ID, email, or username
+//!   survives both PII passes. Preserve an advanced replacement through the legacy pass.
+//!   Respect ID redaction and scrub the derived ID.
 //!   A connection IP admitted only for hashing may contribute only its hash.
 //! - Later Relays preserve existing enrichment and honor upstream redactions.
 //!
@@ -31,7 +34,8 @@
 //! - A transaction segment may use the event IP when both span addresses are absent.
 //!   Child spans need their own address for ASN, even when they inherit event user tags.
 //! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
-//!   `user.ip_address`. Span PII rules apply to the derived ASN attributes.
+//!   `user.ip_address`. If scrubbing replaces `client.address` with a valid IP, City can use
+//!   the replacement and ASN skips lookup. Span PII rules apply to the derived ASN attributes.
 //!
 //! ## Error events
 //!
