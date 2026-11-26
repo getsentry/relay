@@ -287,6 +287,18 @@ impl DimensionMap {
 
         result.into()
     }
+
+    /// Converts this DimensionMap into a regular BTreeMap of Dimension -> String,
+    /// (which can be easily serialized.)
+    pub fn to_raw(&self) -> BTreeMap<Dimension, String> {
+        let mut result = BTreeMap::new();
+
+        for (k, v) in self.dimensions.iter() {
+            result.insert(*k, v.value.clone());
+        }
+
+        result
+    }
 }
 
 impl std::ops::Deref for ItemScoping {

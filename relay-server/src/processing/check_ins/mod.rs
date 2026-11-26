@@ -124,6 +124,9 @@ impl Forward for CheckInsOutput {
                     .map_err(ProcessCheckInError::from)
                     .map_err(Error::from)?,
             );
+            item.data_mut()
+                .headers_mut()
+                .set_dimensions(get_dimensions(&check_in).to_raw());
             Ok::<Box<Envelope>, Error>(Envelope::from_parts(
                 headers,
                 smallvec::smallvec![item.into()],
@@ -194,22 +197,26 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
+fn get_dimensions(check_in: &CheckIn) -> DimensionMap {
+    let dims = [
+        (
+            relay_quotas::Dimension::CheckInEnvironment,
+            check_in.environment.clone().unwrap_or_default(),
+        ),
+        (
+            relay_quotas::Dimension::CheckInSlug,
+            relay_monitors::slugify_monitor_slug(&check_in.monitor_slug),
+        ),
+    ];
+
+    DimensionMap::from(dims)
+}
+
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 
     fn dimensions(&self) -> Option<DimensionMap> {
-        let dims = [
-            (
-                relay_quotas::Dimension::CheckInEnvironment,
-                self.check_in.environment.clone().unwrap_or_default(),
-            ),
-            (
-                relay_quotas::Dimension::CheckInSlug,
-                relay_monitors::slugify_monitor_slug(&self.check_in.monitor_slug),
-            ),
-        ];
-
-        Some(DimensionMap::from(dims))
+        Some(get_dimensions(&self.check_in))
     }
 }
 

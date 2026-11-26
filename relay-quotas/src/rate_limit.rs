@@ -407,6 +407,11 @@ impl RateLimits {
         self.iter().any(|limit| !limit.retry_after.expired_at(now))
     }
 
+    /// Returns true if there are limits that have dimensions associated with them.
+    pub fn is_limited_with_dimensions(&self) -> bool {
+        self.dimension_sets.iter().any(|s| !s.is_empty())
+    }
+
     /// Returns `true` if this is instance contains any active rate limits
     /// for the specified categories.
     ///

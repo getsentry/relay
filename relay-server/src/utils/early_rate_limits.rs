@@ -11,7 +11,9 @@ use crate::services::outcome::Outcome;
 use crate::utils::EnvelopeSummary;
 use enum_map::EnumMap;
 use relay_profiling::ProfileType;
-use relay_quotas::{DataCategory, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping};
+use relay_quotas::{
+    DataCategory, DimensionMap, ItemScoping, MetricNamespaceScoping, Quota, RateLimits, Scoping,
+};
 
 /// Applies cached limits and zero quotas before payload processing, without consuming quota.
 ///
@@ -183,6 +185,56 @@ impl Enforcement {
     }
 }
 
+// Holds the rejections encountered for dimensioned rate-limits.
+struct DimensionedEnforcement<'a> {
+    cached: &'a RateLimits,
+    quotas: &'a [Quota],
+    scoping: &'a Scoping,
+    rejections: Vec<Rejection>,
+}
+
+impl<'a> DimensionedEnforcement<'a> {
+    pub fn new(cached: &'a RateLimits, quotas: &'a [Quota], scoping: &'a Scoping) -> Self {
+        DimensionedEnforcement {
+            cached,
+            quotas,
+            scoping,
+            rejections: vec![],
+        }
+    }
+
+    pub fn check(
+        &mut self,
+        category: DataCategory,
+        dims: Option<DimensionMap>,
+    ) -> Option<&mut Rejection> {
+        let dims = dims?;
+        let limits = self.cached.check_with_quotas(
+            self.quotas,
+            &self.scoping.item_with_dimensions(category, dims),
+        );
+        let outcome = Outcome::RateLimited(limits.longest()?.reason_code.clone());
+
+        let pos = if let Some(pos) = self
+            .rejections
+            .iter()
+            .position(|e| e.outcome.as_ref() == Some(&outcome))
+        {
+            pos
+        } else {
+            self.rejections.push(Rejection::new(outcome));
+            self.rejections.len() - 1
+        };
+        self.rejections.get_mut(pos)
+    }
+
+    fn flush(self, records: &mut RecordKeeper<'_>) {
+        for r in self.rejections {
+            r.flush(records);
+        }
+    }
+}
+
 fn filter(
     envelope: &mut Envelope,
     scoping: &Scoping,
@@ -190,14 +242,29 @@ fn filter(
     quotas: &[Quota],
     records: &mut RecordKeeper<'_>,
 ) -> RateLimits {
+    // First find any active limits from the envelope summary.
     let summary = EnvelopeSummary::compute(envelope);
     let (mut enforcement, client_rate_limits) = resolve_limits(summary, scoping, cached, quotas);
-    if !enforcement.has_rejections() {
+
+    // If there are active dimensioned limits, we won't find those with the summary.  Check the
+    // quotas, and the cached limits for their presence.
+    let any_dimensioned_quotas = quotas
+        .iter()
+        .any(|q| q.limit == Some(0) && q.group_by.is_some());
+
+    if !enforcement.has_rejections()
+        && !cached.is_limited_with_dimensions()
+        && !any_dimensioned_quotas
+    {
         return client_rate_limits;
     }
     if let Some(sessions) = enforcement.sessions.as_mut() {
         sessions.silence();
     }
+
+    // We need to keep track of dimensioned enforcement as we iterate to retain items.
+    let mut dimensioned_enforcement = DimensionedEnforcement::new(cached, quotas, scoping);
+
     envelope.retain_items(|item| {
         let event = enforcement.event.as_mut();
         match item {
@@ -234,10 +301,13 @@ fn filter(
                 RetentionAction::drop_on_rejection(enforcement.replays.as_mut()),
                 item,
             ),
-            Item::CheckIn(item) => apply_retention(
-                RetentionAction::drop_on_rejection(enforcement.monitors.as_mut()),
-                item,
-            ),
+            Item::CheckIn(item) => {
+                let rejection = enforcement.monitors.as_mut().or_else(|| {
+                    dimensioned_enforcement
+                        .check(DataCategory::Monitor, item.data().headers().dimensions())
+                });
+                apply_retention(RetentionAction::drop_on_rejection(rejection), item)
+            }
             Item::Span(item) => apply_retention(
                 RetentionAction::drop_on_rejection(enforcement.spans.as_mut()),
                 item,
@@ -315,6 +385,7 @@ fn filter(
         }
     });
     enforcement.flush(records);
+    dimensioned_enforcement.flush(records);
     client_rate_limits
 }
 
@@ -494,6 +565,7 @@ where
     if item.data().rate_limited() {
         return keep;
     }
+
     for quantity in item
         .rejected_quantities()
         .into_iter()

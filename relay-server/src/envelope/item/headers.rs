@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use relay_quotas::ReasonCode;
+use relay_quotas::{Dimension, DimensionMap, ReasonCode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -125,6 +125,10 @@ pub struct CommonItemHeaders {
     #[serde(default, skip)]
     source_quantities: Option<SourceQuantities>,
 
+    /// The dimensions that this item can be rate-limited by, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dimensions: Option<BTreeMap<Dimension, String>>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
@@ -232,6 +236,18 @@ impl CommonItemHeaders {
         self.source_quantities = Some(source_quantities);
     }
 
+    pub fn dimensions(&self) -> Option<DimensionMap> {
+        let Some(dims) = &self.dimensions else {
+            return None;
+        };
+
+        Some(DimensionMap::new(dims.clone()))
+    }
+
+    pub fn set_dimensions(&mut self, dims: BTreeMap<Dimension, String>) {
+        self.dimensions = Some(dims);
+    }
+
     pub fn contains(&self, key: ItemHeaderKey) -> bool {
         self.inner.contains_key(&MaybeKnown::Known(key))
     }
@@ -285,6 +301,7 @@ impl CommonItemHeaders {
             rate_limit_reason,
             source_quantities,
             inner,
+            dimensions,
         } = self;
 
         let mut map = f.debug_map();
@@ -306,6 +323,9 @@ impl CommonItemHeaders {
         }
         if let Some(source_quantities) = source_quantities {
             map.entry(&"source_quantities", source_quantities);
+        }
+        if let Some(dimensions) = dimensions {
+            map.entry(&"dimensions", dimensions);
         }
 
         for (k, v) in inner {
