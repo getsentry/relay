@@ -28,6 +28,7 @@ pub struct EqCondOptions {
 ///
 /// This operator supports:
 ///  - boolean
+///  - numbers
 ///  - strings, optionally ignoring ASCII-case
 ///  - UUIDs
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,8 +39,8 @@ pub struct EqCondition {
 
     /// The value to check against.
     ///
-    /// When comparing with a string field, this value can be an array. The condition matches if any
-    /// of the provided values matches the field.
+    /// When comparing with a string or a numeric field, this value can be an array. The condition
+    /// matches if any of the provided values matches the field.
     pub value: Value,
 
     /// Configuration options for the condition.
@@ -92,8 +93,26 @@ impl EqCondition {
             (Some(Val::HexId(f)), Value::String(val)) => f.match_str(val),
             (Some(Val::IpAddr(f)), Value::String(val)) => val.parse::<IpAddr>() == Ok(f),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
+            (Some(f), Value::Array(arr)) => arr.iter().any(|v| eq_number(&f, v)),
+            (Some(f), val) => eq_number(&f, val),
             _ => false,
         }
+    }
+}
+
+/// Returns `true` if a numeric field equals a number.
+///
+/// Integers compare exactly. An integer and a float are equal if they have the same value, so
+/// `1` equals `1.0`. Anything that is not a number, such as the string `"1"`, is never equal.
+fn eq_number(field: &Val<'_>, value: &Value) -> bool {
+    if let (Some(a), Some(b)) = (field.as_i64(), value.as_i64()) {
+        a == b
+    } else if let (Some(a), Some(b)) = (field.as_u64(), value.as_u64()) {
+        a == b
+    } else if let (Some(a), Some(b)) = (field.as_f64(), value.as_f64()) {
+        a == b
+    } else {
+        false
     }
 }
 
@@ -1509,6 +1528,73 @@ mod tests {
         assert!(RuleCondition::eq("trace.client_ip", "2001:db8:0::1").matches(&trace));
         assert!(!RuleCondition::eq("trace.client_ip", "2001:db8::2").matches(&trace));
         assert!(!RuleCondition::eq("trace.client_ip", "not-an-ip").matches(&trace));
+    }
+
+    struct Attributes {
+        count: i64,
+        size: u64,
+        ratio: f64,
+        name: &'static str,
+        sampled: bool,
+    }
+
+    impl Getter for Attributes {
+        fn get_value(&self, path: &str) -> Option<Val<'_>> {
+            Some(match path {
+                "count" => self.count.into(),
+                "size" => self.size.into(),
+                "ratio" => self.ratio.into(),
+                "name" => self.name.into(),
+                "sampled" => self.sampled.into(),
+                _ => return None,
+            })
+        }
+    }
+
+    #[test]
+    fn test_eq_condition_number() {
+        let attributes = Attributes {
+            count: -3,
+            size: u64::MAX,
+            ratio: 0.5,
+            name: "7",
+            sampled: true,
+        };
+        let matches = |json: &str| {
+            let condition: RuleCondition = serde_json::from_str(json).unwrap();
+            condition.matches(&attributes)
+        };
+
+        assert!(matches(r#"{"op": "eq", "name": "count", "value": -3}"#));
+        assert!(matches(r#"{"op": "eq", "name": "count", "value": -3.0}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "count", "value": 3}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "count", "value": "-3"}"#));
+
+        assert!(matches(
+            r#"{"op": "eq", "name": "size", "value": 18446744073709551615}"#
+        ));
+        assert!(!matches(
+            r#"{"op": "eq", "name": "size", "value": 18446744073709551614}"#
+        ));
+
+        assert!(matches(r#"{"op": "eq", "name": "ratio", "value": 0.5}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "ratio", "value": 1}"#));
+
+        assert!(matches(
+            r#"{"op": "eq", "name": "count", "value": [1, -3]}"#
+        ));
+        assert!(!matches(
+            r#"{"op": "eq", "name": "count", "value": [1, 2]}"#
+        ));
+        assert!(!matches(r#"{"op": "eq", "name": "count", "value": []}"#));
+
+        // A number never equals a string or a boolean field.
+        assert!(!matches(r#"{"op": "eq", "name": "name", "value": 7}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "name", "value": [7]}"#));
+        assert!(matches(r#"{"op": "eq", "name": "name", "value": ["7"]}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "sampled", "value": 1}"#));
+        assert!(matches(r#"{"op": "eq", "name": "sampled", "value": true}"#));
+        assert!(!matches(r#"{"op": "eq", "name": "missing", "value": 0}"#));
     }
 
     #[test]
