@@ -16,6 +16,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
+use smallvec::SmallVec;
 
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
@@ -622,54 +623,44 @@ fn normalize_attribute_names_inner<T>(attributes: &mut Object<T>, attribute_info
 where
     T: Clone,
 {
-    let attribute_names: Vec<_> = attributes.keys().cloned().collect();
-
-    for name in attribute_names {
-        let Some((attribute_info, fragment)) = attribute_info(&name) else {
+    // Only keep keys that need rewriting. Current and unknown names stay in place.
+    let mut rewrites = SmallVec::<[_; 4]>::new();
+    for name in attributes.keys() {
+        let Some((info, fragment)) = attribute_info(name) else {
             continue;
         };
-
-        match attribute_info.write_behavior {
+        let (target, move_value) = match info.write_behavior {
             WriteBehavior::CurrentName => continue,
-            WriteBehavior::NewName(new_name) => {
-                let Some(old_attribute) = attributes.get_mut(&name) else {
-                    continue;
-                };
+            WriteBehavior::NewName(target) => (target, true),
+            WriteBehavior::BothNames(target) => (target, false),
+        };
+        let Some(target) = resolve_attribute_name(target, fragment) else {
+            relay_log::error!(
+                attribute = name,
+                ?fragment,
+                "Attribute placeholder mismatch"
+            );
+            continue;
+        };
+        rewrites.push((Box::<str>::from(name.as_str()), target, move_value));
+    }
 
-                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
-                    relay_log::error!(
-                        attribute = name,
-                        ?fragment,
-                        "Attribute placeholder mismatch"
-                    );
-                    continue;
-                };
-
-                let mut meta = Meta::default();
-                // TODO: Possibly add a new RemarkType for "renamed/moved"
-                meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
-                let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
-
-                if !attributes.contains_key(&*new_name) {
-                    attributes.insert(new_name.into_owned(), new_attribute);
-                }
+    for (name, target, move_value) in rewrites {
+        if move_value {
+            let Some(source) = attributes.get_mut(name.as_ref()) else {
+                continue;
+            };
+            let mut meta = Meta::default();
+            // TODO: Possibly add a new RemarkType for "renamed/moved"
+            meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
+            let value = std::mem::replace(source, Annotated(None, meta));
+            if !attributes.contains_key(&*target) {
+                attributes.insert(target.into_owned(), value);
             }
-            WriteBehavior::BothNames(new_name) => {
-                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
-                    relay_log::error!(
-                        attribute = name,
-                        ?fragment,
-                        "Attribute placeholder mismatch"
-                    );
-                    continue;
-                };
-
-                if !attributes.contains_key(&*new_name)
-                    && let Some(current_attribute) = attributes.get(&name).cloned()
-                {
-                    attributes.insert(new_name.into_owned(), current_attribute);
-                }
-            }
+        } else if !attributes.contains_key(&*target)
+            && let Some(source) = attributes.get(name.as_ref()).cloned()
+        {
+            attributes.insert(target.into_owned(), source);
         }
     }
 }
