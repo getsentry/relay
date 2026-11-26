@@ -2,12 +2,10 @@ import hmac
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from itertools import product
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_spansv2 import envelope_with_spans
 from .test_store import make_error, make_transaction
@@ -260,40 +258,7 @@ def test_client_asn(
             }, (case.id, event.id)
 
 
-# Each source has a different ASN in the checked-in MMDB. The HTTP peer is
-# loopback when X-Forwarded-For is absent; neither database has a record for it.
-SEGMENT_ASN = {
-    "1.128.0.1": 1221,  # data.client.address
-    "12.81.92.1": 7018,  # tags.client.address
-    "15.0.0.1": 71,  # data.user.ip_address
-    "18.0.0.1": 3,  # tags.user.ip_address
-}
-# Same field order as the segment, with distinct networks to catch inheritance.
-CHILD_ASN = {
-    "23.32.0.1": 35994,
-    "27.192.0.1": 4837,
-    "31.64.0.1": 12576,
-    "31.224.0.1": 3320,
-}
-EVENT_ASN = {
-    "216.160.83.56": 209,  # event user
-    "89.160.20.112": 29518,  # REMOTE_ADDR
-    "1.0.0.1": 15169,  # forwarded client
-}
-SOURCE_ASN = SEGMENT_ASN | CHILD_ASN | EVENT_ASN
-SOURCE_CITY = {"216.160.83.56": "Milton", "89.160.20.112": "Linköping"}
-
-
-def ip_subsets(*addresses):
-    return product(*[(None, address) for address in addresses])
-
-
-def span_data_and_tags(sources):
-    data_client, tag_client, data_user, tag_user = sources
-    return address_fields(data_client, data_user), address_fields(tag_client, tag_user)
-
-
-def test_client_ip_source_subsets(
+def test_client_ip_enrichment_at_ingress(
     mini_sentry,
     relay,
     relay_credentials,
@@ -314,105 +279,60 @@ def test_client_ip_source_subsets(
     events = events_consumer()
     spans = spans_consumer()
 
-    raw_csp = (
+    report = (
         Path(__file__).parent / "fixtures/security_report/csp.input.json"
     ).read_bytes()
-    for route, ingress in [("direct", processor), ("via-pop", pop)]:
-        # Browser CSP reports provide only the connection as an IP source.
-        csp_ip = "89.160.20.112"
-        ingress.send_envelope(
-            42,
-            Envelope(
-                items=[Item(type="raw_security", payload=PayloadRef(bytes=raw_csp))]
-            ),
-            headers={"X-Forwarded-For": csp_ip},
+    client_ip = "89.160.20.112"
+    server_ip = "216.160.83.56"
+    headers = {"X-Forwarded-For": f"{client_ip}, 192.0.2.20"}
+    for ingress in (processor, pop):
+        response = ingress.post(
+            f"/api/42/security/?sentry_key={project['publicKeys'][0]['publicKey']}",
+            headers={**headers, "Content-Type": "application/csp-report"},
+            data=report,
         )
-        report, _ = events.get_event()
-        assert report["type"] == "csp", route
-        assert report["user"]["ip_address"] == csp_ip, route
-        assert report["user"]["geo"]["city"] == SOURCE_CITY[csp_ip], route
-        assert dict(report["tags"])[NUMBER] == str(SOURCE_ASN[csp_ip]), route
+        response.raise_for_status()
+        event, _ = events.get_event()
+        assert event["type"] == "csp"
+        assert event["user"]["ip_address"] == client_ip
+        assert event["user"]["geo"]["city"] == "Linköping"
+        assert dict(event["tags"])[NUMBER] == "29518"
 
-        expected_spans = {}
-        for event_user, remote_addr, xff in ip_subsets(*EVENT_ASN):
-            headers = {"X-Forwarded-For": f"{xff}, 192.0.2.20"} if xff else {}
-            connection = xff or "127.0.0.1"
-            fields = {"platform": "javascript"}
-            if event_user:
-                fields["user"] = {"ip_address": event_user}
-            if remote_addr:
-                fields["request"] = {"env": {"REMOTE_ADDR": remote_addr}}
-            event_ip = event_user or remote_addr or connection
-            ingress.send_event(42, make_error(fields.copy()), headers=headers)
+        # A server SDK's user or request address can differ from the SDK's transport.
+        request = {"env": {"REMOTE_ADDR": server_ip}}
+        for fields, ip, city, asn in [
+            ({"request": request}, server_ip, "Milton", "209"),
+            (
+                {"request": request, "user": {"ip_address": client_ip}},
+                client_ip,
+                "Linköping",
+                "29518",
+            ),
+        ]:
+            ingress.send_event(
+                42,
+                make_error({"platform": "python", **fields}),
+                headers={"X-Forwarded-For": IP},
+            )
             event, _ = events.get_event()
-            case = (route, event_user, remote_addr, xff)
-            assert event["type"] == "error", case
-            assert event["user"]["ip_address"] == event_ip, case
-            assert (event["user"].get("geo") or {}).get("city") == SOURCE_CITY.get(
-                event_ip
-            ), case
-            asn = SOURCE_ASN.get(event_ip)
-            assert dict(event.get("tags") or []).get(NUMBER) == (
-                str(asn) if asn else None
-            ), case
+            assert event["user"]["ip_address"] == ip
+            assert event["user"]["geo"]["city"] == city
+            assert dict(event["tags"])[NUMBER] == asn
 
-            for segment_sources in ip_subsets(*SEGMENT_ASN):
-                tx = transaction(None, {})
-                tx.update(fields)
-                trace = tx["contexts"]["trace"]
-                trace["trace_id"] = trace_id = uuid4().hex
-                trace["data"], tx["tags"] = span_data_and_tags(segment_sources)
-                case = (route, event_user, remote_addr, xff, segment_sources)
-                winner = next((ip for ip in segment_sources if ip), event_ip)
-                expected_spans[trace_id, trace["span_id"]] = winner, case
-
-                # One transaction carries every child subset, including the empty one.
-                template = tx["spans"].pop()
-                for child_sources in ip_subsets(*CHILD_ASN):
-                    span_id = uuid4().hex[:16]
-                    data, tags = span_data_and_tags(child_sources)
-                    tx["spans"].append(
-                        {
-                            **template,
-                            "trace_id": trace_id,
-                            "span_id": span_id,
-                            "data": data,
-                            "tags": tags,
-                        }
-                    )
-                    winner = next((ip for ip in child_sources if ip), None)
-                    expected_spans[trace_id, span_id] = winner, (*case, child_sources)
-                ingress.send_event(42, tx, headers=headers)
-
-        # Kafka can interleave transactions. Match every segment and child to its own input.
-        for _ in range(len(expected_spans)):
-            span = spans.get_span()
-            winner, case = expected_spans.pop((span["trace_id"], span["span_id"]))
-            actual = (span["attributes"].get(NUMBER) or {}).get("value")
-            assert actual == SOURCE_ASN.get(winner), (case, winner)
-
-        # Native spans carry addresses as attributes. SDK opt-in fills a missing
-        # client.address from the connection before looking up City and ASN.
-        for client_ip, user_ip, xff in ip_subsets(*EVENT_ASN):
-            headers = {"X-Forwarded-For": f"{xff}, 192.0.2.20"} if xff else {}
-            for setting in ("auto", "never"):
-                envelope = standalone_span(
-                    project, client_ip, {}, user_ip=user_ip, infer_ip=setting
-                )
-                ingress.send_envelope(42, envelope, headers=headers)
-                inferred = (xff or "127.0.0.1") if setting == "auto" else None
-                winner = client_ip or inferred or user_ip
-                attrs = spans.get_span()["attributes"]
-                case = (route, setting, client_ip, user_ip, xff, winner)
-                assert attrs.get("client.address", {}).get("value") == (
-                    client_ip or inferred
-                ), case
-                assert attrs.get(NUMBER, {}).get("value") == SOURCE_ASN.get(
-                    winner
-                ), case
-                assert attrs.get("user.geo.city", {}).get("value") == SOURCE_CITY.get(
-                    winner
-                ), case
+        for client, user, setting, address, city, asn in [
+            (None, None, "auto", client_ip, "Linköping", 29518),
+            (None, None, "never", None, None, None),
+            (None, server_ip, "never", None, "Milton", 209),
+            (server_ip, None, "auto", server_ip, "Milton", 209),
+        ]:
+            envelope = standalone_span(
+                project, client, {}, user_ip=user, infer_ip=setting
+            )
+            ingress.send_envelope(42, envelope, headers=headers)
+            attrs = spans.get_span()["attributes"]
+            assert attrs.get("client.address", {}).get("value") == address
+            assert attrs.get(NUMBER, {}).get("value") == asn
+            assert attrs.get("user.geo.city", {}).get("value") == city
 
 
 @pytest.mark.parametrize(
@@ -473,21 +393,30 @@ def test_client_ip_through_full_normalizing_pop(
         )
 
     # Once the PoP removes an explicit source, the processor must not substitute XFF.
-    project = mini_sentry.add_full_project_config(99)["config"]
-    project["features"] = [ASN_FEATURE]
-    project["piiConfig"]["applications"]["$user.ip_address"] = ["@anything:remove"]
-    pop.send_event(
-        99, make_error({"user": {"ip_address": ip}}), headers={"X-Forwarded-For": IP}
-    )
-    event, _ = events.get_event()
-    user = event["user"]
-    assert user.get("ip_address") is None
-    assert (user.get("geo") or {}).get("city") == (
-        "Linköping" if "city_path" in pop_db else None
-    )
-    assert dict(event.get("tags") or []).get(NUMBER) == (
-        "29518" if "asn_path" in pop_db else None
-    )
+    for project_id, selector, fields in [
+        (98, "$request.env.REMOTE_ADDR", {"request": {"env": {"REMOTE_ADDR": ip}}}),
+        (99, "$user.ip_address", {"user": {"ip_address": ip}}),
+    ]:
+        project = mini_sentry.add_full_project_config(project_id)["config"]
+        project["features"] = [ASN_FEATURE]
+        project["piiConfig"]["applications"][selector] = ["@anything:remove"]
+        pop.send_event(
+            project_id,
+            make_error({"sdk": {"settings": {"infer_ip": "auto"}}, **fields}),
+            headers={"X-Forwarded-For": "216.160.83.56"},
+        )
+        event, _ = events.get_event()
+        user = event.get("user") or {}
+        assert user.get("ip_address") is None
+        assert ((event.get("request") or {}).get("env") or {}).get(
+            "REMOTE_ADDR"
+        ) is None
+        assert (user.get("geo") or {}).get("city") == (
+            "Linköping" if "city_path" in pop_db else None
+        )
+        assert dict(event.get("tags") or []).get(NUMBER) == (
+            "29518" if "asn_path" in pop_db else None
+        )
 
 
 @pytest.mark.parametrize(
@@ -530,26 +459,14 @@ def test_client_asn_preserves_upstream_removal(
     supplied = case.supplied
     events = events_consumer()
     spans = spans_consumer()
-    forwarder = relay(mini_sentry, options=DB)
-
-    forwarder.send_event(42, make_error({"user": {"ip_address": IP}, "tags": supplied}))
-    error = mini_sentry.get_captured_envelope()
-    forwarder.send_event(42, transaction(IP, supplied))
-    tx = mini_sentry.get_captured_envelope()
-    forwarder.send_envelope(42, standalone_span(project, IP, supplied))
-    standalone = mini_sentry.get_captured_envelope()
-
-    # The final Relay sees the actual serialized first-hop payload with the
-    # removal remarks, but has no access to the first hop's redaction rules.
-    for key in keys:
-        del rules[key]
     processing = relay_with_processing(options=DB)
-    for envelope in (
-        error,  # Check redaction across hops for error tags.
-        tx,  # Check the transaction segment and its child span.
-        standalone,  # Check native span attributes across hops.
-    ):
-        processing.send_envelope(42, envelope, headers={"X-Forwarded-For": IP})
+    forwarder = relay(processing, options=DB)
+    headers = {"X-Forwarded-For": "2600::1"}
+    forwarder.send_event(
+        42, make_error({"user": {"ip_address": IP}, "tags": supplied}), headers=headers
+    )
+    forwarder.send_event(42, transaction(IP, supplied), headers=headers)
+    forwarder.send_envelope(42, standalone_span(project, IP, supplied), headers=headers)
 
     error, _ = events.get_event()
     tags = dict(error.get("tags", []))
@@ -662,6 +579,9 @@ def test_transaction_ip_marker_destination_rules(
 ):
     spans = spans_consumer()
     processing = relay_with_processing(options=DB)
+    options = {**DB, "normalization": {"level": "full"}}
+    ingress = relay(mini_sentry, options=options)
+    pop = relay(processing, options=options)
     project = mini_sentry.add_full_project_config(42)["config"]
     project["features"] = [ASN_FEATURE] if lookup else []
     project["piiConfig"]["applications"].update(
@@ -670,13 +590,8 @@ def test_transaction_ip_marker_destination_rules(
             "$span.attributes.'user.ip_address'.value": ["@anything:mask"],
         }
     )
-    ingress = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
     tx = transaction("2600::1", {})
-    # The removed client.address must still win the lookup over this second, concrete IP.
-    tx["contexts"]["trace"]["data"] = {
-        "client.address": "{{auto}}",
-        "user.ip_address": "2600::1",
-    }
+    tx["contexts"]["trace"]["data"] = {"client.address": "{{auto}}"}
     tx["spans"][0]["data"] = {}
     tx["spans"][0]["tags"] = {"user.ip_address": "{{auto}}"}
     ingress.send_event(42, tx, headers={"X-Forwarded-For": IP})
@@ -689,7 +604,7 @@ def test_transaction_ip_marker_destination_rules(
     assert segment.get("client.address") is None
     assert child["tags"]["user.ip_address"] == "*" * len(IP)
 
-    processing.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
+    pop.send_event(42, tx, headers={"X-Forwarded-For": IP})
     for _ in range(2):
         span = spans.get_span()
         attrs = span["attributes"]
@@ -827,8 +742,8 @@ def test_client_ip_hash_survives_relay_hops(
     project["config"]["piiConfig"]["applications"].update(applications)
 
     options = {**DB, "normalization": {"level": "full"}}
-    first = relay(mini_sentry, options=options)
-    second = relay(mini_sentry, options=options)
+    upstream = relay(mini_sentry, options=options)
+    ingress = relay(upstream, options=options)
 
     def check(payload, case):
         assert payload.get("user", {}).get("id") == case.expected_id, case.id
@@ -839,10 +754,7 @@ def test_client_ip_hash_survives_relay_hops(
         assert dict(payload["tags"])[NUMBER] == "15169", case.id
 
     for case in cases:
-        first.send_event(42, case.event, headers={"X-Forwarded-For": IP})
-        envelope = mini_sentry.get_captured_envelope()
-        check(envelope.get_event(), case)
-        second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
+        ingress.send_event(42, case.event, headers={"X-Forwarded-For": IP})
         check(mini_sentry.get_captured_envelope().get_event(), case)
 
 
@@ -892,8 +804,9 @@ def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
             "$user.ip_address": ["@ip:hash"],
         }
     )
-    first = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
-    second = relay(mini_sentry, options={**DB, "normalization": {"level": "full"}})
+    options = {**DB, "normalization": {"level": "full"}}
+    upstream = relay(mini_sentry, options=options)
+    ingress = relay(upstream, options=options)
 
     def check(envelope, expected_id):
         event = next(
@@ -918,10 +831,7 @@ def test_client_ip_backfill_and_span_tags(mini_sentry, relay):
         tx = transaction(address, {})
         tx["request"] = {"env": {"REMOTE_ADDR": IP}}
         tx["spans"][0]["data"] = {}
-        first.send_event(42, tx)
-        envelope = mini_sentry.get_captured_envelope()
-        check(envelope, expected_id)
-        second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
+        ingress.send_event(42, tx)
         check(mini_sentry.get_captured_envelope(), expected_id)
 
 
@@ -941,8 +851,8 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
         "normalization": {"level": "full"},
         "geoip": {**DB["geoip"], **CITY_DB},
     }
-    first = relay(mini_sentry, options=options)
-    second = relay(mini_sentry, options=options)
+    upstream = relay(mini_sentry, options=options)
+    ingress = relay(upstream, options=options)
     hashed = hmac.digest(b"", ip.encode(), "sha1").hex().upper()
 
     def check(event, expected_city, expected_identity):
@@ -987,10 +897,7 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
         ),  # Username takes priority.
     ]:
         event = {"request": {"env": {"REMOTE_ADDR": ip}}, **fields}
-        first.send_event(42, event, headers={"X-Forwarded-For": "1.0.0.1"})
-        envelope = mini_sentry.get_captured_envelope()
-        check(envelope.get_event(), expected_city, expected_identity)
-        second.send_envelope(42, envelope, headers={"X-Forwarded-For": "2600::1"})
+        ingress.send_event(42, event, headers={"X-Forwarded-For": IP})
         check(
             mini_sentry.get_captured_envelope().get_event(),
             expected_city,

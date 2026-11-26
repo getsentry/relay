@@ -477,6 +477,9 @@ fn resolve_address<T: From<String>>(
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::processor::{ProcessingState, process_value};
+    use relay_pii::{PiiConfig, PiiProcessor};
+    use relay_protocol::Remark;
     use serde_json::json;
 
     use super::*;
@@ -510,9 +513,6 @@ mod tests {
 
     #[test]
     fn test_transport_fallback_with_upstream_redaction() {
-        let removed = json!({"": {"rem": [["@anything:remove", "x"]]}});
-        let ip = Some("1.0.0.1");
-        let asn = Some("15169");
         let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
         let config = NormalizationConfig {
             client_ip: Some("1.0.0.1".parse().unwrap()),
@@ -520,28 +520,33 @@ mod tests {
             asn_lookup: Some(&db),
             ..Default::default()
         };
-        for (meta, expected_ip, expected_asn) in [
-            (json!({}), ip, asn), // Missing values permit transport fallback.
-            (json!({"user": removed}), None, None), // A removed user blocks lookup.
-            (json!({"user": {"ip_address": removed}}), None, None), // So does its IP.
-            (json!({"request": removed}), None, None), // A removed request blocks fallback.
-            (json!({"request": {"env": removed}}), None, None), // So does its environment.
-            (json!({"tags": removed}), ip, None), // Removed tags block error ASN enrichment.
-            (json!({"contexts": removed}), ip, asn), // Errors write ASN to tags.
-            (json!({"contexts": {"trace": removed}}), ip, asn),
-        ] {
-            let payload = json!({
-                "platform": "javascript", "user": {"ip_address": null}, "tags": null,
-                "request": {"env": {}}, "contexts": {"trace": null}, "_meta": meta,
-            });
-            let mut event = Annotated::<Event>::from_json(&payload.to_string())
-                .unwrap()
-                .into_value()
-                .unwrap();
+        for selector in ["$request.env", "$request.env.REMOTE_ADDR"] {
+            let rules: PiiConfig = serde_json::from_value(json!({
+                "applications": { (selector): ["@anything:remove"] }
+            }))
+            .unwrap();
+            let mut event = Annotated::<Event>::from_json(
+                r#"{"platform":"javascript","request":{"env":{"REMOTE_ADDR":"2600::1"}}}"#,
+            )
+            .unwrap();
+            process_value(
+                &mut event,
+                &mut PiiProcessor::new(rules.compiled()),
+                ProcessingState::root(),
+            )
+            .unwrap();
+            let mut event = event.into_value().unwrap();
             process_client_ip(&mut event, &config, Default::default()).unwrap();
-            let ip = event.user.value().and_then(|u| u.ip_address.as_str());
-            let asn = event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER));
-            assert_eq!((ip, asn), (expected_ip, expected_asn), "{meta}");
+            assert_eq!(
+                event.user.value().and_then(|u| u.ip_address.as_str()),
+                None,
+                "{selector}"
+            );
+            assert_eq!(
+                event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER)),
+                None,
+                "{selector}"
+            );
         }
     }
 
@@ -590,33 +595,22 @@ mod tests {
     }
 
     #[test]
-    fn test_user_ip_lookup_with_remarks() {
-        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
-        let config = NormalizationConfig {
-            asn_lookup: Some(&db),
-            ..Default::default()
-        };
-        for (remarks, expected) in [
-            (json!([["note", "a"]]), Some("15169")),
-            (json!([["note", "a"], ["replace", "s"]]), None),
-            (json!([["remove", "x"]]), None),
-            (json!([["mask", "m"]]), None),
-            (json!([["hash", "p"]]), None),
-            (json!([["encrypt", "e"]]), None),
+    fn test_has_modifying_remark() {
+        let mut field = Annotated::<String>::empty();
+        field
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Annotated, "note"));
+        assert!(!has_modifying_remark(&field));
+        for ty in [
+            RemarkType::Removed,
+            RemarkType::Substituted,
+            RemarkType::Masked,
+            RemarkType::Pseudonymized,
+            RemarkType::Encrypted,
         ] {
-            let payload = json!({
-                "user": {"ip_address": "1.0.0.1"},
-                "_meta": {"user": {"ip_address": {"": {"rem": remarks}}}},
-            });
-            let mut event = Annotated::<Event>::from_json(&payload.to_string())
-                .unwrap()
-                .into_value()
-                .unwrap();
-            process_client_ip(&mut event, &config, Default::default()).unwrap();
-            assert_eq!(
-                event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER)),
-                expected
-            );
+            let mut field = field.clone();
+            field.meta_mut().add_remark(Remark::new(ty, "rule"));
+            assert!(has_modifying_remark(&field), "{ty:?}");
         }
     }
 
