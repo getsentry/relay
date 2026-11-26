@@ -364,7 +364,13 @@ def test_security_report_rejects_dedicated_content_types(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_security_report_forwards_classified_events(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "supplied_ip, expected_ip",
+    [(None, "198.51.100.1"), ("{{auto}}", "198.51.100.1"), ("192.0.2.1", "192.0.2.1")],
+)
+def test_security_report_forwards_classified_events(
+    mini_sentry, relay, supplied_ip, expected_ip
+):
     """A ``security`` item from an upstream Relay is forwarded as a security event."""
     proj_id = 42
     relay = relay(mini_sentry, {"outcomes": {"emit_outcomes": True}})
@@ -376,7 +382,7 @@ def test_security_report_forwards_classified_events(mini_sentry, relay):
             payload=PayloadRef(
                 json={
                     "type": "csp",
-                    "user": {"ip_address": "192.0.2.1"},
+                    **({"user": {"ip_address": supplied_ip}} if supplied_ip else {}),
                     "csp": {
                         "blocked_uri": "http://evilhackerscripts.com",
                         "document_uri": "https://example.com/foo/bar",
@@ -393,7 +399,7 @@ def test_security_report_forwards_classified_events(mini_sentry, relay):
     assert [item.type for item in envelope.items] == ["security"]
     report = get_security_report(envelope)
     assert report["csp"]["effective_directive"] == "default-src"
-    assert report["user"]["ip_address"] == "198.51.100.1"
+    assert report["user"]["ip_address"] == expected_ip
 
     assert mini_sentry.captured_outcomes.empty()
 
