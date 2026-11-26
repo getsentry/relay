@@ -106,15 +106,11 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
 
 /// Computes the transaction event's "user" tag from the event's user.
 pub fn get_event_user_tag(user: &User) -> Option<String> {
-    format_event_user_tag(user, user.ip_address.as_str())
-}
-
-pub(crate) fn format_event_user_tag(user: &User, ip: Option<&str>) -> Option<String> {
     format_user_tag(
         user.id.as_str(),
         user.username.as_str(),
         user.email.as_str(),
-        ip,
+        user.ip_address.as_str(),
     )
 }
 

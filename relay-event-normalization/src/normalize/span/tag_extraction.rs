@@ -29,7 +29,7 @@ use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
 use crate::utils::{
-    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, format_event_user_tag,
+    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, format_user_tag,
     http_status_code_from_span,
 };
 
@@ -383,8 +383,13 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
 
     if let Some(user) = event.user.value() {
         let user_ip = unredacted_value(&user.ip_address).map(|ip| ip.as_str());
-        if let Some(user) = format_event_user_tag(user, user_ip) {
-            tags.user = truncate_string(user, max_tag_value_size);
+        if let Some(tag) = format_user_tag(
+            user.id.as_str(),
+            user.username.as_str(),
+            user.email.as_str(),
+            user_ip,
+        ) {
+            tags.user = truncate_string(tag, max_tag_value_size);
         }
         if let Some(user_id) = user.id.value() {
             tags.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
