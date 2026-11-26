@@ -347,7 +347,8 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
         (200, [list(range(1, 17)), [17]]),
         (130, [list(range(1, 8)), list(range(8, 15)), [15, 16, 17]]),
         (100, [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17]]),
-        (50, []),
+        (50, [[value] for value in range(1, 18)]),
+        (0, [[value] for value in range(1, 18)]),
     ],
 )
 def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_values):
@@ -548,10 +549,17 @@ def test_global_metrics_no_config(mini_sentry, relay):
     assert received_metrics == metrics
 
 
-def test_global_metrics_batching(mini_sentry, relay, relay_credentials):
-    # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
-    MAX_FLUSH_SIZE = 200
-
+@pytest.mark.parametrize(
+    "max_batch_size,expected_values",
+    [
+        (200, [list(range(1, 17)), [17]]),
+        (50, [[value] for value in range(1, 18)]),
+        (0, [[value] for value in range(1, 18)]),
+    ],
+)
+def test_global_metrics_batching(
+    mini_sentry, relay, relay_credentials, max_batch_size, expected_values
+):
     credentials = relay_credentials()
     relay = relay(
         mini_sentry,
@@ -561,7 +569,7 @@ def test_global_metrics_batching(mini_sentry, relay, relay_credentials):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "max_flush_bytes": MAX_FLUSH_SIZE,
+                "max_flush_bytes": max_batch_size,
             },
             "auth": {
                 "static_relays": {
@@ -591,30 +599,20 @@ def test_global_metrics_batching(mini_sentry, relay, relay_credentials):
     headers = {"X-Sentry-Relay-Id": credentials["id"]}
     relay.send_metrics_buckets(project_id, metrics_payload, headers)
 
-    batch1 = mini_sentry.captured_metrics.get(timeout=5)
-    batch2 = mini_sentry.captured_metrics.get(timeout=1)
+    for values in expected_values:
+        batch = mini_sentry.captured_metrics.get(timeout=5)
+        assert metrics_without_keys(batch[public_key], keys={"metadata"}) == [
+            {
+                "timestamp": time_after(timestamp),
+                "width": 1,
+                "name": "d:spans/foo@none",
+                "value": [float(value) for value in values],
+                "type": "d",
+            }
+        ]
+
     with pytest.raises(queue.Empty):
         mini_sentry.captured_metrics.get(timeout=1)
-
-    assert metrics_without_keys(batch1[public_key], keys={"metadata"}) == [
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "d:spans/foo@none",
-            "value": [float(i) for i in range(1, 17)],
-            "type": "d",
-        }
-    ]
-
-    assert metrics_without_keys(batch2[public_key], keys={"metadata"}) == [
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "d:spans/foo@none",
-            "value": [17.0],
-            "type": "d",
-        }
-    ]
 
 
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):

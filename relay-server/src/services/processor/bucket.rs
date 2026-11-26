@@ -457,14 +457,9 @@ impl InnerProcessor {
 
                 while let Some(bucket) = remaining.take() {
                     if let Some(next) = partition.insert(bucket, *scoping) {
-                        // If even an empty partition cannot hold any part of the bucket, drop it.
-                        // Sending the empty partition would make no progress and retry forever.
-                        if partition.is_empty() {
-                            break;
-                        }
-
                         // A part of the bucket could not be inserted. Take the partition and submit
-                        // it immediately. Repeat until the final part was inserted.
+                        // it immediately. Repeat until the final part was inserted. An empty
+                        // partition always accepts at least part of a bucket, ensuring progress.
                         self.send_global_partition(
                             project_info.upstream.clone(),
                             partition_key,
@@ -619,10 +614,16 @@ impl<'a> Partition<'a> {
     /// entirely into the partition given its maximum size, the remaining part of the bucket is
     /// returned from this function call.
     ///
+    /// An empty partition's size budget is clamped to fit at least one value of the bucket,
+    /// or the entire bucket if it cannot be split.
+    ///
     /// If this function returns `Some(_)`, submit the partition upstream and retry the remaining
-    /// bucket after calling [`Self::take`]. If the partition is empty, no part of the bucket fits
-    /// within the maximum size, and the caller must drop it instead of retrying.
+    /// bucket after calling [`Self::take`].
     pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
+        if self.is_empty() {
+            self.remaining = self.remaining.max(bucket.estimated_min_size());
+        }
+
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
         if let Some(current) = current {
@@ -1012,11 +1013,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_flush_buckets_http_forwarding() {
-        for global_metrics in [false, true] {
+        for (global_metrics, max_flush_bytes) in
+            [(false, 5_000_000), (true, 5_000_000), (false, 0), (true, 0)]
+        {
             let config = Config::from_json_value(serde_json::json!({
                 "http": {
                     "global_metrics": global_metrics,
                     "encoding": "identity",
+                },
+                "aggregator": {
+                    "max_flush_bytes": max_flush_bytes,
                 },
             }))
             .unwrap();
