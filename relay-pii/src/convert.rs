@@ -27,6 +27,13 @@ static KNOWN_IP_FIELDS: LazyLock<SelectorSpec> = LazyLock::new(|| {
         .unwrap()
 });
 
+// Tags require explicit path selectors. A client address can also be a hostname.
+static IP_ADDRESS_TAGS: LazyLock<SelectorSpec> = LazyLock::new(|| {
+    "(tags.'client.address' | tags.'user.ip_address')"
+        .parse()
+        .unwrap()
+});
+
 /// Matches `'http.request.header.cookie'` and `'http.response.header.cookie'` as well as any entry thereof.
 ///
 /// This is useful for cases where all cookies are sent together in a string
@@ -145,6 +152,8 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     if datascrubbing_config.scrub_ip_addresses {
         // legacy(?) scrubs all fields that are known to have IPs regardless of actual content
         applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
+
+        applications.insert(IP_ADDRESS_TAGS.clone(), vec!["@ip:replace".to_owned()]);
 
         // checks actual contents of all fields and scrubs where there is an IP address
         applied_rules.push("@ip:replace".to_owned());
@@ -372,6 +381,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
+            ],
             "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.connect.sid || *.'http.request.header.cookie.connect.sid' || *.'http.response.header.set-cookie.connect.sid' || *.cookies.JSESSIONID || *.'http.request.header.cookie.JSESSIONID' || *.'http.response.header.set-cookie.JSESSIONID' || *.cookies.ASP.NET_SessionId || *.'http.request.header.cookie.ASP.NET_SessionId' || *.'http.response.header.set-cookie.ASP.NET_SessionId' || *.cookies.laravel_session || *.'http.request.header.cookie.laravel_session' || *.'http.response.header.set-cookie.laravel_session' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
             ],
@@ -406,6 +418,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
+            ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
             ],
             "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.connect.sid || *.'http.request.header.cookie.connect.sid' || *.'http.response.header.set-cookie.connect.sid' || *.cookies.JSESSIONID || *.'http.request.header.cookie.JSESSIONID' || *.'http.response.header.set-cookie.JSESSIONID' || *.cookies.ASP.NET_SessionId || *.'http.request.header.cookie.ASP.NET_SessionId' || *.'http.response.header.set-cookie.ASP.NET_SessionId' || *.cookies.laravel_session || *.'http.request.header.cookie.laravel_session' || *.'http.response.header.set-cookie.laravel_session' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
@@ -453,6 +468,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
+            ],
             "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.connect.sid || *.'http.request.header.cookie.connect.sid' || *.'http.response.header.set-cookie.connect.sid' || *.cookies.JSESSIONID || *.'http.request.header.cookie.JSESSIONID' || *.'http.response.header.set-cookie.JSESSIONID' || *.cookies.ASP.NET_SessionId || *.'http.request.header.cookie.ASP.NET_SessionId' || *.'http.response.header.set-cookie.ASP.NET_SessionId' || *.cookies.laravel_session || *.'http.request.header.cookie.laravel_session' || *.'http.response.header.set-cookie.laravel_session' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
             ],
@@ -488,6 +506,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@usssn:replace",
               "@bearer:replace"
             ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
+            ],
             "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.connect.sid || *.'http.request.header.cookie.connect.sid' || *.'http.response.header.set-cookie.connect.sid' || *.cookies.JSESSIONID || *.'http.request.header.cookie.JSESSIONID' || *.'http.response.header.set-cookie.JSESSIONID' || *.cookies.ASP.NET_SessionId || *.'http.request.header.cookie.ASP.NET_SessionId' || *.'http.response.header.set-cookie.ASP.NET_SessionId' || *.cookies.laravel_session || *.'http.request.header.cookie.laravel_session' || *.'http.response.header.set-cookie.laravel_session' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"
             ],
@@ -516,6 +537,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address' || attributes.'user.ip_address'": [
               "@anything:remove"
+            ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
             ]
           }
         }
@@ -669,6 +693,29 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_ip_scrubbing_address_tags() {
+        let rules = to_pii_config(&DataScrubbingConfig {
+            scrub_ip_addresses: true,
+            ..Default::default()
+        })
+        .unwrap();
+        let mut event = Event::from_value(
+            serde_json::json!({"tags": {"client.address": "host.example", "user.ip_address": "2001:db8::42"}}).into(),
+        );
+        process_value(
+            &mut event,
+            &mut PiiProcessor::new(rules.compiled()),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        let tags = event.value().unwrap().tags.value().unwrap();
+        assert_eq!(tags.get("client.address"), Some("host.example"));
+        let scrubbed = tags.get("user.ip_address").unwrap();
+        assert!(scrubbed.contains("[ip]"));
+        assert!(scrubbed.parse::<std::net::IpAddr>().is_err());
     }
 
     #[test]
@@ -1466,6 +1513,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@iban:replace",
               "@usssn:replace",
               "@bearer:replace"
+            ],
+            "tags.'client.address' || tags.'user.ip_address'": [
+              "@ip:replace"
             ],
             "*.cookies.sentrysid || *.'http.request.header.cookie.sentrysid' || *.'http.response.header.set-cookie.sentrysid' || *.cookies.sudo || *.'http.request.header.cookie.sudo' || *.'http.response.header.set-cookie.sudo' || *.cookies.su || *.'http.request.header.cookie.su' || *.'http.response.header.set-cookie.su' || *.cookies.session || *.'http.request.header.cookie.session' || *.'http.response.header.set-cookie.session' || *.cookies.__session || *.'http.request.header.cookie.__session' || *.'http.response.header.set-cookie.__session' || *.cookies.sessionid || *.'http.request.header.cookie.sessionid' || *.'http.response.header.set-cookie.sessionid' || *.cookies.user_session || *.'http.request.header.cookie.user_session' || *.'http.response.header.set-cookie.user_session' || *.cookies.symfony || *.'http.request.header.cookie.symfony' || *.'http.response.header.set-cookie.symfony' || *.cookies.phpsessid || *.'http.request.header.cookie.phpsessid' || *.'http.response.header.set-cookie.phpsessid' || *.cookies.fasthttpsessionid || *.'http.request.header.cookie.fasthttpsessionid' || *.'http.response.header.set-cookie.fasthttpsessionid' || *.cookies.mysession || *.'http.request.header.cookie.mysession' || *.'http.response.header.set-cookie.mysession' || *.cookies.irissessionid || *.'http.request.header.cookie.irissessionid' || *.'http.response.header.set-cookie.irissessionid' || *.cookies._vercel_jwt || *.'http.request.header.cookie._vercel_jwt' || *.'http.response.header.set-cookie._vercel_jwt' || *.cookies.connect.sid || *.'http.request.header.cookie.connect.sid' || *.'http.response.header.set-cookie.connect.sid' || *.cookies.JSESSIONID || *.'http.request.header.cookie.JSESSIONID' || *.'http.response.header.set-cookie.JSESSIONID' || *.cookies.ASP.NET_SessionId || *.'http.request.header.cookie.ASP.NET_SessionId' || *.'http.response.header.set-cookie.ASP.NET_SessionId' || *.cookies.laravel_session || *.'http.request.header.cookie.laravel_session' || *.'http.response.header.set-cookie.laravel_session' || *.cookies.csrf || *.'http.request.header.cookie.csrf' || *.'http.response.header.set-cookie.csrf' || *.cookies.xsrf || *.'http.request.header.cookie.xsrf' || *.'http.response.header.set-cookie.xsrf' || *.cookies._xsrf || *.'http.request.header.cookie._xsrf' || *.'http.response.header.set-cookie._xsrf' || *.cookies._csrf || *.'http.request.header.cookie._csrf' || *.'http.response.header.set-cookie._csrf' || *.cookies.csrf-token || *.'http.request.header.cookie.csrf-token' || *.'http.response.header.set-cookie.csrf-token' || *.cookies.csrf_token || *.'http.request.header.cookie.csrf_token' || *.'http.response.header.set-cookie.csrf_token' || *.cookies.xsrf-token || *.'http.request.header.cookie.xsrf-token' || *.'http.response.header.set-cookie.xsrf-token' || *.cookies.xsrf_token || *.'http.request.header.cookie.xsrf_token' || *.'http.response.header.set-cookie.xsrf_token' || *.cookies.fastcsrf || *.'http.request.header.cookie.fastcsrf' || *.'http.response.header.set-cookie.fastcsrf' || *.cookies._iris_csrf || *.'http.request.header.cookie._iris_csrf' || *.'http.response.header.set-cookie._iris_csrf'": [
               "@anything:filter"

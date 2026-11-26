@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from .test_spans_standalone import envelope_with_spans as legacy_span_envelope
 from .test_spansv2 import envelope_with_spans
 from .test_store import make_error, make_transaction
 
@@ -481,6 +482,80 @@ def test_client_asn_preserves_upstream_removal(
             assert (span["attributes"].get(key) or {}).get("value") == expected.get(
                 key
             ), span["span_id"]
+
+
+def test_span_address_after_forwarder_scrubbing(
+    mini_sentry, relay, relay_credentials, relay_with_processing, spans_consumer
+):
+    credentials = relay_credentials()
+    processor = relay_with_processing(
+        options={"geoip": {**CITY_DB, **DB["geoip"]}}, static_credentials=credentials
+    )
+    pop = relay(
+        processor, credentials=credentials, options={"normalization": {"level": "full"}}
+    )
+    spans = spans_consumer()
+    ip = "89.160.20.112"
+    headers = {"X-Forwarded-For": IP}
+
+    # Expected (client.address, user.ip_address) after each pipeline's scrubbing.
+    cases = [
+        ("store", (ip, IP), (ip, IP), 29518, "Linköping"),
+        ("remove-address", (None, IP), (None, IP), None, None),
+        ("scrub-ips", ("[ip]", "[ip]"), (None, None), None, None),
+    ]
+    for project_id, (policy, transaction_ips, standalone_ips, asn, city) in enumerate(
+        cases, 42
+    ):
+        project = mini_sentry.add_full_project_config(project_id)
+        project["config"]["features"] = [ASN_FEATURE]
+        if policy == "scrub-ips":
+            project["config"]["datascrubbingSettings"] = {"scrubIpAddresses": True}
+        elif policy == "remove-address":
+            rules = project["config"]["piiConfig"]["applications"]
+            for selector in (
+                "contexts.trace.data.'client.address'",
+                "$span.tags.'client.address'",
+                "$span.attributes.'client.address'.value",
+            ):
+                rules[selector] = ["@anything:remove"]
+
+        # The lower-priority user address belongs to a different fixture network.
+        tx = transaction(IP, {})
+        tx["contexts"]["trace"]["data"] = {"client.address": ip}
+        tx["tags"] = {"user.ip_address": IP}
+        child = tx["spans"][0]
+        child["data"] = {}
+        child["tags"] = {"client.address": ip, "user.ip_address": IP}
+        pop.send_event(project_id, tx, headers=headers)
+
+        def check_span(expected_ips):
+            attrs = spans.get_span()["attributes"]
+            values = {
+                key: attr["value"]
+                for key, attr in attrs.items()
+                if attr and "value" in attr
+            }
+            assert (
+                values.get("client.address"),
+                values.get("user.ip_address"),
+            ) == expected_ips, policy
+            assert values.get(NUMBER) == asn, policy
+            return values
+
+        for _ in range(2):
+            check_span(transaction_ips)
+
+        trace_info = {
+            "trace_id": child["trace_id"],
+            "public_key": project["publicKeys"][0]["publicKey"],
+        }
+        for envelope in [
+            legacy_span_envelope(child, trace_info=trace_info),
+            standalone_span(project, ip, {}, user_ip=IP, infer_ip="auto"),
+        ]:
+            pop.send_envelope(project_id, envelope, headers=headers)
+            assert check_span(standalone_ips).get("user.geo.city") == city, policy
 
 
 def test_client_asn_address_selection(
