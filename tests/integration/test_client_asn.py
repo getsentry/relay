@@ -364,6 +364,18 @@ def test_client_asn_address_selection(
     assert NUMBER not in results["bbbbbbbbbbbbbbbb"]
     assert ORG not in results["bbbbbbbbbbbbbbbb"]
 
+    # The segment and child explicitly request the connection IP, distinct from the user IP.
+    tx = transaction("2600::1", {})
+    tx["contexts"]["trace"]["data"]["client.address"] = "{{auto}}"
+    tx["spans"][0]["data"] = {}
+    tx["spans"][0]["tags"] = {"user.ip_address": "{{auto}}"}
+    processing.send_event(42, tx, headers=headers)
+    for _ in range(2):
+        span = spans.get_span()
+        key = "client.address" if span["is_segment"] else "user.ip_address"
+        assert span["attributes"][key]["value"] == IP
+        assert span["attributes"][NUMBER]["value"] == 15169
+
     processing.send_event(
         42, make_error({"user": {"ip_address": "{{auto}}"}}), headers=headers
     )

@@ -48,6 +48,9 @@
 //!
 //! - For ASN, use the span's `client.address`, then `user.ip_address` if the first is absent.
 //!   An invalid or redacted address blocks fallback.
+//! - An explicit span address marker (`{{auto}}`) requests the connection IP, including
+//!   on transaction segments and children. Store the resolved address when IP inference is
+//!   enabled. A missing child address stays missing.
 //! - A transaction segment may use the event IP when both span addresses are absent.
 //!   Child spans need their own address for ASN, even when they inherit event user tags.
 //! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
@@ -66,11 +69,12 @@ use relay_event_schema::protocol::{
 };
 use relay_pii::ProjectPii;
 use relay_pii::UserIpRetention::{ApplyRules, HashOnly};
-use relay_protocol::{Annotated, RemarkType, Value};
+use relay_protocol::{Annotated, Object, RemarkType, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
+const ADDRESS_KEYS: [&str; 2] = [CLIENT__ADDRESS, USER__IP_ADDRESS];
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
@@ -97,16 +101,15 @@ pub fn process_client_ip(
         ClientIpConfig {
             platform: event.platform.as_str(),
             sdk: event.client_sdk.value(),
-            client_ip: config.client_ip,
+            // A previous normalizer already decided whether to backfill the event user.
+            client_ip: config.client_ip.filter(|_| !config.is_renormalize),
             geoip_lookup: config.geoip_lookup,
             infer_ip_address: config.infer_ip_address,
             security_report: event.csp.value().is_some(),
         },
         rules,
     )?;
-    if let Some(db) = config.asn_lookup {
-        enrich_event_asn(event, lookup, db, rules);
-    }
+    process_span_addresses_and_asn(event, lookup, config, rules);
     Ok(())
 }
 
@@ -158,6 +161,12 @@ fn normalize_request_ip(
     }
 }
 
+fn infer_ip_setting(sdk: Option<&ClientSdkInfo>) -> AutoInferSetting {
+    sdk.and_then(|sdk| sdk.settings.value())
+        .map(|settings| settings.infer_ip())
+        .unwrap_or_default()
+}
+
 /// Normalize the request and user in place and return the address eligible for lookup.
 pub fn process_user_ip(
     request: &mut Annotated<Request>,
@@ -165,11 +174,7 @@ pub fn process_user_ip(
     config: ClientIpConfig<'_>,
     rules: ProjectPii<'_>,
 ) -> Result<Option<IpAddr>, ProcessingAction> {
-    let infer = config
-        .sdk
-        .and_then(|sdk| sdk.settings.value())
-        .map(|settings| settings.infer_ip())
-        .unwrap_or_default();
+    let infer = infer_ip_setting(config.sdk);
     let transport = config.client_ip.filter(|_| {
         infer != AutoInferSetting::Never
             && (config.infer_ip_address
@@ -259,7 +264,16 @@ pub fn process_user_ip(
     Ok(lookup)
 }
 
-fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules: ProjectPii<'_>) {
+fn process_span_addresses_and_asn(
+    event: &mut Event,
+    ip: Option<IpAddr>,
+    config: &NormalizationConfig<'_>,
+    rules: ProjectPii<'_>,
+) {
+    let is_transaction = event.ty.value() == Some(&EventType::Transaction);
+    if !is_transaction && config.asn_lookup.is_none() {
+        return;
+    }
     let trace_data = field_value_mut(&mut event.contexts).and_then(|contexts| {
         let trace = field_value_mut(contexts.0.get_mut("trace").ok_or(Missing)?)?;
         match &mut trace.0 {
@@ -267,13 +281,15 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
             _ => Err(Missing),
         }
     });
-    let segment_has_asn = has_asn(&event.tags, |tags, k| tags.0.contains(k))
-        || match &trace_data {
-            Ok(data) => has_asn(data, SpanData::contains),
-            Err(reason) => matches!(reason, Redacted),
-        };
-    if event.ty.value() != Some(&EventType::Transaction) {
-        if !segment_has_asn && let Some((number, org)) = ip.and_then(|ip| db.lookup(ip)) {
+    let segment_db = config.asn_lookup.filter(|_| {
+        !has_asn(&event.tags, |tags, k| tags.0.contains(k))
+            && match &trace_data {
+                Ok(data) => !has_asn(data, SpanData::contains),
+                Err(reason) => matches!(reason, Missing),
+            }
+    });
+    if !is_transaction {
+        if let Some((number, org)) = segment_db.and_then(|db| db.lookup(ip?)) {
             let tags = &mut event.tags.get_or_insert_with(Tags::default).0;
             tags.insert(
                 CLIENT__AS__NUMBER.into(),
@@ -288,31 +304,53 @@ fn enrich_event_asn(event: &mut Event, ip: Option<IpAddr>, db: &AsnLookup, rules
         }
         return;
     }
+    let marker_ip = config
+        .client_ip
+        .filter(|_| infer_ip_setting(event.client_sdk.value()) != AutoInferSetting::Never);
+    let stored_ip = marker_ip.filter(|_| config.infer_ip_address);
     let mut fields = [rules.advanced, rules.legacy]
         .into_iter()
         .flatten()
         .any(|config| !config.applications.is_empty())
         .then(Attributes::new);
-    if !segment_has_asn
-        && !has_asn(&event.measurements, |m, k| m.contains_key(k))
-        && let Ok(data) = trace_data
-        && let Some(ip) = span_ip(data, |key| event.tags.value()?.0.get(key), ip)
-    {
-        insert_span_asn(data, ip, db, rules, &mut fields);
+    if let Ok(data) = trace_data {
+        if let Some(db) = segment_db
+            && !has_asn(&event.measurements, |m, k| m.contains_key(k))
+            && let Some(ip) = span_ip(data, |key| event.tags.value()?.0.get(key), marker_ip, ip)
+        {
+            insert_span_asn(data, ip, db, rules, &mut fields);
+        }
+        normalize_data_markers(data, stored_ip);
     }
-    for span in event
-        .spans
-        .value_mut()
-        .iter_mut()
-        .flatten()
-        .filter_map(|s| s.value_mut().as_mut())
-    {
-        if !has_asn(&span.data, SpanData::contains)
+    if let Ok(tags) = field_value_mut(&mut event.tags) {
+        tags.retain_mut(|entry| {
+            let Ok(entry) = field_value_mut(entry) else {
+                return true;
+            };
+            !matches!(entry.0.as_str(), Some(CLIENT__ADDRESS | USER__IP_ADDRESS))
+                || keep_address(&mut entry.1, stored_ip, |v| Some(v.as_str()))
+        });
+    }
+    let Ok(spans) = field_value_mut(&mut event.spans) else {
+        return;
+    };
+    for span in spans.iter_mut().filter_map(|s| field_value_mut(s).ok()) {
+        if let Some(db) = config.asn_lookup
+            && !has_asn(&span.data, SpanData::contains)
             && !has_asn(&span.measurements, |m, k| m.contains_key(k))
             && !has_asn(&span.tags, |tags, k| tags.contains_key(k))
-            && let Some(ip) = span_ip(&span.data, |key| span.tags.value()?.get(key), None)
+            && let Some(ip) = span_ip(
+                &span.data,
+                |key| span.tags.value()?.get(key),
+                marker_ip,
+                None,
+            )
         {
             insert_span_asn(&mut span.data, ip, db, rules, &mut fields);
+        }
+        normalize_data_markers(&mut span.data, stored_ip);
+        if let Ok(tags) = field_value_mut(&mut span.tags) {
+            normalize_map_markers(tags, stored_ip, |v| Some(v.as_str()));
         }
     }
 }
@@ -377,9 +415,10 @@ fn insert_span_asn(
 fn span_ip<'a, T: AsRef<str> + 'a>(
     data: &Annotated<SpanData>,
     tag: impl Fn(&str) -> Option<&'a Annotated<T>>,
+    marker_ip: Option<IpAddr>,
     fallback: Option<IpAddr>,
 ) -> Option<IpAddr> {
-    for key in [CLIENT__ADDRESS, USER__IP_ADDRESS] {
+    for key in ADDRESS_KEYS {
         let text = if let Some(v) = data.value().and_then(|d| d.get(key)) {
             unredacted_value(v)?.as_str()?
         } else if let Some(v) = tag(key) {
@@ -387,9 +426,48 @@ fn span_ip<'a, T: AsRef<str> + 'a>(
         } else {
             continue;
         };
-        return text.parse().ok();
+        return match text {
+            ProtocolIp::AUTO_MARKER => marker_ip,
+            literal => literal.parse().ok(),
+        };
     }
     fallback
+}
+
+/// Resolve markers after the lookup so removing them for storage preserves eligible ASN.
+fn normalize_data_markers(data: &mut Annotated<SpanData>, ip: Option<IpAddr>) {
+    if let Ok(data) = field_value_mut(data) {
+        normalize_map_markers(&mut data.other, ip, Value::as_str);
+    }
+}
+
+fn normalize_map_markers<T: From<String>>(
+    fields: &mut Object<T>,
+    ip: Option<IpAddr>,
+    text: fn(&T) -> Option<&str>,
+) {
+    for key in ADDRESS_KEYS {
+        if let Some(field) = fields.get_mut(key)
+            && !keep_address(field, ip, text)
+        {
+            fields.remove(key);
+        }
+    }
+}
+
+fn keep_address<T: From<String>>(
+    field: &mut Annotated<T>,
+    ip: Option<IpAddr>,
+    text: fn(&T) -> Option<&str>,
+) -> bool {
+    if unredacted_value(field).and_then(text) != Some(ProtocolIp::AUTO_MARKER) {
+        return true;
+    }
+    let Some(ip) = ip else {
+        return false;
+    };
+    field.set_value(Some(ip.to_string().into()));
+    true
 }
 
 #[cfg(test)]
@@ -431,6 +509,50 @@ mod tests {
             let ip = event.user.value().and_then(|u| u.ip_address.as_str());
             let asn = event.tags.value().and_then(|t| t.get(CLIENT__AS__NUMBER));
             assert_eq!((ip, asn), (expected_ip, expected_asn), "{meta}");
+        }
+    }
+
+    #[test]
+    fn test_previously_normalized_span_ip_markers() {
+        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
+        let ip = "1.0.0.1";
+        let marker = ProtocolIp::AUTO_MARKER;
+        for (connection, store, sdk, lookup, expected_ip, expected_asn) in [
+            (Some(ip), true, "auto", None, Some(ip), None),
+            (Some(ip), false, "auto", Some(&db), None, Some(15169)),
+            (Some(ip), true, "never", Some(&db), None, None),
+            (None, true, "auto", Some(&db), None, None),
+        ] {
+            let payload = json!({
+                "type": "transaction", "platform": "javascript",
+                "sdk": {"settings": {"infer_ip": sdk}},
+                "tags": {"client.address": marker},
+                "spans": [{"data": {"user.ip_address": marker}}],
+            });
+            let mut event = Annotated::<Event>::from_json(&payload.to_string())
+                .unwrap()
+                .into_value()
+                .unwrap();
+            let config = NormalizationConfig {
+                is_renormalize: true,
+                client_ip: connection.map(|ip| ip.parse().unwrap()),
+                infer_ip_address: store,
+                asn_lookup: lookup,
+                ..Default::default()
+            };
+            process_client_ip(&mut event, &config, Default::default()).unwrap();
+            assert!(event.user.value().is_none());
+            assert_eq!(
+                event.tags.value().unwrap().get(CLIENT__ADDRESS),
+                expected_ip
+            );
+            let span = event.spans.value().unwrap()[0].value().unwrap();
+            let data = span.data.value().unwrap();
+            assert_eq!(data.get_str(USER__IP_ADDRESS), expected_ip);
+            assert_eq!(
+                data.get_value(CLIENT__AS__NUMBER),
+                expected_asn.map(Value::I64).as_ref()
+            );
         }
     }
 

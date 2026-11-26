@@ -214,6 +214,12 @@ pub fn normalize(
         .project_info
         .has_feature(Feature::ClientAsnLookup)
         .then_some(asn_lookup);
+    let client_ip = headers.meta().client_addr();
+    let infer_ip_address = !ctx
+        .project_info
+        .config
+        .datascrubbing_settings
+        .scrub_ip_addresses;
     let full_normalization = match ctx.config.normalization_level() {
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
@@ -222,6 +228,9 @@ pub fn normalize(
                     relay_event_normalization::process_client_ip(
                         event,
                         &NormalizationConfig {
+                            is_renormalize: true,
+                            client_ip,
+                            infer_ip_address,
                             asn_lookup,
                             ..Default::default()
                         },
@@ -275,11 +284,8 @@ pub fn normalize(
             key_id,
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
-            client_ip: request_meta.client_addr(),
-            infer_ip_address: !project_info
-                .config
-                .datascrubbing_settings
-                .scrub_ip_addresses,
+            client_ip,
+            infer_ip_address,
             client_sample_rate: headers.dsc().and_then(|ctx| ctx.sample_rate),
             user_agent: RawUserAgentInfo {
                 user_agent: request_meta.user_agent(),
