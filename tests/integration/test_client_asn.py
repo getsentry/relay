@@ -324,6 +324,7 @@ def test_client_ip_enrichment_at_ingress(
             (None, None, "never", None, None, None),
             (None, server_ip, "never", None, "Milton", 209),
             (server_ip, None, "auto", server_ip, "Milton", 209),
+            (server_ip, client_ip, "never", server_ip, "Milton", 209),
         ]:
             envelope = standalone_span(
                 project, client, {}, user_ip=user, infer_ip=setting
@@ -525,9 +526,11 @@ def test_client_asn_address_selection(
         {
             **tx["spans"][0],
             "span_id": "cccccccccccccccc",
-            "tags": {"client.address": "2600::1"},
+            "data": {"client.address": "2600::1", "user.ip_address": IP},
         }
     )
+    # A custom tag alone does not supply an IP for enrichment.
+    tx["spans"][0]["tags"] = {"client.address": "{{auto}}"}
     processing.send_event(42, tx, headers=headers)
     results = {
         s["span_id"]: s["attributes"]
@@ -538,14 +541,14 @@ def test_client_asn_address_selection(
         "value"
     ) is None
     assert results["cccccccccccccccc"][NUMBER]["value"] == 237
+    assert results["bbbbbbbbbbbbbbbb"]["client.address"]["value"] == "{{auto}}"
     assert NUMBER not in results["bbbbbbbbbbbbbbbb"]
     assert ORG not in results["bbbbbbbbbbbbbbbb"]
 
     # The segment and child explicitly request the connection IP, distinct from the user IP.
     tx = transaction("2600::1", {})
     tx["contexts"]["trace"]["data"]["client.address"] = "{{auto}}"
-    tx["spans"][0]["data"] = {}
-    tx["spans"][0]["tags"] = {"user.ip_address": "{{auto}}"}
+    tx["spans"][0]["data"] = {"user.ip_address": "{{auto}}"}
     processing.send_event(42, tx, headers=headers)
     for _ in range(2):
         span = spans.get_span()
@@ -592,8 +595,7 @@ def test_transaction_ip_marker_destination_rules(
     )
     tx = transaction("2600::1", {})
     tx["contexts"]["trace"]["data"] = {"client.address": "{{auto}}"}
-    tx["spans"][0]["data"] = {}
-    tx["spans"][0]["tags"] = {"user.ip_address": "{{auto}}"}
+    tx["spans"][0]["data"] = {"user.ip_address": "{{auto}}"}
     ingress.send_event(42, tx, headers={"X-Forwarded-For": IP})
     envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_transaction_event()
@@ -602,7 +604,7 @@ def test_transaction_ip_marker_destination_rules(
     expected = 15169 if lookup else None
     assert segment.get(NUMBER) == (child.get("data") or {}).get(NUMBER) == expected
     assert segment.get("client.address") is None
-    assert child["tags"]["user.ip_address"] == "*" * len(IP)
+    assert child["data"]["user.ip_address"] == "*" * len(IP)
 
     pop.send_event(42, tx, headers={"X-Forwarded-For": IP})
     for _ in range(2):

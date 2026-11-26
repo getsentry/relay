@@ -52,7 +52,7 @@
 //!
 //! ## Span enrichment
 //!
-//! - For ASN, use the span's `client.address`, then `user.ip_address` if the first is absent.
+//! - Read `client.address`, then `user.ip_address`, from transaction span data or standalone span attributes.
 //!   An invalid address or one marked as modified blocks fallback.
 //! - An explicit span address marker (`{{auto}}`) requests the connection IP, including
 //!   on transaction segments and children. Store the resolved address when IP inference is
@@ -319,13 +319,6 @@ fn process_transaction_ips(
         }
         scrubbed_span_fields(fields, rules).collect()
     });
-    let stored = |key: &str| {
-        stored_addresses
-            .get(key)
-            .cloned()
-            .unwrap_or_default()
-            .and_then(Value::into_string)
-    };
     let trace_data = field_value_mut(&mut event.contexts).and_then(|contexts| {
         let trace = field_value_mut(contexts.0.get_mut("trace").ok_or(Missing)?)?;
         match &mut trace.0 {
@@ -334,41 +327,15 @@ fn process_transaction_ips(
         }
     });
     // Resolve address markers even when ASN lookup is disabled or already supplied.
-    let mut segment_tags = [None; 2];
-    if let Ok(tags) = field_value_mut(&mut event.tags) {
-        tags.retain_mut(|entry| {
-            let Ok(entry) = field_value_mut(entry) else {
-                return true;
-            };
-            let Some(i) = ADDRESS_KEYS
-                .iter()
-                .position(|key| Some(*key) == entry.0.as_str())
-            else {
-                return true;
-            };
-            let (address, keep) = resolve_address(
-                &mut entry.1,
-                || stored(ADDRESS_KEYS[i]),
-                |s| Some(s.as_str()),
-            );
-            segment_tags[i].get_or_insert(address);
-            keep
+    let process_span = |data: &mut Annotated<SpanData>, fallback, db: Option<&AsnLookup>| {
+        let source = field_value_mut(data).ok().and_then(|data| {
+            resolve_span_address(data, |key| {
+                stored_addresses.get(key).cloned().unwrap_or_default()
+            })
         });
-    }
-    let process_span = |data: &mut Annotated<SpanData>, tags, fallback, db: Option<&AsnLookup>| {
-        let addresses = resolve_address_map(
-            field_value_mut(data).ok().map(|d| &mut d.other),
-            stored,
-            Value::as_str,
-        );
         let Some(db) = db.filter(|_| !has_asn(data, SpanData::contains)) else {
             return;
         };
-        // For each key, data precedes tags. Only a wholly absent address permits fallback.
-        let source = addresses
-            .into_iter()
-            .zip(tags)
-            .find_map(|(data, tag)| data.or(tag));
         let ip = match source {
             Some(ParsedIp::Address(ip)) => Some(ip),
             Some(ParsedIp::Auto) => marker_ip,
@@ -385,7 +352,7 @@ fn process_transaction_ips(
     };
     if let Ok(data) = trace_data {
         let db = segment_db.filter(|_| !has_asn(&event.measurements, |m, k| m.contains_key(k)));
-        process_span(data, segment_tags, ip, db);
+        process_span(data, ip, db);
     }
     let Ok(spans) = field_value_mut(&mut event.spans) else {
         return;
@@ -395,10 +362,7 @@ fn process_transaction_ips(
             !has_asn(&span.measurements, |m, k| m.contains_key(k))
                 && !has_asn(&span.tags, |tags, k| tags.contains_key(k))
         });
-        let tags = resolve_address_map(field_value_mut(&mut span.tags).ok(), stored, |s| {
-            Some(s.as_str())
-        });
-        process_span(&mut span.data, tags, None, db);
+        process_span(&mut span.data, None, db);
     }
 }
 
@@ -440,44 +404,37 @@ fn scrubbed_span_fields(
         .map(|(key, attr)| (key, attr.and_then(|a| a.value.value)))
 }
 
-/// Return each original address while applying marker storage to the wire fields.
-fn resolve_address_map<T: From<String>>(
-    mut fields: Option<&mut Object<T>>,
-    stored: impl Fn(&str) -> Annotated<String>,
-    text: fn(&T) -> Option<&str>,
-) -> [Option<ParsedIp>; 2] {
-    ADDRESS_KEYS.map(|key| {
-        let fields = fields.as_deref_mut()?;
-        let (address, keep) = resolve_address(fields.get_mut(key)?, || stored(key), text);
-        if !keep {
-            fields.remove(key);
+/// Resolve both markers in the payload, using the first supplied address for lookup.
+fn resolve_span_address(
+    data: &mut SpanData,
+    stored: impl Fn(&str) -> Annotated<Value>,
+) -> Option<ParsedIp> {
+    let mut source = None;
+    for key in ADDRESS_KEYS {
+        let Some(field) = data.other.get_mut(key) else {
+            continue;
+        };
+        let address = value_without_modifying_remark(field)
+            .and_then(Value::as_str)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(ParsedIp::Replacement);
+        source.get_or_insert(address);
+        if address == ParsedIp::Auto {
+            let replacement = stored(key);
+            if replacement.value().is_none() && replacement.meta().is_empty() {
+                data.remove(key);
+            } else {
+                *field = mem::take(field).and_then(|_| replacement);
+            }
         }
-        Some(address)
-    })
-}
-
-fn resolve_address<T: From<String>>(
-    field: &mut Annotated<T>,
-    stored: impl FnOnce() -> Annotated<String>,
-    text: fn(&T) -> Option<&str>,
-) -> (ParsedIp, bool) {
-    let address = value_without_modifying_remark(field)
-        .and_then(text)
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(ParsedIp::Replacement);
-    if address == ParsedIp::Auto {
-        let replacement = stored();
-        let keep = replacement.value().is_some() || !replacement.meta().is_empty();
-        *field = mem::take(field).and_then(|_| replacement.map_value(T::from));
-        (address, keep)
-    } else {
-        (address, true)
     }
+    source
 }
 
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::{ProcessingState, process_value};
+    use relay_event_schema::protocol::TraceContext;
     use relay_pii::{PiiConfig, PiiProcessor};
     use relay_protocol::Remark;
     use serde_json::json;
@@ -564,7 +521,7 @@ mod tests {
             let payload = json!({
                 "type": "transaction", "platform": "javascript",
                 "sdk": {"settings": {"infer_ip": sdk}},
-                "tags": {"client.address": marker},
+                "contexts": {"trace": {"data": {"client.address": marker}}},
                 "spans": [{"data": {"user.ip_address": marker}}],
             });
             let mut event = Annotated::<Event>::from_json(&payload.to_string())
@@ -581,7 +538,12 @@ mod tests {
             process_client_ip(&mut event, &config, Default::default()).unwrap();
             assert!(event.user.value().is_none());
             assert_eq!(
-                event.tags.value().unwrap().get(CLIENT__ADDRESS),
+                event
+                    .context::<TraceContext>()
+                    .unwrap()
+                    .data
+                    .value()
+                    .and_then(|d| d.get_str(CLIENT__ADDRESS)),
                 expected_ip
             );
             let span = event.spans.value().unwrap()[0].value().unwrap();
