@@ -82,7 +82,7 @@ async fn test_attachment_accounting_from_wire() {
     );
     #[cfg(not(feature = "processing"))]
     let limiter = QuotaRateLimiter::new();
-    let processor = SpansProcessor::new(Arc::new(limiter), CityLookup::empty(), AsnLookup::empty());
+    let processor = SpansProcessor::new(Arc::new(limiter), None, None);
 
     for (body, bytes) in [("", 1), ("x", 1), ("payload", 7)] {
         for associated in [false, true] {

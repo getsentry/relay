@@ -67,16 +67,16 @@ impl OutcomeError for Error {
 /// It processes all kinds of error events, user feedback, crashes, ...
 pub struct ErrorsProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: CityLookup,
-    asn_lookup: AsnLookup,
+    geoip_lookup: Option<CityLookup>,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl ErrorsProcessor {
     /// Creates a new [`Self`].
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
-        geoip_lookup: CityLookup,
-        asn_lookup: AsnLookup,
+        geoip_lookup: Option<CityLookup>,
+        asn_lookup: Option<AsnLookup>,
     ) -> Self {
         Self {
             limiter,
@@ -138,7 +138,12 @@ impl processing::Processor for ErrorsProcessor {
         process::process(&mut error, ctx)?;
 
         process::finalize(&mut error, ctx)?;
-        process::normalize(&mut error, &self.geoip_lookup, &self.asn_lookup, ctx)?;
+        process::normalize(
+            &mut error,
+            self.geoip_lookup.as_ref(),
+            self.asn_lookup.as_ref(),
+            ctx,
+        )?;
 
         filter::filter(&error, ctx).reject(&error)?;
 

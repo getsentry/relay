@@ -10,23 +10,19 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
-use relay_event_schema::protocol::{
-    Attribute, AttributeType, Attributes, Geo, SpanV2, SpanV2Status,
-};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, SpanV2, SpanV2Status};
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
-use crate::client_ip::{has_asn, has_modifying_remark, set_asn_fields};
 use crate::span::TABLE_NAME_REGEX;
-use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
 use crate::utils::format_user_tag;
-use crate::{AsnLookup, TransactionNameRule, normalize_transaction_name};
+use crate::{TransactionNameRule, normalize_transaction_name};
 
 mod ai;
 mod attribute_like;
@@ -43,6 +39,7 @@ pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurement
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 pub use self::user_agent::UserAgentNormalizer;
+pub use crate::client_ip::normalize_user_geo;
 
 /// How an EAP item entered Relay.
 #[derive(Debug, Clone)]
@@ -370,75 +367,6 @@ pub fn normalize_inject_client_address(
 
     let attributes = attributes.get_or_insert_with(Default::default);
     attributes.insert_if_missing(CLIENT__ADDRESS, || client_ip.to_string());
-}
-
-/// Normalizes the user's geographical information into [`Attributes`].
-///
-/// Does not modify the attributes if there is already user geo information present,
-/// to preserve original values.
-///
-/// This uses [`CLIENT__ADDRESS`] or, when absent, [`USER__IP_ADDRESS`]. Run
-/// [`normalize_client_address`] before [`normalize_user_geo`].
-pub fn normalize_user_geo(
-    attributes: &mut Annotated<Attributes>,
-    info: impl FnOnce(IpAddr) -> Option<Geo>,
-) {
-    normalize_span_ip(attributes, info, None);
-}
-
-/// Enrich missing City and ASN fields from the same eligible address.
-pub fn normalize_span_ip(
-    attributes: &mut Annotated<Attributes>,
-    city: impl FnOnce(IpAddr) -> Option<Geo>,
-    asn: Option<&AsnLookup>,
-) {
-    if has_modifying_remark(attributes) {
-        return;
-    }
-    let asn = asn.filter(|_| !has_asn(attributes, |a, k| a.contains_key(k)));
-    let Some(attributes) = attributes.value_mut() else {
-        return;
-    };
-    let needs_city = ![
-        USER__GEO__COUNTRY_CODE,
-        USER__GEO__CITY,
-        USER__GEO__SUBDIVISION,
-        USER__GEO__REGION,
-    ]
-    .into_iter()
-    .any(|key| attributes.contains_key(key));
-    let Some(source @ Annotated(Some(attr), _)) = attributes
-        .0
-        .get(CLIENT__ADDRESS)
-        .or_else(|| attributes.0.get(USER__IP_ADDRESS))
-    else {
-        return;
-    };
-    let value = &attr.value.value;
-    if has_modifying_remark(source) || has_modifying_remark(value) || (!needs_city && asn.is_none())
-    {
-        return;
-    }
-    let Some(ip) = value.as_str().and_then(|text| text.parse().ok()) else {
-        return;
-    };
-    if let Some((number, org)) = asn.and_then(|db| db.lookup(ip)) {
-        set_asn_fields(attributes, number, org);
-    }
-    if needs_city && let Some(geo) = city(ip) {
-        let subregion = geo
-            .country_code
-            .value()
-            .and_then(|cc| Subregion::from_iso2(cc));
-
-        attributes.insert(USER__GEO__COUNTRY_CODE, geo.country_code);
-        attributes.insert(USER__GEO__CITY, geo.city);
-        attributes.insert(USER__GEO__SUBDIVISION, geo.subdivision);
-        attributes.insert(USER__GEO__REGION, geo.region);
-        if let Some(subregion) = subregion {
-            attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
-        }
-    }
 }
 
 /// Derives the [`SENTRY__USER`] attribute from the user attributes.
@@ -1050,6 +978,7 @@ mod tests {
     use std::time::Duration;
 
     use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::Geo;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
     use relay_sampling::DynamicSamplingContext;
 
@@ -1521,38 +1450,6 @@ mod tests {
           }
         }
         "#);
-    }
-
-    #[test]
-    fn test_span_ip_source_eligibility() {
-        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
-        let mut source = Attributes::new();
-        source.insert(USER__IP_ADDRESS, "1.0.0.1");
-        let mut user_only = Annotated::new(source.clone());
-        let city = |ip: IpAddr| {
-            assert_eq!(ip.to_string(), "1.0.0.1");
-            Some(Geo {
-                city: Annotated::new("Fixture city".into()),
-                ..Default::default()
-            })
-        };
-        normalize_span_ip(&mut user_only, city, Some(&db));
-        assert!(user_only.value().unwrap().contains_key(USER__GEO__CITY));
-        let mut city_only = Annotated::new(source.clone());
-        normalize_span_ip(&mut city_only, city, None);
-        assert!(city_only.value().unwrap().contains_key(USER__GEO__CITY));
-        assert!(user_only.value().unwrap().contains_key(CLIENT__AS__NUMBER));
-
-        // A redacted client address blocks both lookups, including fallback to the user IP.
-        source.insert(CLIENT__ADDRESS, "2600::1");
-        source
-            .get_annotated_value_mut(CLIENT__ADDRESS)
-            .unwrap()
-            .meta_mut()
-            .add_remark(Remark::new(RemarkType::Substituted, "test"));
-        let mut attrs = Annotated::new(source);
-        normalize_span_ip(&mut attrs, |_| unreachable!(), Some(&db));
-        assert!(!attrs.value().unwrap().contains_key(CLIENT__AS__NUMBER));
     }
 
     #[test]

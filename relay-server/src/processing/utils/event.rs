@@ -190,8 +190,8 @@ pub fn normalize(
     mut event_fully_normalized: EventFullyNormalized,
     project_id: ProjectId,
     ctx: Context,
-    geoip_lookup: &CityLookup,
-    asn_lookup: &AsnLookup,
+    geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
@@ -300,10 +300,8 @@ pub fn normalize(
             remove_other: full_normalization,
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
-            geoip_lookup: Some(geoip_lookup),
-            asn_lookup: project_info
-                .has_feature(Feature::ClientAsnLookup)
-                .then_some(asn_lookup),
+            geoip_lookup,
+            asn_lookup: asn_lookup.filter(|_| project_info.has_feature(Feature::ClientAsnLookup)),
             ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(

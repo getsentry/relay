@@ -177,7 +177,7 @@ fn extract_tags_for_spans(
             is_mobile,
             start_type,
             span_allowed_hosts,
-            &CityLookup::empty(),
+            None,
         );
 
         shared_tags.copy_into(&mut tags);
@@ -871,7 +871,7 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
-    geoip_lookup: &crate::CityLookup,
+    geoip_lookup: Option<&CityLookup>,
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
@@ -1133,11 +1133,12 @@ pub fn extract_tags(
             }
             // Standalone vital spans don't come from an event with geo data.
             // Derive geo data from the client address inferred on the span.
-            if let Some(client_address) = span
-                .data
-                .value()
-                .and_then(|data| data.get_str(CLIENT__ADDRESS))
-                .and_then(|ip| ip.parse().ok())
+            if let Some(geoip_lookup) = geoip_lookup
+                && let Some(client_address) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get_str(CLIENT__ADDRESS))
+                    .and_then(|ip| ip.parse().ok())
                 && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
             {
@@ -2553,16 +2554,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
     }
@@ -2629,16 +2621,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(
             tags.messaging_destination_name.value(),
@@ -2944,16 +2927,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        )
+        extract_tags(&span, 200, None, None, false, None, &[], None)
     }
 
     #[test]
@@ -3008,16 +2982,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
 
@@ -3044,16 +3009,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
     }
@@ -3424,7 +3380,7 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], Some(&lookup));
         assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
         assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
     }
@@ -3446,16 +3402,7 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
     }

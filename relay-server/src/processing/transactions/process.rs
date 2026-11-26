@@ -156,8 +156,8 @@ pub fn prepare_data(
 pub fn normalize(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
-    geoip_lookup: &CityLookup,
-    asn_lookup: &AsnLookup,
+    geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
     let project_id = work.scoping().project_id;
     work.try_map(|mut work, r| {

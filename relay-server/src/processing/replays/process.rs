@@ -101,7 +101,7 @@ pub fn expand(
 /// Normalizes a replay event.
 pub fn normalize(
     replay: &mut Managed<ExpandedReplay>,
-    geoip_lookup: &CityLookup,
+    geoip_lookup: Option<&CityLookup>,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let meta = replay.headers.meta();

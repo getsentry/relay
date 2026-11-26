@@ -67,16 +67,16 @@ impl OutcomeError for Error {
 /// A processor for transactions.
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: CityLookup,
-    asn_lookup: AsnLookup,
+    geoip_lookup: Option<CityLookup>,
+    asn_lookup: Option<AsnLookup>,
 }
 
 impl TransactionProcessor {
     /// Creates a new transaction processor.
     pub fn new(
         limiter: Arc<QuotaRateLimiter>,
-        geoip_lookup: CityLookup,
-        asn_lookup: AsnLookup,
+        geoip_lookup: Option<CityLookup>,
+        asn_lookup: Option<AsnLookup>,
     ) -> Self {
         Self {
             limiter,
@@ -135,7 +135,12 @@ impl Processor for TransactionProcessor {
         process::prepare_data(&mut tx, &mut ctx)?;
 
         relay_log::trace!("Normalize transaction");
-        let mut tx = process::normalize(tx, ctx, &self.geoip_lookup, &self.asn_lookup)?;
+        let mut tx = process::normalize(
+            tx,
+            ctx,
+            self.geoip_lookup.as_ref(),
+            self.asn_lookup.as_ref(),
+        )?;
 
         relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&tx, ctx)?;

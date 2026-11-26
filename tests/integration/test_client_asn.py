@@ -184,6 +184,12 @@ PROCESSING_PROJECTS = (
         ),  # The processor owns the database.
         pytest.param(
             {},
+            (),
+            (ProjectCase(id="enabled", events=(NO_ASN, SDK_NUMBER)),),
+            id="no-database",
+        ),
+        pytest.param(
+            {},
             (DB,),
             (ProjectCase(id="forwarder-only", events=(LOOKUP,)),),
             id="forwarder-only",

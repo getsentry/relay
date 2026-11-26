@@ -62,25 +62,28 @@
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
-    CLIENT__ADDRESS, CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION, USER__IP_ADDRESS,
+    CLIENT__ADDRESS, CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION, USER__GEO__CITY,
+    USER__GEO__COUNTRY_CODE, USER__GEO__REGION, USER__GEO__SUBDIVISION, USER__GEO__SUBREGION,
+    USER__IP_ADDRESS,
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingResult, ValueType};
 use relay_event_schema::protocol::{
-    Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, IpAddr as ProtocolIp,
-    ParsedIp, Request, SpanData, SpanV2, Tags, User,
+    Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, Geo,
+    IpAddr as ProtocolIp, ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
 use relay_pii::ProjectPii;
 use relay_pii::UserIpRetention::{ApplyRules, HashOnly};
 use relay_protocol::{Annotated, RemarkType, Value};
 
 use self::Unavailable::{MarkedModified, Missing};
+use crate::span::country_subregion::Subregion;
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
 
 const ADDRESS_KEYS: [&str; 2] = [CLIENT__ADDRESS, USER__IP_ADDRESS];
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
 /// Whether a remark records a change to the field, including a change to only part of its value.
-pub fn has_modifying_remark<T>(field: &Annotated<T>) -> bool {
+fn has_modifying_remark<T>(field: &Annotated<T>) -> bool {
     field.meta().iter_remarks().any(|remark| match remark.ty {
         RemarkType::Annotated => false,
         RemarkType::Removed
@@ -116,7 +119,7 @@ pub fn process_client_ip(
         },
         rules,
     )?;
-    let Some(db) = config.asn_lookup.filter(|db| db.is_loaded()) else {
+    let Some(db) = config.asn_lookup else {
         return Ok(());
     };
     let tags_have_asn = has_asn(&event.tags, |tags, k| tags.0.contains(k));
@@ -289,6 +292,87 @@ pub fn process_user_ip(
     Ok(lookup)
 }
 
+/// Normalizes the user's geographical information into [`Attributes`].
+///
+/// Does not modify the attributes if there is already user geo information present,
+/// to preserve original values.
+///
+/// This uses [`CLIENT__ADDRESS`] or, when absent, [`USER__IP_ADDRESS`]. Run
+/// [`crate::eap::normalize_client_address`] before [`normalize_user_geo`].
+pub fn normalize_user_geo(
+    attributes: &mut Annotated<Attributes>,
+    info: impl FnOnce(IpAddr) -> Option<Geo>,
+) {
+    enrich_span_ip(attributes, Some(info), None);
+}
+
+/// Enrich missing City and ASN fields from the same eligible address.
+pub fn normalize_span_ip(
+    attributes: &mut Annotated<Attributes>,
+    city: Option<&CityLookup>,
+    asn: Option<&AsnLookup>,
+) {
+    enrich_span_ip(attributes, city.map(|db| move |ip| db.lookup(ip)), asn);
+}
+
+fn enrich_span_ip(
+    attributes: &mut Annotated<Attributes>,
+    city: Option<impl FnOnce(IpAddr) -> Option<Geo>>,
+    asn: Option<&AsnLookup>,
+) {
+    if (city.is_none() && asn.is_none()) || has_modifying_remark(attributes) {
+        return;
+    }
+    let asn = asn.filter(|_| !has_asn(attributes, |a, k| a.contains_key(k)));
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+    let city = city.filter(|_| {
+        ![
+            USER__GEO__COUNTRY_CODE,
+            USER__GEO__CITY,
+            USER__GEO__SUBDIVISION,
+            USER__GEO__REGION,
+        ]
+        .into_iter()
+        .any(|key| attributes.contains_key(key))
+    });
+    if city.is_none() && asn.is_none() {
+        return;
+    }
+    let Some(source @ Annotated(Some(attr), _)) = attributes
+        .0
+        .get(CLIENT__ADDRESS)
+        .or_else(|| attributes.0.get(USER__IP_ADDRESS))
+    else {
+        return;
+    };
+    let value = &attr.value.value;
+    if has_modifying_remark(source) || has_modifying_remark(value) {
+        return;
+    }
+    let Some(ip) = value.as_str().and_then(|text| text.parse().ok()) else {
+        return;
+    };
+    if let Some((number, org)) = asn.and_then(|db| db.lookup(ip)) {
+        set_asn_fields(attributes, number, org);
+    }
+    if let Some(geo) = city.and_then(|lookup| lookup(ip)) {
+        let subregion = geo
+            .country_code
+            .value()
+            .and_then(|cc| Subregion::from_iso2(cc));
+
+        attributes.insert(USER__GEO__COUNTRY_CODE, geo.country_code);
+        attributes.insert(USER__GEO__CITY, geo.city);
+        attributes.insert(USER__GEO__SUBDIVISION, geo.subdivision);
+        attributes.insert(USER__GEO__REGION, geo.region);
+        if let Some(subregion) = subregion {
+            attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
+        }
+    }
+}
+
 fn enrich_transaction_asn(
     event: &mut Event,
     ip: Option<IpAddr>,
@@ -344,14 +428,14 @@ fn enrich_span_asn(
 }
 
 /// Preserve a scrubbed container or either ASN attribute supplied by the SDK.
-pub fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
+fn has_asn<T>(field: &Annotated<T>, contains: impl Fn(&T, &str) -> bool) -> bool {
     has_modifying_remark(field)
         || field
             .value()
             .is_some_and(|value| ASN_KEYS.into_iter().any(|key| contains(value, key)))
 }
 
-pub fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
+fn set_asn_fields(fields: &mut Attributes, number: u32, organization: Option<&str>) {
     fields.insert(CLIENT__AS__NUMBER, i64::from(number));
     if let Some(org) = organization {
         fields.insert(CLIENT__AS__ORGANIZATION, org);
@@ -389,6 +473,33 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn test_span_ip_source_eligibility() {
+        let city = CityLookup::open("../tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let db = AsnLookup::open("../tests/fixtures/GeoLite2-ASN-Test.mmdb").unwrap();
+        let mut source = Attributes::new();
+        source.insert(USER__IP_ADDRESS, "89.160.20.112");
+        let mut user_only = Annotated::new(source.clone());
+        normalize_span_ip(&mut user_only, Some(&city), Some(&db));
+        assert!(user_only.value().unwrap().contains_key(USER__GEO__CITY));
+        let mut city_only = Annotated::new(source.clone());
+        normalize_span_ip(&mut city_only, Some(&city), None);
+        assert!(city_only.value().unwrap().contains_key(USER__GEO__CITY));
+        assert!(user_only.value().unwrap().contains_key(CLIENT__AS__NUMBER));
+
+        // A redacted client address blocks both lookups, including fallback to the user IP.
+        source.insert(CLIENT__ADDRESS, "2600::1");
+        source
+            .get_annotated_value_mut(CLIENT__ADDRESS)
+            .unwrap()
+            .meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "test"));
+        let mut attrs = Annotated::new(source);
+        normalize_span_ip(&mut attrs, Some(&city), Some(&db));
+        assert!(!attrs.value().unwrap().contains_key(CLIENT__AS__NUMBER));
+        assert!(!attrs.value().unwrap().contains_key(USER__GEO__CITY));
+    }
 
     #[test]
     fn test_event_ip_sources_without_connection() {

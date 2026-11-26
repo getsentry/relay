@@ -129,12 +129,12 @@ impl From<RateLimits> for Error {
 /// A processor for Replays.
 pub struct ReplaysProcessor {
     limiter: Arc<QuotaRateLimiter>,
-    geoip_lookup: CityLookup,
+    geoip_lookup: Option<CityLookup>,
 }
 
 impl ReplaysProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: CityLookup) -> Self {
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: Option<CityLookup>) -> Self {
         Self {
             limiter,
             geoip_lookup,
@@ -192,7 +192,7 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        process::normalize(&mut replay, &self.geoip_lookup, ctx)?;
+        process::normalize(&mut replay, self.geoip_lookup.as_ref(), ctx)?;
         filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;

@@ -27,9 +27,9 @@ pub trait Edition: Default {
 }
 
 /// A local MaxMind database. Clones share the same reader.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Lookup<E> {
-    reader: Option<Arc<maxminddb::Reader<ReaderType>>>,
+    reader: Arc<maxminddb::Reader<ReaderType>>,
     edition: E,
 }
 
@@ -42,34 +42,20 @@ impl<E: Edition> Lookup<E> {
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
         Ok(Self {
-            reader: Some(Arc::new(reader)),
+            reader: Arc::new(reader),
             edition: E::default(),
         })
     }
 
-    /// Creates a lookup without a database.
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    /// Whether a local database is available for lookups.
-    pub fn is_loaded(&self) -> bool {
-        self.reader.is_some()
-    }
-
     /// Unix timestamp when the database was built.
-    pub fn build_epoch(&self) -> Option<UnixTimestamp> {
-        Some(UnixTimestamp::from_secs(
-            self.reader.as_ref()?.metadata.build_epoch,
-        ))
+    pub fn build_epoch(&self) -> UnixTimestamp {
+        UnixTimestamp::from_secs(self.reader.metadata.build_epoch)
     }
 
     /// Looks up an IP and decodes this edition's record.
     pub fn try_lookup(&self, ip: IpAddr) -> Result<Option<E::Fields<'_>>, GeoIpError> {
-        let Some(reader) = &self.reader else {
-            return Ok(None);
-        };
-        Ok(reader
+        Ok(self
+            .reader
             .lookup(ip)?
             .decode::<E::Record<'_>>()?
             .and_then(|record| self.edition.fields(record)))
@@ -84,7 +70,7 @@ impl<E: Edition> Lookup<E> {
 impl<E> fmt::Debug for Lookup<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Lookup")
-            .field("loaded", &self.reader.is_some())
+            .field("build_epoch", &self.reader.metadata.build_epoch)
             .finish()
     }
 }
