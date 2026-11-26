@@ -6484,19 +6484,20 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symbolic-common"
-version = "14.0.0-alpha.4"
-source = "git+https://github.com/getsentry/symbolic?rev=14336dce13a8300e9787ad9046bb0317ddc0cc99#14336dce13a8300e9787ad9046bb0317ddc0cc99"
+version = "14.0.0-alpha.5"
+source = "git+https://github.com/getsentry/symbolic?rev=bf30fbb12b948ce40a4ea860b86c7517886f8fda#bf30fbb12b948ce40a4ea860b86c7517886f8fda"
 dependencies = [
  "debugid",
  "memmap2",
  "stable_deref_trait",
+ "thiserror 2.0.21",
  "uuid",
 ]
 
 [[package]]
 name = "symbolic-unreal"
-version = "14.0.0-alpha.4"
-source = "git+https://github.com/getsentry/symbolic?rev=14336dce13a8300e9787ad9046bb0317ddc0cc99#14336dce13a8300e9787ad9046bb0317ddc0cc99"
+version = "14.0.0-alpha.5"
+source = "git+https://github.com/getsentry/symbolic?rev=bf30fbb12b948ce40a4ea860b86c7517886f8fda#bf30fbb12b948ce40a4ea860b86c7517886f8fda"
 dependencies = [
  "anylog",
  "bytes",
