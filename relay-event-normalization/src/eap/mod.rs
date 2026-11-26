@@ -16,6 +16,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
+use smallvec::SmallVec;
 
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
@@ -623,7 +624,7 @@ where
     T: Clone,
 {
     // Only keep keys that need rewriting. Current and unknown names stay in place.
-    let mut rewrites = Vec::new();
+    let mut rewrites = SmallVec::<[_; 4]>::new();
     for name in attributes.keys() {
         let Some((info, fragment)) = attribute_info(name) else {
             continue;
