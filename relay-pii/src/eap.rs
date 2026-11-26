@@ -312,7 +312,7 @@ mod tests {
               },
               "iban_code": {
                   "type": "string",
-                  "value": "NO9386011117945"
+                  "value": "NO9386011117947"
               },
               "authorization": {
                   "type": "string",
