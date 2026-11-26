@@ -22,6 +22,7 @@ macro_rules! add_string_attribute {
     }};
 }
 
+mod coop;
 mod csp;
 mod integrity;
 mod nel;
@@ -47,6 +48,20 @@ mod attributes {
     pub const BROWSER__REPORT__CSP__SAMPLE: &str = "browser.report.csp.sample";
     // Analogous to `CODE__LINE__NUMBER` (doesn't exist yet).
     pub const CODE__COLUMN__NUMBER: &str = "code.column.number";
+    pub const BROWSER__REPORT__COOP__TYPE: &str = "browser.report.coop.type";
+    pub const BROWSER__REPORT__COOP__EFFECTIVE_POLICY: &str =
+        "browser.report.coop.effective_policy";
+    pub const BROWSER__REPORT__COOP__PROPERTY: &str = "browser.report.coop.property";
+    pub const BROWSER__REPORT__COOP__PREVIOUS_RESPONSE_URL: &str =
+        "browser.report.coop.previous_response_url";
+    pub const BROWSER__REPORT__COOP__NEXT_RESPONSE_URL: &str =
+        "browser.report.coop.next_response_url";
+    pub const BROWSER__REPORT__COOP__OPENER_URL: &str = "browser.report.coop.opener_url";
+    pub const BROWSER__REPORT__COOP__OPENEE_URL: &str = "browser.report.coop.openee_url";
+    pub const BROWSER__REPORT__COOP__INITIAL_POPUP_URL: &str =
+        "browser.report.coop.initial_popup_url";
+    pub const BROWSER__REPORT__COOP__OTHER_DOCUMENT_URL: &str =
+        "browser.report.coop.other_document_url";
 }
 
 /// Extracts the domain or IP address from a server address string.
@@ -112,6 +127,7 @@ fn create_log_with_trace_id(
             integrity::create_log_from_integrity_body(body, attributes)
         }
         BrowserReportBody::CspViolation(body) => csp::create_log_from_csp_body(body, attributes),
+        BrowserReportBody::Coop(body) => coop::create_log_from_coop_body(body, attributes),
         BrowserReportBody::Unsupported => return None,
     };
 
@@ -573,6 +589,178 @@ mod tests {
             "user_agent.original": {
               "type": "string",
               "value": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_coop_navigation() {
+        let received_at = DateTime::parse_from_rfc3339("2026-10-06T12:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(
+            r#"{
+                "age": 0,
+                "type": "coop",
+                "url": "https://example.com/",
+                "user_agent": "Mozilla/5.0",
+                "body": {
+                    "disposition": "reporting",
+                    "effectivePolicy": "same-origin",
+                    "previousResponseURL": "",
+                    "referrer": "https://example.org/",
+                    "type": "navigation-to-response"
+                }
+        }"#,
+        )
+        .unwrap();
+
+        let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
+
+        assert_annotated_snapshot!(
+            &Annotated::new(log), @r#"
+        {
+          "timestamp": 1791288005.0,
+          "trace_id": "de4e189601a342c6bee991645300852e",
+          "level": "warn",
+          "body": "COOP 'same-origin' would move the page to a new browsing context group when navigating to it, but does not due to report only configuration",
+          "attributes": {
+            "browser.report.coop.effective_policy": {
+              "type": "string",
+              "value": "same-origin"
+            },
+            "browser.report.coop.type": {
+              "type": "string",
+              "value": "navigation-to-response"
+            },
+            "browser.report.report_only": {
+              "type": "boolean",
+              "value": true
+            },
+            "browser.report.type": {
+              "type": "string",
+              "value": "coop"
+            },
+            "http.request.header.referer": {
+              "type": "array",
+              "value": [
+                "https://example.org/"
+              ]
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http.browser_report"
+            },
+            "url.domain": {
+              "type": "string",
+              "value": "example.com"
+            },
+            "url.full": {
+              "type": "string",
+              "value": "https://example.com/"
+            },
+            "user_agent.original": {
+              "type": "string",
+              "value": "Mozilla/5.0"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_coop_access() {
+        let received_at = DateTime::parse_from_rfc3339("2026-10-06T12:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let report: BrowserReport = serde_json::from_str(
+            r#"{
+                "age": 0,
+                "type": "coop",
+                "url": "https://example.com/",
+                "user_agent": "Mozilla/5.0",
+                "body": {
+                    "disposition": "reporting",
+                    "effectivePolicy": "same-origin",
+                    "initialPopupURL": "https://example.org/popup",
+                    "openeeURL": "",
+                    "property": "postMessage",
+                    "sourceFile": "https://example.com/app.js",
+                    "lineNumber": 10,
+                    "columnNumber": 5,
+                    "type": "access-from-coop-page-to-openee"
+                }
+        }"#,
+        )
+        .unwrap();
+
+        let trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log = create_log_with_trace_id(report, received_at, None, Some(trace_id)).unwrap();
+
+        assert_annotated_snapshot!(
+            &Annotated::new(log), @r#"
+        {
+          "timestamp": 1791288005.0,
+          "trace_id": "de4e189601a342c6bee991645300852e",
+          "level": "warn",
+          "body": "COOP 'same-origin' would block access to 'postMessage' (access-from-coop-page-to-openee)",
+          "attributes": {
+            "browser.report.coop.effective_policy": {
+              "type": "string",
+              "value": "same-origin"
+            },
+            "browser.report.coop.initial_popup_url": {
+              "type": "string",
+              "value": "https://example.org/popup"
+            },
+            "browser.report.coop.property": {
+              "type": "string",
+              "value": "postMessage"
+            },
+            "browser.report.coop.type": {
+              "type": "string",
+              "value": "access-from-coop-page-to-openee"
+            },
+            "browser.report.report_only": {
+              "type": "boolean",
+              "value": true
+            },
+            "browser.report.type": {
+              "type": "string",
+              "value": "coop"
+            },
+            "code.column.number": {
+              "type": "integer",
+              "value": 5
+            },
+            "code.file.path": {
+              "type": "string",
+              "value": "https://example.com/app.js"
+            },
+            "code.line.number": {
+              "type": "integer",
+              "value": 10
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http.browser_report"
+            },
+            "url.domain": {
+              "type": "string",
+              "value": "example.com"
+            },
+            "url.full": {
+              "type": "string",
+              "value": "https://example.com/"
+            },
+            "user_agent.original": {
+              "type": "string",
+              "value": "Mozilla/5.0"
             }
           }
         }

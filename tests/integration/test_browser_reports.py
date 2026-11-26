@@ -218,6 +218,88 @@ def test_integrity_browser_report_converted_to_logs(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
+def test_coop_browser_report_converted_to_logs(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:browser-report-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    relay.send_browser_report(
+        project_id,
+        payload=[
+            {
+                "age": 5000,
+                "type": "coop",
+                "url": "https://example.com/index.html",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                "body": {
+                    "disposition": "reporting",
+                    "effectivePolicy": "same-origin",
+                    "nextResponseURL": "https://example.org/next",
+                    "type": "navigation-from-response",
+                },
+            }
+        ],
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    expected_ts = datetime.now(tz=timezone.utc) - timedelta(milliseconds=5000)
+
+    assert [item.type for item in envelope.items] == ["log"]
+    assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
+        "items": [
+            {
+                "__header": matches_any(),
+                "timestamp": time_within_delta(expected_ts),
+                "trace_id": matches_any(),
+                "level": "warn",
+                "body": "COOP 'same-origin' would move the next page to a new browsing context group when navigating away, but does not due to report only configuration",
+                "attributes": {
+                    "browser.name": {"type": "string", "value": "Chrome"},
+                    "browser.report.coop.effective_policy": {
+                        "type": "string",
+                        "value": "same-origin",
+                    },
+                    "browser.report.coop.next_response_url": {
+                        "type": "string",
+                        "value": "https://example.org/next",
+                    },
+                    "browser.report.coop.type": {
+                        "type": "string",
+                        "value": "navigation-from-response",
+                    },
+                    "browser.report.report_only": {"type": "boolean", "value": True},
+                    "browser.report.type": {"type": "string", "value": "coop"},
+                    "browser.version": {"type": "string", "value": "111.0.0"},
+                    "sentry.observed_timestamp_nanos": {
+                        "type": "string",
+                        "value": time_within_delta(expect_resolution="ns"),
+                    },
+                    "sentry.origin": {
+                        "type": "string",
+                        "value": "auto.http.browser_report",
+                    },
+                    "url.domain": {"type": "string", "value": "example.com"},
+                    "url.full": {
+                        "type": "string",
+                        "value": "https://example.com/index.html",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                    },
+                },
+            }
+        ],
+    }
+    assert mini_sentry.captured_envelopes.empty()
+
+
 def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)

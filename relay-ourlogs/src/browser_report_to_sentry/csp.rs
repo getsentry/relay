@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
-use relay_browser_reporting::csp::{BlockedUrl, Body, CspDirective, Disposition, SourceFile};
+use relay_browser_reporting::SourceFile;
+use relay_browser_reporting::csp::{BlockedUrl, Body, CspDirective, Disposition};
 use relay_conventions::{attributes::*, interpolate};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel};
 use url::Url;
