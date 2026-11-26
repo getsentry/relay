@@ -20,8 +20,9 @@ use relay_event_schema::protocol::{
     Attributes, AutoInferSetting, ClientSdkInfo, Context, Event, EventType, IpAddr as ProtocolIp,
     ParsedIp, Request, SpanData, SpanV2, Tags, User,
 };
-use relay_pii::{PiiProcessor, ProjectPii, user_needs_id};
-use relay_protocol::{Annotated, RemarkType, Value};
+use relay_pii::ProjectPii;
+use relay_pii::UserIpRetention::{ApplyRules, HashOnly};
+use relay_protocol::{Annotated, Value};
 
 use self::Unavailable::{Missing, Redacted};
 use crate::{AsnLookup, CityLookup, NormalizationConfig};
@@ -141,16 +142,21 @@ pub fn process_user_ip(
     let remote = normalize_request_ip(request, transport, use_request);
     rules.scrub_request_env(request)?;
 
-    let (lookup, backfill, hash_only) = match (supplied, remote) {
+    let connection_retention = if config.infer_ip_address {
+        ApplyRules
+    } else {
+        HashOnly
+    };
+    let (lookup, backfill, ip_retention) = match (supplied, remote) {
         // Use the concrete IP already on the user for lookup and leave the field for user PII.
-        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, false),
+        (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, ApplyRules),
         // A replaced or redacted user IP blocks lookup and fallback to another source.
-        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, false),
+        (Ok(ParsedIp::Replacement) | Err(Redacted), _) => (None, None, ApplyRules),
 
         // Security reports prefer the connection, even if the request IP was redacted.
-        (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), false),
+        (_, _) if let Some(ip) = csp_connection => (Some(ip), Some(ip.into()), ApplyRules),
         // Redaction on the incoming request, environment, or address blocks connection fallback.
-        (_, Err(Redacted)) => (None, None, false),
+        (_, Err(Redacted)) => (None, None, ApplyRules),
         // Look up the original request IP. Copy it to the user only if it survives request PII.
         (_, Ok(ip)) => {
             let survives = request
@@ -159,23 +165,22 @@ pub fn process_user_ip(
                 .and_then(unredacted_value)
                 .and_then(Value::as_str)
                 .is_some();
-            (ip.address(), survives.then_some(ip), false)
+            (ip.address(), survives.then_some(ip), ApplyRules)
         }
 
         // An explicit user marker requests a connection backfill on any platform.
         (Ok(ParsedIp::Auto), Err(Missing)) if let Some(ip) = transport => {
-            (Some(ip), Some(ip.into()), !config.infer_ip_address)
+            (Some(ip), Some(ip.into()), connection_retention)
         }
         // A missing user IP uses the connection for SDK opt-in or legacy client platforms.
         (Err(Missing), Err(Missing))
             if let Some(ip) = transport
-                && (infer == AutoInferSetting::Auto
-                    || matches!(config.platform, Some("javascript" | "cocoa" | "objc"))) =>
+                && infer.allows_missing_user_ip_from_connection(config.platform) =>
         {
-            (Some(ip), Some(ip.into()), !config.infer_ip_address)
+            (Some(ip), Some(ip.into()), connection_retention)
         }
         // The envelope IP can still supply a lookup when it cannot backfill the user.
-        (Ok(ParsedIp::Auto) | Err(Missing), Err(Missing)) => (config.client_ip, None, false),
+        (Ok(ParsedIp::Auto) | Err(Missing), Err(Missing)) => (config.client_ip, None, ApplyRules),
     };
     let lookup_city = || config.geoip_lookup?.lookup(lookup?);
     let user = match user.value_mut() {
@@ -203,41 +208,7 @@ pub fn process_user_ip(
         }
     };
 
-    let accepts_replacement = |user: &User| {
-        !hash_only
-            || user
-                .ip_address
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Pseudonymized)
-    };
-    let (saved_id, last_replaced) = match (rules.advanced, rules.legacy) {
-        // Without scrubbing, there is no replacement to use as a fallback ID.
-        (None, None) => (None, false),
-        // A single pass leaves its replacement in the IP field for the final ID check.
-        (Some(rule), None) | (None, Some(rule)) => {
-            let replaced = PiiProcessor::new(rule.compiled()).scrub_event_user_fields(user)?;
-            (None, replaced)
-        }
-        // Preserve an eligible advanced replacement before legacy rules scrub the IP and identifiers.
-        (Some(advanced), Some(legacy)) => {
-            let replaced = PiiProcessor::new(advanced.compiled()).scrub_event_user_fields(user)?;
-            let saved_id = (replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
-            let replaced = PiiProcessor::new(legacy.compiled()).scrub_event_user_fields(user)?;
-            (saved_id, replaced)
-        }
-    };
-    if user_needs_id(user)
-        && let Some(id) = saved_id.or_else(|| {
-            (last_replaced && accepts_replacement(user))
-                .then(|| std::mem::take(&mut user.ip_address))
-        })
-    {
-        rules.set_derived_user_id(user, id)?;
-    }
-    if hash_only {
-        user.ip_address.set_value(None);
-    }
+    rules.scrub_event_user(user, ip_retention)?;
     Ok(lookup)
 }
 

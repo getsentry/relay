@@ -32,6 +32,15 @@ pub enum AttributeMode {
     ValueOnly,
 }
 
+/// How an event user IP may be retained after project scrubbing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UserIpRetention {
+    /// Retain the user IP or its replacement as permitted by the project rules.
+    ApplyRules,
+    /// Only a pseudonymized replacement may supply a fallback ID. Clear the IP field.
+    HashOnly,
+}
+
 /// Advanced project rules and the rules generated from legacy data scrubbing settings.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProjectPii<'a> {
@@ -42,9 +51,62 @@ pub struct ProjectPii<'a> {
 }
 
 impl<'a> ProjectPii<'a> {
-    /// Store the replacement as the user ID and apply rules for its new field.
-    pub fn set_derived_user_id(self, user: &mut User, ip: Annotated<IpAddr>) -> ProcessingResult {
+    /// Scrub the user in place, then derive and scrub a fallback ID if the final identity allows it.
+    pub fn scrub_event_user(
+        self,
+        user: &mut User,
+        ip_retention: UserIpRetention,
+    ) -> ProcessingResult {
         let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
+        let accepts_replacement = |user: &User| {
+            ip_retention == UserIpRetention::ApplyRules
+                || user
+                    .ip_address
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Pseudonymized)
+        };
+        let (saved_id, last_replaced) = match (self.advanced, self.legacy) {
+            // Without scrubbing, there is no replacement to use as a fallback ID.
+            (None, None) => (None, false),
+            // A single pass leaves its replacement in the IP field for the final ID check.
+            (Some(rule), None) | (None, Some(rule)) => {
+                let replaced =
+                    PiiProcessor::new(rule.compiled()).scrub_user_fields(user, &state)?;
+                (None, replaced)
+            }
+            // Preserve an eligible advanced replacement before legacy rules scrub the IP and identifiers.
+            (Some(advanced), Some(legacy)) => {
+                let replaced =
+                    PiiProcessor::new(advanced.compiled()).scrub_user_fields(user, &state)?;
+                let saved_id =
+                    (replaced && accepts_replacement(user)).then(|| user.ip_address.clone());
+                let replaced =
+                    PiiProcessor::new(legacy.compiled()).scrub_user_fields(user, &state)?;
+                (saved_id, replaced)
+            }
+        };
+        if user_needs_id(user)
+            && let Some(id) = saved_id.or_else(|| {
+                (last_replaced && accepts_replacement(user))
+                    .then(|| mem::take(&mut user.ip_address))
+            })
+        {
+            self.set_derived_user_id(user, id, &state)?;
+        }
+        if ip_retention == UserIpRetention::HashOnly {
+            user.ip_address.set_value(None);
+        }
+        Ok(())
+    }
+
+    /// Store the replacement as the user ID and apply rules for its new field.
+    fn set_derived_user_id(
+        self,
+        user: &mut User,
+        ip: Annotated<IpAddr>,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
         // Match the PII annotation on User::id when visiting just this field.
         const ID_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
         user.id = ip.map_value(|ip| ip.into_inner().into());
@@ -152,12 +214,7 @@ impl<'a> PiiProcessor<'a> {
         self
     }
 
-    /// Scrub the event user and report whether its IP became a candidate for the fallback ID.
-    pub fn scrub_event_user_fields(&mut self, user: &mut User) -> Result<bool, ProcessingAction> {
-        let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
-        self.scrub_user_fields(user, &state)
-    }
-
+    /// Scrub the user and report whether its IP became a candidate for the fallback ID.
     fn scrub_user_fields(
         &mut self,
         user: &mut User,
@@ -409,7 +466,7 @@ impl Processor for PiiProcessor<'_> {
 }
 
 /// Whether a replacement IP may supply the ID after scrubbing the user.
-pub fn user_needs_id(user: &User) -> bool {
+fn user_needs_id(user: &User) -> bool {
     user.id.value().is_none()
         && user.id.meta().is_empty()
         && user.email.value().is_none()

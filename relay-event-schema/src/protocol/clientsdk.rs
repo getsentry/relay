@@ -90,6 +90,15 @@ impl Empty for AutoInferSetting {
 }
 
 impl AutoInferSetting {
+    /// Whether the SDK allows the connection to fill a missing user IP when no request IP is available.
+    pub fn allows_missing_user_ip_from_connection(self, platform: Option<&str>) -> bool {
+        match self {
+            Self::Auto => true,
+            Self::Never => false,
+            Self::Legacy => matches!(platform, Some("javascript" | "cocoa" | "objc")),
+        }
+    }
+
     /// Returns a string representation for [`AutoInferSetting`].
     pub fn as_str(&self) -> &'static str {
         match self {
