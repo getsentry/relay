@@ -545,16 +545,16 @@ def test_client_asn_address_selection(
     assert NUMBER not in results["bbbbbbbbbbbbbbbb"]
     assert ORG not in results["bbbbbbbbbbbbbbbb"]
 
-    # The segment and child explicitly request the connection IP, distinct from the user IP.
+    # Embedded span addresses are literal data. A marker supplies no IP for ASN.
     tx = transaction("2600::1", {})
-    tx["contexts"]["trace"]["data"]["client.address"] = "{{auto}}"
+    tx["contexts"]["trace"]["data"] = {"client.address": "{{auto}}"}
     tx["spans"][0]["data"] = {"user.ip_address": "{{auto}}"}
     processing.send_event(42, tx, headers=headers)
     for _ in range(2):
         span = spans.get_span()
         key = "client.address" if span["is_segment"] else "user.ip_address"
-        assert span["attributes"][key]["value"] == IP
-        assert span["attributes"][NUMBER]["value"] == 15169
+        assert span["attributes"][key]["value"] == "{{auto}}"
+        assert NUMBER not in span["attributes"]
 
     processing.send_event(
         42, make_error({"user": {"ip_address": "{{auto}}"}}), headers=headers
@@ -574,47 +574,6 @@ def test_client_asn_address_selection(
     assert error["request"]["env"]["REMOTE_ADDR"] == IP
     assert error["user"]["ip_address"] == "2600::1"
     assert dict(error["tags"])[NUMBER] == "237"
-
-
-@pytest.mark.parametrize("lookup", [True, False])
-def test_transaction_ip_marker_destination_rules(
-    mini_sentry, relay, relay_with_processing, spans_consumer, lookup
-):
-    spans = spans_consumer()
-    processing = relay_with_processing(options=DB)
-    options = {**DB, "normalization": {"level": "full"}}
-    ingress = relay(mini_sentry, options=options)
-    pop = relay(processing, options=options)
-    project = mini_sentry.add_full_project_config(42)["config"]
-    project["features"] = [ASN_FEATURE] if lookup else []
-    project["piiConfig"]["applications"].update(
-        {
-            "$span.attributes.'client.address'.value": ["@anything:remove"],
-            "$span.attributes.'user.ip_address'.value": ["@anything:mask"],
-        }
-    )
-    tx = transaction("2600::1", {})
-    tx["contexts"]["trace"]["data"] = {"client.address": "{{auto}}"}
-    tx["spans"][0]["data"] = {"user.ip_address": "{{auto}}"}
-    ingress.send_event(42, tx, headers={"X-Forwarded-For": IP})
-    envelope = mini_sentry.get_captured_envelope()
-    event = envelope.get_transaction_event()
-    segment = event["contexts"]["trace"]["data"]
-    child = event["spans"][0]
-    expected = 15169 if lookup else None
-    assert segment.get(NUMBER) == (child.get("data") or {}).get(NUMBER) == expected
-    assert segment.get("client.address") is None
-    assert child["data"]["user.ip_address"] == "*" * len(IP)
-
-    pop.send_event(42, tx, headers={"X-Forwarded-For": IP})
-    for _ in range(2):
-        span = spans.get_span()
-        attrs = span["attributes"]
-        assert (attrs.get(NUMBER) or {}).get("value") == expected
-        if span["is_segment"]:
-            assert (attrs.get("client.address") or {}).get("value") is None
-        else:
-            assert attrs["user.ip_address"]["value"] == "*" * len(IP)
 
 
 def test_client_asn_scrubbed_ip_and_indexed_destination(
