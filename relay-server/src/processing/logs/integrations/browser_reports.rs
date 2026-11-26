@@ -70,15 +70,9 @@ fn expand(
     let received_at = headers.meta().received_at();
     let release = headers.get_header(SENTRY__RELEASE).and_then(|h| h.as_str());
 
-    let reports = match serde_json::from_slice::<Vec<_>>(&payload) {
-        Ok(reports) => reports,
-        Err(_) => vec![
-            serde_json::from_slice(&payload)
-                .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?,
-        ],
-    };
-
-    let logs = reports
+    let logs = serde_json::from_slice::<Vec<_>>(&payload)
+        .or_else(|_| serde_json::from_slice(&payload).map(|report| vec![report]))
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
         .filter_map(|report| {
             relay_ourlogs::browser_report_to_sentry_log(report, received_at, release)
