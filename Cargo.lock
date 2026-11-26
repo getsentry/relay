@@ -4902,14 +4902,12 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "relay-statsd",
- "relay-system",
  "relay-test",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
  "thiserror 2.0.21",
- "tokio",
 ]
 
 [[package]]
