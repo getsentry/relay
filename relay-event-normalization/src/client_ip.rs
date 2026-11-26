@@ -21,10 +21,12 @@
 //!
 //! ## User identity
 //!
-//! - An eligible IP replacement may supply a fallback ID if no ID, email, or username
-//!   survives both PII passes. Preserve an advanced replacement through the legacy pass.
-//!   Respect ID redaction and scrub the derived ID.
-//!   A connection IP admitted only for hashing may contribute only its hash.
+//! - A PII pass can supply a fallback ID when `user.id` starts empty with no metadata
+//!   and the pass turns the IP into non-IP text, such as a hash or `[ip]`.
+//! - Prefer the advanced replacement, even if legacy rules later remove the IP.
+//!   After both passes, any ID, ID metadata, email, or username blocks the fallback.
+//! - Apply `user.id` rules to the fallback and mark `user.ip_address` as removed.
+//!   Always clear a connection IP admitted only for hashing. Only its hash may supply the ID.
 //! - Later Relays preserve existing enrichment and honor upstream redactions.
 //!
 //! ## Span enrichment
