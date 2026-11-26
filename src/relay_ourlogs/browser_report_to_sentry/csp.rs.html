@@ -165,16 +165,18 @@
 <a href=#165 id=165 data-nosnippet>165</a>
 <a href=#166 id=166 data-nosnippet>166</a>    <span class="macro">add_attribute!</span>(attributes, HTTP__RESPONSE__STATUS_CODE, status_code <span class="kw">as </span>i64);
 <a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(referrer) = referrer {
-<a href=#169 id=169 data-nosnippet>169</a>        <span class="kw">let </span>referrer_key = interpolate::http__request__header__key(<span class="string">"referer"</span>);
-<a href=#170 id=170 data-nosnippet>170</a>        <span class="macro">add_attribute!</span>(attributes, referrer_key, <span class="macro">vec!</span>[referrer.clone()]);
-<a href=#171 id=171 data-nosnippet>171</a>    }
-<a href=#172 id=172 data-nosnippet>172</a>
-<a href=#173 id=173 data-nosnippet>173</a>    OurLog {
-<a href=#174 id=174 data-nosnippet>174</a>        body: get_message(<span class="kw-2">&amp;</span>blocked_url, <span class="kw-2">&amp;</span>effective_directive).into(),
-<a href=#175 id=175 data-nosnippet>175</a>        level: OurLogLevel::Warn.into(),
-<a href=#176 id=176 data-nosnippet>176</a>        attributes: attributes.into(),
-<a href=#177 id=177 data-nosnippet>177</a>        ..Default::default()
-<a href=#178 id=178 data-nosnippet>178</a>    }
-<a href=#179 id=179 data-nosnippet>179</a>}
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(referrer) = referrer
+<a href=#169 id=169 data-nosnippet>169</a>        &amp;&amp; !referrer.is_empty()
+<a href=#170 id=170 data-nosnippet>170</a>    {
+<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>referrer_key = interpolate::http__request__header__key(<span class="string">"referer"</span>);
+<a href=#172 id=172 data-nosnippet>172</a>        <span class="macro">add_attribute!</span>(attributes, referrer_key, <span class="macro">vec!</span>[referrer.clone()]);
+<a href=#173 id=173 data-nosnippet>173</a>    }
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a>    OurLog {
+<a href=#176 id=176 data-nosnippet>176</a>        body: get_message(<span class="kw-2">&amp;</span>blocked_url, <span class="kw-2">&amp;</span>effective_directive).into(),
+<a href=#177 id=177 data-nosnippet>177</a>        level: OurLogLevel::Warn.into(),
+<a href=#178 id=178 data-nosnippet>178</a>        attributes: attributes.into(),
+<a href=#179 id=179 data-nosnippet>179</a>        ..Default::default()
+<a href=#180 id=180 data-nosnippet>180</a>    }
+<a href=#181 id=181 data-nosnippet>181</a>}
 </code></pre></div></section></main></body></html>
