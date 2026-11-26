@@ -22,6 +22,7 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Result, utils};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
+use crate::statsd::RelayCounters;
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
 const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
@@ -46,6 +47,14 @@ impl SentryError for Nswitch {
         }) else {
             return Ok(None);
         };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::ItemBundleExpansion) += 1,
+            attachment_type = match item_bundle.attachment_type() {
+                AttachmentType::ItemBundle => "event.item_bundle",
+                _ => "nswitch.dying_message",
+            },
+        );
 
         let mut metrics = Default::default();
 
