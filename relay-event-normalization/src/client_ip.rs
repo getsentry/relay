@@ -6,14 +6,18 @@
 //!
 //! | Payload | IP source for enrichment | Derived ASN |
 //! | --- | --- | --- |
-//! | Errors, messages, security reports, feedback events | Event IP | Event tags |
+//! | Raw CSP report | Connection at ingestion | Event tags after conversion |
+//! | Errors, messages, classified CSP, feedback v2 | Event IP | Event tags |
 //! | Transaction segment | Span address or event IP | Span attributes |
 //! | Child or standalone span | Span address | Span attributes |
 //! | Replay event | Event IP for City | None |
-//! | Logs, trace metrics, sessions | Resolve IP markers | None |
+//! | Logs, trace metrics | Address attributes | None |
+//! | Sessions, session aggregates | `attrs.ip_address` marker | None |
 //! | Other items | No lookup on the item itself | None |
 //!
-//! Crash attachments can produce an error event, which follows the event rules.
+//! A raw CSP report has no Sentry user or request environment. Relay forwards the
+//! converted event as a `security` item, which can already carry `user.ip_address`.
+//! Crash attachments can produce an error event. Legacy user reports have no IP field.
 //!
 //! ## Request and connection
 //!
@@ -229,7 +233,7 @@ pub fn process_user_ip(
         HashOnly
     };
     let (lookup, backfill, ip_retention) = match (supplied, remote) {
-        // A supplied IP also wins on a CSP event forwarded by another Relay.
+        // Keep a concrete event IP, including one filled by an upstream Relay.
         (Ok(ParsedIp::Address(ip)), _) => (Some(ip), None, ApplyRules),
         // A replacement value or a modifying remark blocks lookup and fallback.
         (Ok(ParsedIp::Replacement) | Err(MarkedModified), _) => (None, None, ApplyRules),
@@ -484,24 +488,22 @@ mod tests {
             infer_ip_address: true,
             ..Default::default()
         };
-        for csp in [None, Some(json!({"effective_directive": "default-src"}))] {
-            for user in [None, Some("192.0.2.1")] {
-                for remote in [None, Some("192.0.2.2")] {
-                    let payload = json!({
-                        "platform": "javascript", "csp": csp,
-                        "user": {"ip_address": user}, "request": {"env": {"REMOTE_ADDR": remote}},
-                    });
-                    let mut event = Annotated::<Event>::from_json(&payload.to_string())
-                        .unwrap()
-                        .into_value()
-                        .unwrap();
-                    process_client_ip(&mut event, &config, Default::default()).unwrap();
-                    assert_eq!(
-                        event.user.value().and_then(|u| u.ip_address.as_str()),
-                        user.or(remote),
-                        "{payload}"
-                    );
-                }
+        for user in [None, Some("192.0.2.1")] {
+            for remote in [None, Some("192.0.2.2")] {
+                let payload = json!({
+                    "platform": "javascript",
+                    "user": {"ip_address": user}, "request": {"env": {"REMOTE_ADDR": remote}},
+                });
+                let mut event = Annotated::<Event>::from_json(&payload.to_string())
+                    .unwrap()
+                    .into_value()
+                    .unwrap();
+                process_client_ip(&mut event, &config, Default::default()).unwrap();
+                assert_eq!(
+                    event.user.value().and_then(|u| u.ip_address.as_str()),
+                    user.or(remote),
+                    "{payload}"
+                );
             }
         }
     }

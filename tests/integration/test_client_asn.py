@@ -314,7 +314,25 @@ def test_client_ip_source_subsets(
     events = events_consumer()
     spans = spans_consumer()
 
+    raw_csp = (
+        Path(__file__).parent / "fixtures/security_report/csp.input.json"
+    ).read_bytes()
     for route, ingress in [("direct", processor), ("via-pop", pop)]:
+        # Browser CSP reports provide only the connection as an IP source.
+        csp_ip = "89.160.20.112"
+        ingress.send_envelope(
+            42,
+            Envelope(
+                items=[Item(type="raw_security", payload=PayloadRef(bytes=raw_csp))]
+            ),
+            headers={"X-Forwarded-For": csp_ip},
+        )
+        report, _ = events.get_event()
+        assert report["type"] == "csp", route
+        assert report["user"]["ip_address"] == csp_ip, route
+        assert report["user"]["geo"]["city"] == SOURCE_CITY[csp_ip], route
+        assert dict(report["tags"])[NUMBER] == str(SOURCE_ASN[csp_ip]), route
+
         expected_spans = {}
         for event_user, remote_addr, xff in ip_subsets(*EVENT_ASN):
             headers = {"X-Forwarded-For": f"{xff}, 192.0.2.20"} if xff else {}
@@ -325,30 +343,18 @@ def test_client_ip_source_subsets(
             if remote_addr:
                 fields["request"] = {"env": {"REMOTE_ADDR": remote_addr}}
             event_ip = event_user or remote_addr or connection
-            csp_ip = event_user or connection
             ingress.send_event(42, make_error(fields.copy()), headers=headers)
-            csp = {
-                **fields,
-                "type": "csp",
-                "csp": {"effective_directive": "default-src"},
-            }
-            envelope = Envelope(
-                items=[Item(type="security", payload=PayloadRef(json=csp))]
-            )
-            ingress.send_envelope(42, envelope, headers=headers)
-            expected_events = {"error": event_ip, "csp": csp_ip}
-            for _ in range(2):
-                event, _ = events.get_event()
-                winner = expected_events.pop(event["type"])
-                case = (route, event["type"], event_user, remote_addr, xff)
-                assert event["user"]["ip_address"] == winner, case
-                assert (event["user"].get("geo") or {}).get("city") == SOURCE_CITY.get(
-                    winner
-                ), case
-                asn = SOURCE_ASN.get(winner)
-                assert dict(event.get("tags") or []).get(NUMBER) == (
-                    str(asn) if asn else None
-                ), case
+            event, _ = events.get_event()
+            case = (route, event_user, remote_addr, xff)
+            assert event["type"] == "error", case
+            assert event["user"]["ip_address"] == event_ip, case
+            assert (event["user"].get("geo") or {}).get("city") == SOURCE_CITY.get(
+                event_ip
+            ), case
+            asn = SOURCE_ASN.get(event_ip)
+            assert dict(event.get("tags") or []).get(NUMBER) == (
+                str(asn) if asn else None
+            ), case
 
             for segment_sources in ip_subsets(*SEGMENT_ASN):
                 tx = transaction(None, {})
