@@ -211,7 +211,7 @@ class SentryLike:
         dsn_key=None,
         params=None,
     ):
-        if isinstance(payload, list):
+        if isinstance(payload, (list, dict)):
             kwargs = {"json": payload}
         else:
             raise ValueError(f"Invalid type {type(payload)} for payload.")

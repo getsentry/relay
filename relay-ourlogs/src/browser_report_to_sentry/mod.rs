@@ -114,7 +114,9 @@ fn create_log_with_trace_id(
 
     add_string_attribute!(attributes, SENTRY__ORIGIN, "auto.http.browser_report");
     add_string_attribute!(attributes, BROWSER__REPORT__TYPE, body.report_type());
-    add_string_attribute!(attributes, USER_AGENT__ORIGINAL, user_agent);
+    if let Some(user_agent) = user_agent {
+        add_string_attribute!(attributes, USER_AGENT__ORIGINAL, user_agent);
+    }
     add_string_attribute!(attributes, URL__DOMAIN, extract_server_address(&url));
     add_string_attribute!(attributes, URL__FULL, url);
     if let Some(release) = release {
