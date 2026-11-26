@@ -229,6 +229,7 @@ pub fn normalize(
                         event,
                         &NormalizationConfig {
                             is_renormalize: true,
+                            geoip_lookup: Some(geoip_lookup),
                             client_ip,
                             infer_ip_address,
                             asn_lookup,

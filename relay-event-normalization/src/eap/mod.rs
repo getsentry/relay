@@ -377,7 +377,7 @@ pub fn normalize_inject_client_address(
 /// Does not modify the attributes if there is already user geo information present,
 /// to preserve original values.
 ///
-/// This uses the [`CLIENT__ADDRESS`] attribute to infer the client IP address, you may want to run
+/// This uses [`CLIENT__ADDRESS`] or, when absent, [`USER__IP_ADDRESS`]. Run
 /// [`normalize_client_address`] before [`normalize_user_geo`].
 pub fn normalize_user_geo(
     attributes: &mut Annotated<Attributes>,
@@ -386,34 +386,36 @@ pub fn normalize_user_geo(
     normalize_span_ip(attributes, info, None);
 }
 
-/// Enrich City and ASN from the same address. Only ASN may fall back to the user IP.
+/// Enrich missing City and ASN fields from the same eligible address.
 pub fn normalize_span_ip(
     attributes: &mut Annotated<Attributes>,
     city: impl FnOnce(IpAddr) -> Option<Geo>,
     asn: Option<&AsnLookup>,
 ) {
+    if redacted(attributes) {
+        return;
+    }
     let asn = asn.filter(|_| !has_asn(attributes, |a, k| a.contains_key(k)));
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
-    let client = attributes.0.get(CLIENT__ADDRESS);
-    let needs_city = client.is_some()
-        && ![
-            USER__GEO__COUNTRY_CODE,
-            USER__GEO__CITY,
-            USER__GEO__SUBDIVISION,
-            USER__GEO__REGION,
-        ]
-        .into_iter()
-        .any(|key| attributes.contains_key(key));
-    let Some(source @ Annotated(Some(attr), _)) =
-        client.or_else(|| asn.and_then(|_| attributes.0.get(USER__IP_ADDRESS)))
+    let needs_city = ![
+        USER__GEO__COUNTRY_CODE,
+        USER__GEO__CITY,
+        USER__GEO__SUBDIVISION,
+        USER__GEO__REGION,
+    ]
+    .into_iter()
+    .any(|key| attributes.contains_key(key));
+    let Some(source @ Annotated(Some(attr), _)) = attributes
+        .0
+        .get(CLIENT__ADDRESS)
+        .or_else(|| attributes.0.get(USER__IP_ADDRESS))
     else {
         return;
     };
     let value = &attr.value.value;
-    let asn = asn.filter(|_| !redacted(source) && !redacted(value));
-    if !needs_city && asn.is_none() {
+    if redacted(source) || redacted(value) || (!needs_city && asn.is_none()) {
         return;
     }
     let Some(ip) = value.as_str().and_then(|text| text.parse().ok()) else {
@@ -1526,10 +1528,21 @@ mod tests {
         let mut source = Attributes::new();
         source.insert(USER__IP_ADDRESS, "1.0.0.1");
         let mut user_only = Annotated::new(source.clone());
-        normalize_span_ip(&mut user_only, |_| unreachable!(), Some(&db));
+        let city = |ip: IpAddr| {
+            assert_eq!(ip.to_string(), "1.0.0.1");
+            Some(Geo {
+                city: Annotated::new("Fixture city".into()),
+                ..Default::default()
+            })
+        };
+        normalize_span_ip(&mut user_only, city, Some(&db));
+        assert!(user_only.value().unwrap().contains_key(USER__GEO__CITY));
+        let mut city_only = Annotated::new(source.clone());
+        normalize_span_ip(&mut city_only, city, None);
+        assert!(city_only.value().unwrap().contains_key(USER__GEO__CITY));
         assert!(user_only.value().unwrap().contains_key(CLIENT__AS__NUMBER));
 
-        // A redacted client address still supplies City and blocks ASN fallback to the user IP.
+        // A redacted client address blocks both lookups, including fallback to the user IP.
         source.insert(CLIENT__ADDRESS, "2600::1");
         source
             .get_annotated_value_mut(CLIENT__ADDRESS)
@@ -1537,16 +1550,7 @@ mod tests {
             .meta_mut()
             .add_remark(Remark::new(RemarkType::Substituted, "test"));
         let mut attrs = Annotated::new(source);
-        let mut city_ip = None;
-        normalize_span_ip(
-            &mut attrs,
-            |ip| {
-                city_ip = Some(ip);
-                None
-            },
-            Some(&db),
-        );
-        assert_eq!(city_ip, Some("2600::1".parse().unwrap()));
+        normalize_span_ip(&mut attrs, |_| unreachable!(), Some(&db));
         assert!(!attrs.value().unwrap().contains_key(CLIENT__AS__NUMBER));
     }
 

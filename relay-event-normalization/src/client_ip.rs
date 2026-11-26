@@ -42,7 +42,8 @@
 //!   After both passes, any ID, ID metadata, email, or username blocks the fallback.
 //! - Apply `user.id` rules to the fallback and mark `user.ip_address` as removed.
 //!   Always clear a connection IP admitted only for hashing. Only its hash may supply the ID.
-//! - Later Relays preserve existing enrichment and honor upstream redactions.
+//! - A downstream processor can fill missing City or ASN from the forwarded client IP.
+//!   An earlier normalization decision still governs IP storage. Redacted sources block fallback.
 //!
 //! ## Span enrichment
 //!
@@ -53,9 +54,8 @@
 //!   enabled. A missing child address stays missing.
 //! - A transaction segment may use the event IP when both span addresses are absent.
 //!   Child spans need their own address for ASN, even when they inherit event user tags.
-//! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
-//!   `user.ip_address`. If scrubbing replaces `client.address` with a valid IP, City can use
-//!   the replacement and ASN skips lookup. Span PII rules apply to the derived ASN attributes.
+//! - Standalone spans use the same eligible address for City and ASN. Span PII rules
+//!   apply to the derived attributes.
 
 use std::net::IpAddr;
 
@@ -105,8 +105,8 @@ pub fn process_client_ip(
         ClientIpConfig {
             platform: event.platform.as_str(),
             sdk: event.client_sdk.value(),
-            // A previous normalizer already decided whether to backfill the event user.
-            client_ip: config.client_ip.filter(|_| !config.is_renormalize),
+            client_ip: config.client_ip,
+            backfill_from_connection: !config.is_renormalize,
             geoip_lookup: config.geoip_lookup,
             infer_ip_address: config.infer_ip_address,
             security_report: event.csp.value().is_some(),
@@ -122,6 +122,8 @@ pub struct ClientIpConfig<'a> {
     pub platform: Option<&'a str>,
     pub sdk: Option<&'a ClientSdkInfo>,
     pub client_ip: Option<IpAddr>,
+    /// A fully normalized event may use the original connection for lookup only.
+    pub backfill_from_connection: bool,
     pub geoip_lookup: Option<&'a CityLookup>,
     pub infer_ip_address: bool,
     pub security_report: bool,
@@ -180,7 +182,8 @@ pub fn process_user_ip(
 ) -> Result<Option<IpAddr>, ProcessingAction> {
     let infer = infer_ip_setting(config.sdk);
     let transport = config.client_ip.filter(|_| {
-        infer != AutoInferSetting::Never
+        config.backfill_from_connection
+            && infer != AutoInferSetting::Never
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });

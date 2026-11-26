@@ -17,6 +17,11 @@ DB = {
         )
     }
 }
+CITY_DB = {
+    "city_path": str(
+        Path(__file__).resolve().parents[1] / "fixtures/GeoIP2-Enterprise-Test.mmdb"
+    )
+}
 NUMBER = "client.as.number"
 ORG = "client.as.organization"
 ASN_TYPES = {NUMBER: "integer", ORG: "string"}
@@ -237,6 +242,81 @@ def test_client_asn(
                 "bbbbbbbbbbbbbbbb",
                 "eeeeeeeeeeeeeeee",
             }, (case.id, event.id)
+
+
+@pytest.mark.parametrize(
+    "pop_db, processor_db",
+    [
+        pytest.param({**CITY_DB, **DB["geoip"]}, {}, id="pop"),
+        pytest.param({}, {**CITY_DB, **DB["geoip"]}, id="processor"),
+        pytest.param(CITY_DB, DB["geoip"], id="split"),
+    ],
+)
+def test_client_ip_through_full_normalizing_pop(
+    mini_sentry,
+    relay,
+    relay_credentials,
+    relay_with_processing,
+    events_consumer,
+    pop_db,
+    processor_db,
+):
+    credentials = relay_credentials()
+    events = events_consumer()
+    processor = relay_with_processing(
+        options={"geoip": processor_db}, static_credentials=credentials
+    )
+    pop = relay(
+        processor,
+        credentials=credentials,
+        options={"geoip": pop_db, "normalization": {"level": "full"}},
+    )
+    ip = "89.160.20.112"
+    headers = {"X-Forwarded-For": f"{ip}, 1.0.0.1"}
+
+    for project_id, (platform, sdk, store, feature, expected_ip) in enumerate(
+        [
+            ("python", {}, True, True, None),
+            ("javascript", {}, True, True, ip),
+            ("python", {"infer_ip": "auto"}, True, True, ip),
+            ("python", {"infer_ip": "never"}, True, True, None),
+            ("python", {}, False, True, None),
+            ("python", {}, True, False, None),
+        ],
+        start=42,
+    ):
+        project = mini_sentry.add_full_project_config(project_id)["config"]
+        project["features"] = [ASN_FEATURE] if feature else []
+        project["datascrubbingSettings"] = {"scrubIpAddresses": not store}
+        pop.send_event(
+            project_id,
+            make_error({"platform": platform, "sdk": {"settings": sdk}}),
+            headers=headers,
+        )
+        event, _ = events.get_event()
+        user = event.get("user") or {}
+        assert user.get("ip_address") == expected_ip
+        assert (user.get("geo") or {}).get("city") == "Linköping"
+        assert dict(event.get("tags") or []).get(NUMBER) == (
+            "29518" if feature else None
+        )
+
+    # Once the PoP removes an explicit source, the processor must not substitute XFF.
+    project = mini_sentry.add_full_project_config(99)["config"]
+    project["features"] = [ASN_FEATURE]
+    project["piiConfig"]["applications"]["$user.ip_address"] = ["@anything:remove"]
+    pop.send_event(
+        99, make_error({"user": {"ip_address": ip}}), headers={"X-Forwarded-For": IP}
+    )
+    event, _ = events.get_event()
+    user = event["user"]
+    assert user.get("ip_address") is None
+    assert (user.get("geo") or {}).get("city") == (
+        "Linköping" if "city_path" in pop_db else None
+    )
+    assert dict(event.get("tags") or []).get(NUMBER) == (
+        "29518" if "asn_path" in pop_db else None
+    )
 
 
 @pytest.mark.parametrize(
@@ -644,13 +724,7 @@ def test_remote_addr_identity_and_lookup(mini_sentry, relay):
     config.setdefault("datascrubbingSettings", {})["scrubData"] = False
     options = {
         "normalization": {"level": "full"},
-        "geoip": {
-            **DB["geoip"],
-            "city_path": str(
-                Path(__file__).resolve().parents[1]
-                / "fixtures/GeoIP2-Enterprise-Test.mmdb"
-            ),
-        },
+        "geoip": {**DB["geoip"], **CITY_DB},
     }
     first = relay(mini_sentry, options=options)
     second = relay(mini_sentry, options=options)
