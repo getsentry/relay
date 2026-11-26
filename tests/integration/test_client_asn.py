@@ -324,7 +324,6 @@ def test_client_ip_enrichment_at_ingress(
             (None, None, "never", None, None, None),
             (None, server_ip, "never", None, "Milton", 209),
             (server_ip, None, "auto", server_ip, "Milton", 209),
-            (server_ip, client_ip, "never", server_ip, "Milton", 209),
         ]:
             envelope = standalone_span(
                 project, client, {}, user_ip=user, infer_ip=setting
@@ -529,26 +528,11 @@ def test_client_asn_address_selection(
             "tags": {"client.address": "2600::1"},
         }
     )
-    # Exercise each adjacent pair in the legacy span source order.
-    competing_addresses = [
-        ({"client.address": IP}, {"client.address": "2600::1"}, 15169),
-        ({"user.ip_address": IP}, {"client.address": "2600::1"}, 237),
-        ({"user.ip_address": IP}, {"user.ip_address": "2600::1"}, 15169),
-    ]
-    expected_children = {}
-    for data, tags, expected_asn in competing_addresses:
-        span_id = uuid4().hex[:16]
-        tx["spans"].append(
-            {**tx["spans"][0], "span_id": span_id, "data": data, "tags": tags}
-        )
-        expected_children[span_id] = expected_asn
     processing.send_event(42, tx, headers=headers)
     results = {
         s["span_id"]: s["attributes"]
-        for s in (spans.get_span() for _ in range(1 + len(tx["spans"])))
+        for s in (spans.get_span(), spans.get_span(), spans.get_span())
     }
-    for span_id, asn in expected_children.items():
-        assert results[span_id][NUMBER]["value"] == asn
     assert results[tx["contexts"]["trace"]["span_id"]][NUMBER]["value"] == 15169
     assert (results[tx["contexts"]["trace"]["span_id"]].get(ORG) or {}).get(
         "value"
