@@ -1,29 +1,46 @@
-//! Client IP invariants:
+//! Client IP invariants. Each Relay preserves supplied enrichment and honors upstream redactions.
 //!
-//! - A concrete `user.ip_address` wins. For backfill, prefer `REMOTE_ADDR`
-//!   over the connection, except on CSP reports. Resolve request `{{auto}}` independently.
-//! - An explicit user `{{auto}}` permits connection backfill when inference is enabled.
-//!   A missing user IP requires SDK opt-in or a legacy JavaScript, Cocoa, or ObjC platform.
-//! - City and opt-in ASN may use an IP even when storage is disabled or scrubbing removes it.
-//!   If `REMOTE_ADDR` is the only source and is scrubbed, keep eligible enrichment
-//!   without copying the IP to the user or deriving a user ID from it.
-//! - Skip City lookup when `user.geo` is supplied or redacted. Skip ASN lookup at a
-//!   destination when either ASN field is supplied or redacted. Honor destination PII rules.
-//! - An eligible IP replacement may supply a fallback ID after advanced and legacy PII
-//!   if no ID, email, or username survives. Respect ID redaction and scrub the derived ID.
-//!   A connection IP admitted only for hashing may contribute only its hash.
-//! - Later Relays preserve existing enrichment and honor upstream redactions.
+//! ## Request and connection
 //!
-//! City lookup with IP storage disabled: <https://github.com/getsentry/relay/pull/4586>.
+//! Resolve `request.env.REMOTE_ADDR = "{{auto}}"` independently of the user IP.
+//! A concrete `user.ip_address` wins. For backfill, prefer the request IP over the connection,
+//! except on CSP reports. A user `{{auto}}` permits connection backfill when inference is
+//! enabled. A missing user IP requires SDK opt-in or a legacy JavaScript, Cocoa, or ObjC platform.
 //!
-//! ## Span enrichment
+//! ## User identity
 //!
-//! - For ASN, use the span's `client.address`, then `user.ip_address` if the first is absent.
-//!   An invalid or redacted address blocks fallback.
-//! - A transaction segment may use the event IP when both span addresses are absent.
-//!   Child spans need their own address for ASN, even when they inherit event user tags.
-//! - Standalone spans use `client.address` for City lookup. Only ASN can fall back to
-//!   `user.ip_address`. Span PII rules apply to the derived ASN attributes.
+//! If request PII removes the only source IP, keep eligible City and ASN results. Never copy
+//! that IP into `user.ip_address` or use that copy for a fallback ID. After advanced and legacy PII,
+//! an eligible IP replacement may fill `user.id` if no ID, email, or username survives.
+//! Honor an explicitly redacted ID and apply ID scrubbing to the derived value.
+//! A connection IP admitted only for hashing may contribute only its hash.
+//!
+//! ## City and ASN
+//!
+//! [City lookup](https://github.com/getsentry/relay/pull/4586) and opt-in ASN lookup may use
+//! an IP even when IP storage is disabled. Skip City lookup for supplied or redacted `user.geo`.
+//! Skip ASN lookup at a destination if either `client.as.number` or `client.as.organization`
+//! is supplied or redacted. Derived fields remain subject to their own PII rules.
+//!
+//! ## Error events
+//!
+//! Use the selected event IP for ASN. Write the number and, when available, the organization
+//! to the event's tags.
+//!
+//! ## Transaction segments and child spans
+//!
+//! For ASN, prefer the span's `client.address`, then `user.ip_address` if the first is absent.
+//! An invalid or redacted address blocks fallback. If both are absent, only the segment may
+//! use the event IP. Child spans can inherit scrubbed event user tags without inheriting its ASN.
+//!
+//! ## Standalone spans
+//!
+//! City uses the span's normalized `client.address`. ASN uses the same address and may fall
+//! back to `user.ip_address` when it is absent. Apply span PII rules to the derived attributes.
+//!
+//! ## Replays
+//!
+//! Replay normalization shares request and user IP resolution and City lookup. It derives no ASN.
 use std::net::IpAddr;
 
 use relay_conventions::attributes::{
