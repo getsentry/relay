@@ -41,7 +41,6 @@ pub use transactions::*;
 pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
-pub use self::client_ip::process_client_ip;
 pub use self::clock_drift::*;
 pub use self::geo::{AsnLookup, CityLookup, GeoIpError};
 

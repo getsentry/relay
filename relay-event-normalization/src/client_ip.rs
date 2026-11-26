@@ -35,6 +35,8 @@
 //!   without copying the IP to the user or deriving a user ID from it.
 //! - Skip City lookup when `user.geo` is supplied or marked as modified. Skip ASN lookup
 //!   when either destination field is supplied or marked as modified. Honor destination PII rules.
+//! - With the default normalization level, a processing Relay skips City and ASN on events
+//!   already fully normalized by a trusted Relay.
 //!
 //! City lookup with IP storage disabled: <https://github.com/getsentry/relay/pull/4586>.
 //!
@@ -46,9 +48,6 @@
 //!   After both passes, any ID, ID metadata, email, or username blocks the fallback.
 //! - Apply `user.id` rules to the fallback and mark `user.ip_address` as removed.
 //!   Always clear a connection IP admitted only for hashing. Only its hash may supply the ID.
-//! - A downstream processor can fill missing City or ASN from the forwarded client IP.
-//!   An earlier normalization decision still governs IP storage. A modifying remark on the
-//!   source blocks fallback.
 //!
 //! ## Span enrichment
 //!
@@ -111,7 +110,6 @@ pub fn process_client_ip(
             platform: event.platform.as_str(),
             sdk: event.client_sdk.value(),
             client_ip: config.client_ip,
-            backfill_from_connection: !config.is_renormalize,
             geoip_lookup: config.geoip_lookup,
             infer_ip_address: config.infer_ip_address,
             security_report: event.csp.value().is_some(),
@@ -145,8 +143,6 @@ pub struct ClientIpConfig<'a> {
     pub platform: Option<&'a str>,
     pub sdk: Option<&'a ClientSdkInfo>,
     pub client_ip: Option<IpAddr>,
-    /// A fully normalized event may use the original connection for lookup only.
-    pub backfill_from_connection: bool,
     pub geoip_lookup: Option<&'a CityLookup>,
     pub infer_ip_address: bool,
     pub security_report: bool,
@@ -205,8 +201,7 @@ pub fn process_user_ip(
 ) -> Result<Option<IpAddr>, ProcessingAction> {
     let infer = infer_ip_setting(config.sdk);
     let transport = config.client_ip.filter(|_| {
-        config.backfill_from_connection
-            && infer != AutoInferSetting::Never
+        infer != AutoInferSetting::Never
             && (config.infer_ip_address
                 || rules.advanced.is_some_and(|r| !r.applications.is_empty()))
     });

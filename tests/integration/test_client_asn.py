@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from sentry_sdk.envelope import Envelope
 
 from .test_spansv2 import envelope_with_spans
 from .test_store import make_error, make_transaction
@@ -274,7 +275,7 @@ def test_client_ip_enrichment_at_ingress(
     pop = relay(
         processor,
         credentials=credentials,
-        options={"normalization": {"level": "full"}},
+        options={**options, "normalization": {"level": "full"}},
     )
     events = events_consumer()
     spans = spans_consumer()
@@ -336,32 +337,54 @@ def test_client_ip_enrichment_at_ingress(
             assert attrs.get("user.geo.city", {}).get("value") == city
 
 
-@pytest.mark.parametrize(
-    "pop_db, processor_db",
-    [
-        pytest.param({**CITY_DB, **DB["geoip"]}, {}, id="pop"),
-        pytest.param({}, {**CITY_DB, **DB["geoip"]}, id="processor"),
-        pytest.param(CITY_DB, DB["geoip"], id="split"),
-    ],
-)
+def test_fully_normalized_event_skips_ip_enrichment(
+    mini_sentry, relay_credentials, relay_with_processing, events_consumer
+):
+    project = mini_sentry.add_full_project_config(42)["config"]
+    project["features"] = [ASN_FEATURE]
+    project["piiConfig"]["applications"].update(HASH_AND_REMOVE_REMOTE)
+    credentials = relay_credentials()
+    processor = relay_with_processing(
+        options={"geoip": {**CITY_DB, **DB["geoip"]}}, static_credentials=credentials
+    )
+    events = events_consumer()
+    ip = "89.160.20.112"
+    envelope = Envelope(headers={"event_id": uuid4().hex})
+    envelope.add_event(
+        make_error(
+            {"user": {"ip_address": ip}, "request": {"env": {"REMOTE_ADDR": ip}}}
+        )
+    )
+    envelope.items[0].headers["fully_normalized"] = True
+    processor.send_envelope(
+        42, envelope, headers={"X-Sentry-Relay-Id": credentials["id"]}
+    )
+
+    event, _ = events.get_event()
+    assert event["user"]["id"] == hmac.digest(b"", ip.encode(), "sha1").hex().upper()
+    assert event["user"].get("ip_address") is None
+    assert ((event.get("request") or {}).get("env") or {}).get("REMOTE_ADDR") is None
+    assert event["user"].get("geo") is None
+    assert NUMBER not in dict(event.get("tags") or [])
+
+
 def test_client_ip_through_full_normalizing_pop(
     mini_sentry,
     relay,
     relay_credentials,
     relay_with_processing,
     events_consumer,
-    pop_db,
-    processor_db,
 ):
     credentials = relay_credentials()
     events = events_consumer()
-    processor = relay_with_processing(
-        options={"geoip": processor_db}, static_credentials=credentials
-    )
+    processor = relay_with_processing(static_credentials=credentials)
     pop = relay(
         processor,
         credentials=credentials,
-        options={"geoip": pop_db, "normalization": {"level": "full"}},
+        options={
+            "geoip": {**CITY_DB, **DB["geoip"]},
+            "normalization": {"level": "full"},
+        },
     )
     ip = "89.160.20.112"
     headers = {"X-Forwarded-For": f"{ip}, 1.0.0.1"}
@@ -412,12 +435,8 @@ def test_client_ip_through_full_normalizing_pop(
         assert ((event.get("request") or {}).get("env") or {}).get(
             "REMOTE_ADDR"
         ) is None
-        assert (user.get("geo") or {}).get("city") == (
-            "Linköping" if "city_path" in pop_db else None
-        )
-        assert dict(event.get("tags") or []).get(NUMBER) == (
-            "29518" if "asn_path" in pop_db else None
-        )
+        assert (user.get("geo") or {}).get("city") == "Linköping"
+        assert dict(event.get("tags") or []).get(NUMBER) == "29518"
 
 
 @pytest.mark.parametrize(

@@ -22,7 +22,7 @@ use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
-use relay_pii::ProjectPii;
+use relay_pii::{ProjectPii, UserIpRetention};
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
@@ -210,33 +210,18 @@ pub fn normalize(
             .pii_config()
             .as_ref(),
     };
-    let asn_lookup = ctx
-        .project_info
-        .has_feature(Feature::ClientAsnLookup)
-        .then_some(asn_lookup);
-    let client_ip = headers.meta().client_addr();
-    let infer_ip_address = !ctx
-        .project_info
-        .config
-        .datascrubbing_settings
-        .scrub_ip_addresses;
     let full_normalization = match ctx.config.normalization_level() {
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
             if ctx.config.processing_enabled() && event_fully_normalized.0 {
-                if let Some(event) = event.value_mut() {
-                    relay_event_normalization::process_client_ip(
-                        event,
-                        &NormalizationConfig {
-                            is_renormalize: true,
-                            geoip_lookup: Some(geoip_lookup),
-                            client_ip,
-                            infer_ip_address,
-                            asn_lookup,
-                            ..Default::default()
-                        },
-                        ip_pii_rules,
-                    )?;
+                // The later PII pass skips these fields because normalization usually scrubs them.
+                if !ip_pii_rules.is_empty()
+                    && let Some(event) = event.value_mut()
+                {
+                    ip_pii_rules.scrub_request_env(&mut event.request)?;
+                    if let Some(user) = event.user.value_mut() {
+                        ip_pii_rules.scrub_event_user(user, UserIpRetention::ApplyRules)?;
+                    }
                 }
                 return Ok(event_fully_normalized);
             }
@@ -285,8 +270,11 @@ pub fn normalize(
             key_id,
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
-            client_ip,
-            infer_ip_address,
+            client_ip: request_meta.client_addr(),
+            infer_ip_address: !project_info
+                .config
+                .datascrubbing_settings
+                .scrub_ip_addresses,
             client_sample_rate: headers.dsc().and_then(|ctx| ctx.sample_rate),
             user_agent: RawUserAgentInfo {
                 user_agent: request_meta.user_agent(),
@@ -313,7 +301,9 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
-            asn_lookup,
+            asn_lookup: project_info
+                .has_feature(Feature::ClientAsnLookup)
+                .then_some(asn_lookup),
             ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(

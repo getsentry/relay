@@ -91,7 +91,6 @@ pub fn normalize(
                 platform: replay_value.platform.as_str(),
                 sdk: replay_value.sdk.value(),
                 client_ip,
-                backfill_from_connection: true,
                 geoip_lookup: Some(geoip_lookup),
                 infer_ip_address: true,
                 security_report: false,

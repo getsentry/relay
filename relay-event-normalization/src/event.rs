@@ -35,6 +35,7 @@ use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
+use crate::client_ip::process_client_ip;
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
@@ -42,8 +43,8 @@ use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     AsnLookup, BorrowedSpanOpDefaults, BreakdownsConfig, CityLookup, CombinedMeasurementsConfig,
     MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, process_client_ip,
-    remove_other, schema, span, stacktrace, transactions, trimming, user_agent,
+    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
+    stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
