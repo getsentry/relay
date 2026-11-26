@@ -199,8 +199,6 @@ def test_trace_metric_extraction(
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
-            "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
-            "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
         },
         "clientSampleRate": 0.25,
         "downsampledRetentionDays": 390,
@@ -423,7 +421,6 @@ def test_trace_metric_pii_scrubbing(
                 "stringValue": '{"meta":{"value":{"":{"rem":[["strip_ips","x",0,0]],"len":11}}}}'
             },
             "sentry._internal.cooccuring.name.test.metric": {"boolValue": True},
-            "sentry._internal.cooccuring.type.counter": {"boolValue": True},
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
@@ -838,12 +835,6 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry._internal.cooccuring.name.http.request.duration": {
-                "boolValue": True,
-            },
-            "sentry._internal.cooccuring.type.distribution": {
-                "boolValue": True,
-            },
-            "sentry._internal.cooccuring.unit.millisecond": {
                 "boolValue": True,
             },
             "sentry._meta.fields.timestamp": {

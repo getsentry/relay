@@ -179,15 +179,9 @@ fn attributes(
         },
     );
 
-    // Add key names matching metric name and type to workaround current co-occuring attributes limitations.
+    // Add a key name matching the metric name to workaround current co-occuring attributes limitations.
     result.insert(
         format!("sentry._internal.cooccuring.name.{metric_name}"),
-        AnyValue {
-            value: Some(any_value::Value::BoolValue(true)),
-        },
-    );
-    result.insert(
-        format!("sentry._internal.cooccuring.type.{metric_type}"),
         AnyValue {
             value: Some(any_value::Value::BoolValue(true)),
         },
@@ -198,13 +192,6 @@ fn attributes(
             "sentry.metric_unit".to_owned(),
             AnyValue {
                 value: Some(any_value::Value::StringValue(metric_unit.to_string())),
-            },
-        );
-
-        result.insert(
-            format!("sentry._internal.cooccuring.unit.{metric_unit}"),
-            AnyValue {
-                value: Some(any_value::Value::BoolValue(true)),
             },
         );
     }
