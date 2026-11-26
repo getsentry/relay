@@ -78,10 +78,14 @@ const ADDRESS_KEYS: [&str; 2] = [CLIENT__ADDRESS, USER__IP_ADDRESS];
 const ASN_KEYS: [&str; 2] = [CLIENT__AS__NUMBER, CLIENT__AS__ORGANIZATION];
 
 pub fn redacted<T>(value: &Annotated<T>) -> bool {
-    value
-        .meta()
-        .iter_remarks()
-        .any(|r| r.ty != RemarkType::Annotated)
+    value.meta().iter_remarks().any(|remark| match remark.ty {
+        RemarkType::Annotated => false,
+        RemarkType::Removed
+        | RemarkType::Substituted
+        | RemarkType::Masked
+        | RemarkType::Pseudonymized
+        | RemarkType::Encrypted => true,
+    })
 }
 
 pub fn unredacted_value<T>(field: &Annotated<T>) -> Option<&T> {
@@ -566,6 +570,10 @@ mod tests {
         for (remarks, expected) in [
             (json!([["note", "a"]]), Some("15169")),
             (json!([["note", "a"], ["replace", "s"]]), None),
+            (json!([["remove", "x"]]), None),
+            (json!([["mask", "m"]]), None),
+            (json!([["hash", "p"]]), None),
+            (json!([["encrypt", "e"]]), None),
         ] {
             let payload = json!({
                 "user": {"ip_address": "1.0.0.1"},
