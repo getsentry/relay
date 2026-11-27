@@ -36,6 +36,7 @@
 - Increase the maximum depth of stack frame variables from 5 to 10. ([#6733](https://github.com/getsentry/relay/pull/6733))
 - Bound all span expansions/deserializations. ([#6651](https://github.com/getsentry/relay/pull/6651))
 - Bounds all log expansions/deserializations. ([#6652](https://github.com/getsentry/relay/pull/6652))
+- Add dimensioned rate-limits to cache fast path. ([#6778](https://github.com/getsentry/relay/pull/6778))
 
 ## 26.11.0
 
