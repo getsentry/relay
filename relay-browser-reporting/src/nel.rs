@@ -30,8 +30,7 @@ pub enum NetworkReportPhase {
         /// The HTTP protocol and version.
         protocol: String,
         /// Request's referrer, as determined by the referrer policy associated with its client.
-        #[serde(default)]
-        referrer: String,
+        referrer: Option<String>,
         /// The IP address of the server where the site is hosted, or an empty string.
         #[serde(deserialize_with = "deserialize_ip_opt")]
         server_ip: Option<IpAddr>,
@@ -189,6 +188,6 @@ mod tests {
             unreachable!();
         };
 
-        assert!(referrer.is_empty());
+        assert!(referrer.is_none());
     }
 }
