@@ -11,6 +11,7 @@ from .asserts import matches_any
 from .consts import DUMMY_UPLOAD_LOCATION
 from .test_store import make_transaction
 from .tus import FIRST_CHUNK, RESUMABLE_DATA, SECOND_CHUNK, location_parts
+from .envelopes import add_transaction
 
 
 def make_envelope(event_id, relay, project_id, project_key):
@@ -204,7 +205,7 @@ def test_attachment_ref(
     if event_type == "event":
         envelope.add_event({"message": "Hello, World!"})
     elif event_type == "transaction":
-        envelope.add_transaction(make_transaction({"event_id": event_id}))
+        add_transaction(envelope, make_transaction({"event_id": event_id}))
 
     relay.send_envelope(project_id, envelope)
     expected_attachment = {
@@ -283,7 +284,7 @@ def test_attachment_ref_validation(
     if event_type == "event":
         envelope.add_event({"message": "Hello, World!"})
     elif event_type == "transaction":
-        envelope.add_transaction(make_transaction({"event_id": event_id}))
+        add_transaction(envelope, make_transaction({"event_id": event_id}))
 
     relay.send_envelope(project_id, envelope)
 

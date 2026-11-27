@@ -11,6 +11,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 from .consts import Outcome
 from .test_projectconfigs import get_response
+from .envelopes import add_transaction, get_transaction_event
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -197,7 +198,7 @@ def _create_transaction_envelope(
     transaction_event, trace_id, event_id = _create_transaction_item(
         trace_id=trace_id, event_id=event_id, transaction=transaction, **kwargs
     )
-    envelope.add_transaction(transaction_event)
+    add_transaction(envelope, transaction_event)
     _add_trace_info(
         envelope,
         trace_id=trace_id,
@@ -319,7 +320,7 @@ def test_external_relay_does_not_sample_or_extract_metrics(mini_sentry, relay):
 
     forwarded = mini_sentry.get_captured_envelope()
     assert [item.type for item in forwarded.items] == ["transaction"]
-    transaction = forwarded.get_transaction_event()
+    transaction = get_transaction_event(forwarded)
     assert transaction["event_id"] == event_id
     assert len(transaction["spans"]) == 1
     assert not forwarded.items[0].headers.get("metrics_extracted", False)
@@ -456,7 +457,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     envelope = Envelope()
     transaction_event, trace_id, _ = _create_transaction_item()
-    envelope.add_transaction(transaction_event)
+    add_transaction(envelope, transaction_event)
     _add_trace_info(
         envelope, trace_id, sampling_public_key, transaction=original_transaction
     )
@@ -556,7 +557,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send trace with project_id1 context (should be removed)
     envelope = Envelope()
     transaction, trace_id, event_id = _create_transaction_item()
-    envelope.add_transaction(transaction)
+    add_transaction(envelope, transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key1)
 
     # send the event, the transaction should be removed.
@@ -590,14 +591,14 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send trace with project_id2 context (should go through)
     envelope = Envelope()
     transaction, trace_id, event_id = _create_transaction_item()
-    envelope.add_transaction(transaction)
+    add_transaction(envelope, transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key2)
 
     # send the event.
     relay.send_envelope(project_id1, envelope)
 
     # the event should be passed along to upstream (with the transaction unchanged)
-    evt = mini_sentry.get_captured_envelope().get_transaction_event()
+    evt = get_transaction_event(mini_sentry.get_captured_envelope())
     assert evt is not None
 
     # no outcome should be generated (since the event is passed along to the upstream)
@@ -713,7 +714,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
                     timeout=timeout_per_event
                 )
                 if (
-                    received_envelope.get_transaction_event() is not None
+                    get_transaction_event(received_envelope) is not None
                     or received_envelope.get_event() is not None
                 ):
                     events_count += 1
@@ -800,7 +801,7 @@ def test_relay_chain(
     )
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_captured_envelope().get_transaction_event() is not None
+    assert get_transaction_event(mini_sentry.get_captured_envelope()) is not None
 
 
 @pytest.mark.parametrize("mode", ["default", "chain"])
@@ -821,7 +822,7 @@ def test_relay_chain_keep_unsampled_profile(
             transaction="my_first_transaction",
             platform="python",
         )
-        transaction = envelope.get_transaction_event()
+        transaction = get_transaction_event(envelope)
         profile_payload = get_profile_payload(transaction)
         envelope.add_item(
             Item(
@@ -1391,7 +1392,7 @@ def test_dsc_transaction_tag_length(
     )
 
     relay.send_envelope(project_id, envelope)
-    event = mini_sentry.get_captured_envelope().get_transaction_event()
+    event = get_transaction_event(mini_sentry.get_captured_envelope())
 
     for data in (
         event["contexts"]["trace"]["data"],

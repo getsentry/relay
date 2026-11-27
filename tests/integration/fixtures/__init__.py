@@ -4,6 +4,7 @@ import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from sentry_relay.auth import SecretKey
+from ..envelopes import add_transaction
 
 DEFAULT_USER_AGENT = "RelayIntegrationTests/1.0.0 Firefox/42.0"
 
@@ -370,7 +371,7 @@ class SentryLike:
         trace_info=None,
     ):
         envelope = Envelope()
-        envelope.add_transaction(payload)
+        add_transaction(envelope, payload)
         if item_headers:
             item = envelope.items[0]
             item.headers = {**item.headers, **item_headers}

@@ -11,6 +11,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .consts import Outcome
 from .test_store import make_transaction
+from .envelopes import add_transaction
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -128,7 +129,7 @@ def mixed_envelope(mini_sentry):
             },
         }
     )
-    envelope.add_transaction(event)
+    add_transaction(envelope, event)
     envelope.add_item(
         Item(
             type="span",
