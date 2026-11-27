@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 ahash = { workspace = true }
-chrono = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
 relay-base-schema = { workspace = true }
@@ -33,7 +32,6 @@ criterion = { workspace = true }
 insta = { workspace = true }
 rand = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
-relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 
 [[bench]]

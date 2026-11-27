@@ -4642,7 +4642,6 @@ dependencies = [
  "json-forensics",
  "relay-auth",
  "relay-base-schema",
- "relay-common",
  "relay-dynamic-config",
  "relay-event-normalization",
  "relay-event-schema",
@@ -4669,7 +4668,6 @@ name = "relay-common"
 version = "26.11.0"
 dependencies = [
  "chrono",
- "criterion",
  "regex-lite",
  "sentry-types",
  "serde",
@@ -4725,19 +4723,14 @@ dependencies = [
  "anyhow",
  "relay-auth",
  "relay-base-schema",
- "relay-common",
  "relay-event-normalization",
  "relay-filter",
  "relay-log",
- "relay-pattern",
  "relay-pii",
- "relay-protocol",
  "relay-quotas",
  "relay-sampling",
  "serde",
  "serde_json",
- "similar-asserts",
- "url",
 ]
 
 [[package]]
@@ -4838,7 +4831,6 @@ dependencies = [
  "insta",
  "ipnetwork",
  "regex",
- "relay-common",
  "relay-conventions",
  "relay-event-schema",
  "relay-pattern",
@@ -4890,7 +4882,6 @@ name = "relay-metrics"
 version = "26.11.0"
 dependencies = [
  "ahash",
- "chrono",
  "criterion",
  "hash32",
  "hashbrown 0.15.5",
@@ -4902,7 +4893,6 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "relay-statsd",
- "relay-test",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -4946,12 +4936,9 @@ name = "relay-ourlogs"
 version = "26.11.0"
 dependencies = [
  "chrono",
- "hex",
  "insta",
  "relay-browser-reporting",
- "relay-common",
  "relay-conventions",
- "relay-event-normalization",
  "relay-event-schema",
  "relay-protocol",
  "serde",
@@ -5032,18 +5019,15 @@ dependencies = [
  "insta",
  "itertools 0.14.0",
  "prost 0.14.4",
- "relay-base-schema",
  "relay-dynamic-config",
  "relay-event-schema",
  "relay-filter",
  "relay-log",
- "relay-metrics",
  "relay-protocol",
  "serde",
  "serde_json",
  "serde_path_to_error",
  "thiserror 2.0.21",
- "url",
  "uuid",
 ]
 
@@ -5082,7 +5066,6 @@ name = "relay-quotas"
 version = "26.11.0"
 dependencies = [
  "ahash",
- "async-trait",
  "fnv",
  "insta",
  "itertools 0.14.0",
@@ -5146,7 +5129,6 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
- "tokio",
  "uuid",
 ]
 
@@ -5244,13 +5226,11 @@ dependencies = [
  "relay-threading",
  "reqwest",
  "rmp-serde",
- "semver",
  "sentry",
  "sentry_protos 0.7.1",
  "serde",
  "serde_bytes",
  "serde_json",
- "serde_path_to_error",
  "serde_urlencoded",
  "similar-asserts",
  "smallvec",

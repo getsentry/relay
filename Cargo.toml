@@ -107,7 +107,6 @@ async-compression = { version = "0.4", features = [
     "xz",
     "zstd",
 ] }
-async-trait = "0.1"
 axum = "0.8"
 axum-server = "0.8"
 backon = { version = "1", default-features = false }

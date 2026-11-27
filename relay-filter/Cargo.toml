@@ -16,7 +16,6 @@ workspace = true
 ipnetwork = { workspace = true }
 indexmap = { workspace = true }
 regex = { workspace = true }
-relay-common = { workspace = true }
 relay-conventions = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-pattern = { workspace = true }

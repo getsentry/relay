@@ -19,18 +19,11 @@ workspace = true
 anyhow = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-common = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-filter = { workspace = true }
 relay-log = { workspace = true }
-relay-pattern = { workspace = true }
 relay-pii = { workspace = true }
-relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-sampling = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-url = { workspace = true }
-
-[dev-dependencies]
-similar-asserts = { workspace = true }

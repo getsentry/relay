@@ -20,18 +20,15 @@ data-encoding = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
 prost = { workspace = true }
-relay-base-schema = { workspace = true }
 relay-dynamic-config = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-filter = { workspace = true }
 relay-log = { workspace = true }
-relay-metrics = { workspace = true }
 relay-protocol = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 serde_path_to_error = { workspace = true }
 thiserror = { workspace = true }
-url = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
