@@ -62,6 +62,9 @@ pub enum SelectorPathItem {
     /// The component refers to an array index.
     Index(usize),
     /// The component refers to a key in an object.
+    ///
+    /// Matched case-insensitively. A `*` in the key matches any run of characters, so
+    /// `'db.*'` matches the literal key `db.query.text`.
     Key(String),
     /// The component is a shallow wildcard (`*`).
     Wildcard,
@@ -145,11 +148,9 @@ impl SelectorPathItem {
                     }
             }
             (SelectorPathItem::Index(idx), _) => state.path().index() == Some(*idx),
-            (SelectorPathItem::Key(key), _) => state
-                .path()
-                .key()
-                .map(|k| k.eq_ignore_ascii_case(key))
-                .unwrap_or(false),
+            (SelectorPathItem::Key(key), _) => {
+                state.path().key().is_some_and(|k| key_matches(key, k))
+            }
         }
     }
 }
@@ -457,7 +458,42 @@ fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
 }
 
 fn key_needs_quoting(key: &str) -> bool {
-    SelectorParser::parse(Rule::RootUnquotedKey, key).is_err()
+    // A key of only `*` would print as a wildcard.
+    key.bytes().all(|b| b == b'*') || SelectorParser::parse(Rule::RootUnquotedKey, key).is_err()
+}
+
+/// Matches a selector key against a key in the data, ignoring ASCII case.
+///
+/// Each `*` in `pattern` matches any run of characters, including none. This takes at most
+/// `pattern.len() * key.len()` steps.
+fn key_matches(pattern: &str, key: &str) -> bool {
+    if !pattern.contains('*') {
+        return pattern.eq_ignore_ascii_case(key);
+    }
+
+    let (pattern, key) = (pattern.as_bytes(), key.as_bytes());
+    let (mut p, mut k) = (0, 0);
+    // Position after the last `*` in the pattern, and the key position it currently covers.
+    let mut backtrack = None;
+
+    while k < key.len() {
+        if p < pattern.len() && pattern[p] == b'*' {
+            p += 1;
+            backtrack = Some((p, k));
+        } else if p < pattern.len() && pattern[p].eq_ignore_ascii_case(&key[k]) {
+            p += 1;
+            k += 1;
+        } else if let Some((star_p, star_k)) = backtrack {
+            // Let the last `*` cover one more character and try again.
+            p = star_p;
+            k = star_k + 1;
+            backtrack = Some((star_p, k));
+        } else {
+            return false;
+        }
+    }
+
+    pattern[p..].iter().all(|&b| b == b'*')
 }
 
 #[cfg(test)]
@@ -479,6 +515,50 @@ mod tests {
         check_roundtrip("!a && !b");
         check_roundtrip("!(a && !b)");
         check_roundtrip("!(a && b)");
+    }
+
+    #[test]
+    fn test_roundtrip_key_wildcards() {
+        fn check_roundtrip(s: &str) {
+            assert_eq!(SelectorSpec::from_str(s).unwrap().to_string(), s);
+        }
+
+        check_roundtrip("*token*");
+        check_roundtrip("app.oauth_*");
+        check_roundtrip("'db.*'");
+        check_roundtrip("'*'");
+        check_roundtrip("a.*.b");
+        check_roundtrip("a.**.b");
+    }
+
+    #[test]
+    fn test_parse_key_wildcards() {
+        use SelectorPathItem::*;
+        let path = |s: &str| match SelectorSpec::from_str(s).unwrap() {
+            SelectorSpec::Path(items) => items,
+            other => panic!("expected path, got {other:?}"),
+        };
+
+        assert_eq!(path("a.*"), vec![Key("a".into()), Wildcard]);
+        assert_eq!(path("a.**"), vec![Key("a".into()), DeepWildcard]);
+        assert_eq!(path("a.*b"), vec![Key("a".into()), Key("*b".into())]);
+        assert_eq!(path("**x"), vec![Key("**x".into())]);
+        assert_eq!(path("'*'"), vec![Key("*".into())]);
+    }
+
+    #[test]
+    fn test_key_matches() {
+        assert!(key_matches("db.query.text", "DB.Query.Text"));
+        assert!(!key_matches("db.query", "db.query.text"));
+        assert!(key_matches("db.*", "db.query.text"));
+        assert!(!key_matches("db.*", "db"));
+        assert!(key_matches("*", ""));
+        assert!(key_matches("*token*", "detail_TOKEN_id"));
+        assert!(key_matches("*_token", "a_token_b_token"));
+        assert!(!key_matches("*_token", "a_token_b"));
+        assert!(key_matches("a*b*c", "axxbxxbxxc"));
+        assert!(!key_matches("a*b*c", "axxbxxbxx"));
+        assert!(key_matches("a**", "a"));
     }
 
     #[test]

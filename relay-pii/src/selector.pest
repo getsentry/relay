@@ -1,8 +1,9 @@
 WHITESPACE = _{ " " }
 
 ObjectType = @{ "$" ~ ('a' .. 'z' | "_")+ }
-Wildcard = @{ "*" }
-DeepWildcard = @{ "**" }
+KeyCharacter = _{ ASCII_ALPHANUMERIC | "-" | "_" | "*" }
+Wildcard = @{ "*" ~ !KeyCharacter }
+DeepWildcard = @{ "**" ~ !KeyCharacter }
 
 Quote = _{ "'" }
 And = _{ "&&" | "&" }
@@ -10,7 +11,7 @@ Or = _{ "||" | "|" }
 Not = _{ "~" | "!" }
 EscapedQuote = @{ "'" }
 
-UnquotedKey = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "-" | "_") * }
+UnquotedKey = @{ (ASCII_ALPHA | "_" | "*") ~ KeyCharacter* }
 RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
 QuotedCharacter = @{ ((!"'") ~ ANY) }
 QuotedKey = ${ (QuotedCharacter | ("'" ~ EscapedQuote))+ }
