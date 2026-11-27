@@ -346,7 +346,6 @@ mod tests {
     use super::*;
 
     use relay_config::{Config, ConfigSnapshot, OverridableConfig};
-    use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
@@ -354,7 +353,6 @@ mod tests {
 
     use crate::envelope::{ContentType, Item};
     use crate::processing;
-    use crate::services::projects::project::ProjectInfo;
 
     fn ctx() -> Context<'static> {
         static CONFIG: std::sync::LazyLock<ConfigSnapshot> = std::sync::LazyLock::new(|| {
