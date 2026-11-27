@@ -372,3 +372,92 @@ enum MaybeKnown<T> {
     /// Kept for forward compatibility.
     Unknown(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use serde_json::json;
+
+    use super::*;
+    use crate::envelope::{CheckInItem, ContentType, Item};
+
+    fn parse_item(header: serde_json::Value) -> Result<Item, crate::envelope::EnvelopeError> {
+        Item::parse(Bytes::from(format!("{header}\n{{}}\n"))).map(|(item, _)| item)
+    }
+
+    #[test]
+    fn test_dimensions_round_trip() {
+        let header = json!({
+            "type": "check_in",
+            "length": 2,
+            "dimensions": {"checkInEnvironment": "prod", "checkInSlug": "cron1"},
+        });
+        let item = parse_item(header.clone()).unwrap();
+
+        assert_eq!(
+            item.data().headers().dimensions(),
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, "prod"),
+                (Dimension::CheckInSlug, "cron1"),
+            ]))
+        );
+        assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
+    }
+
+    #[test]
+    fn test_dimensions_absent_not_serialized() {
+        let mut item = CheckInItem::new();
+        item.data_mut().set_payload(ContentType::Json, "{}");
+        let item = Item::from(item);
+
+        assert_eq!(item.data().headers().dimensions(), None);
+        let value = serde_json::to_value(item.wire_headers()).unwrap();
+        assert!(value.get("dimensions").is_none(), "{value}");
+    }
+
+    #[test]
+    fn test_set_dimensions_serializes_wire_names() {
+        let mut item = CheckInItem::new();
+        item.data_mut().set_payload(ContentType::Json, "{}");
+        item.data_mut()
+            .headers_mut()
+            .set_dimensions(BTreeMap::from([
+                (Dimension::CheckInEnvironment, String::new()),
+                (Dimension::CheckInSlug, "my-monitor".to_owned()),
+            ]));
+        let item = Item::from(item);
+
+        let value = serde_json::to_value(item.wire_headers()).unwrap();
+        assert_eq!(
+            value["dimensions"],
+            json!({"checkInEnvironment": "", "checkInSlug": "my-monitor"})
+        );
+    }
+
+    #[test]
+    fn test_dimensions_unknown_name_parses_as_unknown() {
+        let item = parse_item(json!({
+            "type": "check_in",
+            "dimensions": {"checkInSlug": "cron1", "someFutureDimension": "x"},
+        }))
+        .unwrap();
+
+        let dims = item.data().headers().dimensions().unwrap();
+        assert_eq!(dims.len(), 2);
+        assert_eq!(dims.get(&Dimension::CheckInSlug).unwrap().value, "cron1");
+        assert_eq!(dims.get(&Dimension::Unknown).unwrap().value, "x");
+    }
+
+    #[test]
+    fn test_dimensions_malformed_value_rejects_item() {
+        // Documents current behavior: a malformed `dimensions` header fails item parsing.
+        for dimensions in [
+            json!("foo"),
+            json!(["checkInSlug"]),
+            json!({"checkInSlug": 1}),
+        ] {
+            let result = parse_item(json!({"type": "check_in", "dimensions": dimensions}));
+            assert!(result.is_err(), "expected error for {dimensions}");
+        }
+    }
+}

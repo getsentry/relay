@@ -2159,4 +2159,42 @@ mod tests {
         assert!(!current.check(&check_in("prod", "cron2")).is_limited());
         assert!(current.propagatable().is_empty());
     }
+
+    #[test]
+    fn test_is_limited_with_dimensions_empty() {
+        assert!(!RateLimits::new().is_limited_with_dimensions());
+    }
+
+    #[test]
+    fn test_is_limited_with_dimensions_ignores_plain_limits() {
+        // Plain limits register an empty dimension set internally, which must not count.
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&monitor_quota(None), &check_in("prod", "cron1")));
+
+        assert!(limits.is_limited());
+        assert!(!limits.is_limited_with_dimensions());
+    }
+
+    #[test]
+    fn test_is_limited_with_dimensions_dimensioned_limit() {
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(
+            &monitor_quota(group_by([Dimension::CheckInSlug])),
+            &check_in("prod", "cron1"),
+        ));
+
+        assert!(limits.is_limited_with_dimensions());
+    }
+
+    #[test]
+    fn test_is_limited_with_dimensions_mixed_limits() {
+        let mut limits = RateLimits::new();
+        limits.add(limit_for(&monitor_quota(None), &check_in("prod", "cron1")));
+        limits.add(limit_for(
+            &monitor_quota(group_by([Dimension::CheckInSlug])),
+            &check_in("prod", "cron1"),
+        ));
+
+        assert!(limits.is_limited_with_dimensions());
+    }
 }
