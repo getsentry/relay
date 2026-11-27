@@ -21,6 +21,10 @@
 - Infer the client IP for a `user.ip_address` of `{{auto}}` on spans, logs and trace metrics, like for `client.address`. ([#6736](https://github.com/getsentry/relay/pull/6736))
 - Skip structured SQL parsing for very large span descriptions. ([#6749](https://github.com/getsentry/relay/pull/6749))
 
+**Features**:
+
+- Update sqlparser library to 0.64. ([#6729](https://github.com/getsentry/relay/pull/6729))
+
 **Internal**:
 
 - Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
