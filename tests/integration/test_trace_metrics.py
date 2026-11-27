@@ -179,14 +179,6 @@ def test_trace_metric_extraction(
                     precision="us",
                 )
             },
-            "sentry.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=2),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.payload_size_bytes": {
                 # This is the size of the payload as sent, i.e. before normalization
                 "intValue": f"{expected_byte_size}",
@@ -404,14 +396,6 @@ def test_trace_metric_pii_scrubbing(
                     precision="us",
                 )
             },
-            "sentry.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(
-                    start,
-                    delta=timedelta(seconds=2),
-                    expect_resolution="ns",
-                    precision="us",
-                )
-            },
             "sentry.payload_size_bytes": {
                 "intValue": "99",
             },
@@ -493,10 +477,6 @@ def test_trace_metric_string_pii_scrubbing(
         "value": 1.0,
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(start, expect_resolution="ns"),
-            },
         },
         "__header": {"byte_size": matches_any()},
         "_meta": {
@@ -568,10 +548,6 @@ def test_trace_metric_default_pii_scrubbing_attributes(
         "value": 1.0,
         "attributes": {
             attribute_key: {"type": "string", "value": expected_value},
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(start, expect_resolution="ns"),
-            },
         },
         "__header": {"byte_size": matches_any()},
     }
@@ -639,10 +615,6 @@ def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
         "value": 1.0,
         "attributes": {
             "custom_field": {"type": "string", "value": "[REDACTED]"},
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(start, expect_resolution="ns"),
-            },
         },
         "__header": {"byte_size": matches_any()},
         "_meta": {
@@ -849,9 +821,6 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "sentry.metric_unit": {
                 "stringValue": "millisecond",
             },
-            "sentry.observed_timestamp_nanos": {
-                "stringValue": time_within_delta(ts, expect_resolution="ns")
-            },
             "sentry.payload_size_bytes": matches_any(),
             "sentry.span_id": {
                 "stringValue": "eee19b7ec3c1b175",
@@ -988,10 +957,6 @@ def test_trace_metric_container_metadata(
                     },
                 },
             ),
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within(ts, expect_resolution="ns"),
-            },
         },
         "__header": matches_any(),
         "name": "test.metric",
