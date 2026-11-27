@@ -137,7 +137,7 @@ pub fn otel_to_sentry_log(
     }
 }
 
-fn nanos_to_utc(ts: u64) -> Option<DateTime<Utc>> {
+pub(crate) fn nanos_to_utc(ts: u64) -> Option<DateTime<Utc>> {
     i64::try_from(ts)
         .ok()
         .filter(|&ts| ts > 0)

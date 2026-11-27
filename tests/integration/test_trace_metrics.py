@@ -302,12 +302,22 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     ]
 
 
+@pytest.mark.parametrize(
+    "ty",
+    [
+        pytest.param(None, id="missing"),
+        # Histograms are only supported via integrations.
+        pytest.param("histogram", id="histogram"),
+        pytest.param("histogram_exemplar", id="histogram_exemplar"),
+    ],
+)
 def test_trace_metric_validation(
     mini_sentry,
     relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
+    ty,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -321,13 +331,14 @@ def test_trace_metric_validation(
     relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
 
-    # Missing required field type
     invalid_payload = {
         "timestamp": start.timestamp(),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "name": "test.metric",
         "value": 1.0,
     }
+    if ty is not None:
+        invalid_payload["type"] = ty
 
     envelope = envelope_with_trace_metrics(invalid_payload)
     relay.send_envelope(project_id, envelope)

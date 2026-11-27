@@ -60,20 +60,30 @@ pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 /// Validates the semantic validity of a trace metric.
 pub fn validate(metrics: &mut Managed<ExpandedTraceMetrics>) {
     let client_name = client_name_tag(metrics.headers.meta().client_name());
+    // Histograms forwarded by a trusted Relay have already been validated by that Relay.
+    let histograms =
+        metrics.settings.histograms || metrics.headers.meta().request_trust().is_trusted();
+
     metrics.retain(
         |metrics| &mut metrics.metrics,
         |metric, _| {
-            validate_trace_metric(metric, client_name).inspect_err(|err| {
+            validate_trace_metric(metric, client_name, histograms).inspect_err(|err| {
                 relay_log::debug!("failed to validate trace metric: {err}");
             })
         },
     );
 }
 
-fn validate_trace_metric(metric: &Annotated<TraceMetric>, client_name: &str) -> Result<()> {
+fn validate_trace_metric(
+    metric: &Annotated<TraceMetric>,
+    client_name: &str,
+    histograms: bool,
+) -> Result<()> {
     match metric.value().and_then(|m| m.ty.value()) {
         Some(MetricType::Gauge | MetricType::Distribution | MetricType::Counter) => {}
-        Some(MetricType::Unknown(_)) | None => {
+        Some(MetricType::Histogram | MetricType::HistogramExemplar) if histograms => {}
+        Some(MetricType::Histogram | MetricType::HistogramExemplar | MetricType::Unknown(_))
+        | None => {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }
     }

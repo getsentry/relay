@@ -1151,7 +1151,9 @@ fn test_container_counts_and_byte_quota_fallback() {
 
 #[test]
 fn test_integration_items_use_native_limits() {
-    use crate::integrations::{ErrorsIntegration, LogsIntegration, OtelFormat, SpansIntegration};
+    use crate::integrations::{
+        ErrorsIntegration, LogsIntegration, OtelFormat, SpansIntegration, TraceMetricsIntegration,
+    };
 
     for (integration, category, expected) in [
         (
@@ -1175,6 +1177,16 @@ fn test_integration_items_use_native_limits() {
             }),
             DataCategory::Span,
             vec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)],
+        ),
+        (
+            Integration::TraceMetrics(TraceMetricsIntegration::OtelV1 {
+                format: OtelFormat::Json,
+            }),
+            DataCategory::TraceMetric,
+            vec![
+                (DataCategory::TraceMetric, 1),
+                (DataCategory::TraceMetricByte, 10),
+            ],
         ),
     ] {
         let mut envelope = envelope![Integration];

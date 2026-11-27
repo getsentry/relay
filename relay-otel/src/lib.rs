@@ -1,7 +1,7 @@
 //! OpenTelemetry to Sentry transformation utilities.
 //!
 //! This crate provides common functionality for converting OpenTelemetry data structures
-//! to Sentry format. It serves as a shared library for both span and log transformations.
+//! to Sentry format. It serves as a shared library for span, log and metric transformations.
 
 #![warn(missing_docs)]
 #![doc(
@@ -11,10 +11,13 @@
 
 pub mod descriptors;
 mod logs;
+mod metrics;
 
 pub use self::logs::otel_to_sentry_log;
+pub use self::metrics::{calculate_trace_metric_size, otel_to_sentry_trace_metrics};
 
 pub use opentelemetry_proto::tonic::logs::v1 as otel_logs;
+pub use opentelemetry_proto::tonic::metrics::v1 as otel_metrics;
 
 use opentelemetry_proto::tonic::common::v1::ArrayValue as OtelArrayValue;
 use opentelemetry_proto::tonic::common::v1::KeyValueList;
