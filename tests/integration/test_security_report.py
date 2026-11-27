@@ -364,34 +364,22 @@ def test_security_report_rejects_dedicated_content_types(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
-def test_security_report_forwards_classified_events(mini_sentry, relay):
-    """A ``security`` item from an upstream Relay is forwarded as a security event."""
+def test_security_report_forwards_classified_events(
+    mini_sentry, relay, json_fixture_provider
+):
+    """A classified CSP event from an upstream Relay is forwarded as a security item."""
     proj_id = 42
     relay = relay(mini_sentry, {"outcomes": {"emit_outcomes": True}})
     mini_sentry.add_full_project_config(proj_id)
 
-    envelope = Envelope(headers={"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(
-                json={
-                    "type": "csp",
-                    "csp": {
-                        "blocked_uri": "http://evilhackerscripts.com",
-                        "document_uri": "https://example.com/foo/bar",
-                        "effective_directive": "default-src",
-                    },
-                }
-            ),
-            type="security",
-        )
-    )
+    event = json_fixture_provider(__file__).load("csp", ".no_processing.output")
+    envelope = Envelope(items=[Item(type="security", payload=PayloadRef(json=event))])
     relay.send_envelope(proj_id, envelope)
 
-    envelope = mini_sentry.get_captured_envelope()
-    assert [item.type for item in envelope.items] == ["security"]
-    assert get_security_report(envelope)["csp"]["effective_directive"] == "default-src"
-
+    forwarded = mini_sentry.get_captured_envelope()
+    assert [item.type for item in forwarded.items] == ["security"]
+    report = get_security_report(forwarded)
+    assert report["csp"]["effective_directive"] == event["csp"]["effective_directive"]
     assert mini_sentry.captured_outcomes.empty()
 
 

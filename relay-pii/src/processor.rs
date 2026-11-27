@@ -9,12 +9,13 @@ use relay_event_schema::processor::{
     ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
-    AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
+    AsPair, Event, IpAddr, NativeImagePath, PairList, ParsedIp, Replay, Request, ResponseContext,
+    User,
 };
-use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Empty, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
-use crate::config::RuleType;
+use crate::config::{PiiConfig, RuleType};
 use crate::redactions::Redaction;
 use crate::regex::ScrubbingRegexRef;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
@@ -29,6 +30,152 @@ pub enum AttributeMode {
     /// Identify the attribute with its value and apply all
     /// rules there directly.
     ValueOnly,
+}
+
+/// How an event user IP may be retained after project scrubbing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UserIpRetention {
+    /// Retain the user IP or its replacement as permitted by the project rules.
+    ApplyRules,
+    /// Only a pseudonymized replacement may supply a fallback ID. Clear the IP field.
+    HashOnly,
+}
+
+/// Advanced project rules and the rules generated from legacy data scrubbing settings.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProjectPii<'a> {
+    /// Advanced PII rules, applied first.
+    pub advanced: Option<&'a PiiConfig>,
+    /// Legacy data scrubbing rules.
+    pub legacy: Option<&'a PiiConfig>,
+}
+
+impl<'a> ProjectPii<'a> {
+    /// Scrub the user in place, then derive and scrub a fallback ID if the final identity allows it.
+    pub fn scrub_event_user(
+        self,
+        user: &mut User,
+        ip_retention: UserIpRetention,
+    ) -> ProcessingResult {
+        let state = ProcessingState::root().enter_borrowed("user", None, user.value_type());
+        let (saved_id, last_hashed) = match (self.advanced, self.legacy) {
+            // Without scrubbing, there is no replacement to use as a fallback ID.
+            (None, None) => (None, false),
+            // A single pass leaves its replacement in the IP field for the final ID check.
+            (Some(rule), None) | (None, Some(rule)) => {
+                let hashed = PiiProcessor::new(rule.compiled()).scrub_user_fields(user, &state)?;
+                (None, hashed)
+            }
+            // Preserve an eligible advanced replacement before legacy rules scrub the IP and identifiers.
+            (Some(advanced), Some(legacy)) => {
+                let hashed =
+                    PiiProcessor::new(advanced.compiled()).scrub_user_fields(user, &state)?;
+                let saved_id = hashed.then(|| user.ip_address.clone());
+                let hashed =
+                    PiiProcessor::new(legacy.compiled()).scrub_user_fields(user, &state)?;
+                (saved_id, hashed)
+            }
+        };
+        if user_needs_id(user)
+            && let Some(id) =
+                saved_id.or_else(|| last_hashed.then(|| mem::take(&mut user.ip_address)))
+        {
+            self.set_derived_user_id(user, id, &state)?;
+        }
+        if ip_retention == UserIpRetention::HashOnly {
+            user.ip_address.set_value(None);
+        }
+        Ok(())
+    }
+
+    /// Store the replacement as the user ID and apply rules for its new field.
+    fn set_derived_user_id(
+        self,
+        user: &mut User,
+        ip: Annotated<IpAddr>,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // Match the PII annotation on User::id when visiting just this field.
+        const ID_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+        user.id = ip.map_value(|ip| ip.into_inner().into());
+        for config in [self.advanced, self.legacy].into_iter().flatten() {
+            let mut processor = PiiProcessor::new(config.compiled());
+            let id_state = state.enter_borrowed(
+                "id",
+                Some(Cow::Borrowed(&ID_ATTRS)),
+                ValueType::for_field(&user.id),
+            );
+            process_value(&mut user.id, &mut processor, &id_state)?;
+        }
+        remove_replaced_ip(user);
+        Ok(())
+    }
+
+    /// Whether either source of rules is present.
+    pub fn is_empty(self) -> bool {
+        self.advanced.is_none() && self.legacy.is_none()
+    }
+
+    /// Scrub the environment using its schema path, including rules on its ancestors.
+    pub fn scrub_request_env(self, request: &mut Annotated<Request>) -> ProcessingResult {
+        let Some(value) = request.value_mut() else {
+            return Ok(());
+        };
+        if self.is_empty() || value.env.is_empty() {
+            return Ok(());
+        }
+        let mut fields = Annotated::new(Event {
+            request: Annotated::new(Request {
+                env: mem::take(&mut value.env),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        self.scrub_event(&mut fields)?;
+        let scrubbed = fields
+            .into_value()
+            .ok_or(ProcessingAction::DeleteValueHard)?
+            .request;
+        if let Some(r) = scrubbed.0 {
+            value.env = r.env;
+        } else {
+            *request = scrubbed;
+        }
+        Ok(())
+    }
+
+    /// The IP pipeline has already scrubbed the user and request environment at their schema paths.
+    pub fn scrub_remaining_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
+        if self.is_empty() {
+            return Ok(());
+        }
+        let Some(inner) = event.value_mut() else {
+            return Ok(());
+        };
+        let user = mem::take(&mut inner.user);
+        let env = inner
+            .request
+            .value_mut()
+            .as_mut()
+            .map(|r| mem::take(&mut r.env));
+        self.scrub_event(event)?;
+        if let Some(inner) = event.value_mut() {
+            inner.user = user;
+            if let (Some(request), Some(env)) = (inner.request.value_mut(), env) {
+                request.env = env;
+            }
+        }
+        Ok(())
+    }
+
+    /// Apply both rule sets to an event at its schema root.
+    fn scrub_event(self, event: &mut Annotated<Event>) -> ProcessingResult {
+        for config in [self.advanced, self.legacy].into_iter().flatten() {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(event, &mut processor, ProcessingState::root())?;
+        }
+        Ok(())
+    }
 }
 
 /// A processor that performs PII stripping.
@@ -53,6 +200,35 @@ impl<'a> PiiProcessor<'a> {
     pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
         self.attribute_mode = attribute_mode;
         self
+    }
+
+    /// Scrub the user and report whether this pass hashed a concrete IP for a fallback ID.
+    fn scrub_user_fields(
+        &mut self,
+        user: &mut User,
+        state: &ProcessingState<'_>,
+    ) -> Result<bool, ProcessingAction> {
+        let can_replace = user.id.value().is_none()
+            && user.id.meta().is_empty()
+            && user
+                .ip_address
+                .value()
+                .is_some_and(|ip| ip.address().is_some());
+        user.process_child_values(self, state)?;
+        if can_replace
+            && user
+                .ip_address
+                .value()
+                .is_some_and(|ip| ip.parsed() == ParsedIp::Replacement)
+        {
+            if user.ip_address.meta().is_pseudonymized() {
+                return Ok(true);
+            }
+            if user_needs_id(user) {
+                remove_replaced_ip(user);
+            }
+        }
+        Ok(false)
     }
 
     fn apply_all_rules(
@@ -267,34 +443,10 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let ip_was_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
-
-        // Recurse into the user and does PII processing on fields.
-        user.process_child_values(self, state)?;
-
-        let has_other_fields = user.id.value().is_some()
-            || user.username.value().is_some()
-            || user.email.value().is_some();
-
-        let ip_is_still_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
-
-        // If the IP address has become invalid as part of PII processing, we move it into the user
-        // ID. That ensures people can do IP hashing and still have a correct users-affected count.
-        //
-        // Right now both Snuba and EventUser discard unparseable IPs for indexing, and we assume
-        // we want to keep it that way.
-        //
-        // If there are any other fields set that take priority over the IP for uniquely
-        // identifying a user (has_other_fields), we do not want to do anything. The value will be
-        // wiped out in renormalization anyway.
-        if ip_was_valid && !has_other_fields && !ip_is_still_valid {
+        if self.scrub_user_fields(user, state)? && user_needs_id(user) {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
-            user.ip_address.meta_mut().add_remark(Remark::new(
-                RemarkType::Removed,
-                "pii:ip_address".to_owned(),
-            ));
+            remove_replaced_ip(user);
         }
-
         Ok(())
     }
 
@@ -308,6 +460,21 @@ impl Processor for PiiProcessor<'_> {
         replay.process_child_values(self, state)?;
         Ok(())
     }
+}
+
+/// Whether a replacement IP may supply the ID after scrubbing the user.
+fn user_needs_id(user: &User) -> bool {
+    user.id.value().is_none()
+        && user.id.meta().is_empty()
+        && user.email.value().is_none()
+        && user.username.value().is_none()
+}
+
+fn remove_replaced_ip(user: &mut User) {
+    user.ip_address = Annotated::empty();
+    user.ip_address
+        .meta_mut()
+        .add_remark(Remark::new(RemarkType::Removed, "pii:ip_address"));
 }
 
 #[derive(Default)]
@@ -630,14 +797,14 @@ mod tests {
     use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, IpAddr, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{FromValue, Object, assert_annotated_snapshot, get_value};
     use serde_json::json;
 
     use super::*;
-    use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
+    use crate::{DataScrubbingConfig, ReplaceRedaction};
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::convert::to_pii_config as to_pii_config_impl;
@@ -1538,7 +1705,7 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ip_address: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1559,10 +1726,12 @@ mod tests {
 
     #[test]
     fn test_ip_address_hashing_does_not_overwrite_id() {
+        // A rule targeting the container leaves the user present while its IP is scrubbed.
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
                 "applications": {
+                    "$user": ["@anything:remove"],
                     "$user.ip_address": ["@ip:hash"]
                 }
             }
@@ -1573,7 +1742,7 @@ mod tests {
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
                 id: Annotated::new("123".to_owned().into()),
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ip_address: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
                 ..Default::default()
             }),
             ..Default::default()

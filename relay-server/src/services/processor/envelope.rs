@@ -476,31 +476,25 @@ impl InnerProcessor {
     ) -> Self {
         let c = config.current();
 
-        let city_lookup = c
-            .city_path()
-            .and_then(|path| {
-                CityLookup::open(path)
-                    .context(ServiceError::GeoIp)
-                    .inspect_err(|err| {
-                        relay_log::error!("failed to open GeoIP city db {path:?}: {err:?}")
-                    })
-                    .ok()
-            })
-            .unwrap_or_else(CityLookup::empty);
-        let asn_lookup = c
-            .asn_path()
-            .and_then(|path| {
-                AsnLookup::open(path)
-                    .context(ServiceError::GeoIp)
-                    .inspect_err(|err| relay_log::error!("failed to open ASN db {path:?}: {err:?}"))
-                    .ok()
-            })
-            .unwrap_or_else(AsnLookup::empty);
+        let city_lookup = c.city_path().and_then(|path| {
+            CityLookup::open(path)
+                .context(ServiceError::GeoIp)
+                .inspect_err(|err| {
+                    relay_log::error!("failed to open GeoIP city db {path:?}: {err:?}")
+                })
+                .ok()
+        });
+        let asn_lookup = c.asn_path().and_then(|path| {
+            AsnLookup::open(path)
+                .context(ServiceError::GeoIp)
+                .inspect_err(|err| relay_log::error!("failed to open ASN db {path:?}: {err:?}"))
+                .ok()
+        });
 
-        if let Some(build_epoch) = city_lookup.build_epoch() {
+        if let Some(build_epoch) = city_lookup.as_ref().map(CityLookup::build_epoch) {
             relay_log::info!("Loaded GeoIP city database (build: {build_epoch})");
         }
-        if let Some(build_epoch) = asn_lookup.build_epoch() {
+        if let Some(build_epoch) = asn_lookup.as_ref().map(AsnLookup::build_epoch) {
             relay_log::info!("Loaded ASN database (build: {build_epoch})");
         }
 
@@ -516,7 +510,7 @@ impl InnerProcessor {
             processor: RelayProcessor::new(
                 cogs.clone(),
                 &quota_limiter,
-                &city_lookup,
+                city_lookup,
                 asn_lookup,
                 addrs.outcome_aggregator.clone(),
             ),

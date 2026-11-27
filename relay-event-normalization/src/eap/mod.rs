@@ -10,15 +10,12 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
-use relay_event_schema::protocol::{
-    Attribute, AttributeType, Attributes, Geo, SpanV2, SpanV2Status,
-};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, SpanV2, SpanV2Status};
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
-use crate::span::country_subregion::Subregion;
 use crate::span::description::{scrub_db_query, scrub_http};
 use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
@@ -42,6 +39,7 @@ pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurement
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 pub use self::user_agent::UserAgentNormalizer;
+pub use crate::client_ip::normalize_user_geo;
 
 /// How an EAP item entered Relay.
 #[derive(Debug, Clone)]
@@ -369,56 +367,6 @@ pub fn normalize_inject_client_address(
 
     let attributes = attributes.get_or_insert_with(Default::default);
     attributes.insert_if_missing(CLIENT__ADDRESS, || client_ip.to_string());
-}
-
-/// Normalizes the user's geographical information into [`Attributes`].
-///
-/// Does not modify the attributes if there is already user geo information present,
-/// to preserve original values.
-///
-/// This uses the [`CLIENT__ADDRESS`] attribute to infer the client IP address, you may want to run
-/// [`normalize_client_address`] before [`normalize_user_geo`].
-pub fn normalize_user_geo(
-    attributes: &mut Annotated<Attributes>,
-    info: impl FnOnce(IpAddr) -> Option<Geo>,
-) {
-    let Some(attributes) = attributes.value_mut() else {
-        return;
-    };
-
-    if [
-        USER__GEO__COUNTRY_CODE,
-        USER__GEO__CITY,
-        USER__GEO__SUBDIVISION,
-        USER__GEO__REGION,
-    ]
-    .into_iter()
-    .any(|a| attributes.contains_key(a))
-    {
-        return;
-    }
-
-    let client_address = attributes
-        .get_value(CLIENT__ADDRESS)
-        .and_then(|v| v.as_str())
-        .and_then(|v| v.parse().ok());
-
-    let Some(geo) = client_address.and_then(info) else {
-        return;
-    };
-
-    let subregion = geo
-        .country_code
-        .value()
-        .and_then(|cc| Subregion::from_iso2(cc));
-
-    attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
-    attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
-    attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
-    attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
-    if let Some(subregion) = subregion {
-        attributes.insert_if_missing(USER__GEO__SUBREGION, || (subregion as u8).to_string());
-    }
 }
 
 /// Derives the [`SENTRY__USER`] attribute from the user attributes.
@@ -1030,6 +978,7 @@ mod tests {
     use std::time::Duration;
 
     use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::Geo;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
     use relay_sampling::DynamicSamplingContext;
 

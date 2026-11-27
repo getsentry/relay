@@ -90,6 +90,15 @@ impl Empty for AutoInferSetting {
 }
 
 impl AutoInferSetting {
+    /// Whether the SDK allows the connection to fill a missing user IP when no request IP is available.
+    pub fn allows_missing_user_ip_from_connection(self, platform: Option<&str>) -> bool {
+        match self {
+            Self::Auto => true,
+            Self::Never => false,
+            Self::Legacy => matches!(platform, Some("javascript" | "cocoa" | "objc")),
+        }
+    }
+
     /// Returns a string representation for [`AutoInferSetting`].
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -270,7 +279,7 @@ mod tests {
                     version: Annotated::new("0.10.0".to_owned()),
                 }),
             ]),
-            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            client_ip: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
             settings: Annotated::empty(),
             other: {
                 let mut map = Map::new();
@@ -299,7 +308,7 @@ mod tests {
             integrations: Annotated::empty(),
             features: Annotated::empty(),
             packages: Annotated::empty(),
-            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            client_ip: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
             settings: Annotated::empty(),
             other: Default::default(),
         });

@@ -1117,7 +1117,7 @@ mod tests {
             release: Annotated::new(LenientString("1.1.1".to_owned())),
             environment: Annotated::new("prod".to_owned()),
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ip_address: Annotated::new(IpAddr::parse("127.0.0.1").unwrap()),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
                 ..Default::default()

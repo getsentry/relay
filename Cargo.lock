@@ -4771,6 +4771,7 @@ dependencies = [
  "relay-filter",
  "relay-log",
  "relay-pattern",
+ "relay-pii",
  "relay-protocol",
  "relay-sampling",
  "relay-spans",

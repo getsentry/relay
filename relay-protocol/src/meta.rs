@@ -515,6 +515,19 @@ impl Meta {
         self.remarks().iter()
     }
 
+    /// Whether scrubbing hashed this value without also masking, replacing or removing it.
+    pub fn is_pseudonymized(&self) -> bool {
+        self.iter_remarks()
+            .any(|r| r.ty == RemarkType::Pseudonymized)
+            && self.iter_remarks().all(|remark| match remark.ty {
+                RemarkType::Annotated | RemarkType::Pseudonymized => true,
+                RemarkType::Removed
+                | RemarkType::Substituted
+                | RemarkType::Masked
+                | RemarkType::Encrypted => false,
+            })
+    }
+
     /// Clears all remarks
     pub fn clear_remarks(&mut self) {
         if let Some(ref mut inner) = self.0 {

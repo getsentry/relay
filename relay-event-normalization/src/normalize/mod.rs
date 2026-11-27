@@ -604,27 +604,22 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default());
 
         let ip_addr = get_value!(event.user.ip_address!);
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
+        assert_eq!(ip_addr, &IpAddr::parse("2.125.160.216").unwrap());
     }
 
     #[test]
     fn test_user_ip_and_span_tags_with_auto_ip() {
-        let client_ip = IpAddr::parse("203.0.113.1").unwrap();
-        let remote_ip = "2001:db8::1";
+        let client_ip = "203.0.113.1".parse().unwrap();
+        let remote_ip = "2001:0DB8::0001";
         for (remote, client, infer_ip, expected) in [
-            // A concrete REMOTE_ADDR takes precedence over the connection IP.
-            (remote_ip, Some(&client_ip), "auto", Some(remote_ip)),
+            // Keep the SDK spelling when REMOTE_ADDR takes precedence over the connection.
+            (remote_ip, Some(client_ip), "auto", Some(remote_ip)),
             // An explicit placeholder opts into inference even in legacy mode.
-            (
-                "{{auto}}",
-                Some(&client_ip),
-                "legacy",
-                Some(client_ip.as_str()),
-            ),
+            ("{{auto}}", Some(client_ip), "legacy", Some("203.0.113.1")),
             // Inference is enabled, but there is no address to use.
             ("{{auto}}", None, "auto", None),
             // The SDK disables inference even though a connection IP is available.
-            ("{{auto}}", Some(&client_ip), "never", None),
+            ("{{auto}}", Some(client_ip), "never", None),
         ] {
             let payload = json!({
                 "type": "transaction",
@@ -703,19 +698,19 @@ mod tests {
             ..Default::default()
         });
 
-        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let ip_address = "2.125.160.216".parse().unwrap();
 
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client_ip: Some(&ip_address),
+                client_ip: Some(ip_address),
                 infer_ip_address: true,
                 ..Default::default()
             },
         );
 
         let ip_addr = get_value!(event.user.ip_address!);
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
+        assert_eq!(ip_addr, &IpAddr::parse("2.125.160.216").unwrap());
     }
 
     #[test]
@@ -728,13 +723,13 @@ mod tests {
             ..Default::default()
         });
 
-        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let ip_address = "2.125.160.216".parse().unwrap();
 
         let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client_ip: Some(&ip_address),
+                client_ip: Some(ip_address),
                 geoip_lookup: Some(&geo),
                 infer_ip_address: true,
                 ..Default::default()
@@ -744,7 +739,7 @@ mod tests {
         let user = get_value!(event.user!);
         let ip_addr = user.ip_address.value().expect("ip address missing");
 
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
+        assert_eq!(ip_addr, &IpAddr::parse("2.125.160.216").unwrap());
         assert!(user.geo.value().is_some());
     }
 
@@ -752,12 +747,12 @@ mod tests {
     fn test_user_ip_from_client_ip_without_appropriate_platform() {
         let mut event = Annotated::new(Event::default());
 
-        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let ip_address = "2.125.160.216".parse().unwrap();
         let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client_ip: Some(&ip_address),
+                client_ip: Some(ip_address),
                 geoip_lookup: Some(&geo),
                 ..Default::default()
             },
@@ -778,13 +773,13 @@ mod tests {
             ..Default::default()
         });
 
-        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let ip_address = "2.125.160.216".parse().unwrap();
         let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client_ip: Some(&ip_address),
+                client_ip: Some(ip_address),
                 geoip_lookup: Some(&geo),
                 infer_ip_address: false,
                 ..Default::default()
@@ -806,13 +801,13 @@ mod tests {
             ..Default::default()
         });
 
-        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let ip_address = "2.125.160.216".parse().unwrap();
         let geo = CityLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
 
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client_ip: Some(&ip_address),
+                client_ip: Some(ip_address),
                 geoip_lookup: Some(&geo),
                 infer_ip_address: true,
                 ..Default::default()

@@ -1,4 +1,4 @@
-use relay_event_normalization::CityLookup;
+use relay_event_normalization::{AsnLookup, CityLookup};
 use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 
@@ -163,7 +163,8 @@ pub fn finalize(
 
 pub fn normalize(
     error: &mut Managed<ExpandedError>,
-    geoip_lookup: &CityLookup,
+    geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
     ctx: Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let scoping = error.scoping();
@@ -176,6 +177,7 @@ pub fn normalize(
             scoping.project_id,
             ctx,
             geoip_lookup,
+            asn_lookup,
         )?;
 
         Ok::<_, Error>(())

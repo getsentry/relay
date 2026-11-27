@@ -22,6 +22,7 @@ use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
 use crate::CityLookup;
+use crate::client_ip::value_without_modifying_remark;
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
@@ -108,11 +109,25 @@ pub(crate) fn extract_span_tags_from_event(
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
-    extract_span_tags(
+    let mut shared = extract_shared_tags(event, max_tag_value_size);
+    if let Some(user) = event.user.value() {
+        // Embedded spans inherit the scrubbing history of the user fields they copy.
+        // A segment synthesized later only inherits fields that still have a value.
+        for (tag, source) in [
+            (&mut shared.user_email, user.email.meta()),
+            (&mut shared.user_username, user.username.meta()),
+            (&mut shared.user_id, user.id.meta()),
+            (&mut shared.user_ip, user.ip_address.meta()),
+        ] {
+            inherit_redactions(tag, source);
+        }
+    }
+    extract_tags_for_spans(
         event,
-        spans_vec.as_mut_slice(),
+        spans_vec,
         max_tag_value_size,
         http_scrubbing_allow_list,
+        shared,
     );
 
     event.spans = spans;
@@ -127,9 +142,19 @@ pub fn extract_span_tags(
     max_tag_value_size: usize,
     span_allowed_hosts: &[String],
 ) {
+    let shared = extract_shared_tags(event, max_tag_value_size);
+    extract_tags_for_spans(event, spans, max_tag_value_size, span_allowed_hosts, shared);
+}
+
+fn extract_tags_for_spans(
+    event: &Event,
+    spans: &mut [Annotated<Span>],
+    max_tag_value_size: usize,
+    span_allowed_hosts: &[String],
+    shared_tags: SharedTags,
+) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
-    let shared_tags = extract_shared_tags(event, max_tag_value_size);
     let is_mobile = shared_tags
         .mobile
         .value()
@@ -152,7 +177,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
-            &CityLookup::empty(),
+            None,
         );
 
         shared_tags.copy_into(&mut tags);
@@ -326,6 +351,26 @@ impl SharedTags {
     }
 }
 
+/// Copy redaction remarks without propagating original values or validation errors.
+fn inherit_redactions(tag: &mut Annotated<String>, source: &Meta) {
+    let mut remarks = source.iter_remarks().peekable();
+    if remarks.peek().is_none() {
+        return;
+    }
+    let kept = tag.as_str().map(str::len);
+    for remark in remarks {
+        let mut remark = remark.clone();
+        // Truncation or suppression can invalidate the range on the copied text.
+        if let (Some(len), Some((_, end))) = (kept, remark.range)
+            && end > len
+        {
+            remark.range = None;
+        }
+        tag.meta_mut().add_remark(remark);
+    }
+    tag.meta_mut().set_original_length(source.original_length());
+}
+
 /// Extracts tags shared by every span.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
@@ -337,14 +382,15 @@ fn extract_shared_tags(event: &Event, max_tag_value_size: usize) -> SharedTags {
     }
 
     if let Some(user) = event.user.value() {
-        if let Some(user) = get_event_user_tag(user) {
-            tags.user = truncate_string(user, max_tag_value_size);
+        let user_ip = value_without_modifying_remark(&user.ip_address).map(|ip| ip.as_str());
+        if let Some(tag) = get_event_user_tag(user) {
+            tags.user = truncate_string(tag, max_tag_value_size);
         }
         if let Some(user_id) = user.id.value() {
             tags.user_id = truncate_string(user_id.as_str().to_owned(), max_tag_value_size);
         }
-        if let Some(user_ip) = user.ip_address.value() {
-            tags.user_ip = truncate_string(user_ip.as_str().to_owned(), max_tag_value_size);
+        if let Some(user_ip) = user_ip {
+            tags.user_ip = truncate_string(user_ip.to_owned(), max_tag_value_size);
         }
         if let Some(user_username) = user.username.value() {
             tags.user_username =
@@ -825,7 +871,7 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
-    geoip_lookup: &crate::CityLookup,
+    geoip_lookup: Option<&CityLookup>,
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
@@ -844,12 +890,10 @@ pub fn extract_tags(
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.op = span_op.to_owned().into();
-
-        let category = category_for_span(span);
+        let category = category_for_span(span, &span_op);
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
-        let action = match (category.as_deref(), span_op.as_str(), &scrubbed_description) {
+        let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -881,7 +925,7 @@ pub fn extract_tags(
         };
 
         if let Some(category) = category {
-            span_tags.category = category.into_owned().into();
+            span_tags.category = category.to_owned().into();
         }
 
         if let Some(act) = action {
@@ -1089,11 +1133,12 @@ pub fn extract_tags(
             }
             // Standalone vital spans don't come from an event with geo data.
             // Derive geo data from the client address inferred on the span.
-            if let Some(client_address) = span
-                .data
-                .value()
-                .and_then(|data| data.get_str(CLIENT__ADDRESS))
-                .and_then(|ip| ip.parse().ok())
+            if let Some(geoip_lookup) = geoip_lookup
+                && let Some(client_address) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get_str(CLIENT__ADDRESS))
+                    .and_then(|ip| ip.parse().ok())
                 && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
             {
@@ -1104,6 +1149,7 @@ pub fn extract_tags(
                 }
             }
         }
+        span_tags.op = span_op.into();
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
@@ -1495,7 +1541,7 @@ fn extract_captured_substring<'a>(
     None
 }
 
-fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
+fn category_for_span<'a>(span: &'a Span, normalized_op: &'a str) -> Option<&'a str> {
     // Allow clients to explicitly set the category via attribute.
     if let Some(Value::String(category)) = span
         .data
@@ -1503,15 +1549,12 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         .and_then(|v| v.other.get("sentry.category"))
         .and_then(|c| c.value())
     {
-        return Some(category.to_owned().into());
+        return Some(category);
     }
 
     // If we're given an op, derive the category from that.
-    if let Some(unsanitized_span_op) = span.op.value() {
-        let span_op = unsanitized_span_op.to_lowercase();
-        if let Some(category) = span_op_to_category(&span_op) {
-            return Some(category.to_owned().into());
-        }
+    if let Some(category) = span_op_to_category(normalized_op) {
+        return Some(category);
     }
 
     // Derive the category from the span's attributes.
@@ -1526,32 +1569,32 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         .get(DB__SYSTEM__NAME)
         .is_some_and(value_is_set)
     {
-        Some("db".into())
+        Some("db")
     } else if span_data
         .other
         .get(HTTP__REQUEST__METHOD)
         .is_some_and(value_is_set)
     {
-        Some("http".into())
+        Some("http")
     } else if span_data
         .other
         .get(UI__COMPONENT_NAME)
         .is_some_and(value_is_set)
     {
-        Some("ui".into())
+        Some("ui")
     } else if span_data
         .other
         .get(RESOURCE__RENDER_BLOCKING_STATUS)
         .is_some_and(value_is_set)
     {
-        Some("resource".into())
+        Some("resource")
     } else if span_data
         .other
         .get("sentry.origin")
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
-        Some("browser".into())
+        Some("browser")
     } else {
         None
     }
@@ -2511,16 +2554,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
     }
@@ -2587,16 +2621,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(
             tags.messaging_destination_name.value(),
@@ -2902,16 +2927,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        )
+        extract_tags(&span, 200, None, None, false, None, &[], None)
     }
 
     #[test]
@@ -2966,16 +2982,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
 
@@ -3002,16 +3009,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
     }
@@ -3272,18 +3270,16 @@ LIMIT 1
     #[test]
     fn span_category_from_explicit_attribute_overrides_op() {
         let span = Span {
-            op: "app.start".to_owned().into(),
             data: SpanData::from([("sentry.category".into(), Value::String("db".into()).into())])
                 .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("db".into()));
+        assert_eq!(category_for_span(&span, "app.start"), Some("db"));
     }
 
     #[test]
     fn span_category_from_op_overrides_inference() {
         let span = Span {
-            op: "app.start".to_owned().into(),
             data: SpanData::from([(
                 DB__SYSTEM__NAME.to_owned(),
                 Value::String("postgresql".into()).into(),
@@ -3291,7 +3287,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("app".into()));
+        assert_eq!(category_for_span(&span, "app.start"), Some("app"));
     }
 
     #[test]
@@ -3304,7 +3300,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("db".into()));
+        assert_eq!(category_for_span(&span, ""), Some("db"));
     }
 
     #[test]
@@ -3317,7 +3313,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("http".into()));
+        assert_eq!(category_for_span(&span, ""), Some("http"));
     }
 
     #[test]
@@ -3330,7 +3326,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("ui".into()));
+        assert_eq!(category_for_span(&span, ""), Some("ui"));
     }
 
     #[test]
@@ -3343,7 +3339,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("resource".into()));
+        assert_eq!(category_for_span(&span, ""), Some("resource"));
     }
 
     #[test]
@@ -3356,7 +3352,7 @@ LIMIT 1
             .into(),
             ..Default::default()
         };
-        assert_eq!(category_for_span(&span), Some("browser".into()));
+        assert_eq!(category_for_span(&span, ""), Some("browser"));
     }
 
     #[test]
@@ -3384,7 +3380,7 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], Some(&lookup));
         assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
         assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
     }
@@ -3406,16 +3402,7 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &CityLookup::empty(),
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
     }

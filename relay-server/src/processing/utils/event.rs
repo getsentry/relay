@@ -11,20 +11,18 @@ use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
 use relay_config::NormalizationLevel;
-use relay_event_normalization::CityLookup;
-use relay_event_normalization::{
-    ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
-};
+use relay_dynamic_config::Feature;
+use relay_event_normalization::{AsnLookup, CityLookup};
+use relay_event_normalization::{ClockDriftProcessor, normalize_event_with_pii, validate_event};
 use relay_event_normalization::{
     CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
     RawUserAgentInfo, TransactionNameConfig,
 };
 use relay_event_schema::processor::{self, ProcessingState};
-use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
-use relay_pii::PiiProcessor;
+use relay_pii::{ProjectPii, UserIpRetention};
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
 use relay_quotas::DataCategory;
@@ -192,7 +190,8 @@ pub fn normalize(
     mut event_fully_normalized: EventFullyNormalized,
     project_id: ProjectId,
     ctx: Context,
-    geoip_lookup: &CityLookup,
+    geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
 ) -> Result<EventFullyNormalized, ProcessingError> {
     if event.value().is_empty() {
         // NOTE(iker): only processing relays create events from
@@ -202,10 +201,28 @@ pub fn normalize(
         return Ok(event_fully_normalized);
     }
 
+    let ip_pii_rules = ProjectPii {
+        advanced: ctx.project_info.config.pii_config.as_ref(),
+        legacy: ctx
+            .project_info
+            .config
+            .datascrubbing_settings
+            .pii_config()
+            .as_ref(),
+    };
     let full_normalization = match ctx.config.normalization_level() {
         NormalizationLevel::Full => true,
         NormalizationLevel::Default => {
             if ctx.config.processing_enabled() && event_fully_normalized.0 {
+                // The later PII pass skips these fields because normalization usually scrubs them.
+                if !ip_pii_rules.is_empty()
+                    && let Some(event) = event.value_mut()
+                {
+                    ip_pii_rules.scrub_request_env(&mut event.request)?;
+                    if let Some(user) = event.user.value_mut() {
+                        ip_pii_rules.scrub_event_user(user, UserIpRetention::ApplyRules)?;
+                    }
+                }
                 return Ok(event_fully_normalized);
             }
 
@@ -214,7 +231,6 @@ pub fn normalize(
     };
 
     let request_meta = headers.meta();
-    let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
     // Inherit from spans, as transactions no longer produce metrics.
     let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
@@ -254,8 +270,7 @@ pub fn normalize(
             key_id,
             protocol_version: Some(request_meta.version().to_string()),
             grouping_config: project_info.config.grouping_config.clone(),
-            client_ip: client_ipaddr.as_ref(),
-            // if the setting is enabled we do not want to infer the ip address
+            client_ip: request_meta.client_addr(),
             infer_ip_address: !project_info
                 .config
                 .datascrubbing_settings
@@ -285,7 +300,8 @@ pub fn normalize(
             remove_other: full_normalization,
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
-            geoip_lookup: Some(geoip_lookup),
+            geoip_lookup,
+            asn_lookup: asn_lookup.filter(|_| project_info.has_feature(Feature::ClientAsnLookup)),
             ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
@@ -308,11 +324,11 @@ pub fn normalize(
                 );
                 ProcessingError::InvalidTransaction
             })?;
-            normalize_event_inner(event, &normalization_config);
+            normalize_event_with_pii(event, &normalization_config, ip_pii_rules)?;
             if full_normalization && has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);
             }
-            Result::<(), ProcessingError>::Ok(())
+            Result::<_, ProcessingError>::Ok(())
         })
     })?;
 
@@ -419,17 +435,12 @@ pub fn scrub(
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
+        ProjectPii {
+            advanced: config.pii_config.as_ref(),
+            legacy: config.datascrubbing_settings.pii_config().as_ref(),
         }
-        let pii_config = config.datascrubbing_settings.pii_config();
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
-        }
-    });
-
+        .scrub_remaining_event(event)
+    })?;
     Ok(())
 }
 

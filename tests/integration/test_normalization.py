@@ -363,11 +363,9 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
         assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741", extra
 
 
-@pytest.mark.parametrize(
-    "scrub_ip_addresses, user_id",
-    [(True, None), (False, "[ip]")],
-)
-def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, user_id):
+@pytest.mark.parametrize("scrub_ip_addresses", [True, False])
+@pytest.mark.parametrize("rule", ["@ip", "@ip:mask"])
+def test_ip_placeholder_is_not_a_user_id(mini_sentry, relay, scrub_ip_addresses, rule):
     project_id = 42
     relay = relay(mini_sentry)
 
@@ -375,14 +373,14 @@ def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, u
     config["config"].setdefault("datascrubbingSettings", {})[
         "scrubIpAddresses"
     ] = scrub_ip_addresses
-    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip"]
+    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = [rule]
 
     relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
 
     envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) is None
-    assert event.get("user", {}).get("id", None) == user_id
+    assert event.get("user", {}).get("id") is None
 
 
 @pytest.mark.parametrize(

@@ -432,57 +432,144 @@ pub struct Addr(pub u64);
 hex_metrastructure!(Addr, "address");
 relay_common::impl_str_serde!(Addr, "an address");
 
-/// An ip address.
-#[derive(
-    Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
-)]
-pub struct IpAddr(pub String);
+/// Interpretation of an IP field before or after text processing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub enum ParsedIp {
+    Auto,
+    Address(net::IpAddr),
+    /// A processor replaced the original value with non-IP text.
+    Replacement,
+}
+
+impl FromStr for ParsedIp {
+    type Err = net::AddrParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            IpAddr::AUTO_MARKER => Ok(Self::Auto),
+            value => value.parse().map(Self::Address),
+        }
+    }
+}
+
+/// The original IP field text and its interpretation. PII may replace it with arbitrary text.
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct IpAddr {
+    text: LenientString,
+    parsed: ParsedIp,
+}
 
 impl IpAddr {
-    /// Returns the auto marker ip address.
-    pub fn auto() -> IpAddr {
-        IpAddr("{{auto}}".into())
+    /// Wire spelling of the marker that requests address inference.
+    pub const AUTO_MARKER: &'static str = "{{auto}}";
+
+    /// Returns the auto marker IP address.
+    pub fn auto() -> Self {
+        Self {
+            text: LenientString(Self::AUTO_MARKER.into()),
+            parsed: ParsedIp::Auto,
+        }
     }
 
-    /// Parses an `IpAddr` from a string
-    pub fn parse<S>(value: S) -> Result<Self, S>
-    where
-        S: AsRef<str> + Into<String>,
-    {
-        if value.as_ref() == "{{auto}}" {
-            return Ok(IpAddr(value.into()));
-        }
-
-        match net::IpAddr::from_str(value.as_ref()) {
-            Ok(_) => Ok(IpAddr(value.into())),
+    /// Parses a wire value, retaining its spelling for serialization and PII.
+    pub fn parse<S: AsRef<str> + Into<String>>(value: S) -> Result<Self, S> {
+        match value.as_ref().parse() {
+            Ok(parsed) => Ok(Self {
+                text: LenientString(value.into()),
+                parsed,
+            }),
             Err(_) => Err(value),
         }
     }
 
-    /// Checks if the ip address is set to the auto marker.
+    /// Returns the current interpretation of the text.
+    pub fn parsed(&self) -> ParsedIp {
+        self.parsed
+    }
+
+    /// Returns a concrete address when the field contains one.
+    pub fn address(&self) -> Option<net::IpAddr> {
+        match self.parsed {
+            ParsedIp::Address(ip) => Some(ip),
+            _ => None,
+        }
+    }
+
+    /// Checks if the IP address is set to the auto marker.
     pub fn is_auto(&self) -> bool {
-        self.0 == "{{auto}}"
+        self.parsed == ParsedIp::Auto
     }
 
-    /// Checks whether the contained ip address is still valid (relevant for PII processing).
-    pub fn is_valid(&self) -> bool {
-        self.is_auto() || net::IpAddr::from_str(&self.0).is_ok()
-    }
-
-    /// Returns the string value of this ip address.
+    /// Returns the original field text or its replacement.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.text.as_str()
     }
 
-    /// Convert IP address into owned string.
+    /// Convert the field text into an owned string.
     pub fn into_inner(self) -> String {
-        self.0
+        self.text.into_inner()
+    }
+}
+
+impl Empty for IpAddr {
+    fn is_empty(&self) -> bool {
+        self.as_str().is_empty()
+    }
+}
+
+impl Serialize for IpAddr {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl IntoValue for IpAddr {
+    fn into_value(self) -> Value {
+        Value::String(self.into_inner())
+    }
+
+    fn serialize_payload<S: Serializer>(
+        &self,
+        serializer: S,
+        _: SkipSerialization,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize(serializer)
+    }
+}
+
+impl ProcessValue for IpAddr {
+    fn value_type(&self) -> EnumSet<ValueType> {
+        self.text.value_type()
+    }
+
+    fn process_value<P: Processor>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // An IPv6 address with an embedded dotted IPv4 tail is the longest valid spelling.
+        // Longer scrubbed strings cannot become addresses unless a processor shortens them.
+        const MAX_LEN: usize = "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255".len();
+        let mut buffer = [0; MAX_LEN];
+        let before = buffer.get_mut(..self.as_str().len()).map(|buf| {
+            buf.copy_from_slice(self.as_str().as_bytes());
+            &*buf
+        });
+        let result = self.text.process_value(meta, processor, state);
+        let after = self.as_str();
+        if after.len() > MAX_LEN {
+            self.parsed = ParsedIp::Replacement;
+        } else if before != Some(after.as_bytes()) {
+            self.parsed = after.parse().unwrap_or(ParsedIp::Replacement);
+        }
+        result
     }
 }
 
 impl AsRef<str> for IpAddr {
     fn as_ref(&self) -> &str {
-        &self.0
+        self.as_str()
     }
 }
 
@@ -494,13 +581,22 @@ impl Default for IpAddr {
 
 impl From<std::net::IpAddr> for IpAddr {
     fn from(ip_addr: std::net::IpAddr) -> Self {
-        Self(ip_addr.to_string())
+        Self {
+            text: LenientString(ip_addr.to_string()),
+            parsed: ParsedIp::Address(ip_addr),
+        }
+    }
+}
+
+impl fmt::Debug for IpAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("IpAddr").field(&self.as_str()).finish()
     }
 }
 
 impl fmt::Display for IpAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
+        self.as_str().fmt(f)
     }
 }
 
@@ -1172,21 +1268,21 @@ mod tests {
     #[test]
     fn test_ip_addr() {
         assert_eq!(
-            IpAddr("{{auto}}".into()),
+            IpAddr::parse("{{auto}}").unwrap(),
             Annotated::<IpAddr>::from_json("\"{{auto}}\"")
                 .unwrap()
                 .0
                 .unwrap()
         );
         assert_eq!(
-            IpAddr("127.0.0.1".into()),
+            IpAddr::parse("127.0.0.1").unwrap(),
             Annotated::<IpAddr>::from_json("\"127.0.0.1\"")
                 .unwrap()
                 .0
                 .unwrap()
         );
         assert_eq!(
-            IpAddr("::1".into()),
+            IpAddr::parse("::1").unwrap(),
             Annotated::<IpAddr>::from_json("\"::1\"")
                 .unwrap()
                 .0
@@ -1199,6 +1295,51 @@ mod tests {
             ),
             Annotated::<IpAddr>::from_json("\"clearly invalid value\"").unwrap()
         );
+    }
+
+    #[test]
+    fn test_ip_addr_tracks_processed_text() {
+        struct SetText<'a>(&'a str);
+
+        impl Processor for SetText<'_> {
+            fn process_string(
+                &mut self,
+                text: &mut String,
+                _: &mut Meta,
+                _: &ProcessingState<'_>,
+            ) -> ProcessingResult {
+                text.replace_range(.., self.0);
+                Ok(())
+            }
+        }
+
+        let wire = "2001:0DB8::0001";
+        let mut ip = Annotated::<IpAddr>::from_json(&format!(r#""{wire}""#)).unwrap();
+        let original = ParsedIp::Address("2001:db8::1".parse().unwrap());
+        let longest = "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255";
+        let full = ParsedIp::Address(longest.parse().unwrap());
+        for (text, expected) in [
+            (wire, original), // An unchanged value retains the SDK's spelling.
+            (
+                "2001:0DB8::0002",
+                ParsedIp::Address("2001:db8::2".parse().unwrap()),
+            ), // Same-length edit in place.
+            ("{{auto}}", ParsedIp::Auto), // A processor can produce the marker.
+            (
+                "0123456789abcdef0123456789abcdef01234567",
+                ParsedIp::Replacement,
+            ), // Typical IP hash.
+            (
+                "this replacement is longer than the longest IPv6 address",
+                ParsedIp::Replacement,
+            ), // Long replacement text cannot be an IP.
+            (longest, full),  // A long replacement can become a valid IP again.
+        ] {
+            process_value(&mut ip, &mut SetText(text), ProcessingState::root()).unwrap();
+            let value = ip.value().unwrap();
+            assert_eq!((value.as_str(), value.parsed()), (text, expected));
+            assert_eq!(serde_json::to_value(value).unwrap(), text);
+        }
     }
 
     #[test]

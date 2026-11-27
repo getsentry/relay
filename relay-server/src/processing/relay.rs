@@ -65,8 +65,8 @@ impl RelayProcessor {
     pub fn new(
         cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
-        geoip_lookup: &CityLookup,
-        asn_lookup: AsnLookup,
+        geoip_lookup: Option<CityLookup>,
+        asn_lookup: Option<AsnLookup>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Self {
         // Just so everything fits in a single line.
@@ -90,12 +90,12 @@ impl RelayProcessor {
             logs_integration_vercel: VercelLogsIntegrationProcessor,
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
-            replays: ReplaysProcessor::new(ql(), geoip_lookup.clone()),
+            replays: ReplaysProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             sessions: SessionsProcessor::new(ql()),
             spans: SpansProcessor::new(ql(), geoip_lookup.clone(), asn_lookup.clone()),
             trace_attachments: TraceAttachmentsProcessor::new(ql()),
             trace_metrics: TraceMetricsProcessor::new(ql()),
-            transactions: TransactionProcessor::new(ql(), geoip_lookup.clone(), asn_lookup),
+            transactions: TransactionProcessor::new(ql(), geoip_lookup, asn_lookup),
             user_reports: UserReportsProcessor::new(ql()),
         }
     }

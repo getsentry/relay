@@ -7,7 +7,7 @@ use std::f64::consts::SQRT_2;
 
 use relay_conventions::attributes::HTTP__RESPONSE__STATUS_CODE;
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
-use relay_protocol::Value;
+use relay_protocol::{Annotated, RemarkType, Value};
 
 /// Used to decide when to extract mobile-specific tags.
 pub const MOBILE_SDKS: [&str; 4] = [
@@ -106,11 +106,22 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
 
 /// Computes the transaction event's "user" tag from the event's user.
 pub fn get_event_user_tag(user: &User) -> Option<String> {
+    fn unsubstituted<T>(field: &Annotated<T>) -> Option<&T> {
+        field.value().filter(|_| {
+            !field
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Substituted)
+        })
+    }
+
     format_user_tag(
-        user.id.as_str(),
-        user.username.as_str(),
-        user.email.as_str(),
-        user.ip_address.as_str(),
+        unsubstituted(&user.id).map(|id| id.as_str()),
+        unsubstituted(&user.username).map(|name| name.as_str()),
+        unsubstituted(&user.email).map(String::as_str),
+        crate::client_ip::value_without_modifying_remark(&user.ip_address)
+            .filter(|ip| ip.address().is_some())
+            .map(|ip| ip.as_str()),
     )
 }
 

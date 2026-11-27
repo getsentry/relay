@@ -1,15 +1,15 @@
 //! Validation and normalization of [`Replay`] events.
 
-use std::net::IpAddr as StdIpAddr;
+use std::net::IpAddr;
 
 use relay_event_schema::processor::{self, ProcessingState, Processor};
-use relay_event_schema::protocol::{Contexts, IpAddr, Replay};
+use relay_event_schema::protocol::{Contexts, Replay};
 use relay_protocol::Annotated;
 
-use crate::event::normalize_user_geoinfo;
+use crate::client_ip::{ClientIpConfig, enrich_asn_tags, process_user_ip};
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
-use crate::{CityLookup, trimming};
+use crate::{AsnLookup, CityLookup, trimming};
 
 /// Replay validation error.
 ///
@@ -78,18 +78,29 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 /// Adds default fields and normalizes all values in to their standard representation.
 pub fn normalize(
     replay: &mut Annotated<Replay>,
-    client_ip: Option<StdIpAddr>,
+    client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-    geoip_lookup: &CityLookup,
+    geoip_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
 ) {
     let _ = processor::apply(replay, |replay_value, meta| {
         normalize_platform(replay_value);
-        normalize_ip_address(replay_value, client_ip);
-        normalize_user_geoinfo(
-            geoip_lookup,
+        let ip = process_user_ip(
+            &mut replay_value.request,
             &mut replay_value.user,
-            client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
-        );
+            ClientIpConfig {
+                platform: replay_value.platform.as_str(),
+                sdk: replay_value.sdk.value(),
+                client_ip,
+                geoip_lookup,
+                infer_ip_address: true,
+                security_report: false,
+            },
+            Default::default(),
+        )?;
+        if let Some(db) = asn_lookup {
+            enrich_asn_tags(&mut replay_value.tags, ip, db);
+        }
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);
         normalize_array_fields(replay_value);
@@ -119,16 +130,6 @@ fn normalize_array_fields(replay: &mut Replay) {
     if let Some(items) = replay.segment_names.value_mut() {
         items.truncate(100);
     }
-}
-
-fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
-    crate::event::normalize_ip_addresses(
-        &mut replay.request,
-        &mut replay.user,
-        replay.platform.as_str(),
-        ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
-        replay.sdk.value(),
-    );
 }
 
 fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentInfo<&str>) {
@@ -260,12 +261,7 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        normalize(
-            &mut replay,
-            None,
-            &RawUserAgentInfo::default(),
-            &CityLookup::empty(),
-        );
+        normalize(&mut replay, None, &RawUserAgentInfo::default(), None, None);
 
         let contexts = get_value!(replay.contexts!);
         assert_eq!(
@@ -302,13 +298,8 @@ mod tests {
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
 
         // No user object and no ip-address was provided.
-        normalize(
-            &mut replay,
-            None,
-            &RawUserAgentInfo::default(),
-            &CityLookup::empty(),
-        );
-        assert_eq!(get_value!(replay.user.geo), None);
+        normalize(&mut replay, None, &RawUserAgentInfo::default(), None, None);
+        assert!(get_value!(replay.user).is_none());
 
         // No user object but an ip-address was provided.
         let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
@@ -316,7 +307,8 @@ mod tests {
             &mut replay,
             Some(ip_address),
             &RawUserAgentInfo::default(),
-            &CityLookup::empty(),
+            None,
+            None,
         );
 
         let ipaddr = get_value!(replay.user!).ip_address.as_str();
@@ -336,7 +328,8 @@ mod tests {
             &mut replay,
             Some(ip_address),
             &RawUserAgentInfo::default(),
-            &lookup,
+            Some(&lookup),
+            None,
         );
 
         let user = &replay.value().unwrap().user;
@@ -361,12 +354,7 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay_failure_22_08_31.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        normalize(
-            &mut replay,
-            None,
-            &RawUserAgentInfo::default(),
-            &CityLookup::empty(),
-        );
+        normalize(&mut replay, None, &RawUserAgentInfo::default(), None, None);
 
         let user = get_value!(replay.user!);
         assert_eq!(user.ip_address.as_str(), Some("127.1.1.1"));
@@ -496,12 +484,7 @@ mod tests {
         let json = format!(r#"{{"dist": "{}"}}"#, "0".repeat(100));
         let mut replay = Annotated::<Replay>::from_json(json.as_str()).unwrap();
 
-        normalize(
-            &mut replay,
-            None,
-            &RawUserAgentInfo::default(),
-            &CityLookup::empty(),
-        );
+        normalize(&mut replay, None, &RawUserAgentInfo::default(), None, None);
         assert_annotated_snapshot!(replay, @r###"
         {
           "platform": "other",

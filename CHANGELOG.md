@@ -4,12 +4,14 @@
 
 **Features**:
 
+- Look up the client ASN number and organization for errors, spans, and replay events before IP scrubbing when the project enables `projects:relay-client-asn-lookup` and Relay has a local ASN database. ([#6760](https://github.com/getsentry/relay/pull/6760))
 - Add `geoip.asn_path` for a local ASN database. The City database can be configured with `geoip.city_path` or the existing `geoip.path` key. ([#6759](https://github.com/getsentry/relay/pull/6759))
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
 
 **Bug Fixes**:
 
+- Apply request IP scrubbing before inferring the user IP for filtering, user IDs, and span tags. City and ASN lookups can still use the original address. ([#6760](https://github.com/getsentry/relay/pull/6760))
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))
 - Only scrub credit card numbers with a valid Luhn checksum. ([#6721](https://github.com/getsentry/relay/pull/6721))

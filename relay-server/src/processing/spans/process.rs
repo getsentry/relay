@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use relay_conventions::attributes::SENTRY__SEGMENT__ID;
 use relay_event_normalization::eap::{Ingress, Pipeline};
-use relay_event_normalization::{CityLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{
+    AsnLookup, CityLookup, RequiredMode, SchemaProcessor, eap, normalize_span_ip,
+};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -219,10 +221,19 @@ fn parse_and_validate_span_attachment(
 }
 
 /// Normalizes individual spans.
-pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &CityLookup, ctx: Context<'_>) {
+pub fn normalize(
+    spans: &mut Managed<ExpandedSpans>,
+    geo_lookup: Option<&CityLookup>,
+    asn_lookup: Option<&AsnLookup>,
+    ctx: Context<'_>,
+) {
     let settings = spans.settings;
     let user_agent = utils::normalize::user_agent(spans.headers.meta(), settings.infer_user_agent);
     let ingress = spans.ingress.clone();
+    let asn = asn_lookup.filter(|_| {
+        ctx.project_info
+            .has_feature(relay_dynamic_config::Feature::ClientAsnLookup)
+    });
 
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
@@ -232,7 +243,7 @@ pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &CityLookup, ct
                 ingress.as_ref(),
                 settings,
                 headers,
-                geo_lookup,
+                (geo_lookup, asn),
                 &user_agent,
                 ctx,
             )
@@ -248,7 +259,7 @@ fn normalize_span(
     ingress: Option<&Ingress>,
     settings: Settings,
     headers: &EnvelopeHeaders,
-    geo_lookup: &CityLookup,
+    (geo_lookup, asn): (Option<&CityLookup>, Option<&AsnLookup>),
     user_agent: &eap::UserAgentNormalizer,
     ctx: Context<'_>,
 ) -> Result<()> {
@@ -289,7 +300,7 @@ fn normalize_span(
             eap::normalize_inject_client_address(&mut span.attributes, meta.client_addr());
         }
         user_agent.normalize(&mut span.attributes);
-        eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
+        normalize_span_ip(&mut span.attributes, geo_lookup, asn);
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
         if ctx.is_processing() {
@@ -488,7 +499,6 @@ mod tests {
         ingress: Option<&Ingress>,
         settings: Settings,
         headers: &EnvelopeHeaders,
-        geo_lookup: &CityLookup,
         ctx: Context<'_>,
     ) -> Result<()> {
         let user_agent = utils::normalize::user_agent(headers.meta(), settings.infer_user_agent);
@@ -497,7 +507,7 @@ mod tests {
             ingress,
             settings,
             headers,
-            geo_lookup,
+            (None, None),
             &user_agent,
             ctx,
         )
@@ -1073,12 +1083,7 @@ mod tests {
     fn prepare_normalize_span_params(
         string_attributes: &[(&str, &str)],
         float_attributes: &[(&str, f64)],
-    ) -> (
-        Annotated<SpanV2>,
-        EnvelopeHeaders,
-        CityLookup,
-        Context<'static>,
-    ) {
+    ) -> (Annotated<SpanV2>, EnvelopeHeaders, Context<'static>) {
         let mut attributes = Attributes::new();
         string_attributes
             .iter()
@@ -1109,7 +1114,7 @@ mod tests {
         let envelope = Envelope::from_request(Some(EventId::new()), meta);
         let headers = envelope.headers().to_owned();
 
-        (span, headers, CityLookup::empty(), Context::for_test())
+        (span, headers, Context::for_test())
     }
 
     fn assert_attributes_contains(
@@ -1137,18 +1142,10 @@ mod tests {
     #[test]
     fn test_normalize_span_removes_invalid_release() {
         let release = "a".repeat(251);
-        let (mut span, headers, geo_lookup, ctx) =
+        let (mut span, headers, ctx) =
             prepare_normalize_span_params(&[(SENTRY__RELEASE, &release)], &[]);
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         let attrs = span.value().unwrap().attributes.value().unwrap();
         assert!(attrs.get_value(SENTRY__RELEASE).is_none());
@@ -1156,25 +1153,17 @@ mod tests {
 
     #[test]
     fn test_normalize_trace_status_on_segment_span() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(&[], &[]);
+        let (mut span, headers, ctx) = prepare_normalize_span_params(&[], &[]);
         span.value_mut().as_mut().unwrap().is_segment = Annotated::new(true);
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(&span, &[("sentry.trace.status", "ok")], &[]);
     }
 
     #[test]
     fn test_insights_backend_queries_support_modern() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (DB__SYSTEM__NAME, "postgresql"),
                 (DB__QUERY__TEXT, "select * from users where id = 1"),
@@ -1182,15 +1171,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1210,7 +1191,7 @@ mod tests {
     #[test]
     #[allow(deprecated, reason = "This test is meant to access legacy attributes.")]
     fn test_insights_backend_queries_support_legacy() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (DB__SYSTEM, "postgresql"),
                 (SENTRY__DESCRIPTION, "select * from users where id = 1"),
@@ -1218,15 +1199,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1247,7 +1220,7 @@ mod tests {
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_modern() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 ("sentry.kind", SpanKind::Client.as_str()),
                 (HTTP__REQUEST__METHOD, "GET"),
@@ -1256,15 +1229,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1280,7 +1245,7 @@ mod tests {
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_legacy_absolute() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (SENTRY__OP, "http.client"),
                 (
@@ -1291,15 +1256,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1319,7 +1276,7 @@ mod tests {
 
     #[test]
     fn test_mobile_normalizations() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (SENTRY__SDK__NAME, "sentry.cocoa"),
                 (THREAD__NAME, "main"),
@@ -1332,15 +1289,7 @@ mod tests {
             ],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1363,7 +1312,7 @@ mod tests {
 
     #[test]
     fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (SENTRY__OP, "http.client"),
                 (SENTRY__DESCRIPTION, "GET /path?param=value"),
@@ -1372,15 +1321,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1400,7 +1341,7 @@ mod tests {
         reason = "This test deliberately checks deprecated attributes"
     )]
     fn test_op_from_deprecated_db_system() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, ctx) = prepare_normalize_span_params(
             &[
                 (DB__SYSTEM, "postgresql"),
                 (DB__QUERY__TEXT, "select * from users where id = 1"),
@@ -1408,15 +1349,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1441,18 +1374,10 @@ mod tests {
         reason = "This test deliberately checks deprecated attributes"
     )]
     fn test_op_from_deprecated_http_method() {
-        let (mut span, headers, geo_lookup, ctx) =
+        let (mut span, headers, ctx) =
             prepare_normalize_span_params(&[(HTTP__METHOD, "GET"), (SENTRY__KIND, "server")], &[]);
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1472,18 +1397,10 @@ mod tests {
         reason = "This test deliberately checks deprecated attributes"
     )]
     fn test_attributes_from_deprecated_gen_ai_system() {
-        let (mut span, headers, geo_lookup, ctx) =
+        let (mut span, headers, ctx) =
             prepare_normalize_span_params(&[(GEN_AI__SYSTEM, "some system")], &[]);
 
-        normalize_span(
-            &mut span,
-            None,
-            Default::default(),
-            &headers,
-            &geo_lookup,
-            ctx,
-        )
-        .unwrap();
+        normalize_span(&mut span, None, Default::default(), &headers, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
