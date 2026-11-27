@@ -1258,7 +1258,7 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(serde_json::to_value(values).unwrap(), expected_values);
                 assert_eq!(
-                    serde_json::to_value(&batches[3]).unwrap(),
+                    serde_json::to_value(batches[3]).unwrap(),
                     serde_json::json!([counter])
                 );
             }
