@@ -26,7 +26,7 @@
 - Use Arroyo's producer metrics instead of Relay's own. ([#6636](https://github.com/getsentry/relay/pull/6636))
 - Recognize the `projects:relay-client-asn-lookup` flag in project configs. ([#6751](https://github.com/getsentry/relay/pull/6751))
 - Stop writing co-occurring type and unit attributes on trace metrics. ([#6765](https://github.com/getsentry/relay/pull/6765))
-- Stop writing the `sentry.observed_timestamp_nanos` attribute on trace metrics. ([#TBD](https://github.com/getsentry/relay/pull/TBD))
+- Stop writing the `sentry.observed_timestamp_nanos` attribute on trace metrics. ([#6779](https://github.com/getsentry/relay/pull/6779))
 - Add the reason code of rate limited crash reports to an `attachments` context on the event. ([#6724](https://github.com/getsentry/relay/pull/6724))
 - Skip inferred browser results with a name or version longer than 128 bytes on logs, spans, and trace metrics. ([#6697](https://github.com/getsentry/relay/pull/6697))
 - Resolve cycles in the upstream service. ([#6679](https://github.com/getsentry/relay/pull/6679))
