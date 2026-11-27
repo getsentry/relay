@@ -29,8 +29,8 @@ pub enum NetworkReportPhase {
         method: String,
         /// The HTTP protocol and version.
         protocol: String,
-        /// Request's referrer, as determined by the referrer policy associated with its client.
-        referrer: String,
+        /// Request's referrer, as determined by the referrer policy associated with its client - optional to support Firefox.
+        referrer: Option<String>,
         /// The IP address of the server where the site is hosted, or an empty string.
         #[serde(deserialize_with = "deserialize_ip_opt")]
         server_ip: Option<IpAddr>,

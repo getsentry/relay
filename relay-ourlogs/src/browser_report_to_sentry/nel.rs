@@ -224,12 +224,14 @@ pub fn create_log_from_nel_body(body: Body, mut attributes: Attributes) -> OurLo
 
             add_attribute!(attributes, HTTP__REQUEST__METHOD, method);
 
-            if !referrer.is_empty() {
+            if let Some(referrer) = referrer
+                && !referrer.is_empty()
+            {
                 let referrer_key = interpolate::http__request__header__key("referer");
                 add_attribute!(attributes, referrer_key, vec![referrer.clone()]);
+                add_attribute!(attributes, NEL__REFERRER, referrer);
             }
             add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
-            add_attribute!(attributes, NEL__REFERRER, referrer);
 
             for (name, values) in request_headers {
                 let key = interpolate::http__request__header__key(name.to_ascii_lowercase());
