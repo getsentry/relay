@@ -933,6 +933,86 @@ mod tests {
     }
 
     #[test]
+    fn test_scrub_attributes_unquoted_and_wildcard_safe_fields() {
+        let json = r#"
+        {
+            "db.query.text": {
+                "type": "string",
+                "value": "select authorization_wait_end from sessions"
+            },
+            "app.oauth.request.token_shape": {
+                "type": "string",
+                "value": "auth-code"
+            },
+            "detail_token": {
+                "type": "string",
+                "value": "my-token"
+            },
+            "password": {
+                "type": "string",
+                "value": "secret123"
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<Attributes>::from_json(json).unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: false,
+            exclude_fields: vec![
+                "db.query.text".to_owned(),
+                "app.oauth.*".to_owned(),
+                "*_token".to_owned(),
+            ],
+            ..Default::default()
+        };
+
+        let scrubbing_config = scrubbing_config.pii_config();
+
+        eap::scrub(ValueType::Span, &mut data, None, scrubbing_config.as_ref()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "app.oauth.request.token_shape": {
+            "type": "string",
+            "value": "auth-code"
+          },
+          "db.query.text": {
+            "type": "string",
+            "value": "select authorization_wait_end from sessions"
+          },
+          "detail_token": {
+            "type": "string",
+            "value": "my-token"
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "_meta": {
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
     fn test_scrub_attributes_implicit_attribute_value() {
         let json = r#"
         {

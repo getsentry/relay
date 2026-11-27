@@ -212,14 +212,18 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
             continue;
         }
 
+        // Unquoted safe fields also match the literal key, so `db.query.text` covers both the
+        // attribute `db.query.text` and the nested path `db` > `query` > `text`.
+        let literal_key = SelectorSpec::Path(vec![SelectorPathItem::Key(field.to_owned())]);
         let spec = match SelectorSpec::parse_non_legacy(field) {
-            Ok(spec) => spec,
-            Err(_) => {
-                // Ideally safe fields should be caught by sentry-side validation,
-                // but there is still a considerable amount of "invalid" safe fields.
-                // Fallback to stay compatible with the old behaviour.
-                SelectorSpec::Path(vec![SelectorPathItem::Key(field.to_owned())])
+            Ok(spec @ SelectorSpec::Path(_)) if spec != literal_key && !field.contains('\'') => {
+                SelectorSpec::Or(vec![spec, literal_key])
             }
+            Ok(spec) => spec,
+            // Ideally safe fields should be caught by sentry-side validation,
+            // but there is still a considerable amount of "invalid" safe fields.
+            // Fallback to stay compatible with the old behaviour.
+            Err(_) => literal_key,
         };
 
         conjunctions.push(SelectorSpec::Not(Box::new(spec)));
