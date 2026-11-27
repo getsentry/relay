@@ -151,7 +151,7 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
-/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
+/// incoming traffic to them. The server stops when a shutdown is triggered.
 pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,
