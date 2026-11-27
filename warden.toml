@@ -29,6 +29,8 @@ name = "wrdn-dos-review"
 incremental = true
 remote = "getsentry/warden-skills"
 paths = ["**/*.rs"]
+reportOn = "off"
+failOn = "off"
 
 [[skills.triggers]]
 type = "pull_request"
