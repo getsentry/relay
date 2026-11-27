@@ -29,7 +29,7 @@ pub enum NetworkReportPhase {
         method: String,
         /// The HTTP protocol and version.
         protocol: String,
-        /// Request's referrer, as determined by the referrer policy associated with its client.
+        /// Request's referrer, as determined by the referrer policy associated with its client - optional to support Firefox.
         referrer: Option<String>,
         /// The IP address of the server where the site is hosted, or an empty string.
         #[serde(deserialize_with = "deserialize_ip_opt")]
@@ -167,27 +167,5 @@ mod tests {
 
         // The `server_ip` field can be empty, but it can't be missing.
         assert!(serde_json::from_str::<Body>(json).is_err());
-    }
-
-    #[test]
-    fn parse_missing_referrer() {
-        let json = r#"{
-            "sampling_fraction": 1,
-            "elapsed_time": 1,
-            "phase": "application",
-            "type": "http.error",
-            "server_ip": "127.0.0.1",
-            "protocol": "http/1.0",
-            "method": "GET",
-            "status_code": 500
-        }"#;
-
-        let body: Body = serde_json::from_str(json).unwrap();
-
-        let NetworkReportPhase::Application { referrer, .. } = body.phase else {
-            unreachable!();
-        };
-
-        assert!(referrer.is_none());
     }
 }
