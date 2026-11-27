@@ -659,7 +659,6 @@ impl Service for UpstreamProjectSourceService {
     type Interface = UpstreamProjectSource;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_log::info!("project upstream cache started");
         let mut expects_input = true;
         while expects_input || !self.state_channels.is_empty() || !self.fetch_tasks.is_empty() {
             tokio::select! {
@@ -685,7 +684,6 @@ impl Service for UpstreamProjectSourceService {
                 }
             }
         }
-        relay_log::info!("project upstream cache stopped");
     }
 }
 

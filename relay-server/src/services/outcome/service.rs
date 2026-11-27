@@ -102,11 +102,9 @@ impl Service for OutcomeProducerService {
     type Interface = TrackOutcome;
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_log::info!("outcome producer started.");
         while let Some(message) = rx.recv().await {
             self.handle_message(message);
         }
-        relay_log::info!("outcome producer stopped.");
     }
 }
 
@@ -226,9 +224,6 @@ impl Service for ClientReportOutcomeProducerService {
     type Interface = TrackOutcome;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        // let mut shutdown = relay_system::Controller::shutdown_handle();
-        relay_log::info!("client report outcome producer started");
-
         loop {
             tokio::select! {
                 biased;
@@ -242,7 +237,6 @@ impl Service for ClientReportOutcomeProducerService {
             }
         }
         self.handle_shutdown();
-        relay_log::info!("client report outcome producer stopped");
     }
 }
 

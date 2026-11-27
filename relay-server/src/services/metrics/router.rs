@@ -92,13 +92,9 @@ impl Service for RouterService {
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let mut router = StartedRouter::start(self);
-        relay_log::info!("metrics router started");
-
         while let Some(message) = rx.recv().await {
             router.handle_message(message)
         }
-
-        relay_log::info!("metrics router stopped");
     }
 }
 

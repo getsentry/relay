@@ -311,6 +311,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         services.start(HttpServer::new(config, state)?);
 
         services.join().await;
+        relay_log::debug!("all services have stopped");
 
         anyhow::Ok(())
     })?;

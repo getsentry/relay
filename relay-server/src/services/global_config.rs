@@ -337,7 +337,6 @@ impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_log::info!("global config service starting");
         if self.config.current().relay_mode() == RelayMode::Managed {
             relay_log::info!("requesting global config from upstream");
             self.request_global_config();
@@ -380,7 +379,6 @@ impl Service for GlobalConfigService {
                 _ = self.global_config_watch.closed(), if !expects_input => break
             }
         }
-        relay_log::info!("global config service stopped");
     }
 }
 
