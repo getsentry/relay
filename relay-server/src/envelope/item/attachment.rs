@@ -175,7 +175,8 @@ impl AttachmentItem {
             | AttachmentType::Prosperodump
             | AttachmentType::Breadcrumbs
             | AttachmentType::NvGpuDump
-            | AttachmentType::NintendoSwitchDyingMessage => true,
+            | AttachmentType::NintendoSwitchDyingMessage
+            | AttachmentType::ItemBundle => true,
             AttachmentType::Attachment
             | AttachmentType::UnrealContext
             | AttachmentType::UnrealLogs
@@ -195,8 +196,8 @@ impl Counted for AttachmentItem {
 
         // New attachment types require an explicit accounting decision.
         match self.attachment_type() {
-            AttachmentType::NintendoSwitchDyingMessage => {
-                // Event-parent dying messages are merged into event data.
+            AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle => {
+                // Event-parent item bundles are merged into event data.
                 if matches!(self.attachment_parent_type(), AttachmentParentType::Event) {
                     return Quantities::new();
                 }

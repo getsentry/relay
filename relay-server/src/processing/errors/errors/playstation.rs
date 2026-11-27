@@ -259,7 +259,7 @@ fn merge_events_inner(
     let from_envelope = serde_json::from_slice(&from_envelope.data().payload())?;
     let mut from_prospero = serde_json::from_slice(from_prospero)?;
 
-    // Uses the dying message as a base and fills it with values from the event.
+    // Uses the event from the prosperodump as a base and fills it with values from the event.
     crate::utils::merge_values(&mut from_prospero, from_envelope);
 
     Annotated::<Event>::deserialize_with_meta(from_prospero)

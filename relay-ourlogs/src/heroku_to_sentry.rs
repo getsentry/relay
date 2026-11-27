@@ -577,6 +577,7 @@ pub fn logplex_message_to_sentry_log(
 
     attributes.insert(SENTRY__ORIGIN, "auto.log_drain.heroku".to_owned());
     attributes.insert(CLOUD__PROVIDER, "heroku".to_owned());
+    add_optional_attribute!(HEROKU__SOURCE, source);
     add_optional_attribute!(HEROKU__DYNO__NAME, dyno.filter(|dyno| is_dyno_name(dyno)));
     add_optional_attribute!(HEROKU__LOGPLEX__DRAIN_TOKEN, drain_token);
 
@@ -892,6 +893,10 @@ mod tests {
               "type": "string",
               "value": "d.73ea7440-270a-435a-a0ea-adf50b4e5f5a"
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "app"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -984,6 +989,10 @@ mod tests {
               "type": "double",
               "value": 0.0
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "http.request.method": {
               "type": "string",
               "value": "GET"
@@ -1070,6 +1079,10 @@ mod tests {
               "type": "double",
               "value": 30001.0
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "http.request.method": {
               "type": "string",
               "value": "GET"
@@ -1125,7 +1138,10 @@ mod tests {
 
         let attributes = log.value().unwrap().attributes.value().unwrap();
         let keys: Vec<_> = attributes.0.keys().collect();
-        assert_eq!(keys, vec!["cloud.provider", "sentry.origin"]);
+        assert_eq!(
+            keys,
+            vec!["cloud.provider", "heroku.source", "sentry.origin"]
+        );
     }
 
     fn attribute<'a>(log: &'a Annotated<OurLog>, key: &str) -> Option<&'a Value> {
@@ -1151,12 +1167,11 @@ mod tests {
                 expected,
                 "{source} {process}"
             );
-            for key in [
-                "heroku.source",
-                "heroku.dyno",
-                "heroku.router.dyno",
-                SERVICE__NAME,
-            ] {
+            assert_eq!(
+                attribute(&log, HEROKU__SOURCE).and_then(|value| value.as_str()),
+                Some(source)
+            );
+            for key in ["heroku.dyno", "heroku.router.dyno", SERVICE__NAME] {
                 assert_eq!(attribute(&log, key), None, "{key}");
             }
         }
@@ -1595,6 +1610,10 @@ mod tests {
               "type": "string",
               "value": "Memory quota exceeded"
             },
+            "heroku.source": {
+              "type": "string",
+              "value": "heroku"
+            },
             "sentry.origin": {
               "type": "string",
               "value": "auto.log_drain.heroku"
@@ -1691,5 +1710,27 @@ mod tests {
         let log = log.value().unwrap();
         assert!(log.timestamp.value().is_some());
         assert!(!log.timestamp.meta().is_empty());
+    }
+
+    #[test]
+    fn test_source_attribute() {
+        let app = to_log("<190>1 2024-04-26T16:58:32+00:00 host app web.1 - Completed 200 OK");
+        let platform = to_log(
+            "<45>1 2024-04-26T16:58:32+00:00 host heroku web.1 - Error R14 (Memory quota exceeded)",
+        );
+
+        // Both lines name the same dyno, only the source tells them apart.
+        assert_eq!(
+            attribute(&app, HEROKU__DYNO__NAME),
+            attribute(&platform, HEROKU__DYNO__NAME)
+        );
+        assert_eq!(
+            attribute(&app, HEROKU__SOURCE).and_then(|v| v.as_str()),
+            Some("app")
+        );
+        assert_eq!(
+            attribute(&platform, HEROKU__SOURCE).and_then(|v| v.as_str()),
+            Some("heroku")
+        );
     }
 }

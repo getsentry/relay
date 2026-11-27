@@ -9,6 +9,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod coop;
 pub mod csp;
 pub mod integrity;
 pub mod nel;
@@ -30,6 +31,8 @@ pub enum BrowserReportBody {
     IntegrityViolation(integrity::Body),
     /// The body of a CSP Violation report.
     CspViolation(csp::Body),
+    /// The body of a Cross-Origin-Opener-Policy violation report.
+    Coop(coop::Body),
     /// An unsupported report body.
     #[serde(other, deserialize_with = "deserialize_unknown_report_body")]
     Unsupported,
@@ -45,6 +48,7 @@ impl BrowserReportBody {
             BrowserReportBody::NetworkError(_) => "network-error",
             BrowserReportBody::IntegrityViolation(_) => "integrity-violation",
             BrowserReportBody::CspViolation(_) => "csp-violation",
+            BrowserReportBody::Coop(_) => "coop",
             BrowserReportBody::Unsupported => "unsupported",
         }
     }
@@ -65,6 +69,24 @@ pub struct BrowserReport {
     /// The body of the report.
     #[serde(flatten)]
     pub body: BrowserReportBody,
+}
+
+/// Source file information in a report body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceFile {
+    /// The URL of the resource where the violation occurred.
+    pub source_file: String,
+    /// The column number in source-file on which the violation occurred.
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub column_number: Option<u64>,
+    /// The line number in source-file on which the violation occurred.
+    ///
+    /// According to the spec, this should always be set if `source_file` is,
+    /// but it doesn't cost us anything to allow it to be optional.
+    pub line_number: Option<u64>,
 }
 
 /// See <https://github.com/serde-rs/serde/issues/1714>.
@@ -198,6 +220,48 @@ mod tests {
             "sample": null,
             "disposition": "enforce",
             "statusCode": 0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_coop() {
+        let json = r#"{
+            "age": 0,
+            "body": {
+                "disposition": "reporting",
+                "effectivePolicy": "same-origin",
+                "initialPopupURL": "https://example.org/popup",
+                "openeeURL": "",
+                "property": "postMessage",
+                "type": "access-from-coop-page-to-openee"
+            },
+            "type": "coop",
+            "url": "https://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
+        }"#;
+
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 0,
+          "url": "https://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+          "type": "coop",
+          "body": {
+            "type": "access-from-coop-page-to-openee",
+            "disposition": "reporting",
+            "effectivePolicy": "same-origin",
+            "property": "postMessage",
+            "previousResponseURL": null,
+            "nextResponseURL": null,
+            "openerURL": null,
+            "openeeURL": "",
+            "initialPopupURL": "https://example.org/popup",
+            "otherDocumentURL": null,
+            "referrer": null
           }
         }
         "#);

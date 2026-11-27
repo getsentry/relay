@@ -1,5 +1,6 @@
 use crate::envelope::IntegrationItem;
 use relay_cogs::AppFeature;
+use relay_conventions::attributes::SENTRY__RELEASE;
 use relay_event_schema::protocol::ourlog::container::{InferIp, InferUserAgent, IngestSettings};
 use relay_quotas::DataCategory;
 
@@ -67,11 +68,14 @@ fn expand(
 
     let payload = item.data().payload();
     let received_at = headers.meta().received_at();
+    let release = headers.get_header(SENTRY__RELEASE).and_then(|h| h.as_str());
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
-        .filter_map(|report| relay_ourlogs::browser_report_to_sentry_log(report, received_at))
+        .filter_map(|report| {
+            relay_ourlogs::browser_report_to_sentry_log(report, received_at, release)
+        })
         .map(|log| {
             // <https://github.com/getsentry/relay/issues/6605>: This is only used to keep records in case serializing
             // the logs back into an envelope fails. Consider removing it.

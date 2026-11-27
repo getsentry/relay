@@ -6,7 +6,6 @@ use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
-use sentry_arroyo::backends::kafka::producer::ProducerContext as ArroyoProducerContext;
 
 use crate::statsd::KafkaCounters;
 
@@ -75,7 +74,10 @@ where
     }
 }
 
-/// Kafka client and producer context that logs statistics and producer errors.
+/// Kafka client and producer context that logs producer errors.
+///
+/// Arroyo records its producer metrics regardless of the context, so this only
+/// holds Relay's own logic.
 ///
 /// Cloned once per client a producer builds, so that the
 /// callbacks keep reporting across a config reload.
@@ -83,8 +85,6 @@ where
 pub struct Context {
     /// Producer name for deployment identification
     producer_name: String,
-    /// Delegate statistics to Arroyo.
-    arroyo_statistics: ArroyoProducerContext,
     /// Counts the number of in-flight messages.
     inflight: Arc<InflightCounter>,
 }
@@ -92,7 +92,6 @@ pub struct Context {
 impl Context {
     pub fn new(producer_name: String) -> Self {
         Self {
-            arroyo_statistics: ArroyoProducerContext::new(producer_name.clone()),
             producer_name,
             inflight: InflightCounter::default().into(),
         }
@@ -108,12 +107,9 @@ impl Context {
 }
 
 impl ClientContext for Context {
-    /// Report client statistics as statsd metrics.
-    ///
-    /// This method is only called if `statistics.interval.ms` is configured.
-    fn stats(&self, statistics: rdkafka::Statistics) {
-        self.arroyo_statistics.stats(statistics);
-    }
+    /// Arroyo reports statistics as metrics. Overridden because rdkafka's
+    /// default logs every statistics payload.
+    fn stats(&self, _statistics: rdkafka::Statistics) {}
 }
 
 impl ProducerContext for Context {
@@ -130,11 +126,6 @@ impl ProducerContext for Context {
         match result {
             Ok(message) => {
                 metric!(
-                    counter(KafkaCounters::ProduceStatusSuccess) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
-                );
-                metric!(
                     counter(KafkaCounters::ProcessingMessageProduced) += 1,
                     topic = message.topic(),
                     producer_name = self.producer_name.as_str(),
@@ -146,12 +137,6 @@ impl ProducerContext for Context {
                     payload_len = message.payload_len(),
                     tags.topic = message.topic(),
                     "failed to produce message to Kafka (delivery callback)",
-                );
-
-                metric!(
-                    counter(KafkaCounters::ProduceStatusError) += 1,
-                    topic = message.topic(),
-                    producer_name = self.producer_name.as_str(),
                 );
             }
         }
@@ -191,43 +176,5 @@ impl InflightCounter {
             }
             future.await;
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use rdkafka::ClientContext;
-    use rdkafka::statistics::{Broker, Statistics};
-    use relay_statsd::with_capturing_test_client;
-
-    use super::Context;
-
-    #[test]
-    fn test_statistics_backend() {
-        let context = Context::new("test-producer".to_owned());
-        let statistics = Statistics {
-            msg_cnt: 42,
-            brokers: [(
-                "broker-id".to_owned(),
-                Broker {
-                    name: "broker-name".to_owned(),
-                    state: "UP".to_owned(),
-                    outbuf_cnt: 7,
-                    ..Default::default()
-                },
-            )]
-            .into(),
-            ..Default::default()
-        };
-
-        let metrics = with_capturing_test_client(|| context.stats(statistics));
-        let prefix = "arroyo.producer.librdkafka.";
-        let broker_metric = "broker_outbuf_requests";
-
-        assert!(metrics.contains(&format!(
-            "{prefix}message_count:42|g|#producer_name:test-producer"
-        )));
-        assert!(metrics.contains(&format!("{prefix}{broker_metric}:7|g|#")));
-        assert!(metrics.iter().all(|metric| metric.starts_with(prefix)));
     }
 }

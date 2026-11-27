@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
-use relay_browser_reporting::csp::{BlockedUrl, Body, CspDirective, Disposition, SourceFile};
+use relay_browser_reporting::SourceFile;
+use relay_browser_reporting::csp::{BlockedUrl, Body, CspDirective, Disposition};
 use relay_conventions::{attributes::*, interpolate};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel};
 use url::Url;
@@ -164,7 +165,9 @@ pub fn create_log_from_csp_body(body: Body, mut attributes: Attributes) -> OurLo
 
     add_attribute!(attributes, HTTP__RESPONSE__STATUS_CODE, status_code as i64);
 
-    if let Some(referrer) = referrer {
+    if let Some(referrer) = referrer
+        && !referrer.is_empty()
+    {
         let referrer_key = interpolate::http__request__header__key("referer");
         add_attribute!(attributes, referrer_key, vec![referrer.clone()]);
     }
