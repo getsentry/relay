@@ -4,7 +4,6 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::*;
-use crate::constants::{NNSWITCH_DYING_MESSAGE_FILENAME, NNSWITCH_SENTRY_MAGIC};
 use crate::integrations::LogsIntegration;
 use crate::integrations::OtelFormat;
 use crate::managed::Counted;
@@ -507,39 +506,5 @@ fn test_attachment_type_default_wire_headers() {
         assert_eq!(attachment.attachment_type(), expected, "{header}");
         assert_eq!(item.is_unknown(), unknown, "{header}");
         assert_eq!(serde_json::to_value(item.wire_headers()).unwrap(), header);
-    }
-}
-
-#[test]
-fn test_attachment_type_default_nintendo_detection() {
-    for (declared, expected) in [
-        (None, AttachmentType::NintendoSwitchDyingMessage),
-        (
-            Some("future.attachment"),
-            AttachmentType::NintendoSwitchDyingMessage,
-        ),
-        (Some("event.attachment"), AttachmentType::Attachment),
-    ] {
-        let mut attachment = AttachmentItem::new();
-        attachment.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
-        attachment
-            .data_mut()
-            .set_payload_without_content_type(NNSWITCH_SENTRY_MAGIC);
-        attachment
-            .data_mut()
-            .set_test_header(ItemHeaderKey::AttachmentType, declared);
-        assert_eq!(attachment.attachment_type(), expected, "{declared:?}");
-    }
-
-    for (filename, payload) in [
-        (NNSWITCH_DYING_MESSAGE_FILENAME, &b"not a dying message"[..]),
-        ("ordinary.dat", NNSWITCH_SENTRY_MAGIC),
-    ] {
-        let mut attachment = AttachmentItem::new();
-        attachment.set_filename(filename);
-        attachment
-            .data_mut()
-            .set_payload_without_content_type(payload);
-        assert_eq!(attachment.attachment_type(), AttachmentType::Attachment);
     }
 }

@@ -107,9 +107,6 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
-    /// Enable Nintendo event rewrite.
-    #[serde(rename = "projects:relay-nintendo-event-rewrite")]
-    NintendoEventRewrite,
     /// Add a stack trace from the Unreal crash context to crashes without a minidump.
     #[serde(rename = "projects:relay-unreal-crash-context-stacktrace")]
     UnrealCrashContextStacktrace,

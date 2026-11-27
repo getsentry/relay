@@ -223,7 +223,6 @@ fn is_cpu_dump_item(item: &AttachmentItem) -> bool {
         | AttachmentType::EventPayload
         | AttachmentType::Breadcrumbs
         | AttachmentType::Prosperodump
-        | AttachmentType::NintendoSwitchDyingMessage
         | AttachmentType::ItemBundle
         | AttachmentType::UnrealContext
         | AttachmentType::UnrealLogs

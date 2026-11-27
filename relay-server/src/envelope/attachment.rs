@@ -31,9 +31,6 @@ pub enum AttachmentType {
     // A prosperodump crash report (binary data)
     Prosperodump,
 
-    /// A Nintendo Switch dying message.
-    NintendoSwitchDyingMessage,
-
     /// A bundle of items packed into a single attachment.
     ///
     /// See `item_bundle.md` for the format.
@@ -80,7 +77,6 @@ impl fmt::Display for AttachmentType {
             AttachmentType::EventPayload => write!(f, "event.payload"),
             AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
-            AttachmentType::NintendoSwitchDyingMessage => write!(f, "nswitch.dying_message"),
             AttachmentType::ItemBundle => write!(f, "event.item_bundle"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
@@ -116,7 +112,6 @@ impl std::str::FromStr for AttachmentType {
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
             "playstation.prosperodump" => AttachmentType::Prosperodump,
-            "nswitch.dying_message" => AttachmentType::NintendoSwitchDyingMessage,
             "event.item_bundle" => AttachmentType::ItemBundle,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,

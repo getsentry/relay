@@ -39,7 +39,7 @@ def make_item_bundle(*items) -> bytes:
 
 
 @pytest.mark.parametrize("variant", ["plain", "zstandard"])
-def test_nnswitch(
+def test_item_bundle(
     mini_sentry,
     relay,
     relay_with_processing,
@@ -93,7 +93,7 @@ def test_nnswitch(
     outcomes_consumer.assert_empty()
 
 
-def test_nnswitch_with_session(
+def test_item_bundle_with_session(
     mini_sentry,
     relay,
     relay_with_processing,

@@ -304,10 +304,8 @@ impl EnvelopeSummary {
                     let parent = item.attachment_parent_type();
                     // Event-parent item bundles contribute only to the event.
                     if !rate_limited
-                        && !(matches!(
-                            item.attachment_type(),
-                            AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle
-                        ) && matches!(parent, AttachmentParentType::Event))
+                        && !(item.attachment_type() == AttachmentType::ItemBundle
+                            && matches!(parent, AttachmentParentType::Event))
                     {
                         summary.attachment_count += 1;
                         summary.attachment_bytes += item.attachment_body_size();

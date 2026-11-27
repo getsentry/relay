@@ -243,7 +243,6 @@ impl UploadContext<'_> {
             | AttachmentType::EventPayload
             | AttachmentType::Breadcrumbs
             | AttachmentType::Prosperodump
-            | AttachmentType::NintendoSwitchDyingMessage
             | AttachmentType::ItemBundle
             | AttachmentType::UnrealContext
             | AttachmentType::UnrealLogs
