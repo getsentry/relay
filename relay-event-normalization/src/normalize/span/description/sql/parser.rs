@@ -16,6 +16,12 @@ use crate::span::TABLE_NAME_REGEX;
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
 
+/// Maximum size of a SQL query in bytes.
+///
+/// Large queries can create deeply nested [`Expr`]s, which in some cases cause stack overflows
+/// inside the [`sqlparser`] library before we can safely decompose them.
+const MAX_PARSABLE_QUERY: usize = 10_000;
+
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
 pub fn parse_query(
@@ -55,6 +61,10 @@ pub fn normalize_parsed_queries(
     db_system: Option<&str>,
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
+    if string.len() > MAX_PARSABLE_QUERY {
+        return Err(());
+    }
+
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     let _ = VisitMut::visit(&mut parsed, &mut NormalizeVisitor);
     let _ = VisitMut::visit(&mut parsed, &mut MaxDepthVisitor::new());
@@ -896,6 +906,37 @@ mod tests {
             normalize_parsed_queries(None, query).unwrap().0,
             "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
         );
+    }
+
+    /// Builds `SELECT 1+1+1...` of exactly `len` bytes, the deepest AST per byte of input.
+    fn deep_expression(len: usize) -> String {
+        let mut query = "SELECT 1".to_owned();
+        while query.len() < len {
+            query += "+1";
+        }
+        query.truncate(len);
+        query
+    }
+
+    #[test]
+    fn parse_at_size_limit() {
+        let query = deep_expression(MAX_PARSABLE_QUERY);
+        assert!(normalize_parsed_queries(None, &query).is_ok());
+    }
+
+    #[test]
+    fn parse_above_size_limit() {
+        let query = deep_expression(MAX_PARSABLE_QUERY + 1);
+        assert!(normalize_parsed_queries(None, &query).is_err());
+    }
+
+    /// A truncated description fails to parse, so the half-built AST is dropped recursively.
+    #[test]
+    fn parse_truncated_expression_at_size_limit() {
+        let mut query = deep_expression(MAX_PARSABLE_QUERY - 3);
+        query += "+..";
+        assert_eq!(query.len(), MAX_PARSABLE_QUERY);
+        assert!(normalize_parsed_queries(None, &query).is_err());
     }
 
     #[test]
