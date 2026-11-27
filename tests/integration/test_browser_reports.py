@@ -494,6 +494,94 @@ def test_csp_browser_report_converted_to_logs(mini_sentry, relay):
     assert mini_sentry.captured_envelopes.empty()
 
 
+def test_csp_browser_report_from_safari_converted_to_logs(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:browser-report-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.2 Safari/605.1.15"
+
+    relay.send_browser_report(
+        project_id,
+        payload={
+            "type": "csp-violation",
+            "url": "https://example.com/csp",
+            "body": {
+                "documentURL": "https://example.com/csp",
+                "disposition": "report",
+                "referrer": "",
+                "effectiveDirective": "script-src-elem",
+                "blockedURL": "inline",
+                "originalPolicy": "script-src 'none'; report-to csp-endpoint",
+                "statusCode": 200,
+                "sample": "",
+                "sourceFile": "https://example.com/csp",
+                "lineNumber": 1,
+                "columnNumber": 1,
+            },
+        },
+        headers={"Content-Type": "application/csp-report", "User-Agent": user_agent},
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    assert [item.type for item in envelope.items] == ["log"]
+    assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
+        "items": [
+            {
+                "__header": matches_any(),
+                "timestamp": time_within_delta(),
+                "trace_id": matches_any(),
+                "level": "warn",
+                "body": "Blocked unsafe inline 'script-src-elem'",
+                "attributes": {
+                    "browser.name": {"type": "string", "value": "Safari"},
+                    "browser.version": {"type": "string", "value": "26.6.2"},
+                    "browser.report.type": {"type": "string", "value": "csp-violation"},
+                    "browser.report.blocked_url": {"type": "string", "value": "inline"},
+                    "browser.report.document_url": {
+                        "type": "string",
+                        "value": "https://example.com/csp",
+                    },
+                    "browser.report.report_only": {"type": "boolean", "value": True},
+                    "browser.report.csp.effective_directive": {
+                        "type": "string",
+                        "value": "script-src-elem",
+                    },
+                    "browser.report.csp.original_policy": {
+                        "type": "string",
+                        "value": "script-src 'none'; report-to csp-endpoint",
+                    },
+                    "code.file.path": {
+                        "type": "string",
+                        "value": "https://example.com/csp",
+                    },
+                    "code.column.number": {"type": "integer", "value": 1},
+                    "code.line.number": {"type": "integer", "value": 1},
+                    "http.response.status_code": {"type": "integer", "value": 200},
+                    "sentry.observed_timestamp_nanos": {
+                        "type": "string",
+                        "value": time_within_delta(expect_resolution="ns"),
+                    },
+                    "sentry.origin": {
+                        "type": "string",
+                        "value": "auto.http.browser_report",
+                    },
+                    "url.domain": {"type": "string", "value": "example.com"},
+                    "url.full": {"type": "string", "value": "https://example.com/csp"},
+                    "user_agent.original": {"type": "string", "value": user_agent},
+                },
+            }
+        ],
+    }
+    assert mini_sentry.captured_envelopes.empty()
+
+
 @pytest.mark.parametrize(
     "release, expected",
     [("frontend@1.2.3", "frontend@1.2.3"), ("a" * 201, None)],

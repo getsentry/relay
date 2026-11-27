@@ -44,6 +44,8 @@ pub enum ContentType {
     PerfettoTrace,
     /// `application/reports+json`
     BrowserReport,
+    /// `application/csp-report`
+    CspReport,
     /// All integration content types.
     Integration(Integration),
 }
@@ -69,6 +71,7 @@ impl ContentType {
             Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
             Self::PerfettoTrace => "application/x-perfetto-trace",
             Self::BrowserReport => "application/reports+json",
+            Self::CspReport => "application/csp-report",
             Self::Integration(integration) => integration.as_content_type(),
         }
     }
@@ -124,6 +127,8 @@ impl ContentType {
             Some(Self::PerfettoTrace)
         } else if match_content_type_and_charset(ct, Self::BrowserReport.as_str(), "utf-8") {
             Some(Self::BrowserReport)
+        } else if match_content_type_and_charset(ct, Self::CspReport.as_str(), "utf-8") {
+            Some(Self::CspReport)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }

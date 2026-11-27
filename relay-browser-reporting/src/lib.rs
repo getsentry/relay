@@ -61,11 +61,12 @@ pub struct BrowserReport {
     /// The time between the generation and sending of the report, in milliseconds.
     ///
     /// See <https://www.w3.org/TR/reporting-1/#serialize-reports>.
+    #[serde(default)]
     pub age: u64,
     /// The URL of the document in which the error occurred.
     pub url: String,
     /// The User-Agent HTTP header.
-    pub user_agent: String,
+    pub user_agent: Option<String>,
     /// The body of the report.
     #[serde(flatten)]
     pub body: BrowserReportBody,
@@ -220,6 +221,51 @@ mod tests {
             "sample": null,
             "disposition": "enforce",
             "statusCode": 0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_csp_from_safari() {
+        let json = r#"{
+            "type": "csp-violation",
+            "url": "https://example.com/",
+            "body": {
+                "documentURL": "https://example.com/",
+                "disposition": "report",
+                "referrer": "",
+                "effectiveDirective": "script-src-elem",
+                "blockedURL": "inline",
+                "originalPolicy": "script-src 'none'; report-to csp-endpoint",
+                "statusCode": 200,
+                "sample": "",
+                "sourceFile": "https://example.com/",
+                "lineNumber": 1,
+                "columnNumber": 1
+            }
+        }"#;
+
+        let report: BrowserReport = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(report, @r#"
+        {
+          "age": 0,
+          "url": "https://example.com/",
+          "user_agent": null,
+          "type": "csp-violation",
+          "body": {
+            "documentURL": "https://example.com/",
+            "referrer": "",
+            "blockedURL": "inline",
+            "effectiveDirective": "script-src-elem",
+            "originalPolicy": "script-src 'none'; report-to csp-endpoint",
+            "sourceFile": "https://example.com/",
+            "columnNumber": 1,
+            "lineNumber": 1,
+            "sample": "",
+            "disposition": "report",
+            "statusCode": 200
           }
         }
         "#);

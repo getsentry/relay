@@ -26,7 +26,7 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     if !matches!(
         content_type.as_ref().parse::<ContentType>(),
-        Ok(ContentType::BrowserReport)
+        Ok(ContentType::BrowserReport | ContentType::CspReport)
     ) {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }

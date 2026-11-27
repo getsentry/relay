@@ -71,6 +71,7 @@ fn expand(
     let release = headers.get_header(SENTRY__RELEASE).and_then(|h| h.as_str());
 
     let logs = serde_json::from_slice::<Vec<_>>(&payload)
+        .or_else(|_| serde_json::from_slice(&payload).map(|report| vec![report]))
         .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
         .into_iter()
         .filter_map(|report| {
