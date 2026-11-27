@@ -124,6 +124,9 @@ impl Forward for CheckInsOutput {
                     .map_err(ProcessCheckInError::from)
                     .map_err(Error::from)?,
             );
+            item.data_mut()
+                .headers_mut()
+                .set_dimensions(get_dimensions(&check_in).to_raw());
             Ok::<Box<Envelope>, Error>(Envelope::from_parts(
                 headers,
                 smallvec::smallvec![item.into()],
@@ -194,22 +197,26 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
+fn get_dimensions(check_in: &CheckIn) -> DimensionMap {
+    let dims = [
+        (
+            relay_quotas::Dimension::CheckInEnvironment,
+            check_in.environment.clone().unwrap_or_default(),
+        ),
+        (
+            relay_quotas::Dimension::CheckInSlug,
+            relay_monitors::slugify_monitor_slug(&check_in.monitor_slug),
+        ),
+    ];
+
+    DimensionMap::from(dims)
+}
+
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 
     fn dimensions(&self) -> Option<DimensionMap> {
-        let dims = [
-            (
-                relay_quotas::Dimension::CheckInEnvironment,
-                self.check_in.environment.clone().unwrap_or_default(),
-            ),
-            (
-                relay_quotas::Dimension::CheckInSlug,
-                relay_monitors::slugify_monitor_slug(&self.check_in.monitor_slug),
-            ),
-        ];
-
-        Some(DimensionMap::from(dims))
+        Some(get_dimensions(&self.check_in))
     }
 }
 
@@ -312,5 +319,66 @@ mod tests {
 
         drop(check_in);
         handle.assert_internal_outcome(DataCategory::Monitor, 1);
+    }
+
+    /// Serializes `payload` through [`CheckInsOutput::serialize_envelope`], returning the
+    /// `dimensions` header of the forwarded item and the dimensions used for quota enforcement.
+    fn forwarded_dimensions(payload: &str) -> (Option<DimensionMap>, Option<DimensionMap>) {
+        let (check_in, _handle) = expanded_check_in(payload);
+        let enforced = check_in.dimensions();
+
+        let envelope = CheckInsOutput(check_in)
+            .serialize_envelope(processing::Context::for_test().to_forward())
+            .unwrap();
+
+        let forwarded = envelope.accept(|envelope| {
+            let items: Vec<_> = envelope.items().collect();
+            assert_eq!(items.len(), 1);
+            items[0].data().headers().dimensions()
+        });
+
+        (forwarded, enforced)
+    }
+
+    #[test]
+    fn test_serialize_envelope_sets_dimensions() {
+        let (forwarded, enforced) = forwarded_dimensions(
+            r#"{
+                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+                "monitor_slug": "My Monitor",
+                "status": "ok",
+                "environment": "production"
+            }"#,
+        );
+
+        assert_eq!(
+            forwarded,
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, "production"),
+                (Dimension::CheckInSlug, "my-monitor"),
+            ]))
+        );
+        // The fast path in the next Relay must hash to the same bucket as quota enforcement.
+        assert_eq!(forwarded, enforced);
+    }
+
+    #[test]
+    fn test_serialize_envelope_dimensions_without_environment() {
+        let (forwarded, enforced) = forwarded_dimensions(
+            r#"{
+                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+                "monitor_slug": "my-monitor",
+                "status": "ok"
+            }"#,
+        );
+
+        assert_eq!(
+            forwarded,
+            Some(DimensionMap::from([
+                (Dimension::CheckInEnvironment, ""),
+                (Dimension::CheckInSlug, "my-monitor"),
+            ]))
+        );
+        assert_eq!(forwarded, enforced);
     }
 }

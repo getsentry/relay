@@ -1,6 +1,12 @@
 import base64
 import json
 
+import pytest
+from sentry_relay.consts import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+from .consts import Outcome
+
 
 def generate_check_in(slug):
     return {
@@ -181,3 +187,65 @@ def test_monitor_post_json_body(mini_sentry, relay):
             "timezone": "America/Los_Angles",
         },
     }
+
+
+def test_monitor_forwards_dimensions_header(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(42)
+
+    check_in = generate_check_in("My Monitor")
+    check_in["environment"] = "production"
+    relay.send_check_in(42, check_in)
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert len(envelope.items) == 1
+    item = envelope.items[0]
+    assert item.headers["type"] == "check_in"
+    # The forwarding Relay attaches the normalized dimensions, so that the next Relay can
+    # enforce dimensioned rate limits without parsing the payload.
+    assert item.headers["dimensions"] == {
+        "checkInEnvironment": "production",
+        "checkInSlug": "my-monitor",
+    }
+
+
+@pytest.mark.parametrize("with_header", [True, False])
+def test_monitor_fast_path_uses_dimensions_header(mini_sentry, relay, with_header):
+    """
+    The fast path must enforce dimensioned quotas from the item's `dimensions` header alone.
+
+    The payload is invalid JSON, so the two paths are distinguishable by outcome: the fast path
+    never parses the payload and rate limits the check-in, while the processor rejects it as
+    invalid. Without the header, the fast path cannot match the grouped quota and the processor
+    has to handle it.
+    """
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+    project_config = mini_sentry.add_basic_project_config(42)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["monitor"],
+            "limit": 0,
+            "reasonCode": "slug_quota",
+            "groupBy": {"maxCardinality": 100, "dimensions": ["checkInSlug"]},
+        }
+    ]
+
+    headers = {"type": "check_in"}
+    if with_header:
+        headers["dimensions"] = {"checkInEnvironment": "", "checkInSlug": "limited"}
+
+    envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(bytes=b"not json"), headers=headers))
+    relay.send_envelope(42, envelope)
+
+    (outcome,) = mini_sentry.get_outcomes(n=1)
+    assert outcome["category"] == DataCategory.MONITOR
+    assert outcome["quantity"] == 1
+    if with_header:
+        assert outcome["outcome"] == Outcome.RATE_LIMITED
+        assert outcome["reason"] == "slug_quota"
+    else:
+        assert outcome["outcome"] == Outcome.INVALID
+        assert outcome["reason"] == "invalid_json"
+
+    assert mini_sentry.captured_envelopes.empty()

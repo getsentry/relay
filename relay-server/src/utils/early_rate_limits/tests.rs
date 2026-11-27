@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
 
 use relay_base_schema::project::ProjectId;
-use relay_quotas::{DimensionMap, RateLimit, RateLimitScope, ReasonCode, RetryAfter};
+use relay_quotas::{
+    CachedRateLimits, Dimension, DimensionMap, GroupBy, QuotaScope, RateLimit, RateLimitScope,
+    ReasonCode, RetryAfter,
+};
 use relay_system::Addr;
 use smallvec::smallvec;
 
@@ -1584,4 +1587,236 @@ fn test_enforce_standalone_trace_attachment() {
             "{name}: outcome mismatch"
         );
     }
+}
+
+/// Builds a check-in item, optionally carrying a `dimensions` header for `slug` in `environment`.
+fn check_in_item(dims: Option<(&str, &str)>) -> Item {
+    let mut item = Item::new(ItemType::CheckIn);
+    item.data_mut().set_payload(ContentType::Json, "{}");
+    if let Some((environment, slug)) = dims {
+        item.data_mut()
+            .headers_mut()
+            .set_dimensions(BTreeMap::from([
+                (Dimension::CheckInEnvironment, environment.to_owned()),
+                (Dimension::CheckInSlug, slug.to_owned()),
+            ]));
+    }
+    item
+}
+
+/// A cached monitor rate limit keyed on a single slug.
+fn slug_limit(slug: &str, reason: &str) -> RateLimit {
+    RateLimit {
+        categories: [DataCategory::Monitor].into(),
+        scope: RateLimitScope::Project(ProjectId::new(42)),
+        reason_code: Some(ReasonCode::new(reason)),
+        retry_after: RetryAfter::from_secs(60),
+        namespaces: smallvec![],
+        dimensions: DimensionMap::from([(Dimension::CheckInSlug, slug)]),
+    }
+}
+
+/// A reject-all monitor quota grouped by slug.
+fn zero_slug_quota(reason: &str) -> Quota {
+    Quota {
+        id: None,
+        categories: [DataCategory::Monitor].into(),
+        scope: QuotaScope::Organization,
+        scope_id: None,
+        limit: Some(0),
+        window: None,
+        reason_code: Some(ReasonCode::new(reason)),
+        namespace: None,
+        group_by: Some(GroupBy {
+            max_cardinality: 100,
+            dimensions: std::sync::Arc::new(std::collections::BTreeSet::from([
+                Dimension::CheckInSlug,
+            ])),
+        }),
+    }
+}
+
+fn check_in_envelope(items: impl IntoIterator<Item = Item>) -> Box<Envelope> {
+    let mut envelope = envelope![];
+    for item in items {
+        envelope.add_item(item);
+    }
+    envelope
+}
+
+/// Emitted rate limit outcomes, keyed by reason code and category.
+type ReasonOutcomes = BTreeMap<(Option<String>, DataCategory), usize>;
+
+/// Like [`enforce_and_apply`], but with quotas and outcomes keyed by `(reason, category)`.
+fn enforce_dimensioned(
+    cached: RateLimits,
+    quotas: &[Quota],
+    envelope: Box<Envelope>,
+) -> (Box<Envelope>, RateLimits, ReasonOutcomes) {
+    let (outcome_aggregator, mut outcomes) = Addr::custom();
+    let mut envelope = Managed::from_envelope(envelope, outcome_aggregator);
+    let limits = enforce_rate_limits(&mut envelope, &cached, quotas);
+    let envelope = envelope.accept(|envelope| envelope);
+    let mut emitted = BTreeMap::new();
+    while let Ok(outcome) = outcomes.try_recv() {
+        let Outcome::RateLimited(reason) = outcome.outcome else {
+            panic!("unexpected outcome {:?}", outcome.outcome);
+        };
+        let key = (reason.map(|r| r.as_str().to_owned()), outcome.category);
+        *emitted.entry(key).or_insert(0) += outcome.quantity as usize;
+    }
+    (envelope, limits, emitted)
+}
+
+fn kept_slugs(envelope: &Envelope) -> Vec<Option<String>> {
+    envelope
+        .items()
+        .map(|item| {
+            item.data()
+                .headers()
+                .dimensions()
+                .and_then(|dims| Some(dims.get(&Dimension::CheckInSlug)?.value.clone()))
+        })
+        .collect()
+}
+
+#[test]
+fn test_dimensioned_limit_drops_only_matching_check_ins() {
+    let mut cached = RateLimits::new();
+    cached.add(slug_limit("cron1", "slug_quota"));
+
+    let envelope = check_in_envelope([
+        check_in_item(Some(("prod", "cron1"))),
+        check_in_item(Some(("prod", "cron2"))),
+    ]);
+    let (envelope, _, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert_eq!(kept_slugs(&envelope), vec![Some("cron2".to_owned())]);
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([((Some("slug_quota".to_owned()), DataCategory::Monitor), 1)])
+    );
+}
+
+#[test]
+fn test_dimensioned_limit_keeps_check_in_without_dimensions() {
+    let mut cached = RateLimits::new();
+    cached.add(slug_limit("cron1", "slug_quota"));
+
+    let envelope = check_in_envelope([check_in_item(None)]);
+    let (envelope, _, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert_eq!(envelope.len(), 1);
+    assert!(outcomes.is_empty());
+}
+
+#[test]
+fn test_zero_dimensioned_quota_drops_check_ins_with_dimensions() {
+    let quotas = [zero_slug_quota("zero_quota")];
+
+    let envelope = check_in_envelope([
+        check_in_item(Some(("prod", "cron1"))),
+        check_in_item(Some(("dev", "cron2"))),
+        check_in_item(None),
+    ]);
+    let (envelope, _, outcomes) = enforce_dimensioned(RateLimits::new(), &quotas, envelope);
+
+    // A grouped zero quota rejects every check-in that carries the grouped dimension, but cannot
+    // match check-ins without dimensions.
+    assert_eq!(kept_slugs(&envelope), vec![None]);
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([((Some("zero_quota".to_owned()), DataCategory::Monitor), 2)])
+    );
+}
+
+#[test]
+fn test_dimensioned_limits_aggregate_outcomes_per_reason() {
+    let mut cached = RateLimits::new();
+    cached.add(slug_limit("cron1", "quota_a"));
+    cached.add(slug_limit("cron2", "quota_b"));
+
+    // Interleave so both the "new rejection" and "existing rejection" paths are exercised.
+    let envelope = check_in_envelope([
+        check_in_item(Some(("prod", "cron1"))),
+        check_in_item(Some(("prod", "cron2"))),
+        check_in_item(Some(("prod", "cron1"))),
+        check_in_item(Some(("prod", "cron3"))),
+    ]);
+    let (envelope, _, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert_eq!(kept_slugs(&envelope), vec![Some("cron3".to_owned())]);
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([
+            ((Some("quota_a".to_owned()), DataCategory::Monitor), 2),
+            ((Some("quota_b".to_owned()), DataCategory::Monitor), 1),
+        ])
+    );
+}
+
+#[test]
+fn test_expired_dimensioned_limit_is_not_applied() {
+    // Expiry is handled by `CachedRateLimits::current_limits`, which the project cache calls
+    // before the fast path. Mirror that here.
+    let cached = CachedRateLimits::new();
+    let mut limit = slug_limit("cron1", "slug_quota");
+    limit.retry_after = RetryAfter::from_secs(0);
+    cached.add(limit);
+    // A live limit for another slug keeps the fast path from returning early.
+    cached.add(slug_limit("cron2", "slug_quota"));
+
+    let envelope = check_in_envelope([
+        check_in_item(Some(("prod", "cron1"))),
+        check_in_item(Some(("prod", "cron2"))),
+    ]);
+    let current = (*cached.current_limits()).clone();
+    let (envelope, _, outcomes) = enforce_dimensioned(current, &[], envelope);
+
+    assert_eq!(kept_slugs(&envelope), vec![Some("cron1".to_owned())]);
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([((Some("slug_quota".to_owned()), DataCategory::Monitor), 1)])
+    );
+}
+
+#[test]
+fn test_dimensioned_rejection_not_advertised_to_client() {
+    let mut cached = RateLimits::new();
+    cached.add(slug_limit("cron1", "slug_quota"));
+
+    let envelope = check_in_envelope([check_in_item(Some(("prod", "cron1")))]);
+    let (envelope, client_limits, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert!(envelope.is_empty());
+    assert_eq!(outcomes.len(), 1);
+    // Advertising a dimensioned limit would make clients back off for every monitor.
+    assert!(client_limits.is_ok());
+}
+
+#[test]
+fn test_plain_limit_still_applies_to_check_ins_with_dimensions() {
+    let cached = cached_limits(&[DataCategory::Monitor]);
+
+    let envelope = check_in_envelope([check_in_item(Some(("prod", "cron1")))]);
+    let (envelope, client_limits, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert!(envelope.is_empty());
+    assert!(client_limits.is_limited());
+    assert_eq!(
+        outcomes,
+        BTreeMap::from([((None, DataCategory::Monitor), 1)])
+    );
+}
+
+#[test]
+fn test_unrelated_plain_limit_keeps_check_ins_with_dimensions() {
+    // A cached limit for another category must not affect dimensioned check-ins.
+    let cached = cached_limits(&[DataCategory::Transaction]);
+
+    let envelope = check_in_envelope([check_in_item(Some(("prod", "cron1")))]);
+    let (envelope, _, outcomes) = enforce_dimensioned(cached, &[], envelope);
+
+    assert_eq!(envelope.len(), 1);
+    assert!(outcomes.is_empty());
 }
