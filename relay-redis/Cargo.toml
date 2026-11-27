@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 deadpool = { workspace = true, optional = true, features = ["rt_tokio_1"] }
-futures = { workspace = true }
+futures = { workspace = true, optional = true }
 redis = { workspace = true, optional = true, features = [
     "cluster",
     "r2d2",
@@ -22,19 +22,27 @@ redis = { workspace = true, optional = true, features = [
     "script",
     "tokio-native-tls-comp",
     "cluster-async",
-    "connection-manager"
+    "connection-manager",
 ], default-features = false }
 serde = { workspace = true }
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, optional = true, features = ["time"] }
 thiserror = { workspace = true }
 
 relay-log = { workspace = true, optional = true }
 relay-statsd = { workspace = true, optional = true }
-relay-system = { workspace = true }
+relay-system = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []
-impl = ["dep:deadpool", "dep:relay-log", "dep:relay-statsd", "dep:redis"]
+impl = [
+    "dep:deadpool",
+    "dep:futures",
+    "dep:redis",
+    "dep:relay-log",
+    "dep:relay-statsd",
+    "dep:relay-system",
+    "dep:tokio",
+]

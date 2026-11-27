@@ -20,4 +20,3 @@ serde = { workspace = true }
 
 [dev-dependencies]
 serde_test = { workspace = true }
-criterion = { workspace = true }

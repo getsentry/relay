@@ -11,26 +11,32 @@ publish = false
 
 [features]
 default = []
-redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
+redis = [
+    "dep:ahash",
+    "dep:itertools",
+    "dep:papaya",
+    "dep:relay-log",
+    "dep:relay-statsd",
+    "dep:thiserror",
+    "relay-redis/impl",
+]
 
 [lints]
 workspace = true
 
 [dependencies]
-ahash = { workspace = true }
-async-trait = { workspace = true }
+ahash = { workspace = true, optional = true }
 fnv = { workspace = true }
-papaya = { workspace = true }
-itertools = { workspace = true }
+itertools = { workspace = true, optional = true }
+papaya = { workspace = true, optional = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true, optional = true }
 relay-redis = { workspace = true, optional = true }
-relay-statsd = { workspace = true }
+relay-statsd = { workspace = true, optional = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
-tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 insta = { workspace = true }
