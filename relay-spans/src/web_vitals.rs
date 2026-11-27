@@ -17,7 +17,7 @@ use relay_conventions::attributes::{
 };
 use relay_conventions::interpolate::browser__web_vital__cls__source__key;
 use relay_event_schema::protocol::{Attributes, SpanV2, TraceMetric};
-use relay_metrics::{FractionUnit, MetricUnit};
+use relay_metrics::MetricUnit;
 use relay_protocol::Value;
 use std::collections::BTreeMap;
 
@@ -64,8 +64,6 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__LCP__VALUE,
         name: "browser.web_vital.lcp",
-        score_name: "browser.web_vital.lcp.score",
-        score_ratio_attribute: "score.ratio.lcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__LCP__ELEMENT,
@@ -85,16 +83,12 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__CLS__VALUE,
         name: "browser.web_vital.cls",
-        score_name: "browser.web_vital.cls.score",
-        score_ratio_attribute: "score.ratio.cls",
         unit: MetricUnit::None,
         attribute_keys: &["score.cls", "score.weight.cls", "score.ratio.cls"],
     },
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__INP__VALUE,
         name: "browser.web_vital.inp",
-        score_name: "browser.web_vital.inp.score",
-        score_ratio_attribute: "score.ratio.inp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__INP__TARGET,
@@ -110,16 +104,12 @@ const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__FCP__VALUE,
         name: "browser.web_vital.fcp",
-        score_name: "browser.web_vital.fcp.score",
-        score_ratio_attribute: "score.ratio.fcp",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &["score.fcp", "score.weight.fcp", "score.ratio.fcp"],
     },
     WebVital {
         attribute_value: BROWSER__WEB_VITAL__TTFB__VALUE,
         name: "browser.web_vital.ttfb",
-        score_name: "browser.web_vital.ttfb.score",
-        score_ratio_attribute: "score.ratio.ttfb",
         unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
         attribute_keys: &[
             BROWSER__WEB_VITAL__TTFB__REQUEST_TIME,
@@ -135,19 +125,13 @@ struct WebVital {
     attribute_value: &'static str,
     unit: MetricUnit,
     attribute_keys: &'static [&'static str],
-    /// Name of the metric carrying the vital's `0..=1` performance score.
-    score_name: &'static str,
-    /// Span attribute holding the vital's `0..=1` performance score.
-    score_ratio_attribute: &'static str,
 }
 
 /// Copies web vital attributes from the span.
-/// `score.*` attributes are only copied when `include_scores` is set.
 fn insert_vital_attributes(
     web_vital: &WebVital,
     span_attrs: &Attributes,
     attributes: &mut Attributes,
-    include_scores: bool,
 ) {
     // CLS webvitals are a little weird, in that they can have an arbitrary number of
     // "source" attributes (with a .N postfix, 1-based, monotonically increasing), so we
@@ -163,9 +147,6 @@ fn insert_vital_attributes(
     }
 
     for attr_key in web_vital.attribute_keys {
-        if !include_scores && attr_key.starts_with("score.") {
-            continue;
-        }
         if let Some(v) = span_attrs.get_attribute(*attr_key) {
             attributes.insert(*attr_key, v.value.clone());
         }
@@ -233,7 +214,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         };
 
         let mut attributes = Attributes::new();
-        insert_vital_attributes(web_vital, attrs, &mut attributes, true);
+        insert_vital_attributes(web_vital, attrs, &mut attributes);
         insert_common_attributes(attrs, &mut attributes);
 
         results.push(make_metric(
@@ -241,25 +222,6 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
             web_vital.name,
             web_vital.unit,
             value,
-            attributes,
-        ));
-
-        let Some(score) = attrs
-            .get_value(web_vital.score_ratio_attribute)
-            .and_then(|v| v.as_f64())
-        else {
-            continue;
-        };
-
-        let mut attributes = Attributes::new();
-        insert_vital_attributes(web_vital, attrs, &mut attributes, false);
-        insert_common_attributes(attrs, &mut attributes);
-
-        results.push(make_metric(
-            span,
-            web_vital.score_name,
-            MetricUnit::Fraction(FractionUnit::Ratio),
-            score,
             attributes,
         ));
     }
@@ -422,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_score_metric() {
+    fn test_score_attributes() {
         let span = Annotated::<SpanV2>::from_json(
             r#"{
                 "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -485,65 +447,7 @@ mod tests {
         }
         "#);
 
-        let score_metric = Annotated::new(metrics.next().unwrap());
-        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric), @r###"
-        {
-          "timestamp": 1742921669.25,
-          "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-          "span_id": "968cff94913ebb07",
-          "name": "browser.web_vital.lcp.score",
-          "type": "distribution",
-          "unit": "ratio",
-          "value": 0.75,
-          "attributes": {
-            "browser.name": {
-              "type": "string",
-              "value": "Chrome"
-            },
-            "browser.web_vital.lcp.element": {
-              "type": "string",
-              "value": "body > img"
-            },
-            "sentry.metric.source": {
-              "type": "string",
-              "value": "span"
-            }
-          }
-        }
-        "###);
-
         assert!(metrics.next().is_none());
-    }
-
-    #[test]
-    fn test_no_score_metric_without_ratio() {
-        let span = Annotated::<SpanV2>::from_json(
-            r#"{
-                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-                "span_id": "968cff94913ebb07",
-                "start_timestamp": 1742921669.25,
-                "end_timestamp": 1742921669.75,
-                "attributes": {
-                    "sentry.op": {"type": "string", "value": "pageload"},
-                    "browser.web_vital.lcp.value": {"type": "double", "value": 400.0},
-                    "browser.web_vital.ttfb.value": {"type": "double", "value": 100.0},
-                    "score.ratio.ttfb": {"type": "double", "value": 1.0}
-                }
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        let metrics = extract_web_vital_metrics(&span).unwrap();
-        let names: Vec<_> = metrics.iter().filter_map(|m| m.name.as_str()).collect();
-        insta::assert_debug_snapshot!(names, @r#"
-        [
-            "browser.web_vital.lcp",
-            "browser.web_vital.ttfb",
-            "browser.web_vital.ttfb.score",
-        ]
-        "#);
     }
 
     #[test]
@@ -569,7 +473,6 @@ mod tests {
 
         let mut metrics = extract_web_vital_metrics(&span).unwrap().into_iter();
 
-        // Both the vital and its score metric carry the ids.
         let vital_metric = metrics.next().unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&vital_metric.attributes), @r#"
         {
@@ -577,24 +480,6 @@ mod tests {
             "type": "double",
             "value": 0.75
           },
-          "sentry.metric.source": {
-            "type": "string",
-            "value": "span"
-          },
-          "sentry.profile_id": {
-            "type": "string",
-            "value": "4c79f60c11214eb38604f4ae0781bfb0"
-          },
-          "sentry.replay_id": {
-            "type": "string",
-            "value": "6b2a1d0fcb4d4f6fa0f3d6b1c7e9a2b3"
-          }
-        }
-        "#);
-
-        let score_metric = metrics.next().unwrap();
-        insta::assert_json_snapshot!(SerializableAnnotated(&score_metric.attributes), @r#"
-        {
           "sentry.metric.source": {
             "type": "string",
             "value": "span"
