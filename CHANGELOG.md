@@ -7,7 +7,7 @@
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
 - Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart. ([#6717](https://github.com/getsentry/relay/pull/6717))
-- Match unquoted dotted safe fields such as `db.query.text` against the literal key as well as the nested path, and accept `*` wildcards inside keys, such as `*_token` or `app.oauth.*`. ([#PR](https://github.com/getsentry/relay/pull/PR))
+- Match unquoted dotted safe fields such as `db.query.text` against the literal key as well as the nested path, and accept `*` wildcards inside keys, such as `*_token` or `app.oauth.*`. ([#6780](https://github.com/getsentry/relay/pull/6780))
 
 **Bug Fixes**:
 
