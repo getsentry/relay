@@ -114,7 +114,6 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         public_key: matches.get_one("public_key").cloned(),
         secret_key: matches.get_one("secret_key").cloned(),
         outcome_source: matches.get_one("source_id").cloned(),
-        shutdown_timeout: matches.get_one("shutdown_timeout").cloned(),
         instance: matches.get_one("instance").cloned(),
         server_name: matches.get_one("server_name").cloned(),
     }
@@ -137,7 +136,6 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         public_key: env::var("RELAY_PUBLIC_KEY").ok(),
         secret_key: env::var("RELAY_SECRET_KEY").ok(),
         outcome_source: None, //already extracted in params
-        shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
         instance: env::var("RELAY_INSTANCE").ok(),
         server_name: env::var("RELAY_SERVER_NAME")
             .ok()

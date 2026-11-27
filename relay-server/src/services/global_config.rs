@@ -18,7 +18,7 @@ use relay_config::Config;
 use relay_config::RelayMode;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -331,19 +331,12 @@ impl GlobalConfigService {
         // Enable upstream requests timer for global configs.
         self.schedule_fetch();
     }
-
-    fn handle_shutdown(&mut self) {
-        self.shutdown = true;
-        self.fetch_handle.reset();
-    }
 }
 
 impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut shutdown_handle = Controller::shutdown_handle();
-
         relay_log::info!("global config service starting");
         if self.config.current().relay_mode() == RelayMode::Managed {
             relay_log::info!("requesting global config from upstream");
@@ -384,7 +377,6 @@ impl Service for GlobalConfigService {
                     Some(message) => self.handle_message(message),
                     None => expects_input = false
                 },
-                _ = shutdown_handle.notified() => self.handle_shutdown(),
                 _ = self.global_config_watch.closed(), if !expects_input => break
             }
         }
@@ -395,13 +387,12 @@ impl Service for GlobalConfigService {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::time::Duration;
 
     use relay_config::{Config, Credentials, RelayMode};
-    use relay_system::{Controller, Service, ShutdownMode};
+    use relay_system::Service;
     use relay_test::mock_service;
 
-    use crate::services::global_config::{Get, GetGlobalConfigResponse, GlobalConfigService};
+    use crate::services::global_config::{Get, GlobalConfigService};
 
     #[tokio::test(start_paused = true)]
     async fn test_shutdown_on_channel_close() {
@@ -423,66 +414,6 @@ mod tests {
 
         drop(config_rx);
         assert!(futures::poll!(&mut run).is_ready());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_fetch_schedule_respects_shutdown() {
-        let config = Arc::new(Config::default());
-        let fetch_interval = config.current().global_config_fetch_interval();
-        let (mut service, _) = GlobalConfigService::new(config, relay_system::Addr::dummy());
-        let response = || {
-            Ok(Ok(GetGlobalConfigResponse {
-                global: Some(Default::default()),
-                global_status: None,
-            }))
-        };
-
-        // An upstream result must schedule another fetch while the service is running.
-        service.handle_result(response());
-        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
-        tokio::time::advance(fetch_interval).await;
-        assert!(futures::poll!(&mut service.fetch_handle).is_ready());
-
-        // Shutdown cancels scheduled fetches and prevents late results from rearming them.
-        service.handle_result(response());
-        service.handle_shutdown();
-        service.handle_result(response());
-        tokio::time::advance(fetch_interval).await;
-        assert!(futures::poll!(&mut service.fetch_handle).is_pending());
-    }
-
-    /// Tests that the service can still handle requests after sending a
-    /// shutdown signal.
-    #[tokio::test]
-    async fn shutdown_service() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        let (upstream, _) = mock_service("upstream", 0, |state, _| {
-            *state += 1;
-
-            if *state > 1 {
-                panic!("should not receive requests after shutdown");
-            }
-        });
-
-        Controller::start(Duration::from_secs(1));
-        let mut config = Config::default();
-        config
-            .replace_credentials(Some(Credentials::generate()))
-            .unwrap();
-        let fetch_interval = config.current().global_config_fetch_interval();
-
-        let service = GlobalConfigService::new(Arc::new(config), upstream)
-            .0
-            .start_detached();
-
-        assert!(service.send(Get).await.is_ok());
-
-        Controller::shutdown(ShutdownMode::Immediate);
-        tokio::time::sleep(fetch_interval * 2).await;
-
-        assert!(service.send(Get).await.is_ok());
     }
 
     #[tokio::test]

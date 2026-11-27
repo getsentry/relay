@@ -31,7 +31,7 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
     let mut result = String::with_capacity(2048);
 
     append_data_row(&mut result, "memory_usage", data.memory_usage, &[]);
-    append_data_row(&mut result, "up", data.up, &[]);
+    append_data_row(&mut result, "up", 1, &[]);
     append_data_row(&mut result, "spool_item_count", data.item_count, &[]);
     append_data_row(&mut result, "spool_total_size", data.total_size, &[]);
     for utilization in &data.services_metrics {
@@ -140,7 +140,6 @@ mod test {
     fn test_prometheus_serialize() {
         let data = AutoscalingData {
             memory_usage: 0.75,
-            up: 1,
             item_count: 10,
             total_size: 30,
             services_metrics: vec![

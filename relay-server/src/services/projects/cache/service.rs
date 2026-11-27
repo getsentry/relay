@@ -248,7 +248,8 @@ impl relay_system::Service for ProjectCacheService {
                         "refresh",
                         self.handle_refresh(refresh)
                     ),
-                }
+                },
+                else => break
             }
         }
     }

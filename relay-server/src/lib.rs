@@ -280,40 +280,12 @@ pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 mod testutils;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use relay_config::Config;
-use relay_system::{Controller, ServiceSpawnExt as _};
+use relay_system::ServiceSpawnExt as _;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
-
-/// Wait for the envelope buffer to fully drain.
-async fn drained_shutdown(state: ServiceState, interval: Duration) {
-    let mut shutdown = Controller::shutdown_handle();
-    if shutdown.notified().await.timeout.is_none() {
-        return;
-    }
-
-    let mut was_empty = false;
-    loop {
-        tokio::select! {
-            _ = tokio::time::sleep(interval) => {}
-            shutdown = shutdown.notified() => {
-                if shutdown.timeout.is_none() {
-                    return;
-                }
-            }
-        }
-
-        let empty = state.envelope_buffer_is_empty();
-        if empty && was_empty {
-            relay_log::info!("envelope buffer drained, finishing shutdown");
-            return;
-        }
-        was_empty = empty;
-    }
-}
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -333,27 +305,17 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     runtime.block_on(async {
-        Controller::start(current_config.shutdown_timeout());
-
         let mut services = handle.service_set();
 
         let state = ServiceState::start(&handle, &services, config.clone()).await?;
-        services.start(HttpServer::new(config, state.clone())?);
+        services.start(HttpServer::new(config, state)?);
 
-        let ephemeral_spool = current_config.spool_ephemeral();
-        tokio::select! {
-            _ = services.join() => {},
-            // NOTE: when every service implements a shutdown listener,
-            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
-            // that every service finished its main task.
-            // See also https://github.com/getsentry/relay/issues/4050.
-            _ = Controller::shutdown_handle().finished(), if !ephemeral_spool => {}
-            _ = drained_shutdown(state.clone(), current_config.shutdown_timeout()), if ephemeral_spool => {}
-        }
+        services.join().await;
 
         anyhow::Ok(())
     })?;
 
+    relay_log::debug!("dropping runtime");
     drop(runtime);
 
     relay_log::info!("relay shutdown complete");
