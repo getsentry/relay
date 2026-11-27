@@ -1,5 +1,8 @@
 //! Client IP invariants:
 //!
+//! Embedded transaction spans inherit City and ASN from the event. Relay skips IP
+//! resolution and lookup on each child's `client.address` and `user.ip_address`.
+//!
 //! ## Envelope item coverage
 //!
 //! ASN lookup requires `projects:relay-client-asn-lookup` and a local ASN database.
@@ -54,8 +57,7 @@
 //! - On standalone spans, read `client.address`, then `user.ip_address`, from span attributes.
 //!   Only IP literals can supply a lookup. A hostname, socket name, or modified address blocks fallback.
 //! - Standalone spans can request the connection IP with an explicit address marker (`{{auto}}`).
-//! - The transaction segment and its children share the ASN derived from the event IP,
-//!   just as they share event user geo. Preserve ASN already supplied or scrubbed on a span.
+//! - Preserve ASN already supplied or scrubbed on a transaction segment or embedded span.
 //! - Standalone spans use the same eligible address for City and ASN. Span PII rules
 //!   apply to the derived attributes.
 
