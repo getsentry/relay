@@ -355,7 +355,6 @@ fn test_span_and_trace_crash_attachments_do_not_create_events() {
         AttachmentType::Prosperodump,
         AttachmentType::Breadcrumbs,
         AttachmentType::NvGpuDump,
-        AttachmentType::NintendoSwitchDyingMessage,
         AttachmentType::ItemBundle,
     ] {
         for parent in [Some(ParentId::SpanId(None)), None] {

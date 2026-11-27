@@ -10,23 +10,10 @@ use smallvec::smallvec;
 impl AttachmentItem {
     /// Returns the effective attachment type, defaulting to [`AttachmentType::Attachment`].
     ///
-    /// Missing, invalid, and unknown headers use the default unless the payload is recognized
-    /// as a Nintendo Switch dying message. The original header is preserved for forwarding
-    /// and [`super::Item::is_unknown`].
+    /// The original header is preserved for forwarding and [`super::Item::is_unknown`].
     pub fn attachment_type(&self) -> AttachmentType {
         if let Some(ty) = self.data().headers().get(ItemHeaderKey::AttachmentType) {
             return ty;
-        }
-
-        // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
-        // attachment type, that's why we have to infer it here from the filename and contents.
-        if self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
-            && self
-                .data()
-                .payload_ref()
-                .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
-        {
-            return AttachmentType::NintendoSwitchDyingMessage;
         }
 
         AttachmentType::Attachment
@@ -175,7 +162,6 @@ impl AttachmentItem {
             | AttachmentType::Prosperodump
             | AttachmentType::Breadcrumbs
             | AttachmentType::NvGpuDump
-            | AttachmentType::NintendoSwitchDyingMessage
             | AttachmentType::ItemBundle => true,
             AttachmentType::Attachment
             | AttachmentType::UnrealContext
@@ -196,7 +182,7 @@ impl Counted for AttachmentItem {
 
         // New attachment types require an explicit accounting decision.
         match self.attachment_type() {
-            AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle => {
+            AttachmentType::ItemBundle => {
                 // Event-parent item bundles are merged into event data.
                 if matches!(self.attachment_parent_type(), AttachmentParentType::Event) {
                     return Quantities::new();

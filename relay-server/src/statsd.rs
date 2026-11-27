@@ -1046,12 +1046,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
-    /// Number of item bundles picked up by the Switch error expansion.
-    ///
-    /// This metric is tagged with:
-    /// - `attachment_type`: `event.item_bundle` if the attachment declared the item bundle type
-    ///   in its header else `nswitch.dying_message`.
-    ItemBundleExpansion,
     /// The number of times a trace metric has a nil trace ID.
     ///
     /// This metric is tagged with:
@@ -1122,7 +1116,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
-            RelayCounters::ItemBundleExpansion => "event.error.item_bundle",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }
     }

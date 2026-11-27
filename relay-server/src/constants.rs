@@ -70,11 +70,8 @@ pub const DEFAULT_CHECK_IN_CLIENT: &str = "relay-http";
 #[cfg(feature = "processing")]
 pub const DEFAULT_ATTACHMENT_RETENTION: Duration = Duration::from_hours(24 * 30);
 
-/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
-
-/// The file name that Nintendo uses to in the events they forward.
-pub const NNSWITCH_DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+/// Magic number at the start of an item bundle payload (`event.item_bundle` attachments).
+pub const ITEM_BUNDLE_MAGIC: &[u8] = b"sntr";
 
 /// Header for communicating the uncompressed content length.
 ///

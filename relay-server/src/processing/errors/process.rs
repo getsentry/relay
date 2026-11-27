@@ -45,7 +45,7 @@ fn do_expand(
 ) -> Result<(ExpandedError, Intermediates)> {
     let is_trusted = error.headers.meta().request_trust().is_trusted();
 
-    // Certain attachment types are dissolved into different types (Nintendo Switch),
+    // Certain attachment types are dissolved into different types (Item Bundle),
     // or are created from other types (unreal).
     records.lenient(DataCategory::Attachment);
     records.lenient(DataCategory::AttachmentItem);

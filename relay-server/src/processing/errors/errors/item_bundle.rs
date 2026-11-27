@@ -1,5 +1,6 @@
-//! Nintendo Switch crash reports processor related code.
+//! Item bundle (`event.item_bundle` attachments) related code.
 //!
+//! See `item_bundle.md` for the format.
 //! These functions are included only in the processing mode.
 
 use super::ErrorPayload;
@@ -13,7 +14,7 @@ use zstd::bulk::Decompressor as ZstdDecompressor;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::constants::NNSWITCH_SENTRY_MAGIC;
+use crate::constants::ITEM_BUNDLE_MAGIC;
 use crate::envelope::{
     AttachmentItem, AttachmentType, EnvelopeError, EventItem, Item, SessionItem, UserReportItem,
 };
@@ -22,39 +23,27 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Result, utils};
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
-use crate::statsd::RelayCounters;
 
 /// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
 const MAX_DECOMPRESSED_SIZE: usize = 100 * 1024;
 
 #[derive(Debug)]
-pub enum Nswitch {
-    Forward { item_bundle: AttachmentItem },
+pub enum ItemBundle {
+    Forward(AttachmentItem),
     Process,
 }
 
-impl SentryError for Nswitch {
+impl SentryError for ItemBundle {
     fn event_category(&self) -> DataCategory {
         DataCategory::Error
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         let Some(item_bundle) = utils::take_item_if::<AttachmentItem>(items, |item| {
-            matches!(
-                item.attachment_type(),
-                AttachmentType::NintendoSwitchDyingMessage | AttachmentType::ItemBundle
-            )
+            item.attachment_type() == AttachmentType::ItemBundle
         }) else {
             return Ok(None);
         };
-
-        relay_statsd::metric!(
-            counter(RelayCounters::ItemBundleExpansion) += 1,
-            attachment_type = match item_bundle.attachment_type() {
-                AttachmentType::ItemBundle => "event.item_bundle",
-                _ => "nswitch.dying_message",
-            },
-        );
 
         let mut metrics = Default::default();
 
@@ -72,7 +61,7 @@ impl SentryError for Nswitch {
                 flamegraph: None,
                 user_reports,
                 intermediates: vec![],
-                error: Self::Forward { item_bundle },
+                error: Self::Forward(item_bundle),
                 metrics,
                 fully_normalized: false,
             }));
@@ -136,7 +125,7 @@ impl SentryError for Nswitch {
 
     fn into_payload(self) -> ErrorPayload {
         ErrorPayload(match self {
-            Self::Forward { item_bundle } => smallvec::smallvec![item_bundle],
+            Self::Forward(item_bundle) => smallvec::smallvec![item_bundle],
             Self::Process => Default::default(),
         })
     }
@@ -146,11 +135,11 @@ impl SentryError for Nswitch {
     }
 }
 
-impl Counted for Nswitch {
+impl Counted for ItemBundle {
     fn quantities(&self) -> Quantities {
         match self {
             // The item rules own the item bundle's zero attachment contribution.
-            Self::Forward { item_bundle } => item_bundle.quantities(),
+            Self::Forward(item_bundle) => item_bundle.quantities(),
             // Processing has already consumed the message into the event.
             Self::Process => Quantities::new(),
         }
@@ -217,10 +206,10 @@ fn expand_item_bundle(mut payload: Bytes) -> Result<ExpandedItemBundle, ItemBund
     // The attachment type usually comes from an explicitly set item header, in which case nothing
     // has inspected the payload yet. Validate the magic here so a crafted short payload can't
     // panic the `advance` below.
-    if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
+    if !payload.starts_with(ITEM_BUNDLE_MAGIC) {
         return Err(ItemBundleError::InvalidMagic);
     }
-    payload.advance(NNSWITCH_SENTRY_MAGIC.len());
+    payload.advance(ITEM_BUNDLE_MAGIC.len());
     let version = payload
         .try_get_u8()
         .map_err(|_| ItemBundleError::UnexpectedEof {
@@ -379,20 +368,9 @@ mod tests {
             config.current()
         });
 
-        static PROJECT_INFO: std::sync::LazyLock<ProjectInfo> = std::sync::LazyLock::new(|| {
-            let mut project_info = ProjectInfo::default();
-            project_info
-                .config
-                .features
-                .0
-                .insert(Feature::NintendoEventRewrite);
-            project_info
-        });
-
         Context {
             processing: processing::Context {
                 config: &CONFIG,
-                project_info: &PROJECT_INFO,
                 ..processing::Context::for_test()
             },
             ..Context::for_test()
@@ -437,7 +415,7 @@ mod tests {
         assert_eq!(attachment.attachment_type(), AttachmentType::ItemBundle);
         assert_eq!(items[1].data().payload().len(), 106);
 
-        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+        let parsed = ItemBundle::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         assert_annotated_snapshot!(parsed.event, @r#"
         {
@@ -463,7 +441,7 @@ mod tests {
         let item_bundle = create_compressed_item_bundle(0x10);
         let mut items = create_envelope_items(item_bundle.into());
 
-        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+        let parsed = ItemBundle::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         assert_annotated_snapshot!(parsed.event, @r#"
         {
@@ -517,7 +495,7 @@ mod tests {
         let item_bundle = create_compressed_item_bundle(0b0001_0001);
         let mut items = create_envelope_items(item_bundle.into());
 
-        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
+        assert!(ItemBundle::try_expand(&mut items, ctx()).is_err());
     }
 
     #[test]
@@ -527,14 +505,14 @@ mod tests {
             {\"type\":\"event\"}\n\
             ",
         ));
-        assert!(Nswitch::try_expand(&mut items, ctx()).is_err());
+        assert!(ItemBundle::try_expand(&mut items, ctx()).is_err());
     }
 
     #[test]
     fn test_expand_works_with_empty_data() {
         let mut items = create_envelope_items(Bytes::from("sntr\0\0\0\0"));
 
-        let _ = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+        let _ = ItemBundle::try_expand(&mut items, ctx()).unwrap().unwrap();
     }
 
     #[test]
@@ -579,7 +557,7 @@ mod tests {
 
         let mut items = vec![event.into(), item_bundle.into()];
 
-        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+        let parsed = ItemBundle::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         let event = parsed.event.value().unwrap();
 

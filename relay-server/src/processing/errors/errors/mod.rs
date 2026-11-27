@@ -11,8 +11,8 @@ use crate::statsd::RelayCounters;
 mod apple_crash_report;
 mod generic;
 mod gpu;
+mod item_bundle;
 mod minidump;
-mod nswitch;
 mod playstation;
 mod raw_security;
 mod security;
@@ -21,8 +21,8 @@ mod user_report_v2;
 pub use self::apple_crash_report::*;
 pub use self::generic::*;
 pub use self::gpu::*;
+pub use self::item_bundle::*;
 pub use self::minidump::*;
-pub use self::nswitch::*;
 pub use self::playstation::*;
 pub use self::raw_security::*;
 pub use self::security::*;
@@ -192,7 +192,7 @@ macro_rules! gen_error_kind {
 // For example a Minidump crash may contain an error, which would also be picked up by the generic
 // error.
 gen_error_kind![
-    Nswitch,
+    ItemBundle,
     Minidump,
     GpuCrash,
     AppleCrashReport,
