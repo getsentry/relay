@@ -171,7 +171,6 @@ fn normalize_trace_metric(
         }
         eap::normalize_attribute_types(&mut metric_value.attributes);
         eap::normalize_attribute_names(&mut metric_value.attributes);
-        eap::normalize_received(&mut metric_value.attributes, meta.received_at());
         eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
         if settings.infer_ip {
             eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
