@@ -1,8 +1,9 @@
 # Warden Configuration
 # https://github.com/getsentry/warden
 #
-# Skills are pulled from the shared getsentry/warden-skills repo (remote) or
-# resolved from builtins by name. Add skills with: warden add <skill-name>
+# Skills are pulled from the shared getsentry/warden-skills repo (remote),
+# resolved from repo-local skills in .agents/skills/, or resolved from builtins
+# by name. Add skills with: warden add <skill-name>
 
 version = 1
 
@@ -29,6 +30,17 @@ name = "wrdn-dos-review"
 incremental = true
 remote = "getsentry/warden-skills"
 paths = ["**/*.rs"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
+
+# Relay feature flag conventions for the `Feature` enum, from .agents/skills/.
+[[skills]]
+name = "relay-feature-flags"
+paths = ["relay-dynamic-config/src/feature.rs"]
+# Findings are low severity: annotate the PR without failing the check.
+reportOn = "low"
 
 [[skills.triggers]]
 type = "pull_request"
