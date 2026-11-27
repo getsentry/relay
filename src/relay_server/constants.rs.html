@@ -70,15 +70,12 @@
 <a href=#70 id=70 data-nosnippet>70</a></span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#71 id=71 data-nosnippet>71</a></span><span class="kw">pub const </span>DEFAULT_ATTACHMENT_RETENTION: Duration = Duration::from_hours(<span class="number">24 </span>* <span class="number">30</span>);
 <a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a><span class="doccomment">/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-<a href=#74 id=74 data-nosnippet>74</a></span><span class="kw">pub const </span>NNSWITCH_SENTRY_MAGIC: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"sntr"</span>;
+<a href=#73 id=73 data-nosnippet>73</a><span class="doccomment">/// Magic number at the start of an item bundle payload (`event.item_bundle` attachments).
+<a href=#74 id=74 data-nosnippet>74</a></span><span class="kw">pub const </span>ITEM_BUNDLE_MAGIC: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"sntr"</span>;
 <a href=#75 id=75 data-nosnippet>75</a>
-<a href=#76 id=76 data-nosnippet>76</a><span class="doccomment">/// The file name that Nintendo uses to in the events they forward.
-<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub const </span>NNSWITCH_DYING_MESSAGE_FILENAME: <span class="kw-2">&amp;</span>str = <span class="string">"dying_message.dat"</span>;
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a><span class="doccomment">/// Header for communicating the uncompressed content length.
-<a href=#80 id=80 data-nosnippet>80</a>///
-<a href=#81 id=81 data-nosnippet>81</a>/// Sentry-specific extension to the TUS upload protocol, needed since `Content-Length` refers to
-<a href=#82 id=82 data-nosnippet>82</a>/// the compressed size on the wire.
-<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">pub const </span>X_DECODED_CONTENT_LENGTH: <span class="kw-2">&amp;</span>str = <span class="string">"X-Decoded-Content-Length"</span>;
+<a href=#76 id=76 data-nosnippet>76</a><span class="doccomment">/// Header for communicating the uncompressed content length.
+<a href=#77 id=77 data-nosnippet>77</a>///
+<a href=#78 id=78 data-nosnippet>78</a>/// Sentry-specific extension to the TUS upload protocol, needed since `Content-Length` refers to
+<a href=#79 id=79 data-nosnippet>79</a>/// the compressed size on the wire.
+<a href=#80 id=80 data-nosnippet>80</a></span><span class="kw">pub const </span>X_DECODED_CONTENT_LENGTH: <span class="kw-2">&amp;</span>str = <span class="string">"X-Decoded-Content-Length"</span>;
 </code></pre></div></section></main></body></html>
