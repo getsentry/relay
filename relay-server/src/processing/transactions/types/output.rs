@@ -73,6 +73,7 @@ impl Forward for TransactionOutput {
         if let Some(spans) = spans {
             let event_id = transaction.headers.event_id();
             let retention = ctx.retention(|r| r.span.as_ref());
+            let trace_metric_retention = ctx.retention(|r| r.trace_metric.as_ref());
 
             for span in spans.split(|spans| spans.into_iter()) {
                 if let Ok(mut span) =
@@ -87,7 +88,10 @@ impl Forward for TransactionOutput {
 
                     if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
                         crate::processing::trace_metrics::produce_webvitals_metrics(
-                            s, &span, metrics,
+                            s,
+                            &span,
+                            metrics,
+                            trace_metric_retention,
                         );
                     }
 

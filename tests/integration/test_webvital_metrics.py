@@ -765,6 +765,11 @@ def test_v2(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    # Web vital metrics must use the trace metric retention, not the span retention.
+    project_config["config"]["retentions"] = {
+        "span": {"standard": 60, "downsampled": 120},
+        "traceMetric": {"standard": 30, "downsampled": 390},
+    }
 
     ts = datetime.now(timezone.utc)
     envelope = v2_envelope_with_spans(
@@ -851,9 +856,9 @@ def test_v2(
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
-            "retentionDays": 90,
+            "retentionDays": 30,
             "received": time_within_delta(),
-            "downsampledRetentionDays": 90,
+            "downsampledRetentionDays": 390,
         },
         {
             "organizationId": "1",
@@ -884,9 +889,9 @@ def test_v2(
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
-            "retentionDays": 90,
+            "retentionDays": 30,
             "received": time_within_delta(),
-            "downsampledRetentionDays": 90,
+            "downsampledRetentionDays": 390,
         },
         {
             "organizationId": "1",
@@ -920,9 +925,9 @@ def test_v2(
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
-            "retentionDays": 90,
+            "retentionDays": 30,
             "received": time_within_delta(),
-            "downsampledRetentionDays": 90,
+            "downsampledRetentionDays": 390,
         },
         {
             "organizationId": "1",
@@ -953,9 +958,9 @@ def test_v2(
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
-            "retentionDays": 90,
+            "retentionDays": 30,
             "received": time_within_delta(),
-            "downsampledRetentionDays": 90,
+            "downsampledRetentionDays": 390,
         },
         {
             "organizationId": "1",
@@ -986,8 +991,8 @@ def test_v2(
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
-            "retentionDays": 90,
+            "retentionDays": 30,
             "received": time_within_delta(),
-            "downsampledRetentionDays": 90,
+            "downsampledRetentionDays": 390,
         },
     ]

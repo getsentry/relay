@@ -10,6 +10,7 @@
 
 **Bug Fixes**:
 
+- Use the trace metric retention instead of the span retention for web vital metrics derived from spans.
 - Bump symbolic so Unreal crash parsing caps the length of individual values in the crash context XML. ([#6767](https://github.com/getsentry/relay/pull/6767))
 - Keep empty strings, arrays and objects in span `data` when converting transaction spans to streamed spans. ([#6725](https://github.com/getsentry/relay/pull/6725))
 - Prefer an explicit `user_agent.original` over transport client hints when inferring browser fields for logs, spans, and trace metrics. ([#6716](https://github.com/getsentry/relay/pull/6716))

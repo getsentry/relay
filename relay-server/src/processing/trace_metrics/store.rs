@@ -238,10 +238,13 @@ fn attributes(
 /// This is required right now to double-write these webvitals as trace metrics, while we
 /// still write the vitals as spans.  Eventually, the sdks will natively emit metrics and we
 /// can remove this code.
+///
+/// `retention` must be the trace metric retention of the project, not the span retention.
 pub fn produce_webvitals_metrics(
     s: processing::StoreHandle<'_>,
     span: &Managed<Box<crate::services::store::StoreSpanV2>>,
     metrics: Vec<TraceMetric>,
+    retention: Retention,
 ) {
     for metric in metrics {
         let trace_metric_headers = trace_metric::TraceMetricHeader {
@@ -259,10 +262,7 @@ pub fn produce_webvitals_metrics(
             &store::Context {
                 received_at: span.received_at(),
                 scoping: span.scoping(),
-                retention: processing::Retention {
-                    standard: span.retention_days,
-                    downsampled: span.downsampled_retention_days,
-                },
+                retention,
                 // Carry sample rates from the origin span so that metrics can be extrapolated.
                 derived_sample_rates: Some(SampleRates::from_span(&span.item)),
             },

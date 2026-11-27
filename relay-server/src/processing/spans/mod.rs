@@ -281,6 +281,7 @@ impl Forward for SpanOutput {
             Self::Indexed(spans) => spans,
         };
 
+        let trace_metric_retention = ctx.retention(|r| r.trace_metric.as_ref());
         let ctx = store::Context {
             server_sample_rate: spans.server_sample_rate,
             retention: ctx.retention(|r| r.span.as_ref()),
@@ -292,7 +293,12 @@ impl Forward for SpanOutput {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
                         if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
-                            processing::trace_metrics::produce_webvitals_metrics(s, &span, metrics);
+                            processing::trace_metrics::produce_webvitals_metrics(
+                                s,
+                                &span,
+                                metrics,
+                                trace_metric_retention,
+                            );
                         }
                         s.send_to_store(span);
                     }
