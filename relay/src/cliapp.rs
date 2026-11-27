@@ -148,14 +148,6 @@ pub fn make_app() -> Command {
                         .help("Names the current relay in the outcome source."),
                 )
                 .arg(
-                    Arg::new("shutdown_timeout")
-                        .value_name("seconds")
-                        .long("shutdown-timeout")
-                        .help(
-                            "Maximum number of seconds to wait for pending envelopes on shutdown.",
-                        ),
-                )
-                .arg(
                     Arg::new("instance")
                         .long("instance")
                         .help("The instance type of this Relay."),

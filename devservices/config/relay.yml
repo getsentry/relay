@@ -6,8 +6,6 @@ relay:
 logging:
   level: INFO
   enable_backtraces: false
-limits:
-  shutdown_timeout: 0
 processing:
   enabled: true
   kafka_config:

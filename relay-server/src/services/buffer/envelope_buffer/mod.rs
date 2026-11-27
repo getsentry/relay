@@ -205,10 +205,7 @@ impl PolymorphicEnvelopeBuffer {
                 buffer.flush().await;
                 ControlFlow::Break(())
             }
-            Self::InMemory(_) | Self::Sqlite(_) => {
-                relay_log::trace!("shutdown procedure not needed");
-                ControlFlow::Continue(())
-            }
+            Self::InMemory(_) | Self::Sqlite(_) => ControlFlow::Continue(()),
         }
     }
 
@@ -612,6 +609,7 @@ where
 }
 
 /// Contains the state of the first element in the buffer.
+#[derive(Debug)]
 pub enum Peek {
     Empty,
     Ready {

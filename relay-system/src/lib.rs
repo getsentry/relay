@@ -11,9 +11,7 @@
 //!
 //! # Shutdown
 //!
-//! The static [`Controller`] service can listen for process signals and initiate a graceful
-//! shutdown. Note that services must check a [`ShutdownHandle`] to receive these signals. See the
-//! struct level documentation for more information.
+//! The [`shutdown`] function provides a unified interface to await a shutdown signal.
 
 #![warn(missing_docs)]
 #![doc(

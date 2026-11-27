@@ -1,7 +1,6 @@
 //! Defines all services of Relay.
 //!
-//! Services require a tokio to run, see [`relay_system`] and particularly
-//! [`Controller`](relay_system::Controller) for more information.
+//! Services require a tokio runtime to run, see [`relay_system`] for more information.
 //!
 //! The web server is wrapped by [`HttpServer`](server::HttpServer). It starts the actual web server
 //! and dispatches the graceful shutdown signal. Internally, it creates several other services
@@ -17,16 +16,6 @@
 //!    (either another Relay or Sentry). It manages an internal client connector to throttle
 //!    requests and ensures this relay is authenticated before sending queries (e.g. project config
 //!    or public keys).
-//!
-//! # Example
-//!
-//! ```ignore
-//! use relay_server::controller::Controller;
-//! use relay_server::server::Server;
-//!
-//! Controller::run(|| Server::start())
-//!     .expect("failed to start relay");
-//! ```
 pub mod autoscaling;
 pub mod buffer;
 pub mod cogs;

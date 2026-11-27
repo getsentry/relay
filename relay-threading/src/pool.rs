@@ -92,6 +92,8 @@ where
             builder.spawn_handler.spawn(thread)?;
         }
 
+        // FIXME: join thread handler.
+
         Ok(Self {
             name: pool_name,
             tx,

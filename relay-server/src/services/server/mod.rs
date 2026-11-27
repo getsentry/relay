@@ -8,7 +8,7 @@ use axum::http::{HeaderName, HeaderValue, header};
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::{Config, ConfigSnapshot};
-use relay_system::{Controller, Service, Shutdown};
+use relay_system::Service;
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use tokio::net::TcpSocket;
 use tower::ServiceBuilder;
@@ -140,13 +140,9 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
     ));
 
     relay_system::spawn!(async move {
-        let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
+        let _ = relay_system::shutdown().await;
         relay_log::info!("Shutting down HTTP server");
-
-        match timeout {
-            Some(timeout) => handle.graceful_shutdown(Some(timeout)),
-            None => handle.shutdown(),
-        }
+        handle.graceful_shutdown(None);
     });
 
     server.serve(service).await
@@ -155,7 +151,7 @@ async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std:
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
-/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
+/// incoming traffic to them. The server stops when a shutdown is triggered.
 pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,

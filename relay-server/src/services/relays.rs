@@ -335,8 +335,6 @@ impl Service for RelayCacheService {
     type Interface = RelayCache;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_log::info!("key cache started");
-
         let mut expects_input = true;
         while expects_input || !self.channels.is_empty() || !self.fetch_tasks.is_empty() {
             tokio::select! {
@@ -363,8 +361,6 @@ impl Service for RelayCacheService {
                 }
             }
         }
-
-        relay_log::info!("key cache stopped");
     }
 }
 
