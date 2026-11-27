@@ -7,7 +7,7 @@
 - Copy the LCP and INP subpart attributes, such as `browser.web_vital.lcp.resource_load_delay` and `browser.web_vital.inp.input_delay`, onto web vital metrics. ([#6740](https://github.com/getsentry/relay/pull/6740))
 - Add `event.item_bundle` attachment type. ([#6756](https://github.com/getsentry/relay/pull/6756))
 - Add `heroku.source` (`app` or `heroku`) to Heroku log drain logs, to tell app output and platform lines apart. ([#6717](https://github.com/getsentry/relay/pull/6717))
-- Stop emitting the `browser.web_vital.*.score` metrics. The score ratio stays on the web vital value metrics as the `score.ratio.<vital>` attribute.
+- Stop emitting the `browser.web_vital.*.score` metrics. The score ratio stays on the web vital value metrics as the `score.ratio.<vital>` attribute. ([#6782](https://github.com/getsentry/relay/pull/6782))
 
 **Bug Fixes**:
 
